@@ -1,4 +1,4 @@
-# @shopify/theme-check-common
+# @platformos/theme-check-common
 
 ## 3.23.0
 
@@ -41,7 +41,7 @@
 - 0bfc7859: Find/fix multiple `echo` values
 - Updated dependencies [6a1512db]
 - Updated dependencies [1ebf9246]
-  - @shopify/liquid-html-parser@2.9.0
+  - @platformos/liquid-html-parser@2.9.0
 
 ## 3.20.1
 
@@ -187,7 +187,7 @@
 - 660bd7df: Allow UndefinedObject check on snippets
 - c0f42c37: Add reserved parameters to the `content_for` tag
 - Updated dependencies [067a75eb]
-  - @shopify/liquid-html-parser@2.8.2
+  - @platformos/liquid-html-parser@2.8.2
 
 ## 3.14.1
 
@@ -216,7 +216,7 @@
 ### Patch Changes
 
 - Updated dependencies [7ff54f02]
-  - @shopify/liquid-html-parser@2.8.1
+  - @platformos/liquid-html-parser@2.8.1
 
 ## 3.13.0
 
@@ -230,7 +230,7 @@
 - d9204c55: Fix: Be less strict about numbers in VariableName
 - 3fff76bf: Do not report errors when using a Liquid doc @param name of a non global variable
 - Updated dependencies [1a95a190]
-  - @shopify/liquid-html-parser@2.8.0
+  - @platformos/liquid-html-parser@2.8.0
 
 ## 3.12.0
 
@@ -276,7 +276,7 @@
 
 - dafba833: [Internal] Update `getSnippetDefinitions` and `RenderSnippetHoverProvider` to account for trimmed newline characters in description and example nodes content.
 - Updated dependencies [de877551]
-  - @shopify/liquid-html-parser@2.7.0
+  - @platformos/liquid-html-parser@2.7.0
 
 ## 3.10.0
 
@@ -313,7 +313,7 @@
 - Updated dependencies [10493c9d]
 - Updated dependencies [79c9f773]
 - Updated dependencies [9563715a]
-  - @shopify/liquid-html-parser@2.6.0
+  - @platformos/liquid-html-parser@2.6.0
 
 ## 3.9.0
 
@@ -348,7 +348,7 @@
 - Updated dependencies [d9dbc265]
 - Updated dependencies [2db3047f]
 - Updated dependencies [261c2958]
-  - @shopify/liquid-html-parser@2.5.0
+  - @platformos/liquid-html-parser@2.5.0
 
 ## 3.7.2
 
@@ -357,7 +357,7 @@
 - 2ef93d17: [internal] Add `strict` arg for `parseJSON`. The default schema JSON parsed is more laxed.
 - Updated dependencies [e57979e0]
 - Updated dependencies [8c9f5bcf]
-  - @shopify/liquid-html-parser@2.4.0
+  - @platformos/liquid-html-parser@2.4.0
 
 ## 3.7.1
 
@@ -365,7 +365,7 @@
 
 - 841ca6d1: Update repository URL for all packages to be case sensitive
 - Updated dependencies [841ca6d1]
-  - @shopify/liquid-html-parser@2.3.2
+  - @platformos/liquid-html-parser@2.3.2
 
 ## 3.7.0
 
@@ -378,14 +378,14 @@
 ### Patch Changes
 
 - Updated dependencies [dd0cd4d2]
-  - @shopify/liquid-html-parser@2.3.1
+  - @platformos/liquid-html-parser@2.3.1
 
 ## 3.6.1
 
 ### Patch Changes
 
 - Updated dependencies [ac55577a]
-  - @shopify/liquid-html-parser@2.3.0
+  - @platformos/liquid-html-parser@2.3.0
 
 ## 3.6.0
 
@@ -422,7 +422,7 @@
 ### Patch Changes
 
 - Updated dependencies [8912fab8]
-  - @shopify/liquid-html-parser@2.2.0
+  - @platformos/liquid-html-parser@2.2.0
 
 ## 3.3.0
 
@@ -442,7 +442,7 @@
 - 1083b2bc: Refactor `ValidBlockTarget` and `ValidLocalBlocks`.
 - 5a2caaee: Import `Section` and `ThemeBlock` types.
 - Updated dependencies [1f54be13]
-  - @shopify/liquid-html-parser@2.1.2
+  - @platformos/liquid-html-parser@2.1.2
 
 ## 3.2.2
 
@@ -473,7 +473,7 @@
 - 9a07208: [Bug fix] Metafield definitions should use `namespace.key` for auto-completion
 - f09c923: Moving internal methods around
 - Updated dependencies [c4813ff]
-  - @shopify/liquid-html-parser@2.1.1
+  - @platformos/liquid-html-parser@2.1.1
 
 ## 3.1.0
 
@@ -523,7 +523,7 @@
 ### Patch Changes
 
 - Updated dependencies [568d53b]
-  - @shopify/liquid-html-parser@2.1.0
+  - @platformos/liquid-html-parser@2.1.0
 
 ## 3.0.0
 
@@ -566,7 +566,7 @@
 ### Patch Changes
 
 - Updated dependencies [c664d52]
-  - @shopify/liquid-html-parser@2.0.5
+  - @platformos/liquid-html-parser@2.0.5
 
 ## 2.9.1
 
@@ -575,7 +575,7 @@
 - Updated dependencies [1c73710]
 - Updated dependencies [d1f9fef]
 - Updated dependencies [70e2241]
-  - @shopify/liquid-html-parser@2.0.4
+  - @platformos/liquid-html-parser@2.0.4
 
 ## 2.9.0
 
@@ -633,7 +633,7 @@
   - [manifest_theme.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
   - [manifest_theme_app_extension.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
 
-  `@shopify/theme-check-docs-updater` now reads those manifests and downloads the tree of dependency that they require. We will no longer need to make new theme-tools releases whenever we add new schemas. We'll be able to dev them and their file associations directly from Shopify/theme-liquid-docs and have downstream consumers updated automatically (the same way docs are automatically updated).
+  `@platformos/theme-check-docs-updater` now reads those manifests and downloads the tree of dependency that they require. We will no longer need to make new theme-tools releases whenever we add new schemas. We'll be able to dev them and their file associations directly from Shopify/theme-liquid-docs and have downstream consumers updated automatically (the same way docs are automatically updated).
 
 ## 2.4.0
 
@@ -727,7 +727,7 @@
 - 617b766: Add parser support for trailing commas at the end of Liquid tags and filters
 - Updated dependencies [0990c47]
 - Updated dependencies [617b766]
-  - @shopify/liquid-html-parser@2.0.3
+  - @platformos/liquid-html-parser@2.0.3
 
 ## 2.0.1
 
@@ -750,13 +750,13 @@
 
   - To lint Liquid files, we prefer _one_ Abstract Syntax Tree (AST) per file. Not one Liquid AST _and_ one HTML AST.
     - Theme Check Ruby had weird duplicated checks because of that (such as `ParserBlockingJavaScript` and `ParserBlockingScriptTag`)
-    - For that we reused the `@shopify/liquid-html-parser` we wrote for the prettier plugin.
+    - For that we reused the `@platformos/liquid-html-parser` we wrote for the prettier plugin.
     - One tree, two languages.
   - We wanted to run the linter in the Online Store Code Editor and—unlike WASM or WebSockets—there is no overhead or latency cost to running a TypeScript-based Language Server in a Web Worker.
   - Theme developers are Front End developers. If we were to make a Venn diagram, we'd observe that the intersection of Ruby _and_ Theme developers is much smaller than that of JavaScript _and_ Theme developers.
     - This makes the TypeScript codebase easier to contribute to.
     - This makes the plugin ecosystem more accessible (you're more likely to have a `package.json` file in a theme than a `Gemfile`).
-  - The `@shopify/cli` was rewritten in TypeScript. This made the Ruby integration very problematic.
+  - The `@platformos/cli` was rewritten in TypeScript. This made the Ruby integration very problematic.
     - Windows performance was terrible
     - Installation setup was weird, often problematic and complicated
   - The VS Code extension required a secondary installation step, and thus lost the ability to automatically self-update
@@ -767,7 +767,7 @@
 
 - 8451075: `package.json` and README cleanups
 - Updated dependencies [8451075]
-  - @shopify/liquid-html-parser@2.0.1
+  - @platformos/liquid-html-parser@2.0.1
 
 ## 1.22.0
 
@@ -780,7 +780,7 @@
 
 - Updated dependencies [636895f]
 - Updated dependencies [636895f]
-  - @shopify/liquid-html-parser@2.0.0
+  - @platformos/liquid-html-parser@2.0.0
 
 ## 1.21.0
 
@@ -810,7 +810,7 @@
 ### Patch Changes
 
 - Updated dependencies [78813ea]
-  - @shopify/liquid-html-parser@1.1.1
+  - @platformos/liquid-html-parser@1.1.1
 
 ## 1.19.0
 
@@ -832,7 +832,7 @@
 - aa33c5f: Fix hover, completion and `UndefinedObject` reporting of `{% increment var %}` and `{% decrement var %}`
 - 0d71145: Fix UnusedAssign false positives in raw-like nodes
 - Updated dependencies [0d71145]
-  - @shopify/liquid-html-parser@1.1.0
+  - @platformos/liquid-html-parser@1.1.0
 
 ## 1.18.0
 
@@ -926,16 +926,16 @@
 - b1b8366: Fix the recommended and severity values
 - c00e929: Bug fix for `AssetSizeAppBlockJavascript`: Corrects underlining issues.
 - Updated dependencies [02f4731]
-  - @shopify/liquid-html-parser@1.0.0
+  - @platformos/liquid-html-parser@1.0.0
 
 ## 1.12.1
 
 ### Patch Changes
 
-- Patch bump because it depends on @shopify/prettier-plugin-liquid
+- Patch bump because it depends on @platformos/prettier-plugin-liquid
 - Updated dependencies [5479a63]
 - Updated dependencies [5479a63]
-  - @shopify/prettier-plugin-liquid@1.2.3
+  - @platformos/prettier-plugin-liquid@1.2.3
 
 ## 1.12.0
 

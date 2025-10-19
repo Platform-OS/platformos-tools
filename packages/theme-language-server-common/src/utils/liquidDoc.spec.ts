@@ -1,4 +1,4 @@
-import { DocDefinition } from '@shopify/theme-check-common';
+import { DocDefinition } from '@platformos/theme-check-common';
 import { describe, expect, it } from 'vitest';
 import { formatLiquidDocContentMarkdown, formatLiquidDocParameter } from './liquidDoc';
 

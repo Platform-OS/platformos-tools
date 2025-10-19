@@ -1,4 +1,4 @@
-import { NodeTypes, LiquidNodeTypes, HtmlNodeTypes, Position } from '@shopify/liquid-html-parser';
+import { NodeTypes, LiquidNodeTypes, HtmlNodeTypes, Position } from '@platformos/liquid-html-parser';
 import {
   HtmlSelfClosingElement,
   LiquidHtmlNode,

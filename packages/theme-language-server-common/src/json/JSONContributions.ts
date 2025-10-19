@@ -4,7 +4,7 @@ import {
   SectionSchema,
   SourceCodeType,
   ThemeBlockSchema,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import {
   CompletionsCollector,
   JSONPath,

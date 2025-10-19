@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { URI } from 'vscode-uri';
-import { Offense, SourceCodeType, Severity, path } from '@shopify/theme-check-common';
+import { Offense, SourceCodeType, Severity, path } from '@platformos/theme-check-common';
 import { DiagnosticsManager } from '../../diagnostics';
 import { DocumentManager } from '../../documents';
 import { FixAllProvider } from './FixAllProvider';

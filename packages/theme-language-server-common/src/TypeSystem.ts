@@ -11,7 +11,7 @@ import {
   LiquidVariableLookup,
   NamedTags,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import {
   ArrayReturnType,
   DocsetEntry,
@@ -29,7 +29,7 @@ import {
   BasicParamTypes,
   getValidParamTypes,
   parseParamType,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import {
   GetThemeSettingsSchemaForURI,
   InputSetting,
@@ -37,7 +37,7 @@ import {
   isSettingsCategory,
 } from './settings';
 import { findLast, memo } from './utils';
-import { visit } from '@shopify/theme-check-common';
+import { visit } from '@platformos/theme-check-common';
 
 export class TypeSystem {
   constructor(

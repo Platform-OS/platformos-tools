@@ -13,9 +13,9 @@ Theme Check is available [to code editors that support the Language Server Proto
 
 You may be interested by the sibling modules:
 
-- `@shopify/theme-check-common`: (you are here) npm module to run checks on a [Theme](https://github.com/Shopify/theme-check-js/blob/121715a68cc107023fceb7983f590c468095cda9/packages/common/src/types.ts#L6-L8) (runtime agnostic).
-- `@shopify/theme-check-node`: npm module to run checks from a [Node.js ](https://nodejs.org) runtime.
-- `@shopify/theme-check-browser`: npm module to run checks in a Browser.
+- `@platformos/theme-check-common`: (you are here) npm module to run checks on a [Theme](https://github.com/Shopify/theme-check-js/blob/121715a68cc107023fceb7983f590c468095cda9/packages/common/src/types.ts#L6-L8) (runtime agnostic).
+- `@platformos/theme-check-node`: npm module to run checks from a [Node.js ](https://nodejs.org) runtime.
+- `@platformos/theme-check-browser`: npm module to run checks in a Browser.
 
 ## Installation
 
@@ -32,9 +32,9 @@ shopify theme check
 There are three libraries:
 
 ```
-yarn add @shopify/theme-check-node
-yarn add @shopify/theme-check-common
-yarn add @shopify/theme-check-browser
+yarn add @platformos/theme-check-node
+yarn add @platformos/theme-check-common
+yarn add @platformos/theme-check-browser
 ```
 
 ## Usage
@@ -49,7 +49,7 @@ The node version comes with batteries included. All you need is the root path of
 
 ```ts
 // simple-cli.ts
-import { check } from '@shopify/theme-check-node';
+import { check } from '@platformos/theme-check-node';
 
 async function main() {
   const root = process.cwd();
@@ -65,7 +65,7 @@ main();
 The browser version is a bit more complex, you need to provide your own implementation of all the dependency injections.
 
 ```ts
-import { simpleCheck, recommended, ThemeData, Config, Dependencies } from '@shopify/theme-check-browser';
+import { simpleCheck, recommended, ThemeData, Config, Dependencies } from '@platformos/theme-check-browser';
 
 async function main() {
   const themeDesc = {

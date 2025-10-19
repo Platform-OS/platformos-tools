@@ -1,4 +1,4 @@
-import { memo } from '@shopify/theme-check-common';
+import { memo } from '@platformos/theme-check-common';
 import {
   Connection,
   DidChangeConfigurationNotification,

@@ -1,7 +1,7 @@
 import { expect, describe, it } from 'vitest';
 import { UnusedDocParam } from './index';
 import { runLiquidCheck, applySuggestions } from '../../test';
-import { LoopNamedTags } from '@shopify/liquid-html-parser';
+import { LoopNamedTags } from '@platformos/liquid-html-parser';
 
 describe('Module: UnusedDocParam', () => {
   it('should not report a warning when a variable is defined and used', async () => {

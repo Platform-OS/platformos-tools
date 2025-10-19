@@ -1,4 +1,4 @@
-import { isError, SourceCodeType } from '@shopify/theme-check-common';
+import { isError, SourceCodeType } from '@platformos/theme-check-common';
 import { JSONPath } from 'vscode-json-languageservice';
 import { JSONCompletionItem } from 'vscode-json-languageservice/lib/umd/jsonContributions';
 import { RequestContext } from '../../RequestContext';

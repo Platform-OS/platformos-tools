@@ -1,4 +1,4 @@
-import { type LiquidVariableLookup } from '@shopify/liquid-html-parser';
+import { type LiquidVariableLookup } from '@platformos/liquid-html-parser';
 import {
   Severity,
   SourceCodeType,

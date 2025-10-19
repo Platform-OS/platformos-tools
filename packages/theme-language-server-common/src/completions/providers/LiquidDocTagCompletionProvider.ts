@@ -1,4 +1,4 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import {
   CompletionItem,
   CompletionItemKind,
@@ -8,7 +8,7 @@ import {
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../../utils/liquidDoc';
-import { filePathSupportsLiquidDoc } from '@shopify/theme-check-common';
+import { filePathSupportsLiquidDoc } from '@platformos/theme-check-common';
 
 export class LiquidDocTagCompletionProvider implements Provider {
   constructor() {}

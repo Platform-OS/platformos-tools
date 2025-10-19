@@ -11,9 +11,9 @@ This module serves as a runtime-agnostic Liquid Language Server so that we can a
 
 You may be interested in the sibling modules:
 
-- [`@shopify/theme-language-server-common`](../theme-language-server-common) — (you are here) Runtime agnostic [Language Server](https://microsoft.github.io/language-server-protocol/) that can run in browser or Node.js.  
-- [`@shopify/theme-language-server-browser`](../browser) — Browser specific wrapper over the common library.  
-- [`@shopify/theme-language-server-node`](../node) — Node.js specific wrapper over the common library.  
+- [`@platformos/theme-language-server-common`](../theme-language-server-common) — (you are here) Runtime agnostic [Language Server](https://microsoft.github.io/language-server-protocol/) that can run in browser or Node.js.  
+- [`@platformos/theme-language-server-browser`](../browser) — Browser specific wrapper over the common library.  
+- [`@platformos/theme-language-server-node`](../node) — Node.js specific wrapper over the common library.  
 
 ## Usage
 
@@ -25,7 +25,7 @@ The Node.js version comes with batteries included and uses <a href="https://en.w
 
 ```typescript
 // slim-cli.ts
-import { startServer } from '@shopify/theme-language-server-node';
+import { startServer } from '@platformos/theme-language-server-node';
 
 // start the server (batteries included)
 startServer();
@@ -37,7 +37,7 @@ The browser version accepts a [Web Worker](https://developer.mozilla.org/en-US/d
 
 ```typescript
 // worker.ts
-import { startServer, Dependencies } from '@shopify/theme-language-server-browser';
+import { startServer, Dependencies } from '@platformos/theme-language-server-browser';
 
 // Provide implementations for the dependency injections
 const dependencies: Dependencies = { /* ... */ };

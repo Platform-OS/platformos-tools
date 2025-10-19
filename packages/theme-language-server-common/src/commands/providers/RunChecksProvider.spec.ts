@@ -1,4 +1,4 @@
-import { path } from '@shopify/theme-check-common';
+import { path } from '@platformos/theme-check-common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Connection } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';

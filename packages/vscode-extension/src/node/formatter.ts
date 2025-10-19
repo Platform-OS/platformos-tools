@@ -1,4 +1,4 @@
-import LiquidPrettierPlugin from '@shopify/prettier-plugin-liquid';
+import LiquidPrettierPlugin from '@platformos/prettier-plugin-liquid';
 import * as prettier from 'prettier';
 import { Format } from '../common/formatter';
 

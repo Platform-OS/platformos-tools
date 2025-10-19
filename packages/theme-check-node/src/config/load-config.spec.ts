@@ -9,7 +9,7 @@ import {
   recommended,
   Severity,
   SourceCodeType,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import {
   createMockConfigFile,
   createMockNodeModule,

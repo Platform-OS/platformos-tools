@@ -13,13 +13,13 @@ import {
   memo,
   Mode,
   isError,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { Connection } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ClientCapabilities } from '../ClientCapabilities';
 import { percent, Progress } from '../progress';
 import { AugmentedSourceCode } from './types';
-import { extractDocDefinition } from '@shopify/theme-check-common';
+import { extractDocDefinition } from '@platformos/theme-check-common';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

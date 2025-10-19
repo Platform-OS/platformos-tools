@@ -1,5 +1,5 @@
-import { LiquidVariable, NodeTypes } from '@shopify/liquid-html-parser';
-import { path, SourceCodeType, visit } from '@shopify/theme-check-common';
+import { LiquidVariable, NodeTypes } from '@platformos/liquid-html-parser';
+import { path, SourceCodeType, visit } from '@platformos/theme-check-common';
 import { Connection } from 'vscode-languageserver';
 import {
   ApplyWorkspaceEditRequest,

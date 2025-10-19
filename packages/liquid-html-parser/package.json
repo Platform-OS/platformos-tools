@@ -1,5 +1,5 @@
 {
-  "name": "@shopify/liquid-html-parser",
+  "name": "@platformos/liquid-html-parser",
   "version": "2.9.0",
   "description": "Liquid HTML parser by Shopify",
   "author": "CP Clermont <cp.clermont@shopify.com>",

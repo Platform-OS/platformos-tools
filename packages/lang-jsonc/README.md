@@ -1,4 +1,4 @@
-# @shopify/lang-jsonc
+# @platformos/lang-jsonc
 
 [CodeMirror](https://codemirror.net/) 6 Language Support for VS Code's flavour of JSON with Comments. Trailing commas included.
 
@@ -8,7 +8,7 @@
 import { basicSetup } from 'codemirror';
 import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { jsonc } from '@shopify/lang-jsonc';
+import { jsonc } from '@platformos/lang-jsonc';
 
 new EditorView({
   parent: document.getElementById('json-editor'),

@@ -1,4 +1,4 @@
-# @shopify/lang-jsonc
+# @platformos/lang-jsonc
 
 ## 1.0.1
 
@@ -10,6 +10,6 @@
 
 ### Major Changes
 
-- 098519a: Initial release of `@shopify/lang-jsonc`
+- 098519a: Initial release of `@platformos/lang-jsonc`
 
   - Codemirror parser and syntax support for comments and trailing commas in JSON objects

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
-import { MetafieldDefinitionMap } from '@shopify/theme-check-common';
-import { GetDocDefinitionForURI, DocDefinition } from '@shopify/theme-check-common';
+import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
+import { GetDocDefinitionForURI, DocDefinition } from '@platformos/theme-check-common';
 
 const uri = 'file:///blocks/product-card.liquid';
 

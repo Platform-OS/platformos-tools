@@ -4,7 +4,7 @@ import {
   SourceCodeType,
   allChecks,
   path as pathUtils,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import path from 'node:path';
 import { fileExists } from '../file-utils';
 import { AbsolutePath } from '../temp';

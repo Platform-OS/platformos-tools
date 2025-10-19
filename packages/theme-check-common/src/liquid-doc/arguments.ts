@@ -7,7 +7,7 @@ import {
   RenderMarkup,
   LiquidNamedArgument,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { Context, LiquidDocParameter, SourceCodeType, StringCorrector } from '..';
 import {
   BasicParamTypes,

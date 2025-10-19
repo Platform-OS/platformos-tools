@@ -1,4 +1,4 @@
-import { AbstractFileSystem, UriString } from '@shopify/theme-check-common';
+import { AbstractFileSystem, UriString } from '@platformos/theme-check-common';
 import { AugmentedDependencies } from '../types';
 
 export function unique<T>(array: T[]): T[] {

@@ -1,4 +1,4 @@
-import { toLiquidHtmlAST } from '@shopify/liquid-html-parser';
+import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 
 import { toJSONNode } from './jsonc/parse';
 import * as path from './path';

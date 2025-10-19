@@ -3,7 +3,7 @@ import { GetThemeBlockSchema } from '../../JSONContributions';
 import { RequestContext } from '../../RequestContext';
 import { JSONCompletionItem, JSONCompletionProvider } from '../JSONCompletionProvider';
 import { isBlockFile, isSectionFile } from '../../utils';
-import { deepGet, isError, SourceCodeType } from '@shopify/theme-check-common';
+import { deepGet, isError, SourceCodeType } from '@platformos/theme-check-common';
 import { isSectionOrBlockSchema } from './BlockTypeCompletionProvider';
 import { GetTranslationsForURI } from '../../../translations';
 import { getSectionBlockByName, schemaSettingsPropertyCompletionItems } from '../../schemaSettings';

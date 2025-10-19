@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { createJSONDocumentLinksVisitor } from './DocumentLinksProvider';
-import { toJSONAST, visit } from '@shopify/theme-check-common';
+import { toJSONAST, visit } from '@platformos/theme-check-common';
 import { URI } from 'vscode-uri';
 import { JSONLanguageService } from '../JSONLanguageService';
 

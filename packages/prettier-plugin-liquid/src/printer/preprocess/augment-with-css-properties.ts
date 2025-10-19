@@ -1,4 +1,4 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import {
   CSS_DISPLAY_DEFAULT,
   CSS_DISPLAY_LIQUID_DEFAULT,

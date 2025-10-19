@@ -1,5 +1,5 @@
 {
-  "name": "@shopify/liquid-tm-grammar",
+  "name": "@platformos/liquid-tm-grammar",
   "version": "0.1.0",
   "description": "Shopify Liquid TextMate Grammar for Syntax Highlighting",
   "main": "liquid.tmLanguage",

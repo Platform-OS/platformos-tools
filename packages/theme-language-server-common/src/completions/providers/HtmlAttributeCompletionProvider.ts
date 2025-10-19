@@ -16,7 +16,7 @@ import {
 } from '../../utils';
 import { CURSOR, LiquidCompletionParams } from '../params';
 import { Provider, sortByName } from './common';
-import { LiquidHtmlNode } from '@shopify/liquid-html-parser';
+import { LiquidHtmlNode } from '@platformos/liquid-html-parser';
 
 export class HtmlAttributeCompletionProvider implements Provider {
   constructor(private readonly documentManager: DocumentManager) {}

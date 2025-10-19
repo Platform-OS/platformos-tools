@@ -1,4 +1,4 @@
-import { findCurrentNode, SourceCodeType } from '@shopify/theme-check-common';
+import { findCurrentNode, SourceCodeType } from '@platformos/theme-check-common';
 import { DefinitionLink, DefinitionParams } from 'vscode-languageserver';
 
 import { AugmentedJsonSourceCode, DocumentManager } from '../documents';

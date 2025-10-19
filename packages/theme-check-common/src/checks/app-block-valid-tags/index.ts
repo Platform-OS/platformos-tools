@@ -1,4 +1,4 @@
-import { LiquidRawTag, LiquidTag } from '@shopify/liquid-html-parser';
+import { LiquidRawTag, LiquidTag } from '@platformos/liquid-html-parser';
 import { ConfigTarget, LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 
 export enum ForbiddenTag {

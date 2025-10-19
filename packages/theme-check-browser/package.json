@@ -1,5 +1,5 @@
 {
-  "name": "@shopify/theme-check-browser",
+  "name": "@platformos/theme-check-browser",
   "version": "3.23.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,6 +26,6 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@shopify/theme-check-common": "3.23.0"
+    "@platformos/theme-check-common": "3.23.0"
   }
 }

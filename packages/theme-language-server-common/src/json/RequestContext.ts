@@ -1,5 +1,5 @@
-import { LiquidHtmlNode, LiquidRawTag } from '@shopify/liquid-html-parser';
-import { isError, JSONNode, SourceCodeType } from '@shopify/theme-check-common';
+import { LiquidHtmlNode, LiquidRawTag } from '@platformos/liquid-html-parser';
+import { isError, JSONNode, SourceCodeType } from '@platformos/theme-check-common';
 import {
   AugmentedJsonSourceCode,
   AugmentedLiquidSourceCode,

@@ -6,8 +6,8 @@ import {
   makeFileExists,
   path,
   recursiveReadDirectory,
-} from '@shopify/theme-check-node';
-import { Dependencies, recommendedChecks } from '@shopify/theme-language-server-common';
+} from '@platformos/theme-check-node';
+import { Dependencies, recommendedChecks } from '@platformos/theme-language-server-common';
 import { URI, Utils } from 'vscode-uri';
 
 // Calls to `fs` should be done with this

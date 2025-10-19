@@ -6,8 +6,8 @@ import {
   SectionSchema,
   ThemeBlockSchema,
   toSchema,
-} from '@shopify/theme-check-common';
-import { NodeFileSystem } from '@shopify/theme-check-node';
+} from '@platformos/theme-check-common';
+import { NodeFileSystem } from '@platformos/theme-check-node';
 import { vi } from 'vitest';
 import { URI } from 'vscode-uri';
 import { getWebComponentMap } from '../getWebComponentMap';

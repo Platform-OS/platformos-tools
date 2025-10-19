@@ -1,4 +1,4 @@
-import { Offense, SourceCodeType } from '@shopify/theme-check-common';
+import { Offense, SourceCodeType } from '@platformos/theme-check-common';
 import { vi, expect, describe, it, beforeEach } from 'vitest';
 import { Connection, Diagnostic, Range } from 'vscode-languageserver';
 import { DiagnosticsManager } from './DiagnosticsManager';

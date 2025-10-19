@@ -13,7 +13,7 @@ import {
   FileStat,
   FileTuple,
   FileType,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 
 export {
   toSourceCode,

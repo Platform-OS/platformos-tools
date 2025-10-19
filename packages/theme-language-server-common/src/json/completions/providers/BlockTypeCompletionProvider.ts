@@ -5,7 +5,7 @@ import {
   SectionSchema,
   ThemeBlockSchema,
   ThemeSchemaType,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { JSONPath } from 'vscode-json-languageservice';
 import { JSONCompletionItem } from 'vscode-json-languageservice/lib/umd/jsonContributions';
 import { CompletionItemKind } from 'vscode-languageserver-protocol';

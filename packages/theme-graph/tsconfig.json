@@ -12,10 +12,10 @@
     "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
-      "@shopify/liquid-html-parser": [
+      "@platformos/liquid-html-parser": [
         "../liquid-html-parser/src"
       ],
-      "@shopify/theme-check-common": [
+      "@platformos/theme-check-common": [
         "../theme-check-common/src"
       ],
     }

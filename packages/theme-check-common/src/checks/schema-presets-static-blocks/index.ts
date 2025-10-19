@@ -1,4 +1,4 @@
-import { NamedTags, NodeTypes } from '@shopify/liquid-html-parser';
+import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { getLocEnd, getLocStart, nodeAtPath } from '../../json';
 import { getSchema } from '../../to-schema';
 import { ArrayNode, LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';

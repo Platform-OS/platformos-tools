@@ -6,7 +6,7 @@ import {
   Reference,
   Location,
   Range,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { Program } from 'acorn';
 
 export interface IDependencies {

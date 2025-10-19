@@ -1,13 +1,13 @@
-import { ThemeLiquidDocsManager } from '@shopify/theme-check-docs-updater';
-import { AbstractFileSystem, NodeFileSystem } from '@shopify/theme-check-node';
-import { startServer as startCoreServer } from '@shopify/theme-language-server-common';
+import { ThemeLiquidDocsManager } from '@platformos/theme-check-docs-updater';
+import { AbstractFileSystem, NodeFileSystem } from '@platformos/theme-check-node';
+import { startServer as startCoreServer } from '@platformos/theme-language-server-common';
 import { stdin, stdout } from 'node:process';
 import { createConnection } from 'vscode-languageserver/node';
 import { loadConfig } from './dependencies';
 import { fetchMetafieldDefinitionsForURI } from './metafieldDefinitions';
 
-export { NodeFileSystem } from '@shopify/theme-check-node';
-export * from '@shopify/theme-language-server-common';
+export { NodeFileSystem } from '@platformos/theme-check-node';
+export * from '@platformos/theme-language-server-common';
 
 export const getConnection = () => createConnection(stdin, stdout);
 

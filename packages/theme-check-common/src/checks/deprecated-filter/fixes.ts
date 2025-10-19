@@ -7,7 +7,7 @@ import {
   LiquidString,
   LiquidVariableLookup,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { Fixer, LiquidHtmlSuggestion, SourceCodeType } from '../../types';
 import { isNodeOfType } from '../utils';
 

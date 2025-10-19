@@ -7,7 +7,7 @@ import {
   LiquidDocExampleNode,
   LiquidDocDescriptionNode,
   LiquidDocPromptNode,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { Doc, doc } from 'prettier';
 
 import {

@@ -3,7 +3,7 @@ import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { HtmlData } from '../../docset';
 import { sortByName } from './common';
-import { MetafieldDefinitionMap } from '@shopify/theme-check-common';
+import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
 
 const allTagNames = [...HtmlData.tags].sort(sortByName).map((x) => x.name);
 

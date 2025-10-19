@@ -1,4 +1,4 @@
-import { AbstractFileSystem } from '@shopify/theme-check-common';
+import { AbstractFileSystem } from '@platformos/theme-check-common';
 
 export class CachedFileSystem implements AbstractFileSystem {
   readFile: Cached<AbstractFileSystem['readFile']>;

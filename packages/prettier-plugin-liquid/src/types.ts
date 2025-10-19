@@ -1,7 +1,7 @@
 import { Doc } from 'prettier';
 import type { AstPath } from 'prettier';
 import type { ParserOptions as ParserOptions3 } from 'prettier3';
-import * as AST from '@shopify/liquid-html-parser';
+import * as AST from '@platformos/liquid-html-parser';
 
 export type CommonKeys<T1, T2> = Extract<keyof T1, keyof T2>;
 export type { AstPath };

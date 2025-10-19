@@ -1,4 +1,4 @@
-import { NodeTypes, Position } from '@shopify/liquid-html-parser';
+import { NodeTypes, Position } from '@platformos/liquid-html-parser';
 import { Doc, doc } from 'prettier';
 
 import {

@@ -1,7 +1,7 @@
 import { describe, afterEach, beforeEach, it, expect, vi } from 'vitest';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
-import { MetafieldDefinitionMap } from '@shopify/theme-check-common';
+import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
 import { TextEdit, InsertTextFormat } from 'vscode-languageserver-protocol';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CURSOR } from '../params';

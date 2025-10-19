@@ -1,4 +1,4 @@
-import { Template } from '@shopify/theme-check-common';
+import { Template } from '@platformos/theme-check-common';
 
 // this is very very optimistic...
 export function isValidTemplate(parsed: unknown): parsed is Template.Template {

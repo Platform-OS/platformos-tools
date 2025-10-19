@@ -4,7 +4,7 @@ import {
   NodeTypes,
   Position,
   toLiquidHtmlAST,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { CompletionParams } from 'vscode-languageserver';
 import { AugmentedLiquidSourceCode, AugmentedSourceCode } from '../../documents';
 import { fix } from './fix';

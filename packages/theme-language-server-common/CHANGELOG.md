@@ -1,4 +1,4 @@
-# @shopify/theme-language-server-common
+# @platformos/theme-language-server-common
 
 ## 2.20.0
 
@@ -16,8 +16,8 @@
 - Updated dependencies [450b3f28]
 - Updated dependencies [4bcb1126]
 - Updated dependencies [dd1f4c8f]
-  - @shopify/theme-graph@0.2.1
-  - @shopify/theme-check-common@3.23.0
+  - @platformos/theme-graph@0.2.1
+  - @platformos/theme-check-common@3.23.0
 
 ## 2.19.0
 
@@ -33,8 +33,8 @@
 - Updated dependencies [0380e438]
 - Updated dependencies [2784a83b]
 - Updated dependencies [39a6e632]
-  - @shopify/theme-check-common@3.22.0
-  - @shopify/theme-graph@0.2.0
+  - @platformos/theme-check-common@3.22.0
+  - @platformos/theme-graph@0.2.0
 
 ## 2.18.0
 
@@ -52,9 +52,9 @@
 - Updated dependencies [374ff3de]
 - Updated dependencies [b226e52c]
 - Updated dependencies [0bfc7859]
-  - @shopify/theme-graph@0.1.5
-  - @shopify/liquid-html-parser@2.9.0
-  - @shopify/theme-check-common@3.21.0
+  - @platformos/theme-graph@0.1.5
+  - @platformos/liquid-html-parser@2.9.0
+  - @platformos/theme-check-common@3.21.0
 
 ## 2.17.5
 
@@ -62,8 +62,8 @@
 
 - Updated dependencies
 - Updated dependencies [d605777f]
-  - @shopify/theme-graph@0.1.4
-  - @shopify/theme-check-common@3.20.1
+  - @platformos/theme-graph@0.1.4
+  - @platformos/theme-check-common@3.20.1
 
 ## 2.17.4
 
@@ -74,8 +74,8 @@
 - Updated dependencies [4ae72589]
 - Updated dependencies [23992051]
 - Updated dependencies [8ab6a8e7]
-  - @shopify/theme-check-common@3.20.0
-  - @shopify/theme-graph@0.1.3
+  - @platformos/theme-check-common@3.20.0
+  - @platformos/theme-graph@0.1.3
 
 ## 2.17.3
 
@@ -83,8 +83,8 @@
 
 - Updated dependencies [ce7c01e5]
 - Updated dependencies [a3a513dc]
-  - @shopify/theme-graph@0.1.2
-  - @shopify/theme-check-common@3.19.0
+  - @platformos/theme-graph@0.1.2
+  - @platformos/theme-check-common@3.19.0
 
 ## 2.17.2
 
@@ -93,8 +93,8 @@
 - ce5cb33a: Gracefully handle files that are not part of a theme
 - Updated dependencies
 - Updated dependencies [ce5cb33a]
-  - @shopify/theme-graph@0.1.1
-  - @shopify/theme-check-common@3.18.1
+  - @platformos/theme-graph@0.1.1
+  - @platformos/theme-check-common@3.18.1
 
 ## 2.17.1
 
@@ -115,8 +115,8 @@
 - Updated dependencies [606053f1]
 - Updated dependencies [4477a6d9]
 - Updated dependencies [444c9edc]
-  - @shopify/theme-check-common@3.18.0
-  - @shopify/theme-graph@0.1.0
+  - @platformos/theme-check-common@3.18.0
+  - @platformos/theme-graph@0.1.0
 
 ## 2.16.0
 
@@ -171,7 +171,7 @@
   ```
 
 - Updated dependencies [4d9ba806]
-  - @shopify/theme-check-common@3.17.1
+  - @platformos/theme-check-common@3.17.1
 
 ## 2.15.2
 
@@ -179,14 +179,14 @@
 
 - Updated dependencies [20625a1b]
 - Updated dependencies [c3504252]
-  - @shopify/theme-check-common@3.17.0
+  - @platformos/theme-check-common@3.17.0
 
 ## 2.15.1
 
 ### Patch Changes
 
 - Updated dependencies [83b1b760]
-  - @shopify/theme-check-common@3.16.1
+  - @platformos/theme-check-common@3.16.1
 
 ## 2.15.0
 
@@ -223,14 +223,14 @@
 - Updated dependencies [a1fa7376]
 - Updated dependencies [90577cd2]
 - Updated dependencies [19f5589b]
-  - @shopify/theme-check-common@3.16.0
+  - @platformos/theme-check-common@3.16.0
 
 ## 2.14.1
 
 ### Patch Changes
 
 - Updated dependencies [d7949240]
-  - @shopify/theme-check-common@3.15.1
+  - @platformos/theme-check-common@3.15.1
 
 ## 2.14.0
 
@@ -250,8 +250,8 @@
 - Updated dependencies [39339f88]
 - Updated dependencies [660bd7df]
 - Updated dependencies [c0f42c37]
-  - @shopify/theme-check-common@3.15.0
-  - @shopify/liquid-html-parser@2.8.2
+  - @platformos/theme-check-common@3.15.0
+  - @platformos/liquid-html-parser@2.8.2
 
 ## 2.13.2
 
@@ -264,7 +264,7 @@
 ### Patch Changes
 
 - Updated dependencies [906455b0]
-  - @shopify/theme-check-common@3.14.1
+  - @platformos/theme-check-common@3.14.1
 
 ## 2.13.0
 
@@ -282,7 +282,7 @@
 - Updated dependencies [75c02293]
 - Updated dependencies [e75f896d]
 - Updated dependencies [034a803b]
-  - @shopify/theme-check-common@3.14.0
+  - @platformos/theme-check-common@3.14.0
 
 ## 2.12.1
 
@@ -290,8 +290,8 @@
 
 - 7ff54f02: Remove dead code
 - Updated dependencies [7ff54f02]
-  - @shopify/liquid-html-parser@2.8.1
-  - @shopify/theme-check-common@3.13.1
+  - @platformos/liquid-html-parser@2.8.1
+  - @platformos/theme-check-common@3.13.1
 
 ## 2.12.0
 
@@ -309,8 +309,8 @@
 - Updated dependencies [886ee4b1]
 - Updated dependencies [cf51a514]
 - Updated dependencies [3fff76bf]
-  - @shopify/liquid-html-parser@2.8.0
-  - @shopify/theme-check-common@3.13.0
+  - @platformos/liquid-html-parser@2.8.0
+  - @platformos/theme-check-common@3.13.0
 
 ## 2.11.0
 
@@ -327,7 +327,7 @@
 - Updated dependencies [d42ed610]
 - Updated dependencies [ea9f2451]
 - Updated dependencies [6268e838]
-  - @shopify/theme-check-common@3.12.0
+  - @platformos/theme-check-common@3.12.0
 
 ## 2.10.1
 
@@ -339,7 +339,7 @@
   - https://shopify.dev/docs/api/admin-graphql/latest/queries/metafieldDefinitions
 
 - Updated dependencies [9ffbe27d]
-  - @shopify/theme-check-common@3.11.1
+  - @platformos/theme-check-common@3.11.1
 
 ## 2.10.0
 
@@ -372,8 +372,8 @@
 - Updated dependencies [48d4d79e]
 - Updated dependencies [de877551]
 - Updated dependencies [a851f379]
-  - @shopify/theme-check-common@3.11.0
-  - @shopify/liquid-html-parser@2.7.0
+  - @platformos/theme-check-common@3.11.0
+  - @platformos/liquid-html-parser@2.7.0
 
 ## 2.9.1
 
@@ -392,8 +392,8 @@
 - Updated dependencies [dc8c9fda]
 - Updated dependencies [beccb69e]
 - Updated dependencies [9563715a]
-  - @shopify/liquid-html-parser@2.6.0
-  - @shopify/theme-check-common@3.10.0
+  - @platformos/liquid-html-parser@2.6.0
+  - @platformos/theme-check-common@3.10.0
 
 ## 2.9.0
 
@@ -407,7 +407,7 @@
 
 - Updated dependencies [f077a9ec]
 - Updated dependencies [0bb780de]
-  - @shopify/theme-check-common@3.9.0
+  - @platformos/theme-check-common@3.9.0
 
 ## 2.8.0
 
@@ -451,8 +451,8 @@
 - Updated dependencies [2db3047f]
 - Updated dependencies [261c2958]
 - Updated dependencies [d32afb7f]
-  - @shopify/theme-check-common@3.8.0
-  - @shopify/liquid-html-parser@2.5.0
+  - @platformos/theme-check-common@3.8.0
+  - @platformos/liquid-html-parser@2.5.0
 
 ## 2.7.0
 
@@ -472,8 +472,8 @@
 - Updated dependencies [2ef93d17]
 - Updated dependencies [e57979e0]
 - Updated dependencies [8c9f5bcf]
-  - @shopify/theme-check-common@3.7.2
-  - @shopify/liquid-html-parser@2.4.0
+  - @platformos/theme-check-common@3.7.2
+  - @platformos/liquid-html-parser@2.4.0
 
 ## 2.6.1
 
@@ -481,8 +481,8 @@
 
 - 841ca6d1: Update repository URL for all packages to be case sensitive
 - Updated dependencies [841ca6d1]
-  - @shopify/liquid-html-parser@2.3.2
-  - @shopify/theme-check-common@3.7.1
+  - @platformos/liquid-html-parser@2.3.2
+  - @platformos/theme-check-common@3.7.1
 
 ## 2.6.0
 
@@ -503,8 +503,8 @@
 - Updated dependencies [913d5386]
 - Updated dependencies [931dc9b9]
 - Updated dependencies [dd0cd4d2]
-  - @shopify/theme-check-common@3.7.0
-  - @shopify/liquid-html-parser@2.3.1
+  - @platformos/theme-check-common@3.7.0
+  - @platformos/liquid-html-parser@2.3.1
 
 ## 2.5.0
 
@@ -527,8 +527,8 @@
 ### Patch Changes
 
 - Updated dependencies [ac55577a]
-  - @shopify/liquid-html-parser@2.3.0
-  - @shopify/theme-check-common@3.6.1
+  - @platformos/liquid-html-parser@2.3.0
+  - @platformos/theme-check-common@3.6.1
 
 ## 2.4.0
 
@@ -562,7 +562,7 @@
 - Updated dependencies [c60e61ba]
 - Updated dependencies [b31e0f85]
 - Updated dependencies [34c2268a]
-  - @shopify/theme-check-common@3.6.0
+  - @platformos/theme-check-common@3.6.0
 
 ## 2.3.3
 
@@ -572,7 +572,7 @@
 - Updated dependencies [d7436b4a]
 - Updated dependencies [6f1862c8]
 - Updated dependencies [d01e657b]
-  - @shopify/theme-check-common@3.5.0
+  - @platformos/theme-check-common@3.5.0
 
 ## 2.3.2
 
@@ -586,8 +586,8 @@
 
 - Updated dependencies [8912fab8]
 - Updated dependencies [51ec6a7a]
-  - @shopify/liquid-html-parser@2.2.0
-  - @shopify/theme-check-common@3.4.0
+  - @platformos/liquid-html-parser@2.2.0
+  - @platformos/theme-check-common@3.4.0
 
 ## 2.3.0
 
@@ -623,22 +623,22 @@
 - Updated dependencies [a579d59e]
 - Updated dependencies [5a2caaee]
 - Updated dependencies [d2b5942a]
-  - @shopify/theme-check-common@3.3.0
-  - @shopify/liquid-html-parser@2.1.2
+  - @platformos/theme-check-common@3.3.0
+  - @platformos/liquid-html-parser@2.1.2
 
 ## 2.2.2
 
 ### Patch Changes
 
 - Updated dependencies [16e2f37]
-  - @shopify/theme-check-common@3.2.2
+  - @platformos/theme-check-common@3.2.2
 
 ## 2.2.1
 
 ### Patch Changes
 
 - Updated dependencies [4a18a78]
-  - @shopify/theme-check-common@3.2.1
+  - @platformos/theme-check-common@3.2.1
 
 ## 2.2.0
 
@@ -666,8 +666,8 @@
 - Updated dependencies [b558bfe]
 - Updated dependencies [9a07208]
 - Updated dependencies [f09c923]
-  - @shopify/theme-check-common@3.2.0
-  - @shopify/liquid-html-parser@2.1.1
+  - @platformos/theme-check-common@3.2.0
+  - @platformos/liquid-html-parser@2.1.1
 
 ## 2.1.0
 
@@ -722,8 +722,8 @@
 - Updated dependencies [568d53b]
 - Updated dependencies [568d53b]
 - Updated dependencies [6014dfd]
-  - @shopify/theme-check-common@3.1.0
-  - @shopify/liquid-html-parser@2.1.0
+  - @platformos/theme-check-common@3.1.0
+  - @platformos/liquid-html-parser@2.1.0
 
 ## 2.0.0
 
@@ -788,7 +788,7 @@
 - Updated dependencies [4b574c1]
 - Updated dependencies [4b574c1]
 - Updated dependencies [5fab0e9]
-  - @shopify/theme-check-common@3.0.0
+  - @platformos/theme-check-common@3.0.0
 
 ## 1.14.0
 
@@ -820,8 +820,8 @@
 
 - c664d52: Fix HTML element close tag auto-insertion inside Liquid branches
 - Updated dependencies [c664d52]
-  - @shopify/liquid-html-parser@2.0.5
-  - @shopify/theme-check-common@2.9.2
+  - @platformos/liquid-html-parser@2.0.5
+  - @platformos/theme-check-common@2.9.2
 
 ## 1.13.0
 
@@ -906,8 +906,8 @@
 - Updated dependencies [1c73710]
 - Updated dependencies [d1f9fef]
 - Updated dependencies [70e2241]
-  - @shopify/liquid-html-parser@2.0.4
-  - @shopify/theme-check-common@2.9.1
+  - @platformos/liquid-html-parser@2.0.4
+  - @platformos/theme-check-common@2.9.1
 
 ## 1.12.1
 
@@ -915,27 +915,27 @@
 
 - Updated dependencies [457f9cb]
 - Updated dependencies [edb7f2e]
-  - @shopify/theme-check-common@2.9.0
+  - @platformos/theme-check-common@2.9.0
 
 ## 1.12.0
 
 ### Minor Changes
 
-- d7c6204: Expose the `parseJSON` API in `@shopify/theme-language-server-common`
+- d7c6204: Expose the `parseJSON` API in `@platformos/theme-language-server-common`
 
 ## 1.11.3
 
 ### Patch Changes
 
 - Updated dependencies [bb79d83]
-  - @shopify/theme-check-common@2.7.0
+  - @platformos/theme-check-common@2.7.0
 
 ## 1.11.2
 
 ### Patch Changes
 
 - Updated dependencies [ff78229]
-  - @shopify/theme-check-common@2.6.0
+  - @platformos/theme-check-common@2.6.0
 
 ## 1.11.1
 
@@ -943,7 +943,7 @@
 
 - ec1fbd7: The comment object should be available to section files
 - Updated dependencies [ec1fbd7]
-  - @shopify/theme-check-common@2.5.1
+  - @platformos/theme-check-common@2.5.1
 
 ## 1.11.0
 
@@ -970,7 +970,7 @@
   - [manifest_theme.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
   - [manifest_theme_app_extension.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
 
-  `@shopify/theme-check-docs-updater` now reads those manifests and downloads the tree of dependency that they require. We will no longer need to make new theme-tools releases whenever we add new schemas. We'll be able to dev them and their file associations directly from Shopify/theme-liquid-docs and have downstream consumers updated automatically (the same way docs are automatically updated).
+  `@platformos/theme-check-docs-updater` now reads those manifests and downloads the tree of dependency that they require. We will no longer need to make new theme-tools releases whenever we add new schemas. We'll be able to dev them and their file associations directly from Shopify/theme-liquid-docs and have downstream consumers updated automatically (the same way docs are automatically updated).
 
 - 03b41e1: Breaking: the `Config` object requires a `context` property.
 
@@ -981,7 +981,7 @@
 - Updated dependencies [03b41e1]
 - Updated dependencies [03b41e1]
 - Updated dependencies [03b41e1]
-  - @shopify/theme-check-common@2.5.0
+  - @platformos/theme-check-common@2.5.0
 
 ## 1.10.0
 
@@ -1025,7 +1025,7 @@
 
 - Updated dependencies [767d223]
 - Updated dependencies [767d223]
-  - @shopify/theme-check-common@2.4.0
+  - @platformos/theme-check-common@2.4.0
 
 ## 1.9.0
 
@@ -1066,26 +1066,26 @@
 - Updated dependencies [8e3c7e2]
 - Updated dependencies [8e3c7e2]
 - Updated dependencies [8e3c7e2]
-  - @shopify/theme-check-common@2.3.0
+  - @platformos/theme-check-common@2.3.0
 
 ## 1.8.3
 
 ### Patch Changes
 
-- @shopify/theme-check-common@2.2.2
+- @platformos/theme-check-common@2.2.2
 
 ## 1.8.2
 
 ### Patch Changes
 
 - Updated dependencies [8710bde]
-  - @shopify/theme-check-common@2.2.1
+  - @platformos/theme-check-common@2.2.1
 
 ## 1.8.1
 
 ### Patch Changes
 
-- @shopify/theme-check-common@2.2.0
+- @platformos/theme-check-common@2.2.0
 
 ## 1.8.0
 
@@ -1114,19 +1114,19 @@
 
 - Updated dependencies [042f1e0]
 - Updated dependencies [a9ae65f]
-  - @shopify/theme-check-common@2.1.0
+  - @platformos/theme-check-common@2.1.0
 
 ## 1.7.7
 
 ### Patch Changes
 
-- @shopify/theme-check-common@2.0.4
+- @platformos/theme-check-common@2.0.4
 
 ## 1.7.6
 
 ### Patch Changes
 
-- @shopify/theme-check-common@2.0.3
+- @platformos/theme-check-common@2.0.3
 
 ## 1.7.5
 
@@ -1135,8 +1135,8 @@
 - 617b766: Add parser support for trailing commas at the end of Liquid tags and filters
 - Updated dependencies [0990c47]
 - Updated dependencies [617b766]
-  - @shopify/liquid-html-parser@2.0.3
-  - @shopify/theme-check-common@2.0.2
+  - @platformos/liquid-html-parser@2.0.3
+  - @platformos/theme-check-common@2.0.2
 
 ## 1.7.4
 
@@ -1144,8 +1144,8 @@
 
 - Updated dependencies [fa02f1b]
 - Updated dependencies [8f19b87]
-  - @shopify/liquid-html-parser@2.0.2
-  - @shopify/theme-check-common@2.0.1
+  - @platformos/liquid-html-parser@2.0.2
+  - @platformos/theme-check-common@2.0.1
 
 ## 1.7.3
 
@@ -1160,8 +1160,8 @@
 - 8451075: `package.json` and README cleanups
 - Updated dependencies [8451075]
 - Updated dependencies [8451075]
-  - @shopify/theme-check-common@2.0.0
-  - @shopify/liquid-html-parser@2.0.1
+  - @platformos/theme-check-common@2.0.0
+  - @platformos/liquid-html-parser@2.0.1
 
 ## 1.7.1
 
@@ -1171,8 +1171,8 @@
 - Updated dependencies [636895f]
 - Updated dependencies [aeb9b3f]
 - Updated dependencies [636895f]
-  - @shopify/theme-check-common@1.22.0
-  - @shopify/liquid-html-parser@2.0.0
+  - @platformos/theme-check-common@1.22.0
+  - @platformos/liquid-html-parser@2.0.0
 
 ## 1.7.0
 
@@ -1191,7 +1191,7 @@
 
 - Updated dependencies [772a1ce]
 - Updated dependencies [b05a6a8]
-  - @shopify/theme-check-common@1.21.0
+  - @platformos/theme-check-common@1.21.0
 
 ## 1.6.0
 
@@ -1214,7 +1214,7 @@
 - 79b0549: Add `app` object support for theme app extensions
 - Updated dependencies [79b0549]
 - Updated dependencies [ac1deb4]
-  - @shopify/theme-check-common@1.20.1
+  - @platformos/theme-check-common@1.20.1
 
 ## 1.5.0
 
@@ -1226,15 +1226,15 @@
 
 - 78813ea: Fix root finding for theme app extensions without a config file
 - Updated dependencies [78813ea]
-  - @shopify/liquid-html-parser@1.1.1
-  - @shopify/theme-check-common@1.20.0
+  - @platformos/liquid-html-parser@1.1.1
+  - @platformos/theme-check-common@1.20.0
 
 ## 1.4.6
 
 ### Patch Changes
 
 - Updated dependencies [d9f3063]
-  - @shopify/theme-check-common@1.19.0
+  - @platformos/theme-check-common@1.19.0
 
 ## 1.4.5
 
@@ -1242,7 +1242,7 @@
 
 - Updated dependencies [fe54680]
 - Updated dependencies [e00c319]
-  - @shopify/theme-check-common@1.18.2
+  - @platformos/theme-check-common@1.18.2
 
 ## 1.4.4
 
@@ -1252,8 +1252,8 @@
 - Updated dependencies [0d71145]
 - Updated dependencies [aa33c5f]
 - Updated dependencies [0d71145]
-  - @shopify/liquid-html-parser@1.1.0
-  - @shopify/theme-check-common@1.18.1
+  - @platformos/liquid-html-parser@1.1.0
+  - @platformos/theme-check-common@1.18.1
 
 ## 1.4.3
 
@@ -1262,7 +1262,7 @@
 - dacdd9f: Add blocks/ files contextual completion, hover and UndefinedObject support
 - Updated dependencies [96d4d5e]
 - Updated dependencies [dacdd9f]
-  - @shopify/theme-check-common@1.18.0
+  - @platformos/theme-check-common@1.18.0
 
 ## 1.4.2
 
@@ -1293,7 +1293,7 @@
 
 - Updated dependencies [2cf7a11]
 - Updated dependencies [2cf7a11]
-  - @shopify/theme-check-common@1.17.0
+  - @platformos/theme-check-common@1.17.0
 
 ## 1.3.2
 
@@ -1309,7 +1309,7 @@
 - Updated dependencies [c0298e7]
 - Updated dependencies [6fad756]
 - Updated dependencies [fc86c91]
-  - @shopify/theme-check-common@1.16.1
+  - @platformos/theme-check-common@1.16.1
 
 ## 1.3.1
 
@@ -1319,7 +1319,7 @@
 - d71a5e2: Fix completion, hover and UndefinedObject reporting of tablerowloop and forloop variables
 - Updated dependencies [279a464]
 - Updated dependencies [d71a5e2]
-  - @shopify/theme-check-common@1.16.0
+  - @platformos/theme-check-common@1.16.0
 
 ## 1.3.0
 
@@ -1331,14 +1331,14 @@
 
 - Updated dependencies [6c2c00f]
 - Updated dependencies [f1a642f]
-  - @shopify/theme-check-common@1.15.0
+  - @platformos/theme-check-common@1.15.0
 
 ## 1.2.1
 
 ### Patch Changes
 
 - Updated dependencies [b7514f4]
-  - @shopify/theme-check-common@1.14.1
+  - @platformos/theme-check-common@1.14.1
 
 ## 1.2.0
 
@@ -1350,7 +1350,7 @@
 
 - Updated dependencies [beeb85f]
 - Updated dependencies [a05aebb]
-  - @shopify/theme-check-common@1.14.0
+  - @platformos/theme-check-common@1.14.0
 
 ## 1.1.0
 
@@ -1367,13 +1367,13 @@
 
 - 14b9ee2: Fixup package.json configs
 - Updated dependencies [14b9ee2]
-  - @shopify/theme-check-common@1.13.1
+  - @platformos/theme-check-common@1.13.1
 
 ## 1.0.0
 
 ### Major Changes
 
-- 319bcf1: `@shopify/theme-language-server` initial release
+- 319bcf1: `@platformos/theme-language-server` initial release
 
 ### Minor Changes
 
@@ -1398,10 +1398,10 @@
 - Updated dependencies [b1b8366]
 - Updated dependencies [b1b8366]
 - Updated dependencies [c00e929]
-  - @shopify/theme-check-common@1.13.0
-  - @shopify/liquid-html-parser@1.0.0
+  - @platformos/theme-check-common@1.13.0
+  - @platformos/liquid-html-parser@1.0.0
 
-# @shopify/liquid-language-server-common
+# @platformos/liquid-language-server-common
 
 ## 1.7.1
 
@@ -1411,8 +1411,8 @@
 - Updated dependencies
 - Updated dependencies [5479a63]
 - Updated dependencies [5479a63]
-  - @shopify/theme-check-common@1.12.1
-  - @shopify/prettier-plugin-liquid@1.2.3
+  - @platformos/theme-check-common@1.12.1
+  - @platformos/prettier-plugin-liquid@1.2.3
 
 ## 1.7.0
 
@@ -1429,7 +1429,7 @@
 - Updated dependencies [5ba20bd]
 - Updated dependencies [5ba20bd]
 - Updated dependencies [5ba20bd]
-  - @shopify/theme-check-common@1.12.0
+  - @platformos/theme-check-common@1.12.0
 
 ## 1.6.0
 
@@ -1437,7 +1437,7 @@
 
 - 8f2270f: Fixed: type of docset entry data rendered
 - 6bad30d: Introduce Intelligent Code Completion foundations + Liquid tags completion provider
-- 57f28a6: Bump `@shopify/theme-check-common` to v1.9.0
+- 57f28a6: Bump `@platformos/theme-check-common` to v1.9.0
 
 ### Patch Changes
 
@@ -1447,7 +1447,7 @@
 
 ### Minor Changes
 
-- 57f28a6: Bump `@shopify/theme-check-common` to v1.9.0
+- 57f28a6: Bump `@platformos/theme-check-common` to v1.9.0
 
 ## 1.4.1
 
@@ -1500,7 +1500,7 @@
 ### Minor Changes
 
 - 6f5c92c: Start listening for workspace/did{Create,Rename,Delete}Files notifications
-- Bump @shopify/theme-check-common to v1.4.0
+- Bump @platformos/theme-check-common to v1.4.0
 
   - Adds new check: `TranslationKeyExists`
 

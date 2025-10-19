@@ -1,5 +1,5 @@
 {
-  "name": "@shopify/lang-jsonc",
+  "name": "@platformos/lang-jsonc",
   "version": "1.0.1",
   "description": "JSONC language support for CodeMirror",
   "publishConfig": {

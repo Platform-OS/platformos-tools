@@ -1,5 +1,5 @@
 import { DocumentHighlight, DocumentHighlightParams } from 'vscode-languageserver';
-import { LiquidHtmlNode } from '@shopify/theme-check-common';
+import { LiquidHtmlNode } from '@platformos/theme-check-common';
 
 export interface BaseDocumentHighlightsProvider {
   documentHighlights: (

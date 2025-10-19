@@ -2,7 +2,7 @@ import {
   recursiveReadDirectory as findAllFiles,
   path,
   UriString,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { IDependencies, ThemeGraph, ThemeModule } from '../types';
 import { augmentDependencies } from './augment';
 import { getModule } from './module';

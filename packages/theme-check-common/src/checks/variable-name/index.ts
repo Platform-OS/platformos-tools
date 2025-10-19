@@ -4,7 +4,7 @@ import {
   LiquidTagAssign,
   LiquidTagCapture,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, SchemaProp, Severity, SourceCodeType } from '../../types';
 import { camelCase, kebabCase, snakeCase } from 'lodash';
 

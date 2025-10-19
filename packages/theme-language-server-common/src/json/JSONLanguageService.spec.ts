@@ -1,4 +1,4 @@
-import { Mode, Translations } from '@shopify/theme-check-common';
+import { Mode, Translations } from '@platformos/theme-check-common';
 import { assert, beforeEach, describe, expect, it } from 'vitest';
 import { DocumentManager } from '../documents';
 import { JSONLanguageService } from './JSONLanguageService';

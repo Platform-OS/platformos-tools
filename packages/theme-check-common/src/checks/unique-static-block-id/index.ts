@@ -1,4 +1,4 @@
-import { NamedTags, NodeTypes } from '@shopify/liquid-html-parser';
+import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isContentForBlock } from '../../utils/markup';
 

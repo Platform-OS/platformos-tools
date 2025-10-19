@@ -1,4 +1,4 @@
-import { ContentForMarkup, NodeTypes } from '@shopify/liquid-html-parser';
+import { ContentForMarkup, NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import {
   CLOSEST_ARGUMENT,

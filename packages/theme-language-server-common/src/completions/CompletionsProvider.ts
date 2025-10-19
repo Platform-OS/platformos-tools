@@ -3,7 +3,7 @@ import {
   MetafieldDefinitionMap,
   SourceCodeType,
   ThemeDocset,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { CompletionItem, CompletionParams } from 'vscode-languageserver';
 import { TypeSystem } from '../TypeSystem';
 import { DocumentManager } from '../documents';

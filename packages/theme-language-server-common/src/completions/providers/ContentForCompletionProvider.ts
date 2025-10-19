@@ -1,4 +1,4 @@
-import { LiquidString, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidString, NodeTypes } from '@platformos/liquid-html-parser';
 import {
   CompletionItem,
   CompletionItemKind,

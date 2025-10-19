@@ -1,5 +1,5 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { ContentForMarkup } from '@shopify/liquid-html-parser';
+import { ContentForMarkup } from '@platformos/liquid-html-parser';
 import {
   getBlockName,
   getLiquidDocParams,

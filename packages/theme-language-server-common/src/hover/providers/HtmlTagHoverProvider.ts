@@ -1,4 +1,4 @@
-import { LiquidHtmlNode } from '@shopify/theme-check-common';
+import { LiquidHtmlNode } from '@platformos/theme-check-common';
 import { Hover } from 'vscode-languageserver';
 import { HtmlData, renderHtmlEntry } from '../../docset';
 import { isNamedHtmlElementNode, isTextNode } from '../../utils';

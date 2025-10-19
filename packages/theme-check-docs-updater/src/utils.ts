@@ -9,4 +9,4 @@ export const tap = <T>(tappingFunction: (x: T) => void) => {
   };
 };
 
-export { memo, memoize } from '@shopify/theme-check-common';
+export { memo, memoize } from '@platformos/theme-check-common';

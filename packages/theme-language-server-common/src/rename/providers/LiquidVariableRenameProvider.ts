@@ -10,8 +10,8 @@ import {
   Position,
   RenderMarkup,
   TextNode,
-} from '@shopify/liquid-html-parser';
-import { JSONNode, SourceCodeType, visit } from '@shopify/theme-check-common';
+} from '@platformos/liquid-html-parser';
+import { JSONNode, SourceCodeType, visit } from '@platformos/theme-check-common';
 import { Connection, Range } from 'vscode-languageserver';
 import {
   ApplyWorkspaceEditRequest,

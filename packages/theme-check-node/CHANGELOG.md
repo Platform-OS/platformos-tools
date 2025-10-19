@@ -1,4 +1,4 @@
-# @shopify/theme-check-node
+# @platformos/theme-check-node
 
 ## 3.23.0
 
@@ -12,8 +12,8 @@
 - Updated dependencies [450b3f28]
 - Updated dependencies [4bcb1126]
 - Updated dependencies [dd1f4c8f]
-  - @shopify/theme-check-common@3.23.0
-  - @shopify/theme-check-docs-updater@3.23.0
+  - @platformos/theme-check-common@3.23.0
+  - @platformos/theme-check-docs-updater@3.23.0
 
 ## 3.22.0
 
@@ -29,8 +29,8 @@
 - Updated dependencies [0380e438]
 - Updated dependencies [2784a83b]
 - Updated dependencies [39a6e632]
-  - @shopify/theme-check-common@3.22.0
-  - @shopify/theme-check-docs-updater@3.22.0
+  - @platformos/theme-check-common@3.22.0
+  - @platformos/theme-check-docs-updater@3.22.0
 
 ## 3.21.0
 
@@ -42,8 +42,8 @@
 - Updated dependencies [374ff3de]
 - Updated dependencies [b226e52c]
 - Updated dependencies [0bfc7859]
-  - @shopify/theme-check-common@3.21.0
-  - @shopify/theme-check-docs-updater@3.21.0
+  - @platformos/theme-check-common@3.21.0
+  - @platformos/theme-check-docs-updater@3.21.0
 
 ## 3.20.1
 
@@ -51,8 +51,8 @@
 
 - d605777f: Remove theme-check ValidDocParamNames
 - Updated dependencies [d605777f]
-  - @shopify/theme-check-common@3.20.1
-  - @shopify/theme-check-docs-updater@3.20.1
+  - @platformos/theme-check-common@3.20.1
+  - @platformos/theme-check-docs-updater@3.20.1
 
 ## 3.20.0
 
@@ -63,24 +63,24 @@
 - Updated dependencies [4ae72589]
 - Updated dependencies [23992051]
 - Updated dependencies [8ab6a8e7]
-  - @shopify/theme-check-common@3.20.0
-  - @shopify/theme-check-docs-updater@3.20.0
+  - @platformos/theme-check-common@3.20.0
+  - @platformos/theme-check-docs-updater@3.20.0
 
 ## 3.19.0
 
 ### Patch Changes
 
 - Updated dependencies [a3a513dc]
-  - @shopify/theme-check-common@3.19.0
-  - @shopify/theme-check-docs-updater@3.19.0
+  - @platformos/theme-check-common@3.19.0
+  - @platformos/theme-check-docs-updater@3.19.0
 
 ## 3.18.1
 
 ### Patch Changes
 
 - Updated dependencies [ce5cb33a]
-  - @shopify/theme-check-common@3.18.1
-  - @shopify/theme-check-docs-updater@3.18.1
+  - @platformos/theme-check-common@3.18.1
+  - @platformos/theme-check-docs-updater@3.18.1
 
 ## 3.18.0
 
@@ -97,16 +97,16 @@
 - Updated dependencies [4477a6d9]
 - Updated dependencies [606053f1]
 - Updated dependencies [444c9edc]
-  - @shopify/theme-check-common@3.18.0
-  - @shopify/theme-check-docs-updater@3.18.0
+  - @platformos/theme-check-common@3.18.0
+  - @platformos/theme-check-docs-updater@3.18.0
 
 ## 3.17.1
 
 ### Patch Changes
 
 - Updated dependencies [4d9ba806]
-  - @shopify/theme-check-common@3.17.1
-  - @shopify/theme-check-docs-updater@3.17.1
+  - @platformos/theme-check-common@3.17.1
+  - @platformos/theme-check-docs-updater@3.17.1
 
 ## 3.17.0
 
@@ -114,16 +114,16 @@
 
 - Updated dependencies [20625a1b]
 - Updated dependencies [c3504252]
-  - @shopify/theme-check-common@3.17.0
-  - @shopify/theme-check-docs-updater@3.17.0
+  - @platformos/theme-check-common@3.17.0
+  - @platformos/theme-check-docs-updater@3.17.0
 
 ## 3.16.1
 
 ### Patch Changes
 
 - Updated dependencies [83b1b760]
-  - @shopify/theme-check-common@3.16.1
-  - @shopify/theme-check-docs-updater@3.16.1
+  - @platformos/theme-check-common@3.16.1
+  - @platformos/theme-check-docs-updater@3.16.1
 
 ## 3.16.0
 
@@ -134,16 +134,16 @@
 - Updated dependencies [a1fa7376]
 - Updated dependencies [90577cd2]
 - Updated dependencies [19f5589b]
-  - @shopify/theme-check-common@3.16.0
-  - @shopify/theme-check-docs-updater@3.16.0
+  - @platformos/theme-check-common@3.16.0
+  - @platformos/theme-check-docs-updater@3.16.0
 
 ## 3.15.1
 
 ### Patch Changes
 
 - Updated dependencies [d7949240]
-  - @shopify/theme-check-common@3.15.1
-  - @shopify/theme-check-docs-updater@3.15.1
+  - @platformos/theme-check-common@3.15.1
+  - @platformos/theme-check-docs-updater@3.15.1
 
 ## 3.15.0
 
@@ -189,16 +189,16 @@
 - Updated dependencies [39339f88]
 - Updated dependencies [660bd7df]
 - Updated dependencies [c0f42c37]
-  - @shopify/theme-check-common@3.15.0
-  - @shopify/theme-check-docs-updater@3.15.0
+  - @platformos/theme-check-common@3.15.0
+  - @platformos/theme-check-docs-updater@3.15.0
 
 ## 3.14.1
 
 ### Patch Changes
 
 - Updated dependencies [906455b0]
-  - @shopify/theme-check-common@3.14.1
-  - @shopify/theme-check-docs-updater@3.14.1
+  - @platformos/theme-check-common@3.14.1
+  - @platformos/theme-check-docs-updater@3.14.1
 
 ## 3.14.0
 
@@ -210,15 +210,15 @@
 - Updated dependencies [e75f896d]
 - Updated dependencies [034a803b]
 - Updated dependencies [e75f896d]
-  - @shopify/theme-check-common@3.14.0
-  - @shopify/theme-check-docs-updater@3.14.0
+  - @platformos/theme-check-common@3.14.0
+  - @platformos/theme-check-docs-updater@3.14.0
 
 ## 3.13.1
 
 ### Patch Changes
 
-- @shopify/theme-check-common@3.13.1
-- @shopify/theme-check-docs-updater@3.13.1
+- @platformos/theme-check-common@3.13.1
+- @platformos/theme-check-docs-updater@3.13.1
 
 ## 3.13.0
 
@@ -228,8 +228,8 @@
 - Updated dependencies [886ee4b1]
 - Updated dependencies [cf51a514]
 - Updated dependencies [3fff76bf]
-  - @shopify/theme-check-common@3.13.0
-  - @shopify/theme-check-docs-updater@3.13.0
+  - @platformos/theme-check-common@3.13.0
+  - @platformos/theme-check-docs-updater@3.13.0
 
 ## 3.12.0
 
@@ -239,8 +239,8 @@
 - Updated dependencies [d42ed610]
 - Updated dependencies [ea9f2451]
 - Updated dependencies [6268e838]
-  - @shopify/theme-check-common@3.12.0
-  - @shopify/theme-check-docs-updater@3.12.0
+  - @platformos/theme-check-common@3.12.0
+  - @platformos/theme-check-docs-updater@3.12.0
 
 ## 3.11.1
 
@@ -248,8 +248,8 @@
 
 - 5a5b7592: [Bug fix] Fix file URI handling for Windows platforms
 - Updated dependencies [9ffbe27d]
-  - @shopify/theme-check-common@3.11.1
-  - @shopify/theme-check-docs-updater@3.11.1
+  - @platformos/theme-check-common@3.11.1
+  - @platformos/theme-check-docs-updater@3.11.1
 
 ## 3.11.0
 
@@ -277,8 +277,8 @@
 - Updated dependencies [c55077e7]
 - Updated dependencies [48d4d79e]
 - Updated dependencies [a851f379]
-  - @shopify/theme-check-common@3.11.0
-  - @shopify/theme-check-docs-updater@3.11.0
+  - @platformos/theme-check-common@3.11.0
+  - @platformos/theme-check-docs-updater@3.11.0
 
 ## 3.10.0
 
@@ -313,8 +313,8 @@
 - Updated dependencies [754f7f66]
 - Updated dependencies [dc8c9fda]
 - Updated dependencies [beccb69e]
-  - @shopify/theme-check-common@3.10.0
-  - @shopify/theme-check-docs-updater@3.10.0
+  - @platformos/theme-check-common@3.10.0
+  - @platformos/theme-check-docs-updater@3.10.0
 
 ## 3.9.0
 
@@ -322,8 +322,8 @@
 
 - Updated dependencies [f077a9ec]
 - Updated dependencies [0bb780de]
-  - @shopify/theme-check-common@3.9.0
-  - @shopify/theme-check-docs-updater@3.9.0
+  - @platformos/theme-check-common@3.9.0
+  - @platformos/theme-check-docs-updater@3.9.0
 
 ## 3.8.0
 
@@ -345,16 +345,16 @@
 - Updated dependencies [055cef77]
 - Updated dependencies [e9c1d98a]
 - Updated dependencies [d32afb7f]
-  - @shopify/theme-check-common@3.8.0
-  - @shopify/theme-check-docs-updater@3.8.0
+  - @platformos/theme-check-common@3.8.0
+  - @platformos/theme-check-docs-updater@3.8.0
 
 ## 3.7.2
 
 ### Patch Changes
 
 - Updated dependencies [2ef93d17]
-  - @shopify/theme-check-common@3.7.2
-  - @shopify/theme-check-docs-updater@3.7.2
+  - @platformos/theme-check-common@3.7.2
+  - @platformos/theme-check-docs-updater@3.7.2
 
 ## 3.7.1
 
@@ -362,8 +362,8 @@
 
 - 841ca6d1: Update repository URL for all packages to be case sensitive
 - Updated dependencies [841ca6d1]
-  - @shopify/theme-check-docs-updater@3.7.1
-  - @shopify/theme-check-common@3.7.1
+  - @platformos/theme-check-docs-updater@3.7.1
+  - @platformos/theme-check-common@3.7.1
 
 ## 3.7.0
 
@@ -372,15 +372,15 @@
 - Updated dependencies [c85a6131]
 - Updated dependencies [913d5386]
 - Updated dependencies [931dc9b9]
-  - @shopify/theme-check-common@3.7.0
-  - @shopify/theme-check-docs-updater@3.7.0
+  - @platformos/theme-check-common@3.7.0
+  - @platformos/theme-check-docs-updater@3.7.0
 
 ## 3.6.1
 
 ### Patch Changes
 
-- @shopify/theme-check-common@3.6.1
-- @shopify/theme-check-docs-updater@3.6.1
+- @platformos/theme-check-common@3.6.1
+- @platformos/theme-check-docs-updater@3.6.1
 
 ## 3.6.0
 
@@ -390,8 +390,8 @@
 - Updated dependencies [c60e61ba]
 - Updated dependencies [b31e0f85]
 - Updated dependencies [34c2268a]
-  - @shopify/theme-check-common@3.6.0
-  - @shopify/theme-check-docs-updater@3.6.0
+  - @platformos/theme-check-common@3.6.0
+  - @platformos/theme-check-docs-updater@3.6.0
 
 ## 3.5.0
 
@@ -406,8 +406,8 @@
 - Updated dependencies [d7436b4a]
 - Updated dependencies [6f1862c8]
 - Updated dependencies [d01e657b]
-  - @shopify/theme-check-common@3.5.0
-  - @shopify/theme-check-docs-updater@3.5.0
+  - @platformos/theme-check-common@3.5.0
+  - @platformos/theme-check-docs-updater@3.5.0
 
 ## 3.4.0
 
@@ -415,8 +415,8 @@
 
 - Updated dependencies [8912fab8]
 - Updated dependencies [51ec6a7a]
-  - @shopify/theme-check-common@3.4.0
-  - @shopify/theme-check-docs-updater@3.4.0
+  - @platformos/theme-check-common@3.4.0
+  - @platformos/theme-check-docs-updater@3.4.0
 
 ## 3.3.0
 
@@ -440,16 +440,16 @@
 - Updated dependencies [a579d59e]
 - Updated dependencies [5a2caaee]
 - Updated dependencies [d2b5942a]
-  - @shopify/theme-check-common@3.3.0
-  - @shopify/theme-check-docs-updater@3.3.0
+  - @platformos/theme-check-common@3.3.0
+  - @platformos/theme-check-docs-updater@3.3.0
 
 ## 3.2.2
 
 ### Patch Changes
 
 - Updated dependencies [16e2f37]
-  - @shopify/theme-check-common@3.2.2
-  - @shopify/theme-check-docs-updater@3.2.2
+  - @platformos/theme-check-common@3.2.2
+  - @platformos/theme-check-docs-updater@3.2.2
 
 ## 3.2.1
 
@@ -457,8 +457,8 @@
 
 - 4a18a78: Temporarily disable ValidBlockTarget
 - Updated dependencies [4a18a78]
-  - @shopify/theme-check-common@3.2.1
-  - @shopify/theme-check-docs-updater@3.2.1
+  - @platformos/theme-check-common@3.2.1
+  - @platformos/theme-check-docs-updater@3.2.1
 
 ## 3.2.0
 
@@ -481,8 +481,8 @@
 - Updated dependencies [b558bfe]
 - Updated dependencies [9a07208]
 - Updated dependencies [f09c923]
-  - @shopify/theme-check-common@3.2.0
-  - @shopify/theme-check-docs-updater@3.2.0
+  - @platformos/theme-check-common@3.2.0
+  - @platformos/theme-check-docs-updater@3.2.0
 
 ## 3.1.0
 
@@ -496,8 +496,8 @@
 - Updated dependencies [b431db7]
 - Updated dependencies [568d53b]
 - Updated dependencies [6014dfd]
-  - @shopify/theme-check-common@3.1.0
-  - @shopify/theme-check-docs-updater@3.1.0
+  - @platformos/theme-check-common@3.1.0
+  - @platformos/theme-check-docs-updater@3.1.0
 
 ## 3.0.0
 
@@ -524,22 +524,22 @@
 - Updated dependencies [4b574c1]
 - Updated dependencies [4b574c1]
 - Updated dependencies [5fab0e9]
-  - @shopify/theme-check-common@3.0.0
-  - @shopify/theme-check-docs-updater@3.0.0
+  - @platformos/theme-check-common@3.0.0
+  - @platformos/theme-check-docs-updater@3.0.0
 
 ## 2.9.2
 
 ### Patch Changes
 
-- @shopify/theme-check-common@2.9.2
-- @shopify/theme-check-docs-updater@2.9.2
+- @platformos/theme-check-common@2.9.2
+- @platformos/theme-check-docs-updater@2.9.2
 
 ## 2.9.1
 
 ### Patch Changes
 
-- @shopify/theme-check-common@2.9.1
-- @shopify/theme-check-docs-updater@2.9.1
+- @platformos/theme-check-common@2.9.1
+- @platformos/theme-check-docs-updater@2.9.1
 
 ## 2.9.0
 
@@ -551,8 +551,8 @@
 
 - Updated dependencies [457f9cb]
 - Updated dependencies [edb7f2e]
-  - @shopify/theme-check-common@2.9.0
-  - @shopify/theme-check-docs-updater@2.9.0
+  - @platformos/theme-check-common@2.9.0
+  - @platformos/theme-check-docs-updater@2.9.0
 
 ## 2.7.0
 
@@ -563,16 +563,16 @@
 ### Patch Changes
 
 - Updated dependencies [bb79d83]
-  - @shopify/theme-check-common@2.7.0
-  - @shopify/theme-check-docs-updater@2.7.0
+  - @platformos/theme-check-common@2.7.0
+  - @platformos/theme-check-docs-updater@2.7.0
 
 ## 2.6.0
 
 ### Patch Changes
 
 - Updated dependencies [ff78229]
-  - @shopify/theme-check-common@2.6.0
-  - @shopify/theme-check-docs-updater@2.6.0
+  - @platformos/theme-check-common@2.6.0
+  - @platformos/theme-check-docs-updater@2.6.0
 
 ## 2.5.1
 
@@ -582,8 +582,8 @@
 - 312d804: Add logging support to the docs loader
 - Updated dependencies [ec1fbd7]
 - Updated dependencies [312d804]
-  - @shopify/theme-check-common@2.5.1
-  - @shopify/theme-check-docs-updater@2.5.1
+  - @platformos/theme-check-common@2.5.1
+  - @platformos/theme-check-docs-updater@2.5.1
 
 ## 2.5.0
 
@@ -616,15 +616,15 @@
   - [manifest_theme.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
   - [manifest_theme_app_extension.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
 
-  `@shopify/theme-check-docs-updater` now reads those manifests and downloads the tree of dependency that they require. We will no longer need to make new theme-tools releases whenever we add new schemas. We'll be able to dev them and their file associations directly from Shopify/theme-liquid-docs and have downstream consumers updated automatically (the same way docs are automatically updated).
+  `@platformos/theme-check-docs-updater` now reads those manifests and downloads the tree of dependency that they require. We will no longer need to make new theme-tools releases whenever we add new schemas. We'll be able to dev them and their file associations directly from Shopify/theme-liquid-docs and have downstream consumers updated automatically (the same way docs are automatically updated).
 
 ### Patch Changes
 
 - Updated dependencies [03b41e1]
 - Updated dependencies [03b41e1]
 - Updated dependencies [03b41e1]
-  - @shopify/theme-check-docs-updater@2.5.0
-  - @shopify/theme-check-common@2.5.0
+  - @platformos/theme-check-docs-updater@2.5.0
+  - @platformos/theme-check-common@2.5.0
 
 ## 2.4.0
 
@@ -633,8 +633,8 @@
 - Updated dependencies [767d223]
 - Updated dependencies [767d223]
 - Updated dependencies [767d223]
-  - @shopify/theme-check-common@2.4.0
-  - @shopify/theme-check-docs-updater@2.4.0
+  - @platformos/theme-check-common@2.4.0
+  - @platformos/theme-check-docs-updater@2.4.0
 
 ## 2.3.0
 
@@ -652,24 +652,24 @@
 - Updated dependencies [8e3c7e2]
 - Updated dependencies [8e3c7e2]
 - Updated dependencies [8e3c7e2]
-  - @shopify/theme-check-common@2.3.0
-  - @shopify/theme-check-docs-updater@2.3.0
+  - @platformos/theme-check-common@2.3.0
+  - @platformos/theme-check-docs-updater@2.3.0
 
 ## 2.2.2
 
 ### Patch Changes
 
 - 08ca661: Fix theme file glob on Windows (CLI issue)
-  - @shopify/theme-check-common@2.2.2
-  - @shopify/theme-check-docs-updater@2.2.2
+  - @platformos/theme-check-common@2.2.2
+  - @platformos/theme-check-docs-updater@2.2.2
 
 ## 2.2.1
 
 ### Patch Changes
 
 - Updated dependencies [8710bde]
-  - @shopify/theme-check-common@2.2.1
-  - @shopify/theme-check-docs-updater@2.2.1
+  - @platformos/theme-check-common@2.2.1
+  - @platformos/theme-check-docs-updater@2.2.1
 
 ## 2.2.0
 
@@ -690,8 +690,8 @@
   No config file or `.git` folder required.
 
 - d66d49c: Unify root finding algorithm for node LS and TC packages
-  - @shopify/theme-check-common@2.2.0
-  - @shopify/theme-check-docs-updater@2.2.0
+  - @platformos/theme-check-common@2.2.0
+  - @platformos/theme-check-docs-updater@2.2.0
 
 ## 2.1.0
 
@@ -725,24 +725,24 @@
 
 - Updated dependencies [042f1e0]
 - Updated dependencies [a9ae65f]
-  - @shopify/theme-check-docs-updater@2.1.0
-  - @shopify/theme-check-common@2.1.0
+  - @platformos/theme-check-docs-updater@2.1.0
+  - @platformos/theme-check-common@2.1.0
 
 ## 2.0.4
 
 ### Patch Changes
 
 - Updated dependencies [84f9eda]
-  - @shopify/theme-check-docs-updater@2.0.4
-  - @shopify/theme-check-common@2.0.4
+  - @platformos/theme-check-docs-updater@2.0.4
+  - @platformos/theme-check-common@2.0.4
 
 ## 2.0.3
 
 ### Patch Changes
 
 - e5022ee: Fix loadConfig export to automatically select .theme-check.yml if present
-  - @shopify/theme-check-common@2.0.3
-  - @shopify/theme-check-docs-updater@2.0.3
+  - @platformos/theme-check-common@2.0.3
+  - @platformos/theme-check-docs-updater@2.0.3
 
 ## 2.0.2
 
@@ -752,16 +752,16 @@
 - 617b766: Add parser support for trailing commas at the end of Liquid tags and filters
 - Updated dependencies [0990c47]
 - Updated dependencies [617b766]
-  - @shopify/theme-check-common@2.0.2
-  - @shopify/theme-check-docs-updater@2.0.2
+  - @platformos/theme-check-common@2.0.2
+  - @platformos/theme-check-docs-updater@2.0.2
 
 ## 2.0.1
 
 ### Patch Changes
 
 - Updated dependencies [8f19b87]
-  - @shopify/theme-check-common@2.0.1
-  - @shopify/theme-check-docs-updater@2.0.1
+  - @platformos/theme-check-common@2.0.1
+  - @platformos/theme-check-docs-updater@2.0.1
 
 ## 2.0.0
 
@@ -777,13 +777,13 @@
 
   - To lint Liquid files, we prefer _one_ Abstract Syntax Tree (AST) per file. Not one Liquid AST _and_ one HTML AST.
     - Theme Check Ruby had weird duplicated checks because of that (such as `ParserBlockingJavaScript` and `ParserBlockingScriptTag`)
-    - For that we reused the `@shopify/liquid-html-parser` we wrote for the prettier plugin.
+    - For that we reused the `@platformos/liquid-html-parser` we wrote for the prettier plugin.
     - One tree, two languages.
   - We wanted to run the linter in the Online Store Code Editor and—unlike WASM or WebSockets—there is no overhead or latency cost to running a TypeScript-based Language Server in a Web Worker.
   - Theme developers are Front End developers. If we were to make a Venn diagram, we'd observe that the intersection of Ruby _and_ Theme developers is much smaller than that of JavaScript _and_ Theme developers.
     - This makes the TypeScript codebase easier to contribute to.
     - This makes the plugin ecosystem more accessible (you're more likely to have a `package.json` file in a theme than a `Gemfile`).
-  - The `@shopify/cli` was rewritten in TypeScript. This made the Ruby integration very problematic.
+  - The `@platformos/cli` was rewritten in TypeScript. This made the Ruby integration very problematic.
     - Windows performance was terrible
     - Installation setup was weird, often problematic and complicated
   - The VS Code extension required a secondary installation step, and thus lost the ability to automatically self-update
@@ -795,8 +795,8 @@
 - 8451075: `package.json` and README cleanups
 - Updated dependencies [8451075]
 - Updated dependencies [8451075]
-  - @shopify/theme-check-common@2.0.0
-  - @shopify/theme-check-docs-updater@2.0.0
+  - @platformos/theme-check-common@2.0.0
+  - @platformos/theme-check-docs-updater@2.0.0
 
 ## 1.22.0
 
@@ -809,8 +809,8 @@
 
 - Updated dependencies [636895f]
 - Updated dependencies [aeb9b3f]
-  - @shopify/theme-check-common@1.22.0
-  - @shopify/theme-check-docs-updater@1.22.0
+  - @platformos/theme-check-common@1.22.0
+  - @platformos/theme-check-docs-updater@1.22.0
 
 ## 1.21.0
 
@@ -818,8 +818,8 @@
 
 - Updated dependencies [772a1ce]
 - Updated dependencies [b05a6a8]
-  - @shopify/theme-check-docs-updater@1.21.0
-  - @shopify/theme-check-common@1.21.0
+  - @platformos/theme-check-docs-updater@1.21.0
+  - @platformos/theme-check-common@1.21.0
 
 ## 1.20.1
 
@@ -827,8 +827,8 @@
 
 - Updated dependencies [79b0549]
 - Updated dependencies [ac1deb4]
-  - @shopify/theme-check-common@1.20.1
-  - @shopify/theme-check-docs-updater@1.20.1
+  - @platformos/theme-check-common@1.20.1
+  - @platformos/theme-check-docs-updater@1.20.1
 
 ## 1.20.0
 
@@ -839,16 +839,16 @@
 ### Patch Changes
 
 - 78813ea: Fix root finding for theme app extensions without a config file
-  - @shopify/theme-check-common@1.20.0
-  - @shopify/theme-check-docs-updater@1.20.0
+  - @platformos/theme-check-common@1.20.0
+  - @platformos/theme-check-docs-updater@1.20.0
 
 ## 1.19.0
 
 ### Patch Changes
 
 - Updated dependencies [d9f3063]
-  - @shopify/theme-check-common@1.19.0
-  - @shopify/theme-check-docs-updater@1.19.0
+  - @platformos/theme-check-common@1.19.0
+  - @platformos/theme-check-docs-updater@1.19.0
 
 ## 1.18.2
 
@@ -856,8 +856,8 @@
 
 - Updated dependencies [fe54680]
 - Updated dependencies [e00c319]
-  - @shopify/theme-check-common@1.18.2
-  - @shopify/theme-check-docs-updater@1.18.2
+  - @platformos/theme-check-common@1.18.2
+  - @platformos/theme-check-docs-updater@1.18.2
 
 ## 1.18.1
 
@@ -865,8 +865,8 @@
 
 - Updated dependencies [aa33c5f]
 - Updated dependencies [0d71145]
-  - @shopify/theme-check-common@1.18.1
-  - @shopify/theme-check-docs-updater@1.18.1
+  - @platformos/theme-check-common@1.18.1
+  - @platformos/theme-check-docs-updater@1.18.1
 
 ## 1.18.0
 
@@ -879,8 +879,8 @@
 - 84aa24c: Superfluous settings as warnings not errors
 - Updated dependencies [96d4d5e]
 - Updated dependencies [dacdd9f]
-  - @shopify/theme-check-common@1.18.0
-  - @shopify/theme-check-docs-updater@1.18.0
+  - @platformos/theme-check-common@1.18.0
+  - @platformos/theme-check-docs-updater@1.18.0
 
 ## 1.17.0
 
@@ -900,8 +900,8 @@
 
 - Updated dependencies [2cf7a11]
 - Updated dependencies [2cf7a11]
-  - @shopify/theme-check-common@1.17.0
-  - @shopify/theme-check-docs-updater@1.17.0
+  - @platformos/theme-check-common@1.17.0
+  - @platformos/theme-check-docs-updater@1.17.0
 
 ## 1.16.1
 
@@ -913,8 +913,8 @@
 - Updated dependencies [c0298e7]
 - Updated dependencies [6fad756]
 - Updated dependencies [fc86c91]
-  - @shopify/theme-check-common@1.16.1
-  - @shopify/theme-check-docs-updater@1.16.1
+  - @platformos/theme-check-common@1.16.1
+  - @platformos/theme-check-docs-updater@1.16.1
 
 ## 1.16.0
 
@@ -926,8 +926,8 @@
 
 - Updated dependencies [279a464]
 - Updated dependencies [d71a5e2]
-  - @shopify/theme-check-common@1.16.0
-  - @shopify/theme-check-docs-updater@1.16.0
+  - @platformos/theme-check-common@1.16.0
+  - @platformos/theme-check-docs-updater@1.16.0
 
 ## 1.15.0
 
@@ -939,8 +939,8 @@
 
 - Updated dependencies [6c2c00f]
 - Updated dependencies [f1a642f]
-  - @shopify/theme-check-common@1.15.0
-  - @shopify/theme-check-docs-updater@1.15.0
+  - @platformos/theme-check-common@1.15.0
+  - @platformos/theme-check-docs-updater@1.15.0
 
 ## 1.14.1
 
@@ -948,7 +948,7 @@
 
 - b7514f4: Fixup UndefinedObject for sections
 - Updated dependencies [b7514f4]
-  - @shopify/theme-check-common@1.14.1
+  - @platformos/theme-check-common@1.14.1
 
 ## 1.14.0
 
@@ -960,7 +960,7 @@
 
 - Updated dependencies [beeb85f]
 - Updated dependencies [a05aebb]
-  - @shopify/theme-check-common@1.14.0
+  - @platformos/theme-check-common@1.14.0
 
 ## 1.13.1
 
@@ -968,7 +968,7 @@
 
 - 14b9ee2: Fixup package.json configs
 - Updated dependencies [14b9ee2]
-  - @shopify/theme-check-common@1.13.1
+  - @platformos/theme-check-common@1.13.1
 
 ## 1.13.0
 
@@ -998,18 +998,18 @@
 - Updated dependencies [b1b8366]
 - Updated dependencies [b1b8366]
 - Updated dependencies [c00e929]
-  - @shopify/theme-check-common@1.13.0
+  - @platformos/theme-check-common@1.13.0
 
 ## 1.12.1
 
 ### Patch Changes
 
-- Patch bump because it depends on @shopify/prettier-plugin-liquid
+- Patch bump because it depends on @platformos/prettier-plugin-liquid
 - Updated dependencies
 - Updated dependencies [5479a63]
 - Updated dependencies [5479a63]
-  - @shopify/theme-check-common@1.12.1
-  - @shopify/prettier-plugin-liquid@1.2.3
+  - @platformos/theme-check-common@1.12.1
+  - @platformos/prettier-plugin-liquid@1.2.3
 
 ## 1.12.0
 
@@ -1028,7 +1028,7 @@
 - Updated dependencies [5ba20bd]
 - Updated dependencies [5ba20bd]
 - Updated dependencies [5ba20bd]
-  - @shopify/theme-check-common@1.12.0
+  - @platformos/theme-check-common@1.12.0
 
 ## 1.11.1
 
@@ -1036,7 +1036,7 @@
 
 - 2e73166: Fix the `DocsetEntry` types to better match the theme-liquid-docs json files
 - Updated dependencies [2e73166]
-  - @shopify/theme-check-common@1.11.1
+  - @platformos/theme-check-common@1.11.1
 
 ## 1.11.0
 
@@ -1047,7 +1047,7 @@
 ### Patch Changes
 
 - Updated dependencies [e67a16d]
-  - @shopify/theme-check-common@1.11.0
+  - @platformos/theme-check-common@1.11.0
 
 ## 1.10.0
 
@@ -1060,7 +1060,7 @@
 
 - Updated dependencies [4db7c7e]
 - Updated dependencies [a94f23c]
-  - @shopify/theme-check-common@1.10.0
+  - @platformos/theme-check-common@1.10.0
 
 ## 1.9.0
 
@@ -1119,7 +1119,7 @@
 - Updated dependencies [3096e53]
 - Updated dependencies [daf5189]
 - Updated dependencies [6fb9db9]
-  - @shopify/theme-check-common@1.9.0
+  - @platformos/theme-check-common@1.9.0
 
 ## 1.8.0
 
@@ -1138,7 +1138,7 @@
 - Updated dependencies [5ae97c9]
 - Updated dependencies [85cf8f3]
 - Updated dependencies [051aff1]
-  - @shopify/theme-check-common@1.8.0
+  - @platformos/theme-check-common@1.8.0
 
 ## 1.7.1
 
@@ -1146,7 +1146,7 @@
 
 - Bump prettier-plugin-liquid to v1.1.0
 - Updated dependencies
-  - @shopify/theme-check-common@1.7.1
+  - @platformos/theme-check-common@1.7.1
 
 ## 1.7.0
 
@@ -1157,7 +1157,7 @@
 ### Patch Changes
 
 - Updated dependencies [502bad8]
-  - @shopify/theme-check-common@1.7.0
+  - @platformos/theme-check-common@1.7.0
 
 ## 1.6.0
 
@@ -1185,7 +1185,7 @@
 - Updated dependencies [9e99728]
 - Updated dependencies [9d3d557]
 - Updated dependencies [edd8925]
-  - @shopify/theme-check-common@1.6.0
+  - @platformos/theme-check-common@1.6.0
 
 ## 1.5.1
 
@@ -1193,7 +1193,7 @@
 
 - 60c92be: Fix unhandled TranslationKeyExists error
 - Updated dependencies [60c92be]
-  - @shopify/theme-check-common@1.5.1
+  - @platformos/theme-check-common@1.5.1
 
 ## 1.5.0
 
@@ -1270,7 +1270,7 @@
 ### Patch Changes
 
 - Updated dependencies [71e6b44]
-  - @shopify/theme-check-common@1.5.0
+  - @platformos/theme-check-common@1.5.0
 
 ## 1.4.1
 
@@ -1279,7 +1279,7 @@
 - a8cda19: Add TranslationKeyExists to allChecks array
 - Updated dependencies [9f8d47f]
 - Updated dependencies [a8cda19]
-  - @shopify/theme-check-common@1.4.1
+  - @platformos/theme-check-common@1.4.1
 
 ## 1.4.0
 
@@ -1290,7 +1290,7 @@
 ### Patch Changes
 
 - Updated dependencies [9d419ca]
-  - @shopify/theme-check-common@1.4.0
+  - @platformos/theme-check-common@1.4.0
 
 ## 1.3.0
 
@@ -1306,7 +1306,7 @@
 - Updated dependencies [5329963]
 - Updated dependencies [72a9330]
 - Updated dependencies [5329963]
-  - @shopify/theme-check-common@1.3.0
+  - @platformos/theme-check-common@1.3.0
 
 ## 1.2.0
 
@@ -1314,7 +1314,7 @@
 
 - Updated dependencies [4c099d5]
 - Updated dependencies [4c099d5]
-  - @shopify/theme-check-common@1.2.0
+  - @platformos/theme-check-common@1.2.0
 
 ## 1.1.0
 
@@ -1342,7 +1342,7 @@
 
 - Updated dependencies [f4a2f27]
 - Updated dependencies [37fc98a]
-  - @shopify/theme-check-common@1.1.0
+  - @platformos/theme-check-common@1.1.0
 
 ## 1.0.1
 
@@ -1350,7 +1350,7 @@
 
 - d206674: Move toSourceCode to common for use in language-server-common
 - Updated dependencies [d206674]
-  - @shopify/theme-check-common@1.0.1
+  - @platformos/theme-check-common@1.0.1
 
 ## 1.0.0
 

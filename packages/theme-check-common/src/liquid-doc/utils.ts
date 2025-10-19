@@ -1,4 +1,4 @@
-import { LiquidExpression, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidExpression, NodeTypes } from '@platformos/liquid-html-parser';
 import { assertNever } from '../utils';
 import { isSnippet } from '../to-schema';
 import { isBlock } from '../to-schema';

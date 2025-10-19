@@ -7,7 +7,7 @@ import {
   TagEntry,
   ThemeDocset,
   Translations,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {

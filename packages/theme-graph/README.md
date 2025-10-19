@@ -55,7 +55,7 @@ See [types.md](./src/types.ts) for more details and [how-it-works.md](./docs/how
 ## Installation
 
 ```bash
-npm install @shopify/theme-graph
+npm install @platformos/theme-graph
 ```
 
 ## Usage

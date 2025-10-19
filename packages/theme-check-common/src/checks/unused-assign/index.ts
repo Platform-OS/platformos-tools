@@ -4,7 +4,7 @@ import {
   LiquidTagAssign,
   LiquidTagCapture,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 

@@ -1,4 +1,4 @@
-# Contributing to @shopify/prettier-plugin-liquid
+# Contributing to @platformos/prettier-plugin-liquid
 
 Requirements:
 

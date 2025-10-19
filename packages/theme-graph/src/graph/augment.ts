@@ -3,7 +3,7 @@ import {
   memo,
   recursiveReadDirectory as findAllFiles,
   path,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { toSourceCode } from '../toSourceCode';
 import { AugmentedDependencies, IDependencies } from '../types';
 import { identity } from '../utils';

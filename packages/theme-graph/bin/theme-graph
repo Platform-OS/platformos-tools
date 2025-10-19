@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-const { buildThemeGraph, serializeThemeGraph, toSourceCode } = require('@shopify/theme-graph');
+const { buildThemeGraph, serializeThemeGraph, toSourceCode } = require('@platformos/theme-graph');
 const {
   NodeFileSystem,
   memoize,
   toSchema,
   path: pathUtils,
   recursiveReadDirectory,
-} = require('@shopify/theme-check-node');
+} = require('@platformos/theme-check-node');
 const path = require('path');
 const { URI } = require('vscode-uri');
 
@@ -52,10 +52,10 @@ async function main(root) {
     );
   });
 
-  /** @type {import('@shopify/theme-graph').WebComponentMap} */
+  /** @type {import('@platformos/theme-graph').WebComponentMap} */
   const webComponentDefs = new Map();
 
-  /** @type {import('@shopify/theme-graph').Dependencies} */
+  /** @type {import('@platformos/theme-graph').Dependencies} */
   const dependencies = {
     fs,
     // @ts-ignore

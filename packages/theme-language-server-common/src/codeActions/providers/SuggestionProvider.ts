@@ -1,4 +1,4 @@
-import { Offense, SourceCodeType, WithRequired } from '@shopify/theme-check-common';
+import { Offense, SourceCodeType, WithRequired } from '@platformos/theme-check-common';
 import {
   CodeAction,
   CodeActionKind,

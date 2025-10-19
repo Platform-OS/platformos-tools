@@ -1,5 +1,5 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '..';
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 
 export const LiquidFilter: LiquidCheckDefinition = {
   meta: {

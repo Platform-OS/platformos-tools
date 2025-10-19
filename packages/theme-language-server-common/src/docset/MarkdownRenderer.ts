@@ -1,4 +1,4 @@
-import { DocsetEntry, FilterEntry, ObjectEntry, TagEntry } from '@shopify/theme-check-common';
+import { DocsetEntry, FilterEntry, ObjectEntry, TagEntry } from '@platformos/theme-check-common';
 import { ArrayType, PseudoType, Unknown, docsetEntryReturnType, isArrayType } from '../TypeSystem';
 import { Attribute, Tag, Value } from './HtmlDocset';
 

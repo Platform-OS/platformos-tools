@@ -9,7 +9,7 @@ import {
   Severity,
   SourceCodeType,
   ThemeBlockSchema,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 
 import { CSSLanguageService } from '../css/CSSLanguageService';
 import { AugmentedSourceCode, DocumentManager } from '../documents';

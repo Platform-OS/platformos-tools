@@ -1,4 +1,4 @@
-import { LiquidHtmlNode } from '@shopify/liquid-html-parser';
+import { LiquidHtmlNode } from '@platformos/liquid-html-parser';
 import { DefinitionParams, DefinitionLink } from 'vscode-languageserver-protocol';
 
 export interface BaseDefinitionProvider {

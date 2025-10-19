@@ -1,15 +1,15 @@
-import { findRoot, makeFileExists } from '@shopify/theme-check-common';
+import { findRoot, makeFileExists } from '@platformos/theme-check-common';
 import {
   Dependencies,
   getConnection,
   recommendedChecks,
   startServer,
-} from '@shopify/theme-language-server-browser';
+} from '@platformos/theme-language-server-browser';
 import { VsCodeFileSystem } from '../common/VsCodeFileSystem';
 
 /**
  * These are replaced at build time by the contents of
- * @shopify/theme-check-docs-updater's DocsManager
+ * @platformos/theme-check-docs-updater's DocsManager
  */
 declare global {
   export const WEBPACK_TAGS: any[];

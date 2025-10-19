@@ -1,4 +1,4 @@
-import { LiquidHtmlNode, NodeTypes as LiquidHtmlNodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidHtmlNode, NodeTypes as LiquidHtmlNodeTypes } from '@platformos/liquid-html-parser';
 
 import { Schema, Settings } from './types/schema-prop-factory';
 

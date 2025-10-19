@@ -1,5 +1,5 @@
-import { LiquidFilter, NodeTypes } from '@shopify/liquid-html-parser';
-import { FilterEntry, Parameter } from '@shopify/theme-check-common';
+import { LiquidFilter, NodeTypes } from '@platformos/liquid-html-parser';
+import { FilterEntry, Parameter } from '@platformos/theme-check-common';
 import {
   CompletionItem,
   CompletionItemKind,

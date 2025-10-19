@@ -1,9 +1,9 @@
-import { path } from '@shopify/theme-check-common';
+import { path } from '@platformos/theme-check-common';
 import {
   AugmentedLocation,
   ThemeGraphDeadCodeRequest,
   ThemeGraphRootRequest,
-} from '@shopify/theme-language-server-common';
+} from '@platformos/theme-language-server-common';
 import { commands, Position, Range, Uri, window, workspace } from 'vscode';
 import { BaseLanguageClient } from 'vscode-languageclient';
 

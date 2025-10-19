@@ -4,7 +4,7 @@ import {
   LiquidVariableOutput,
   NodeTypes,
   TextNode,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import {
   LiquidCheckDefinition,
   LiquidHtmlNode,

@@ -1,4 +1,4 @@
-import { LiquidTag } from '@shopify/liquid-html-parser';
+import { LiquidTag } from '@platformos/liquid-html-parser';
 import { SourceCodeType, Problem } from '../../..';
 import {
   doesFragmentContainUnsupportedParentheses,

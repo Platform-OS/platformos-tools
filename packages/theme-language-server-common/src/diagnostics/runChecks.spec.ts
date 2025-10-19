@@ -5,8 +5,8 @@ import {
   path,
   Severity,
   SourceCodeType,
-} from '@shopify/theme-check-common';
-import { MockFileSystem } from '@shopify/theme-check-common/src/test';
+} from '@platformos/theme-check-common';
+import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Connection } from 'vscode-languageserver';
 import { DocumentManager } from '../documents';

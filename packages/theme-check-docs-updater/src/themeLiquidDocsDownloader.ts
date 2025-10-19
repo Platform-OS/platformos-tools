@@ -1,4 +1,4 @@
-import { Mode } from '@shopify/theme-check-common';
+import { Mode } from '@platformos/theme-check-common';
 import envPaths from 'env-paths';
 import fetch from 'node-fetch';
 import fs from 'node:fs/promises';

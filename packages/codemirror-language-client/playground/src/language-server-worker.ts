@@ -6,12 +6,12 @@ import {
   AbstractFileSystem,
   FileTuple,
   FileStat,
-} from '@shopify/theme-language-server-browser';
+} from '@platformos/theme-language-server-browser';
 import { Connection } from 'vscode-languageserver';
 
 /**
  * These are replaced at build time by the contents of
- * @shopify/theme-check-docs-updater's DocsManager
+ * @platformos/theme-check-docs-updater's DocsManager
  */
 declare global {
   export const WEBPACK_TAGS: any[];

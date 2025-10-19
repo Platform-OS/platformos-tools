@@ -5,7 +5,7 @@ import {
   LiquidDocExampleNode,
   LiquidDocParamNode,
   LiquidDocDescriptionNode,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 
 export type GetDocDefinitionForURI = (
   uri: UriString,

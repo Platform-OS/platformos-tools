@@ -1,4 +1,4 @@
-import { CheckDefinition, SourceCodeType } from '@shopify/theme-check-common';
+import { CheckDefinition, SourceCodeType } from '@platformos/theme-check-common';
 import glob from 'glob';
 import { promisify } from 'node:util';
 import { AbsolutePath } from '../temp';

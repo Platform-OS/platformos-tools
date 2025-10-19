@@ -3,7 +3,7 @@ import {
   LiquidTag,
   LiquidVariableLookup,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, SchemaProp, Severity, SourceCodeType } from '../../types';
 import { isError, last } from '../../utils';
 import { isNodeOfType } from '../utils';

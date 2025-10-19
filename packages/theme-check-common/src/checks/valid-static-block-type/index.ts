@@ -1,4 +1,4 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { doesFileExist } from '../../utils/file-utils';
 import { isContentForBlock } from '../../utils/markup';

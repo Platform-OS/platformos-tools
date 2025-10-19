@@ -1,4 +1,4 @@
-import { ContentForMarkup } from '@shopify/liquid-html-parser';
+import { ContentForMarkup } from '@platformos/liquid-html-parser';
 
 export function isContentForBlock(
   nodeMarkup: string | ContentForMarkup,

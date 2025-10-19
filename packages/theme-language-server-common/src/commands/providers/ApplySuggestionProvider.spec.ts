@@ -7,7 +7,7 @@ import {
   Position,
   Suggestion,
   path,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { DiagnosticsManager } from '../../diagnostics';
 import { DocumentManager } from '../../documents';
 import { ApplySuggestionProvider } from './ApplySuggestionProvider';

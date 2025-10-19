@@ -1,5 +1,5 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
-import { ObjectEntry } from '@shopify/theme-check-common';
+import { NodeTypes } from '@platformos/liquid-html-parser';
+import { ObjectEntry } from '@platformos/theme-check-common';
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver';
 import { TypeSystem, isArrayType } from '../../TypeSystem';
 import { CURSOR, LiquidCompletionParams } from '../params';

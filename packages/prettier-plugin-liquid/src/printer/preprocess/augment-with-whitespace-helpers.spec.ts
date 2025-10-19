@@ -1,4 +1,4 @@
-import { NodeTypes, toLiquidHtmlAST } from '@shopify/liquid-html-parser';
+import { NodeTypes, toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 import { expect, it, describe } from 'vitest';
 import { deepGet } from '../../utils';
 import { preprocess } from '../print-preprocess';

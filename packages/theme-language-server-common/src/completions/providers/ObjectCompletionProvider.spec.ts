@@ -1,7 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
-import { MetafieldDefinitionMap, ObjectEntry } from '@shopify/theme-check-common';
+import { MetafieldDefinitionMap, ObjectEntry } from '@platformos/theme-check-common';
 
 describe('Module: ObjectCompletionProvider', async () => {
   let provider: CompletionsProvider;

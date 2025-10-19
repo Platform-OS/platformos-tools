@@ -2,13 +2,13 @@ import {
   AbstractFileSystem,
   Config,
   Dependencies as ThemeCheckDependencies,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { URI } from 'vscode-languageserver';
 import * as rpc from 'vscode-jsonrpc';
 
 import { WithOptional } from './utils';
 import { Range } from 'vscode-json-languageservice';
-import { Reference } from '@shopify/theme-graph';
+import { Reference } from '@platformos/theme-graph';
 
 export type Dependencies = WithOptional<
   RequiredDependencies,

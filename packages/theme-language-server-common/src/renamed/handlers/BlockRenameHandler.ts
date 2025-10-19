@@ -1,4 +1,4 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import {
   isBlockSchema,
   isError,
@@ -13,7 +13,7 @@ import {
   Template,
   ThemeBlock,
   visit,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { Connection } from 'vscode-languageserver';
 import {
   ApplyWorkspaceEditRequest,

@@ -2,7 +2,7 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { InsertTextFormat, type TextEdit } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-import { MetafieldDefinitionMap } from '@shopify/theme-check-common';
+import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
 
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';

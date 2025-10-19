@@ -1,9 +1,9 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import { CompletionItem, CompletionItemKind, MarkupKind } from 'vscode-languageserver';
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
-import { filePathSupportsLiquidDoc } from '@shopify/theme-check-common';
-import { getValidParamTypes, SupportedDocTagTypes, ThemeDocset } from '@shopify/theme-check-common';
+import { filePathSupportsLiquidDoc } from '@platformos/theme-check-common';
+import { getValidParamTypes, SupportedDocTagTypes, ThemeDocset } from '@platformos/theme-check-common';
 
 export class LiquidDocParamTypeCompletionProvider implements Provider {
   constructor(private readonly themeDocset: ThemeDocset) {}

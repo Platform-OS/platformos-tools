@@ -1,4 +1,4 @@
-# @shopify/codemirror-language-client
+# @platformos/codemirror-language-client
 
 ## 0.7.4
 
@@ -92,7 +92,7 @@
 
 - 962adac: Hello world
 
-# @shopify/code-mirror-language-client (private)
+# @platformos/code-mirror-language-client (private)
 
 ## 0.0.7
 

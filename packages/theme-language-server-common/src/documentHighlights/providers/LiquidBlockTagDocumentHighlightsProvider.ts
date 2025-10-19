@@ -4,7 +4,7 @@ import {
   LiquidRawTag,
   LiquidTag,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { DocumentHighlightParams, Range } from 'vscode-languageserver';
 import { DocumentManager } from '../../documents';
 import { BaseDocumentHighlightsProvider } from '../BaseDocumentHighlightsProvider';

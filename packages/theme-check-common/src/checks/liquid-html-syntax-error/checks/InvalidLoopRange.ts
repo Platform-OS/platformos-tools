@@ -1,4 +1,4 @@
-import { LiquidTag, LiquidTagFor, LiquidTagTablerow, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidTag, LiquidTagFor, LiquidTagTablerow, NodeTypes } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
 import { getRangeMatch } from './utils';
 import { isLoopLiquidTag } from '../../utils';

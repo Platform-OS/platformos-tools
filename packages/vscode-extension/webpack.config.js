@@ -5,7 +5,7 @@ const webpack = require('webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 const { default: TsconfigPathsPlugin } = require('tsconfig-paths-webpack-plugin');
 const path = require('path');
-const { ThemeLiquidDocsManager } = require('@shopify/theme-check-docs-updater');
+const { ThemeLiquidDocsManager } = require('@platformos/theme-check-docs-updater');
 
 /** @type WebpackConfig */
 const baseConfig = {

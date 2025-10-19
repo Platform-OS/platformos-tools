@@ -1,4 +1,4 @@
-import { isLiquidHtmlNode } from '@shopify/liquid-html-parser';
+import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
 import {
   applyFixToString,
   CheckDefinition,

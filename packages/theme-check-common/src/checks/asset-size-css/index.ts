@@ -5,7 +5,7 @@ import {
   LiquidVariableOutput,
   NodeTypes,
   TextNode,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, SchemaProp, Severity, SourceCodeType } from '../../types';
 import { last } from '../../utils';
 import {

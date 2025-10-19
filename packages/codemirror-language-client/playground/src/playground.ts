@@ -1,13 +1,13 @@
 import { basicSetup } from 'codemirror';
 import { EditorView, keymap } from '@codemirror/view';
 import { Compartment, EditorState } from '@codemirror/state';
-import { jsonc } from '@shopify/lang-jsonc';
+import { jsonc } from '@platformos/lang-jsonc';
 import { vim } from '@replit/codemirror-vim';
 import MarkdownIt from 'markdown-it';
 // import { oneDark } from '@codemirror/theme-one-dark';
-// import { liquid, liquidHighLightStyle } from '@shopify/lang-liquid';
+// import { liquid, liquidHighLightStyle } from '@platformos/lang-liquid';
 
-import { CodeMirrorLanguageClient } from '@shopify/codemirror-language-client';
+import { CodeMirrorLanguageClient } from '@platformos/codemirror-language-client';
 import { MarkedString, MarkupContent } from 'vscode-languageserver-protocol';
 
 const md = new MarkdownIt();

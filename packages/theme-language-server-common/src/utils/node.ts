@@ -4,8 +4,8 @@ import {
   NamedTags,
   NodeTypes,
   TextNode,
-} from '@shopify/liquid-html-parser';
-import { LiquidHtmlNodeOfType as NodeOfType } from '@shopify/theme-check-common';
+} from '@platformos/liquid-html-parser';
+import { LiquidHtmlNodeOfType as NodeOfType } from '@platformos/theme-check-common';
 
 export type HtmlElementTypes = (typeof HtmlElementTypes)[number];
 export const HtmlElementTypes = [

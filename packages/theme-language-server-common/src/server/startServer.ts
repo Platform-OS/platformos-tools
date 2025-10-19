@@ -17,7 +17,7 @@ import {
   recursiveReadDirectory,
   SourceCodeType,
   UriString,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import {
   Connection,
   FileChangeType,

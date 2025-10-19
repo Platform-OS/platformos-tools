@@ -1,5 +1,5 @@
-import { LiquidHtmlNode, LiquidRawTag, NodeTypes } from '@shopify/liquid-html-parser';
-import { SourceCodeType, findJSONNode, nodeAtPath } from '@shopify/theme-check-common';
+import { LiquidHtmlNode, LiquidRawTag, NodeTypes } from '@platformos/liquid-html-parser';
+import { SourceCodeType, findJSONNode, nodeAtPath } from '@platformos/theme-check-common';
 import {
   DefinitionLink,
   DefinitionParams,

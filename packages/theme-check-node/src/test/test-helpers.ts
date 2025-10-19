@@ -2,7 +2,7 @@ import * as mktemp from 'mktemp';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { path as pathUtils } from '@shopify/theme-check-common';
+import { path as pathUtils } from '@platformos/theme-check-common';
 
 export async function makeTmpFolder() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test-'));

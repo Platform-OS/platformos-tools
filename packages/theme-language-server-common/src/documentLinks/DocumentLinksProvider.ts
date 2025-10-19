@@ -1,10 +1,10 @@
-import { LiquidHtmlNode, LiquidString, NamedTags, NodeTypes } from '@shopify/liquid-html-parser';
-import { SourceCodeType } from '@shopify/theme-check-common';
+import { LiquidHtmlNode, LiquidString, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
+import { SourceCodeType } from '@platformos/theme-check-common';
 import { DocumentLink, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI, Utils } from 'vscode-uri';
 
-import { visit, Visitor } from '@shopify/theme-check-common';
+import { visit, Visitor } from '@platformos/theme-check-common';
 import { DocumentManager } from '../documents';
 import { FindThemeRootURI } from '../internal-types';
 

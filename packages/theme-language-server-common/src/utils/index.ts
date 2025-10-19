@@ -5,7 +5,7 @@ export {
   memo,
   memoize,
   parseJSON,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 export * from './debounce';
 export * from './array';
 export * from './node';

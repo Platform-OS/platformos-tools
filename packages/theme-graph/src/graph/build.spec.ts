@@ -1,4 +1,4 @@
-import { path as pathUtils, SourceCodeType } from '@shopify/theme-check-common';
+import { path as pathUtils, SourceCodeType } from '@platformos/theme-check-common';
 import { assert, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildThemeGraph } from '../index';
 import { Dependencies, JsonModuleKind, LiquidModuleKind, ModuleType, ThemeGraph } from '../types';

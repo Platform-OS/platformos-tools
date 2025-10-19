@@ -4,7 +4,7 @@ import {
   NamedTags,
   NodeTypes,
   Position,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { minimatch } from 'minimatch';
 import {
   LiquidCheckDefinition,

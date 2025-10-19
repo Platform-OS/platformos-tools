@@ -6,7 +6,7 @@ import {
   FixApplicator,
   applyFixToString,
   path,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 
 export const saveToDiskFixApplicator: FixApplicator = async (sourceCode, fix) => {
   const updatedSource = applyFixToString(sourceCode.source, fix);

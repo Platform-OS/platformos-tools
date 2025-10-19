@@ -1,5 +1,5 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { LiquidNamedArgument, RenderMarkup } from '@shopify/liquid-html-parser';
+import { LiquidNamedArgument, RenderMarkup } from '@platformos/liquid-html-parser';
 import { getSnippetName, reportDuplicateArguments } from '../../liquid-doc/arguments';
 
 export const DuplicateRenderSnippetArguments: LiquidCheckDefinition = {

@@ -1,5 +1,5 @@
-import { LiquidHtmlNode } from '@shopify/liquid-html-parser';
-import { SourceCodeType } from '@shopify/theme-check-common';
+import { LiquidHtmlNode } from '@platformos/liquid-html-parser';
+import { SourceCodeType } from '@platformos/theme-check-common';
 import {
   PrepareRenameParams,
   PrepareRenameResult,
@@ -8,7 +8,7 @@ import {
   WorkspaceEdit,
 } from 'vscode-languageserver-protocol';
 import { DocumentManager } from '../documents';
-import { findCurrentNode } from '@shopify/theme-check-common';
+import { findCurrentNode } from '@platformos/theme-check-common';
 import { BaseRenameProvider } from './BaseRenameProvider';
 import { HtmlTagNameRenameProvider } from './providers/HtmlTagNameRenameProvider';
 import { LiquidVariableRenameProvider } from './providers/LiquidVariableRenameProvider';

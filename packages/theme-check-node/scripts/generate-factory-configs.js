@@ -7,7 +7,7 @@ const {
   CheckDefinition,
   SourceCodeType,
   recommended,
-} = require('@shopify/theme-check-common');
+} = require('@platformos/theme-check-common');
 
 const destination = path.resolve(__dirname, '..', 'configs');
 

@@ -1,4 +1,4 @@
-import { Translations } from '@shopify/theme-check-common';
+import { Translations } from '@platformos/theme-check-common';
 
 export type GetTranslationsForURI = (uri: string) => Promise<Translations>;
 export type Translation = string | PluralizedTranslation;

@@ -19,9 +19,9 @@ done
 # Setup online-store-web
 cd ../online-store-web && {
   # Set up package links in the correct hierarical order so that all changes will be available in OSW
-  yarn link @shopify/theme-language-server-browser
-  yarn link @shopify/theme-language-server-common
-  yarn link @shopify/theme-check-common
+  yarn link @platformos/theme-language-server-browser
+  yarn link @platformos/theme-language-server-common
+  yarn link @platformos/theme-check-common
   stop
   start
 }

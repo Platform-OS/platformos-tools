@@ -1,5 +1,5 @@
 import { Format } from '../common/formatter';
-import LiquidPrettierPlugin from '@shopify/prettier-plugin-liquid';
+import LiquidPrettierPlugin from '@platformos/prettier-plugin-liquid';
 import babelPrettierPlugin from 'prettier/parser-babel';
 import * as prettier from 'prettier/standalone';
 

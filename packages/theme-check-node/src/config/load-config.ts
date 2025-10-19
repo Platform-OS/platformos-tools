@@ -1,4 +1,4 @@
-import { Config } from '@shopify/theme-check-common';
+import { Config } from '@platformos/theme-check-common';
 import { AbsolutePath } from '../temp';
 import { loadConfigDescription } from './load-config-description';
 import { resolveConfig } from './resolve';

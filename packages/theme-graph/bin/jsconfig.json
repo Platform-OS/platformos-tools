@@ -6,8 +6,8 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@shopify/theme-graph": ["../src"],
-      "@shopify/theme-check-common": ["../../theme-check-common/src"],
+      "@platformos/theme-graph": ["../src"],
+      "@platformos/theme-check-common": ["../../theme-check-common/src"],
     },
     "allowJs": true,
     "noEmit": true,

@@ -1,4 +1,4 @@
-import * as AST from '@shopify/liquid-html-parser';
+import * as AST from '@platformos/liquid-html-parser';
 import { LiquidParserOptions, DocumentNode } from '../types';
 import { AUGMENTATION_PIPELINE } from './preprocess';
 

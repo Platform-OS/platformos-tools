@@ -5,7 +5,7 @@ import {
   SectionSchema,
   SourceCodeType,
   ThemeBlockSchema,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import {
   buildThemeGraph,
   getWebComponentMap,
@@ -13,7 +13,7 @@ import {
   Location,
   toSourceCode,
   WebComponentMap,
-} from '@shopify/theme-graph';
+} from '@platformos/theme-graph';
 import { Range } from 'vscode-json-languageservice';
 import { Connection } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';

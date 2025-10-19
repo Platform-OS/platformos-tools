@@ -1,4 +1,4 @@
-import { LiquidBooleanExpression, LiquidHtmlNode, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidBooleanExpression, LiquidHtmlNode, NodeTypes } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
 import { INVALID_SYNTAX_MESSAGE } from './utils';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../../utils';

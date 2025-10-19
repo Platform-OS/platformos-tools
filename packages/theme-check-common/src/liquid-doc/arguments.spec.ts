@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyFixToString, createCorrector } from '../fixes';
 import { makeAddArgumentCorrector, makeRemoveArgumentCorrector } from './arguments';
-import { ContentForMarkup, DocumentNode, LiquidTag } from '@shopify/liquid-html-parser';
+import { ContentForMarkup, DocumentNode, LiquidTag } from '@platformos/liquid-html-parser';
 import { SourceCodeType, toLiquidHTMLAST } from '..';
 
 describe('Arguments', () => {

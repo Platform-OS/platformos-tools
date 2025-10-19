@@ -1,5 +1,5 @@
 import { Diagnostic, DiagnosticSeverity, Range } from 'vscode-languageserver';
-import { allChecks, Offense, Severity, assertNever } from '@shopify/theme-check-common';
+import { allChecks, Offense, Severity, assertNever } from '@platformos/theme-check-common';
 
 type CheckToDocsUrl = {
   [code in string]?: string;

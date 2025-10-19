@@ -1,5 +1,5 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
-import { LiquidHtmlNode } from '@shopify/theme-check-common';
+import { NodeTypes } from '@platformos/liquid-html-parser';
+import { LiquidHtmlNode } from '@platformos/theme-check-common';
 import { Hover, HoverParams, MarkupKind } from 'vscode-languageserver';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../../utils/liquidDoc';

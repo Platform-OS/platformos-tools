@@ -7,7 +7,7 @@ import {
   NodeTypes,
   Position,
   RawMarkupKinds,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { doc, Doc } from 'prettier';
 import type { Printer as Printer2 } from 'prettier';
 import type { Printer as Printer3 } from 'prettier3';

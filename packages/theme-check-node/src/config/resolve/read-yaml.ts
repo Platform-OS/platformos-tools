@@ -1,4 +1,4 @@
-import { CheckSettings, Modes, Severity } from '@shopify/theme-check-common';
+import { CheckSettings, Modes, Severity } from '@platformos/theme-check-common';
 import { realpathSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';

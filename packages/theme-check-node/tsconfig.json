@@ -7,8 +7,8 @@
     "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
-      "@shopify/theme-check-common": ["../theme-check-common/src"],
-      "@shopify/theme-check-docs-updater": ["../theme-check-docs-updater/src"]
+      "@platformos/theme-check-common": ["../theme-check-common/src"],
+      "@platformos/theme-check-docs-updater": ["../theme-check-docs-updater/src"]
     }
   },
   "references": [

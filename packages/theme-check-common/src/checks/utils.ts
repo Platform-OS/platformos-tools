@@ -13,7 +13,7 @@ import {
   LiquidTagTablerow,
   LiquidTag,
   LoopNamedTags,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { LiquidHtmlNodeOfType as NodeOfType } from '../types';
 
 type ElementType<T> = T extends (infer E)[] ? E : never;

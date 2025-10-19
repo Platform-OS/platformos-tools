@@ -1,5 +1,5 @@
-import { LiquidHtmlNode, LiquidRawTag } from '@shopify/liquid-html-parser';
-import { JSONNode } from '@shopify/theme-check-common';
+import { LiquidHtmlNode, LiquidRawTag } from '@platformos/liquid-html-parser';
+import { JSONNode } from '@platformos/theme-check-common';
 import { CompletionItem, JSONPath } from 'vscode-json-languageservice';
 import {
   AugmentedJsonSourceCode,

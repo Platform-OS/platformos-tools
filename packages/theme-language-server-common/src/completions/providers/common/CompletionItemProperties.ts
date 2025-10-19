@@ -1,4 +1,4 @@
-import { DocsetEntry } from '@shopify/theme-check-common';
+import { DocsetEntry } from '@platformos/theme-check-common';
 import { CompletionItem, CompletionItemTag, MarkupContent } from 'vscode-languageserver';
 import { DocsetEntryType, render } from '../../../docset';
 import { ArrayType, PseudoType } from '../../../TypeSystem';

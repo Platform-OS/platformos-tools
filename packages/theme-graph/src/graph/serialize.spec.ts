@@ -1,4 +1,4 @@
-import { path as pathUtils } from '@shopify/theme-check-common';
+import { path as pathUtils } from '@platformos/theme-check-common';
 import { describe, expect, it } from 'vitest';
 import { ThemeGraph } from '../types';
 import { getSectionModule, getSnippetModule, getTemplateModule } from './module';

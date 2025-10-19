@@ -1,4 +1,4 @@
-import { LiquidHtmlNode } from '@shopify/theme-check-common';
+import { LiquidHtmlNode } from '@platformos/theme-check-common';
 import { describe, expect, it } from 'vitest';
 import { CompletionParams, Position } from 'vscode-languageserver';
 import { DocumentManager, AugmentedLiquidSourceCode } from '../../documents';

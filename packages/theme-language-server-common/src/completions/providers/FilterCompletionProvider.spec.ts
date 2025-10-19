@@ -1,4 +1,4 @@
-import { FilterEntry, MetafieldDefinitionMap, ObjectEntry } from '@shopify/theme-check-common';
+import { FilterEntry, MetafieldDefinitionMap, ObjectEntry } from '@platformos/theme-check-common';
 import { InsertTextFormat, type TextEdit } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { describe, beforeEach, it, expect } from 'vitest';

@@ -5,7 +5,7 @@ import {
   LiquidTagEcho,
   NodeTypes,
   Position,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isNodeOfType } from '../utils';
 

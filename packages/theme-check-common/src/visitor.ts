@@ -1,4 +1,4 @@
-import { NodeTypes as LiquidHtmlNodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes as LiquidHtmlNodeTypes } from '@platformos/liquid-html-parser';
 import { AST, LiquidHtmlNode, NodeOfType, SourceCodeType, NodeTypes, JSONNode } from './types';
 
 export type VisitorMethod<S extends SourceCodeType, T, R> = (

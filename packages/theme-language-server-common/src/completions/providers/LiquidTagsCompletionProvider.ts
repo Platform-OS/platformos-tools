@@ -6,8 +6,8 @@ import {
   NamedTags,
   NodeTypes,
   RAW_TAGS,
-} from '@shopify/liquid-html-parser';
-import { TagEntry, ThemeDocset } from '@shopify/theme-check-common';
+} from '@platformos/liquid-html-parser';
+import { TagEntry, ThemeDocset } from '@platformos/theme-check-common';
 import {
   CompletionItem,
   CompletionItemKind,

@@ -4,7 +4,7 @@ import {
   getDefaultValueForType,
   LiquidDocParameter,
   SupportedDocTagTypes,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 
 export function formatLiquidDocParameter(
   { name, type, description, required }: LiquidDocParameter,

@@ -1,4 +1,4 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver';
 import { TypeSystem } from '../../TypeSystem';
 import { CURSOR, LiquidCompletionParams } from '../params';

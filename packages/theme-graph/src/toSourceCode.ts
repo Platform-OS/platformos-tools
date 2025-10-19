@@ -1,4 +1,4 @@
-import { asError, toSourceCode as tcToSourceCode, UriString } from '@shopify/theme-check-common';
+import { asError, toSourceCode as tcToSourceCode, UriString } from '@platformos/theme-check-common';
 import { parse as acornParse, Program } from 'acorn';
 import {
   CssSourceCode,

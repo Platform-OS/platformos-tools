@@ -18,9 +18,9 @@ import {
   memo,
   path as pathUtils,
   toSchema,
-} from '@shopify/theme-check-common';
-import { ThemeLiquidDocsManager } from '@shopify/theme-check-docs-updater';
-import { isLiquidHtmlNode } from '@shopify/liquid-html-parser';
+} from '@platformos/theme-check-common';
+import { ThemeLiquidDocsManager } from '@platformos/theme-check-docs-updater';
+import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 
 const asyncGlob = promisify(glob);
 
-export * from '@shopify/theme-check-common';
+export * from '@platformos/theme-check-common';
 export * from './config/types';
 export { NodeFileSystem };
 

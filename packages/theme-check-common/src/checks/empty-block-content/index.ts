@@ -1,6 +1,6 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { getSchema } from '../../to-schema';
-import { Position } from '@shopify/liquid-html-parser';
+import { Position } from '@platformos/liquid-html-parser';
 
 export const EmptyBlockContent: LiquidCheckDefinition = {
   meta: {

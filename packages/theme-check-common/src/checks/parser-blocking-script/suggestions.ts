@@ -3,7 +3,7 @@ import {
   LiquidFilter,
   LiquidVariable,
   LiquidVariableOutput,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { LiquidHtmlSuggestion } from '../../types';
 import { last } from '../../utils';
 

@@ -1,4 +1,4 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { last } from '../../utils';
 import { hasAttributeValueOf, isAttr, isHtmlAttribute, isValuedHtmlAttribute } from '../utils';

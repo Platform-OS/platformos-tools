@@ -1,4 +1,4 @@
-import { BLOCKS } from "@shopify/liquid-html-parser";
+import { BLOCKS } from "@platformos/liquid-html-parser";
 
 // These HTML elements do not require to be closed (either via </tag> or <tag />)
 export const voidElements = [

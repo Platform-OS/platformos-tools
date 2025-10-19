@@ -1,5 +1,5 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { ContentForMarkup, LiquidNamedArgument } from '@shopify/liquid-html-parser';
+import { ContentForMarkup, LiquidNamedArgument } from '@platformos/liquid-html-parser';
 import { getBlockName, reportDuplicateArguments } from '../../liquid-doc/arguments';
 
 export const DuplicateContentForArguments: LiquidCheckDefinition = {

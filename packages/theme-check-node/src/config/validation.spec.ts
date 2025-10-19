@@ -7,7 +7,7 @@ import {
   LiquidCheckDefinition,
   SchemaProp,
   SourceCodeType,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 
 describe('Unit: validateConfig', () => {
   const ParserBlockingScript = allChecks.find((cd) => cd.meta.code === 'ParserBlockingScript')!;

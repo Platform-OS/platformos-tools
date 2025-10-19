@@ -1,5 +1,5 @@
 // src/checks/required-layout-theme-object/index.ts
-import { HtmlElement, LiquidVariableLookup } from '@shopify/liquid-html-parser';
+import { HtmlElement, LiquidVariableLookup } from '@platformos/liquid-html-parser';
 import { ConfigTarget, LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isHtmlTag } from '../utils';
 

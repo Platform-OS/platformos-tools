@@ -5,7 +5,7 @@ import {
   LiquidNodeTypes,
   NodeTypes,
   isBranchedTag,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { HtmlElement, WithFamily } from '../../types';
 import {
   CSS_WHITE_SPACE_DEFAULT,

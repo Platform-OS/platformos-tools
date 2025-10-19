@@ -1,5 +1,5 @@
-import { LiquidVariableLookup, NodeTypes } from '@shopify/liquid-html-parser';
-import { ThemeDocset } from '@shopify/theme-check-common';
+import { LiquidVariableLookup, NodeTypes } from '@platformos/liquid-html-parser';
+import { ThemeDocset } from '@platformos/theme-check-common';
 import {
   CompletionItem,
   CompletionItemKind,

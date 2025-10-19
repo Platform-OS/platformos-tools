@@ -1,4 +1,4 @@
-## Releasing `@shopify/prettier-plugin-liquid`
+## Releasing `@platformos/prettier-plugin-liquid`
 
 1. Check the Semantic Versioning page for info on how to version the new release: http://semver.org
 

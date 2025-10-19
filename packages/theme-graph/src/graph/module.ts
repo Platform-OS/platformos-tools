@@ -1,4 +1,4 @@
-import { path, UriString } from '@shopify/theme-check-common';
+import { path, UriString } from '@platformos/theme-check-common';
 import {
   CssModule,
   ImageModule,

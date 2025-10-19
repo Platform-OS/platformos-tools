@@ -3,7 +3,7 @@ import {
   MetafieldDefinitionMap,
   SourceCodeType,
   ThemeDocset,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { Hover, HoverParams } from 'vscode-languageserver';
 import { TypeSystem } from '../TypeSystem';
 import { DocumentManager } from '../documents';
@@ -22,7 +22,7 @@ import {
   RenderSnippetParameterHoverProvider,
 } from './providers';
 import { HtmlAttributeValueHoverProvider } from './providers/HtmlAttributeValueHoverProvider';
-import { findCurrentNode } from '@shopify/theme-check-common';
+import { findCurrentNode } from '@platformos/theme-check-common';
 import { GetThemeSettingsSchemaForURI } from '../settings';
 import { LiquidDocTagHoverProvider } from './providers/LiquidDocTagHoverProvider';
 import { ContentForArgumentHoverProvider } from './providers/ContentForArgumentHoverProvider';

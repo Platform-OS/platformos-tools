@@ -1,4 +1,4 @@
-import { findRoot, makeFileExists } from '@shopify/theme-check-common';
+import { findRoot, makeFileExists } from '@platformos/theme-check-common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { NodeFileSystem } from './NodeFileSystem';
 import { makeTempWorkspace, Workspace } from './test/test-helpers';

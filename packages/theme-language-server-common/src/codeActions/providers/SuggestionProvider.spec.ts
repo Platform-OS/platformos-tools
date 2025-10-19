@@ -1,4 +1,4 @@
-import { Offense, Severity, SourceCodeType, Suggestion, path } from '@shopify/theme-check-common';
+import { Offense, Severity, SourceCodeType, Suggestion, path } from '@platformos/theme-check-common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';

@@ -1,4 +1,4 @@
-import { isError } from '@shopify/theme-check-common';
+import { isError } from '@platformos/theme-check-common';
 import { JSONPath, MarkedString } from 'vscode-json-languageservice';
 import { GetTranslationsForURI, renderTranslation, translationValue } from '../../../translations';
 import { isLiquidRequestContext, LiquidRequestContext, RequestContext } from '../../RequestContext';

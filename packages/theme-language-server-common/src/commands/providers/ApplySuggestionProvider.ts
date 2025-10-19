@@ -1,4 +1,4 @@
-import { createCorrector, Fix, FixDescription, flattenFixes } from '@shopify/theme-check-common';
+import { createCorrector, Fix, FixDescription, flattenFixes } from '@platformos/theme-check-common';
 import {
   ApplyWorkspaceEditRequest,
   Command,

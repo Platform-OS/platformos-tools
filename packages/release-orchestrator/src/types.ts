@@ -34,6 +34,6 @@ export interface PackageJson {
   [key: string]: any;
 }
 
-/** The name attribute in the package.json, e.g. `@shopify/prettier-plugin-liquid` */
+/** The name attribute in the package.json, e.g. `@platformos/prettier-plugin-liquid` */
 export type PackageName = string;
 export type PackageJsonRecord = Record<PackageName, PackageJson>;

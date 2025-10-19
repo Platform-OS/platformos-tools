@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { render, renderHtmlEntry, type HtmlEntry } from './MarkdownRenderer';
-import type { DocsetEntry } from '@shopify/theme-check-common';
+import type { DocsetEntry } from '@platformos/theme-check-common';
 
 const DOC_ENTRY: DocsetEntry = {
   name: 'entry',

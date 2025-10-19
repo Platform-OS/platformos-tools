@@ -1,5 +1,5 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
-import { LiquidHtmlNode } from '@shopify/theme-check-common';
+import { NodeTypes } from '@platformos/liquid-html-parser';
+import { LiquidHtmlNode } from '@platformos/theme-check-common';
 import { Hover, HoverParams } from 'vscode-languageserver';
 import { TypeSystem, Unknown, Untyped, isArrayType } from '../../TypeSystem';
 import { render } from '../../docset';

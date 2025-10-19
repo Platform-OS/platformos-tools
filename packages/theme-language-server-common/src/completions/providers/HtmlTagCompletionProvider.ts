@@ -3,8 +3,8 @@ import {
   HtmlElement,
   NodeTypes,
   TextNode,
-} from '@shopify/liquid-html-parser';
-import { LiquidHtmlNode } from '@shopify/theme-check-common';
+} from '@platformos/liquid-html-parser';
+import { LiquidHtmlNode } from '@platformos/theme-check-common';
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver';
 import { HtmlData, Tag, renderHtmlEntry } from '../../docset';
 import { isTextNode } from '../../utils';

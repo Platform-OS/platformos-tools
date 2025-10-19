@@ -14,7 +14,7 @@ import {
   ProtocolConnection,
   WatchDog,
 } from 'vscode-languageserver';
-import { path } from '@shopify/theme-check-common';
+import { path } from '@platformos/theme-check-common';
 
 type MockConnectionMethods = {
   /** Trigger all appropriate onNotification handlers on the connection */

@@ -12,9 +12,9 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "resolveJsonModule": true,
     "paths": {
-      "@shopify/codemirror-language-client": ["../src"],
-      "@shopify/lang-jsonc": ["../../lang-jsonc/src"],
-      "@shopify/theme-language-server-browser": ["../../theme-language-server-browser/src"]
+      "@platformos/codemirror-language-client": ["../src"],
+      "@platformos/lang-jsonc": ["../../lang-jsonc/src"],
+      "@platformos/theme-language-server-browser": ["../../theme-language-server-browser/src"]
     }
   },
   "references": [

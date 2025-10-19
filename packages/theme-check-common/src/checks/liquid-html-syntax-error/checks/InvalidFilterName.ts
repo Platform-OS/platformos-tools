@@ -1,4 +1,4 @@
-import { LiquidVariableOutput, LiquidTag, NodeTypes, NamedTags } from '@shopify/liquid-html-parser';
+import { LiquidVariableOutput, LiquidTag, NodeTypes, NamedTags } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType, Context, FilterEntry } from '../../..';
 import { INVALID_SYNTAX_MESSAGE } from './utils';
 

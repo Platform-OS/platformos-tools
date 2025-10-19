@@ -1,4 +1,4 @@
-import { NamedTags, NodeTypes } from '@shopify/liquid-html-parser';
+import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import {
   JSONNode,
   nodeAtPath,
@@ -14,7 +14,7 @@ import {
   ThemeBlockSchema,
   visit,
   Visitor,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import {
   AugmentedDependencies,
   JsonModule,

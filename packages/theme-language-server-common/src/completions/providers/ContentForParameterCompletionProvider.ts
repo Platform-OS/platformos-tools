@@ -1,4 +1,4 @@
-import { LiquidVariableLookup, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidVariableLookup, NodeTypes } from '@platformos/liquid-html-parser';
 import {
   CompletionItem,
   CompletionItemKind,
@@ -9,7 +9,7 @@ import { CURSOR, LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 import { AugmentedLiquidSourceCode } from '../../documents';
 import { DEFAULT_COMPLETION_OPTIONS } from './data/contentForParameterCompletionOptions';
-import { DocDefinition, GetDocDefinitionForURI } from '@shopify/theme-check-common';
+import { DocDefinition, GetDocDefinitionForURI } from '@platformos/theme-check-common';
 import { getParameterCompletionTemplate } from '../../utils/liquidDoc';
 
 /**

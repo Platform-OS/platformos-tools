@@ -5,13 +5,13 @@ import {
   NamedTags,
   NodeTypes,
   toLiquidHtmlAST,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import {
   MetafieldDefinitionMap,
   path as pathUtils,
   BasicParamTypes,
   ObjectEntry,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
 import { SettingsSchemaJSONFile } from './settings';

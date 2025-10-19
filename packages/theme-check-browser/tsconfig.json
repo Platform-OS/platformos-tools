@@ -12,7 +12,7 @@
     ],
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
-      "@shopify/theme-check-common": ["../theme-check-common/src"],
+      "@platformos/theme-check-common": ["../theme-check-common/src"],
     }
   },
   "references": [

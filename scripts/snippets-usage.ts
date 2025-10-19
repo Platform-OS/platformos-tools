@@ -1,7 +1,7 @@
 #!/usr/bin/env ts-node
-import { LiquidTag, NodeTypes } from '@shopify/liquid-html-parser';
-import { getThemeAndConfig, path, SourceCode, SourceCodeType } from '@shopify/theme-check-node';
-import { visit } from '@shopify/theme-language-server-common';
+import { LiquidTag, NodeTypes } from '@platformos/liquid-html-parser';
+import { getThemeAndConfig, path, SourceCode, SourceCodeType } from '@platformos/theme-check-node';
+import { visit } from '@platformos/theme-language-server-common';
 import { URI } from 'vscode-uri';
 
 type UsedBy = Record<string, number>;

@@ -1,4 +1,4 @@
-import { deepGet, isError } from '@shopify/theme-check-common';
+import { deepGet, isError } from '@platformos/theme-check-common';
 import { JSONPath } from 'vscode-json-languageservice';
 import { JSONCompletionItem } from 'vscode-json-languageservice/lib/umd/jsonContributions';
 import { isLiquidRequestContext, RequestContext } from '../../RequestContext';

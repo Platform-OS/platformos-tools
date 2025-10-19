@@ -6,11 +6,11 @@
 </h1>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@shopify/prettier-plugin-liquid"><img src="https://img.shields.io/npm/v/@shopify/prettier-plugin-liquid.svg?sanitize=true" alt="Version"></a>
-  <a href="https://github.com/Shopify/prettier-plugin-liquid/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@shopify/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
+  <a href="https://www.npmjs.com/package/@platformos/prettier-plugin-liquid"><img src="https://img.shields.io/npm/v/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="Version"></a>
+  <a href="https://github.com/Shopify/prettier-plugin-liquid/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
   <a href="https://github.com/Shopify/prettier-plugin-liquid-prototype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Shopify/prettier-plugin-liquid-prototype/actions/workflows/ci.yml/badge.svg"></a>
   <!--
-    <a href="https://npmcharts.com/compare/@shopify/prettier-plugin-liquid?minimal=true"><img src="https://img.shields.io/npm/dm/@shopify/prettier-plugin-liquid.svg?sanitize=true" alt="Downloads"></a>
+    <a href="https://npmcharts.com/compare/@platformos/prettier-plugin-liquid?minimal=true"><img src="https://img.shields.io/npm/dm/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="Downloads"></a>
   -->
 </p>
 
@@ -32,17 +32,17 @@ Yes! It's also available in the [Online Store Code Editor](https://shopify.dev/t
 
 ```bash
 # with npm
-npm install --save-dev prettier @shopify/prettier-plugin-liquid
+npm install --save-dev prettier @platformos/prettier-plugin-liquid
 
 # with yarn
-yarn add --dev prettier @shopify/prettier-plugin-liquid
+yarn add --dev prettier @platformos/prettier-plugin-liquid
 ```
 
 For Prettier version 3 and above, the plugin must also be declared in the [configuration](https://prettier.io/docs/en/configuration.html).
 
 ```
 {
-  "plugins": ["@shopify/prettier-plugin-liquid"]
+  "plugins": ["@platformos/prettier-plugin-liquid"]
 }
 ```
 

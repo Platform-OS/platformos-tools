@@ -3,7 +3,7 @@ import path from 'node:path';
 import { realpathSync } from 'node:fs';
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { readYamlConfigDescription } from './read-yaml';
-import { Severity } from '@shopify/theme-check-common';
+import { Severity } from '@platformos/theme-check-common';
 import {
   createMockConfigFile,
   makeTmpFolder,

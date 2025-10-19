@@ -1,4 +1,4 @@
-import { LiquidString } from '@shopify/liquid-html-parser';
+import { LiquidString } from '@platformos/liquid-html-parser';
 import {
   isError,
   LiteralNode,
@@ -7,7 +7,7 @@ import {
   path,
   SourceCodeType,
   visit,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { Connection } from 'vscode-languageserver';
 import {
   AnnotatedTextEdit,

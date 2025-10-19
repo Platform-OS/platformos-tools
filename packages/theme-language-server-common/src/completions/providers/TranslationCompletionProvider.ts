@@ -1,4 +1,4 @@
-import { LiquidHtmlNode, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidHtmlNode, NodeTypes } from '@platformos/liquid-html-parser';
 import { CompletionItem, CompletionItemKind, Range, TextEdit } from 'vscode-languageserver';
 import { DocumentManager } from '../../documents';
 import {
@@ -8,7 +8,7 @@ import {
   renderTranslation,
   translationOptions,
 } from '../../translations';
-import { findCurrentNode } from '@shopify/theme-check-common';
+import { findCurrentNode } from '@platformos/theme-check-common';
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 

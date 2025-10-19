@@ -1,4 +1,4 @@
-import { MetafieldDefinitionMap } from '@shopify/theme-check-common';
+import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InsertTextFormat } from 'vscode-json-languageservice';
 import { DocumentManager } from '../../documents';

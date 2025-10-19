@@ -1,4 +1,4 @@
-import { Offense } from '@shopify/theme-check-common';
+import { Offense } from '@platformos/theme-check-common';
 import { Connection, Diagnostic, URI } from 'vscode-languageserver';
 import { offenseToDiagnostic } from './offenseToDiagnostic';
 

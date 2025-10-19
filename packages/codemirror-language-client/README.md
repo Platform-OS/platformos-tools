@@ -20,7 +20,7 @@ This repo serves as a CodeMirror Language Client. Feed it a Language Server and 
 ## Usage
 
 ```typescript
-import { CodeMirrorLanguageClient } from '@shopify/codemirror-language-client';
+import { CodeMirrorLanguageClient } from '@platformos/codemirror-language-client';
 
 async function main() {
   // This doesn't have to be liquid-language-server, it

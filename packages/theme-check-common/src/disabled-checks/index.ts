@@ -1,4 +1,4 @@
-import { LiquidHtmlNode, LiquidRawTag, LiquidTag, Position } from '@shopify/liquid-html-parser';
+import { LiquidHtmlNode, LiquidRawTag, LiquidTag, Position } from '@platformos/liquid-html-parser';
 import {
   LiquidCheckDefinition,
   LiquidHtmlNodeTypes,

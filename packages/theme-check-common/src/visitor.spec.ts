@@ -2,7 +2,7 @@ import { LiquidHtmlNode, LiquidHtmlNodeTypes, SourceCodeType } from './types';
 import { toJSONAST, toLiquidHTMLAST, toSourceCode } from './to-source-code';
 import { expect, describe, it, assert } from 'vitest';
 import { Visitor, findCurrentNode, findJSONNode, visit } from './visitor';
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 
 describe('Module: visitor', () => {
   it('should return an array of the return type of the visitor', () => {

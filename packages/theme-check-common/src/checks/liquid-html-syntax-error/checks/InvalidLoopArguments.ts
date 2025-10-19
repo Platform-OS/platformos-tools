@@ -4,7 +4,7 @@ import {
   LiquidTagFor,
   LiquidTagTablerow,
   NodeTypes,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType, TagEntry } from '../../..';
 import {
   doesFragmentContainUnsupportedParentheses,

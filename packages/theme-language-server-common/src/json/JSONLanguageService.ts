@@ -1,4 +1,4 @@
-import { LiquidRawTag, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidRawTag, NodeTypes } from '@platformos/liquid-html-parser';
 import {
   IsValidSchema,
   JsonValidationSet,
@@ -10,7 +10,7 @@ import {
   isValid,
   toJSONAST,
   visit,
-} from '@shopify/theme-check-common';
+} from '@platformos/theme-check-common';
 import { JSONDocument, LanguageService, getLanguageService } from 'vscode-json-languageservice';
 import {
   CompletionItem,

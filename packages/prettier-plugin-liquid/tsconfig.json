@@ -9,7 +9,7 @@
     "rootDir": "src",
     "esModuleInterop": true,
     "paths": {
-      "@shopify/liquid-html-parser": ["../liquid-html-parser/src"]
+      "@platformos/liquid-html-parser": ["../liquid-html-parser/src"]
     }
   },
   "include": ["src/**/*"],

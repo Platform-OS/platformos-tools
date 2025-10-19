@@ -1,5 +1,5 @@
 {
-  "name": "@shopify/theme-check-node",
+  "name": "@platformos/theme-check-node",
   "version": "3.23.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -33,8 +33,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@shopify/theme-check-common": "3.23.0",
-    "@shopify/theme-check-docs-updater": "3.23.0",
+    "@platformos/theme-check-common": "3.23.0",
+    "@platformos/theme-check-docs-updater": "3.23.0",
     "glob": "^8.0.3",
     "vscode-uri": "^3.0.7",
     "yaml": "^2.3.0"

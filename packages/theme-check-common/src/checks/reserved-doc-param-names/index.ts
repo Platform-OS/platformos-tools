@@ -1,4 +1,4 @@
-import { TextNode } from '@shopify/liquid-html-parser';
+import { TextNode } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isBlock } from '../../to-schema';
 import {

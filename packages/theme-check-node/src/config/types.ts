@@ -1,4 +1,4 @@
-import { ChecksSettings, Mode, Severity } from '@shopify/theme-check-common';
+import { ChecksSettings, Mode, Severity } from '@platformos/theme-check-common';
 
 /**
  * The pipeline goes like this:

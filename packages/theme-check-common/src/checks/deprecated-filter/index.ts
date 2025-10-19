@@ -1,4 +1,4 @@
-import { LiquidFilter } from '@shopify/liquid-html-parser';
+import { LiquidFilter } from '@platformos/liquid-html-parser';
 import {
   Severity,
   SourceCodeType,

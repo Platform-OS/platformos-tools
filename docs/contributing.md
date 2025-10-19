@@ -52,7 +52,7 @@ Once you've made some changes to your local theme-tools packages, to see those c
 
 ### Developing for codemirror-language-client
 
-Run the following command to start a browser instance that runs `@shopify/theme-language-server-browser`.
+Run the following command to start a browser instance that runs `@platformos/theme-language-server-browser`.
 
 ```
 yarn playground

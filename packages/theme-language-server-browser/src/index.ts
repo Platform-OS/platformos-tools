@@ -1,14 +1,14 @@
 import {
   Dependencies,
   startServer as startCoreServer,
-} from '@shopify/theme-language-server-common';
+} from '@platformos/theme-language-server-common';
 import {
   BrowserMessageReader,
   BrowserMessageWriter,
   createConnection,
 } from 'vscode-languageserver/browser';
 
-export * from '@shopify/theme-language-server-common';
+export * from '@platformos/theme-language-server-common';
 
 export function getConnection(worker: Worker) {
   const reader = new BrowserMessageReader(worker);

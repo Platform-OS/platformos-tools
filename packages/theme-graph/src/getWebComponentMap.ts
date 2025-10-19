@@ -1,4 +1,4 @@
-import { path, recursiveReadDirectory } from '@shopify/theme-check-common';
+import { path, recursiveReadDirectory } from '@platformos/theme-check-common';
 import { ancestor as visit } from 'acorn-walk';
 import { Dependencies, Void, WebComponentMap } from './types';
 import { CallExpression } from 'acorn';

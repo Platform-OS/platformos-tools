@@ -1,4 +1,4 @@
-import { BLOCKS } from '@shopify/liquid-html-parser';
+import { BLOCKS } from '@platformos/liquid-html-parser';
 import { decreaseIndentTags, increaseIndentTags, voidElements } from './constants';
 
 export interface IndentationRulesJSON {

@@ -1,7 +1,7 @@
 'use strict';
 
 import { doc, Doc } from 'prettier';
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import { shouldPreserveContent, forceBreakContent, hasNoChildren } from '../utils';
 import {
   printOpeningTagPrefix,

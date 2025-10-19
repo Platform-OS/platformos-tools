@@ -3,7 +3,7 @@ import {
   LiquidTagNode,
   NodeTypes,
   LiquidVariableLookup,
-} from '@shopify/liquid-html-parser';
+} from '@platformos/liquid-html-parser';
 import { Context, LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 
 export const BlockIdUsage: LiquidCheckDefinition = {

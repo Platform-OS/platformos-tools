@@ -1,4 +1,4 @@
-import { ContentForMarkup, LiquidRawTag, NamedTags, NodeTypes } from '@shopify/liquid-html-parser';
+import { ContentForMarkup, LiquidRawTag, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { parseJSON } from './json';
 import * as path from './path';
 import { toJSONAST } from './to-source-code';

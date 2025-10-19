@@ -1,4 +1,4 @@
-import { deepGet } from '@shopify/theme-check-common';
+import { deepGet } from '@platformos/theme-check-common';
 import { CompletionItemKind, JSONPath } from 'vscode-json-languageservice';
 import {
   GetTranslationsForURI,

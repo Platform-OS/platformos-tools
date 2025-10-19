@@ -1,4 +1,4 @@
-import { type LiquidVariableLookup, NodeTypes, toLiquidHtmlAST } from '@shopify/liquid-html-parser';
+import { type LiquidVariableLookup, NodeTypes, toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 import { Context, SourceCodeType } from '../..';
 import { parseJSON } from '../../json';
 import { visit } from '../../visitor';

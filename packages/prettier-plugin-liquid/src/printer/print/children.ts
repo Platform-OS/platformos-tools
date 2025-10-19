@@ -1,4 +1,4 @@
-import { NodeTypes } from '@shopify/liquid-html-parser';
+import { NodeTypes } from '@platformos/liquid-html-parser';
 import { doc } from 'prettier';
 import { locStart, locEnd } from '../../utils';
 import {

@@ -1,5 +1,5 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { NodeTypes, RenderMarkup } from '@shopify/liquid-html-parser';
+import { NodeTypes, RenderMarkup } from '@platformos/liquid-html-parser';
 import { LiquidDocParameter } from '../../liquid-doc/liquidDoc';
 import { inferArgumentType, isTypeCompatible } from '../../liquid-doc/utils';
 import {

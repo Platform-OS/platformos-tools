@@ -7,7 +7,7 @@ import {
 import { DocumentManager } from '../../documents';
 import { GetThemeBlockNames } from '../JSONContributions';
 import { JSONLanguageService } from '../JSONLanguageService';
-import { SourceCodeType } from '@shopify/theme-check-common';
+import { SourceCodeType } from '@platformos/theme-check-common';
 import { GetTranslationsForURI } from '../../translations';
 
 export function getRequestParams(

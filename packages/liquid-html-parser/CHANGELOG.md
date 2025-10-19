@@ -1,4 +1,4 @@
-# @shopify/liquid-html-parser
+# @platformos/liquid-html-parser
 
 ## 2.9.0
 

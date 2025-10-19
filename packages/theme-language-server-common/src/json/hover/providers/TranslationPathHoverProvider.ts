@@ -1,4 +1,4 @@
-import { nodeAtPath } from '@shopify/theme-check-common';
+import { nodeAtPath } from '@platformos/theme-check-common';
 import { JSONPath, MarkedString } from 'vscode-json-languageservice';
 import { extractParams, paramsString } from '../../../translations';
 import { isJSONRequestContext, JSONRequestContext, RequestContext } from '../../RequestContext';

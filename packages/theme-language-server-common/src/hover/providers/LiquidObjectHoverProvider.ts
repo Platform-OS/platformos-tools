@@ -1,4 +1,4 @@
-import { LiquidHtmlNode, LiquidVariableLookup, NodeTypes } from '@shopify/liquid-html-parser';
+import { LiquidHtmlNode, LiquidVariableLookup, NodeTypes } from '@platformos/liquid-html-parser';
 import { Hover, HoverParams } from 'vscode-languageserver';
 import { TypeSystem, Unknown, isArrayType } from '../../TypeSystem';
 import { render } from '../../docset';

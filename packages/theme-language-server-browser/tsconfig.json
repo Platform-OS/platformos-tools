@@ -14,7 +14,7 @@
     "target": "ES2019",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
-      "@shopify/theme-language-server-common": ["../theme-language-server-common/src"]
+      "@platformos/theme-language-server-common": ["../theme-language-server-common/src"]
     }
   },
   "references": [

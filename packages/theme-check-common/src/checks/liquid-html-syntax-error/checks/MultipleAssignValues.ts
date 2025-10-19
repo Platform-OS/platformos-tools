@@ -1,4 +1,4 @@
-import { LiquidTag } from '@shopify/liquid-html-parser';
+import { LiquidTag } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
 import { getValuesInMarkup, INVALID_SYNTAX_MESSAGE } from './utils';
 

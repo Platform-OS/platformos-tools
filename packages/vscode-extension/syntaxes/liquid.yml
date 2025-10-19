@@ -1,0 +1,30 @@
+name: 'Liquid HTML'
+scopeName: text.html.liquid
+fileTypes:
+  - liquid
+foldingStartMarker: |
+  (?x)
+  {%
+    -?
+    \s*
+    (<%= ANY_BLOCK_OPEN_TAG %>)
+    [^(%})]+
+  %}
+foldingStopMarker: |
+  (?x)
+  {%
+    \s*
+    (<%= ANY_BLOCK_END_TAG %>)
+    [^(%})]+
+  %}
+
+injections:
+  "L:meta.embedded.block.js, L:meta.embedded.block.css, L:meta.embedded.block.html, L:string.quoted":
+    patterns:
+      - include: '#injection'
+
+patterns:
+  - include: '#core'
+
+repository:
+  # see base-syntax.yml

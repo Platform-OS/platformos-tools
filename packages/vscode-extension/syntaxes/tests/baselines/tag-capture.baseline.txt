@@ -1,0 +1,48 @@
+original file
+-----------------------------------
+{% capture about_me %}
+  I am {{ age }}
+{% endcapture %}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{% capture about_me %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+           ^^^^^^^^^^
+           text.html.liquid meta.tag.liquid
+                     ^^
+                     text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>  I am {{ age }}
+ ^^^^^^^
+ text.html.liquid
+        ^^
+        text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+          ^
+          text.html.liquid meta.object.liquid
+           ^^^
+           text.html.liquid meta.object.liquid variable.other.liquid
+              ^
+              text.html.liquid meta.object.liquid
+               ^^
+               text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{% endcapture %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+              ^
+              text.html.liquid meta.tag.liquid
+               ^^
+               text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

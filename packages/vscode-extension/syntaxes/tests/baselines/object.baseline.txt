@@ -1,0 +1,78 @@
+original file
+-----------------------------------
+{{obj}}
+{{ obj }}
+{{-obj-}}
+{{-  obj -}}
+{{
+  obj
+}}
+{{-
+  obj
+-}}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{{obj}}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^^^
+   text.html.liquid meta.object.liquid variable.other.liquid
+      ^^
+      text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ obj }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+       ^
+       text.html.liquid meta.object.liquid
+        ^^
+        text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{-obj-}}
+ ^^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+    ^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+       ^^^
+       text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{-  obj -}}
+ ^^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+    ^^
+    text.html.liquid meta.object.liquid
+      ^^^
+      text.html.liquid meta.object.liquid variable.other.liquid
+         ^
+         text.html.liquid meta.object.liquid
+          ^^^
+          text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+>  obj
+ ^^
+ text.html.liquid meta.object.liquid
+   ^^^
+   text.html.liquid meta.object.liquid variable.other.liquid
+>}}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{-
+ ^^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+>  obj
+ ^^
+ text.html.liquid meta.object.liquid
+   ^^^
+   text.html.liquid meta.object.liquid variable.other.liquid
+>-}}
+ ^^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

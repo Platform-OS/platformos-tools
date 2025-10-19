@@ -1,0 +1,31 @@
+---
+- assign
+- break
+- capture: endcapture
+- case: endcase
+- comment: endcomment
+- continue
+- cycle
+- decrement
+- echo
+- else
+- elsif
+- for: endfor
+- form: endform
+- if: endif
+- ifchanged
+- increment
+- javascript: endjavascript
+- layout
+- liquid
+- paginate: endpaginate
+- raw
+- render
+- schema: endschema
+- section
+- sections
+- style: endstyle
+- stylesheet
+- tablerow
+- unless
+- when

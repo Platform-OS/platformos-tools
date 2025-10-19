@@ -1,0 +1,22 @@
+# This file is optional but will make things slightly better
+# if the editor supports injections like VS Code.
+scopeName: liquid.injection
+
+# The way this works is that we inject the following
+# patterns to the L:eft of the rules applied. Thereby
+# hijacking the JS ans CSS embedded languages with
+# liquid rules.
+injectionSelector: |
+  L:meta.embedded.block.js,
+  L:meta.embedded.block.css,
+  L:meta.embedded.block.html,
+  L:entity.other.attribute-name.html,
+  L:meta.tag.custom.start.html,
+  L:meta.tag.structure,
+  L:string.quoted
+
+patterns:
+  - include: '#injection'
+
+repository:
+  # See base-syntax.yml

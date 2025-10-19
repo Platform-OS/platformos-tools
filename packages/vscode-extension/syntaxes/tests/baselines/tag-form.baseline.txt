@@ -1,0 +1,34 @@
+original file
+-----------------------------------
+{% form 'activate_customer_password' %}
+{% endform %}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{% form 'activate_customer_password' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        text.html.liquid meta.tag.liquid
+                                      ^^
+                                      text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% endform %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+           ^
+           text.html.liquid meta.tag.liquid
+            ^^
+            text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

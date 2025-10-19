@@ -1,0 +1,54 @@
+original file
+-----------------------------------
+{{ 'hello' }}
+{{ "world" }}
+{{ 25 }}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{{ 'hello' }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^
+    text.html.liquid meta.object.liquid string.quoted.single.liquid
+     ^^^^^
+     text.html.liquid meta.object.liquid string.quoted.single.liquid
+          ^
+          text.html.liquid meta.object.liquid string.quoted.single.liquid
+           ^
+           text.html.liquid meta.object.liquid
+            ^^
+            text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ "world" }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^
+    text.html.liquid meta.object.liquid string.quoted.double.liquid
+     ^^^^^
+     text.html.liquid meta.object.liquid string.quoted.double.liquid
+          ^
+          text.html.liquid meta.object.liquid string.quoted.double.liquid
+           ^
+           text.html.liquid meta.object.liquid
+            ^^
+            text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ 25 }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^
+    text.html.liquid meta.object.liquid constant.numeric.liquid
+      ^
+      text.html.liquid meta.object.liquid
+       ^^
+       text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

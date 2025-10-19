@@ -1,0 +1,75 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+name: CI
+
+on: [push]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Code quality
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          submodules: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "yarn"
+          cache-dependency-path: "yarn.lock"
+
+      - name: Install the packages
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build the code
+        run: yarn build:ci
+
+      - name: Type check (for tests)
+        run: yarn type-check
+
+      - name: Check formatting
+        run: yarn format:check
+
+  tests:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        node-version: [18, 20]
+
+    name: Tests / OS ${{ matrix.os }} / NodeJS ${{ matrix.node-version }}
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          submodules: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "yarn"
+          cache-dependency-path: "yarn.lock"
+
+      - name: Install the packages
+        run: yarn install --frozen-lockfile --ignore-engines
+
+      - name: Build the code
+        run: yarn build:ts
+
+      - name: Run the unit tests
+        run: yarn test
+
+      - name: Run the prettier2 unit tests
+        run: yarn --cwd packages/prettier-plugin-liquid test
+
+      - name: Run the prettier2 idempotence tests
+        run: yarn --cwd packages/prettier-plugin-liquid test:idempotence
+
+      - name: Run the prettier3 unit tests
+        run: yarn --cwd packages/prettier-plugin-liquid test:3
+
+      - name: Run the prettier3 idempotence tests
+        run: yarn --cwd packages/prettier-plugin-liquid test:idempotence:3

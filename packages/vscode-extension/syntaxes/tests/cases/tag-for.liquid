@@ -1,0 +1,20 @@
+{% for reversedEl in col reversed limit: 10 offset:5 %}
+  {% continue %}
+{% else %}
+  {% break %}
+{% endfor %}
+
+{%
+  for
+  el
+  in
+  (1..2)
+  reversed
+  limit: 10
+%}
+
+{% liquid
+  for i in (1..2) reversed limit: 10 offset:5 invalid: 5
+    echo 'hello world'
+  endfor
+%}

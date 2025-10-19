@@ -1,0 +1,134 @@
+original file
+-----------------------------------
+{%echo 'hello world'%}
+{% echo 'hello world' %}
+{%-echo 'hello world'-%}
+{%- echo 'hello world' -%}
+{%
+  echo
+  'hello world'
+%}
+{% liquid
+  echo 'hello world'
+%}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{%echo 'hello world'%}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^^^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+         ^^^^^^^^^^^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                     ^^
+                     text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% echo 'hello world' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+          ^^^^^^^^^^^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                       ^^
+                       text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{%-echo 'hello world'-%}
+ ^^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+    ^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+          ^^^^^^^^^^^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                       ^^
+                       text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{%- echo 'hello world' -%}
+ ^^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+    ^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+     ^^^^
+     text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+          ^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+           ^^^^^^^^^^^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                       ^^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                         ^^
+                         text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{%
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+>  echo
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+   ^^^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+>  'hello world'
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+    ^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+               ^
+               text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+>%}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% liquid
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid
+    ^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid keyword.control.liquid.liquid
+>  echo 'hello world'
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.liquid
+   ^^^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.liquid entity.name.tag.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.liquid string.quoted.single.liquid
+         ^^^^^^^^^^^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.liquid string.quoted.single.liquid
+>%}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

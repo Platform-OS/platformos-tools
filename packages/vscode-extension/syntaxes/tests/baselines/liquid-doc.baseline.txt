@@ -1,0 +1,102 @@
+original file
+-----------------------------------
+{% doc %}
+The default docs
+@param {string} name - The name of the person
+@description This is a description with an @ inside
+@this should be unrecognized and highlighted as part of the description body
+@prompt
+    What is the name of the person?
+@example
+{% render 'my-component', name: 'John' %}
+{% enddoc %}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{% doc %}
+ ^^^
+ text.html.liquid meta.block.doc.liquid meta.tag.liquid
+    ^^^
+    text.html.liquid meta.block.doc.liquid meta.tag.liquid entity.name.tag.doc.liquid
+       ^^^
+       text.html.liquid meta.block.doc.liquid meta.tag.liquid
+>The default docs
+ ^^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid
+>@param {string} name - The name of the person
+ ^^^^^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid storage.type.class.liquid
+       ^
+       text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid
+        ^^^^^^^^
+        text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid entity.name.type.instance.liquid
+                ^
+                text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid
+                 ^^^^
+                 text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid variable.other.liquid
+                     ^
+                     text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid
+                      ^^^^^^^^^^^^^^^^^^^^^^^^
+                      text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid string.quoted.single.liquid
+>@description This is a description with an @ inside
+ ^^^^^^^^^^^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid comment.block.documentation.liquid storage.type.class.liquid
+             ^
+             text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid comment.block.documentation.liquid
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid string.quoted.single.liquid
+>@this should be unrecognized and highlighted as part of the description body
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid string.quoted.single.liquid
+>@prompt
+ ^^^^^^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid comment.block.documentation.liquid storage.type.class.liquid
+>    What is the name of the person?
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid string.quoted.single.liquid
+>@example
+ ^^^^^^^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid comment.block.documentation.liquid storage.type.class.liquid
+>{% render 'my-component', name: 'John' %}
+ ^^
+ text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid
+    ^^^^^^
+    text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid entity.name.tag.render.liquid
+          ^
+          text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid
+           ^
+           text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+            ^^^^^^^^^^^^
+            text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                        ^
+                        text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                         ^^
+                         text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                           ^^^^^
+                           text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid entity.other.attribute-name.liquid
+                                ^
+                                text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                                 ^
+                                 text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                                  ^^^^
+                                  text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                                      ^
+                                      text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                                       ^
+                                       text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                                        ^^
+                                        text.html.liquid meta.block.doc.liquid comment.block.documentation.liquid meta.embedded.block.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% enddoc %}
+ ^^^
+ text.html.liquid meta.block.doc.liquid meta.tag.liquid
+    ^^^^^^
+    text.html.liquid meta.block.doc.liquid meta.tag.liquid entity.name.tag.doc.liquid
+          ^^^
+          text.html.liquid meta.block.doc.liquid meta.tag.liquid
+>
+ ^
+ text.html.liquid

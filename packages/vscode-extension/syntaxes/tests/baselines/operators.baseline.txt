@@ -1,0 +1,154 @@
+original file
+-----------------------------------
+{% if a < b and b > c %}
+{% if a <= b and b <= c %}
+{% if a == b or a != b %}
+{% if a contains b %}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{% if a < b and b > c %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+    ^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.control.conditional.liquid
+      ^
+      text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+          ^
+          text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+            ^
+            text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+             ^^^
+             text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+                ^
+                text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                       ^^
+                       text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% if a <= b and b <= c %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+    ^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.control.conditional.liquid
+      ^
+      text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+         ^^
+         text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+            ^
+            text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+             ^
+             text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+              ^^^
+              text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                    ^^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                       ^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+                        ^
+                        text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                         ^^
+                         text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% if a == b or a != b %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+    ^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.control.conditional.liquid
+      ^
+      text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+         ^^
+         text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+            ^
+            text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+             ^
+             text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+              ^^
+              text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+                ^
+                text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                   ^^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+                       ^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                        ^^
+                        text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% if a contains b %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+    ^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.control.conditional.liquid
+      ^
+      text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+        ^
+        text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+         ^^^^^^^^
+         text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.operator.expression.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                    ^^
+                    text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

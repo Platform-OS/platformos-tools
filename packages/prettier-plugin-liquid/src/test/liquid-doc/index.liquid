@@ -1,0 +1,127 @@
+It should indent the body
+{% doc %}
+  @param paramName - param with description
+{% enddoc %}
+
+It should trim whitespace between nodes
+{% doc %}
+  @param paramName - param with description
+{% enddoc %}
+
+It should normalize the param type
+{% doc %}
+  @param { string     } paramName - param with description
+{% enddoc %}
+
+It should format the param description with a dash separator
+{% doc %}
+  @param paramName  -   param with description
+{% enddoc %}
+
+It should respect the liquidDocParamDash option liquidDocParamDash: false
+{% doc %}
+  @param paramName  param with description
+{% enddoc %}
+
+It should normalize the param description
+{% doc %}
+  @param paramName - param           with                    description
+{% enddoc %}
+
+It should strip whitespace between optional param delimiters
+{% doc %}
+  @param [ paramName ] - param with description
+{% enddoc %}
+
+It should handle params with malformed optional delimiters
+{% doc %}
+  @param [missingTail - param with description
+  @param missingHead - ] - param with description
+  @param [too many words no desc]
+  @param [too many words] - param with description
+{% enddoc %}
+
+It should keep single-line examples on the line it's written on
+{% doc %}
+  @example This is a valid example
+  @example
+  This is a valid example on the next line
+{% enddoc %}
+
+It should push multi-line examples to the next line
+{% doc %}
+  @example This is a valid example
+
+
+  So is this without a newline
+  See?
+{% enddoc %}
+
+It should remove empty lines at the end of the example content
+{% doc %}
+  @example
+  Here is my content and a newline
+
+{% enddoc %}
+
+It should respect example content with param and description
+{% doc %}
+@param paramName - param with description
+@example
+This is a valid example
+{% enddoc %}
+
+It should allow multiple example nodes
+{% doc %}
+  @example
+  First Example
+  @example
+  Second Example
+{% enddoc %}
+
+It should keep single-line description content on the line it's written on
+{% doc %}
+  @description This is a description
+  @description
+  This is another description on the next line
+{% enddoc %}
+
+It should push multi-line description content to the next line
+{% doc %}
+  @description This is a description
+
+
+  This is another description on the next line
+{% enddoc %}
+
+It should add a space between a description tag and content
+{% doc %}
+  @descriptionThis is a description
+{% enddoc %}
+
+It should handle param, example, and description nodes
+{% doc %}
+  @description This is a description
+  @param {String} paramName - param with description
+  @example
+  This is a valid example
+{% enddoc %}
+
+It should add padding between dissimilar nodes
+{% doc %}
+  @param {String} param1 - param with description
+  @param {String} param2 - param with description
+  @example
+  This is a valid example
+  @example
+  This is another valid example
+  @description This is a description
+  @param {String} param3 - param with description
+{% enddoc %}
+
+It should not prepend an implicit description with an @description annotation
+{% doc %}
+This is an implicit description
+
+  @description This is an explicit description
+{% enddoc %}

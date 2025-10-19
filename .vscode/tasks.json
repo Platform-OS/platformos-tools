@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "command": "yarn --cwd packages/vscode-extension build:extension:dev",
+      "group": "build",
+      "label": "vscode dev",
+      "dependsOrder": "parallel",
+      "problemMatcher": "$ts-checker-webpack",
+      "dependsOn": [
+        "language-config",
+        "parser pre build",
+        "theme check build"
+      ],
+    },
+    {
+      "label": "parser pre build",
+      "type": "shell",
+      "command": "yarn --cwd packages/liquid-html-parser prebuild:ts"
+    },
+    {
+      "label": "language-config",
+      "type": "shell",
+      "command": "yarn --cwd packages/vscode-extension build:language-config"
+    },
+    {
+      "label": "theme check build",
+      "type": "shell",
+      "command": "yarn --cwd packages/theme-check-node build:ts"
+    },
+    {
+      "label": "playground",
+      "type": "shell",
+      "command": "yarn playground",
+      "isBackground": true,
+      "problemMatcher": "$ts-webpack-watch"
+    },
+    {
+      "label": "vscode-test-web",
+      "type": "shell",
+      "command": "yarn dev:web",
+      "isBackground": true
+    }
+  ],
+}

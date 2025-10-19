@@ -1,0 +1,6 @@
+node_modules
+yarn-error.log
+.rgignore
+tests/generated
+.projections.json
+.DS_Store

@@ -1,0 +1,148 @@
+original file
+-----------------------------------
+{{ variable }}
+{{ variable.about-us.title }}
+{{ variable["about-us"] }}
+{{ variable['about-us'].title }}
+{{ variable['about-us']['title'] }}
+{{ col.empty? }}
+{{ all_products }}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{{ variable }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^^^^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+            ^
+            text.html.liquid meta.object.liquid
+             ^^
+             text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ variable.about-us.title }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^^^^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+            ^
+            text.html.liquid meta.object.liquid punctuation.accessor.liquid
+             ^^^^^^^^
+             text.html.liquid meta.object.liquid variable.other.member.liquid
+                     ^
+                     text.html.liquid meta.object.liquid punctuation.accessor.liquid
+                      ^^^^^
+                      text.html.liquid meta.object.liquid variable.other.member.liquid
+                           ^
+                           text.html.liquid meta.object.liquid
+                            ^^
+                            text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ variable["about-us"] }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^^^^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+            ^
+            text.html.liquid meta.object.liquid meta.brackets.liquid punctuation.section.brackets.begin.liquid
+             ^
+             text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.double.liquid
+              ^^^^^^^^
+              text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.double.liquid
+                      ^
+                      text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.double.liquid
+                       ^
+                       text.html.liquid meta.object.liquid meta.brackets.liquid punctuation.section.brackets.end.liquid
+                        ^
+                        text.html.liquid meta.object.liquid
+                         ^^
+                         text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ variable['about-us'].title }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^^^^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+            ^
+            text.html.liquid meta.object.liquid meta.brackets.liquid punctuation.section.brackets.begin.liquid
+             ^
+             text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.single.liquid
+              ^^^^^^^^
+              text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.single.liquid
+                      ^
+                      text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.single.liquid
+                       ^
+                       text.html.liquid meta.object.liquid meta.brackets.liquid punctuation.section.brackets.end.liquid
+                        ^
+                        text.html.liquid meta.object.liquid
+                         ^^^^^
+                         text.html.liquid meta.object.liquid variable.other.member.liquid
+                              ^
+                              text.html.liquid meta.object.liquid
+                               ^^
+                               text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ variable['about-us']['title'] }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^^^^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+            ^
+            text.html.liquid meta.object.liquid meta.brackets.liquid punctuation.section.brackets.begin.liquid
+             ^
+             text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.single.liquid
+              ^^^^^^^^
+              text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.single.liquid
+                      ^
+                      text.html.liquid meta.object.liquid meta.brackets.liquid string.quoted.single.liquid
+                       ^
+                       text.html.liquid meta.object.liquid meta.brackets.liquid punctuation.section.brackets.end.liquid
+                        ^
+                        text.html.liquid meta.object.liquid
+                         ^
+                         text.html.liquid meta.object.liquid string.quoted.single.liquid
+                          ^^^^^
+                          text.html.liquid meta.object.liquid string.quoted.single.liquid
+                               ^
+                               text.html.liquid meta.object.liquid string.quoted.single.liquid
+                                ^^
+                                text.html.liquid meta.object.liquid
+                                  ^^
+                                  text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ col.empty? }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^
+    text.html.liquid meta.object.liquid variable.other.liquid
+       ^
+       text.html.liquid meta.object.liquid punctuation.accessor.liquid
+        ^^^^^^
+        text.html.liquid meta.object.liquid variable.other.member.liquid
+              ^
+              text.html.liquid meta.object.liquid
+               ^^
+               text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ all_products }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^^^^^^^^^^
+    text.html.liquid meta.object.liquid variable.language.liquid
+                ^
+                text.html.liquid meta.object.liquid
+                 ^^
+                 text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

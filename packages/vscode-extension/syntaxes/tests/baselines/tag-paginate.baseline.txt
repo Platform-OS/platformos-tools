@@ -1,0 +1,126 @@
+original file
+-----------------------------------
+{% paginate collection.products by 5 %}
+{% endpaginate %}
+
+{%
+  paginate
+  col
+  by
+  5
+%}
+
+{% liquid
+  paginate col by 5
+  endpaginate
+%}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{% paginate collection.products by 5 %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+    ^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid keyword.control.paginate.liquid
+            ^
+            text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+             ^^^^^^^^^^
+             text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid variable.language.liquid
+                       ^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid punctuation.accessor.liquid
+                        ^^^^^^^^
+                        text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid variable.other.member.liquid
+                                ^
+                                text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+                                 ^^
+                                 text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid keyword.control.liquid
+                                   ^
+                                   text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+                                    ^
+                                    text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid constant.numeric.liquid
+                                     ^
+                                     text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+                                      ^^
+                                      text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% endpaginate %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.loop.liquid
+               ^
+               text.html.liquid meta.tag.liquid
+                ^^
+                text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{%
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+>  paginate
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+   ^^^^^^^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid keyword.control.paginate.liquid
+>  col
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+   ^^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid variable.other.liquid
+>  by
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+   ^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid keyword.control.liquid
+>  5
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.paginate.liquid constant.numeric.liquid
+>%}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% liquid
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid
+    ^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid keyword.control.liquid.liquid
+>  paginate col by 5
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid
+   ^^^^^^^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid keyword.control.paginate.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid
+            ^^^
+            text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid variable.other.liquid
+               ^
+               text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid
+                ^^
+                text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid keyword.control.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid meta.entity.tag.paginate.liquid constant.numeric.liquid
+>  endpaginate
+ ^^
+ text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid
+   ^^^^^^^^^^^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid.liquid keyword.control.loop.liquid
+>%}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

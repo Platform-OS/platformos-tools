@@ -1,0 +1,26 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["./src/**/*.ts"],
+  "exclude": ["./dist"],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "rootDir": "src",
+    "allowJs": true,
+    "lib": ["dom"],
+    "module": "es2022",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "resolveJsonModule": true,
+    "paths": {
+      "@shopify/codemirror-language-client": ["../src"],
+      "@shopify/lang-jsonc": ["../../lang-jsonc/src"],
+      "@shopify/theme-language-server-browser": ["../../theme-language-server-browser/src"]
+    }
+  },
+  "references": [
+    { "path": ".." },
+    { "path": "../../lang-jsonc" },
+    { "path": "../../theme-language-server-browser" }
+  ]
+}
+

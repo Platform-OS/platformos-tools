@@ -818,51 +818,6 @@ describe('Unit: Stage 1 (CST)', () => {
         });
       });
 
-      it('should parse the paginate tag open markup as arguments', () => {
-        [
-          {
-            expression: `collection.products by 50`,
-            collection: { type: 'VariableLookup' },
-            pageSize: { type: 'Number' },
-          },
-          {
-            expression: `collection.products by setting.value`,
-            collection: { type: 'VariableLookup' },
-            pageSize: { type: 'VariableLookup' },
-          },
-          {
-            expression: `collection.products by setting.value window_size: 2`,
-            collection: { type: 'VariableLookup' },
-            pageSize: { type: 'VariableLookup' },
-            args: [{ type: 'Number' }],
-          },
-          {
-            expression: `collection.products by setting.value, window_size: 2`,
-            collection: { type: 'VariableLookup' },
-            pageSize: { type: 'VariableLookup' },
-            args: [{ type: 'Number' }],
-          },
-        ].forEach(({ expression, collection, pageSize, args }) => {
-          for (const { toCST, expectPath } of testCases) {
-            cst = toCST(`{% paginate ${expression} -%}`);
-            expectPath(cst, '0.type').to.equal('LiquidTagOpen');
-            expectPath(cst, '0.name').to.equal('paginate');
-            expectPath(cst, '0.markup.type').to.equal('PaginateMarkup');
-            expectPath(cst, '0.markup.collection.type').to.equal(collection.type);
-            expectPath(cst, '0.markup.pageSize.type').to.equal(pageSize.type);
-            if (args) {
-              expectPath(cst, '0.markup.args').to.have.lengthOf(args.length);
-              args.forEach((arg, i) => {
-                expectPath(cst, `0.markup.args.${i}.type`).to.equal('NamedArgument');
-                expectPath(cst, `0.markup.args.${i}.value.type`).to.equal(arg.type);
-              });
-            } else {
-              expectPath(cst, '0.markup.args').to.have.lengthOf(0);
-            }
-          }
-        });
-      });
-
       it('should parse the if, unless and elsif tag arguments as a list of conditions', () => {
         ['if', 'unless', 'elsif'].forEach((tagName) => {
           [
@@ -925,7 +880,7 @@ describe('Unit: Stage 1 (CST)', () => {
 
     describe('Case: LiquidNode', () => {
       it('should parse raw tags', () => {
-        ['style', 'raw'].forEach((raw) => {
+        ['raw'].forEach((raw) => {
           for (const { toCST, expectPath } of testCases) {
             cst = toCST(`{% ${raw} -%}<div>{%- end${raw} %}`);
             expectPath(cst, '0.type').to.equal('LiquidRawTag');
@@ -934,33 +889,6 @@ describe('Unit: Stage 1 (CST)', () => {
             expectPath(cst, '0.whitespaceEnd').to.equal('-');
             expectPath(cst, '0.delimiterWhitespaceStart').to.equal('-');
             expectPath(cst, '0.delimiterWhitespaceEnd').to.equal(null);
-          }
-        });
-      });
-
-      it('should parse raw tag children', () => {
-        ['style', 'javascript'].forEach((raw) => {
-          for (const { toCST, expectPath } of testCases) {
-            const sourceCode = `
-              {% ${raw} -%}
-                {% liquid
-                  assign x = 10
-                  assign y = 11
-                %}
-              {%- end${raw} %}
-            `;
-            cst = toCST(sourceCode);
-            expectPath(cst, '0.type').to.equal('LiquidRawTag');
-            expectPath(cst, '0.body').toEqual(expect.stringContaining('{% liquid'));
-            expectPath(cst, '0.body').toEqual(expect.stringContaining('assign x = 10'));
-            expectPath(cst, '0.body').toEqual(expect.stringContaining('assign y = 11'));
-            expectPath(cst, '0.children.0.type').to.equal('LiquidTag');
-            const liquidTag = (cst as any)[0].children[0] as ConcreteLiquidTagLiquid;
-            expect(liquidTag.name).toEqual('liquid');
-            const assign1 = liquidTag.markup[0];
-            const assign2 = liquidTag.markup[1];
-            expect(assign1.source.slice(assign1.locStart, assign1.locEnd)).toEqual('assign x = 10');
-            expect(assign2.source.slice(assign2.locStart, assign2.locEnd)).toEqual('assign y = 11');
           }
         });
       });

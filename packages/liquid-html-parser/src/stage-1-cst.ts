@@ -620,8 +620,6 @@ function toCST<T>(
         const nameNode = tokens[3];
         const rawMarkupStringNode = tokens[9];
         switch (nameNode.sourceString) {
-          // {% schema %} parses its content as a string and should not be visited
-          case 'schema':
           // {% raw %} accepts syntax errors, we shouldn't try to parse that
           case 'raw': {
             return toCST(

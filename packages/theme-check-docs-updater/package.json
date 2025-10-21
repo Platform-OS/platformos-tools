@@ -5,18 +5,18 @@
   "main": "dist/index.js",
   "author": "Albert Chu <albert.chu@shopify.com>",
   "license": "MIT",
-  "homepage": "https://github.com/Shopify/theme-tools/tree/main/packages/theme-check-docs-updater#readme",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/theme-check-docs-updater#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Shopify/theme-tools.git",
+    "url": "https://github.com/Platform-OS/platformos-tools.git",
     "directory": "packages/theme-check-docs-updater"
   },
   "bugs": {
-    "url": "https://github.com/Shopify/theme-tools/issues"
+    "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
   "publishConfig": {
     "access": "public",
-    "@shopify:registry": "https://registry.npmjs.org"
+    "@platformos:registry": "https://registry.npmjs.org"
   },
   "bin": {
     "theme-docs": "./scripts/cli.js"

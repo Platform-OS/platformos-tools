@@ -8,13 +8,13 @@
 <h4 align="center">Everything developer experience for Shopify themes</h4>
 
 <p align="center">
-  <a href="https://github.com/Shopify/theme-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
-  <a href="https://github.com/Shopify/theme-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Shopify/theme-tools/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Platform-OS/platformos-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
+  <a href="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml/badge.svg"></a>
 </p>
 
 <div align="center">
 
-🗣 [Slack](https://join.slack.com/t/shopifypartners/shared_invite/zt-sdr2quab-mGkzkttZ2hnVm0~8noSyvw) | 📝 [Changelog](https://github.com/Shopify/theme-tools/blob/main/packages/vscode-extension/CHANGELOG.md)
+🗣 [Slack](https://join.slack.com/t/shopifypartners/shared_invite/zt-sdr2quab-mGkzkttZ2hnVm0~8noSyvw) | 📝 [Changelog](https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/CHANGELOG.md)
 
 </div>
 

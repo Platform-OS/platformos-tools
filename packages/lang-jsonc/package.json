@@ -4,17 +4,17 @@
   "description": "JSONC language support for CodeMirror",
   "publishConfig": {
     "access": "public",
-    "@shopify:registry": "https://registry.npmjs.org"
+    "@platformos:registry": "https://registry.npmjs.org"
   },
   "author": "CP Clermont <cp.clermont@shopify.com>",
-  "homepage": "https://github.com/Shopify/theme-tools/tree/main/packages/lang-jsonc#readme",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/lang-jsonc#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Shopify/theme-tools.git",
+    "url": "https://github.com/Platform-OS/platformos-tools.git",
     "directory": "packages/lang-jsonc"
   },
   "bugs": {
-    "url": "https://github.com/Shopify/theme-tools/issues"
+    "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
   "main": "./dist/umd/index.js",
   "typings": "./dist/umd/index.js",

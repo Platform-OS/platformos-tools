@@ -18,7 +18,7 @@ Before you can start contributing to theme-tools, you'll need to set up your dev
 1. **Clone the repository**: Clone the theme-tools repository to your local machine by running the following command in your terminal:
 
    ```bash
-   git clone https://github.com/Shopify/theme-tools.git
+   git clone https://github.com/Platform-OS/platformos-tools.git
    ```
 
 2. **Install dependencies**: Navigate to the project directory and install the required dependencies by running:
@@ -94,7 +94,7 @@ If ever you want to see how the VS Code extension or playground would behave bef
     export SHOPIFY_TLD_ROOT=$(pwd)
     ```
 
-3. Go to the Shopify/theme-tools directory.
+3. Go to the Platform-OS/platformos-tools directory.
 
     ```sh
     # Shopifolk

@@ -9,7 +9,7 @@
 
 Theme Check helps you follow best practices by analyzing the files inside your Shopify theme.
 
-Theme Check is available [to code editors that support the Language Server Protocol](https://github.com/Shopify/theme-tools/wiki).
+Theme Check is available [to code editors that support the Language Server Protocol](https://github.com/Platform-OS/platformos-tools/wiki).
 
 You may be interested by the sibling modules:
 

@@ -1,6 +1,6 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/theme-tools/blob/main/packages/vscode-extension/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
   <br>
   Theme Graph
 </h1>

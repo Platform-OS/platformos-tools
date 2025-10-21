@@ -40,7 +40,7 @@ This section is intended for internal folks.
    pnpm install
    pnpm changeset add
    git add .
-   git commit -m 'Bump Shopify/theme-tools packages'
+   git commit -m 'Bump Platform-OS/platformos-tools packages'
    git push origin $branch
    ```
 

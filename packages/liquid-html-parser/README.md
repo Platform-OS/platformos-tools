@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@platformos/liquid-html-parser"><img src="https://img.shields.io/npm/v/@platformos/liquid-html-parser.svg?sanitize=true" alt="Version"></a>
-  <a href="https://github.com/Shopify/theme-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/liquid-html-parser.svg?sanitize=true" alt="License"></a>
+  <a href="https://github.com/Platform-OS/platformos-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/liquid-html-parser.svg?sanitize=true" alt="License"></a>
   <a href="https://github.com/Shopify/liquid-html-parser-prototype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Shopify/prettier-plugin-liquid-prototype/actions/workflows/ci.yml/badge.svg"></a>
   <!--
     <a href="https://npmcharts.com/compare/@platformos/liquid-html-parser?minimal=true"><img src="https://img.shields.io/npm/dm/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="Downloads"></a>

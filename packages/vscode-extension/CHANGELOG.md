@@ -1176,7 +1176,7 @@
   </div>
   ```
 
-  Code that doesn’t properly close across branches will be flagged by a new theme check: `UnclosedHTMLElement`. See [PR](https://github.com/Shopify/theme-tools/pull/254) for details.
+  Code that doesn’t properly close across branches will be flagged by a new theme check: `UnclosedHTMLElement`. See [PR](https://github.com/Platform-OS/platformos-tools/pull/254) for details.
 
 ### Patch Changes
 
@@ -1220,7 +1220,7 @@
   - Type `{%` get `{% | %}`
   - Type `{%-` get `{%- | -%}`
   - Add a `-` on one side, only that side is affected
-  - See [PR](https://github.com/Shopify/theme-tools/pull/242) for video
+  - See [PR](https://github.com/Platform-OS/platformos-tools/pull/242) for video
   - Only for `shopifyLiquid.themeCheckNextDevPreview`
 
 ### Patch Changes

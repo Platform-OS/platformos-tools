@@ -1204,7 +1204,7 @@
   - Type `{%` get `{% | %}`
   - Type `{%-` get `{%- | -%}`
   - Add a `-` on one side, only that side is affected
-  - See [PR](https://github.com/Shopify/theme-tools/pull/242) for video
+  - See [PR](https://github.com/Platform-OS/platformos-tools/pull/242) for video
   - Only for `shopifyLiquid.themeCheckNextDevPreview`
 
 ## 1.5.1

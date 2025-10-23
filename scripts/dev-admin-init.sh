@@ -5,9 +5,9 @@ set -ex
 # A script to setup the dev environment of the Admin Theme Code Editor
 
 # This script assumes that the online-store-web repo is present. 
-# We recommend that this is run in spin instances created through the theme-tools:online-store constellation
+# We recommend that this is run in spin instances created through the platformos-tools:online-store constellation
 
-# Ensure all the theme-tools package assets are ready
+# Ensure all the platformos-tools package assets are ready
 yarn install
 yarn build
 

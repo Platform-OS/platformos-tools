@@ -17,7 +17,7 @@
 
 ## Releasing new package versions
 
-1. Merge the `Theme-Tools Release — YYYY-MM-DD` PR
+1. Merge the `platformos-tools Release — YYYY-MM-DD` PR
 
 2. Done!
 
@@ -32,7 +32,7 @@ This section is intended for internal folks.
    ```sh
    git fetch origin main
    git checkout origin/main
-   branch="bump-theme-tools-$(date -u '+%Y-%m-%d')"
+   branch="bump-platformos-tools-$(date -u '+%Y-%m-%d')"
    git checkout -b $branch
    pnpm recursive --filter @platformos/theme update --latest @platformos/theme-language-server-node @platformos/theme-check-node
    pnpm recursive --filter @platformos/app update --latest @platformos/theme-check-node
@@ -67,7 +67,7 @@ Removes the risk of accidentally sneaking expected changes into a release withou
 This establishes a convention for our release branch names. Additionally this enables us to build CI workflows targeting this branch name pattern to ensure that the release process can be as streamlined as possible while minimizing the window for error.
 
 ### Is the release orchestrator a publically available package?
-No, while this package sits within the `packages/` directory of the `theme-tools` repo, this package is intended to be a purely internal tool. We put it within this directory to leverage our existing tsconfig patterns without needing to add additional configuration solely for an internal tool.
+No, while this package sits within the `packages/` directory of the `platformos-tools` repo, this package is intended to be a purely internal tool. We put it within this directory to leverage our existing tsconfig patterns without needing to add additional configuration solely for an internal tool.
 
 ### What is the point of composing a release pipeline with flow?
 The use of pure functions to compose a release pipeline here helps make sure that we can develop this complex flow in a simple and maintainable way. Each step of the pipeline can be enabled or disabled to do isolated tophatting. Additionally because each step is written as pure functions, this helps make unit testing easier.
@@ -91,7 +91,7 @@ For context, this refers to [the library's documented config option](https://git
 
 At the time of writing this doc; the end of that documentation states: `this is only applied for packages which are already released in the current release. If A depends on B and we only release B then A won't be bumped.`
 
-This affects an important case for us: Nested monorail dependencies relying on each other. Consider this actual relationship within the theme-tools repo:
+This affects an important case for us: Nested monorail dependencies relying on each other. Consider this actual relationship within the platformos-tools repo:
 `@platformos/theme-language-server-node` depends on `@platformos/theme-language-server-common` which depends on `@platformos/theme-check-common`.
 
 Please note we [already have `@changesets/cli` configured with `updateinternaldependencies: patch`](../.changeset/config.json) for its ability to patch bump internal dependencies once they are already in the release.

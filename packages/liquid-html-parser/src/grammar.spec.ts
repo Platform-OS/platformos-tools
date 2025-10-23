@@ -47,6 +47,8 @@ describe('Unit: liquidHtmlGrammar', () => {
         expectMatchSucceeded(`{% render "product" with foo as bar, %}`).to.be.true;
         expectMatchSucceeded(`{% echo "product" | split: '', %}`).to.be.true;
         expectMatchSucceeded(`{{ "product" | split: '', }}`).to.be.true;
+        expectMatchSucceeded(`{% function _res="product" %}`).to.be.true;
+        expectMatchSucceeded(`{% function res = "product", hello: "world" %}`).to.be.true;
         expectMatchSucceeded(`
           {% capture variable %}
             value

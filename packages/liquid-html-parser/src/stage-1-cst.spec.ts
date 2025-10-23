@@ -631,6 +631,42 @@ describe('Unit: Stage 1 (CST)', () => {
         );
       });
 
+      it('should parse the function tag', () => {
+        [
+          {
+            expression: `"snippet"`,
+            snippetType: 'String',
+            namedArguments: [],
+          },
+          {
+            expression: `variable, key1: val1, key2: "hi"`,
+            snippetType: 'VariableLookup',
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+        ].forEach(
+          ({ expression, snippetType, namedArguments }) => {
+            for (const { toCST, expectPath } of testCases) {
+              cst = toCST(`{% function res = ${expression} -%}`);
+              expectPath(cst, '0.type').to.equal('LiquidTag');
+              expectPath(cst, '0.name').to.equal('function');
+              expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
+              expectPath(cst, '0.markup.partial.type').to.equal(snippetType);
+              expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
+                expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
+                expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
+              });
+              expectPath(cst, '0.whitespaceStart').to.equal(null);
+              expectPath(cst, '0.whitespaceEnd').to.equal('-');
+            }
+          },
+        );
+      });
+
       it('correctly parses whitespace stripping character as part of LiquidTag and not the variable name', () => {
         for (const { toCST, expectPath } of testCases) {
           cst = toCST(`{%echo somevarname-%}`);

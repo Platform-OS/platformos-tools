@@ -435,6 +435,22 @@ function printNode(
       return doc;
     }
 
+    case NodeTypes.FunctionMarkup: {
+      const snippet = path.call((p: any) => print(p), 'snippet');
+      const doc: Doc = [snippet];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
     case NodeTypes.RenderVariableExpression: {
       return [node.kind, ' ', path.call((p: any) => print(p), 'name')];
     }

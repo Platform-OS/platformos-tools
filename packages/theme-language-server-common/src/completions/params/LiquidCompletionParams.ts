@@ -388,6 +388,16 @@ function findCurrentNode(
         break;
       }
 
+      case NodeTypes.FunctionMarkup: {
+        if (isNotEmpty(current.args)) {
+          finder.current = last(current.args);
+        }  else if (current.partial && isCovered(cursor, current.partial.position)) {
+          finder.current = current.partial;
+        }
+
+        break;
+      }
+
       case NodeTypes.RenderVariableExpression: {
         finder.current = current.name;
         break;

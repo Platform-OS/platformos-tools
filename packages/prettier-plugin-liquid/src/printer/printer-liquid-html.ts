@@ -436,8 +436,8 @@ function printNode(
     }
 
     case NodeTypes.FunctionMarkup: {
-      const snippet = path.call((p: any) => print(p), 'snippet');
-      const doc: Doc = [snippet];
+      const partial = path.call((p: any) => print(p), 'partial');
+      const doc: Doc = [node.name, ' = ', partial];
       if (node.args.length > 0) {
         doc.push(
           ',',

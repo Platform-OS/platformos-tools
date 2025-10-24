@@ -1,0 +1,21 @@
+It should never break a name
+printWidth: 1
+{% function res = block %}
+{%- function res = 'snippet' -%}
+
+It should break on named args
+printWidth: 1
+{% function res = 'foo/bar',
+  key1: val1,
+  key2: (0..1)
+%}
+
+It should not require commas (as per syntax) but add them when pretty printed
+{% function res = 'foo/bar', key1: val1, key2: (0..1) %}
+
+It should not require spaces (as per syntax) but add them when pretty printed
+{% function res = 'foo/bar', key1: val1, key2: (0..1) %}
+
+It should strip trailing commas by default
+{% function res = 'foo' %}
+{% function res = 'foo', product: product %}

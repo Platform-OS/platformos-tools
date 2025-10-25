@@ -1,7 +1,7 @@
 {
   "name": "release-orchestrator",
   "version": "1.2.0",
-  "description": "Internal theme-tools package for handling the release process.",
+  "description": "Internal platformos-tools package for handling the release process.",
   "main": "dist/index.js",
   "author": "Albert Chu <albert.chu@shopify.com>",
   "license": "MIT",

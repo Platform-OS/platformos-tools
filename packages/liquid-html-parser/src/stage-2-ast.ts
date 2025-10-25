@@ -59,6 +59,7 @@ import {
   ConcreteLiquidTag,
   ConcreteLiquidTagAssignMarkup,
   ConcreteLiquidTagRenderMarkup,
+  ConcreteLiquidTagFunctionMarkup,
   ConcreteRenderVariableExpression,
   ConcreteRenderAliasExpression,
   ConcreteLiquidTagOpenNamed,
@@ -104,6 +105,7 @@ export type LiquidHtmlNode =
   | CycleMarkup
   | ForMarkup
   | RenderMarkup
+  | FunctionMarkup
   | PaginateMarkup
   | RawMarkup
   | RenderVariableExpression
@@ -210,6 +212,7 @@ export type LiquidTagNamed =
   | LiquidTagLiquid
   | LiquidTagPaginate
   | LiquidTagRender
+  | LiquidTagFunction
   | LiquidTagSection
   | LiquidTagSections
   | LiquidTagTablerow
@@ -376,6 +379,9 @@ export interface LiquidTagContentFor
 /** https://shopify.dev/docs/api/liquid/tags#render */
 export interface LiquidTagRender extends LiquidTagNode<NamedTags.render, RenderMarkup> {}
 
+/** https://shopify.dev/docs/api/liquid/tags#render */
+export interface LiquidTagFunction extends LiquidTagNode<NamedTags.function, FunctionMarkup> {}
+
 /** https://shopify.dev/docs/api/liquid/tags#include */
 export interface LiquidTagInclude extends LiquidTagNode<NamedTags.include, RenderMarkup> {}
 
@@ -419,6 +425,21 @@ export interface RenderMarkup extends ASTNode<NodeTypes.RenderMarkup> {
    * E.g. {% render 'snippet', arg1: value1, arg2█ %}
    *
    * @example {% render 'snippet', arg1: value1, arg2: value2 %}
+   */
+  args: LiquidNamedArgument[];
+}
+
+/** {% function res = 'partial', [...namedArguments] %} */
+export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
+  /** {% render res = snippet %} */
+  name: string;
+  partial: LiquidString | LiquidVariableLookup;
+  /**
+   * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
+   * because the NamedArgument isn't fully typed out.
+   * E.g. {% function res = 'partial', arg1: value1, arg2█ %}
+   *
+   * @example {% function res = 'partial', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
 }
@@ -1561,6 +1582,14 @@ function toNamedLiquidTag(
       };
     }
 
+    case NamedTags.function: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toFunctionMarkup(node.markup),
+      };
+    }
+
     case NamedTags.layout:
     case NamedTags.section: {
       return {
@@ -1861,6 +1890,25 @@ function toRenderMarkup(node: ConcreteLiquidTagRenderMarkup): RenderMarkup {
      * but this is the compromise we're making to get completions to work.
      */
     args: node.renderArguments.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toFunctionMarkup(node: ConcreteLiquidTagFunctionMarkup): FunctionMarkup {
+  return {
+    name: node.name,
+    type: NodeTypes.FunctionMarkup,
+    partial: toExpression(node.partial) as LiquidString | LiquidVariableLookup,
+    /**
+     * When we're in completion mode we won't necessarily have valid named
+     * arguments so we need to call toLiquidArgument instead of toNamedArgument.
+     * We cast using `as` so that this doesn't affect the type system used in
+     * other areas (like theme check) for a scenario that only occurs in
+     * completion mode. This means that our types are *wrong* in completion mode
+     * but this is the compromise we're making to get completions to work.
+     */
+    args: node.functionArguments.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,
   };

@@ -61,6 +61,7 @@ Liquid <: Helpers {
     | liquidTagLayout
     | liquidTagLiquid
     | liquidTagRender
+    | liquidTagFunction
     | liquidTagSection
     | liquidTagSections
     | liquidTagWhen
@@ -143,9 +144,13 @@ Liquid <: Helpers {
   liquidTagRenderMarkup =
     snippetExpression renderVariableExpression? renderAliasExpression? renderArguments
 
+  liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
+  liquidTagFunctionMarkup = variableSegment space* "=" space* snippetExpression renderArguments
+
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?
   snippetExpression = liquidString<delimTag> | variableSegmentAsLookup
+  partialExpression = liquidString<delimTag> | variableSegmentAsLookup
   renderVariableExpression = space+ ("for" | "with") space+ liquidExpression<delimTag>
   renderAliasExpression = space+ "as" space+ variableSegment
 

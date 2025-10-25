@@ -1,6 +1,6 @@
-# Contributing to theme-tools
+# Contributing to platformos-tools
 
-Thank you for your interest in contributing to theme-tools! Your contributions will help make this project better and more reliable. This document provides guidelines and instructions for setting up your development environment and contributing to the theme-tools repository.
+Thank you for your interest in contributing to platformos-tools! Your contributions will help make this project better and more reliable. This document provides guidelines and instructions for setting up your development environment and contributing to the platformos-tools repository.
 
 ## Table of Contents
 
@@ -13,9 +13,9 @@ Thank you for your interest in contributing to theme-tools! Your contributions w
 
 ## Setting Up Your Environment
 
-Before you can start contributing to theme-tools, you'll need to set up your development environment. Follow these steps to get started:
+Before you can start contributing to platformos-tools, you'll need to set up your development environment. Follow these steps to get started:
 
-1. **Clone the repository**: Clone the theme-tools repository to your local machine by running the following command in your terminal:
+1. **Clone the repository**: Clone the platformos-tools repository to your local machine by running the following command in your terminal:
 
    ```bash
    git clone https://github.com/Platform-OS/platformos-tools.git
@@ -24,7 +24,7 @@ Before you can start contributing to theme-tools, you'll need to set up your dev
 2. **Install dependencies**: Navigate to the project directory and install the required dependencies by running:
 
    ```bash
-   cd theme-tools
+   cd platformos-tools
    yarn
    ```
 
@@ -42,13 +42,13 @@ Before you can start contributing to theme-tools, you'll need to set up your dev
 5. **Start developing**: If you're developing changes to test against the vscode extension, all you need to do is add a breakpoint anywhere in a package used within the VS Code extension, hit `f5` in VS Code and your development instance of theme-check will automatically open.
 
 ### Developing for online-store-web
-It is strongly recommended that you use the spin constellation: `theme-tools:online-store` as your development environment for this.
+It is strongly recommended that you use the spin constellation: `platformos-tools:online-store` as your development environment for this.
 
 To set up the package links to online-store-web, within this repo root run: `yarn admin:init`
 
-This process has a small gotcha: online-store-web needs to use the built assets from theme-tools. This means that hot-reload is off the table.
+This process has a small gotcha: online-store-web needs to use the built assets from platformos-tools. This means that hot-reload is off the table.
 
-Once you've made some changes to your local theme-tools packages, to see those changes represented in online-store-web; within this repo root run: `yarn admin:build`
+Once you've made some changes to your local platformos-tools packages, to see those changes represented in online-store-web; within this repo root run: `yarn admin:build`
 
 ### Developing for codemirror-language-client
 
@@ -98,10 +98,10 @@ If ever you want to see how the VS Code extension or playground would behave bef
 
     ```sh
     # Shopifolk
-    dev cd theme-tools
+    dev cd platformos-tools
 
     # External
-    cd /path/to/theme-tools
+    cd /path/to/platformos-tools
     ```
 
 4. Update the docs and start VS Code from that directory.
@@ -128,9 +128,9 @@ Once you've made changes to the codebase and are ready to submit a pull request 
 
 1. **Commit your changes**: Commit your changes with a descriptive commit message.
 
-2. **Push your changes**: Push your changes to the theme-tools repository on GitHub.
+2. **Push your changes**: Push your changes to the platformos-tools repository on GitHub.
 
-3. **Create a pull request**: Go to the theme-tools repository and click on the "New Pull Request" button. Select the branch containing your changes as the head branch.
+3. **Create a pull request**: Go to the platformos-tools repository and click on the "New Pull Request" button. Select the branch containing your changes as the head branch.
 
 4. **Describe your changes**: Write a clear and concise description of the changes you made, the issue or feature request it addresses, and any additional information that may be helpful for reviewers.
 
@@ -142,7 +142,7 @@ All developers who wish to contribute through code or issues, please first read 
 
 ## Reporting Issues
 
-If you encounter any issues or have suggestions for improvements, please feel free to report them by creating a new issue in the theme-tools repository. When reporting an issue, please follow these guidelines to help us better understand and address your concerns:
+If you encounter any issues or have suggestions for improvements, please feel free to report them by creating a new issue in the platformos-tools repository. When reporting an issue, please follow these guidelines to help us better understand and address your concerns:
 
 1. **Check for existing issues**: Before creating a new issue, please search the existing issues to see if someone has already reported the problem or made the same suggestion.
 
@@ -152,6 +152,6 @@ If you encounter any issues or have suggestions for improvements, please feel fr
 
 4. **Describe the issue in detail**: In the issue description, provide as much relevant information as possible. Include steps to reproduce the issue, any error messages, the expected behavior, and the actual behavior. If applicable, include screenshots or screen recordings to help illustrate the problem.
 
-5. **Include your environment**: Mention the version of theme-tools you are using, as well as any relevant information about your operating system, Node.js version, and browser (if applicable).
+5. **Include your environment**: Mention the version of platformos-tools you are using, as well as any relevant information about your operating system, Node.js version, and browser (if applicable).
 
 By following these guidelines, you'll help us better understand the issue and address it more effectively. We appreciate your feedback and contributions!

@@ -1,5 +1,5 @@
 {
-  "name": "theme-tools",
+  "name": "platformos-tools",
   "version": "1.0.0",
   "description": "The Swiss Army Knife for Shopify Liquid themes. Everything you need in one handy monorepo!",
   "main": "index.js",

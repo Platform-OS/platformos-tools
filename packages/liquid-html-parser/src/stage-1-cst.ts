@@ -81,6 +81,7 @@ export enum ConcreteNodeTypes {
   CycleMarkup = 'CycleMarkup',
   ForMarkup = 'ForMarkup',
   RenderMarkup = 'RenderMarkup',
+  FunctionMarkup = 'FunctionMarkup',
   PaginateMarkup = 'PaginateMarkup',
   RenderVariableExpression = 'RenderVariableExpression',
   RenderAliasExpression = 'RenderAliasExpression',
@@ -321,6 +322,7 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagLayout
   | ConcreteLiquidTagLiquid
   | ConcreteLiquidTagRender
+  | ConcreteLiquidTagFunction
   | ConcreteLiquidTagSection
   | ConcreteLiquidTagSections
   | ConcreteLiquidTagWhen;
@@ -376,6 +378,8 @@ export interface ConcreteLiquidTagRender
   extends ConcreteLiquidTagNode<NamedTags.render, ConcreteLiquidTagRenderMarkup> {}
 export interface ConcreteLiquidTagInclude
   extends ConcreteLiquidTagNode<NamedTags.include, ConcreteLiquidTagRenderMarkup> {}
+export interface ConcreteLiquidTagFunction
+  extends ConcreteLiquidTagNode<NamedTags.function, ConcreteLiquidTagFunctionMarkup> {}
 
 export interface ConcreteLiquidTagContentForMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.ContentForMarkup> {
@@ -389,6 +393,13 @@ export interface ConcreteLiquidTagRenderMarkup
   variable: ConcreteRenderVariableExpression | null;
   alias: ConcreteRenderAliasExpression | null;
   renderArguments: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagFunctionMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.FunctionMarkup> {
+  name: string;
+  partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
+  functionArguments: ConcreteLiquidNamedArgument[];
 }
 
 export interface ConcreteRenderVariableExpression
@@ -819,6 +830,7 @@ function toCST<T>(
     liquidTagIncrement: 0,
     liquidTagDecrement: 0,
     liquidTagRender: 0,
+    liquidTagFunction: 0,
     liquidTagInclude: 0,
     liquidTagSection: 0,
     liquidTagSections: 0,
@@ -891,6 +903,15 @@ function toCST<T>(
       variable: 1,
       alias: 2,
       renderArguments: 3,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagFunctionMarkup: {
+      type: ConcreteNodeTypes.FunctionMarkup,
+      name: 0,
+      partial: 4,
+      functionArguments: 5,
       locStart,
       locEnd,
       source,

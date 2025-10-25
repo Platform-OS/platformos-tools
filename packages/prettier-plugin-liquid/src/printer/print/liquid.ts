@@ -188,6 +188,13 @@ function printNamedLiquidBlockStart(
       return tag(trailingWhitespace);
     }
 
+    case NamedTags.function: {
+      const markup = node.markup;
+      const trailingWhitespace =
+        markup.args.length > 0 ? line : ' ';
+      return tag(trailingWhitespace);
+    }
+
     case NamedTags.capture:
     case NamedTags.increment:
     case NamedTags.decrement:

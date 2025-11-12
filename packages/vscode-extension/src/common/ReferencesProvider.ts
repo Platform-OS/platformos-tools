@@ -25,14 +25,14 @@ import {
 import { BaseLanguageClient } from 'vscode-languageclient';
 
 export function setupContext() {
-  const enabled = workspace.getConfiguration().get('themeCheck.preloadOnBoot', true);
+  const enabled = workspace.getConfiguration().get('platformosCheck.preloadOnBoot', true);
   commands.executeCommand('setContext', 'shopify.themeGraph.references.enabled', enabled);
   commands.executeCommand('setContext', 'shopify.themeGraph.dependencies.enabled', enabled);
 }
 
 export function watchReferencesTreeViewConfig() {
   return workspace.onDidChangeConfiguration((event) => {
-    if (event.affectsConfiguration('themeCheck.preloadOnBoot')) {
+    if (event.affectsConfiguration('platformosCheck.preloadOnBoot')) {
       setupContext();
     }
   });
@@ -192,7 +192,7 @@ class ReferenceItem extends TreeItem {
     this.resourceUri = Uri.parse(dest.uri);
     this.iconPath = ReferenceItem.icon(reference, dest);
     this.command = {
-      command: 'shopifyLiquid.openLocation',
+      command: 'platformosLiquid.openLocation',
       title: 'View reference',
       arguments: [dest],
     };

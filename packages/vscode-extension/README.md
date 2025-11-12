@@ -1,17 +1,15 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/theme-check-vscode/blob/main/images/shopify_glyph.png?raw=true" alt="logo" width="150" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/packages/vscode-extensions/blob/main/images/pos.jpg?raw=true" alt="logo" width="150" height="160">
   <br>
-  Shopify Liquid
+  platformOS Liquid
 </h1>
 
-<h4 align="center">A complete developer experience for Shopify themes</h4>
+<h4 align="center">A complete developer experience for platformOS</h4>
 
-Official VS Code extension for [Shopify Liquid storefronts](https://shopify.dev/docs/storefronts/themes) and [Theme App Extensions](https://shopify.dev/docs/apps/online-store/theme-app-extensions).
+Official VS Code extension for [platformOS](https://documentation.platformos.com).
 
-![](https://github.com/Shopify/theme-check-vscode/blob/feature/readme-revamp/images/demo.gif?raw=true)
-
-[Features](#features) | [User guide](#user-guide) | [Installation](#installation) | [Configuration](#configuration) | [📦 VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=shopify.theme-check-vscode).
+[Features](#features) | [User guide](#user-guide) | [Installation](#installation) | [Configuration](#configuration) | [📦 VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=platformOS.platformos-check-vscode).
 
 ## Features
 
@@ -29,7 +27,7 @@ Official VS Code extension for [Shopify Liquid storefronts](https://shopify.dev/
 
 ## User guide
 
-Take a look at [our user guide](https://shopify.dev/docs/storefronts/themes/tools/shopify-liquid-vscode) for an in-depth demonstration and explanation of all the features.
+Take a look at [our user guide](https://documentation.platformos.com/developer-guide/platformos-check/platformos-check) for an in-depth demonstration and explanation of all the features.
 
 ## Installation
 
@@ -37,10 +35,10 @@ This VS Code extensions comes with batteries included.
 
 ## Configuration
 
-- `"themeCheck.checkOnOpen": boolean`, (default: `true`) makes it so theme check runs on file open.
-- `"themeCheck.checkOnChange": boolean`, (default: `true`) makes it so theme check runs on file change.
-- `"themeCheck.checkOnSave": boolean`, (default: `true`) makes it so theme check runs on file save.
-- `"themeCheck.preloadOnBoot": boolean`, (default: `true`) makes it so all files are preloaded on extension activation.
+- `"platformosCheck.checkOnOpen": boolean`, (default: `true`) makes it so theme check runs on file open.
+- `"platformosCheck.checkOnChange": boolean`, (default: `true`) makes it so theme check runs on file change.
+- `"platformosCheck.checkOnSave": boolean`, (default: `true`) makes it so theme check runs on file save.
+- `"platformosCheck.preloadOnBoot": boolean`, (default: `true`) makes it so all files are preloaded on extension activation.
 
 ## License
 

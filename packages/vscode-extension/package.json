@@ -98,19 +98,19 @@
     "commands": [
       {
         "command": "platformosLiquid.restart",
-        "title": "Liquid Theme Check: Restart Server"
+        "title": "Liquid Check: Restart Server"
       },
       {
         "command": "platformosLiquid.runChecks",
-        "title": "Liquid Theme Check: Run Checks"
+        "title": "Liquid Check: Run Checks"
       },
       {
         "command": "platformosLiquid.deadCode",
-        "title": "Liquid Theme Check: Find dead code"
+        "title": "Liquid Check: Find dead code"
       },
       {
         "command": "platformosLiquid.openLocation",
-        "title": "Open text document at location"
+        "title": "Open document at location"
       }
     ],
     "configuration": {

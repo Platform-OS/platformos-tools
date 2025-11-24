@@ -13,7 +13,9 @@ import path from 'node:path';
 import {
   Manifests,
   Resource,
-  ThemeLiquidDocsSchemaRoot,
+  ThemeCustomSchemas,
+  ThemeLiquidDocsRoot,
+  ThemeLiquidDocsRootFallback,
   downloadResource,
   downloadThemeLiquidDocs,
   exists,
@@ -65,16 +67,23 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
       ).then((manifest) => {
         return Promise.all(
           manifest.schemas.map(
-            async (schemaDefinition): Promise<SchemaDefinition> => ({
-              uri: `${ThemeLiquidDocsSchemaRoot}/${schemaDefinition.uri}`,
-              fileMatch: schemaDefinition.fileMatch,
-              schema: await findSuitableResource(
-                this.schemaLoaders(schemaDefinition.uri),
-                identity,
-                '',
-                this.log,
-              ),
-            }),
+            async (schemaDefinition): Promise<SchemaDefinition> => {
+              let schemaRoot = `${ThemeLiquidDocsRootFallback}/schemas`;
+            
+              if (ThemeCustomSchemas.includes(schemaDefinition.uri)) {
+                schemaRoot = ThemeLiquidDocsRoot;
+              }
+              return {
+                uri: `${schemaRoot}/${schemaDefinition.uri}`,
+                fileMatch: schemaDefinition.fileMatch,
+                schema: await findSuitableResource(
+                  this.schemaLoaders(schemaDefinition.uri),
+                  identity,
+                  '',
+                  this.log,
+                ),
+              }
+            },
           ),
         );
       }),

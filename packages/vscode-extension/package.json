@@ -10,12 +10,12 @@
   "bugs": {
     "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
-  "version": "3.10.0",
-  "publisher": "Shopify",
+  "version": "0.1.0",
+  "publisher": "platformOS",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
-  "displayName": "Shopify Liquid",
-  "description": "A complete developer experience for Shopify themes",
+  "displayName": "platformOS Liquid",
+  "description": "A complete developer experience for platformOS Liquid",
   "categories": [
     "Programming Languages",
     "Linters",
@@ -23,11 +23,11 @@
   ],
   "keywords": [
     "liquid",
-    "shopify",
+    "platformOS",
     "theme-check"
   ],
   "preview": false,
-  "icon": "images/shopify_glyph.png",
+  "icon": "images/platformos_logo.png",
   "scripts": {
     "build": "yarn build:ci",
     "build:ci": "yarn build:extension && yarn build:language-config && yarn build:syntax",
@@ -57,7 +57,7 @@
     "type-check": "tsc --noEmit"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.104.0"
   },
   "dependencies": {
     "@platformos/liquid-html-parser": "^2.9.0",

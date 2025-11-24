@@ -8,9 +8,10 @@ import { Logger, noop, tap } from './utils';
 const paths = envPaths('theme-liquid-docs');
 export const root = paths.cache;
 
-export const ThemeLiquidDocsRoot =
+export const ThemeLiquidDocsRootFallback =
   'https://raw.githubusercontent.com/Shopify/theme-liquid-docs/main';
-export const ThemeLiquidDocsSchemaRoot = `${ThemeLiquidDocsRoot}/schemas`;
+export const ThemeLiquidDocsRoot = 'https://documentation.platformos.com/api/liquid'
+export const ThemeCustomSchemas = ['tags', 'latest', 'objects', 'filters'];
 
 export type Resource = (typeof Resources)[number];
 export const Resources = [
@@ -28,10 +29,10 @@ export const Manifests = {
 } as const satisfies Record<Mode, Resource>;
 
 const THEME_LIQUID_DOCS: Record<Resource | 'latest', string> = {
-  filters: 'data/filters.json',
-  objects: 'data/objects.json',
-  tags: 'data/tags.json',
-  latest: 'data/latest.json',
+  filters: 'filters.json',
+  objects: 'objects.json',
+  tags: 'tags.json',
+  latest: 'latest.json',
   shopify_system_translations: 'data/shopify_system_translations.json',
   manifest_theme: 'schemas/manifest_theme.json',
   manifest_theme_app_extension: 'schemas/manifest_theme_app_extension.json',
@@ -54,8 +55,11 @@ export async function downloadResource(
   destination: string = root,
   log: Logger = noop,
 ) {
+  log(resource)
   const remotePath = resourceUrl(resource);
+  log(remotePath);
   const localPath = resourcePath(resource, destination);
+  log(localPath);
   const text = await download(remotePath, log);
   await fs.writeFile(localPath, text, 'utf8');
   return text;
@@ -71,6 +75,7 @@ export async function download(path: string, log: Logger) {
         throw error;
       });
   } else {
+    log(path);
     const res = await fetch(path);
     return res.text();
   }
@@ -81,10 +86,12 @@ export function resourcePath(resource: Resource | 'latest', destination: string 
 }
 
 export function resourceUrl(resource: Resource | 'latest') {
+  let resourceRoot = `${ThemeLiquidDocsRootFallback}`;
+
+  if (ThemeCustomSchemas.includes(resource)) {
+    resourceRoot = ThemeLiquidDocsRoot;
+  }
   const relativePath = THEME_LIQUID_DOCS[resource];
-  const resourceRoot = process.env.SHOPIFY_TLD_ROOT
-    ? `file:${process.env.SHOPIFY_TLD_ROOT}`
-    : ThemeLiquidDocsRoot;
   return `${resourceRoot}/${relativePath}`;
 }
 
@@ -95,7 +102,7 @@ export function schemaPath(relativeUri: string, destination: string = root) {
 export function schemaUrl(relativeUri: string) {
   const schemaRoot = process.env.SHOPIFY_TLD_ROOT
     ? `file:${process.env.SHOPIFY_TLD_ROOT}`
-    : ThemeLiquidDocsRoot;
+    : ThemeLiquidDocsRootFallback;
   return `${schemaRoot}/schemas/${relativeUri}`;
 }
 

@@ -5,7 +5,7 @@ First we need to make sure that you have a running version of the language serve
 1. In your `settings.json` add the following to enable language server logging in the OUTPUT tab:
 
   ```
-  "shopifyLiquid.trace.server": "verbose",
+  "platformosLiquid.trace.server": "verbose",
   ```
 
 2. Restart the language server from the command palette (`cmd+p` > `Liquid Theme Check: Restart Server`):
@@ -26,8 +26,8 @@ First we need to make sure that you have a running version of the language serve
 
    When that happens, try hardcoding _**ONE**_ of the two following `settings.json` configuration:
 
-    - `"shopifyLiquid.languageServerPath"` the path to the `theme-check-language-server` executable.
-    - OR `"shopifyLiquid.shopifyCLIPath"`, the path to the `shopify` CLI.
+    - `"platformosLiquid.languageServerPath"` the path to the `theme-check-language-server` executable.
+    - OR `"platformosLiquid.shopifyCLIPath"`, the path to the `shopify` CLI.
 
   **Note:** If you are on Windows, you'd find the path with the `where` command, also note that JSON requires escaping backslashes in paths.
 

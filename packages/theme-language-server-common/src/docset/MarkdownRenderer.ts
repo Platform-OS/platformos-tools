@@ -57,6 +57,7 @@ function docsetEntryBody(
     entry.description,
     shopifyDevReference(entry, returnType, docsetEntryType),
   ]
+    .map(x => x?.toString())
     .map(sanitize)
     .filter(Boolean)
     .join(HORIZONTAL_SEPARATOR);

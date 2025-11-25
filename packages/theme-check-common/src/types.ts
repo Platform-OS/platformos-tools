@@ -51,15 +51,25 @@ export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
 
 export enum SourceCodeType {
   JSON = 'JSON',
-  LiquidHtml = 'LiquidHtml',
+  LiquidHtml = 'LiquidHtml'
 }
 
 export type LiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml>;
+export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> & PlatformOSFile & {
+    kind: 'Partial';
+  };
+
+export type PageLiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml> & PlatformOSFile & {
+    kind: 'Page';
+    route: string;
+};
+
 export type LiquidCheckDefinition<S extends Schema = Schema> = CheckDefinition<
   SourceCodeType.LiquidHtml,
   S
 >;
 export type LiquidCheck = Check<SourceCodeType.LiquidHtml>;
+
 
 export { LiquidHtmlNode, LiquidHtmlNodeTypes };
 
@@ -69,6 +79,12 @@ export type JSONCheckDefinition<S extends Schema = Schema> = CheckDefinition<
   S
 >;
 export type JSONCheck = Check<SourceCodeType.JSON>;
+
+export interface PlatformOSFile {
+  name: string;
+  module_name: string;
+  path: string;
+}
 
 // AST[SourceCodeType.LiquidHtml] maps to LiquidHtmlNode
 export type AST = {

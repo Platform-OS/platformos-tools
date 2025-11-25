@@ -5,6 +5,7 @@
 import {
   ContentForMarkup,
   RenderMarkup,
+  FunctionMarkup,
   LiquidNamedArgument,
   NodeTypes,
 } from '@platformos/liquid-html-parser';
@@ -22,7 +23,7 @@ import { isLiquidString } from '../checks/utils';
  */
 export function reportUnknownArguments(
   context: Context<SourceCodeType.LiquidHtml>,
-  node: ContentForMarkup | RenderMarkup,
+  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
   unknownProvidedArgs: LiquidNamedArgument[],
   name: string,
 ) {
@@ -31,6 +32,8 @@ export function reportUnknownArguments(
     errorOwnerMessage = ` in content_for tag for static block '${name}'`;
   } else if (node.type === NodeTypes.RenderMarkup) {
     errorOwnerMessage = ` in render tag for snippet '${name}'`;
+  } else if (node.type === NodeTypes.FunctionMarkup) {
+    errorOwnerMessage = ` in function tag for partial '${name}'`;
   }
 
   for (const arg of unknownProvidedArgs) {
@@ -53,7 +56,7 @@ export function reportUnknownArguments(
  */
 export function reportMissingArguments(
   context: Context<SourceCodeType.LiquidHtml>,
-  node: ContentForMarkup | RenderMarkup,
+  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
   missingRequiredArgs: LiquidDocParameter[],
   name: string,
 ) {
@@ -62,6 +65,8 @@ export function reportMissingArguments(
     errorOwnerMessage = ` in content_for tag for static block '${name}'`;
   } else if (node.type === NodeTypes.RenderMarkup) {
     errorOwnerMessage = ` in render tag for snippet '${name}'`;
+  } else if (node.type === NodeTypes.FunctionMarkup) {
+    errorOwnerMessage = ` in function tag for partial '${name}'`;
   }
 
   for (const arg of missingRequiredArgs) {
@@ -81,7 +86,7 @@ export function reportMissingArguments(
 
 export function reportDuplicateArguments(
   context: Context<SourceCodeType.LiquidHtml>,
-  node: ContentForMarkup | RenderMarkup,
+  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
   duplicateArgs: LiquidNamedArgument[],
   name: string,
 ) {
@@ -90,6 +95,8 @@ export function reportDuplicateArguments(
     errorOwnerMessage = ` in content_for tag for static block '${name}'`;
   } else if (node.type === NodeTypes.RenderMarkup) {
     errorOwnerMessage = ` in render tag for snippet '${name}'`;
+  } else if (node.type === NodeTypes.FunctionMarkup) {
+    errorOwnerMessage = ` in function tag for partial '${name}'`;
   }
 
   for (const arg of duplicateArgs) {
@@ -201,7 +208,7 @@ export function generateTypeMismatchSuggestions(
   return suggestions;
 }
 
-function isLastArg(node: RenderMarkup | ContentForMarkup, arg: LiquidNamedArgument): boolean {
+function isLastArg(node: RenderMarkup | ContentForMarkup | FunctionMarkup, arg: LiquidNamedArgument): boolean {
   return (
     node.args.length == 1 || arg.position.start == node.args[node.args.length - 1].position.start
   );
@@ -229,6 +236,14 @@ export function getSnippetName(node: RenderMarkup) {
   return node.snippet.value;
 }
 
+export function getPartialName(node: FunctionMarkup) {
+  if (!isLiquidString(node.partial)) {
+    return;
+  }
+
+  return node.partial.value;
+}
+
 export async function getLiquidDocParams(
   context: Context<SourceCodeType.LiquidHtml>,
   relativePath: string,
@@ -243,7 +258,7 @@ export async function getLiquidDocParams(
 }
 
 export function makeRemoveArgumentCorrector(
-  node: ContentForMarkup | RenderMarkup,
+  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
   arg: LiquidNamedArgument,
 ) {
   return (fixer: StringCorrector) => {
@@ -269,7 +284,7 @@ export function makeRemoveArgumentCorrector(
 }
 
 export function makeAddArgumentCorrector(
-  node: ContentForMarkup | RenderMarkup,
+  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
   arg: LiquidDocParameter,
 ) {
   return (fixer: StringCorrector) => {

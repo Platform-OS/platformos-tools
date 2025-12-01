@@ -59,6 +59,7 @@ import { CachedFileSystem } from './CachedFileSystem';
 import { Configuration } from './Configuration';
 import { safe } from './safe';
 import { ThemeGraphManager } from './ThemeGraphManager';
+import { DocumentsLocator } from '../documentLinks/DocumentsLocator';
 
 const defaultLogger = () => {};
 
@@ -120,7 +121,8 @@ export function startServer(
     findThemeRootURI,
   );
   const diagnosticsManager = new DiagnosticsManager(connection);
-  const documentLinksProvider = new DocumentLinksProvider(documentManager, findThemeRootURI);
+  const documentsLocator = new DocumentsLocator(fs);
+  const documentLinksProvider = new DocumentLinksProvider(documentManager, findThemeRootURI, documentsLocator);
   const codeActionsProvider = new CodeActionsProvider(documentManager, diagnosticsManager);
   const onTypeFormattingProvider = new OnTypeFormattingProvider(
     documentManager,

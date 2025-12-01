@@ -7,11 +7,14 @@ import { URI, Utils } from 'vscode-uri';
 import { visit, Visitor } from '@platformos/theme-check-common';
 import { DocumentManager } from '../documents';
 import { FindThemeRootURI } from '../internal-types';
+import { DocumentsLocator } from './DocumentsLocator';
+
 
 export class DocumentLinksProvider {
   constructor(
     private documentManager: DocumentManager,
     private findThemeRootURI: FindThemeRootURI,
+    private documentsLocator: DocumentsLocator
   ) {}
 
   async documentLinks(uriString: string): Promise<DocumentLink[]> {
@@ -29,7 +32,7 @@ export class DocumentLinksProvider {
       return [];
     }
 
-    const visitor = documentLinksVisitor(sourceCode.textDocument, URI.parse(rootUri));
+    const visitor = await documentLinksVisitor(sourceCode.textDocument, URI.parse(rootUri), this.documentsLocator);
     return visit(sourceCode.ast, visitor);
   }
 }
@@ -37,11 +40,10 @@ export class DocumentLinksProvider {
 function documentLinksVisitor(
   textDocument: TextDocument,
   root: URI,
-): Visitor<SourceCodeType.LiquidHtml, DocumentLink> {
+  documentsLocator: DocumentsLocator
+): Promise<Visitor<SourceCodeType.LiquidHtml, DocumentLink>> {
   return {
     LiquidTag(node) {
-      // {% render 'snippet' %}
-      // {% include 'snippet' %}
       if (
         (node.name === 'render' || node.name === 'include') &&
         typeof node.markup !== 'string' &&
@@ -50,7 +52,19 @@ function documentLinksVisitor(
         const snippet = node.markup.snippet;
         return DocumentLink.create(
           range(textDocument, snippet),
-          Utils.resolvePath(root, 'snippets', snippet.value + '.liquid').toString(),
+          await documentsLocator.locate(root, node.name, snippet.value)
+        );
+      }
+
+      if (
+        (node.name === 'function') &&
+        typeof node.markup !== 'string' &&
+        isLiquidString(node.markup.partial)
+      ) {
+        const snippet = node.markup.partial;
+        return DocumentLink.create(
+          range(textDocument, snippet),
+          documentsLocator.locate(root, node.name, snippet.value)
         );
       }
 

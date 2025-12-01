@@ -13,7 +13,6 @@ startServer(connection, new VsCodeFileSystem(connection, fileSystems));
 
 process.on('uncaughtException', (e) => {
   console.error(e);
-  debugger;
 });
 
 process.on('unhandledRejection', (e) => {

@@ -4,7 +4,7 @@ import { AST, LiquidHtmlNode, NodeOfType, SourceCodeType, NodeTypes, JSONNode } 
 export type VisitorMethod<S extends SourceCodeType, T, R> = (
   node: NodeOfType<S, T>,
   ancestors: AST[S][],
-) => R | R[] | undefined;
+) => Promise<R | R[] | undefined>;
 
 export type Visitor<S extends SourceCodeType, R> = {
   /** Happens once per node, while going down the tree */

@@ -85,8 +85,8 @@ export async function toBlockSchema(
   isStrict: boolean,
 ): Promise<ThemeBlockSchema> {
   const name = path.basename(uri, '.liquid');
-  const schemaNode = toSchemaNode(liquidAst);
-  const staticBlockDefs = toStaticBlockDefs(liquidAst);
+  const schemaNode = await toSchemaNode(liquidAst);
+  const staticBlockDefs = await toStaticBlockDefs(liquidAst);
   const parsed = toParsed(schemaNode, isStrict);
   const ast = toAst(schemaNode);
 
@@ -112,8 +112,8 @@ export async function toSectionSchema(
   isStrict: boolean,
 ): Promise<SectionSchema> {
   const name = path.basename(uri, '.liquid');
-  const schemaNode = toSchemaNode(liquidAst);
-  const staticBlockDefs = toStaticBlockDefs(liquidAst);
+  const schemaNode = await toSchemaNode(liquidAst);
+  const staticBlockDefs = await toStaticBlockDefs(liquidAst);
   const parsed = toParsed(schemaNode, isStrict);
   const ast = toAst(schemaNode);
 
@@ -136,7 +136,7 @@ export async function toAppBlockSchema(
   isStrict: boolean,
 ): Promise<AppBlockSchema> {
   const name = path.basename(uri, '.liquid');
-  const schemaNode = toSchemaNode(liquidAst);
+  const schemaNode = await toSchemaNode(liquidAst);
   const parsed = toParsed(schemaNode, isStrict);
   const ast = toAst(schemaNode);
 
@@ -150,23 +150,23 @@ export async function toAppBlockSchema(
   };
 }
 
-function toSchemaNode(ast: LiquidHtmlNode | Error): LiquidRawTag | Error {
+async function toSchemaNode(ast: LiquidHtmlNode | Error): Promise<Error | LiquidRawTag> {
   if (ast instanceof Error) return ast;
   return (
-    visit<SourceCodeType.LiquidHtml, LiquidRawTag>(ast, {
-      LiquidRawTag(node) {
+    (await visit<SourceCodeType.LiquidHtml, LiquidRawTag>(ast, {
+      async LiquidRawTag(node) {
         if (node.name === 'schema') {
           return node;
         }
       },
-    })[0] ?? new Error('No schema tag found')
+    }))[0] ?? new Error('No schema tag found')
   );
 }
 
-function toStaticBlockDefs(ast: LiquidHtmlNode | Error): StaticBlockDef[] {
+async function toStaticBlockDefs(ast: LiquidHtmlNode | Error): Promise<StaticBlockDef[]> {
   if (ast instanceof Error) return [];
-  return visit<SourceCodeType.LiquidHtml, StaticBlockDef>(ast, {
-    LiquidTag(node) {
+  return await visit<SourceCodeType.LiquidHtml, StaticBlockDef>(ast, {
+    async LiquidTag(node) {
       if (node.name !== NamedTags.content_for) return;
       if (typeof node.markup === 'string') return;
       const contentForMarkup: ContentForMarkup = node.markup;

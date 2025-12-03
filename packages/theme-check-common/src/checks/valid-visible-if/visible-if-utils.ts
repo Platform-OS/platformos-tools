@@ -10,9 +10,9 @@ export const adjustedPrefix = '{% if ';
 export const adjustedSuffix = ' %}{% endif %}';
 export const offsetAdjust = '{{'.length - adjustedPrefix.length;
 
-export function getVariableLookupsInExpression(
+export async function getVariableLookupsInExpression(
   expression: string,
-): LiquidVariableLookup[] | { warning: string } | null {
+): Promise<LiquidVariableLookup[] | { warning: string; } | null> {
   // As of February 2025, parsers other than LiquidJS don't yet support
   // expressions in {{ variable }} tags. So we have to do something a little
   // gnarly — before parsing it we extract the expression from within the tag
@@ -61,8 +61,8 @@ export function getVariableLookupsInExpression(
       return null;
     }
 
-    const vars = visit<SourceCodeType.LiquidHtml, LiquidVariableLookup>(ifTag, {
-      VariableLookup: (node) => node,
+    const vars = await visit<SourceCodeType.LiquidHtml, LiquidVariableLookup>(ifTag, {
+      VariableLookup: async (node) => node,
     });
 
     if (vars.length === 0) {

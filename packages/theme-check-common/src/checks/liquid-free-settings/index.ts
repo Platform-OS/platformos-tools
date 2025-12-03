@@ -39,7 +39,7 @@ export const LiquidFreeSettings: LiquidCheckDefinition = {
         if (jsonFile instanceof Error) return;
 
         visit<SourceCodeType.JSON, void>(jsonFile, {
-          Property(schemaNode, ancestors) {
+          async Property(schemaNode, ancestors) {
             if (isInArrayWithParentKey(ancestors, 'settings') && isLiteralNode(schemaNode.value)) {
               const { value, loc } = schemaNode.value;
               const propertyValue = schemaNode.key.value;

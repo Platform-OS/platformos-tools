@@ -41,9 +41,9 @@ function documentLinksVisitor(
   textDocument: TextDocument,
   root: URI,
   documentsLocator: DocumentsLocator
-): Promise<Visitor<SourceCodeType.LiquidHtml, DocumentLink>> {
+): Visitor<SourceCodeType.LiquidHtml, DocumentLink> {
   return {
-    LiquidTag(node) {
+    async LiquidTag(node) {
       if (
         (node.name === 'render' || node.name === 'include') &&
         typeof node.markup !== 'string' &&
@@ -64,7 +64,7 @@ function documentLinksVisitor(
         const snippet = node.markup.partial;
         return DocumentLink.create(
           range(textDocument, snippet),
-          documentsLocator.locate(root, node.name, snippet.value)
+          await documentsLocator.locate(root, node.name, snippet.value)
         );
       }
 
@@ -94,7 +94,7 @@ function documentLinksVisitor(
     },
 
     // {{ 'theme.js' | asset_url }}
-    LiquidVariable(node) {
+    async LiquidVariable(node) {
       if (node.filters.length === 0 || node.filters[0].name !== 'asset_url') {
         return;
       }

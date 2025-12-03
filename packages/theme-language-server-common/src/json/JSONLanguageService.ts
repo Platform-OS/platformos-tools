@@ -146,7 +146,7 @@ export class JSONLanguageService {
     switch (document.type) {
       case SourceCodeType.JSON: {
         if (document.ast instanceof Error) return [];
-        const visitor = createJSONDocumentLinksVisitor(document.textDocument, URI.parse(rootUri));
+        const visitor = await createJSONDocumentLinksVisitor(document.textDocument, URI.parse(rootUri));
         return visit(document.ast, visitor);
       }
 
@@ -157,12 +157,12 @@ export class JSONLanguageService {
 
         const schema = await document.getSchema();
         if (schema && !(schema.ast instanceof Error)) {
-          const visitor = createJSONDocumentLinksVisitor(
+          const visitor = await createJSONDocumentLinksVisitor(
             textDocument,
             URI.parse(rootUri),
             schema.offset,
           );
-          const schemaLinks = visit(schema.ast, visitor);
+          const schemaLinks = await visit(schema.ast, visitor);
           links.push(...schemaLinks);
         }
 

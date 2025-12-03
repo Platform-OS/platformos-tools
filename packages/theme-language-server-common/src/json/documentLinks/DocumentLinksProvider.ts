@@ -4,13 +4,13 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI, Utils } from 'vscode-uri';
 import { Visitor } from '@platformos/theme-check-common';
 
-export function createJSONDocumentLinksVisitor(
+export async function createJSONDocumentLinksVisitor(
   textDocument: TextDocument,
   root: URI,
   offset: number = 0,
-): Visitor<SourceCodeType.JSON, DocumentLink> {
+): Promise<Visitor<SourceCodeType.JSON, DocumentLink>> {
   const visitor: Visitor<SourceCodeType.JSON, DocumentLink> = {
-    Property(node, ancestors) {
+    async Property(node, ancestors) {
       const origin = jsonPropertyOriginDirectory(ancestors);
 
       if (!origin) return;

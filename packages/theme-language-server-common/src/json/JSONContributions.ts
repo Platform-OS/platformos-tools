@@ -71,10 +71,10 @@ export class JSONContributions implements JSONWorkerContribution {
     ];
   }
 
-  getInfoContribution(uri: string, location: JSONPath): Promise<MarkedString[]> {
+  async getInfoContribution(uri: string, location: JSONPath): Promise<MarkedString[]> {
     const doc = this.documentManager.get(uri);
     if (!doc) return SKIP_CONTRIBUTION;
-    const context = this.getContext(doc);
+    const context = await this.getContext(doc);
     const provider = this.hoverProviders.find((p) => p.canHover(context, location));
     if (!provider) return SKIP_CONTRIBUTION;
     return provider.hover(context, location);
@@ -92,11 +92,13 @@ export class JSONContributions implements JSONWorkerContribution {
     const doc = this.documentManager.get(uri);
     if (!doc || doc.ast instanceof Error) return;
 
-    const items = await Promise.all(
-      this.completionProviders
-        .filter((provider) => provider.completeProperty)
-        .map((provider) => provider.completeProperty!(this.getContext(doc), location)),
-    );
+    const providers = this.completionProviders
+        .filter((provider) => provider.completeProperty);
+    const data = [];
+    for (const provider of providers) {
+      data.push(await provider.completeProperty!(await this.getContext(doc), location));
+    }
+    const items = await Promise.all(data);
 
     for (const item of items.flat()) {
       result.add(item);
@@ -111,14 +113,13 @@ export class JSONContributions implements JSONWorkerContribution {
   ): Promise<void> {
     const doc = this.documentManager.get(uri);
     if (!doc || doc.ast instanceof Error) return;
-
-    const items = await Promise.all(
-      this.completionProviders
-        .filter((provider) => provider.completeValue)
-        .map((provider) =>
-          provider.completeValue!(this.getContext(doc), location.concat(propertyKey)),
-        ),
-    );
+    const providers = this.completionProviders
+        .filter((provider) => provider.completeValue);
+    const data = [];
+    for (const provider of providers) {
+      data.push(await provider.completeValue!(await this.getContext(doc), location.concat(propertyKey)));
+    }
+    const items = await Promise.all(data);
 
     for (const item of items.flat()) {
       result.add(item);
@@ -128,13 +129,13 @@ export class JSONContributions implements JSONWorkerContribution {
   /** I'm not sure we want to do anything with that... but TS requires us to have it */
   async collectDefaultCompletions(_uri: string, _result: CompletionsCollector): Promise<void> {}
 
-  private getContext(doc: AugmentedSourceCode): RequestContext {
+  private async getContext(doc: AugmentedSourceCode): Promise<RequestContext> {
     const context: RequestContext = {
       doc,
     };
 
     if (doc.type === SourceCodeType.LiquidHtml && !(doc.ast instanceof Error)) {
-      const schema = findSchemaNode(doc.ast);
+      const schema = await findSchemaNode(doc.ast);
       if (!schema) return SKIP_CONTRIBUTION;
       const jsonString = schema?.source.slice(
         schema.blockStartPosition.end,

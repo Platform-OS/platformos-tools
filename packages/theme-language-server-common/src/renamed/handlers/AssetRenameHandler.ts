@@ -67,8 +67,8 @@ export class AssetRenameHandler implements BaseRenameHandler {
     for (const sourceCode of liquidSourceCodes) {
       if (sourceCode.ast instanceof Error) continue;
       const textDocument = sourceCode.textDocument;
-      const edits: TextEdit[] = visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
-        LiquidVariable(node: LiquidVariable) {
+      const edits: TextEdit[] = await visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
+        async LiquidVariable(node: LiquidVariable) {
           if (node.filters.length === 0) return;
           if (node.expression.type !== NodeTypes.String) return;
           if (node.filters[0].name !== 'asset_url') return;

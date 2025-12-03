@@ -285,7 +285,7 @@ export class TypeSystem {
 
   private async symbolsTable(partialAst: LiquidHtmlNode, uri: string): Promise<SymbolsTable> {
     const seedSymbolsTable = await this.seedSymbolsTable(uri);
-    return buildSymbolsTable(partialAst, seedSymbolsTable, await this.themeDocset.liquidDrops());
+    return await buildSymbolsTable(partialAst, seedSymbolsTable, await this.themeDocset.liquidDrops());
   }
 
   /**
@@ -475,14 +475,14 @@ const LazyDeconstructedExpression = (
  */
 type SymbolsTable = Record<Identifier, TypeRange[]>;
 
-function buildSymbolsTable(
+async function buildSymbolsTable(
   partialAst: LiquidHtmlNode,
   seedSymbolsTable: SymbolsTable,
   liquidDrops: ObjectEntry[],
-): SymbolsTable {
-  const typeRanges = visit<SourceCodeType.LiquidHtml, TypeRange>(partialAst, {
+): Promise<SymbolsTable> {
+  const typeRanges = await visit<SourceCodeType.LiquidHtml, TypeRange>(partialAst, {
     // {% assign x = foo.x | filter %}
-    AssignMarkup(node) {
+    async AssignMarkup(node) {
       return {
         identifier: node.name,
         type: lazyVariable(node.value, node.position.start),
@@ -493,7 +493,7 @@ function buildSymbolsTable(
     // {% doc %}
     //   @param {string} name - your name
     // {% enddoc %}
-    LiquidDocParamNode(node) {
+    async LiquidDocParamNode(node) {
       return {
         identifier: node.paramName.value,
         type: inferLiquidDocParamType(node, liquidDrops),
@@ -502,7 +502,7 @@ function buildSymbolsTable(
     },
 
     // This also covers tablerow
-    ForMarkup(node, ancestors) {
+    async ForMarkup(node, ancestors) {
       const parentNode = ancestors.at(-1)! as LiquidTag;
       return {
         identifier: node.variableName,
@@ -514,7 +514,7 @@ function buildSymbolsTable(
     // {% capture foo %}
     //   ...
     // {% endcapture}
-    LiquidTag(node) {
+    async LiquidTag(node) {
       if (node.name === 'capture' && typeof node.markup !== 'string') {
         return {
           identifier: node.markup.name!,

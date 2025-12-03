@@ -101,7 +101,7 @@ async function traverseLiquidModule(
     // {{ 'theme.js' | asset_url }}
     // {{ 'image.png' | asset_img_url }}
     // {{ 'icon.svg' | inline_asset_content }}
-    LiquidFilter: (node, ancestors) => {
+    LiquidFilter: async (node, ancestors) => {
       if (['asset_url', 'asset_img_url', 'inline_asset_content'].includes(node.name)) {
         const parentNode = ancestors[ancestors.length - 1]!;
         if (parentNode.type !== NodeTypes.LiquidVariable) return;
@@ -118,7 +118,7 @@ async function traverseLiquidModule(
     },
 
     // {% content_for 'block', type: 'staticBlockName', id: 'id' %}
-    ContentForMarkup: (node, ancestors) => {
+    ContentForMarkup: async (node, ancestors) => {
       const parentNode = ancestors.at(-1)!;
       if (node.contentForType.value !== 'block') return;
       const blockTypeArg = node.args.find((arg) => arg.name === 'type');
@@ -136,7 +136,7 @@ async function traverseLiquidModule(
     },
 
     // <custom-element></custom-element>
-    HtmlElement: (node) => {
+    HtmlElement: async (node) => {
       if (node.name.length !== 1) return;
       if (node.name[0].type !== NodeTypes.TextNode) return;
       const nodeNameNode = node.name[0];
@@ -157,7 +157,7 @@ async function traverseLiquidModule(
     },
 
     // {% render 'snippet' %}
-    RenderMarkup: (node, ancestors) => {
+    RenderMarkup: async (node, ancestors) => {
       const snippet = node.snippet;
       const tag = ancestors.at(-1)!;
       if (!isString(snippet) && snippet.type === NodeTypes.String) {
@@ -168,7 +168,7 @@ async function traverseLiquidModule(
       }
     },
 
-    LiquidTag: (node) => {
+    LiquidTag: async (node) => {
       switch (node.name) {
         // {% sections 'section-group' %}
         case NamedTags.sections: {
@@ -195,7 +195,7 @@ async function traverseLiquidModule(
     },
   };
 
-  const references = visit(sourceCode.ast, visitor);
+  const references = await visit(sourceCode.ast, visitor);
 
   for (const reference of references) {
     bind(module, reference.target, {

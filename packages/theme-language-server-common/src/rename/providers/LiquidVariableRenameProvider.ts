@@ -82,16 +82,16 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
 
     let liquidDocParamUpdated = false;
 
-    const ranges: Range[] = visit(document.ast, {
+    const ranges: Range[] = await visit(document.ast, {
       VariableLookup: replaceRange,
       AssignMarkup: replaceRange,
       ForMarkup: replaceRange,
-      TextNode: (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode)[]) => {
+      TextNode: async (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode)[]) => {
         if (ancestors.at(-1)?.type !== NodeTypes.LiquidDocParamNode) return;
 
         liquidDocParamUpdated = true;
 
-        return replaceRange(node, ancestors);
+        return await replaceRange(node, ancestors);
       },
     });
 
@@ -189,7 +189,7 @@ function textReplaceRange(
   textDocument: TextDocument,
   selectedVariableScope?: Position,
 ) {
-  return (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode)[]) => {
+  return async (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode)[]) => {
     if (variableName(node) !== oldName) return;
 
     const ancestorScope = variableNameBlockScope(oldName, ancestors);
@@ -229,8 +229,8 @@ async function updateRenderTags(
   for (const sourceCode of liquidSourceCodes) {
     if (sourceCode.ast instanceof Error) continue;
     const textDocument = sourceCode.textDocument;
-    const edits: TextEdit[] = visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
-      RenderMarkup(node: RenderMarkup) {
+    const edits: TextEdit[] = await visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
+      async RenderMarkup(node: RenderMarkup) {
         if (node.snippet.type !== NodeTypes.String || node.snippet.value !== snippetName) {
           return;
         }

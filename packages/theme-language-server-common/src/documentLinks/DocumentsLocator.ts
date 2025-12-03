@@ -2,7 +2,7 @@ import { AbstractFileSystem, FileTuple, FileType } from '@platformos/theme-check
 import { URI, Utils } from 'vscode-uri';
 
 export class DocumentsLocator {
-    constructor(private fs: AbstractFileSystem) {}
+    constructor(private fs: AbstractFileSystem) { }
 
     async findFile(dir: URI, fileName: string): Promise<string | undefined> {
         let entries: FileTuple[];
@@ -35,12 +35,12 @@ export class DocumentsLocator {
 
     private async locateFunction(rootUri: URI, fileName: string): Promise<string | undefined> {
         const pathsToCheck = [
-            `${rootUri}/app/`,
-            `${rootUri}/modules/`
+            `app/`,
+            `modules/`
         ];
 
-        for(const path in pathsToCheck) {
-            const result = await this.findFile(rootUri, `${fileName}.liquid`);
+        for (const path of pathsToCheck) {
+            const result = await this.findFile(Utils.joinPath(rootUri, path), `${fileName}.liquid`);
             if (result) {
                 return result;
             }
@@ -49,8 +49,8 @@ export class DocumentsLocator {
     }
 
     async locate(rootUri: URI, nodeName: string, fileName: string): Promise<string | undefined> {
-        switch(nodeName) {
-            case 'function': 
+        switch (nodeName) {
+            case 'function':
                 return await this.locateFunction(rootUri, fileName)
             default:
                 return undefined

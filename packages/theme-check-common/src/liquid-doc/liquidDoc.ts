@@ -46,27 +46,27 @@ export interface LiquidDocDescription extends LiquidDocNode {
   nodeType: 'description';
 }
 
-export function hasLiquidDoc(snippet: LiquidHtmlNode): boolean {
+export async function hasLiquidDoc(snippet: LiquidHtmlNode): Promise<boolean> {
   let foundDocTag = false;
-  visit<SourceCodeType.LiquidHtml, void>(snippet, {
-    LiquidRawTag(node) {
+  await visit<SourceCodeType.LiquidHtml, void>(snippet, {
+    async LiquidRawTag(node) {
       if (node.name === 'doc') foundDocTag = true;
     },
   });
   return foundDocTag;
 }
 
-export function extractDocDefinition(uri: UriString, ast: LiquidHtmlNode): DocDefinition {
+export async function extractDocDefinition(uri: UriString, ast: LiquidHtmlNode): Promise<DocDefinition> {
   let hasDocTag = false;
-  const nodes: (LiquidDocParameter | LiquidDocExample | LiquidDocDescription)[] = visit<
+  const nodes: (LiquidDocParameter | LiquidDocExample | LiquidDocDescription)[] = await visit<
     SourceCodeType.LiquidHtml,
     LiquidDocParameter | LiquidDocExample | LiquidDocDescription
   >(ast, {
-    LiquidRawTag(node) {
+    async LiquidRawTag(node) {
       if (node.name === 'doc') hasDocTag = true;
       return undefined;
     },
-    LiquidDocParamNode(node: LiquidDocParamNode) {
+    async LiquidDocParamNode(node: LiquidDocParamNode) {
       return {
         name: node.paramName.value,
         description: node.paramDescription?.value ?? null,
@@ -75,13 +75,13 @@ export function extractDocDefinition(uri: UriString, ast: LiquidHtmlNode): DocDe
         nodeType: 'param',
       };
     },
-    LiquidDocExampleNode(node: LiquidDocExampleNode) {
+    async LiquidDocExampleNode(node: LiquidDocExampleNode) {
       return {
         content: handleMultilineIndentation(node.content.value.trim()),
         nodeType: 'example',
       };
     },
-    LiquidDocDescriptionNode(node: LiquidDocDescriptionNode) {
+    async LiquidDocDescriptionNode(node: LiquidDocDescriptionNode) {
       return {
         content: handleMultilineIndentation(node.content.value.trim()),
         nodeType: 'description',

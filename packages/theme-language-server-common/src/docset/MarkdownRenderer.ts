@@ -55,7 +55,7 @@ function docsetEntryBody(
     entry.deprecation_reason,
     entry.summary,
     entry.description,
-    shopifyDevReference(entry, returnType, docsetEntryType),
+    platformOSDevReference(entry, returnType, docsetEntryType),
   ]
     .map(x => x?.toString())
     .map(sanitize)
@@ -93,41 +93,36 @@ function description(entry: HtmlEntry) {
   return entry.description.value;
 }
 
-const shopifyDevRoot = `https://shopify.dev/docs/api/liquid`;
+const platformOSDevRoot = `https://documentation.platformos.com/api-reference/liquid`;
 
-function shopifyDevReference(
+function platformOSDevReference(
   entry: DocsetEntry,
-  returnType?: PseudoType | ArrayType,
+  _?: PseudoType | ArrayType,
   docsetEntryType?: DocsetEntryType,
 ) {
   switch (docsetEntryType) {
     case 'tag': {
-      if (entry.name === 'else' && 'category' in entry) {
-        return `[Shopify Reference](${shopifyDevRoot}/tags/${entry.category}-${entry.name})`;
-      } else if ('category' in entry) {
-        return `[Shopify Reference](${shopifyDevRoot}/tags/${entry.name})`;
-      } else {
-        return undefined;
+      if (entry.name === 'include') {
+        return `[platformOS Reference](${platformOSDevRoot}/include)`;
       }
-    }
-
-    case 'object': {
-      if (!returnType) {
-        return `[Shopify Reference](${shopifyDevRoot}/objects/${entry.name})`;
-      } else if (isArrayType(returnType)) {
-        return `[Shopify Reference](${shopifyDevRoot}/objects/${returnType.valueType})`;
-      } else if ('access' in entry) {
-        return `[Shopify Reference](${shopifyDevRoot}/objects/${returnType})`;
+      else if (['for', 'cycle', 'ifchanged', 'tablerow'].includes(entry.name)) {
+        return `[platformOS Reference](${platformOSDevRoot}/loops#${entry.name})`;
+      }
+      else if (entry.name === 'liquid') {
+        return `[platformOS Reference](${platformOSDevRoot}/theme#liquid)`;
+      }
+      else if ('platformOS' in entry && entry.platformOS === true) {
+        return `[platformOS Reference](${platformOSDevRoot}/platformos-tags#${entry.name.replaceAll('_','-')})`;
       } else {
         return undefined;
       }
     }
 
     case 'filter': {
-      if ('category' in entry) {
-        return `[Shopify Reference](${shopifyDevRoot}/filters/${entry.name})`;
+      if ('platformOS' in entry) {
+        return `[platformOS Reference](${platformOSDevRoot}/platformos-filters#${entry.name.replaceAll('_','-')})`;
       } else {
-        return undefined;
+        return `[platformOS Reference](${platformOSDevRoot}/filters#${entry.name})`;
       }
     }
 

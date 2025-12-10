@@ -1,4 +1,4 @@
-import { AbstractFileSystem, FileStat, FileTuple, FileType } from '../AbstractFileSystem';
+import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
 import { deepGet } from '../utils';
 import { normalize, relative } from '../path';
 import { MockTheme } from './MockTheme';

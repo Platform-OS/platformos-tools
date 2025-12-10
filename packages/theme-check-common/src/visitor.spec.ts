@@ -5,9 +5,9 @@ import { Visitor, findCurrentNode, findJSONNode, visit } from './visitor';
 import { NodeTypes } from '@platformos/liquid-html-parser';
 
 describe('Module: visitor', () => {
-  it('should return an array of the return type of the visitor', () => {
+  it('should return an array of the return type of the visitor', async () => {
     const visitor: Visitor<SourceCodeType.LiquidHtml, string> = {
-      LiquidTag: (node) => {
+      LiquidTag: async (node) => {
         if (node.name !== 'render' && node.name !== 'include') {
           return;
         }
@@ -29,7 +29,7 @@ describe('Module: visitor', () => {
       {% include 'b' %}
     `);
 
-    expect(visit(ast!, visitor)).to.eql(['a', 'b']);
+    expect(await visit(ast!, visitor)).to.eql(['a', 'b']);
   });
 
   function toAST(code: string) {

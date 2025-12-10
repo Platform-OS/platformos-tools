@@ -438,7 +438,7 @@ type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeTyp
   : never;
 
 export type Context<T extends SourceCodeType, S extends Schema = Schema> = T extends SourceCodeType
-  ? StaticContextProperties<T> & AugmentedDependencies & { settings: Settings<S> }
+  ? StaticContextProperties<T> & AugmentedDependencies & { settings: Settings<S>, config: Config }
   : never;
 
 export type Corrector<T extends SourceCodeType> = T extends SourceCodeType

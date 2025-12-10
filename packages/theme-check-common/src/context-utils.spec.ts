@@ -5,7 +5,7 @@ import {
   makeGetMetafieldDefinitions,
 } from './context-utils';
 import { MockFileSystem } from './test';
-import { AbstractFileSystem } from './AbstractFileSystem';
+import { AbstractFileSystem } from '@platformos/platformos-common';
 
 describe('Unit: getDefaultLocale', () => {
   let fs: AbstractFileSystem;

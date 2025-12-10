@@ -18,7 +18,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result =await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -42,7 +42,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -102,7 +102,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -125,7 +125,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -148,7 +148,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -181,7 +181,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -206,7 +206,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -226,7 +226,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {
@@ -243,7 +243,7 @@ describe('Unit: extractDocDefinition', () => {
       <div>No doc header here</div>
     `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
     });
@@ -254,7 +254,7 @@ describe('Unit: extractDocDefinition', () => {
       {% doc %}{% enddoc %}
     `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {},
@@ -273,7 +273,7 @@ describe('Unit: extractDocDefinition', () => {
       {% enddoc %}
     `);
 
-    const result = extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {

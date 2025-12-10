@@ -7,7 +7,7 @@ import { URI, Utils } from 'vscode-uri';
 import { visit, Visitor } from '@platformos/theme-check-common';
 import { DocumentManager } from '../documents';
 import { FindThemeRootURI } from '../internal-types';
-import { DocumentsLocator } from './DocumentsLocator';
+import { DocumentsLocator } from '@platformos/platformos-common';
 
 
 export class DocumentLinksProvider {
@@ -45,7 +45,7 @@ function documentLinksVisitor(
   return {
     async LiquidTag(node) {
       if (
-        (node.name === 'render' || node.name === 'include') &&
+        (node.name === 'render') &&
         typeof node.markup !== 'string' &&
         isLiquidString(node.markup.snippet)
       ) {

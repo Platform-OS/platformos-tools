@@ -1,5 +1,5 @@
 import { URI, Utils } from 'vscode-uri';
-import { AbstractFileSystem, FileTuple, FileType, UriString } from './AbstractFileSystem';
+import { AbstractFileSystem, FileTuple, FileType, UriString } from '@platformos/platformos-common';
 import { parseJSON } from './json';
 import { join } from './path';
 import {

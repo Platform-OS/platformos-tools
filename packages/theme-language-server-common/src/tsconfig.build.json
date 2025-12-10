@@ -6,5 +6,6 @@
     { "path": "../../theme-check-common/tsconfig.build.json" },
     { "path": "../../liquid-html-parser/tsconfig.build.json" },
     { "path": "../../theme-graph/tsconfig.build.json" }
+    { "path": "../../platformos-common/tsconfig.build.json" }
   ]
 }

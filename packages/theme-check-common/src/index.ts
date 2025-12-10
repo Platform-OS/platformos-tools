@@ -38,7 +38,6 @@ import {
 import { getPosition } from './utils';
 import { visitJSON, visitLiquid } from './visitors';
 
-export * from './AbstractFileSystem';
 export * from './AugmentedThemeDocset';
 export * from './checks';
 export * from './context-utils';
@@ -160,6 +159,7 @@ function createContext<T extends SourceCodeType, S extends Schema>(
       } as Offense<T> as Offense);
     },
     file,
+    config
   } as Context<T, S>;
 }
 

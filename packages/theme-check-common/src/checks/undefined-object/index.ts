@@ -42,11 +42,6 @@ export const UndefinedObject: LiquidCheckDefinition = {
     if (isError(ast)) return {};
 
     /**
-     * Skip this check when a snippet does not have the presence of doc tags.
-     */
-    if (relativePath.startsWith('snippets/') && !hasLiquidDoc(ast)) return {};
-
-    /**
      * Skip this check when definitions for global objects are unavailable.
      */
     if (!context.themeDocset) {
@@ -146,12 +141,13 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-        const objects = await globalObjects(themeDocset, relativePath);
+    const objects = await globalObjects(themeDocset, relativePath);
 
         objects.forEach((obj) => fileScopedVariables.add(obj.name));
 
         variables.forEach((variable) => {
           if (!variable.name) return;
+          
 
           const isVariableDefined = isDefined(
             variable.name,

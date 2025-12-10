@@ -59,7 +59,7 @@ import { CachedFileSystem } from './CachedFileSystem';
 import { Configuration } from './Configuration';
 import { safe } from './safe';
 import { ThemeGraphManager } from './ThemeGraphManager';
-import { DocumentsLocator } from '../documentLinks/DocumentsLocator';
+import { DocumentsLocator } from '@platformos/platformos-common';
 
 const defaultLogger = () => {};
 

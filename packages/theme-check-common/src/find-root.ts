@@ -1,4 +1,4 @@
-import { UriString } from './AbstractFileSystem';
+import { UriString } from '@platformos/platformos-common';
 import * as path from './path';
 
 type FileExists = (uri: string) => Promise<boolean>;

@@ -1,11 +1,11 @@
 import {
-  AbstractFileSystem,
   path,
   Section,
   Setting,
   ThemeBlock,
   ThemeSchemaType,
 } from '@platformos/theme-check-common';
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI, Utils } from 'vscode-uri';

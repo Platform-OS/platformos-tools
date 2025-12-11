@@ -3,7 +3,7 @@
   "include": [
     "./src/**/*.ts",
     "./src/**/*.json"
-, "../platformos-common/src/AbstractFileSystem.ts"  ],
+  ],
   "exclude": [
     "./dist"
   ],
@@ -17,7 +17,7 @@
       ],
       "@platformos/platformos-common": [
         "../platformos-common/src"
-      ]
+      ],
     }
   },
   "references": [
@@ -26,6 +26,6 @@
     },
     {
       "path": "../platformos-common"
-    }
+    },
   ]
 }

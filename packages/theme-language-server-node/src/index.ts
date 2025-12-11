@@ -1,5 +1,6 @@
 import { ThemeLiquidDocsManager } from '@platformos/theme-check-docs-updater';
-import { AbstractFileSystem, NodeFileSystem } from '@platformos/theme-check-node';
+import { AbstractFileSystem } from '@platformos/platformos-common';
+import { NodeFileSystem } from '@platformos/theme-check-node';
 import { startServer as startCoreServer } from '@platformos/theme-language-server-common';
 import { stdin, stdout } from 'node:process';
 import { createConnection } from 'vscode-languageserver/node';

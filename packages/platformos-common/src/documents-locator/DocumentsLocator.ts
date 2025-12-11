@@ -1,4 +1,4 @@
-import { AbstractFileSystem, FileType } from '@platformos/theme-check-common';
+import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { URI, Utils } from 'vscode-uri';
 
 export type NodeType = 'function' | 'render'

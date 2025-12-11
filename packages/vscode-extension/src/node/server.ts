@@ -1,4 +1,4 @@
-import type { AbstractFileSystem } from '@platformos/theme-check-common';
+import type { AbstractFileSystem } from '@platformos/platformos-common';
 import { getConnection, NodeFileSystem, startServer } from '@platformos/theme-language-server-node';
 import { VsCodeFileSystem } from '../common/VsCodeFileSystem';
 

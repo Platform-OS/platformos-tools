@@ -8,12 +8,12 @@
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
       "@platformos/theme-check-common": ["../theme-check-common/src"],
-      "@platformos/theme-check-docs-updater": ["../theme-check-docs-updater/src"]
+      "@platformos/theme-check-docs-updater": ["../theme-check-docs-updater/src"],
     }
   },
   "references": [
     { "path": "../theme-check-common" },
-    { "path": "../theme-check-docs-updater" }
+    { "path": "../theme-check-docs-updater" },
   ]
 }
 

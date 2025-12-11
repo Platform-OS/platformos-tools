@@ -1,4 +1,4 @@
-import { AbstractFileSystem, FileTuple, FileStat } from '@platformos/theme-check-common';
+import { AbstractFileSystem, FileTuple, FileStat } from '@platformos/platformos-common';
 import { Connection } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 

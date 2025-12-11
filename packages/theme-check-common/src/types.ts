@@ -2,7 +2,7 @@ import { LiquidHtmlNode, NodeTypes as LiquidHtmlNodeTypes } from '@platformos/li
 
 import { Schema, Settings } from './types/schema-prop-factory';
 
-import { AbstractFileSystem, UriString } from './AbstractFileSystem';
+import { AbstractFileSystem, UriString } from '@platformos/platformos-common';
 import { JSONCorrector, StringCorrector } from './fixes';
 
 import {

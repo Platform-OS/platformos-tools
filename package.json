@@ -16,7 +16,8 @@
     "packages/theme-graph",
     "packages/theme-language-server-*",
     "packages/vscode-extension",
-    "packages/release-orchestrator"
+    "packages/release-orchestrator",
+    "packages/platformos-common"
   ],
   "scripts": {
     "admin:build": "sh ./scripts/dev-admin-build.sh",

@@ -1,10 +1,13 @@
 import {
+  path,
+} from '@platformos/theme-check-common';
+import {
   FileStat,
   AbstractFileSystem,
   FileTuple,
   FileType,
-  path,
-} from '@platformos/theme-check-common';
+} from '@platformos/platformos-common';
+
 import fs from 'node:fs/promises';
 
 export const NodeFileSystem: AbstractFileSystem = {

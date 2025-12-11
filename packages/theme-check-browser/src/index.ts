@@ -9,11 +9,14 @@ import {
   toSourceCode,
   recommended,
   Dependencies,
+} from '@platformos/theme-check-common';
+
+import {
   AbstractFileSystem,
   FileStat,
   FileTuple,
   FileType,
-} from '@platformos/theme-check-common';
+} from '@platformos/platformos-common'
 
 export {
   toSourceCode,

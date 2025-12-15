@@ -37,7 +37,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
       url: undefined
     },
     type: SourceCodeType.LiquidHtml,
-    severity: Severity.WARNING,
+    severity: Severity.ERROR,
     schema: {},
     targets: [],
   },
@@ -45,7 +45,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
   create(context) {
     const locator = new DocumentsLocator(context.fs);
     const validate = async (nodeType: NodeType, targetFile: string, args: LiquidNamedArgument[], position: Position) => {
-      const locatedFile = await locator.locate(URI.file(context.config.rootUri), nodeType, targetFile)
+      const locatedFile = await locator.locate(URI.parse(context.config.rootUri), nodeType, targetFile)
 
       if(!locatedFile) {
         return

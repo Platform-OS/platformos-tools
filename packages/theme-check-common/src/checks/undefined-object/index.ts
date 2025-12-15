@@ -141,7 +141,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-    const objects = await globalObjects(themeDocset, relativePath);
+        const objects = await globalObjects(themeDocset, relativePath);
 
         objects.forEach((obj) => fileScopedVariables.add(obj.name));
 

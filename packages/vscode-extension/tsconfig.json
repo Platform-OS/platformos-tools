@@ -25,7 +25,7 @@
   "exclude": ["src/**/*.spec.ts", "node_modules"],
   "references": [
     { "path": "../theme-language-server-browser/tsconfig.build.json" },
-    { "path": "../theme-language-server-common/src/tsconfig.build.json" },
+    { "path": "../theme-language-server-common/tsconfig.build.json" },
     { "path": "../theme-language-server-node/tsconfig.build.json" },
     { "path": "../theme-check-common/tsconfig.build.json" },
     { "path": "../prettier-plugin-liquid/tsconfig.build.json" },

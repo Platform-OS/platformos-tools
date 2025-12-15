@@ -85,6 +85,9 @@ LiquidHTMLSyntaxError:
 MatchingTranslations:
   enabled: true
   severity: 0
+MetadataParamsCheck:
+  enabled: true
+  severity: 0
 MissingAsset:
   enabled: true
   severity: 0
@@ -154,9 +157,6 @@ UnrecognizedContentForArguments:
 UnrecognizedRenderSnippetArguments:
   enabled: true
   severity: 1
-UnsupportedDocTag:
-  enabled: true
-  severity: 0
 UnusedAssign:
   enabled: true
   severity: 1

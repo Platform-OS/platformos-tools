@@ -47,7 +47,7 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
   it('should return the hover description of parameter', async () => {
     await expect(provider).to.hover(
       `{{ foo | image_url: wid█th: 1000 }}`,
-      '### width\nwidth description',
+      '### width\nwidth description\n\n---\n\n[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/filters#width)',
     );
   });
 });

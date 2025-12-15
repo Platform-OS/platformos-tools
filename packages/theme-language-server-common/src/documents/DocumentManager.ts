@@ -1,5 +1,4 @@
 import {
-  AbstractFileSystem,
   assertNever,
   memoize,
   path,
@@ -14,6 +13,8 @@ import {
   Mode,
   isError,
 } from '@platformos/theme-check-common';
+
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import { Connection } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ClientCapabilities } from '../ClientCapabilities';

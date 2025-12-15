@@ -100,7 +100,7 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
       const liquidSourceCodes = themeFiles.filter(isLiquidSourceCode);
       const name = snippetName(params.textDocument.uri);
 
-      updateRenderTags(this.connection, liquidSourceCodes, name, oldName, params.newName);
+      await updateRenderTags(this.connection, liquidSourceCodes, name, oldName, params.newName);
     }
 
     const textDocumentEdit = TextDocumentEdit.create(

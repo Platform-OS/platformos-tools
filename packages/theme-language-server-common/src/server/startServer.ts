@@ -1,7 +1,6 @@
 import {
   AugmentedThemeDocset,
   DocDefinition,
-  FileTuple,
   findRoot as findConfigFileRoot,
   isError,
   makeFileExists,
@@ -18,6 +17,7 @@ import {
   SourceCodeType,
   UriString,
 } from '@platformos/theme-check-common';
+import { FileTuple } from '@platformos/platformos-common';
 import {
   Connection,
   FileChangeType,

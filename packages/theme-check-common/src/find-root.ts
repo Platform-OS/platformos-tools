@@ -5,9 +5,6 @@ type FileExists = (uri: string) => Promise<boolean>;
 
 async function isRoot(dir: UriString, fileExists: FileExists) {
   return or(
-    fileExists(path.join(dir, 'shopify.extension.toml')), // for theme-app-extensions
-    fileExists(path.join(dir, '.theme-check.yml')),
-
     // .pos config file and app directory exists
     and(
       fileExists(path.join(dir, '.pos')),

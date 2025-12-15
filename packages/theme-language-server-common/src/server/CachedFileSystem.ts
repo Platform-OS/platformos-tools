@@ -1,4 +1,4 @@
-import { AbstractFileSystem } from '@platformos/theme-check-common';
+import { AbstractFileSystem } from '@platformos/platformos-common';
 
 export class CachedFileSystem implements AbstractFileSystem {
   readFile: Cached<AbstractFileSystem['readFile']>;

@@ -19,8 +19,8 @@ describe('Module: MetadataParamsCheck', () => {
       {{ a }}
     `;
     const files = {
-      'file:/app/lib/commands/call/fileToCall.liquid': file,
-      'file:/app/lib/caller.liquid': file2,
+      'app/lib/commands/call/fileToCall.liquid': file,
+      'app/lib/caller.liquid': file2,
     };
 
     const offenses = await check(files, [MetadataParamsCheck]);

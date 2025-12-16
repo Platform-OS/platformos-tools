@@ -61,7 +61,7 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
         if (node.snippet.type === NodeTypes.VariableLookup) return;
 
         const snippet = node.snippet;
-        const relativePath = `snippets/${snippet.value}.liquid`;
+        const relativePath = `app/views/${snippet.value}.liquid`;
 
         await maybeReportMissing(relativePath, snippet);
       },

@@ -3,6 +3,7 @@ import yaml from "js-yaml";
 import { DocumentsLocator, NodeType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
+import { getLiquidDocParams } from '../../liquid-doc/arguments';
 
 type Metadata = {
   metadata: {
@@ -32,7 +33,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
     name: "Metadata Params Check",
     docs: {
       description:
-        "Ensures that variables referenced in the document exist in metadata.params.",
+        "Ensures that variables referenced in the document exist in metadata.params or in the doc tag.",
       recommended: true,
       url: undefined
     },
@@ -50,14 +51,23 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
       if(!locatedFile) {
         return
       }
-      const params = extractMetadataParams(await context.fs.readFile(locatedFile));
+      let params = extractMetadataParams(await context.fs.readFile(locatedFile));
       if (!params) {
-        return
+        const liquidDocParameters = await getLiquidDocParams(
+          context,
+          locatedFile,
+        );
+
+        if(!liquidDocParameters) return;
+
+        params = Array.from(liquidDocParameters.values()).filter(
+          (p) => p.required,
+        ).map(p => p.name);
       }
 
       args.filter(arg => !params.includes(arg.name)).forEach(arg => {
         context.report({
-          message: `Unknown parameter ${arg.name} passed to function call`,
+          message: `Unknown parameter ${arg.name} passed to ${nodeType} call`,
           startIndex: arg.position.start,
           endIndex: arg.position.end
         })
@@ -65,7 +75,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
 
       params.filter(param => !args.find(arg => arg.name === param)).forEach(param => {
         context.report({
-          message: `Required parameter ${param} must be passed to function call`,
+          message: `Required parameter ${param} must be passed to ${nodeType} call`,
           startIndex: position.start,
           endIndex: position.end
         })

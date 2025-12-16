@@ -47,12 +47,59 @@ describe('Module: MetadataParamsCheck', () => {
       {{ a }}
     `;
     const files = {
-      'file:/app/lib/commands/call/fileToCall.liquid': file,
-      'file:/app/lib/caller.liquid': file2,
+      'app/lib/commands/call/fileToCall.liquid': file,
+      'app/lib/caller.liquid': file2,
     };
 
     const offenses = await check(files, [MetadataParamsCheck]);
 
     expect(offenses).to.have.length(0);
+  });
+
+  it('should accept doc tag if metadata not defined', async () => {
+    const file = `
+      {% doc %}
+        @param {Number} variable - param with description
+        @param {Number} variable2 - param with description
+      {% enddoc %}
+
+      {% assign a = 5 | plus: variable | plus: variable2 %}
+      {{ a }}
+    `;
+    const file2 = `
+      {% function a = 'commands/call/fileToCall', variable: 2, variable2: 12 %}
+      {{ a }}
+    `;
+    const files = {
+      'app/lib/commands/call/fileToCall.liquid': file,
+      'app/lib/caller.liquid': file2,
+    };
+
+    const offenses = await check(files, [MetadataParamsCheck]);
+
+    expect(offenses).to.have.length(0);
+  });
+
+  it('should reject if doc tag is missing params', async () => {
+    const file = `
+      {% doc %}
+        @param {Number} variable - param with description
+      {% enddoc %}
+
+      {% assign a = 5 | plus: variable | plus: variable2 %}
+      {{ a }}
+    `;
+    const file2 = `
+      {% function a = 'commands/call/fileToCall', variable: 2, variable2: 12 %}
+      {{ a }}
+    `;
+    const files = {
+      'app/lib/commands/call/fileToCall.liquid': file,
+      'app/lib/caller.liquid': file2,
+    };
+
+    const offenses = await check(files, [MetadataParamsCheck]);
+
+    expect(offenses).to.have.length(1);
   });
 });

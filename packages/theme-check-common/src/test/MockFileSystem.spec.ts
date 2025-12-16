@@ -25,7 +25,7 @@ describe('MockFileSystem', () => {
     });
 
     it('throws an error for files that do not exist', async () => {
-      expect(fs.readFile('does not exist')).rejects.toThrow('File not found');
+      await expect(fs.readFile('does not exist')).rejects.toThrow('File not found');
     });
   });
 

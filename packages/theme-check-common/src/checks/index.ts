@@ -27,7 +27,6 @@ import { LiquidHTMLSyntaxError } from './liquid-html-syntax-error';
 import { MatchingTranslations } from './matching-translations';
 import { MissingAsset } from './missing-asset';
 import { MissingContentForArguments } from './missing-content-for-arguments';
-import { MissingRenderSnippetArguments } from './missing-render-snippet-arguments';
 import { MissingTemplate } from './missing-template';
 import { OrphanedSnippet } from './orphaned-snippet';
 import { PaginationSize } from './pagination-size';
@@ -95,7 +94,6 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   MatchingTranslations,
   MissingAsset,
   MissingContentForArguments,
-  MissingRenderSnippetArguments,
   MissingTemplate,
   AppBlockMissingSchema,
   OrphanedSnippet,

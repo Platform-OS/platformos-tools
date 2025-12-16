@@ -1,5 +1,4 @@
 import {
-  AbstractFileSystem,
   allChecks,
   LiquidCheckDefinition,
   path,
@@ -47,7 +46,7 @@ describe('Module: runChecks', () => {
   let runChecks: ReturnType<typeof makeRunChecks>;
   let fs: MockFileSystem;
   const rootUri = path.normalize('browser:///theme');
-  const fileUri = path.join(rootUri, 'snippets', 'input.liquid');
+  const fileUri = path.join(rootUri, 'app', 'input.liquid');
 
   beforeEach(() => {
     connection = {
@@ -58,8 +57,8 @@ describe('Module: runChecks', () => {
     diagnosticsManager = new DiagnosticsManager(connection as any as Connection);
     fs = new MockFileSystem(
       {
-        '.theme-check.yml': '',
-        'snippets/input.liquid': `{{ 'any' | filter }}`,
+        '.pos': '',
+        'app/input.liquid': `{{ 'any' | filter }}`,
       },
       rootUri,
     );
@@ -140,7 +139,7 @@ describe('Module: runChecks', () => {
   it('should send diagnostics per URI when there are errors', async () => {
     const files = [
       {
-        fileURI: path.join(rootUri, 'snippets', 'input1.liquid'),
+        fileURI: path.join(rootUri, 'app', 'input1.liquid'),
         fileContents: `{{ 'any' | filter }}`,
         fileVersion: 0,
         diagnostics: [
@@ -163,7 +162,7 @@ describe('Module: runChecks', () => {
         ],
       },
       {
-        fileURI: path.join(rootUri, 'snippets', 'input2.liquid'),
+        fileURI: path.join(rootUri, 'app', 'input2.liquid'),
         // same but on a new line
         fileContents: `\n{{ 'any' | filter }}`,
         fileVersion: 0,
@@ -192,7 +191,7 @@ describe('Module: runChecks', () => {
       documentManager.open(fileURI, fileContents, fileVersion);
     });
 
-    await runChecks([path.join(rootUri, 'snippets', 'input1.liquid')]);
+    await runChecks([path.join(rootUri, 'app', 'input1.liquid')]);
 
     files.forEach(({ fileURI, fileVersion, diagnostics }) => {
       expect(connection.sendDiagnostics).toBeCalledWith({
@@ -209,7 +208,8 @@ describe('Module: runChecks', () => {
     const frPath = 'locales/fr.json';
     const frURI = path.join(rootUri, ...frPath.split('/'));
     const files = {
-      '.theme-check.yml': '',
+      '.pos': '',
+      'app/test': '',
       [defaultPath]: JSON.stringify({ hello: 'hello' }),
       [frPath]: JSON.stringify({ hello: 'bonjour', hi: 'salut' }),
     };

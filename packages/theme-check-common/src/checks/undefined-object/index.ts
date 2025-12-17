@@ -9,13 +9,14 @@ import {
   LiquidTagIncrement,
   LiquidTagTablerow,
   LiquidVariableLookup,
+  LiquidTagFunction,
   NamedTags,
   NodeTypes,
   Position,
+  FunctionMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, ThemeDocset } from '../../types';
 import { isError, last } from '../../utils';
-import { hasLiquidDoc } from '../../liquid-doc/liquidDoc';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 
 type Scope = { start?: number; end?: number };
@@ -95,7 +96,12 @@ export const UndefinedObject: LiquidCheckDefinition = {
           });
         }
 
-        /* {% layout none %} */
+        if (node.name === 'function') {
+          indexVariableScope((node.markup as FunctionMarkup).name, {
+            start: node.position.end,
+          });
+        }
+
         if (node.name === 'layout') {
           indexVariableScope('none', {
             start: node.position.start,

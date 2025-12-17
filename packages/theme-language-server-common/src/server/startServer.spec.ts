@@ -211,18 +211,18 @@ describe('Module: server', () => {
     connection.spies.sendNotification.mockClear();
 
     // Update mock FS with new existing files
-    fileTree['app/views/foo.liquid'] = '...';
-    fileTree['app/views/bar.liquid'] = '...';
+    fileTree['app/views/partials/foo.liquid'] = '...';
+    fileTree['app/views/partials/bar.liquid'] = '...';
 
     // Trigger create files notification & update mocks
     connection.triggerNotification(DidChangeWatchedFilesNotification.type, {
       changes: [
         {
-          uri: path.join(mockRoot, 'app/views/foo.liquid'),
+          uri: path.join(mockRoot, 'app/views/partials/foo.liquid'),
           type: FileChangeType.Created,
         },
         {
-          uri: path.join(mockRoot, 'app/views/bar.liquid'),
+          uri: path.join(mockRoot, 'app/views/partials/bar.liquid'),
           type: FileChangeType.Created,
         },
       ],
@@ -247,7 +247,7 @@ describe('Module: server', () => {
     await flushAsync();
 
     // Setup & expectations
-    fileTree['app/views/bar.liquid'] = '...';
+    fileTree['app/views/partials/bar.liquid'] = '...';
     connection.openDocument(filePath, fileContents);
     await flushAsync(); // we need to flush the configuration check
     await advanceAndFlush(100);
@@ -264,15 +264,15 @@ describe('Module: server', () => {
     connection.spies.sendNotification.mockClear();
 
     // Adjust mocks
-    fileTree['app/views/foo.liquid'] = fileTree['app/views/bar.liquid'];
-    delete fileTree['app/views/bar.liquid'];
+    fileTree['app/views/partials/foo.liquid'] = fileTree['app/views/partials/bar.liquid'];
+    delete fileTree['app/views/partials/bar.liquid'];
 
     // Trigger a file rename notification
     connection.triggerNotification(DidRenameFilesNotification.type, {
       files: [
         {
-          oldUri: path.join(mockRoot, 'app/views/bar.liquid'),
-          newUri: path.join(mockRoot, 'app/views/foo.liquid'),
+          oldUri: path.join(mockRoot, 'app/views/partials/bar.liquid'),
+          newUri: path.join(mockRoot, 'app/views/partials/foo.liquid'),
         },
       ],
     });
@@ -281,11 +281,11 @@ describe('Module: server', () => {
     connection.triggerNotification(DidChangeWatchedFilesNotification.type, {
       changes: [
         {
-          uri: path.join(mockRoot, 'app/views/bar.liquid'),
+          uri: path.join(mockRoot, 'app/views/partials/bar.liquid'),
           type: FileChangeType.Deleted,
         },
         {
-          uri: path.join(mockRoot, 'app/views/foo.liquid'),
+          uri: path.join(mockRoot, 'app/views/partials/foo.liquid'),
           type: FileChangeType.Created,
         },
       ],
@@ -315,7 +315,7 @@ describe('Module: server', () => {
     await flushAsync();
 
     // Setup and expectations (no errors)
-    fileTree['app/views/foo.liquid'] = '...';
+    fileTree['app/views/partials/foo.liquid'] = '...';
     connection.openDocument(filePath, fileContents);
     await flushAsync(); // we need to flush the configuration check
     await advanceAndFlush(100);
@@ -335,12 +335,12 @@ describe('Module: server', () => {
     connection.triggerNotification(DidChangeWatchedFilesNotification.type, {
       changes: [
         {
-          uri: path.join(mockRoot, 'app/views/foo.liquid'),
+          uri: path.join(mockRoot, 'app/views/partials/foo.liquid'),
           type: FileChangeType.Deleted,
         },
       ],
     });
-    delete fileTree['app/views/foo.liquid'];
+    delete fileTree['app/views/partials/foo.liquid'];
     await flushAsync();
     await advanceAndFlush(100);
 
@@ -399,7 +399,7 @@ describe('Module: server', () => {
     return {
       code: 'MissingTemplate',
       codeDescription: { href: expect.any(String) },
-      message: "'app/views/foo.liquid' does not exist",
+      message: "'foo' does not exist",
       severity: 1,
       source: 'theme-check',
       range: {

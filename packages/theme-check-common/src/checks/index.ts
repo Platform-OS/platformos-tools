@@ -46,7 +46,6 @@ import { UnknownFilter } from './unknown-filter';
 import { UnrecognizedContentForArguments } from './unrecognized-content-for-arguments';
 import { UnrecognizedRenderSnippetArguments } from './unrecognized-render-snippet-arguments';
 import { UnusedAssign } from './unused-assign';
-import { UnsupportedDocTag } from './unsupported-doc-tag';
 import { UnusedDocParam } from './unused-doc-param';
 import { ValidContentForArguments } from './valid-content-for-arguments';
 import { ValidContentForArgumentTypes } from './valid-content-for-argument-types';
@@ -114,7 +113,6 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   UnknownFilter,
   UnrecognizedContentForArguments,
   UnrecognizedRenderSnippetArguments,
-  UnsupportedDocTag,
   UnusedAssign,
   UnusedDocParam,
   ValidBlockTarget,

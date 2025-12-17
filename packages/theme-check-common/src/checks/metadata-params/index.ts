@@ -4,6 +4,7 @@ import { DocumentsLocator, NodeType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
 import { getLiquidDocParams } from '../../liquid-doc/arguments';
+import { relative } from '../../path';
 
 type Metadata = {
   metadata: {
@@ -33,7 +34,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
     name: "Metadata Params Check",
     docs: {
       description:
-        "Ensures that variables referenced in the document exist in metadata.params or in the doc tag.",
+        "Ensures that parameters referenced in the document exist in metadata.params or in the doc tag.",
       recommended: true,
       url: undefined
     },
@@ -45,6 +46,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
 
   create(context) {
     const locator = new DocumentsLocator(context.fs);
+
     const validate = async (nodeType: NodeType, targetFile: string, args: LiquidNamedArgument[], position: Position) => {
       const locatedFile = await locator.locate(URI.parse(context.config.rootUri), nodeType, targetFile)
 
@@ -55,7 +57,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
       if (!params) {
         const liquidDocParameters = await getLiquidDocParams(
           context,
-          locatedFile,
+          relative(locatedFile, context.config.rootUri),
         );
 
         if(!liquidDocParameters) return;

@@ -14,6 +14,8 @@ import {
   SourceCodeType,
 } from '../../types';
 import { doesFileExist } from '../../utils/file-utils';
+import { DocumentsLocator } from '@platformos/platformos-common';
+import { URI } from 'vscode-uri';
 
 const schema = {
   ignoreMissing: SchemaProp.array(SchemaProp.string(), []),
@@ -24,7 +26,7 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
     code: 'MissingTemplate',
     name: 'Avoid rendering missing templates',
     docs: {
-      description: 'Reports missing include/render/section liquid file',
+      description: 'Reports missing function/include/render/views liquid file',
       recommended: true,
       url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/missing-template',
     },
@@ -35,46 +37,38 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
   },
 
   create(context) {
-    const isNamedLiquidTag = (tag: LiquidTag): tag is LiquidTagNamed =>
-      typeof tag.markup !== 'string';
-
-    function isIgnored(relativePath: string) {
-      return context.settings.ignoreMissing.some((pattern) => minimatch(relativePath, pattern));
-    }
-
-    async function maybeReportMissing(
-      relativePath: RelativePath,
-      { position }: { position: Position },
-    ) {
-      const fileExists = await doesFileExist(context, relativePath);
-      if (fileExists || isIgnored(relativePath)) return;
-
-      context.report({
-        message: `'${relativePath}' does not exist`,
-        startIndex: position.start,
-        endIndex: position.end,
-      });
-    }
-
+    const locator = new DocumentsLocator(context.fs);
+   
     return {
       async RenderMarkup(node) {
         if (node.snippet.type === NodeTypes.VariableLookup) return;
 
         const snippet = node.snippet;
-        const relativePath = `app/views/${snippet.value}.liquid`;
+        const location = await locator.locate(URI.parse(context.config.rootUri), 'render', snippet.value)
 
-        await maybeReportMissing(relativePath, snippet);
+        if (!location) {
+          context.report({
+            message: `'${snippet.value}' does not exist`,
+            startIndex: node.snippet.position.start,
+            endIndex: node.snippet.position.end,
+          });
+        }
       },
 
-      async LiquidTag(node) {
-        if (!isNamedLiquidTag(node)) return;
-        if (node.name !== NamedTags.section) return;
+      async FunctionMarkup(node) {
+        if (node.partial.type === NodeTypes.VariableLookup) return;
 
-        const markup = node.markup;
-        const relativePath = `sections/${markup.value}.liquid`;
+        const partial = node.partial;
+        const location = await locator.locate(URI.parse(context.config.rootUri), 'function', partial.value)
 
-        await maybeReportMissing(relativePath, markup);
-      },
+        if (!location) {
+          context.report({
+            message: `'${partial.value}' does not exist`,
+            startIndex: node.partial.position.start,
+            endIndex: node.partial.position.end,
+          });
+        }
+      }
     };
   },
 };

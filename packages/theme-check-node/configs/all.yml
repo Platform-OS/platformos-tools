@@ -94,9 +94,6 @@ MissingAsset:
 MissingContentForArguments:
   enabled: true
   severity: 1
-MissingRenderSnippetArguments:
-  enabled: true
-  severity: 1
 MissingTemplate:
   enabled: true
   severity: 0

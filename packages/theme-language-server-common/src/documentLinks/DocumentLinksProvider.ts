@@ -45,7 +45,7 @@ function documentLinksVisitor(
   return {
     async LiquidTag(node) {
       if (
-        (node.name === 'render') &&
+        (node.name === 'render' || node.name === 'include') &&
         typeof node.markup !== 'string' &&
         isLiquidString(node.markup.snippet)
       ) {
@@ -66,30 +66,6 @@ function documentLinksVisitor(
           range(textDocument, snippet),
           await documentsLocator.locate(root, node.name, snippet.value)
         );
-      }
-
-      // {% section 'section' %}
-      if (
-        node.name === 'section' &&
-        typeof node.markup !== 'string' &&
-        isLiquidString(node.markup)
-      ) {
-        const sectionName = node.markup;
-        return DocumentLink.create(
-          range(textDocument, sectionName),
-          Utils.resolvePath(root, 'sections', sectionName.value + '.liquid').toString(),
-        );
-      }
-
-      // {% content_for 'block', type: 'block_name' %}
-      if (node.name === NamedTags.content_for && typeof node.markup !== 'string') {
-        const typeArg = node.markup.args.find((arg) => arg.name === 'type');
-        if (typeArg && typeArg.value.type === 'String') {
-          return DocumentLink.create(
-            range(textDocument, typeArg.value),
-            Utils.resolvePath(root, 'blocks', typeArg.value.value + '.liquid').toString(),
-          );
-        }
       }
     },
 

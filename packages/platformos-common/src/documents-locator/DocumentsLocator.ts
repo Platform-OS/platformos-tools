@@ -1,7 +1,7 @@
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { URI, Utils } from 'vscode-uri';
 
-export type NodeType = 'function' | 'render'
+export type NodeType = 'function' | 'render' | 'include';
 
 export class DocumentsLocator {
     constructor(private fs: AbstractFileSystem) { }
@@ -37,10 +37,8 @@ export class DocumentsLocator {
             modulePaths = [
                 `app/modules/${moduleName}/public/lib`,
                 `app/modules/${moduleName}/private/lib`,
-                `app/modules/${moduleName}/views/partials`,
                 `modules/${moduleName}/public/lib`,
                 `modules/${moduleName}/private/lib`,
-                `modules/${moduleName}/views/partials`
             ];
         }
 
@@ -59,10 +57,39 @@ export class DocumentsLocator {
         return undefined;
     }
 
+    private async locateView(rootUri: URI, fileName: string): Promise<string | undefined> {
+        let modulePaths: string[] = [];
+        const [isModule, moduleName, moduleFilePath] = this.isModule(fileName);
+        if (isModule) {
+            modulePaths = [
+                `app/modules/${moduleName}/public/views/partials`,
+                `app/modules/${moduleName}/private/views/partials`,
+                `modules/${moduleName}/public/views/partials`,
+                `modules/${moduleName}/private/views/partials`
+            ];
+        }
+
+        const defaultPaths = [
+            `app/views/partials`,
+        ];
+
+        for (const path of (isModule ? modulePaths : defaultPaths)) {
+            const uri = Utils.joinPath(rootUri, path, `${isModule ? moduleFilePath : fileName}.liquid`).toString()
+            const result = await this.findFile(uri);
+            if (result) {
+                return uri;
+            }
+        }
+        return undefined;
+    }
+
     async locate(rootUri: URI, nodeName: NodeType, fileName: string): Promise<string | undefined> {
         switch (nodeName) {
             case 'function':
                 return await this.locatePartial(rootUri, fileName);
+            case 'render':
+            case 'include':
+                return await this.locateView(rootUri, fileName);
             default:
                 return undefined;
         }

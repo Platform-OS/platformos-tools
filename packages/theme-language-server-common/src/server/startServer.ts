@@ -17,7 +17,7 @@ import {
   SourceCodeType,
   UriString,
 } from '@platformos/theme-check-common';
-import { FileTuple } from '@platformos/platformos-common';
+import { FileTuple, TranslationProvider } from '@platformos/platformos-common';
 import {
   Connection,
   FileChangeType,
@@ -122,7 +122,8 @@ export function startServer(
   );
   const diagnosticsManager = new DiagnosticsManager(connection);
   const documentsLocator = new DocumentsLocator(fs);
-  const documentLinksProvider = new DocumentLinksProvider(documentManager, findThemeRootURI, documentsLocator);
+  const translationProvider = new TranslationProvider(fs);
+  const documentLinksProvider = new DocumentLinksProvider(documentManager, findThemeRootURI, documentsLocator, translationProvider);
   const codeActionsProvider = new CodeActionsProvider(documentManager, diagnosticsManager);
   const onTypeFormattingProvider = new OnTypeFormattingProvider(
     documentManager,
@@ -343,10 +344,12 @@ export function startServer(
   const hoverProvider = new HoverProvider(
     documentManager,
     themeDocset,
+    translationProvider,
     getMetafieldDefinitions,
     getTranslationsForURI,
     getThemeSettingsSchemaForURI,
     getDocDefinitionForURI,
+    findThemeRootURI
   );
 
   const executeCommandProvider = new ExecuteCommandProvider(
@@ -449,19 +452,10 @@ export function startServer(
     configuration.registerDidChangeWatchedFilesNotification({
       watchers: [
         {
-          globPattern: '**/.theme-check.yml',
-        },
-        {
-          globPattern: '**/.shopify/*',
-        },
-        {
           globPattern: '**/*.liquid',
         },
         {
-          globPattern: '**/{locales,sections,templates,customers}/*.json',
-        },
-        {
-          globPattern: '**/config/settings_{data,schema}.json',
+          globPattern: '**/translations/**/*.yml',
         },
       ],
     });

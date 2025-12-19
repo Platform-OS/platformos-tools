@@ -1,40 +1,48 @@
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { URI, Utils } from 'vscode-uri';
 
-export type NodeType = 'function' | 'render' | 'include';
+export type DocumentType = 'function' | 'render' | 'include';
+
+type ModulePathInfo =
+    | { isModule: false; key: string }
+    | { isModule: true; moduleName: string; key: string };
 
 export class DocumentsLocator {
-    constructor(private fs: AbstractFileSystem) { }
+    constructor(private readonly fs: AbstractFileSystem) {}
 
-    private async findFile(path: string): Promise<boolean> {
-        let stats;
+    private async isFile(path: string): Promise<boolean> {
         try {
-            stats = await this.fs.stat(path);
-            if (stats.type === FileType.File) {
-                return true;
-            }
-        } catch {}
-        return false;
-    }
-
-    private isModule(fileName: string): [boolean, string|undefined, string|undefined] {
-        const isModule = fileName.startsWith('modules/');
-
-        if(!isModule) {
-            return [false, undefined, undefined];
+            return (await this.fs.stat(path)).type === FileType.File;
+        } catch {
+            return false;
         }
-        const fileParts = fileName.split('/');
-        const moduleName = fileParts[1];
-        fileName = fileParts.slice(2).join('/');
-
-        return [true, moduleName, fileName];
     }
 
-    private async locatePartial(rootUri: URI, fileName: string): Promise<string | undefined> {
-        let modulePaths: string[] = [];
-        const [isModule, moduleName, moduleFilePath] = this.isModule(fileName);
-        if (isModule) {
-            modulePaths = [
+    private parseModulePath(fileName: string): ModulePathInfo {
+        if (!fileName.startsWith('modules/')) {
+            return { isModule: false, key: fileName };
+        }
+
+        const [, moduleName, ...rest] = fileName.split('/');
+        const key = rest.join('/');
+
+        return key
+            ? { isModule: true, moduleName, key }
+            : { isModule: false, key: fileName };
+    }
+
+    private getSearchPaths(
+        type: 'partial' | 'view',
+        moduleName?: string
+    ): string[] {
+        if (!moduleName) {
+            return type === 'partial'
+                ? ['app/lib']
+                : ['app/views/partials'];
+        }
+
+        if (type === 'partial') {
+            return [
                 `app/modules/${moduleName}/public/lib`,
                 `app/modules/${moduleName}/private/lib`,
                 `modules/${moduleName}/public/lib`,
@@ -42,54 +50,53 @@ export class DocumentsLocator {
             ];
         }
 
-        const defaultPaths = [
-            `app/lib`,
-            `app/views/partials`,
+        return [
+            `app/modules/${moduleName}/public/views/partials`,
+            `app/modules/${moduleName}/private/views/partials`,
+            `modules/${moduleName}/public/views/partials`,
+            `modules/${moduleName}/private/views/partials`,
         ];
+    }
 
-        for (const path of (isModule ? modulePaths : defaultPaths)) {
-            const uri = Utils.joinPath(rootUri, path, `${isModule ? moduleFilePath : fileName}.liquid`).toString()
-            const result = await this.findFile(uri);
-            if (result) {
+    private async locateFile(
+        rootUri: URI,
+        fileName: string,
+        type: 'partial' | 'view'
+    ): Promise<string | undefined> {
+        const parsed = this.parseModulePath(fileName);
+        const searchPaths = this.getSearchPaths(
+            type,
+            parsed.isModule ? parsed.moduleName : undefined
+        );
+
+        for (const basePath of searchPaths) {
+            const uri = Utils.joinPath(
+                rootUri,
+                basePath,
+                `${parsed.key}.liquid`
+            ).toString();
+
+            if (await this.isFile(uri)) {
                 return uri;
             }
         }
+
         return undefined;
     }
 
-    private async locateView(rootUri: URI, fileName: string): Promise<string | undefined> {
-        let modulePaths: string[] = [];
-        const [isModule, moduleName, moduleFilePath] = this.isModule(fileName);
-        if (isModule) {
-            modulePaths = [
-                `app/modules/${moduleName}/public/views/partials`,
-                `app/modules/${moduleName}/private/views/partials`,
-                `modules/${moduleName}/public/views/partials`,
-                `modules/${moduleName}/private/views/partials`
-            ];
-        }
-
-        const defaultPaths = [
-            `app/views/partials`,
-        ];
-
-        for (const path of (isModule ? modulePaths : defaultPaths)) {
-            const uri = Utils.joinPath(rootUri, path, `${isModule ? moduleFilePath : fileName}.liquid`).toString()
-            const result = await this.findFile(uri);
-            if (result) {
-                return uri;
-            }
-        }
-        return undefined;
-    }
-
-    async locate(rootUri: URI, nodeName: NodeType, fileName: string): Promise<string | undefined> {
+    async locate(
+        rootUri: URI,
+        nodeName: DocumentType,
+        fileName: string
+    ): Promise<string | undefined> {
         switch (nodeName) {
             case 'function':
-                return await this.locatePartial(rootUri, fileName);
+                return this.locateFile(rootUri, fileName, 'partial');
+
             case 'render':
             case 'include':
-                return await this.locateView(rootUri, fileName);
+                return this.locateFile(rootUri, fileName, 'view');
+
             default:
                 return undefined;
         }

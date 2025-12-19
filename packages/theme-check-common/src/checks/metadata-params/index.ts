@@ -1,6 +1,6 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import yaml from "js-yaml";
-import { DocumentsLocator, NodeType } from '@platformos/platformos-common';
+import { DocumentsLocator, DocumentType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
 import { getLiquidDocParams } from '../../liquid-doc/arguments';
@@ -47,7 +47,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
   create(context) {
     const locator = new DocumentsLocator(context.fs);
 
-    const validate = async (nodeType: NodeType, targetFile: string, args: LiquidNamedArgument[], position: Position) => {
+    const validate = async (nodeType: DocumentType, targetFile: string, args: LiquidNamedArgument[], position: Position) => {
       const locatedFile = await locator.locate(URI.parse(context.config.rootUri), nodeType, targetFile)
 
       if(!locatedFile) {

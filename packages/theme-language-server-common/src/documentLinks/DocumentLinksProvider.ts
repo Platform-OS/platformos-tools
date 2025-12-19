@@ -7,14 +7,15 @@ import { URI, Utils } from 'vscode-uri';
 import { visit, Visitor } from '@platformos/theme-check-common';
 import { DocumentManager } from '../documents';
 import { FindThemeRootURI } from '../internal-types';
-import { DocumentsLocator } from '@platformos/platformos-common';
+import { DocumentsLocator, TranslationProvider } from '@platformos/platformos-common';
 
 
 export class DocumentLinksProvider {
   constructor(
     private documentManager: DocumentManager,
     private findThemeRootURI: FindThemeRootURI,
-    private documentsLocator: DocumentsLocator
+    private documentsLocator: DocumentsLocator,
+    private translationProvider: TranslationProvider
   ) {}
 
   async documentLinks(uriString: string): Promise<DocumentLink[]> {
@@ -32,7 +33,7 @@ export class DocumentLinksProvider {
       return [];
     }
 
-    const visitor = await documentLinksVisitor(sourceCode.textDocument, URI.parse(rootUri), this.documentsLocator);
+    const visitor = documentLinksVisitor(sourceCode.textDocument, URI.parse(rootUri), this.documentsLocator, this.translationProvider);
     return visit(sourceCode.ast, visitor);
   }
 }
@@ -40,7 +41,8 @@ export class DocumentLinksProvider {
 function documentLinksVisitor(
   textDocument: TextDocument,
   root: URI,
-  documentsLocator: DocumentsLocator
+  documentsLocator: DocumentsLocator,
+  translationProvider: TranslationProvider
 ): Visitor<SourceCodeType.LiquidHtml, DocumentLink> {
   return {
     async LiquidTag(node) {
@@ -68,22 +70,26 @@ function documentLinksVisitor(
         );
       }
     },
-
-    // {{ 'theme.js' | asset_url }}
     async LiquidVariable(node) {
-      if (node.filters.length === 0 || node.filters[0].name !== 'asset_url') {
-        return;
-      }
-
       if (!isLiquidString(node.expression)) {
         return;
       }
 
-      const expression = node.expression;
-      return DocumentLink.create(
-        range(textDocument, node.expression),
-        Utils.resolvePath(root, 'assets', expression.value).toString(),
-      );
+      if (node.filters.some(({ name }) => ['t', 'translate'].includes(name))) {
+        const [filePath] = await translationProvider.findTranslationFile(root, node.expression.value, 'en')
+        return DocumentLink.create(
+          range(textDocument, node),
+          filePath
+        );
+      }
+
+      if (node.filters.length > 0 && node.filters[0].name === 'asset_url') {
+        const expression = node.expression;
+        return DocumentLink.create(
+          range(textDocument, node.expression),
+          Utils.resolvePath(root, 'assets', expression.value).toString(),
+        );
+      }      
     },
   };
 }

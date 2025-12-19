@@ -60,6 +60,7 @@ import {
   ConcreteLiquidTagAssignMarkup,
   ConcreteLiquidTagRenderMarkup,
   ConcreteLiquidTagFunctionMarkup,
+  ConcreteLiquidTagGraphQLMarkup,
   ConcreteRenderVariableExpression,
   ConcreteRenderAliasExpression,
   ConcreteLiquidTagOpenNamed,
@@ -213,6 +214,7 @@ export type LiquidTagNamed =
   | LiquidTagPaginate
   | LiquidTagRender
   | LiquidTagFunction
+  | LiquidTagGraphQL
   | LiquidTagSection
   | LiquidTagSections
   | LiquidTagTablerow
@@ -379,8 +381,9 @@ export interface LiquidTagContentFor
 /** https://shopify.dev/docs/api/liquid/tags#render */
 export interface LiquidTagRender extends LiquidTagNode<NamedTags.render, RenderMarkup> {}
 
-/** https://shopify.dev/docs/api/liquid/tags#render */
 export interface LiquidTagFunction extends LiquidTagNode<NamedTags.function, FunctionMarkup> {}
+
+export interface LiquidTagGraphQL extends LiquidTagNode<NamedTags.graphql, GraphQLMarkup> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#include */
 export interface LiquidTagInclude extends LiquidTagNode<NamedTags.include, RenderMarkup> {}
@@ -434,6 +437,20 @@ export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
   /** {% render res = snippet %} */
   name: string;
   partial: LiquidString | LiquidVariableLookup;
+  /**
+   * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
+   * because the NamedArgument isn't fully typed out.
+   * E.g. {% function res = 'partial', arg1: value1, arg2█ %}
+   *
+   * @example {% function res = 'partial', arg1: value1, arg2: value2 %}
+   */
+  args: LiquidNamedArgument[];
+}
+
+export interface GraphQLMarkup extends ASTNode<NodeTypes.GraphQLMarkup> {
+  /** {% render res = snippet %} */
+  name: string;
+  graphql: LiquidString | LiquidVariableLookup;
   /**
    * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
    * because the NamedArgument isn't fully typed out.
@@ -1590,6 +1607,14 @@ function toNamedLiquidTag(
       };
     }
 
+    case NamedTags.graphql: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toGraphQLMarkup(node.markup),
+      };
+    }
+
     case NamedTags.layout:
     case NamedTags.section: {
       return {
@@ -1900,6 +1925,25 @@ function toFunctionMarkup(node: ConcreteLiquidTagFunctionMarkup): FunctionMarkup
     name: node.name,
     type: NodeTypes.FunctionMarkup,
     partial: toExpression(node.partial) as LiquidString | LiquidVariableLookup,
+    /**
+     * When we're in completion mode we won't necessarily have valid named
+     * arguments so we need to call toLiquidArgument instead of toNamedArgument.
+     * We cast using `as` so that this doesn't affect the type system used in
+     * other areas (like theme check) for a scenario that only occurs in
+     * completion mode. This means that our types are *wrong* in completion mode
+     * but this is the compromise we're making to get completions to work.
+     */
+    args: node.functionArguments.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toGraphQLMarkup(node: ConcreteLiquidTagGraphQLMarkup): GraphQLMarkup {
+  return {
+    name: node.name,
+    type: NodeTypes.GraphQLMarkup,
+    graphql: toExpression(node.graphql) as LiquidString | LiquidVariableLookup,
     /**
      * When we're in completion mode we won't necessarily have valid named
      * arguments so we need to call toLiquidArgument instead of toNamedArgument.

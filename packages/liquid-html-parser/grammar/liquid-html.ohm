@@ -62,6 +62,7 @@ Liquid <: Helpers {
     | liquidTagLiquid
     | liquidTagRender
     | liquidTagFunction
+    | liquidTagGraphQL
     | liquidTagSection
     | liquidTagSections
     | liquidTagWhen
@@ -146,6 +147,9 @@ Liquid <: Helpers {
 
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
   liquidTagFunctionMarkup = variableSegment space* "=" space* snippetExpression renderArguments
+
+  liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
+  liquidTagGraphQLMarkup = variableSegment space* "=" space* snippetExpression renderArguments
 
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?

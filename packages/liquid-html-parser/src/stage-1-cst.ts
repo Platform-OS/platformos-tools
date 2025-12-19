@@ -82,6 +82,7 @@ export enum ConcreteNodeTypes {
   ForMarkup = 'ForMarkup',
   RenderMarkup = 'RenderMarkup',
   FunctionMarkup = 'FunctionMarkup',
+  GraphQLMarkup = 'GraphQLMarkup',
   PaginateMarkup = 'PaginateMarkup',
   RenderVariableExpression = 'RenderVariableExpression',
   RenderAliasExpression = 'RenderAliasExpression',
@@ -323,6 +324,7 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagLiquid
   | ConcreteLiquidTagRender
   | ConcreteLiquidTagFunction
+  | ConcreteLiquidTagGraphQL
   | ConcreteLiquidTagSection
   | ConcreteLiquidTagSections
   | ConcreteLiquidTagWhen;
@@ -380,6 +382,8 @@ export interface ConcreteLiquidTagInclude
   extends ConcreteLiquidTagNode<NamedTags.include, ConcreteLiquidTagRenderMarkup> {}
 export interface ConcreteLiquidTagFunction
   extends ConcreteLiquidTagNode<NamedTags.function, ConcreteLiquidTagFunctionMarkup> {}
+export interface ConcreteLiquidTagGraphQL
+  extends ConcreteLiquidTagNode<NamedTags.graphql, ConcreteLiquidTagGraphQLMarkup> {}
 
 export interface ConcreteLiquidTagContentForMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.ContentForMarkup> {
@@ -399,6 +403,13 @@ export interface ConcreteLiquidTagFunctionMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.FunctionMarkup> {
   name: string;
   partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
+  functionArguments: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagGraphQLMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.GraphQLMarkup> {
+  name: string;
+  graphql: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
 }
 
@@ -831,6 +842,7 @@ function toCST<T>(
     liquidTagDecrement: 0,
     liquidTagRender: 0,
     liquidTagFunction: 0,
+    liquidTagGraphQL: 0,
     liquidTagInclude: 0,
     liquidTagSection: 0,
     liquidTagSections: 0,
@@ -911,6 +923,15 @@ function toCST<T>(
       type: ConcreteNodeTypes.FunctionMarkup,
       name: 0,
       partial: 4,
+      functionArguments: 5,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagGraphQLMarkup: {
+      type: ConcreteNodeTypes.GraphQLMarkup,
+      name: 0,
+      graphql: 4,
       functionArguments: 5,
       locStart,
       locEnd,

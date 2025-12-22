@@ -1,7 +1,7 @@
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { URI, Utils } from 'vscode-uri';
 
-export type DocumentType = 'function' | 'render' | 'include';
+export type DocumentType = 'function' | 'render' | 'include' | 'graphql' | 'asset';
 
 type ModulePathInfo =
     | { isModule: false; key: string }
@@ -32,48 +32,78 @@ export class DocumentsLocator {
     }
 
     private getSearchPaths(
-        type: 'partial' | 'view',
+        type: 'partial' | 'view' | 'graphql' | 'asset',
         moduleName?: string
     ): string[] {
         if (!moduleName) {
-            return type === 'partial'
-                ? ['app/lib']
-                : ['app/views/partials'];
+            switch(type) {
+                case 'partial':
+                    return ['app/lib'];
+                case 'view':
+                    return ['app/views/partials'];
+                case 'graphql': 
+                    return ['app/graphql'];
+                case 'asset':
+                    return ['app/assets'];
+
+            }
         }
 
-        if (type === 'partial') {
-            return [
-                `app/modules/${moduleName}/public/lib`,
-                `app/modules/${moduleName}/private/lib`,
-                `modules/${moduleName}/public/lib`,
-                `modules/${moduleName}/private/lib`,
-            ];
+        switch(type) {
+            case 'partial':
+                return [
+                    `app/modules/${moduleName}/public/lib`,
+                    `app/modules/${moduleName}/private/lib`,
+                    `modules/${moduleName}/public/lib`,
+                    `modules/${moduleName}/private/lib`,
+                ];
+            case 'view':
+                return [
+                    `app/modules/${moduleName}/public/views/partials`,
+                    `app/modules/${moduleName}/private/views/partials`,
+                    `modules/${moduleName}/public/views/partials`,
+                    `modules/${moduleName}/private/views/partials`,
+                ];
+            case 'graphql':
+                return [
+                    `app/modules/${moduleName}/public/graphql`,
+                    `app/modules/${moduleName}/private/graphql`,
+                    `modules/${moduleName}/public/graphql`,
+                    `modules/${moduleName}/private/graphql`,
+                ];
+            case 'asset':
+                return [
+                    `app/modules/${moduleName}/public/assets`,
+                    `app/modules/${moduleName}/private/assets`,
+                    `modules/${moduleName}/public/assets`,
+                    `modules/${moduleName}/private/assets`,
+                ];
         }
-
-        return [
-            `app/modules/${moduleName}/public/views/partials`,
-            `app/modules/${moduleName}/private/views/partials`,
-            `modules/${moduleName}/public/views/partials`,
-            `modules/${moduleName}/private/views/partials`,
-        ];
     }
 
     private async locateFile(
         rootUri: URI,
         fileName: string,
-        type: 'partial' | 'view'
+        type: 'partial' | 'view' | 'graphql' | 'asset'
     ): Promise<string | undefined> {
         const parsed = this.parseModulePath(fileName);
         const searchPaths = this.getSearchPaths(
             type,
             parsed.isModule ? parsed.moduleName : undefined
         );
+        let targetFile = parsed.key
+        if (type === 'partial' || type === 'view' ) {
+            targetFile += '.liquid';
+        }
+        else if(type === 'graphql') {
+            targetFile += '.graphql'
+        }
 
-        for (const basePath of searchPaths) {
+        for (const basePath of searchPaths) {           
             const uri = Utils.joinPath(
                 rootUri,
                 basePath,
-                `${parsed.key}.liquid`
+                targetFile
             ).toString();
 
             if (await this.isFile(uri)) {
@@ -97,6 +127,10 @@ export class DocumentsLocator {
             case 'include':
                 return this.locateFile(rootUri, fileName, 'view');
 
+            case 'graphql':
+                return this.locateFile(rootUri, fileName, 'graphql');
+            case 'asset':
+                return this.locateFile(rootUri, fileName, 'asset');
             default:
                 return undefined;
         }

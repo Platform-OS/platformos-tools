@@ -1,6 +1,8 @@
+import { DocumentsLocator } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { doesFileExist } from '../../utils/file-utils';
 import { isLiquidString } from '../utils';
+import { URI } from 'vscode-uri';
 
 export const MissingAsset: LiquidCheckDefinition = {
   meta: {
@@ -18,6 +20,7 @@ export const MissingAsset: LiquidCheckDefinition = {
   },
 
   create(context) {
+    const documentsLocator = new DocumentsLocator(context.fs);
     return {
       async LiquidVariable(node) {
         if (node.filters.length === 0 || node.filters[0].name !== 'asset_url') {
@@ -27,29 +30,14 @@ export const MissingAsset: LiquidCheckDefinition = {
         if (!isLiquidString(node.expression)) return;
 
         let expression = node.expression;
-        let originalAssetPath = `assets/${expression.value}`;
-        let assetPath = originalAssetPath;
-
-        let fileExists = await doesFileExist(context, assetPath);
-        if (fileExists) return;
-
-        if (assetPath.endsWith('.scss.css')) {
-          assetPath = assetPath.replace('.scss.css', '.scss.liquid');
-          fileExists = await doesFileExist(context, assetPath);
-          if (fileExists) return;
+        const result = await documentsLocator.locate(URI.parse(context.config.rootUri), 'asset', expression.value)
+        if(!result) {
+          context.report({
+            message: `'${expression.value}' does not exist`,
+            startIndex: expression.position.start,
+            endIndex: expression.position.end,
+          });
         }
-
-        if (assetPath.endsWith('.js') || assetPath.endsWith('.css')) {
-          assetPath += '.liquid';
-          fileExists = await doesFileExist(context, assetPath);
-          if (fileExists) return;
-        }
-
-        context.report({
-          message: `'${originalAssetPath}' does not exist`,
-          startIndex: expression.position.start,
-          endIndex: expression.position.end,
-        });
       },
     };
   },

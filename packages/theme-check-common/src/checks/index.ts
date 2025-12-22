@@ -64,6 +64,7 @@ import { VariableName } from './variable-name';
 import { AppBlockMissingSchema } from './app-block-missing-schema';
 import { UniqueSettingIds } from './unique-settings-id';
 import { MetadataParamsCheck } from './metadata-params'
+import { GraphQLVariablesCheck } from './graphql-variables';
 
 export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   AppBlockValidTags,
@@ -130,7 +131,8 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   ValidVisibleIfSettingsSchema,
   VariableName,
   ValidSchemaName,
-  MetadataParamsCheck
+  MetadataParamsCheck,
+  GraphQLVariablesCheck
 ];
 
 /**

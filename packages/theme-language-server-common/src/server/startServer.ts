@@ -457,6 +457,9 @@ export function startServer(
         {
           globPattern: '**/translations/**/*.yml',
         },
+        {
+          globPattern: '**/graphql/**/*.graphql',
+        },
       ],
     });
 

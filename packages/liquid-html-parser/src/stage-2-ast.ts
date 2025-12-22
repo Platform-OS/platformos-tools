@@ -107,6 +107,7 @@ export type LiquidHtmlNode =
   | ForMarkup
   | RenderMarkup
   | FunctionMarkup
+  | GraphQLMarkup
   | PaginateMarkup
   | RawMarkup
   | RenderVariableExpression

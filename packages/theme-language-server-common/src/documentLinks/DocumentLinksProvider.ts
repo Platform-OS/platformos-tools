@@ -69,6 +69,18 @@ function documentLinksVisitor(
           await documentsLocator.locate(root, node.name, snippet.value)
         );
       }
+
+      if (
+        (node.name === 'graphql') &&
+        typeof node.markup !== 'string' &&
+        isLiquidString(node.markup.graphql)
+      ) {
+        const snippet = node.markup.graphql;
+        return DocumentLink.create(
+          range(textDocument, snippet),
+          await documentsLocator.locate(root, node.name, snippet.value)
+        );
+      }
     },
     async LiquidVariable(node) {
       if (!isLiquidString(node.expression)) {
@@ -87,7 +99,7 @@ function documentLinksVisitor(
         const expression = node.expression;
         return DocumentLink.create(
           range(textDocument, node.expression),
-          Utils.resolvePath(root, 'assets', expression.value).toString(),
+          await documentsLocator.locate(root, 'asset', expression.value)
         );
       }      
     },

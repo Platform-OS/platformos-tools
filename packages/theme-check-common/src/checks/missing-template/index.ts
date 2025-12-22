@@ -68,6 +68,21 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
             endIndex: node.partial.position.end,
           });
         }
+      },
+
+      async GraphQLMarkup(node) {
+        if (node.graphql.type === NodeTypes.VariableLookup) return;
+
+        const graphql = node.graphql;
+        const location = await locator.locate(URI.parse(context.config.rootUri), 'graphql', graphql.value)
+
+        if (!location) {
+          context.report({
+            message: `'${graphql.value}' does not exist`,
+            startIndex: node.graphql.position.start,
+            endIndex: node.graphql.position.end,
+          });
+        }
       }
     };
   },

@@ -398,6 +398,17 @@ function findCurrentNode(
         break;
       }
 
+      case NodeTypes.GraphQLMarkup: {
+        if (isNotEmpty(current.args)) {
+          finder.current = last(current.args);
+        }  else if (current.graphql && isCovered(cursor, current.graphql.position)) {
+          finder.current = current.graphql;
+        }
+
+        break;
+      }
+
+
       case NodeTypes.RenderVariableExpression: {
         finder.current = current.name;
         break;

@@ -451,6 +451,22 @@ function printNode(
       return doc;
     }
 
+    case NodeTypes.GraphQLMarkup: {
+      const partial = path.call((p: any) => print(p), 'graphql');
+      const doc: Doc = [node.name, ' = ', partial];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
     case NodeTypes.RenderVariableExpression: {
       return [node.kind, ' ', path.call((p: any) => print(p), 'name')];
     }

@@ -328,6 +328,10 @@ function printNode(
       return [node.name, ' = ', path.call((p: any) => print(p), 'value')];
     }
 
+    case NodeTypes.HashAssignMarkup: {
+      return [node.name, ' = ', path.call((p: any) => print(p), 'value')];
+    }
+
     case NodeTypes.CycleMarkup: {
       const doc: Doc[] = [];
 

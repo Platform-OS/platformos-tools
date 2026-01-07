@@ -77,6 +77,7 @@ import {
   ConcreteLiquidTagBaseCase,
   ConcreteLiquidTagContentForMarkup,
   ConcreteComplexLiquidExpression,
+  ConcreteLiquidTagHashAssignMarkup,
 } from './stage-1-cst';
 import { Comparators, NamedTags, NodeTypes, nonTraversableProperties, Position } from './types';
 import { assertNever, deepGet, dropLast } from './utils';
@@ -102,6 +103,7 @@ export type LiquidHtmlNode =
   | LiquidFilter
   | LiquidNamedArgument
   | AssignMarkup
+  | HashAssignMarkup
   | ContentForMarkup
   | CycleMarkup
   | ForMarkup
@@ -199,6 +201,7 @@ export type LiquidTag = LiquidTagNamed | LiquidTagBaseCase;
 /** The union type of all strictly typed LiquidTag nodes */
 export type LiquidTagNamed =
   | LiquidTagAssign
+  | LiquidTagHashAssign
   | LiquidTagCase
   | LiquidTagCapture
   | LiquidTagContentFor
@@ -269,6 +272,16 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
   /** the name of the variable that is being assigned */
   name: string;
 
+  /** the value of the variable that is being assigned */
+  value: LiquidVariable;
+}
+
+export interface LiquidTagHashAssign extends LiquidTagNode<NamedTags.hash_assign, HashAssignMarkup> {}
+
+/** {% hash_assign name = value | parse_json %} */
+export interface HashAssignMarkup extends ASTNode<NodeTypes.HashAssignMarkup> {
+  /** the name of the variable that is being assigned */
+  name: string;
   /** the value of the variable that is being assigned */
   value: LiquidVariable;
 }
@@ -1557,6 +1570,14 @@ function toNamedLiquidTag(
       };
     }
 
+    case NamedTags.hash_assign: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: NamedTags.hash_assign,
+        markup: toHashAssignMarkup(node.markup),
+      };
+    }
+
     case NamedTags.cycle: {
       return {
         ...liquidTagBaseAttributes(node),
@@ -1749,6 +1770,21 @@ function toAssignMarkup(node: ConcreteLiquidTagAssignMarkup): AssignMarkup {
     source: node.source,
   };
 }
+
+
+function toHashAssignMarkup(
+  node: ConcreteLiquidTagHashAssignMarkup
+): HashAssignMarkup {
+
+  return {
+    type: NodeTypes.HashAssignMarkup,
+    name: node.name,
+    value: toLiquidVariable(node.value),
+    position: position(node),
+    source: node.source,
+  };
+}
+
 
 function toCycleMarkup(node: ConcreteLiquidTagCycleMarkup): CycleMarkup {
   return {

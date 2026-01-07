@@ -14,6 +14,7 @@ import {
   NodeTypes,
   Position,
   FunctionMarkup,
+  LiquidTagHashAssign,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, ThemeDocset } from '../../types';
 import { isError, last } from '../../utils';
@@ -72,7 +73,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
-        if (isLiquidTagAssign(node)) {
+        if (isLiquidTagAssign(node) || isLiquidTagHashAssign(node)) {
           indexVariableScope(node.markup.name, {
             start: node.blockStartPosition.end,
           });
@@ -272,6 +273,10 @@ function isLiquidTagCapture(node: LiquidTag): node is LiquidTagCapture {
 
 function isLiquidTagAssign(node: LiquidTag): node is LiquidTagAssign {
   return node.name === NamedTags.assign && typeof node.markup !== 'string';
+}
+
+function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTagHashAssign {
+  return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
 }
 
 function isLiquidForTag(node: LiquidTag): node is LiquidTagFor {

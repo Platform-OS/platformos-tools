@@ -77,6 +77,7 @@ export enum ConcreteNodeTypes {
   Condition = 'Condition',
 
   AssignMarkup = 'AssignMarkup',
+  HashAssignMarkup = 'HashAssignMarkup',
   ContentForMarkup = 'ContentForMarkup',
   CycleMarkup = 'CycleMarkup',
   ForMarkup = 'ForMarkup',
@@ -313,6 +314,7 @@ export interface ConcreteLiquidTagClose
 export type ConcreteLiquidTag = ConcreteLiquidTagNamed | ConcreteLiquidTagBaseCase;
 export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagAssign
+  | ConcreteLiquidTagHashAssign
   | ConcreteLiquidTagCycle
   | ConcreteLiquidTagContentFor
   | ConcreteLiquidTagEcho
@@ -361,6 +363,14 @@ export interface ConcreteLiquidTagAssign
   extends ConcreteLiquidTagNode<NamedTags.assign, ConcreteLiquidTagAssignMarkup> {}
 export interface ConcreteLiquidTagAssignMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.AssignMarkup> {
+  name: string;
+  value: ConcreteLiquidVariable;
+}
+
+export interface ConcreteLiquidTagHashAssign
+  extends ConcreteLiquidTagNode<NamedTags.hash_assign, ConcreteLiquidTagHashAssignMarkup> {}
+export interface ConcreteLiquidTagHashAssignMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.HashAssignMarkup> {
   name: string;
   value: ConcreteLiquidVariable;
 }
@@ -835,6 +845,7 @@ function toCST<T>(
     liquidTagStrict: 0,
     liquidTagBaseCase: 0,
     liquidTagAssign: 0,
+    liquidTagHashAssign: 0,
     liquidTagEcho: 0,
     liquidTagContentFor: 0,
     liquidTagCycle: 0,
@@ -883,6 +894,14 @@ function toCST<T>(
     liquidTagLayoutMarkup: 0,
     liquidTagAssignMarkup: {
       type: ConcreteNodeTypes.AssignMarkup,
+      name: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagHashAssignMarkup: {
+      type: ConcreteNodeTypes.HashAssignMarkup,
       name: 0,
       value: 4,
       locStart,

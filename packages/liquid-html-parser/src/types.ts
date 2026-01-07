@@ -38,6 +38,7 @@ export enum NodeTypes {
   LogicalExpression = 'LogicalExpression',
 
   AssignMarkup = 'AssignMarkup',
+  HashAssignMarkup = 'HashAssignMarkup',
   ContentForMarkup = 'ContentForMarkup',
   CycleMarkup = 'CycleMarkup',
   ForMarkup = 'ForMarkup',
@@ -57,6 +58,7 @@ export enum NodeTypes {
 // These are officially supported with special node types
 export enum NamedTags {
   assign = 'assign',
+  hash_assign = 'hash_assign',
   capture = 'capture',
   case = 'case',
   content_for = 'content_for',

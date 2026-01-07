@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DocumentManager } from '../documents';
 import { DocumentLinksProvider } from './DocumentLinksProvider';
-import { DocumentsLocator } from '@platformos/platformos-common';
+import { DocumentsLocator, TranslationProvider } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 
 describe('DocumentLinksProvider', () => {
@@ -19,7 +19,7 @@ describe('DocumentLinksProvider', () => {
       'path/to/project/app/views/apply_view.liquid': 'apply view content',
     });
     documentsLocator = new DocumentsLocator(fs);
-    documentLinksProvider = new DocumentLinksProvider(documentManager, async () => rootUri, documentsLocator);
+    documentLinksProvider = new DocumentLinksProvider(documentManager, async () => rootUri, documentsLocator, new TranslationProvider(fs));
   });
 
   it('should return an empty array for non-LiquidHtml documents', async () => {

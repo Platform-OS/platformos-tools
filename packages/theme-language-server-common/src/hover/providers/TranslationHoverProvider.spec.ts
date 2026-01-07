@@ -2,6 +2,8 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
 import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
+import { TranslationProvider } from '@platformos/platformos-common';
+import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 
 describe('Module: TranslationHoverProvider', async () => {
   let provider: HoverProvider;
@@ -16,17 +18,20 @@ describe('Module: TranslationHoverProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
+      new TranslationProvider(new MockFileSystem({'app/translations/en/general.yml': `
+        en:
+          general:
+            password: 'password'
+            username_html: '<b>username</b>'
+            comments:
+              one: '{{ count }} comment'
+              other: '{{ count }} comments'
+      `})),
       async (_rootUri: string) => ({} as MetafieldDefinitionMap),
-      async () => ({
-        general: {
-          password: 'password',
-          username_html: '<b>username</b>',
-          comments: {
-            one: '{{ count }} comment',
-            other: '{{ count }} comments',
-          },
-        },
-      }),
+      undefined,
+      undefined,
+      undefined,
+      async () => '.'
     );
   });
 

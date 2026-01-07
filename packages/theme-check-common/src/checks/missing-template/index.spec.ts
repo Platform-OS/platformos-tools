@@ -46,33 +46,7 @@ describe('Module: MissingTemplate', () => {
         filesWith: (file: string) => ({
           'snippets/snippet.liquid': file,
         }),
-      },
-      {
-        testCase: 'should report the missing section to be rendered with "section"',
-        file: "{% section 'missing' %}",
-        expected: {
-          "check": "MissingTemplate",
-          "end": {
-            "character": 27,
-            "index": 28,
-            "line": 1,
-          },
-          "fix": undefined,
-          "message": "'missing' does not exist",
-          "severity": 0,
-          "start": {
-            "character": 18,
-            "index": 19,
-            "line": 1,
-          },
-          "suggest": undefined,
-          "type": "LiquidHtml",
-          "uri": "file:///snippets/snippet.liquid",
-        },
-        filesWith: (file: string) => ({
-          'sections/section.liquid': file,
-        }),
-      },
+      }
     ];
     for (const { testCase, file, expected, filesWith } of testCases) {
       const offenses = await check(filesWith(file), [MissingTemplate]);

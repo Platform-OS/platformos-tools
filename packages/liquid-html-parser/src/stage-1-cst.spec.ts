@@ -504,6 +504,39 @@ describe('Unit: Stage 1 (CST)', () => {
         });
       });
 
+      it('should parse the hash_assign tag as hash_assign markup + liquid variable', () => {
+        [
+          {
+            expression: `x = "hi"`,
+            name: 'x',
+            expressionType: 'String',
+            expressionValue: 'hi',
+            filters: [],
+          },
+          {
+            expression: `z = y | f`,
+            name: 'z',
+            expressionType: 'VariableLookup',
+            filters: ['f'],
+          },
+        ].forEach(({ expression, name, expressionType, expressionValue, filters }) => {
+          for (const { toCST, expectPath } of testCases) {
+            cst = toCST(`{% hash_assign ${expression} -%}`);
+            expectPath(cst, '0.type').to.equal('LiquidTag');
+            expectPath(cst, '0.name').to.equal('hash_assign');
+            expectPath(cst, '0.markup.type').to.equal('HashAssignMarkup');
+            expectPath(cst, '0.markup.name').to.equal(name);
+            expectPath(cst, '0.markup.value.expression.type').to.equal(expressionType);
+            if (expressionValue) {
+              expectPath(cst, '0.markup.value.expression.value').to.equal(expressionValue);
+            }
+            expectPath(cst, '0.markup.value.filters').to.have.lengthOf(filters.length);
+            expectPath(cst, '0.whitespaceStart').to.equal(null);
+            expectPath(cst, '0.whitespaceEnd').to.equal('-');
+          }
+        });
+      });
+
       it('should parse the cycle tag as cycle markup', () => {
         [
           {

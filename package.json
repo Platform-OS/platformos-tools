@@ -8,6 +8,7 @@
   "license": "MIT",
   "private": true,
   "workspaces": [
+    "packages/platformos-common",
     "packages/lang-*",
     "packages/codemirror-language-client",
     "packages/liquid-html-parser",
@@ -16,8 +17,7 @@
     "packages/theme-graph",
     "packages/theme-language-server-*",
     "packages/vscode-extension",
-    "packages/release-orchestrator",
-    "packages/platformos-common"
+    "packages/release-orchestrator"
   ],
   "scripts": {
     "admin:build": "sh ./scripts/dev-admin-build.sh",

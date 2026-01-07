@@ -322,6 +322,11 @@ function findCurrentNode(
         break;
       }
 
+      case NodeTypes.HashAssignMarkup: {
+        finder.current = current.value;
+        break;
+      }
+
       case NodeTypes.ForMarkup: {
         if (isCovered(cursor, current.collection.position)) {
           finder.current = current.collection;

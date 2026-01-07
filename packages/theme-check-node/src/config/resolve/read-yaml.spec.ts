@@ -246,7 +246,7 @@ describe('Unit: readYamlConfigDescription', () => {
 ignore:
   - *.code-workspace
 `);
-    expect(readYamlConfigDescription(filePath)).rejects.toThrowError(
+    await expect(readYamlConfigDescription(filePath)).rejects.toThrowError(
       /YAML parsing error: Unresolved alias \*\.code-workspace/,
     );
   });

@@ -3,6 +3,8 @@ import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
 import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
 import { GetDocDefinitionForURI, DocDefinition } from '@platformos/theme-check-common';
+import { TranslationProvider } from '@platformos/platformos-common';
+import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 
 const uri = 'file:///snippets/product-card.liquid';
 
@@ -73,6 +75,7 @@ const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
       tags: async () => [],
       systemTranslations: async () => ({}),
     },
+    new TranslationProvider(new MockFileSystem({})),
     async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     async () => ({}),
     async () => [],

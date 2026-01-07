@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Logger, noop, tap } from './utils';
-
+import he from 'he';
 const paths = envPaths('theme-liquid-docs');
 export const root = paths.cache;
 
@@ -12,6 +12,7 @@ export const ThemeLiquidDocsRootFallback =
   'https://raw.githubusercontent.com/Shopify/theme-liquid-docs/main';
 export const ThemeLiquidDocsRoot = 'https://documentation.platformos.com/api/liquid'
 export const ThemeCustomSchemas = ['tags', 'latest', 'objects', 'filters'];
+export const ThemeGraphQLSchema = 'https://documentation.platformos.com/api/graphql/schema'
 
 export type Resource = (typeof Resources)[number];
 export const Resources = [
@@ -55,14 +56,25 @@ export async function downloadResource(
   destination: string = root,
   log: Logger = noop,
 ) {
-  log(resource)
   const remotePath = resourceUrl(resource);
-  log(remotePath);
   const localPath = resourcePath(resource, destination);
-  log(localPath);
   const text = await download(remotePath, log);
   await fs.writeFile(localPath, text, 'utf8');
   return text;
+}
+
+export async function downloadGraphQLSchema(
+  destination: string = root,
+  log: Logger = noop,
+) {
+  const localPath = graphQLPath(destination);
+  const text = await download(ThemeGraphQLSchema, log);
+  await fs.writeFile(localPath, he.decode(text), 'utf8');
+  return text;
+}
+
+export function graphQLPath(destination: string = root) {
+  return path.join(destination, `graphql.graphql`);
 }
 
 export async function download(path: string, log: Logger) {
@@ -174,6 +186,8 @@ export async function downloadThemeLiquidDocs(destination: string, log: Logger) 
         }),
     ),
   );
+
+  await downloadGraphQLSchema(destination, log);
 }
 
 function unique<T>(array: T[]): T[] {

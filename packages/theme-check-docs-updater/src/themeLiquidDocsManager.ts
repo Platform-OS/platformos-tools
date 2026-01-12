@@ -19,6 +19,7 @@ import {
   downloadResource,
   downloadThemeLiquidDocs,
   exists,
+  graphQLPath,
   resourcePath,
   root,
   schemaPath,
@@ -44,6 +45,10 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
 
   tags = memo(async (): Promise<TagEntry[]> => {
     return findSuitableResource(this.loaders('tags'), JSON.parse, [], this.log);
+  });
+
+  graphQL = memo(async (): Promise<string|null> => {
+    return findSuitableResource(this.graphQLLoaders(), (x: string) => x, null, this.log);
   });
 
   systemTranslations = memo(async (): Promise<Translations> => {
@@ -144,6 +149,12 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
       .then(tap(() => this.log(`Loaded schema from ${schemaPath(relativeUri)}`)));
   }
 
+  private async loadGraphQL() {
+    return fs
+      .readFile(graphQLPath(), 'utf8')
+      .then(tap(() => this.log(`Loaded graphQL`)));
+  }
+
   private loaders(name: Resource): Loader<string>[] {
     return [
       loader(() => this.loadResource(name), `loadResource(${name})`),
@@ -155,6 +166,13 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
     return [
       loader(() => this.loadSchema(relativeUri), `loadSchema(${relativeUri})`),
       loader(() => fallbackSchema(relativeUri, this.log), `fallbackSchema(${relativeUri})`),
+    ];
+  }
+
+  private graphQLLoaders(): Loader<string>[] {
+    return [
+      loader(() => this.loadGraphQL(), `loadGraphQL()`),
+      loader(() => fallbackGraphQL(this.log), `fallbackSchema()`),
     ];
   }
 }
@@ -231,4 +249,11 @@ async function fallbackSchema(
   return fs
     .readFile(sourcePath, 'utf8')
     .then(tap(() => log(`Loaded fallback schema\n\t${relativeUri} from\n\t${sourcePath}`)));
+}
+
+async function fallbackGraphQL(log: Logger): Promise<string> {
+  const sourcePath = path.resolve(dataRoot(), `graphql.graphql`);
+  return fs
+    .readFile(sourcePath, 'utf8')
+    .then(tap(() => log(`Loaded fallback graphQL from\n\t${sourcePath}`)));
 }

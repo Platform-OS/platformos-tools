@@ -19,6 +19,9 @@ export interface ThemeDocset {
   /** Returns Liquid tags available on themes. */
   tags(): Promise<TagEntry[]>;
 
+  /** Returns graphql root query */
+  graphQL(): Promise<string|null>;
+
   /** Returns system translations available on themes. */
   systemTranslations(): Promise<Translations>;
 }

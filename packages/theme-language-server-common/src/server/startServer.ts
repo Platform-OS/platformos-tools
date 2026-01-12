@@ -382,7 +382,7 @@ export function startServer(
       filters: [
         {
           pattern: {
-            glob: '**/*.{liquid,json}',
+            glob: '**/*.{liquid,json,graphql}',
           },
         },
         {
@@ -458,7 +458,7 @@ export function startServer(
           globPattern: '**/translations/**/*.yml',
         },
         {
-          globPattern: '**/graphql/**/*.graphql',
+          globPattern: '**/*.graphql',
         },
       ],
     });

@@ -80,11 +80,14 @@ export class DocumentManager {
 
   public theme(root: UriString, includeFilesFromDisk = false): AugmentedSourceCode[] {
     return [...this.sourceCodes.values()]
-      .filter((sourceCode) => sourceCode.uri.startsWith(root))  satisfies Theme;
+      .filter((sourceCode) => sourceCode.uri.startsWith(root))
+      .filter(
+        (sourceCode) => includeFilesFromDisk || sourceCode.version !== undefined,
+      ) satisfies Theme;
   }
 
   public get openDocuments(): AugmentedSourceCode[] {
-    return [...this.sourceCodes.values()];
+    return [...this.sourceCodes.values()].filter((sourceCode) => sourceCode.version !== undefined);
   }
 
   public get(uri: UriString) {

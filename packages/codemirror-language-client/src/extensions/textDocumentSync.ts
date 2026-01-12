@@ -126,6 +126,8 @@ function languageId(uri: string): string {
   const lowerCased = uri.toLowerCase();
   if (lowerCased.endsWith('.liquid')) {
     return 'liquid';
+  } else if (lowerCased.endsWith('.graphql')) {
+    return 'graphql'; 
   } else if (lowerCased.endsWith('.js')) {
     return 'javascript';
   } else if (lowerCased.endsWith('.css')) {

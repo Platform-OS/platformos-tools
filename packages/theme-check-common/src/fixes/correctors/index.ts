@@ -1,8 +1,9 @@
 import { Corrector, SourceCodeType } from '../../types';
 import { JSONCorrector } from './json-corrector';
 import { StringCorrector } from './string-corrector';
+import { GraphQLCorrector } from './graphql-corrector';
 
-export { JSONCorrector, StringCorrector };
+export { JSONCorrector, StringCorrector, GraphQLCorrector };
 
 export function createCorrector<S extends SourceCodeType>(
   sourceCodeType: S,
@@ -15,6 +16,8 @@ export function createCorrector<S extends SourceCodeType>(
     case SourceCodeType.LiquidHtml: {
       return new StringCorrector(source) as Corrector<typeof sourceCodeType>;
     }
+    case SourceCodeType.GraphQL:
+      return new GraphQLCorrector(source) as Corrector<typeof sourceCodeType>;
     default: {
       return assertNever(sourceCodeType);
     }

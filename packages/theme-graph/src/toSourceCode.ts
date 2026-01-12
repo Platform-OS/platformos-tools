@@ -60,7 +60,7 @@ export function parseJs(source: string): Program | Error {
 export async function toSourceCode(uri: UriString, source: string): Promise<FileSourceCode> {
   const extension = extname(uri);
 
-  if (extension === 'json' || extension === 'liquid') {
+  if (extension === 'json' || extension === 'liquid' || extension === 'graphql') {
     return tcToSourceCode(uri, source);
   } else if (extension === 'js') {
     return toJsSourceCode(uri, source);

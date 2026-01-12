@@ -20,6 +20,9 @@ import {
   Config,
   Context,
   Dependencies,
+  GraphQLCheck,
+  GraphQLDocumentNode,
+  GraphQLSourceCode,
   JSONCheck,
   JSONNode,
   JSONSourceCode,
@@ -105,6 +108,18 @@ export async function check(
             if (isIgnored(file.uri, config, checkDef)) continue;
             const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
             pipelines.push(checkJSONFile(check, file));
+          }
+        }
+        break;
+      }
+      case SourceCodeType.GraphQL: {
+        const files = filesOfType(type, theme);
+        const checkDefs = checksOfType(type, config.checks);
+        for (const file of files) {
+          for (const checkDef of checkDefs) {
+            if (isIgnored(file.uri, config, checkDef)) continue;
+            const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
+            pipelines.push(checkGraphQLFile(check, file));
           }
         }
         break;
@@ -204,6 +219,10 @@ async function checkJSONFile(check: JSONCheck, file: JSONSourceCode): Promise<vo
   if (file.ast instanceof Error) return;
   if (Object.keys(check).length > 0) await visitJSON(file.ast, check);
   if (check.onCodePathEnd) await check.onCodePathEnd(file as typeof file & { ast: JSONNode });
+}
+
+async function checkGraphQLFile(check: GraphQLCheck, file: GraphQLSourceCode): Promise<void> {
+  if (check.onCodePathEnd) await check.onCodePathEnd(file as typeof file & { ast: GraphQLDocumentNode });
 }
 
 async function checkLiquidFile(check: LiquidCheck, file: LiquidSourceCode): Promise<void> {

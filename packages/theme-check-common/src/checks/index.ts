@@ -1,4 +1,4 @@
-import { ConfigTarget, JSONCheckDefinition, LiquidCheckDefinition } from '../types';
+import { ConfigTarget, GraphQLCheckDefinition, JSONCheckDefinition, LiquidCheckDefinition } from '../types';
 
 import { AppBlockValidTags } from './app-block-valid-tags';
 import { AssetPreload } from './asset-preload';
@@ -65,8 +65,9 @@ import { AppBlockMissingSchema } from './app-block-missing-schema';
 import { UniqueSettingIds } from './unique-settings-id';
 import { MetadataParamsCheck } from './metadata-params'
 import { GraphQLVariablesCheck } from './graphql-variables';
+import { GraphQLCheck } from './graphql';
 
-export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
+export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCheckDefinition)[] = [
   AppBlockValidTags,
   AssetPreload,
   AssetSizeAppBlockCSS,
@@ -132,7 +133,8 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   VariableName,
   ValidSchemaName,
   MetadataParamsCheck,
-  GraphQLVariablesCheck
+  GraphQLVariablesCheck,
+  GraphQLCheck
 ];
 
 /**

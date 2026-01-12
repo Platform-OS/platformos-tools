@@ -190,6 +190,7 @@ export class JSONLanguageService {
     if (!document) return null;
 
     switch (document.type) {
+      case SourceCodeType.GraphQL: return null
       case SourceCodeType.JSON: {
         const jsonTextDocument = document.textDocument;
         const jsonDocument = service.parseJSONDocument(jsonTextDocument);

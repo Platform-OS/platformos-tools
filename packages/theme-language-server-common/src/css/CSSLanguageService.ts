@@ -60,6 +60,7 @@ export class CSSLanguageService {
     if (!document) return null;
 
     switch (document.type) {
+      case SourceCodeType.GraphQL:
       case SourceCodeType.JSON: {
         return null;
       }

@@ -64,6 +64,9 @@ DuplicateRenderSnippetArguments:
 EmptyBlockContent:
   enabled: true
   severity: 1
+GraphQLCheck:
+  enabled: true
+  severity: 0
 GraphQLVariablesCheck:
   enabled: true
   severity: 0

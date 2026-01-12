@@ -1,6 +1,7 @@
 import {
   Config,
   DocDefinition,
+  GraphQLSourceCode,
   JSONSourceCode,
   JSONValidator,
   LiquidSourceCode,
@@ -51,7 +52,7 @@ export type ThemeCheckRun = {
 
 export async function toSourceCode(
   absolutePath: string,
-): Promise<LiquidSourceCode | JSONSourceCode | undefined> {
+): Promise<LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | undefined> {
   try {
     const source = await fs.readFile(absolutePath, 'utf8');
     return commonToSourceCode(pathUtils.normalize(URI.file(absolutePath)), source);
@@ -181,11 +182,11 @@ export async function getTheme(config: Config): Promise<Theme> {
     result.filter((filePath) => !isIgnored(filePath, config)),
   );
   const sourceCodes = await Promise.all(paths.map(toSourceCode));
-  return sourceCodes.filter((x): x is LiquidSourceCode | JSONSourceCode => x !== undefined);
+  return sourceCodes.filter((x): x is LiquidSourceCode | JSONSourceCode | GraphQLSourceCode => x !== undefined);
 }
 
 export function getThemeFilesPathPattern(rootUri: string) {
   return path
-    .normalize(path.join(fileURLToPath(rootUri), '**/*.{liquid,json}'))
+    .normalize(path.join(fileURLToPath(rootUri), '**/*.{liquid,json,graphql}'))
     .replace(/\\/g, '/');
 }

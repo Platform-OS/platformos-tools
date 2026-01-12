@@ -80,14 +80,11 @@ export class DocumentManager {
 
   public theme(root: UriString, includeFilesFromDisk = false): AugmentedSourceCode[] {
     return [...this.sourceCodes.values()]
-      .filter((sourceCode) => sourceCode.uri.startsWith(root))
-      .filter(
-        (sourceCode) => includeFilesFromDisk || sourceCode.version !== undefined,
-      ) satisfies Theme;
+      .filter((sourceCode) => sourceCode.uri.startsWith(root))  satisfies Theme;
   }
 
   public get openDocuments(): AugmentedSourceCode[] {
-    return [...this.sourceCodes.values()].filter((sourceCode) => sourceCode.version !== undefined);
+    return [...this.sourceCodes.values()];
   }
 
   public get(uri: UriString) {
@@ -110,7 +107,7 @@ export class DocumentManager {
   private set(uri: UriString, source: string, version: number | undefined) {
     uri = path.normalize(uri);
     // We only support json and liquid files.
-    if (!/\.(json|liquid)$/.test(uri) || /\.(s?css|js).liquid$/.test(uri)) {
+    if (!/\.(json|liquid|graphql)$/.test(uri) || /\.(s?css|js).liquid$/.test(uri)) {
       return;
     }
 
@@ -137,7 +134,7 @@ export class DocumentManager {
       const filesToLoad = await recursiveReadDirectory(
         this.fs,
         rootUri,
-        ([uri]) => /\.(liquid|json)$/.test(uri) && !this.sourceCodes.has(uri),
+        ([uri]) => /\.(liquid|json|graphql)$/.test(uri) && !this.sourceCodes.has(uri),
       );
 
       progress.report(10, 'Preloading files');
@@ -180,6 +177,11 @@ export class DocumentManager {
 
     switch (sourceCode.type) {
       case SourceCodeType.JSON:
+        return {
+          ...sourceCode,
+          textDocument,
+        };
+      case SourceCodeType.GraphQL:
         return {
           ...sourceCode,
           textDocument,

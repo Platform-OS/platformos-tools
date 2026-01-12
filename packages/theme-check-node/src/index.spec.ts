@@ -46,6 +46,6 @@ describe('Unit: getThemeFilesPathPattern', () => {
     const rootUri = pathToFileURL(__dirname);
     const normalizedGlob = getThemeFilesPathPattern(rootUri.toString());
 
-    expect(normalizedGlob).to.equal(__dirname.replace(/\\/g, '/') + '/**/*.{liquid,json}');
+    expect(normalizedGlob).to.equal(__dirname.replace(/\\/g, '/') + '/**/*.{liquid,json,graphql}');
   });
 });

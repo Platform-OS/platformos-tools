@@ -383,6 +383,7 @@ describe('Module: server', () => {
         rootUri: mockRoot,
       }),
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],

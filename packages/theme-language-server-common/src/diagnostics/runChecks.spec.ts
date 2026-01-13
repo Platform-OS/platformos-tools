@@ -71,6 +71,7 @@ describe('Module: runChecks', () => {
         rootUri,
       }),
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
@@ -225,6 +226,7 @@ describe('Module: runChecks', () => {
         rootUri: rootUri,
       }),
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],

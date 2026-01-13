@@ -65,6 +65,7 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => [
           { name: 'split', return_type: [{ type: 'array', array_value: 'string' }] },
           { name: 'upcase', return_type: [{ type: 'string', name: '' }] },

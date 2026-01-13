@@ -12,6 +12,7 @@ describe('Module: CompletionItemsAssertion', () => {
     provider = new CompletionsProvider({
       documentManager,
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],

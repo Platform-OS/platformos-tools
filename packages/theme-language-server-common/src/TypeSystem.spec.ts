@@ -135,6 +135,7 @@ describe('Module: TypeSystem', () => {
     settingsProvider = vi.fn().mockResolvedValue([]);
     typeSystem = new TypeSystem(
       {
+        graphQL: async () => null,
         tags: async () => [],
         objects: async () => _objects,
         liquidDrops: async () => _objects,

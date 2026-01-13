@@ -7,6 +7,7 @@ describe('Module: AugmentedThemeDocset', async () => {
 
   beforeEach(async () => {
     themeDocset = new AugmentedThemeDocset({
+      graphQL: async () => null,
       filters: async () => [],
       objects: async () => [
         {

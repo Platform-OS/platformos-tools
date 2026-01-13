@@ -110,6 +110,7 @@ describe('detectInvalidLoopArguments', async () => {
 function testCheck(sourceCode: string) {
   return runLiquidCheck(LiquidHTMLSyntaxError, sourceCode, undefined, {
     themeDocset: {
+      graphQL: async () => null,
       tags: () =>
         Promise.resolve([
           {

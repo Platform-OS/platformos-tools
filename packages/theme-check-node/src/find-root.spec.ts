@@ -25,6 +25,12 @@ describe('Unit: findRoot', () => {
       '.pos': '',
       app: {
 
+      },
+      '.git': {
+
+      },
+      modules: {
+        
       }
     });
   });

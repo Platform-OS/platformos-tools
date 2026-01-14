@@ -26,7 +26,7 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
     code: 'MissingTemplate',
     name: 'Avoid rendering missing templates',
     docs: {
-      description: 'Reports missing function/include/render/views liquid file',
+      description: 'Reports missing partial liquid file',
       recommended: true,
       url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/missing-template',
     },

@@ -608,7 +608,7 @@ describe('Unit: Stage 2 (AST)', () => {
         ].forEach(
           ({ expression, partialType, namedArguments }) => {
             for (const { toAST, expectPath, expectPosition } of testCases) {
-              ast = toAST(`{% graphql _res = ${expression} -%}`);
+              ast = toAST(`{% graphql res = ${expression} -%}`);
               expectPath(ast, 'children.0.type').to.equal('LiquidTag');
               expectPath(ast, 'children.0.name').to.equal('graphql');
               expectPath(ast, 'children.0.markup.type').to.equal('GraphQLMarkup');

@@ -59,6 +59,8 @@ describe('Module: runChecks', () => {
       {
         '.pos': '',
         'app/input.liquid': `{{ 'any' | filter }}`,
+        '.git/test': 'test',
+        'modules/test': 'test'
       },
       rootUri,
     );
@@ -211,6 +213,8 @@ describe('Module: runChecks', () => {
     const files = {
       '.pos': '',
       'app/test': '',
+      '.git/test': 'test',
+      'modules/test': 'test',
       [defaultPath]: JSON.stringify({ hello: 'hello' }),
       [frPath]: JSON.stringify({ hello: 'bonjour', hi: 'salut' }),
     };

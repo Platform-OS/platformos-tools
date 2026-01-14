@@ -45,7 +45,6 @@ export class DocumentsLocator {
                     return ['app/graphql'];
                 case 'asset':
                     return ['app/assets'];
-
             }
         }
 

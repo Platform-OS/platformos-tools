@@ -58,7 +58,7 @@ describe('Module: server', () => {
       }
     });
 
-    fileTree = { '.pos': '', 'app/code.liquid': fileContents };
+    fileTree = { '.pos': '', 'app/code.liquid': fileContents, '.git/test': 'test', 'modules/test': 'test' };
     logger = vi.fn();
     dependencies = getDependencies(logger, fileTree);
 

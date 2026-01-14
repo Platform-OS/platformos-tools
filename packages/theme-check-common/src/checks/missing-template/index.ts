@@ -38,13 +38,17 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
 
   create(context) {
     const locator = new DocumentsLocator(context.fs);
-   
+
     return {
       async RenderMarkup(node) {
         if (node.snippet.type === NodeTypes.VariableLookup) return;
 
         const snippet = node.snippet;
-        const location = await locator.locate(URI.parse(context.config.rootUri), 'render', snippet.value)
+        const location = await locator.locate(
+          URI.parse(context.config.rootUri),
+          'render',
+          snippet.value,
+        );
 
         if (!location) {
           context.report({
@@ -59,7 +63,11 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
         if (node.partial.type === NodeTypes.VariableLookup) return;
 
         const partial = node.partial;
-        const location = await locator.locate(URI.parse(context.config.rootUri), 'function', partial.value)
+        const location = await locator.locate(
+          URI.parse(context.config.rootUri),
+          'function',
+          partial.value,
+        );
 
         if (!location) {
           context.report({
@@ -74,7 +82,11 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
         if (node.graphql.type === NodeTypes.VariableLookup) return;
 
         const graphql = node.graphql;
-        const location = await locator.locate(URI.parse(context.config.rootUri), 'graphql', graphql.value)
+        const location = await locator.locate(
+          URI.parse(context.config.rootUri),
+          'graphql',
+          graphql.value,
+        );
 
         if (!location) {
           context.report({
@@ -83,7 +95,7 @@ export const MissingTemplate: LiquidCheckDefinition<typeof schema> = {
             endIndex: node.graphql.position.end,
           });
         }
-      }
+      },
     };
   },
 };

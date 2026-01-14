@@ -131,7 +131,11 @@ export class FilterCompletionProvider implements Provider {
       const filterEntries = await this.typeSystem.filterEntries();
 
       const options = filterEntries
-        .filter((entry) => entry.syntax?.startsWith(inputType) || (inputType !== "variable" && entry.syntax?.startsWith('untyped')))
+        .filter(
+          (entry) =>
+            entry.syntax?.startsWith(inputType) ||
+            (inputType !== 'variable' && entry.syntax?.startsWith('untyped')),
+        )
         .sort(sortByName);
 
       // Case we take "anything" as argument

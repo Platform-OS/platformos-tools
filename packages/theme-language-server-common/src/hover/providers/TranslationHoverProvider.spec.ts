@@ -19,7 +19,9 @@ describe('Module: TranslationHoverProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      new TranslationProvider(new MockFileSystem({'app/translations/en/general.yml': `
+      new TranslationProvider(
+        new MockFileSystem({
+          'app/translations/en/general.yml': `
         en:
           general:
             password: 'password'
@@ -27,12 +29,14 @@ describe('Module: TranslationHoverProvider', async () => {
             comments:
               one: '{{ count }} comment'
               other: '{{ count }} comments'
-      `})),
+      `,
+        }),
+      ),
       async (_rootUri: string) => ({} as MetafieldDefinitionMap),
       undefined,
       undefined,
       undefined,
-      async () => '.'
+      async () => '.',
     );
   });
 

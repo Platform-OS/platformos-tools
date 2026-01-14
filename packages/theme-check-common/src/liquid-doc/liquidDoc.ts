@@ -56,7 +56,10 @@ export async function hasLiquidDoc(snippet: LiquidHtmlNode): Promise<boolean> {
   return foundDocTag;
 }
 
-export async function extractDocDefinition(uri: UriString, ast: LiquidHtmlNode): Promise<DocDefinition> {
+export async function extractDocDefinition(
+  uri: UriString,
+  ast: LiquidHtmlNode,
+): Promise<DocDefinition> {
   let hasDocTag = false;
   const nodes: (LiquidDocParameter | LiquidDocExample | LiquidDocDescription)[] = await visit<
     SourceCodeType.LiquidHtml,

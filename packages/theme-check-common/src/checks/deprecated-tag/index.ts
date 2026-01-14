@@ -24,10 +24,8 @@ export const DeprecatedTag: LiquidCheckDefinition = {
         //   const start = node.source.substring(node.position.start);
         //   const includeStartIndex = start.indexOf('include');
         //   const includeEndIndex = includeStartIndex + 'include'.length;
-
         //   const includeStart = node.position.start + includeStartIndex;
         //   const includeEnd = node.position.start + includeEndIndex;
-
         //   context.report({
         //     message: `Use the 'render' tag instead of 'include'`,
         //     startIndex: includeStart,

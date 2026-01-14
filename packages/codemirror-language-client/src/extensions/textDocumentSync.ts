@@ -127,7 +127,7 @@ function languageId(uri: string): string {
   if (lowerCased.endsWith('.liquid')) {
     return 'liquid';
   } else if (lowerCased.endsWith('.graphql')) {
-    return 'graphql'; 
+    return 'graphql';
   } else if (lowerCased.endsWith('.js')) {
     return 'javascript';
   } else if (lowerCased.endsWith('.css')) {

@@ -11,12 +11,7 @@ import {
   Dependencies,
 } from '@platformos/theme-check-common';
 
-import {
-  AbstractFileSystem,
-  FileStat,
-  FileTuple,
-  FileType,
-} from '@platformos/platformos-common'
+import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
 
 export {
   toSourceCode,

@@ -100,7 +100,7 @@ const undocumentedTags = ['elsif', 'ifchanged', 'when', 'schema'];
 
 export class AugmentedThemeDocset implements ThemeDocset {
   constructor(private themeDocset: ThemeDocset) {}
-  graphQL = memo(async (): Promise<string|null> => {
+  graphQL = memo(async (): Promise<string | null> => {
     return await this.themeDocset.graphQL();
   });
 

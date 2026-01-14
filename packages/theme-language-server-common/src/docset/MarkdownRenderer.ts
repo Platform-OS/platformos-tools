@@ -57,7 +57,7 @@ function docsetEntryBody(
     entry.description,
     platformOSDevReference(entry, returnType, docsetEntryType),
   ]
-    .map(x => x?.toString())
+    .map((x) => x?.toString())
     .map(sanitize)
     .filter(Boolean)
     .join(HORIZONTAL_SEPARATOR);
@@ -104,15 +104,15 @@ function platformOSDevReference(
     case 'tag': {
       if (entry.name === 'include') {
         return `[platformOS Reference](${platformOSDevRoot}/include)`;
-      }
-      else if (['for', 'cycle', 'ifchanged', 'tablerow'].includes(entry.name)) {
+      } else if (['for', 'cycle', 'ifchanged', 'tablerow'].includes(entry.name)) {
         return `[platformOS Reference](${platformOSDevRoot}/loops#${entry.name})`;
-      }
-      else if (entry.name === 'liquid') {
+      } else if (entry.name === 'liquid') {
         return `[platformOS Reference](${platformOSDevRoot}/theme#liquid)`;
-      }
-      else if ('platformOS' in entry && entry.platformOS === true) {
-        return `[platformOS Reference](${platformOSDevRoot}/platformos-tags#${entry.name.replaceAll('_','-')})`;
+      } else if ('platformOS' in entry && entry.platformOS === true) {
+        return `[platformOS Reference](${platformOSDevRoot}/platformos-tags#${entry.name.replaceAll(
+          '_',
+          '-',
+        )})`;
       } else {
         return undefined;
       }
@@ -120,7 +120,10 @@ function platformOSDevReference(
 
     case 'filter': {
       if ('platformOS' in entry) {
-        return `[platformOS Reference](${platformOSDevRoot}/platformos-filters#${entry.name.replaceAll('_','-')})`;
+        return `[platformOS Reference](${platformOSDevRoot}/platformos-filters#${entry.name.replaceAll(
+          '_',
+          '-',
+        )})`;
       } else {
         return `[platformOS Reference](${platformOSDevRoot}/filters#${entry.name})`;
       }

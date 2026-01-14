@@ -98,7 +98,9 @@ export async function check(
       return extractDocDefinition(file.uri, file.ast);
     },
     themeDocset: {
-      async graphQL() { return null },
+      async graphQL() {
+        return null;
+      },
       async filters() {
         return [
           { name: 'item_count_for_variant' },

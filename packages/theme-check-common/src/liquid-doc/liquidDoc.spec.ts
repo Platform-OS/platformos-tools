@@ -18,7 +18,7 @@ describe('Unit: extractDocDefinition', () => {
         {% enddoc %}
       `);
 
-    const result =await extractDocDefinition(uri, ast);
+    const result = await extractDocDefinition(uri, ast);
     expect(result).to.deep.equal({
       uri,
       liquidDoc: {

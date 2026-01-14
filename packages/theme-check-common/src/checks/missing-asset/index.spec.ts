@@ -16,7 +16,7 @@ describe('Module: MissingAsset', () => {
     const offenses = await check(files, [MissingAsset]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal("'logo.png' does not exist")
+    expect(offenses[0].message).to.equal("'logo.png' does not exist");
   });
 
   it('should report the missing asset when defined inline', async () => {
@@ -29,7 +29,7 @@ describe('Module: MissingAsset', () => {
     const offenses = await check(files, [MissingAsset]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal("'styles.css' does not exist")
+    expect(offenses[0].message).to.equal("'styles.css' does not exist");
   });
 
   it('should report the missing asset when multiple filters applied', async () => {
@@ -42,7 +42,7 @@ describe('Module: MissingAsset', () => {
     const offenses = await check(files, [MissingAsset]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal("'styles.css' does not exist")
+    expect(offenses[0].message).to.equal("'styles.css' does not exist");
   });
 
   it('should report no offenses when an asset file exists', async () => {

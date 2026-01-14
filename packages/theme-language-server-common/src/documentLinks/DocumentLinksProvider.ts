@@ -9,13 +9,12 @@ import { DocumentManager } from '../documents';
 import { FindThemeRootURI } from '../internal-types';
 import { DocumentsLocator, TranslationProvider } from '@platformos/platformos-common';
 
-
 export class DocumentLinksProvider {
   constructor(
     private documentManager: DocumentManager,
     private findThemeRootURI: FindThemeRootURI,
     private documentsLocator: DocumentsLocator,
-    private translationProvider: TranslationProvider
+    private translationProvider: TranslationProvider,
   ) {}
 
   async documentLinks(uriString: string): Promise<DocumentLink[]> {
@@ -33,7 +32,12 @@ export class DocumentLinksProvider {
       return [];
     }
 
-    const visitor = documentLinksVisitor(sourceCode.textDocument, URI.parse(rootUri), this.documentsLocator, this.translationProvider);
+    const visitor = documentLinksVisitor(
+      sourceCode.textDocument,
+      URI.parse(rootUri),
+      this.documentsLocator,
+      this.translationProvider,
+    );
     return visit(sourceCode.ast, visitor);
   }
 }
@@ -42,7 +46,7 @@ function documentLinksVisitor(
   textDocument: TextDocument,
   root: URI,
   documentsLocator: DocumentsLocator,
-  translationProvider: TranslationProvider
+  translationProvider: TranslationProvider,
 ): Visitor<SourceCodeType.LiquidHtml, DocumentLink> {
   return {
     async LiquidTag(node) {
@@ -54,31 +58,31 @@ function documentLinksVisitor(
         const snippet = node.markup.snippet;
         return DocumentLink.create(
           range(textDocument, snippet),
-          await documentsLocator.locate(root, node.name, snippet.value)
+          await documentsLocator.locate(root, node.name, snippet.value),
         );
       }
 
       if (
-        (node.name === 'function') &&
+        node.name === 'function' &&
         typeof node.markup !== 'string' &&
         isLiquidString(node.markup.partial)
       ) {
         const snippet = node.markup.partial;
         return DocumentLink.create(
           range(textDocument, snippet),
-          await documentsLocator.locate(root, node.name, snippet.value)
+          await documentsLocator.locate(root, node.name, snippet.value),
         );
       }
 
       if (
-        (node.name === 'graphql') &&
+        node.name === 'graphql' &&
         typeof node.markup !== 'string' &&
         isLiquidString(node.markup.graphql)
       ) {
         const snippet = node.markup.graphql;
         return DocumentLink.create(
           range(textDocument, snippet),
-          await documentsLocator.locate(root, node.name, snippet.value)
+          await documentsLocator.locate(root, node.name, snippet.value),
         );
       }
     },
@@ -88,20 +92,21 @@ function documentLinksVisitor(
       }
 
       if (node.filters.some(({ name }) => ['t', 'translate'].includes(name))) {
-        const [filePath] = await translationProvider.findTranslationFile(root, node.expression.value, 'en')
-        return DocumentLink.create(
-          range(textDocument, node),
-          filePath
+        const [filePath] = await translationProvider.findTranslationFile(
+          root,
+          node.expression.value,
+          'en',
         );
+        return DocumentLink.create(range(textDocument, node), filePath);
       }
 
       if (node.filters.length > 0 && node.filters[0].name === 'asset_url') {
         const expression = node.expression;
         return DocumentLink.create(
           range(textDocument, node.expression),
-          await documentsLocator.locate(root, 'asset', expression.value)
+          await documentsLocator.locate(root, 'asset', expression.value),
         );
-      }      
+      }
     },
   };
 }

@@ -11,7 +11,7 @@ async function isRoot(dir: UriString, fileExists: FileExists) {
       fileExists(path.join(dir, 'app')),
       fileExists(path.join(dir, 'modules')),
       fileExists(path.join(dir, '.git')),
-    )
+    ),
   );
 }
 

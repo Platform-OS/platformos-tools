@@ -10,9 +10,9 @@ export const root = paths.cache;
 
 export const ThemeLiquidDocsRootFallback =
   'https://raw.githubusercontent.com/Shopify/theme-liquid-docs/main';
-export const ThemeLiquidDocsRoot = 'https://documentation.platformos.com/api/liquid'
+export const ThemeLiquidDocsRoot = 'https://documentation.platformos.com/api/liquid';
 export const ThemeCustomSchemas = ['tags', 'latest', 'objects', 'filters'];
-export const ThemeGraphQLSchema = 'https://documentation.platformos.com/api/graphql/schema'
+export const ThemeGraphQLSchema = 'https://documentation.platformos.com/api/graphql/schema';
 
 export type Resource = (typeof Resources)[number];
 export const Resources = [
@@ -63,10 +63,7 @@ export async function downloadResource(
   return text;
 }
 
-export async function downloadGraphQLSchema(
-  destination: string = root,
-  log: Logger = noop,
-) {
+export async function downloadGraphQLSchema(destination: string = root, log: Logger = noop) {
   const localPath = graphQLPath(destination);
   const text = await download(ThemeGraphQLSchema, log);
   await fs.writeFile(localPath, he.decode(text), 'utf8');

@@ -679,25 +679,23 @@ describe('Unit: Stage 1 (CST)', () => {
               { name: 'key2', valueType: 'String' },
             ],
           },
-        ].forEach(
-          ({ expression, snippetType, namedArguments }) => {
-            for (const { toCST, expectPath } of testCases) {
-              cst = toCST(`{% function res = ${expression} -%}`);
-              expectPath(cst, '0.type').to.equal('LiquidTag');
-              expectPath(cst, '0.name').to.equal('function');
-              expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
-              expectPath(cst, '0.markup.partial.type').to.equal(snippetType);
-              expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
-              namedArguments.forEach(({ name, valueType }, i) => {
-                expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
-                expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
-                expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
-              });
-              expectPath(cst, '0.whitespaceStart').to.equal(null);
-              expectPath(cst, '0.whitespaceEnd').to.equal('-');
-            }
-          },
-        );
+        ].forEach(({ expression, snippetType, namedArguments }) => {
+          for (const { toCST, expectPath } of testCases) {
+            cst = toCST(`{% function res = ${expression} -%}`);
+            expectPath(cst, '0.type').to.equal('LiquidTag');
+            expectPath(cst, '0.name').to.equal('function');
+            expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
+            expectPath(cst, '0.markup.partial.type').to.equal(snippetType);
+            expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
+            namedArguments.forEach(({ name, valueType }, i) => {
+              expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
+              expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
+              expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
+            });
+            expectPath(cst, '0.whitespaceStart').to.equal(null);
+            expectPath(cst, '0.whitespaceEnd').to.equal('-');
+          }
+        });
       });
 
       it('should parse the graphql tag', () => {
@@ -715,25 +713,23 @@ describe('Unit: Stage 1 (CST)', () => {
               { name: 'key2', valueType: 'String' },
             ],
           },
-        ].forEach(
-          ({ expression, snippetType, namedArguments }) => {
-            for (const { toCST, expectPath } of testCases) {
-              cst = toCST(`{% graphql res = ${expression} -%}`);
-              expectPath(cst, '0.type').to.equal('LiquidTag');
-              expectPath(cst, '0.name').to.equal('graphql');
-              expectPath(cst, '0.markup.type').to.equal('GraphQLMarkup');
-              expectPath(cst, '0.markup.graphql.type').to.equal(snippetType);
-              expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
-              namedArguments.forEach(({ name, valueType }, i) => {
-                expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
-                expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
-                expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
-              });
-              expectPath(cst, '0.whitespaceStart').to.equal(null);
-              expectPath(cst, '0.whitespaceEnd').to.equal('-');
-            }
-          },
-        );
+        ].forEach(({ expression, snippetType, namedArguments }) => {
+          for (const { toCST, expectPath } of testCases) {
+            cst = toCST(`{% graphql res = ${expression} -%}`);
+            expectPath(cst, '0.type').to.equal('LiquidTag');
+            expectPath(cst, '0.name').to.equal('graphql');
+            expectPath(cst, '0.markup.type').to.equal('GraphQLMarkup');
+            expectPath(cst, '0.markup.graphql.type').to.equal(snippetType);
+            expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
+            namedArguments.forEach(({ name, valueType }, i) => {
+              expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
+              expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
+              expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
+            });
+            expectPath(cst, '0.whitespaceStart').to.equal(null);
+            expectPath(cst, '0.whitespaceEnd').to.equal('-');
+          }
+        });
       });
 
       it('correctly parses whitespace stripping character as part of LiquidTag and not the variable name', () => {

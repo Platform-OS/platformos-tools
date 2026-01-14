@@ -123,7 +123,12 @@ export function startServer(
   const diagnosticsManager = new DiagnosticsManager(connection);
   const documentsLocator = new DocumentsLocator(fs);
   const translationProvider = new TranslationProvider(fs);
-  const documentLinksProvider = new DocumentLinksProvider(documentManager, findThemeRootURI, documentsLocator, translationProvider);
+  const documentLinksProvider = new DocumentLinksProvider(
+    documentManager,
+    findThemeRootURI,
+    documentsLocator,
+    translationProvider,
+  );
   const codeActionsProvider = new CodeActionsProvider(documentManager, diagnosticsManager);
   const onTypeFormattingProvider = new OnTypeFormattingProvider(
     documentManager,
@@ -349,7 +354,7 @@ export function startServer(
     getTranslationsForURI,
     getThemeSettingsSchemaForURI,
     getDocDefinitionForURI,
-    findThemeRootURI
+    findThemeRootURI,
   );
 
   const executeCommandProvider = new ExecuteCommandProvider(

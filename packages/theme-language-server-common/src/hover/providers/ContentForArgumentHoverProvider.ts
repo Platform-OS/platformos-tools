@@ -1,5 +1,9 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
-import { LiquidHtmlNode, GetDocDefinitionForURI, getBlockName } from '@platformos/theme-check-common';
+import {
+  LiquidHtmlNode,
+  GetDocDefinitionForURI,
+  getBlockName,
+} from '@platformos/theme-check-common';
 import { Hover, HoverParams } from 'vscode-languageserver';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 import { formatLiquidDocParameter } from '../../utils/liquidDoc';

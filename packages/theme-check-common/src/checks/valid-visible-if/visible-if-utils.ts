@@ -1,4 +1,8 @@
-import { type LiquidVariableLookup, NodeTypes, toLiquidHtmlAST } from '@platformos/liquid-html-parser';
+import {
+  type LiquidVariableLookup,
+  NodeTypes,
+  toLiquidHtmlAST,
+} from '@platformos/liquid-html-parser';
 import { Context, SourceCodeType } from '../..';
 import { parseJSON } from '../../json';
 import { visit } from '../../visitor';
@@ -12,7 +16,7 @@ export const offsetAdjust = '{{'.length - adjustedPrefix.length;
 
 export async function getVariableLookupsInExpression(
   expression: string,
-): Promise<LiquidVariableLookup[] | { warning: string; } | null> {
+): Promise<LiquidVariableLookup[] | { warning: string } | null> {
   // As of February 2025, parsers other than LiquidJS don't yet support
   // expressions in {{ variable }} tags. So we have to do something a little
   // gnarly — before parsing it we extract the expression from within the tag

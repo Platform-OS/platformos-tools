@@ -19,7 +19,12 @@ describe('DocumentLinksProvider', () => {
       'path/to/project/app/views/apply_view.liquid': 'apply view content',
     });
     documentsLocator = new DocumentsLocator(fs);
-    documentLinksProvider = new DocumentLinksProvider(documentManager, async () => rootUri, documentsLocator, new TranslationProvider(fs));
+    documentLinksProvider = new DocumentLinksProvider(
+      documentManager,
+      async () => rootUri,
+      documentsLocator,
+      new TranslationProvider(fs),
+    );
   });
 
   it('should return an empty array for non-LiquidHtml documents', async () => {
@@ -51,9 +56,7 @@ describe('DocumentLinksProvider', () => {
     documentManager.open(uriString, liquidHtmlContent, 1);
 
     const result = await documentLinksProvider.documentLinks(uriString);
-    const expectedUrls = [
-      'file:///path/to/project/app/lib/commands/apply.liquid',
-    ];
+    const expectedUrls = ['file:///path/to/project/app/lib/commands/apply.liquid'];
 
     expect(result.length).toBe(expectedUrls.length);
     for (let i = 0; i < expectedUrls.length; i++) {

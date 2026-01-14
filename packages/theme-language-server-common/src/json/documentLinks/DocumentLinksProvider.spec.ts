@@ -66,7 +66,7 @@ describe('JSON Document Links', () => {
       const ast = toJSONAST(schemaContent);
 
       if (ast instanceof Error) throw ast;
-      const result =await visit(ast, visitor);
+      const result = await visit(ast, visitor);
 
       expect(result).toHaveLength(2);
       expect(result[0].target).toBe('file:///path/to/project/blocks/logo.liquid');

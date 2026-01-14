@@ -12,7 +12,7 @@ export class TranslationHoverProvider implements BaseHoverProvider {
   constructor(
     public documentManager: DocumentManager,
     private translationProvider: TranslationProvider,
-    private findThemeRootURI: FindThemeRootURI
+    private findThemeRootURI: FindThemeRootURI,
   ) {}
 
   async hover(
@@ -32,12 +32,16 @@ export class TranslationHoverProvider implements BaseHoverProvider {
     if (!parentNode.filters[0] || !['t', 'translate'].includes(parentNode.filters[0].name)) {
       return null;
     }
-    
-    const root = await this.findThemeRootURI(params.textDocument.uri)
-    if(!root) {
+
+    const root = await this.findThemeRootURI(params.textDocument.uri);
+    if (!root) {
       return null;
     }
-    const translation = await this.translationProvider.translate(URI.parse(root), currentNode.value, 'en')
+    const translation = await this.translationProvider.translate(
+      URI.parse(root),
+      currentNode.value,
+      'en',
+    );
     const document = this.documentManager.get(params.textDocument.uri)?.textDocument;
     if (!translation || !document) {
       return null;

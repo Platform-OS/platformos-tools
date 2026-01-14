@@ -11,7 +11,12 @@ import {
   RenderMarkup,
   TextNode,
 } from '@platformos/liquid-html-parser';
-import { GraphQLDocumentNode, JSONNode, SourceCodeType, visit } from '@platformos/theme-check-common';
+import {
+  GraphQLDocumentNode,
+  JSONNode,
+  SourceCodeType,
+  visit,
+} from '@platformos/theme-check-common';
 import { Connection, Range } from 'vscode-languageserver';
 import {
   ApplyWorkspaceEditRequest,
@@ -86,7 +91,10 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
       VariableLookup: replaceRange,
       AssignMarkup: replaceRange,
       ForMarkup: replaceRange,
-      TextNode: async (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode | GraphQLDocumentNode)[]) => {
+      TextNode: async (
+        node: LiquidHtmlNode,
+        ancestors: (LiquidHtmlNode | JSONNode | GraphQLDocumentNode)[],
+      ) => {
         if (ancestors.at(-1)?.type !== NodeTypes.LiquidDocParamNode) return;
 
         liquidDocParamUpdated = true;
@@ -189,7 +197,10 @@ function textReplaceRange(
   textDocument: TextDocument,
   selectedVariableScope?: Position,
 ) {
-  return async (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode | GraphQLDocumentNode)[]) => {
+  return async (
+    node: LiquidHtmlNode,
+    ancestors: (LiquidHtmlNode | JSONNode | GraphQLDocumentNode)[],
+  ) => {
     if (variableName(node) !== oldName) return;
 
     const ancestorScope = variableNameBlockScope(oldName, ancestors);

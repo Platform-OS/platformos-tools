@@ -65,6 +65,6 @@ const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
     async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     async () => ({}),
     async () => [],
-    getSnippetDefinition
+    getSnippetDefinition,
   );
 };

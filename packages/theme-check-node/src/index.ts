@@ -182,7 +182,9 @@ export async function getTheme(config: Config): Promise<Theme> {
     result.filter((filePath) => !isIgnored(filePath, config)),
   );
   const sourceCodes = await Promise.all(paths.map(toSourceCode));
-  return sourceCodes.filter((x): x is LiquidSourceCode | JSONSourceCode | GraphQLSourceCode => x !== undefined);
+  return sourceCodes.filter(
+    (x): x is LiquidSourceCode | JSONSourceCode | GraphQLSourceCode => x !== undefined,
+  );
 }
 
 export function getThemeFilesPathPattern(rootUri: string) {

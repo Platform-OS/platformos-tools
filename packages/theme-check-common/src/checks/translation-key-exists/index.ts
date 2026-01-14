@@ -55,11 +55,14 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-        for(const { translationKey, startIndex, endIndex } of nodes) {
-          const translation = await translationProvider.translate(URI.parse(context.config.rootUri), translationKey)
+        for (const { translationKey, startIndex, endIndex } of nodes) {
+          const translation = await translationProvider.translate(
+            URI.parse(context.config.rootUri),
+            translationKey,
+          );
 
           if (!!translation) {
-            return
+            return;
           }
 
           const message = `'${translationKey}' does not have a matching translation entry`;
@@ -68,7 +71,7 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
             startIndex,
             endIndex,
           });
-        };
+        }
       },
     };
   },

@@ -174,7 +174,7 @@ function createContext<T extends SourceCodeType, S extends Schema>(
       } as Offense<T> as Offense);
     },
     file,
-    config
+    config,
   } as Context<T, S>;
 }
 
@@ -222,7 +222,8 @@ async function checkJSONFile(check: JSONCheck, file: JSONSourceCode): Promise<vo
 }
 
 async function checkGraphQLFile(check: GraphQLCheck, file: GraphQLSourceCode): Promise<void> {
-  if (check.onCodePathEnd) await check.onCodePathEnd(file as typeof file & { ast: GraphQLDocumentNode });
+  if (check.onCodePathEnd)
+    await check.onCodePathEnd(file as typeof file & { ast: GraphQLDocumentNode });
 }
 
 async function checkLiquidFile(check: LiquidCheck, file: LiquidSourceCode): Promise<void> {

@@ -1,12 +1,5 @@
-import {
-  path,
-} from '@platformos/theme-check-common';
-import {
-  FileStat,
-  AbstractFileSystem,
-  FileTuple,
-  FileType,
-} from '@platformos/platformos-common';
+import { path } from '@platformos/theme-check-common';
+import { FileStat, AbstractFileSystem, FileTuple, FileType } from '@platformos/platformos-common';
 
 import fs from 'node:fs/promises';
 

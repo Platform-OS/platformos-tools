@@ -276,7 +276,8 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
   value: LiquidVariable;
 }
 
-export interface LiquidTagHashAssign extends LiquidTagNode<NamedTags.hash_assign, HashAssignMarkup> {}
+export interface LiquidTagHashAssign
+  extends LiquidTagNode<NamedTags.hash_assign, HashAssignMarkup> {}
 
 /** {% hash_assign name = value | parse_json %} */
 export interface HashAssignMarkup extends ASTNode<NodeTypes.HashAssignMarkup> {
@@ -1771,11 +1772,7 @@ function toAssignMarkup(node: ConcreteLiquidTagAssignMarkup): AssignMarkup {
   };
 }
 
-
-function toHashAssignMarkup(
-  node: ConcreteLiquidTagHashAssignMarkup
-): HashAssignMarkup {
-
+function toHashAssignMarkup(node: ConcreteLiquidTagHashAssignMarkup): HashAssignMarkup {
   return {
     type: NodeTypes.HashAssignMarkup,
     name: node.name,
@@ -1784,7 +1781,6 @@ function toHashAssignMarkup(
     source: node.source,
   };
 }
-
 
 function toCycleMarkup(node: ConcreteLiquidTagCycleMarkup): CycleMarkup {
   return {

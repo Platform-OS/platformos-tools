@@ -66,29 +66,27 @@ export const ValidSettingsKey: LiquidCheckDefinition = {
                 offset,
                 settingsNode,
                 rootLevelLocalBlocks,
-                block
+                block,
               );
-          }) || []);
+            }) || [],
+          );
         }
 
         // Check if preset block settings match the settings defined in the block file's schema
         await Promise.all(
           Object.entries(presetLevelBlocks).flatMap(([_depthStr, blocks]) =>
             blocks.map(({ node: blockNode, path }) => {
-              const settingsNode = nodeAtPath(
-                ast,
-                path.slice(0, -1).concat("settings")
-              );
+              const settingsNode = nodeAtPath(ast, path.slice(0, -1).concat('settings'));
 
               return validateReferencedBlock(
                 context,
                 offset,
                 settingsNode,
                 rootLevelLocalBlocks,
-                blockNode
+                blockNode,
               );
-            })
-          )
+            }),
+          ),
         );
       },
     };

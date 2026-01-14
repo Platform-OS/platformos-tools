@@ -20,7 +20,7 @@ export interface ThemeDocset {
   tags(): Promise<TagEntry[]>;
 
   /** Returns graphql root query */
-  graphQL(): Promise<string|null>;
+  graphQL(): Promise<string | null>;
 
   /** Returns system translations available on themes. */
   systemTranslations(): Promise<Translations>;

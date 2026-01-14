@@ -23,15 +23,9 @@ describe('Unit: findRoot', () => {
     // this works on Windows as well.
     workspace = await makeTempWorkspace({
       '.pos': '',
-      app: {
-
-      },
-      '.git': {
-
-      },
-      modules: {
-        
-      }
+      app: {},
+      '.git': {},
+      modules: {},
     });
   });
 

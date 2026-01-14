@@ -7,9 +7,7 @@ import {
   recursiveReadDirectory,
 } from '@platformos/theme-check-node';
 
-import {
-  AbstractFileSystem
-} from '@platformos/platformos-common';
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import { Dependencies, recommendedChecks } from '@platformos/theme-language-server-common';
 import { URI, Utils } from 'vscode-uri';
 

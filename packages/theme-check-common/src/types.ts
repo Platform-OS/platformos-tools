@@ -56,21 +56,22 @@ export enum SourceCodeType {
 }
 
 export type LiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml>;
-export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> & PlatformOSFile & {
+export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
+  PlatformOSFile & {
     kind: 'Partial';
   };
 
-export type PageLiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml> & PlatformOSFile & {
+export type PageLiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
+  PlatformOSFile & {
     kind: 'Page';
     route: string;
-};
+  };
 
 export type LiquidCheckDefinition<S extends Schema = Schema> = CheckDefinition<
   SourceCodeType.LiquidHtml,
   S
 >;
 export type LiquidCheck = Check<SourceCodeType.LiquidHtml>;
-
 
 export { LiquidHtmlNode, LiquidHtmlNodeTypes };
 
@@ -101,7 +102,6 @@ export type AST = {
   }[T];
 };
 
-
 export type NodeTypes = {
   [T in SourceCodeType]: {
     [SourceCodeType.JSON]: JSONNodeTypes;
@@ -109,7 +109,6 @@ export type NodeTypes = {
     [SourceCodeType.GraphQL]: 'Document';
   }[T];
 };
-
 
 /** A vscode-uri string. */
 export type { UriString };
@@ -131,8 +130,10 @@ export type CheckSettings = {
 
 export type GraphQLSourceCode = SourceCode<SourceCodeType.GraphQL>;
 export type GraphQLCheck = Check<SourceCodeType.GraphQL>;
-export type GraphQLCheckDefinition<S extends Schema = Schema> =
-  CheckDefinition<SourceCodeType.GraphQL, S>;
+export type GraphQLCheckDefinition<S extends Schema = Schema> = CheckDefinition<
+  SourceCodeType.GraphQL,
+  S
+>;
 
 export interface Config {
   // I know, it's `context` in the config and `Mode` in the code...
@@ -453,7 +454,7 @@ type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeTyp
   : never;
 
 export type Context<T extends SourceCodeType, S extends Schema = Schema> = T extends SourceCodeType
-  ? StaticContextProperties<T> & AugmentedDependencies & { settings: Settings<S>, config: Config }
+  ? StaticContextProperties<T> & AugmentedDependencies & { settings: Settings<S>; config: Config }
   : never;
 
 export type Corrector<T extends SourceCodeType> = T extends SourceCodeType

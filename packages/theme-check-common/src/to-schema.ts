@@ -1,4 +1,9 @@
-import { ContentForMarkup, LiquidRawTag, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
+import {
+  ContentForMarkup,
+  LiquidRawTag,
+  NamedTags,
+  NodeTypes,
+} from '@platformos/liquid-html-parser';
 import { parseJSON } from './json';
 import * as path from './path';
 import { toJSONAST } from './to-source-code';
@@ -153,13 +158,15 @@ export async function toAppBlockSchema(
 async function toSchemaNode(ast: LiquidHtmlNode | Error): Promise<Error | LiquidRawTag> {
   if (ast instanceof Error) return ast;
   return (
-    (await visit<SourceCodeType.LiquidHtml, LiquidRawTag>(ast, {
-      async LiquidRawTag(node) {
-        if (node.name === 'schema') {
-          return node;
-        }
-      },
-    }))[0] ?? new Error('No schema tag found')
+    (
+      await visit<SourceCodeType.LiquidHtml, LiquidRawTag>(ast, {
+        async LiquidRawTag(node) {
+          if (node.name === 'schema') {
+            return node;
+          }
+        },
+      })
+    )[0] ?? new Error('No schema tag found')
   );
 }
 

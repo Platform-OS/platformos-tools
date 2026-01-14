@@ -195,14 +195,12 @@ function printNamedLiquidBlockStart(
 
     case NamedTags.function: {
       const markup = node.markup;
-      const trailingWhitespace =
-        markup.args.length > 0 ? line : ' ';
+      const trailingWhitespace = markup.args.length > 0 ? line : ' ';
       return tag(trailingWhitespace);
     }
     case NamedTags.graphql: {
       const markup = node.markup;
-      const trailingWhitespace =
-        markup.args.length > 0 ? line : ' ';
+      const trailingWhitespace = markup.args.length > 0 ? line : ' ';
       return tag(trailingWhitespace);
     }
 

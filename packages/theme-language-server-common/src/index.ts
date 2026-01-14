@@ -5,12 +5,7 @@ import {
   SourceCodeType,
 } from '@platformos/theme-check-common';
 
-import {
-  AbstractFileSystem,
-  FileStat,
-  FileTuple,
-  FileType,
-} from '@platformos/platformos-common'
+import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
 
 export * from './types';
 export { visit } from '@platformos/theme-check-common';

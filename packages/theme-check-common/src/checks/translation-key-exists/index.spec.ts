@@ -14,7 +14,6 @@ describe('Module: TranslationKeyExists', () => {
     expect(offenses).to.have.length(2);
   });
 
- 
   it('should handle key conflicts', async () => {
     const offenses = await check(
       {

@@ -155,7 +155,6 @@ export const UndefinedObject: LiquidCheckDefinition = {
 
         variables.forEach((variable) => {
           if (!variable.name) return;
-          
 
           const isVariableDefined = isDefined(
             variable.name,

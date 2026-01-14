@@ -1,5 +1,5 @@
 import { UriString } from '@platformos/theme-check-common';
-import { AbstractFileSystem } from '@platformos/platformos-common'
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import { AugmentedDependencies } from '../types';
 
 export function unique<T>(array: T[]): T[] {

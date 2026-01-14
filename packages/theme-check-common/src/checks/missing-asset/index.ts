@@ -30,8 +30,12 @@ export const MissingAsset: LiquidCheckDefinition = {
         if (!isLiquidString(node.expression)) return;
 
         let expression = node.expression;
-        const result = await documentsLocator.locate(URI.parse(context.config.rootUri), 'asset', expression.value)
-        if(!result) {
+        const result = await documentsLocator.locate(
+          URI.parse(context.config.rootUri),
+          'asset',
+          expression.value,
+        );
+        if (!result) {
           context.report({
             message: `'${expression.value}' does not exist`,
             startIndex: expression.position.start,

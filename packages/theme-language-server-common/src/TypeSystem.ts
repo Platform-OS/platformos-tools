@@ -285,7 +285,11 @@ export class TypeSystem {
 
   private async symbolsTable(partialAst: LiquidHtmlNode, uri: string): Promise<SymbolsTable> {
     const seedSymbolsTable = await this.seedSymbolsTable(uri);
-    return await buildSymbolsTable(partialAst, seedSymbolsTable, await this.themeDocset.liquidDrops());
+    return await buildSymbolsTable(
+      partialAst,
+      seedSymbolsTable,
+      await this.themeDocset.liquidDrops(),
+    );
   }
 
   /**

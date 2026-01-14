@@ -60,7 +60,7 @@ describe('Module: runChecks', () => {
         '.pos': '',
         'app/input.liquid': `{{ 'any' | filter }}`,
         '.git/test': 'test',
-        'modules/test': 'test'
+        'modules/test': 'test',
       },
       rootUri,
     );

@@ -1,12 +1,12 @@
 import { GraphQLCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { parse } from 'graphql/language'
-import { buildSchema, validate } from "graphql";
+import { parse } from 'graphql/language';
+import { buildSchema, validate } from 'graphql';
 
 function lineToRange(text: string, line: number): [number, number] {
   const lines = text.split(/\r?\n/);
 
   if (line < 1 || line > lines.length) {
-    return [0, text.length]
+    return [0, text.length];
   }
 
   let start = 0;
@@ -20,13 +20,12 @@ function lineToRange(text: string, line: number): [number, number] {
 
 export const GraphQLCheck: GraphQLCheckDefinition = {
   meta: {
-    code: "GraphQLCheck",
-    name: "GraphQL Check",
+    code: 'GraphQLCheck',
+    name: 'GraphQL Check',
     docs: {
-      description:
-        "Ensures that GraphQL query or mutation is valid and matches predefined schema.",
+      description: 'Ensures that GraphQL query or mutation is valid and matches predefined schema.',
       recommended: true,
-      url: undefined
+      url: undefined,
     },
     type: SourceCodeType.GraphQL,
     severity: Severity.ERROR,
@@ -37,8 +36,8 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
   create(context) {
     const validateContent = async (content: string) => {
       const graphQLSchemaString = await context.themeDocset?.graphQL();
-      if(!graphQLSchemaString) {
-        return
+      if (!graphQLSchemaString) {
+        return;
       }
 
       const graphQLSchema = buildSchema(graphQLSchemaString);
@@ -46,20 +45,20 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
       const document = parse(content);
       const errors = validate(graphQLSchema, document);
 
-      errors.forEach(error => {
-        const [start, end] = lineToRange(content, error.locations?.[0].line ?? 0)
+      errors.forEach((error) => {
+        const [start, end] = lineToRange(content, error.locations?.[0].line ?? 0);
         context.report({
           message: error.message,
           startIndex: start,
-          endIndex: end
-        })
+          endIndex: end,
+        });
       });
-    }
+    };
 
     return {
       async onCodePathEnd(node) {
         await validateContent(node.ast.content);
       },
     };
-  }
+  },
 };

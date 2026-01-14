@@ -31,7 +31,10 @@ export type ExecuteFunction<S extends SourceCodeType> = (node: AST[S], lineage: 
  * Note: this is the ChatGPT-rewritten version of the recursive method.
  * If you want to refactor it, just ask it to do it for you :P
  */
-export async function visit<S extends SourceCodeType, R>(node: AST[S], visitor: Visitor<S, R>): Promise<R[]> {
+export async function visit<S extends SourceCodeType, R>(
+  node: AST[S],
+  visitor: Visitor<S, R>,
+): Promise<R[]> {
   const results: R[] = [];
   const stack: { node: AST[S]; lineage: AST[S][] }[] = [{ node, lineage: [] }];
   const pushStack = (node: AST[S], lineage: AST[S][]) => stack.push({ node, lineage });
@@ -44,7 +47,9 @@ export async function visit<S extends SourceCodeType, R>(node: AST[S], visitor: 
     };
 
     const visitNode = visitor[node.type as any as NodeTypes[S]];
-    const result = visitNode ? await Promise.resolve(visitNode(node as NodeOfType<S, NodeTypes[S]>, lineage)) : undefined;
+    const result = visitNode
+      ? await Promise.resolve(visitNode(node as NodeOfType<S, NodeTypes[S]>, lineage))
+      : undefined;
     if (Array.isArray(result)) {
       results.push(...result);
     } else if (result !== undefined) {

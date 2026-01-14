@@ -40,7 +40,7 @@ export class HoverProvider {
     readonly getTranslationsForURI: GetTranslationsForURI = async () => ({}),
     readonly getSettingsSchemaForURI: GetThemeSettingsSchemaForURI = async () => [],
     readonly getDocDefinitionForURI: GetDocDefinitionForURI = async () => undefined,
-    readonly findThemeRootURI: FindThemeRootURI = async () => null
+    readonly findThemeRootURI: FindThemeRootURI = async () => null,
   ) {
     const typeSystem = new TypeSystem(
       themeDocset,

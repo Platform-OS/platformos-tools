@@ -2,7 +2,14 @@ import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 
 import { toJSONNode } from './jsonc/parse';
 import * as path from './path';
-import { GraphQLDocumentNode, GraphQLSourceCode, JSONNode, JSONSourceCode, LiquidSourceCode, SourceCodeType } from './types';
+import {
+  GraphQLDocumentNode,
+  GraphQLSourceCode,
+  JSONNode,
+  JSONSourceCode,
+  LiquidSourceCode,
+  SourceCodeType,
+} from './types';
 import { asError } from './utils/error';
 
 export function toLiquidHTMLAST(source: string) {
@@ -25,8 +32,8 @@ export function toGraphQLAST(source: string): GraphQLDocumentNode | Error {
   try {
     return {
       type: 'Document',
-      content: source
-    } as GraphQLDocumentNode
+      content: source,
+    } as GraphQLDocumentNode;
   } catch (error) {
     return asError(error);
   }

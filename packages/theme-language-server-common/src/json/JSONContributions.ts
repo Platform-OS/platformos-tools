@@ -92,8 +92,7 @@ export class JSONContributions implements JSONWorkerContribution {
     const doc = this.documentManager.get(uri);
     if (!doc || doc.ast instanceof Error) return;
 
-    const providers = this.completionProviders
-        .filter((provider) => provider.completeProperty);
+    const providers = this.completionProviders.filter((provider) => provider.completeProperty);
     const data = [];
     for (const provider of providers) {
       data.push(await provider.completeProperty!(await this.getContext(doc), location));
@@ -113,11 +112,12 @@ export class JSONContributions implements JSONWorkerContribution {
   ): Promise<void> {
     const doc = this.documentManager.get(uri);
     if (!doc || doc.ast instanceof Error) return;
-    const providers = this.completionProviders
-        .filter((provider) => provider.completeValue);
+    const providers = this.completionProviders.filter((provider) => provider.completeValue);
     const data = [];
     for (const provider of providers) {
-      data.push(await provider.completeValue!(await this.getContext(doc), location.concat(propertyKey)));
+      data.push(
+        await provider.completeValue!(await this.getContext(doc), location.concat(propertyKey)),
+      );
     }
     const items = await Promise.all(data);
 

@@ -396,7 +396,7 @@ function findCurrentNode(
       case NodeTypes.FunctionMarkup: {
         if (isNotEmpty(current.args)) {
           finder.current = last(current.args);
-        }  else if (current.partial && isCovered(cursor, current.partial.position)) {
+        } else if (current.partial && isCovered(cursor, current.partial.position)) {
           finder.current = current.partial;
         }
 
@@ -406,13 +406,12 @@ function findCurrentNode(
       case NodeTypes.GraphQLMarkup: {
         if (isNotEmpty(current.args)) {
           finder.current = last(current.args);
-        }  else if (current.graphql && isCovered(cursor, current.graphql.position)) {
+        } else if (current.graphql && isCovered(cursor, current.graphql.position)) {
           finder.current = current.graphql;
         }
 
         break;
       }
-
 
       case NodeTypes.RenderVariableExpression: {
         finder.current = current.name;

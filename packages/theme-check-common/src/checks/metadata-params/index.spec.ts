@@ -26,11 +26,9 @@ describe('Module: MetadataParamsCheck', () => {
     const offenses = await check(files, [MetadataParamsCheck]);
 
     expect(offenses).to.have.length(2);
+    expect(offenses).to.containOffense('Unknown parameter variable2 passed to function call');
     expect(offenses).to.containOffense(
-      "Unknown parameter variable2 passed to function call"
-    );
-    expect(offenses).to.containOffense(
-      "Required parameter variable3 must be passed to function call"
+      'Required parameter variable3 must be passed to function call',
     );
   });
 

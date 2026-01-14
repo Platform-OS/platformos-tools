@@ -3,7 +3,11 @@ import { CompletionItem, CompletionItemKind, MarkupKind } from 'vscode-languages
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 import { filePathSupportsLiquidDoc } from '@platformos/theme-check-common';
-import { getValidParamTypes, SupportedDocTagTypes, ThemeDocset } from '@platformos/theme-check-common';
+import {
+  getValidParamTypes,
+  SupportedDocTagTypes,
+  ThemeDocset,
+} from '@platformos/theme-check-common';
 
 export class LiquidDocParamTypeCompletionProvider implements Provider {
   constructor(private readonly themeDocset: ThemeDocset) {}

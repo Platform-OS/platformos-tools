@@ -22,14 +22,14 @@ const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 let client: LanguageClient | undefined;
 
 export async function activate(context: ExtensionContext) {
-  const runChecksCommand = 'themeCheck/runChecks';
+  const runChecksCommand = 'platformosCheck/runChecks';
 
   context.subscriptions.push(
-    commands.registerCommand('shopifyLiquid.restart', () => restartServer(context)),
-    commands.registerCommand('shopifyLiquid.runChecks', () => {
+    commands.registerCommand('platformosLiquid.restart', () => restartServer(context)),
+    commands.registerCommand('platformosLiquid.runChecks', () => {
       client!.sendRequest('workspace/executeCommand', { command: runChecksCommand });
     }),
-    commands.registerCommand('shopifyLiquid.openLocation', openLocation),
+    commands.registerCommand('platformosLiquid.openLocation', openLocation),
     languages.registerDocumentFormattingEditProvider(
       [{ language: 'liquid' }],
       new LiquidFormatter(vscodePrettierFormat),
@@ -41,7 +41,7 @@ export async function activate(context: ExtensionContext) {
   if (client) {
     setupContext();
     context.subscriptions.push(
-      commands.registerCommand('shopifyLiquid.deadCode', makeDeadCode(client)),
+      commands.registerCommand('platformosLiquid.deadCode', makeDeadCode(client)),
       createReferencesTreeView('shopify.themeGraph.references', context, client, 'references'),
       createReferencesTreeView('shopify.themeGraph.dependencies', context, client, 'dependencies'),
       watchReferencesTreeViewConfig(),
@@ -89,7 +89,7 @@ function createWorkerLanguageClient(
   const worker = new Worker(serverMain.toString(true));
 
   // create the language server client to communicate with the server running in the worker
-  return new LanguageClient('shopifyLiquid', 'Theme Check Language Server', clientOptions, worker);
+  return new LanguageClient('platformosLiquid', 'Theme Check Language Server', clientOptions, worker);
 }
 
 async function stopServer() {

@@ -1,5 +1,5 @@
 {
-  "name": "theme-check-vscode",
+  "name": "platformos-check-vscode",
   "author": "CP Clermont <cp.clermont@shopify.com>",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/vscode-extension#readme",
   "repository": {
@@ -10,12 +10,12 @@
   "bugs": {
     "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "platformOS",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
-  "displayName": "platformOS Liquid",
-  "description": "A complete developer experience for platformOS Liquid",
+  "displayName": "platformOS Liquid v2",
+  "description": "A complete developer experience for platformOS",
   "categories": [
     "Programming Languages",
     "Linters",
@@ -24,7 +24,8 @@
   "keywords": [
     "liquid",
     "platformOS",
-    "theme-check"
+    "theme-check",
+    "graphql"
   ],
   "preview": false,
   "icon": "images/platformos_logo.png",
@@ -97,26 +98,26 @@
   "contributes": {
     "commands": [
       {
-        "command": "shopifyLiquid.restart",
-        "title": "Liquid Theme Check: Restart Server"
+        "command": "platformosLiquid.restart",
+        "title": "Liquid Check: Restart Server"
       },
       {
-        "command": "shopifyLiquid.runChecks",
-        "title": "Liquid Theme Check: Run Checks"
+        "command": "platformosLiquid.runChecks",
+        "title": "Liquid Check: Run Checks"
       },
       {
-        "command": "shopifyLiquid.deadCode",
-        "title": "Liquid Theme Check: Find dead code"
+        "command": "platformosLiquid.deadCode",
+        "title": "Liquid Check: Find dead code"
       },
       {
-        "command": "shopifyLiquid.openLocation",
-        "title": "Open text document at location"
+        "command": "platformosLiquid.openLocation",
+        "title": "Open document at location"
       }
     ],
     "configuration": {
-      "title": "Shopify Liquid | Syntax Highlighting & Linter by Shopify",
+      "title": "platformOS Liquid v2 | Syntax Highlighting & Linter by platformOS",
       "properties": {
-        "shopifyLiquid.trace.server": {
+        "platformosLiquid.trace.server": {
           "type": [
             "string"
           ],
@@ -128,28 +129,28 @@
             "verbose"
           ]
         },
-        "themeCheck.checkOnOpen": {
+        "platformosCheck.checkOnOpen": {
           "type": [
             "boolean"
           ],
           "description": "When true, theme check runs on file open.",
           "default": true
         },
-        "themeCheck.checkOnChange": {
+        "platformosCheck.checkOnChange": {
           "type": [
             "boolean"
           ],
           "description": "When true, theme check runs on file change.",
           "default": true
         },
-        "themeCheck.checkOnSave": {
+        "platformosCheck.checkOnSave": {
           "type": [
             "boolean"
           ],
           "description": "When true, theme check runs on file save.",
           "default": true
         },
-        "themeCheck.preloadOnBoot": {
+        "platformosCheck.preloadOnBoot": {
           "type": [
             "boolean"
           ],
@@ -202,26 +203,6 @@
         ],
         "extensions": [
           ".liquid"
-        ]
-      },
-      {
-        "id": "javascript",
-        "extensions": [
-          ".js.liquid",
-          ".ts.liquid"
-        ]
-      },
-      {
-        "id": "css",
-        "extensions": [
-          ".css.liquid"
-        ]
-      },
-      {
-        "id": "scss",
-        "extensions": [
-          ".scss.liquid",
-          ".sass.liquid"
         ]
       },
       {

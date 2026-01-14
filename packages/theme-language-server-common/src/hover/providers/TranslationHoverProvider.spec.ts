@@ -12,6 +12,7 @@ describe('Module: TranslationHoverProvider', async () => {
     provider = new HoverProvider(
       new DocumentManager(),
       {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],

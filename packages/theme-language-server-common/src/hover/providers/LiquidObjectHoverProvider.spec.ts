@@ -95,6 +95,7 @@ describe('Module: LiquidObjectHoverProvider', async () => {
     provider = new HoverProvider(
       new DocumentManager(),
       {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => _objects,
         liquidDrops: async () => _objects,

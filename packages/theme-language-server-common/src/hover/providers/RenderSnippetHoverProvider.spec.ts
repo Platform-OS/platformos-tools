@@ -69,6 +69,7 @@ const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
   return new HoverProvider(
     new DocumentManager(),
     {
+      graphQL: async () => null,
       filters: async () => [],
       objects: async () => [],
       liquidDrops: async () => [],

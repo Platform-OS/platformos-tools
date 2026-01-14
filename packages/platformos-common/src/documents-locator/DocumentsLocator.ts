@@ -113,6 +113,7 @@ export class DocumentsLocator {
         return this.locateFile(rootUri, fileName, 'partial');
 
       case 'render':
+        return this.locateFile(rootUri, fileName, 'view');
       case 'include':
         return this.locateFile(rootUri, fileName, 'view');
 

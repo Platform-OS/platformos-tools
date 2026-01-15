@@ -256,24 +256,6 @@ describe('Module: JSONLanguageService', () => {
   });
 
   describe('hover', () => {
-    it('should return hover information for the given property in a section {% schema %}', async () => {
-      const params = getRequestParams(
-        documentManager,
-        'sections/section.liquid',
-        `
-          <div>hello world</div>
-          {% schema %}
-            {
-              "name█": "My section"
-            }
-          {% endschema %}
-        `,
-      );
-      const hover = await jsonLanguageService.hover(params);
-      assert(hover !== null);
-      expect(hover.contents).to.eql(['The section title shown in the theme editor']);
-    });
-
     it('should return the translation value of a t:translation', async () => {
       schemaTranslations = {
         general: {

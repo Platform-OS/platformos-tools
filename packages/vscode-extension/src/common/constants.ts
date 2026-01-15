@@ -9,6 +9,7 @@ import { DocumentSelector } from 'vscode';
  */
 export const documentSelectors: DocumentSelector = [
   { language: 'liquid', pattern: '**/*.liquid' },
+  { language: 'graphql', pattern: '**/*.graphql' },
   { language: 'json', pattern: '**/{config,locales,sections,templates}/**/*.json' },
   { language: 'jsonc', pattern: '**/{config,locales,sections,templates}/**/*.json' },
 ];

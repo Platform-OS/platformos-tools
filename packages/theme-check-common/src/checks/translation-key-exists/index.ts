@@ -1,6 +1,6 @@
-import { parseJSON } from '../../json';
+import { TranslationProvider } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isError } from '../../utils';
+import { URI } from 'vscode-uri';
 
 function keyExists(key: string, pointer: any) {
   for (const token of key.split('.')) {
@@ -35,7 +35,7 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
 
   create(context) {
     const nodes: { translationKey: string; startIndex: number; endIndex: number }[] = [];
-    let schemaLocales: any;
+    const translationProvider = new TranslationProvider(context.fs);
 
     return {
       async LiquidVariable(node) {
@@ -54,45 +54,24 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
         });
       },
 
-      async LiquidRawTag(node) {
-        if (node.name !== 'schema' || node.body.kind !== 'json') {
-          return;
-        }
-
-        const defaultLocale = await context.getDefaultLocale();
-        const schema = parseJSON(node.body.value);
-        if (isError(schema) && schema instanceof SyntaxError) return;
-        schemaLocales = schema.locales?.[defaultLocale];
-      },
-
       async onCodePathEnd() {
-        const defaultTranslations = await context.getDefaultTranslations();
-        const defaultLocale = await context.getDefaultLocale();
-        const systemTranslations = await context.themeDocset?.systemTranslations();
-        const systemTranslationsKeys = Object.keys(systemTranslations ?? {});
+        for (const { translationKey, startIndex, endIndex } of nodes) {
+          const translation = await translationProvider.translate(
+            URI.parse(context.config.rootUri),
+            translationKey,
+          );
 
-        if (!defaultTranslations && systemTranslationsKeys.length === 0) return;
-
-        nodes.forEach(({ translationKey, startIndex, endIndex }) => {
-          if (
-            keyExists(translationKey, defaultTranslations) ||
-            keyExists(translationKey, schemaLocales) ||
-            systemTranslationsKeys.includes(translationKey)
-          ) {
+          if (!!translation) {
             return;
           }
 
-          let message = `'${translationKey}' does not have a matching entry in 'locales/${defaultLocale}.default.json'`;
-          if (schemaLocales) {
-            message += ` or '${context.toRelativePath(context.file.uri)}'`;
-          }
-
+          const message = `'${translationKey}' does not have a matching translation entry`;
           context.report({
             message,
             startIndex,
             endIndex,
           });
-        });
+        }
       },
     };
   },

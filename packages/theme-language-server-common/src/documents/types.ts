@@ -16,6 +16,8 @@ type _AugmentedSourceCode<SCT extends SourceCodeType = SourceCodeType> = SourceC
 /** JsonSourceCode + textDocument */
 export type AugmentedJsonSourceCode = _AugmentedSourceCode<SourceCodeType.JSON>;
 
+export type AugmentedGraphQLSourceCode = _AugmentedSourceCode<SourceCodeType.GraphQL>;
+
 /**
  * AugmentedLiquidSourceCode may hold the schema for the section or block.
  *
@@ -40,6 +42,7 @@ export type AugmentedLiquidSourceCode = _AugmentedSourceCode<SourceCodeType.Liqu
 export type AugmentedSourceCode<SCT extends SourceCodeType = SourceCodeType> = {
   [SourceCodeType.JSON]: AugmentedJsonSourceCode;
   [SourceCodeType.LiquidHtml]: AugmentedLiquidSourceCode;
+  [SourceCodeType.GraphQL]: AugmentedGraphQLSourceCode;
 }[SCT];
 
 export const isLiquidSourceCode = (file: AugmentedSourceCode): file is AugmentedLiquidSourceCode =>
@@ -47,3 +50,6 @@ export const isLiquidSourceCode = (file: AugmentedSourceCode): file is Augmented
 
 export const isJsonSourceCode = (file: AugmentedSourceCode): file is AugmentedJsonSourceCode =>
   file.type === SourceCodeType.JSON;
+
+export const isGraphQLSourceceCode = (file: AugmentedSourceCode): file is AugmentedJsonSourceCode =>
+  file.type === SourceCodeType.GraphQL;

@@ -1,5 +1,4 @@
 import {
-  AbstractFileSystem,
   assertNever,
   memoize,
   path,
@@ -14,6 +13,8 @@ import {
   Mode,
   isError,
 } from '@platformos/theme-check-common';
+
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import { Connection } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ClientCapabilities } from '../ClientCapabilities';
@@ -109,7 +110,7 @@ export class DocumentManager {
   private set(uri: UriString, source: string, version: number | undefined) {
     uri = path.normalize(uri);
     // We only support json and liquid files.
-    if (!/\.(json|liquid)$/.test(uri) || /\.(s?css|js).liquid$/.test(uri)) {
+    if (!/\.(json|liquid|graphql)$/.test(uri) || /\.(s?css|js).liquid$/.test(uri)) {
       return;
     }
 
@@ -136,7 +137,7 @@ export class DocumentManager {
       const filesToLoad = await recursiveReadDirectory(
         this.fs,
         rootUri,
-        ([uri]) => /\.(liquid|json)$/.test(uri) && !this.sourceCodes.has(uri),
+        ([uri]) => /\.(liquid|json|graphql)$/.test(uri) && !this.sourceCodes.has(uri),
       );
 
       progress.report(10, 'Preloading files');
@@ -179,6 +180,11 @@ export class DocumentManager {
 
     switch (sourceCode.type) {
       case SourceCodeType.JSON:
+        return {
+          ...sourceCode,
+          textDocument,
+        };
+      case SourceCodeType.GraphQL:
         return {
           ...sourceCode,
           textDocument,

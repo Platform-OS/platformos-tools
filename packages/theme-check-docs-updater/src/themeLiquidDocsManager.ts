@@ -13,10 +13,13 @@ import path from 'node:path';
 import {
   Manifests,
   Resource,
-  ThemeLiquidDocsSchemaRoot,
+  ThemeCustomSchemas,
+  ThemeLiquidDocsRoot,
+  ThemeLiquidDocsRootFallback,
   downloadResource,
   downloadThemeLiquidDocs,
   exists,
+  graphQLPath,
   resourcePath,
   root,
   schemaPath,
@@ -44,6 +47,10 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
     return findSuitableResource(this.loaders('tags'), JSON.parse, [], this.log);
   });
 
+  graphQL = memo(async (): Promise<string | null> => {
+    return findSuitableResource(this.graphQLLoaders(), (x: string) => x, null, this.log);
+  });
+
   systemTranslations = memo(async (): Promise<Translations> => {
     return findSuitableResource(
       this.loaders('shopify_system_translations'),
@@ -64,9 +71,14 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
         this.log,
       ).then((manifest) => {
         return Promise.all(
-          manifest.schemas.map(
-            async (schemaDefinition): Promise<SchemaDefinition> => ({
-              uri: `${ThemeLiquidDocsSchemaRoot}/${schemaDefinition.uri}`,
+          manifest.schemas.map(async (schemaDefinition): Promise<SchemaDefinition> => {
+            let schemaRoot = `${ThemeLiquidDocsRootFallback}/schemas`;
+
+            if (ThemeCustomSchemas.includes(schemaDefinition.uri)) {
+              schemaRoot = ThemeLiquidDocsRoot;
+            }
+            return {
+              uri: `${schemaRoot}/${schemaDefinition.uri}`,
               fileMatch: schemaDefinition.fileMatch,
               schema: await findSuitableResource(
                 this.schemaLoaders(schemaDefinition.uri),
@@ -74,8 +86,8 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
                 '',
                 this.log,
               ),
-            }),
-          ),
+            };
+          }),
         );
       }),
     identity<Mode>,
@@ -135,6 +147,10 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
       .then(tap(() => this.log(`Loaded schema from ${schemaPath(relativeUri)}`)));
   }
 
+  private async loadGraphQL() {
+    return fs.readFile(graphQLPath(), 'utf8').then(tap(() => this.log(`Loaded graphQL`)));
+  }
+
   private loaders(name: Resource): Loader<string>[] {
     return [
       loader(() => this.loadResource(name), `loadResource(${name})`),
@@ -146,6 +162,13 @@ export class ThemeLiquidDocsManager implements ThemeDocset, JsonValidationSet {
     return [
       loader(() => this.loadSchema(relativeUri), `loadSchema(${relativeUri})`),
       loader(() => fallbackSchema(relativeUri, this.log), `fallbackSchema(${relativeUri})`),
+    ];
+  }
+
+  private graphQLLoaders(): Loader<string>[] {
+    return [
+      loader(() => this.loadGraphQL(), `loadGraphQL()`),
+      loader(() => fallbackGraphQL(this.log), `fallbackSchema()`),
     ];
   }
 }
@@ -222,4 +245,11 @@ async function fallbackSchema(
   return fs
     .readFile(sourcePath, 'utf8')
     .then(tap(() => log(`Loaded fallback schema\n\t${relativeUri} from\n\t${sourcePath}`)));
+}
+
+async function fallbackGraphQL(log: Logger): Promise<string> {
+  const sourcePath = path.resolve(dataRoot(), `graphql.graphql`);
+  return fs
+    .readFile(sourcePath, 'utf8')
+    .then(tap(() => log(`Loaded fallback graphQL from\n\t${sourcePath}`)));
 }

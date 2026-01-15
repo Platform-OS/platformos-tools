@@ -76,7 +76,7 @@ export const ValidVisibleIf: LiquidCheckDefinition = {
 
           const visibleIfNode = nodeAtPath(ast, ['settings', i, 'visible_if'])!;
 
-          const varLookupsOrWarning = getVariableLookupsInExpression(setting.visible_if);
+          const varLookupsOrWarning = await getVariableLookupsInExpression(setting.visible_if);
           if (varLookupsOrWarning === null) continue;
 
           if ('warning' in varLookupsOrWarning) {
@@ -137,7 +137,7 @@ export const ValidVisibleIfSettingsSchema: JSONCheckDefinition = {
         if (typeof visibleIfExpression !== 'string') return;
         const offset = node.value.loc.start.offset;
 
-        const varLookupsOrWarning = getVariableLookupsInExpression(visibleIfExpression);
+        const varLookupsOrWarning = await getVariableLookupsInExpression(visibleIfExpression);
         if (varLookupsOrWarning === null) return;
 
         if ('warning' in varLookupsOrWarning) {

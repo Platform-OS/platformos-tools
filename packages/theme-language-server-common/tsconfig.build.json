@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["**/*.spec.ts", "test/*.ts"],
+  "references": [
+    { "path": "../theme-check-common/tsconfig.build.json" },
+    { "path": "../liquid-html-parser/tsconfig.build.json" },
+    { "path": "../theme-graph/tsconfig.build.json" },
+    { "path": "../platformos-common/tsconfig.build.json" }
+  ]
+}

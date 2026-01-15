@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MockFileSystem } from './MockFileSystem';
-import { FileType } from '../AbstractFileSystem';
+import { FileType } from '@platformos/platformos-common';
 
 describe('MockFileSystem', () => {
   let fs: MockFileSystem;
@@ -25,7 +25,7 @@ describe('MockFileSystem', () => {
     });
 
     it('throws an error for files that do not exist', async () => {
-      expect(fs.readFile('does not exist')).rejects.toThrow('File not found');
+      await expect(fs.readFile('does not exist')).rejects.toThrow('File not found');
     });
   });
 
@@ -57,7 +57,7 @@ describe('MockFileSystem', () => {
     });
 
     it('throws an error for directories that do not exist', async () => {
-      expect(fs.readDirectory('file:/does not exist')).rejects.toThrow('Directory not found');
+      await expect(fs.readDirectory('file:/does not exist')).rejects.toThrow('Directory not found');
     });
   });
 
@@ -65,7 +65,7 @@ describe('MockFileSystem', () => {
     it('returns the size of existing files', async () => {});
 
     it('throws an error for files that do not exist', async () => {
-      expect(fs.stat('file:/does not exist')).rejects.toThrow();
+      await expect(fs.stat('file:/does not exist')).rejects.toThrow();
     });
   });
 });

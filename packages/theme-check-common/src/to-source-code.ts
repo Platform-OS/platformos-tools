@@ -2,7 +2,14 @@ import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 
 import { toJSONNode } from './jsonc/parse';
 import * as path from './path';
-import { JSONNode, JSONSourceCode, LiquidSourceCode, SourceCodeType } from './types';
+import {
+  GraphQLDocumentNode,
+  GraphQLSourceCode,
+  JSONNode,
+  JSONSourceCode,
+  LiquidSourceCode,
+  SourceCodeType,
+} from './types';
 import { asError } from './utils/error';
 
 export function toLiquidHTMLAST(source: string) {
@@ -21,12 +28,24 @@ export function toJSONAST(source: string): JSONNode | Error {
   }
 }
 
+export function toGraphQLAST(source: string): GraphQLDocumentNode | Error {
+  try {
+    return {
+      type: 'Document',
+      content: source,
+    } as GraphQLDocumentNode;
+  } catch (error) {
+    return asError(error);
+  }
+}
+
 export function toSourceCode(
   uri: string,
   source: string,
   version?: number,
-): LiquidSourceCode | JSONSourceCode {
+): LiquidSourceCode | JSONSourceCode | GraphQLSourceCode {
   const isLiquid = uri.endsWith('.liquid');
+  const isGraphQL = uri.endsWith('.graphql');
 
   if (isLiquid) {
     return {
@@ -34,6 +53,14 @@ export function toSourceCode(
       source,
       type: SourceCodeType.LiquidHtml,
       ast: toLiquidHTMLAST(source),
+      version,
+    };
+  } else if (isGraphQL) {
+    return {
+      uri: path.normalize(uri),
+      source,
+      type: SourceCodeType.GraphQL,
+      ast: toGraphQLAST(source),
       version,
     };
   } else {

@@ -1,4 +1,9 @@
-import { ConfigTarget, JSONCheckDefinition, LiquidCheckDefinition } from '../types';
+import {
+  ConfigTarget,
+  GraphQLCheckDefinition,
+  JSONCheckDefinition,
+  LiquidCheckDefinition,
+} from '../types';
 
 import { AppBlockValidTags } from './app-block-valid-tags';
 import { AssetPreload } from './asset-preload';
@@ -27,7 +32,6 @@ import { LiquidHTMLSyntaxError } from './liquid-html-syntax-error';
 import { MatchingTranslations } from './matching-translations';
 import { MissingAsset } from './missing-asset';
 import { MissingContentForArguments } from './missing-content-for-arguments';
-import { MissingRenderSnippetArguments } from './missing-render-snippet-arguments';
 import { MissingTemplate } from './missing-template';
 import { OrphanedSnippet } from './orphaned-snippet';
 import { PaginationSize } from './pagination-size';
@@ -47,7 +51,6 @@ import { UnknownFilter } from './unknown-filter';
 import { UnrecognizedContentForArguments } from './unrecognized-content-for-arguments';
 import { UnrecognizedRenderSnippetArguments } from './unrecognized-render-snippet-arguments';
 import { UnusedAssign } from './unused-assign';
-import { UnsupportedDocTag } from './unsupported-doc-tag';
 import { UnusedDocParam } from './unused-doc-param';
 import { ValidContentForArguments } from './valid-content-for-arguments';
 import { ValidContentForArgumentTypes } from './valid-content-for-argument-types';
@@ -65,8 +68,11 @@ import { ValidVisibleIf, ValidVisibleIfSettingsSchema } from './valid-visible-if
 import { VariableName } from './variable-name';
 import { AppBlockMissingSchema } from './app-block-missing-schema';
 import { UniqueSettingIds } from './unique-settings-id';
+import { MetadataParamsCheck } from './metadata-params';
+import { GraphQLVariablesCheck } from './graphql-variables';
+import { GraphQLCheck } from './graphql';
 
-export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
+export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCheckDefinition)[] = [
   AppBlockValidTags,
   AssetPreload,
   AssetSizeAppBlockCSS,
@@ -94,7 +100,6 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   MatchingTranslations,
   MissingAsset,
   MissingContentForArguments,
-  MissingRenderSnippetArguments,
   MissingTemplate,
   AppBlockMissingSchema,
   OrphanedSnippet,
@@ -115,7 +120,6 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   UnknownFilter,
   UnrecognizedContentForArguments,
   UnrecognizedRenderSnippetArguments,
-  UnsupportedDocTag,
   UnusedAssign,
   UnusedDocParam,
   ValidBlockTarget,
@@ -133,6 +137,9 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition)[] = [
   ValidVisibleIfSettingsSchema,
   VariableName,
   ValidSchemaName,
+  MetadataParamsCheck,
+  GraphQLVariablesCheck,
+  GraphQLCheck,
 ];
 
 /**

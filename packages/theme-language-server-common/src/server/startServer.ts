@@ -1,7 +1,6 @@
 import {
   AugmentedThemeDocset,
   DocDefinition,
-  FileTuple,
   findRoot as findConfigFileRoot,
   isError,
   makeFileExists,
@@ -18,6 +17,7 @@ import {
   SourceCodeType,
   UriString,
 } from '@platformos/theme-check-common';
+import { FileTuple, TranslationProvider } from '@platformos/platformos-common';
 import {
   Connection,
   FileChangeType,
@@ -59,6 +59,7 @@ import { CachedFileSystem } from './CachedFileSystem';
 import { Configuration } from './Configuration';
 import { safe } from './safe';
 import { ThemeGraphManager } from './ThemeGraphManager';
+import { DocumentsLocator } from '@platformos/platformos-common';
 
 const defaultLogger = () => {};
 
@@ -120,7 +121,14 @@ export function startServer(
     findThemeRootURI,
   );
   const diagnosticsManager = new DiagnosticsManager(connection);
-  const documentLinksProvider = new DocumentLinksProvider(documentManager, findThemeRootURI);
+  const documentsLocator = new DocumentsLocator(fs);
+  const translationProvider = new TranslationProvider(fs);
+  const documentLinksProvider = new DocumentLinksProvider(
+    documentManager,
+    findThemeRootURI,
+    documentsLocator,
+    translationProvider,
+  );
   const codeActionsProvider = new CodeActionsProvider(documentManager, diagnosticsManager);
   const onTypeFormattingProvider = new OnTypeFormattingProvider(
     documentManager,
@@ -341,10 +349,12 @@ export function startServer(
   const hoverProvider = new HoverProvider(
     documentManager,
     themeDocset,
+    translationProvider,
     getMetafieldDefinitions,
     getTranslationsForURI,
     getThemeSettingsSchemaForURI,
     getDocDefinitionForURI,
+    findThemeRootURI,
   );
 
   const executeCommandProvider = new ExecuteCommandProvider(
@@ -377,7 +387,7 @@ export function startServer(
       filters: [
         {
           pattern: {
-            glob: '**/*.{liquid,json}',
+            glob: '**/*.{liquid,json,graphql}',
           },
         },
         {
@@ -447,19 +457,13 @@ export function startServer(
     configuration.registerDidChangeWatchedFilesNotification({
       watchers: [
         {
-          globPattern: '**/.theme-check.yml',
-        },
-        {
-          globPattern: '**/.shopify/*',
-        },
-        {
           globPattern: '**/*.liquid',
         },
         {
-          globPattern: '**/{locales,sections,templates,customers}/*.json',
+          globPattern: '**/translations/**/*.yml',
         },
         {
-          globPattern: '**/config/settings_{data,schema}.json',
+          globPattern: '**/*.graphql',
         },
       ],
     });

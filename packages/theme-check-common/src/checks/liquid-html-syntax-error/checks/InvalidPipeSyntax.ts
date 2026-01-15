@@ -1,4 +1,9 @@
-import { LiquidVariableOutput, LiquidTag, NodeTypes, NamedTags } from '@platformos/liquid-html-parser';
+import {
+  LiquidVariableOutput,
+  LiquidTag,
+  NodeTypes,
+  NamedTags,
+} from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
 import { INVALID_SYNTAX_MESSAGE } from './utils';
 

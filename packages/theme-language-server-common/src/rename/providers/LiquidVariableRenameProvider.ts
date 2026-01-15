@@ -11,7 +11,12 @@ import {
   RenderMarkup,
   TextNode,
 } from '@platformos/liquid-html-parser';
-import { JSONNode, SourceCodeType, visit } from '@platformos/theme-check-common';
+import {
+  GraphQLDocumentNode,
+  JSONNode,
+  SourceCodeType,
+  visit,
+} from '@platformos/theme-check-common';
 import { Connection, Range } from 'vscode-languageserver';
 import {
   ApplyWorkspaceEditRequest,
@@ -82,16 +87,19 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
 
     let liquidDocParamUpdated = false;
 
-    const ranges: Range[] = visit(document.ast, {
+    const ranges: Range[] = await visit(document.ast, {
       VariableLookup: replaceRange,
       AssignMarkup: replaceRange,
       ForMarkup: replaceRange,
-      TextNode: (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode)[]) => {
+      TextNode: async (
+        node: LiquidHtmlNode,
+        ancestors: (LiquidHtmlNode | JSONNode | GraphQLDocumentNode)[],
+      ) => {
         if (ancestors.at(-1)?.type !== NodeTypes.LiquidDocParamNode) return;
 
         liquidDocParamUpdated = true;
 
-        return replaceRange(node, ancestors);
+        return await replaceRange(node, ancestors);
       },
     });
 
@@ -100,7 +108,7 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
       const liquidSourceCodes = themeFiles.filter(isLiquidSourceCode);
       const name = snippetName(params.textDocument.uri);
 
-      updateRenderTags(this.connection, liquidSourceCodes, name, oldName, params.newName);
+      await updateRenderTags(this.connection, liquidSourceCodes, name, oldName, params.newName);
     }
 
     const textDocumentEdit = TextDocumentEdit.create(
@@ -159,7 +167,7 @@ function variableName(node: LiquidHtmlNode): string {
  */
 function variableNameBlockScope(
   variableName: string,
-  ancestors: (LiquidHtmlNode | JSONNode)[],
+  ancestors: (LiquidHtmlNode | JSONNode | GraphQLDocumentNode)[],
 ): Position | undefined {
   let scopedAncestor: LiquidTagTablerow | LiquidTagFor | undefined;
 
@@ -189,7 +197,10 @@ function textReplaceRange(
   textDocument: TextDocument,
   selectedVariableScope?: Position,
 ) {
-  return (node: LiquidHtmlNode, ancestors: (LiquidHtmlNode | JSONNode)[]) => {
+  return async (
+    node: LiquidHtmlNode,
+    ancestors: (LiquidHtmlNode | JSONNode | GraphQLDocumentNode)[],
+  ) => {
     if (variableName(node) !== oldName) return;
 
     const ancestorScope = variableNameBlockScope(oldName, ancestors);
@@ -229,8 +240,8 @@ async function updateRenderTags(
   for (const sourceCode of liquidSourceCodes) {
     if (sourceCode.ast instanceof Error) continue;
     const textDocument = sourceCode.textDocument;
-    const edits: TextEdit[] = visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
-      RenderMarkup(node: RenderMarkup) {
+    const edits: TextEdit[] = await visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
+      async RenderMarkup(node: RenderMarkup) {
         if (node.snippet.type !== NodeTypes.String || node.snippet.value !== snippetName) {
           return;
         }

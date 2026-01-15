@@ -16,6 +16,7 @@ describe('Module: HtmlAttributeCompletionProvider', async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],

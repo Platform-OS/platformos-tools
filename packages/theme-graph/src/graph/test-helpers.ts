@@ -1,5 +1,4 @@
 import {
-  AbstractFileSystem,
   LiquidSourceCode,
   memoize,
   path as pathUtils,
@@ -7,6 +6,7 @@ import {
   ThemeBlockSchema,
   toSchema,
 } from '@platformos/theme-check-common';
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import { NodeFileSystem } from '@platformos/theme-check-node';
 import { vi } from 'vitest';
 import { URI } from 'vscode-uri';

@@ -48,6 +48,7 @@ Liquid <: Helpers {
 
   liquidTagStrict =
     | liquidTagAssign
+    | liquidTagHashAssign
     | liquidTagBreak
     | liquidTagContinue
     | liquidTagCycle
@@ -62,6 +63,7 @@ Liquid <: Helpers {
     | liquidTagLiquid
     | liquidTagRender
     | liquidTagFunction
+    | liquidTagGraphQL
     | liquidTagSection
     | liquidTagSections
     | liquidTagWhen
@@ -99,6 +101,9 @@ Liquid <: Helpers {
 
   liquidTagAssign = liquidTagRule<"assign", liquidTagAssignMarkup>
   liquidTagAssignMarkup = variableSegment space* "=" space* liquidVariable<delimTag>
+
+  liquidTagHashAssign = liquidTagRule<"hash_assign", liquidTagHashAssignMarkup>
+  liquidTagHashAssignMarkup = variableSegment space* "=" space* liquidVariable<delimTag>
 
   liquidTagCycle = liquidTagRule<"cycle", liquidTagCycleMarkup>
   liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidExpression<delimTag>, argumentSeparator> space*
@@ -146,6 +151,9 @@ Liquid <: Helpers {
 
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
   liquidTagFunctionMarkup = variableSegment space* "=" space* snippetExpression renderArguments
+
+  liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
+  liquidTagGraphQLMarkup = variableSegment space* "=" space* snippetExpression renderArguments
 
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?

@@ -126,6 +126,7 @@ describe('Module: FilterCompletionProvider', async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => filters,
         objects: async () => objects,
         liquidDrops: async () => [],

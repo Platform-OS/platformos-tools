@@ -58,7 +58,7 @@ describe('JSON Document Links', () => {
       const textDocument = documentManager.get(uriString)!.textDocument;
       const schemaOffset = liquidContent.indexOf(schemaContent);
 
-      const visitor = createJSONDocumentLinksVisitor(
+      const visitor = await createJSONDocumentLinksVisitor(
         textDocument,
         URI.parse(rootUri),
         schemaOffset,
@@ -66,7 +66,7 @@ describe('JSON Document Links', () => {
       const ast = toJSONAST(schemaContent);
 
       if (ast instanceof Error) throw ast;
-      const result = visit(ast, visitor);
+      const result = await visit(ast, visitor);
 
       expect(result).toHaveLength(2);
       expect(result[0].target).toBe('file:///path/to/project/blocks/logo.liquid');
@@ -110,7 +110,7 @@ describe('JSON Document Links', () => {
       const textDocument = documentManager.get(uriString)!.textDocument;
       const schemaOffset = liquidContent.indexOf(schemaContent);
 
-      const visitor = createJSONDocumentLinksVisitor(
+      const visitor = await createJSONDocumentLinksVisitor(
         textDocument,
         URI.parse(rootUri),
         schemaOffset,
@@ -118,7 +118,7 @@ describe('JSON Document Links', () => {
       const ast = toJSONAST(schemaContent);
 
       if (ast instanceof Error) throw ast;
-      const result = visit(ast, visitor);
+      const result = await visit(ast, visitor);
 
       // Should find both block type references (in blocks array and in presets)
       expect(result).toHaveLength(2);
@@ -153,7 +153,7 @@ describe('JSON Document Links', () => {
 
       const textDocument = documentManager.get(uriString)!.textDocument;
       const schemaOffset = liquidContent.indexOf(schemaContent);
-      const visitor = createJSONDocumentLinksVisitor(
+      const visitor = await createJSONDocumentLinksVisitor(
         textDocument,
         URI.parse(rootUri),
         schemaOffset,
@@ -161,7 +161,7 @@ describe('JSON Document Links', () => {
       const ast = toJSONAST(schemaContent);
 
       if (ast instanceof Error) throw ast;
-      const result = visit(ast, visitor);
+      const result = await visit(ast, visitor);
 
       // Should only create link for custom-block, not @app or @theme
       expect(result).toHaveLength(1);

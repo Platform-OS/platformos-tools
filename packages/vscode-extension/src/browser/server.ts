@@ -46,6 +46,7 @@ const dependencies: Dependencies = {
     };
   },
   themeDocset: {
+    graphQL: async () => null,
     filters: async () => filters,
     objects: async () => objects,
     liquidDrops: async () => objects,

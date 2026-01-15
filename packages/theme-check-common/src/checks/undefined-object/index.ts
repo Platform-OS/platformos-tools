@@ -9,13 +9,16 @@ import {
   LiquidTagIncrement,
   LiquidTagTablerow,
   LiquidVariableLookup,
+  LiquidTagFunction,
   NamedTags,
   NodeTypes,
   Position,
+  FunctionMarkup,
+  LiquidTagHashAssign,
+  LiquidTagGraphQL,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, ThemeDocset } from '../../types';
 import { isError, last } from '../../utils';
-import { hasLiquidDoc } from '../../liquid-doc/liquidDoc';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 
 type Scope = { start?: number; end?: number };
@@ -40,11 +43,6 @@ export const UndefinedObject: LiquidCheckDefinition = {
     const ast = context.file.ast;
 
     if (isError(ast)) return {};
-
-    /**
-     * Skip this check when a snippet does not have the presence of doc tags.
-     */
-    if (relativePath.startsWith('snippets/') && !hasLiquidDoc(ast)) return {};
 
     /**
      * Skip this check when definitions for global objects are unavailable.
@@ -76,7 +74,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
-        if (isLiquidTagAssign(node)) {
+        if (isLiquidTagAssign(node) || isLiquidTagHashAssign(node) || isLiquidTagGraphQL(node)) {
           indexVariableScope(node.markup.name, {
             start: node.blockStartPosition.end,
           });
@@ -100,7 +98,12 @@ export const UndefinedObject: LiquidCheckDefinition = {
           });
         }
 
-        /* {% layout none %} */
+        if (node.name === 'function') {
+          indexVariableScope((node.markup as FunctionMarkup).name, {
+            start: node.position.end,
+          });
+        }
+
         if (node.name === 'layout') {
           indexVariableScope('none', {
             start: node.position.start,
@@ -270,6 +273,14 @@ function isLiquidTagCapture(node: LiquidTag): node is LiquidTagCapture {
 
 function isLiquidTagAssign(node: LiquidTag): node is LiquidTagAssign {
   return node.name === NamedTags.assign && typeof node.markup !== 'string';
+}
+
+function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTagHashAssign {
+  return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
+}
+
+function isLiquidTagGraphQL(node: LiquidTag): node is LiquidTagGraphQL {
+  return node.name === NamedTags.graphql && typeof node.markup !== 'string';
 }
 
 function isLiquidForTag(node: LiquidTag): node is LiquidTagFor {

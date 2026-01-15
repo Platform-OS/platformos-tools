@@ -322,6 +322,11 @@ function findCurrentNode(
         break;
       }
 
+      case NodeTypes.HashAssignMarkup: {
+        finder.current = current.value;
+        break;
+      }
+
       case NodeTypes.ForMarkup: {
         if (isCovered(cursor, current.collection.position)) {
           finder.current = current.collection;
@@ -391,8 +396,18 @@ function findCurrentNode(
       case NodeTypes.FunctionMarkup: {
         if (isNotEmpty(current.args)) {
           finder.current = last(current.args);
-        }  else if (current.partial && isCovered(cursor, current.partial.position)) {
+        } else if (current.partial && isCovered(cursor, current.partial.position)) {
           finder.current = current.partial;
+        }
+
+        break;
+      }
+
+      case NodeTypes.GraphQLMarkup: {
+        if (isNotEmpty(current.args)) {
+          finder.current = last(current.args);
+        } else if (current.graphql && isCovered(cursor, current.graphql.position)) {
+          finder.current = current.graphql;
         }
 
         break;

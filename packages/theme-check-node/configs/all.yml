@@ -64,6 +64,12 @@ DuplicateRenderSnippetArguments:
 EmptyBlockContent:
   enabled: true
   severity: 1
+GraphQLCheck:
+  enabled: true
+  severity: 0
+GraphQLVariablesCheck:
+  enabled: true
+  severity: 0
 HardcodedRoutes:
   enabled: true
   severity: 1
@@ -85,13 +91,13 @@ LiquidHTMLSyntaxError:
 MatchingTranslations:
   enabled: true
   severity: 0
+MetadataParamsCheck:
+  enabled: true
+  severity: 0
 MissingAsset:
   enabled: true
   severity: 0
 MissingContentForArguments:
-  enabled: true
-  severity: 1
-MissingRenderSnippetArguments:
   enabled: true
   severity: 1
 MissingTemplate:
@@ -154,9 +160,6 @@ UnrecognizedContentForArguments:
 UnrecognizedRenderSnippetArguments:
   enabled: true
   severity: 1
-UnsupportedDocTag:
-  enabled: true
-  severity: 0
 UnusedAssign:
   enabled: true
   severity: 1

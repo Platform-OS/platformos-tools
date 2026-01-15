@@ -15,6 +15,7 @@ describe('Module: ObjectCompletionProvider', async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
       themeDocset: {
+        graphQL: async () => null,
         filters: async () => [
           {
             parameters: [

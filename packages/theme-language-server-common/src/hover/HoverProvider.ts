@@ -27,16 +27,20 @@ import { GetThemeSettingsSchemaForURI } from '../settings';
 import { LiquidDocTagHoverProvider } from './providers/LiquidDocTagHoverProvider';
 import { ContentForArgumentHoverProvider } from './providers/ContentForArgumentHoverProvider';
 import { ContentForTypeHoverProvider } from './providers/ContentForTypeHoverProvider';
+import { TranslationProvider } from '@platformos/platformos-common';
+import { FindThemeRootURI } from '../../src/internal-types';
 export class HoverProvider {
   private providers: BaseHoverProvider[] = [];
 
   constructor(
     readonly documentManager: DocumentManager,
     readonly themeDocset: ThemeDocset,
+    readonly translationProvider: TranslationProvider,
     readonly getMetafieldDefinitions: (rootUri: string) => Promise<MetafieldDefinitionMap>,
     readonly getTranslationsForURI: GetTranslationsForURI = async () => ({}),
     readonly getSettingsSchemaForURI: GetThemeSettingsSchemaForURI = async () => [],
     readonly getDocDefinitionForURI: GetDocDefinitionForURI = async () => undefined,
+    readonly findThemeRootURI: FindThemeRootURI = async () => null,
   ) {
     const typeSystem = new TypeSystem(
       themeDocset,
@@ -54,7 +58,7 @@ export class HoverProvider {
       new HtmlTagHoverProvider(),
       new HtmlAttributeHoverProvider(),
       new HtmlAttributeValueHoverProvider(),
-      new TranslationHoverProvider(getTranslationsForURI, documentManager),
+      new TranslationHoverProvider(documentManager, translationProvider, findThemeRootURI),
       new RenderSnippetHoverProvider(getDocDefinitionForURI),
       new RenderSnippetParameterHoverProvider(getDocDefinitionForURI),
       new LiquidDocTagHoverProvider(documentManager),

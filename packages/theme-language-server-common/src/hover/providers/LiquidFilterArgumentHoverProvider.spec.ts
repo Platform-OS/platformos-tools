@@ -2,6 +2,8 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
 import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
+import { TranslationProvider } from '@platformos/platformos-common';
+import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 
 describe('Module: LiquidFilterArgumentHoverProvider', async () => {
   let provider: HoverProvider;
@@ -10,6 +12,7 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
     provider = new HoverProvider(
       new DocumentManager(),
       {
+        graphQL: async () => null,
         filters: async () => [
           {
             name: 'image_url',
@@ -32,6 +35,7 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
+      new TranslationProvider(new MockFileSystem({})),
       async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     );
   });
@@ -47,7 +51,7 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
   it('should return the hover description of parameter', async () => {
     await expect(provider).to.hover(
       `{{ foo | image_url: wid█th: 1000 }}`,
-      '### width\nwidth description',
+      '### width\nwidth description\n\n---\n\n[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/filters#width)',
     );
   });
 });

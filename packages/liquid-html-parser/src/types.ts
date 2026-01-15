@@ -38,6 +38,7 @@ export enum NodeTypes {
   LogicalExpression = 'LogicalExpression',
 
   AssignMarkup = 'AssignMarkup',
+  HashAssignMarkup = 'HashAssignMarkup',
   ContentForMarkup = 'ContentForMarkup',
   CycleMarkup = 'CycleMarkup',
   ForMarkup = 'ForMarkup',
@@ -45,6 +46,7 @@ export enum NodeTypes {
   RawMarkup = 'RawMarkup',
   RenderMarkup = 'RenderMarkup',
   FunctionMarkup = 'FunctionMarkup',
+  GraphQLMarkup = 'GraphQLMarkup',
   RenderVariableExpression = 'RenderVariableExpression',
   RenderAliasExpression = 'RenderAliasExpression',
   LiquidDocDescriptionNode = 'LiquidDocDescriptionNode',
@@ -56,6 +58,7 @@ export enum NodeTypes {
 // These are officially supported with special node types
 export enum NamedTags {
   assign = 'assign',
+  hash_assign = 'hash_assign',
   capture = 'capture',
   case = 'case',
   content_for = 'content_for',
@@ -73,6 +76,7 @@ export enum NamedTags {
   paginate = 'paginate',
   render = 'render',
   function = 'function',
+  graphql = 'graphql',
   section = 'section',
   sections = 'sections',
   tablerow = 'tablerow',

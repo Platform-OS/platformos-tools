@@ -6,6 +6,7 @@ import {
   Reference,
   Location,
   Range,
+  GraphQLSourceCode,
 } from '@platformos/theme-check-common';
 import { Program } from 'acorn';
 
@@ -56,6 +57,7 @@ export type ThemeModule =
 export type FileSourceCode =
   | LiquidSourceCode
   | JSONSourceCode
+  | GraphQLSourceCode
   | JsSourceCode
   | CssSourceCode
   | SvgSourceCode

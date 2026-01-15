@@ -1,16 +1,30 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DocumentManager } from '../documents';
 import { DocumentLinksProvider } from './DocumentLinksProvider';
+import { DocumentsLocator, TranslationProvider } from '@platformos/platformos-common';
+import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 
 describe('DocumentLinksProvider', () => {
   let documentManager: DocumentManager;
   let documentLinksProvider: DocumentLinksProvider;
+  let documentsLocator: DocumentsLocator;
+  let fs: MockFileSystem;
   let rootUri: string;
   let uriString: string;
 
   beforeEach(() => {
     documentManager = new DocumentManager();
-    documentLinksProvider = new DocumentLinksProvider(documentManager, async () => rootUri);
+    fs = new MockFileSystem({
+      'path/to/project/app/lib/commands/apply.liquid': 'apply content',
+      'path/to/project/app/views/apply_view.liquid': 'apply view content',
+    });
+    documentsLocator = new DocumentsLocator(fs);
+    documentLinksProvider = new DocumentLinksProvider(
+      documentManager,
+      async () => rootUri,
+      documentsLocator,
+      new TranslationProvider(fs),
+    );
   });
 
   it('should return an empty array for non-LiquidHtml documents', async () => {
@@ -36,27 +50,13 @@ describe('DocumentLinksProvider', () => {
     rootUri = 'file:///path/to/project';
 
     const liquidHtmlContent = `
-      {% render 'snippet1' %}
-      {% include 'snippet2' %}
-      {% section 'header' %}
-      {% echo 'echo.js' | asset_url %}
-      {% assign x = 'assign.css' | asset_url %}
-      {{ 'asset.js' | asset_url }}
-      {% content_for 'block', type: 'block_name' %}
+      {% function a = 'commands/apply' %}
     `;
 
     documentManager.open(uriString, liquidHtmlContent, 1);
 
     const result = await documentLinksProvider.documentLinks(uriString);
-    const expectedUrls = [
-      'file:///path/to/project/snippets/snippet1.liquid',
-      'file:///path/to/project/snippets/snippet2.liquid',
-      'file:///path/to/project/sections/header.liquid',
-      'file:///path/to/project/assets/echo.js',
-      'file:///path/to/project/assets/assign.css',
-      'file:///path/to/project/assets/asset.js',
-      'file:///path/to/project/blocks/block_name.liquid',
-    ];
+    const expectedUrls = ['file:///path/to/project/app/lib/commands/apply.liquid'];
 
     expect(result.length).toBe(expectedUrls.length);
     for (let i = 0; i < expectedUrls.length; i++) {

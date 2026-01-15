@@ -49,6 +49,8 @@ describe('Unit: liquidHtmlGrammar', () => {
         expectMatchSucceeded(`{{ "product" | split: '', }}`).to.be.true;
         expectMatchSucceeded(`{% function _res="product" %}`).to.be.true;
         expectMatchSucceeded(`{% function res = "product", hello: "world" %}`).to.be.true;
+        expectMatchSucceeded(`{% graphql res="graphql" %}`).to.be.true;
+        expectMatchSucceeded(`{% graphql res="graphql", param: "test" %}`).to.be.true;
         expectMatchSucceeded(`
           {% capture variable %}
             value

@@ -16,7 +16,7 @@
     }
   },
   "references": [
-    { "path": "../theme-check-common" }
+    { "path": "../theme-check-common" },
   ]
 }
 

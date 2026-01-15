@@ -2,12 +2,10 @@ import {
   Config as ThemeCheckConfig,
   allChecks,
   recommended as recommendedChecks,
-  AbstractFileSystem,
-  FileStat,
-  FileTuple,
-  FileType,
   SourceCodeType,
 } from '@platformos/theme-check-common';
+
+import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
 
 export * from './types';
 export { visit } from '@platformos/theme-check-common';

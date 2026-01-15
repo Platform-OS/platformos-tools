@@ -1,0 +1,31 @@
+{
+  "name": "@platformos/platformos-common",
+  "version": "1.0.0",
+  "description": "Common library for platfromOS related theme check components",
+  "homepage": "https://github.com/Platform-OS/platformos-tools#readme",
+  "bugs": {
+    "url": "https://github.com/Platform-OS/platformos-tools/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Platform-OS/platformos-tools.git"
+  },
+  "license": "MIT",
+  "author": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "yarn build:ts",
+    "build:ci": "yarn build",
+    "build:ts": "tsc -b tsconfig.build.json",
+    "test": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+   "dependencies": {
+    "js-yaml": "^3.14.1",
+    "vscode-json-languageservice": "^5.3.10",
+    "vscode-uri": "^3.0.7"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
+  }
+}

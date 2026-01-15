@@ -1,4 +1,4 @@
-import { expect, describe, it, beforeEach, afterEach, vi, assert } from 'vitest';
+import { expect, describe, it, beforeEach, afterEach, vi } from 'vitest';
 import { ThemeLiquidDocsManager } from './themeLiquidDocsManager';
 import { downloadResource, Resources } from './themeLiquidDocsDownloader';
 import { noop } from './utils';

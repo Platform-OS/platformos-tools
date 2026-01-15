@@ -1,8 +1,5 @@
-import {
-  AbstractFileSystem,
-  Config,
-  Dependencies as ThemeCheckDependencies,
-} from '@platformos/theme-check-common';
+import { Config, Dependencies as ThemeCheckDependencies } from '@platformos/theme-check-common';
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import { URI } from 'vscode-languageserver';
 import * as rpc from 'vscode-jsonrpc';
 

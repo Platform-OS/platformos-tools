@@ -17,9 +17,9 @@ export function isSectionOrBlockFile(uri: string): boolean {
   return isSectionFile(uri) || isBlockFile(uri);
 }
 
-export function findSchemaNode(ast: LiquidHtmlNode): LiquidRawTag | undefined {
-  const nodes = visit(ast, {
-    LiquidRawTag(node) {
+export async function findSchemaNode(ast: LiquidHtmlNode): Promise<LiquidRawTag | undefined> {
+  const nodes = await visit(ast, {
+    async LiquidRawTag(node) {
       if (node.name === 'schema') {
         return node;
       }

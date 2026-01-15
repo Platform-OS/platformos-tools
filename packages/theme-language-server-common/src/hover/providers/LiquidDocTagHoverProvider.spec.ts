@@ -4,6 +4,8 @@ import { HoverProvider } from '../HoverProvider';
 import { MetafieldDefinitionMap } from '@platformos/theme-check-common';
 import '../../../../theme-check-common/src/test/test-setup';
 import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../../utils/liquidDoc';
+import { TranslationProvider } from '@platformos/platformos-common';
+import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 
 describe('Module: RenderSnippetParameterHoverProvider', async () => {
   let provider: HoverProvider;
@@ -12,12 +14,14 @@ describe('Module: RenderSnippetParameterHoverProvider', async () => {
     provider = new HoverProvider(
       new DocumentManager(),
       {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
+      new TranslationProvider(new MockFileSystem({})),
       async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     );
   });

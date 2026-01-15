@@ -328,6 +328,10 @@ function printNode(
       return [node.name, ' = ', path.call((p: any) => print(p), 'value')];
     }
 
+    case NodeTypes.HashAssignMarkup: {
+      return [node.name, ' = ', path.call((p: any) => print(p), 'value')];
+    }
+
     case NodeTypes.CycleMarkup: {
       const doc: Doc[] = [];
 
@@ -437,6 +441,22 @@ function printNode(
 
     case NodeTypes.FunctionMarkup: {
       const partial = path.call((p: any) => print(p), 'partial');
+      const doc: Doc = [node.name, ' = ', partial];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
+    case NodeTypes.GraphQLMarkup: {
+      const partial = path.call((p: any) => print(p), 'graphql');
       const doc: Doc = [node.name, ' = ', partial];
       if (node.args.length > 0) {
         doc.push(

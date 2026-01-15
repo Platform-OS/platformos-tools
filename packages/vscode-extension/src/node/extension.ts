@@ -1,4 +1,5 @@
-import { FileStat, FileTuple, path as pathUtils } from '@platformos/theme-check-common';
+import { path as pathUtils } from '@platformos/theme-check-common';
+import { FileStat, FileTuple } from '@platformos/platformos-common';
 import * as path from 'node:path';
 import { commands, ExtensionContext, languages, Uri, workspace } from 'vscode';
 import {

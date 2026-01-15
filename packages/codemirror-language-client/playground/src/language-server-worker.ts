@@ -61,6 +61,7 @@ startServer(
   {
     fs: new MainThreadFileSystem(connection),
     themeDocset: {
+      graphQL: async () => null,
       filters: async () => filters,
       tags: async () => tags,
       objects: async () => objects,

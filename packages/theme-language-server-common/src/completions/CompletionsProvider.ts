@@ -102,6 +102,7 @@ export class CompletionsProvider {
       const liquidParams = createLiquidCompletionParams(document, params);
       const promises = this.providers.map((p) => p.completions(liquidParams));
       const results = await Promise.all(promises);
+      this.log(JSON.stringify(results.flat()));
       return results.flat();
     } catch (err) {
       this.log(`[SERVER] CompletionsProvider error: ${err}`);

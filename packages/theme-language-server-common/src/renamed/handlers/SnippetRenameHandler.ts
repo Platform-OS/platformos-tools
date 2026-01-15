@@ -65,8 +65,8 @@ export class SnippetRenameHandler implements BaseRenameHandler {
     for (const sourceCode of liquidSourceCodes) {
       if (sourceCode.ast instanceof Error) continue;
       const textDocument = sourceCode.textDocument;
-      const edits: TextEdit[] = visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
-        LiquidTag(node: LiquidTag) {
+      const edits: TextEdit[] = await visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
+        async LiquidTag(node: LiquidTag) {
           if (node.name !== NamedTags.render && node.name !== NamedTags.include) {
             return;
           }

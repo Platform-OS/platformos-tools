@@ -2,7 +2,7 @@ import { LiquidHtmlNode, NodeTypes as LiquidHtmlNodeTypes } from '@platformos/li
 
 import { Schema, Settings } from './types/schema-prop-factory';
 
-import { AbstractFileSystem, UriString } from './AbstractFileSystem';
+import { AbstractFileSystem, UriString } from '@platformos/platformos-common';
 import { JSONCorrector, StringCorrector } from './fixes';
 
 import {
@@ -18,6 +18,7 @@ import {
 import { JsonValidationSet, ThemeDocset } from './types/theme-liquid-docs';
 import { AppBlockSchema, SectionSchema, ThemeBlockSchema } from './types/theme-schemas';
 import { DocDefinition } from './liquid-doc/liquidDoc';
+import { GraphQLCorrector } from './fixes/correctors/graphql-corrector';
 
 export * from './jsonc/types';
 export * from './types/schema-prop-factory';
@@ -48,28 +49,29 @@ export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
       ast: AST[T] | Error;
     }
   : never;
-
 export enum SourceCodeType {
   JSON = 'JSON',
-  LiquidHtml = 'LiquidHtml'
+  LiquidHtml = 'LiquidHtml',
+  GraphQL = 'GraphQL',
 }
 
 export type LiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml>;
-export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> & PlatformOSFile & {
+export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
+  PlatformOSFile & {
     kind: 'Partial';
   };
 
-export type PageLiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml> & PlatformOSFile & {
+export type PageLiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
+  PlatformOSFile & {
     kind: 'Page';
     route: string;
-};
+  };
 
 export type LiquidCheckDefinition<S extends Schema = Schema> = CheckDefinition<
   SourceCodeType.LiquidHtml,
   S
 >;
 export type LiquidCheck = Check<SourceCodeType.LiquidHtml>;
-
 
 export { LiquidHtmlNode, LiquidHtmlNodeTypes };
 
@@ -86,11 +88,17 @@ export interface PlatformOSFile {
   path: string;
 }
 
+export interface GraphQLDocumentNode {
+  type: 'Document';
+  content: string;
+}
+
 // AST[SourceCodeType.LiquidHtml] maps to LiquidHtmlNode
 export type AST = {
   [T in SourceCodeType]: {
     [SourceCodeType.JSON]: JSONNode;
     [SourceCodeType.LiquidHtml]: LiquidHtmlNode;
+    [SourceCodeType.GraphQL]: GraphQLDocumentNode;
   }[T];
 };
 
@@ -98,6 +106,7 @@ export type NodeTypes = {
   [T in SourceCodeType]: {
     [SourceCodeType.JSON]: JSONNodeTypes;
     [SourceCodeType.LiquidHtml]: LiquidHtmlNodeTypes;
+    [SourceCodeType.GraphQL]: 'Document';
   }[T];
 };
 
@@ -118,6 +127,13 @@ export type CheckSettings = {
 } & {
   [key in string]: any;
 };
+
+export type GraphQLSourceCode = SourceCode<SourceCodeType.GraphQL>;
+export type GraphQLCheck = Check<SourceCodeType.GraphQL>;
+export type GraphQLCheckDefinition<S extends Schema = Schema> = CheckDefinition<
+  SourceCodeType.GraphQL,
+  S
+>;
 
 export interface Config {
   // I know, it's `context` in the config and `Mode` in the code...
@@ -438,13 +454,14 @@ type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeTyp
   : never;
 
 export type Context<T extends SourceCodeType, S extends Schema = Schema> = T extends SourceCodeType
-  ? StaticContextProperties<T> & AugmentedDependencies & { settings: Settings<S> }
+  ? StaticContextProperties<T> & AugmentedDependencies & { settings: Settings<S>; config: Config }
   : never;
 
 export type Corrector<T extends SourceCodeType> = T extends SourceCodeType
   ? {
       [SourceCodeType.JSON]: JSONCorrector;
       [SourceCodeType.LiquidHtml]: StringCorrector;
+      [SourceCodeType.GraphQL]: GraphQLCorrector;
     }[T]
   : never;
 
@@ -458,6 +475,7 @@ export type Fixer<T extends SourceCodeType> = T extends SourceCodeType
   : never;
 export type LiquidHtmlFixer = Fixer<SourceCodeType.LiquidHtml>;
 export type JSONFixer = Fixer<SourceCodeType.JSON>;
+export type GraphQLFixer = Fixer<SourceCodeType.GraphQL>;
 
 /**
  * A data representation of a collection of changes to a document. They all

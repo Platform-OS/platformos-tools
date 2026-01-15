@@ -326,8 +326,8 @@ export class BlockRenameHandler implements BaseRenameHandler {
       const { textDocument, ast } = sourceCode;
       if (isError(ast)) return null;
 
-      const edits = visit<SourceCodeType.LiquidHtml, TextEdit>(ast, {
-        LiquidTag(node) {
+      const edits = await visit<SourceCodeType.LiquidHtml, TextEdit>(ast, {
+        async LiquidTag(node) {
           if (node.name !== 'content_for') return;
           if (typeof node.markup === 'string') return;
           if (node.markup.contentForType.value !== 'block') return;

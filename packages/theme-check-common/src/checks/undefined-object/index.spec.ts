@@ -134,6 +134,17 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'c' used."]);
   });
 
+  it('should not report an offense for function result variables', async () => {
+    const sourceCode = `
+      {% function a = 'test' %}
+      {{ a }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
   it('should report an offense when object is defined in a for loop but used outside of the scope (in scenarios where the same variable has multiple scopes in the file)', async () => {
     const sourceCode = `
       {% for c in collections %}
@@ -243,16 +254,6 @@ describe('Module: UndefinedObject', () => {
       const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
       expect(offenses).toHaveLength(0);
     }
-  });
-
-  it('should not report an offense when object is undefined in a "snippet" file with no presense of doc tags', async () => {
-    const sourceCode = `
-      {{ my_var }}
-    `;
-
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'snippets/file.liquid');
-
-    expect(offenses).toHaveLength(0);
   });
 
   it('should report an offense when object is undefined in a "snippet" file with doc tags that are missing the associated param', async () => {

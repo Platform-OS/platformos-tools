@@ -1,11 +1,11 @@
 import {
-  AbstractFileSystem,
   path,
   recursiveReadDirectory,
   SectionSchema,
   SourceCodeType,
   ThemeBlockSchema,
 } from '@platformos/theme-check-common';
+import { AbstractFileSystem } from '@platformos/platformos-common';
 import {
   buildThemeGraph,
   getWebComponentMap,

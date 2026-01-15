@@ -2,6 +2,8 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
 import { MetafieldDefinitionMap, ObjectEntry } from '@platformos/theme-check-common';
+import { TranslationProvider } from '@platformos/platformos-common';
+import { MockFileSystem } from '@platformos/theme-check-common/src/test';
 
 describe('Module: LiquidObjectAttributeHoverProvider', async () => {
   let provider: HoverProvider;
@@ -50,12 +52,14 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
     provider = new HoverProvider(
       new DocumentManager(),
       {
+        graphQL: async () => null,
         filters: async () => [],
         objects: async () => _objects,
         liquidDrops: async () => _objects,
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
+      new TranslationProvider(new MockFileSystem({})),
       async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     );
   });

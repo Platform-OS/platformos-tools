@@ -1,28 +1,16 @@
-import { UriString } from './AbstractFileSystem';
+import { UriString } from '@platformos/platformos-common';
 import * as path from './path';
 
 type FileExists = (uri: string) => Promise<boolean>;
 
 async function isRoot(dir: UriString, fileExists: FileExists) {
   return or(
-    fileExists(path.join(dir, 'shopify.extension.toml')), // for theme-app-extensions
-    fileExists(path.join(dir, '.theme-check.yml')),
-
-    // Maybe the root of the workspace has an assets + snippets directory, we'll accept that
+    // .pos config file and app directory exists
     and(
+      fileExists(path.join(dir, '.pos')),
+      fileExists(path.join(dir, 'app')),
+      fileExists(path.join(dir, 'modules')),
       fileExists(path.join(dir, '.git')),
-      fileExists(path.join(dir, 'assets')),
-      fileExists(path.join(dir, 'snippets')),
-    ),
-
-    // zip files and TAEs might not have config files, but they should have an
-    // assets & snippets directory but in case they do specify a .theme-check.yml a
-    // couple of directories up, we should respect that
-    and(
-      fileExists(path.join(dir, 'assets')),
-      fileExists(path.join(dir, 'snippets')),
-      not(fileExists(path.join(path.dirname(dir), '.theme-check.yml'))),
-      not(fileExists(path.join(path.dirname(path.dirname(dir)), '.theme-check.yml'))),
     ),
   );
 }

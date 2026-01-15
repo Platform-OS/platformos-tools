@@ -18,6 +18,9 @@
       "@platformos/theme-check-common": [
         "../theme-check-common/src"
       ],
+      "@platformos/platformos-common": [
+        "../platformos-common/src"
+      ],
     }
   },
   "references": [
@@ -26,6 +29,9 @@
     },
     {
       "path": "../liquid-html-parser"
+    },
+    {
+      "path": "../platformos-common"
     }
   ]
 }

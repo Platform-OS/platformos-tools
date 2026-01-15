@@ -7,11 +7,14 @@ import { URI, Utils } from 'vscode-uri';
 import { visit, Visitor } from '@platformos/theme-check-common';
 import { DocumentManager } from '../documents';
 import { FindThemeRootURI } from '../internal-types';
+import { DocumentsLocator, TranslationProvider } from '@platformos/platformos-common';
 
 export class DocumentLinksProvider {
   constructor(
     private documentManager: DocumentManager,
     private findThemeRootURI: FindThemeRootURI,
+    private documentsLocator: DocumentsLocator,
+    private translationProvider: TranslationProvider,
   ) {}
 
   async documentLinks(uriString: string): Promise<DocumentLink[]> {
@@ -29,7 +32,12 @@ export class DocumentLinksProvider {
       return [];
     }
 
-    const visitor = documentLinksVisitor(sourceCode.textDocument, URI.parse(rootUri));
+    const visitor = documentLinksVisitor(
+      sourceCode.textDocument,
+      URI.parse(rootUri),
+      this.documentsLocator,
+      this.translationProvider,
+    );
     return visit(sourceCode.ast, visitor);
   }
 }
@@ -37,11 +45,11 @@ export class DocumentLinksProvider {
 function documentLinksVisitor(
   textDocument: TextDocument,
   root: URI,
+  documentsLocator: DocumentsLocator,
+  translationProvider: TranslationProvider,
 ): Visitor<SourceCodeType.LiquidHtml, DocumentLink> {
   return {
-    LiquidTag(node) {
-      // {% render 'snippet' %}
-      // {% include 'snippet' %}
+    async LiquidTag(node) {
       if (
         (node.name === 'render' || node.name === 'include') &&
         typeof node.markup !== 'string' &&
@@ -50,50 +58,55 @@ function documentLinksVisitor(
         const snippet = node.markup.snippet;
         return DocumentLink.create(
           range(textDocument, snippet),
-          Utils.resolvePath(root, 'snippets', snippet.value + '.liquid').toString(),
+          await documentsLocator.locate(root, node.name, snippet.value),
         );
       }
 
-      // {% section 'section' %}
       if (
-        node.name === 'section' &&
+        node.name === 'function' &&
         typeof node.markup !== 'string' &&
-        isLiquidString(node.markup)
+        isLiquidString(node.markup.partial)
       ) {
-        const sectionName = node.markup;
+        const snippet = node.markup.partial;
         return DocumentLink.create(
-          range(textDocument, sectionName),
-          Utils.resolvePath(root, 'sections', sectionName.value + '.liquid').toString(),
+          range(textDocument, snippet),
+          await documentsLocator.locate(root, node.name, snippet.value),
         );
       }
 
-      // {% content_for 'block', type: 'block_name' %}
-      if (node.name === NamedTags.content_for && typeof node.markup !== 'string') {
-        const typeArg = node.markup.args.find((arg) => arg.name === 'type');
-        if (typeArg && typeArg.value.type === 'String') {
-          return DocumentLink.create(
-            range(textDocument, typeArg.value),
-            Utils.resolvePath(root, 'blocks', typeArg.value.value + '.liquid').toString(),
-          );
-        }
+      if (
+        node.name === 'graphql' &&
+        typeof node.markup !== 'string' &&
+        isLiquidString(node.markup.graphql)
+      ) {
+        const snippet = node.markup.graphql;
+        return DocumentLink.create(
+          range(textDocument, snippet),
+          await documentsLocator.locate(root, node.name, snippet.value),
+        );
       }
     },
-
-    // {{ 'theme.js' | asset_url }}
-    LiquidVariable(node) {
-      if (node.filters.length === 0 || node.filters[0].name !== 'asset_url') {
-        return;
-      }
-
+    async LiquidVariable(node) {
       if (!isLiquidString(node.expression)) {
         return;
       }
 
-      const expression = node.expression;
-      return DocumentLink.create(
-        range(textDocument, node.expression),
-        Utils.resolvePath(root, 'assets', expression.value).toString(),
-      );
+      if (node.filters.some(({ name }) => ['t', 'translate'].includes(name))) {
+        const [filePath] = await translationProvider.findTranslationFile(
+          root,
+          node.expression.value,
+          'en',
+        );
+        return DocumentLink.create(range(textDocument, node), filePath);
+      }
+
+      if (node.filters.length > 0 && node.filters[0].name === 'asset_url') {
+        const expression = node.expression;
+        return DocumentLink.create(
+          range(textDocument, node.expression),
+          await documentsLocator.locate(root, 'asset', expression.value),
+        );
+      }
     },
   };
 }

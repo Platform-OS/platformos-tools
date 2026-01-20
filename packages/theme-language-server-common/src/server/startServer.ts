@@ -13,11 +13,10 @@ import {
   MetafieldDefinitionMap,
   parseJSON,
   path,
-  recursiveReadDirectory,
   SourceCodeType,
   UriString,
 } from '@platformos/theme-check-common';
-import { FileTuple, TranslationProvider } from '@platformos/platformos-common';
+import { TranslationProvider } from '@platformos/platformos-common';
 import {
   Connection,
   FileChangeType,
@@ -31,7 +30,7 @@ import { ClientCapabilities } from '../ClientCapabilities';
 import { CodeActionKinds, CodeActionsProvider } from '../codeActions';
 import { Commands, ExecuteCommandProvider } from '../commands';
 import { CompletionsProvider } from '../completions';
-import { GetSnippetNamesForURI } from '../completions/providers/RenderSnippetCompletionProvider';
+import { GetPartialNamesForURI } from '../completions/providers/PartialCompletionProvider';
 import { CSSLanguageService } from '../css/CSSLanguageService';
 import { DefinitionProvider } from '../definitions/DefinitionProvider';
 import { DiagnosticsManager, makeRunChecks } from '../diagnostics';
@@ -53,13 +52,14 @@ import {
   ThemeGraphRootRequest,
 } from '../types';
 import { debounce } from '../utils';
-import { snippetName } from '../utils/uri';
 import { VERSION } from '../version';
 import { CachedFileSystem } from './CachedFileSystem';
 import { Configuration } from './Configuration';
 import { safe } from './safe';
 import { ThemeGraphManager } from './ThemeGraphManager';
 import { DocumentsLocator } from '@platformos/platformos-common';
+import { relative } from '@platformos/theme-check-common/src/path';
+import { URI } from 'vscode-uri';
 
 const defaultLogger = () => {};
 
@@ -239,13 +239,11 @@ export function startServer(
     return file.getLiquidDoc();
   };
 
-  const snippetFilter = ([uri]: FileTuple) => /\.liquid$/.test(uri) && /snippets/.test(uri);
-  const getSnippetNamesForURI: GetSnippetNamesForURI = safe(async (uri: string) => {
+  const getPartialNamesForURI: GetPartialNamesForURI = safe(async (uri: string, partial: string, type: string|undefined) => {
     const rootUri = await findThemeRootURI(uri);
     if (!rootUri) return [];
 
-    const snippetUris = await recursiveReadDirectory(fs, rootUri, snippetFilter);
-    return snippetUris.map(snippetName);
+    return await documentsLocator.list(URI.parse(rootUri), type, partial)
   }, []);
 
   const getThemeSettingsSchemaForURI = safe(async (uri: string) => {
@@ -339,7 +337,7 @@ export function startServer(
     documentManager,
     themeDocset,
     getTranslationsForURI,
-    getSnippetNamesForURI,
+    getPartialNamesForURI,
     getThemeSettingsSchemaForURI,
     log,
     getThemeBlockNames,

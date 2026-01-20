@@ -10,7 +10,7 @@ export { LiquidTagsCompletionProvider } from './LiquidTagsCompletionProvider';
 export { ObjectAttributeCompletionProvider } from './ObjectAttributeCompletionProvider';
 export { ObjectCompletionProvider } from './ObjectCompletionProvider';
 export { TranslationCompletionProvider } from './TranslationCompletionProvider';
-export { RenderSnippetCompletionProvider } from './RenderSnippetCompletionProvider';
+export { PartialCompletionProvider } from './PartialCompletionProvider';
 export {
   GetSnippetNamesForURI,
   RenderSnippetParameterCompletionProvider,

@@ -16,7 +16,6 @@ import {
   ContentForParameterCompletionProvider,
   FilterCompletionProvider,
   FilterNamedParameterCompletionProvider,
-  GetSnippetNamesForURI,
   HtmlAttributeCompletionProvider,
   HtmlAttributeValueCompletionProvider,
   HtmlTagCompletionProvider,
@@ -26,16 +25,17 @@ import {
   ObjectAttributeCompletionProvider,
   ObjectCompletionProvider,
   Provider,
-  RenderSnippetCompletionProvider,
+  PartialCompletionProvider,
   RenderSnippetParameterCompletionProvider,
   TranslationCompletionProvider,
 } from './providers';
+import { GetPartialNamesForURI } from './providers/PartialCompletionProvider';
 
 export interface CompletionProviderDependencies {
   documentManager: DocumentManager;
   themeDocset: ThemeDocset;
   getTranslationsForURI?: GetTranslationsForURI;
-  getSnippetNamesForURI?: GetSnippetNamesForURI;
+  getPartialNamesForURI?: GetPartialNamesForURI;
   getThemeSettingsSchemaForURI?: GetThemeSettingsSchemaForURI;
   getMetafieldDefinitions: (rootUri: string) => Promise<MetafieldDefinitionMap>;
   getDocDefinitionForURI?: GetDocDefinitionForURI;
@@ -54,7 +54,7 @@ export class CompletionsProvider {
     themeDocset,
     getMetafieldDefinitions,
     getTranslationsForURI = async () => ({}),
-    getSnippetNamesForURI = async () => [],
+    getPartialNamesForURI = async () => [],
     getThemeSettingsSchemaForURI = async () => [],
     getDocDefinitionForURI = async (uri, _relativePath) => ({ uri }),
     getThemeBlockNames = async (_rootUri: string, _includePrivate: boolean) => [],
@@ -81,7 +81,7 @@ export class CompletionsProvider {
       new ObjectAttributeCompletionProvider(typeSystem, getThemeSettingsSchemaForURI),
       new FilterCompletionProvider(typeSystem),
       new TranslationCompletionProvider(documentManager, getTranslationsForURI),
-      new RenderSnippetCompletionProvider(getSnippetNamesForURI),
+      new PartialCompletionProvider(getPartialNamesForURI),
       new RenderSnippetParameterCompletionProvider(getDocDefinitionForURI),
       new FilterNamedParameterCompletionProvider(themeDocset),
       new LiquidDocTagCompletionProvider(),

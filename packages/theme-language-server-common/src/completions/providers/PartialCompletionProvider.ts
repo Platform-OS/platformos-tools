@@ -1,12 +1,12 @@
-import { NodeTypes } from '@platformos/liquid-html-parser';
+import { LiquidTag, NodeTypes } from '@platformos/liquid-html-parser';
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver';
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 
-export type GetSnippetNamesForURI = (uri: string) => Promise<string[]>;
+export type GetPartialNamesForURI = (uri: string, partial: string, tag: string|undefined) => Promise<string[]>;
 
-export class RenderSnippetCompletionProvider implements Provider {
-  constructor(private readonly getSnippetNamesForURI: GetSnippetNamesForURI = async () => []) {}
+export class PartialCompletionProvider implements Provider {
+  constructor(private readonly getPartialNamesForURI: GetPartialNamesForURI = async () => []) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
@@ -18,23 +18,22 @@ export class RenderSnippetCompletionProvider implements Provider {
       !node ||
       !parentNode ||
       node.type !== NodeTypes.String ||
-      parentNode.type !== NodeTypes.RenderMarkup
+      ![NodeTypes.RenderMarkup, NodeTypes.GraphQLMarkup, NodeTypes.FunctionMarkup].includes(parentNode.type)
     ) {
       return [];
     }
 
-    const options = await this.getSnippetNamesForURI(params.textDocument.uri);
     const partial = node.value;
+    const options = await this.getPartialNamesForURI(params.textDocument.uri, partial, (ancestors.at(-2) as LiquidTag)?.name || undefined);
 
     return options
-      .filter((option) => option.startsWith(partial))
       .map(
         (option: string): CompletionItem => ({
           label: option,
           kind: CompletionItemKind.Snippet,
           documentation: {
             kind: 'markdown',
-            value: `snippets/${option}.liquid`,
+            value: option,
           },
         }),
       );

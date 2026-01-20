@@ -27,4 +27,18 @@ describe('Module: TranslationKeyExists', () => {
 
     expect(offenses).to.have.length(1);
   });
+
+  it('should report offense when specific locale file does not exist', async () => {
+    const offenses = await check(
+      {
+        'app/translations/en/general.yml': 'en:\n  general:\n    hello: Hello',
+        'code.liquid': '{{"missing.key" | t}}',
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.include('missing.key');
+    expect(offenses[0].message).to.include('does not have a matching translation entry');
+  });
 });

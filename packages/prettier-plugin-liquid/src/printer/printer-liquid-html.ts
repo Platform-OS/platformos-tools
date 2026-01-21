@@ -471,6 +471,21 @@ function printNode(
       return doc;
     }
 
+    case NodeTypes.GraphQLInlineMarkup: {
+      const doc: Doc = [node.name];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
     case NodeTypes.RenderVariableExpression: {
       return [node.kind, ' ', path.call((p: any) => print(p), 'name')];
     }

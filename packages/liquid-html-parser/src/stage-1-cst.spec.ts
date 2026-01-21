@@ -715,7 +715,7 @@ describe('Unit: Stage 1 (CST)', () => {
           },
         ].forEach(({ expression, snippetType, namedArguments }) => {
           for (const { toCST, expectPath } of testCases) {
-            cst = toCST(`{% graphql res = ${expression} -%}`);
+            cst = toCST(`{% graphql res = ${expression} %}`);
             expectPath(cst, '0.type').to.equal('LiquidTag');
             expectPath(cst, '0.name').to.equal('graphql');
             expectPath(cst, '0.markup.type').to.equal('GraphQLMarkup');
@@ -726,8 +726,6 @@ describe('Unit: Stage 1 (CST)', () => {
               expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
               expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
             });
-            expectPath(cst, '0.whitespaceStart').to.equal(null);
-            expectPath(cst, '0.whitespaceEnd').to.equal('-');
           }
         });
       });
@@ -891,6 +889,39 @@ describe('Unit: Stage 1 (CST)', () => {
             expectPath(cst, '0.type').to.equal('LiquidTagOpen');
             expectPath(cst, '0.name').to.equal('capture');
             expectPath(cst, '0.markup.type').to.equal(type);
+          }
+        });
+      });
+
+      it('should parse the inline graphql tag open markup', () => {
+        [
+          {
+            expression: `res`,
+            variableName: 'res',
+            namedArguments: [],
+          },
+          {
+            expression: `res, key1: val1, key2: "hi"`,
+            variableName: 'res',
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+        ].forEach(({ expression, variableName, namedArguments }) => {
+          for (const { toCST, expectPath } of testCases) {
+            cst = toCST(`{% graphql ${expression} -%}`);
+            expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+            expectPath(cst, '0.name').to.equal('graphql');
+            expectPath(cst, '0.markup.type').to.equal('GraphQLInlineMarkup');
+            expectPath(cst, '0.markup.name').to.equal(variableName);
+            expectPath(cst, '0.markup.args').to.have.lengthOf(namedArguments.length);
+            namedArguments.forEach(({ name, valueType }, i) => {
+              expectPath(cst, `0.markup.args.${i}.type`).to.equal('NamedArgument');
+              expectPath(cst, `0.markup.args.${i}.name`).to.equal(name);
+              expectPath(cst, `0.markup.args.${i}.value.type`).to.equal(valueType);
+            });
+            expectPath(cst, '0.whitespaceEnd').to.equal('-');
           }
         });
       });

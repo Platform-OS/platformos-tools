@@ -47,6 +47,7 @@ export enum NodeTypes {
   RenderMarkup = 'RenderMarkup',
   FunctionMarkup = 'FunctionMarkup',
   GraphQLMarkup = 'GraphQLMarkup',
+  GraphQLInlineMarkup = 'GraphQLInlineMarkup',
   RenderVariableExpression = 'RenderVariableExpression',
   RenderAliasExpression = 'RenderAliasExpression',
   LiquidDocDescriptionNode = 'LiquidDocDescriptionNode',

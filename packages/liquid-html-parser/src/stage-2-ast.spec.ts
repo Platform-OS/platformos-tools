@@ -605,7 +605,7 @@ describe('Unit: Stage 2 (AST)', () => {
           },
         ].forEach(({ expression, partialType, namedArguments }) => {
           for (const { toAST, expectPath, expectPosition } of testCases) {
-            ast = toAST(`{% graphql res = ${expression} -%}`);
+            ast = toAST(`{% graphql res = ${expression} %}`);
             expectPath(ast, 'children.0.type').to.equal('LiquidTag');
             expectPath(ast, 'children.0.name').to.equal('graphql');
             expectPath(ast, 'children.0.markup.type').to.equal('GraphQLMarkup');
@@ -618,8 +618,48 @@ describe('Unit: Stage 2 (AST)', () => {
               expectPosition(ast, `children.0.markup.args.${i}`);
               expectPosition(ast, `children.0.markup.args.${i}.value`);
             });
+            expectPosition(ast, 'children.0');
+            expectPosition(ast, 'children.0.markup');
+          }
+        });
+      });
+
+      it('should parse inline graphql tags', () => {
+        [
+          {
+            expression: `res`,
+            variableName: 'res',
+            namedArguments: [],
+          },
+          {
+            expression: `res, key1: val1, key2: "hi"`,
+            variableName: 'res',
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+        ].forEach(({ expression, variableName, namedArguments }) => {
+          for (const { toAST, expectPath, expectPosition } of testCases) {
+            ast = toAST(`{% graphql ${expression} %}query { test }{% endgraphql %}`);
+            expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+            expectPath(ast, 'children.0.name').to.equal('graphql');
+            expectPath(ast, 'children.0.markup.type').to.equal('GraphQLInlineMarkup');
+            expectPath(ast, 'children.0.markup.name').to.equal(variableName);
+            expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
+            namedArguments.forEach(({ name, valueType }, i) => {
+              expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
+              expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
+              expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
+              expectPosition(ast, `children.0.markup.args.${i}`);
+              expectPosition(ast, `children.0.markup.args.${i}.value`);
+            });
+            // Inline graphql is a block tag with children
+            expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+            expectPath(ast, 'children.0.children.0.type').to.equal('TextNode');
+            expectPath(ast, 'children.0.children.0.value').to.equal('query { test }');
             expectPath(ast, 'children.0.whitespaceStart').to.equal('');
-            expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
+            expectPath(ast, 'children.0.whitespaceEnd').to.equal('');
             expectPosition(ast, 'children.0');
             expectPosition(ast, 'children.0.markup');
           }

@@ -413,6 +413,13 @@ function findCurrentNode(
         break;
       }
 
+      case NodeTypes.GraphQLInlineMarkup: {
+        if (isNotEmpty(current.args)) {
+          finder.current = last(current.args);
+        }
+        break;
+      }
+
       case NodeTypes.RenderVariableExpression: {
         finder.current = current.name;
         break;

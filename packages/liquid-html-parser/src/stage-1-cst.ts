@@ -84,6 +84,7 @@ export enum ConcreteNodeTypes {
   RenderMarkup = 'RenderMarkup',
   FunctionMarkup = 'FunctionMarkup',
   GraphQLMarkup = 'GraphQLMarkup',
+  GraphQLInlineMarkup = 'GraphQLInlineMarkup',
   PaginateMarkup = 'PaginateMarkup',
   RenderVariableExpression = 'RenderVariableExpression',
   RenderAliasExpression = 'RenderAliasExpression',
@@ -240,6 +241,7 @@ export type ConcreteLiquidTagOpen = ConcreteLiquidTagOpenBaseCase | ConcreteLiqu
 export type ConcreteLiquidTagOpenNamed =
   | ConcreteLiquidTagOpenCase
   | ConcreteLiquidTagOpenCapture
+  | ConcreteLiquidTagOpenGraphQL
   | ConcreteLiquidTagOpenIf
   | ConcreteLiquidTagOpenUnless
   | ConcreteLiquidTagOpenForm
@@ -260,6 +262,8 @@ export interface ConcreteLiquidTagOpenCapture
 
 export interface ConcreteLiquidTagOpenCase
   extends ConcreteLiquidTagOpenNode<NamedTags.case, ConcreteLiquidExpression> {}
+export interface ConcreteLiquidTagOpenGraphQL
+  extends ConcreteLiquidTagOpenNode<NamedTags.graphql, ConcreteLiquidTagGraphQLInlineMarkup> {}
 export interface ConcreteLiquidTagWhen
   extends ConcreteLiquidTagNode<NamedTags.when, ConcreteLiquidExpression[]> {}
 
@@ -421,6 +425,12 @@ export interface ConcreteLiquidTagGraphQLMarkup
   name: string;
   graphql: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagGraphQLInlineMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.GraphQLInlineMarkup> {
+  name: string;
+  args: ConcreteLiquidNamedArgument[];
 }
 
 export interface ConcreteRenderVariableExpression
@@ -781,6 +791,7 @@ function toCST<T>(
     liquidTagOpenForm: 0,
     liquidTagOpenFormMarkup: 0,
     liquidTagOpenFor: 0,
+    liquidTagOpenGraphQL: 0,
     liquidTagOpenForMarkup: {
       type: ConcreteNodeTypes.ForMarkup,
       variableName: 0,
@@ -952,6 +963,14 @@ function toCST<T>(
       name: 0,
       graphql: 4,
       functionArguments: 5,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagGraphQLInlineMarkup: {
+      type: ConcreteNodeTypes.GraphQLInlineMarkup,
+      name: 0,
+      args: 1,
       locStart,
       locEnd,
       source,

@@ -61,6 +61,7 @@ import {
   ConcreteLiquidTagRenderMarkup,
   ConcreteLiquidTagFunctionMarkup,
   ConcreteLiquidTagGraphQLMarkup,
+  ConcreteLiquidTagGraphQLInlineMarkup,
   ConcreteRenderVariableExpression,
   ConcreteRenderAliasExpression,
   ConcreteLiquidTagOpenNamed,
@@ -110,6 +111,7 @@ export type LiquidHtmlNode =
   | RenderMarkup
   | FunctionMarkup
   | GraphQLMarkup
+  | GraphQLInlineMarkup
   | PaginateMarkup
   | RawMarkup
   | RenderVariableExpression
@@ -398,7 +400,8 @@ export interface LiquidTagRender extends LiquidTagNode<NamedTags.render, RenderM
 
 export interface LiquidTagFunction extends LiquidTagNode<NamedTags.function, FunctionMarkup> {}
 
-export interface LiquidTagGraphQL extends LiquidTagNode<NamedTags.graphql, GraphQLMarkup> {}
+export interface LiquidTagGraphQL
+  extends LiquidTagNode<NamedTags.graphql, GraphQLMarkup | GraphQLInlineMarkup> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#include */
 export interface LiquidTagInclude extends LiquidTagNode<NamedTags.include, RenderMarkup> {}
@@ -462,16 +465,31 @@ export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
   args: LiquidNamedArgument[];
 }
 
+/** {% graphql res = 'path/to/graphql/file', [...namedArguments] %} (file-based) */
 export interface GraphQLMarkup extends ASTNode<NodeTypes.GraphQLMarkup> {
-  /** {% render res = snippet %} */
+  /** {% graphql res = snippet %} */
   name: string;
   graphql: LiquidString | LiquidVariableLookup;
   /**
    * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
    * because the NamedArgument isn't fully typed out.
-   * E.g. {% function res = 'partial', arg1: value1, arg2█ %}
+   * E.g. {% graphql res = 'file', arg1: value1, arg2█ %}
    *
-   * @example {% function res = 'partial', arg1: value1, arg2: value2 %}
+   * @example {% graphql res = 'file', arg1: value1, arg2: value2 %}
+   */
+  args: LiquidNamedArgument[];
+}
+
+/** {% graphql res, [...namedArguments] %}...{% endgraphql %} (inline) */
+export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMarkup> {
+  /** {% graphql res %} */
+  name: string;
+  /**
+   * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
+   * because the NamedArgument isn't fully typed out.
+   * E.g. {% graphql res, arg1: value1, arg2█ %}
+   *
+   * @example {% graphql res, arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
 }
@@ -1631,6 +1649,15 @@ function toNamedLiquidTag(
     }
 
     case NamedTags.graphql: {
+      // Handle both file-based and inline syntax
+      if (node.markup.type === ConcreteNodeTypes.GraphQLInlineMarkup) {
+        return {
+          ...liquidTagBaseAttributes(node),
+          name: node.name,
+          markup: toGraphQLInlineMarkup(node.markup),
+          children: [],
+        };
+      }
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
@@ -1986,6 +2013,24 @@ function toGraphQLMarkup(node: ConcreteLiquidTagGraphQLMarkup): GraphQLMarkup {
      * but this is the compromise we're making to get completions to work.
      */
     args: node.functionArguments.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toGraphQLInlineMarkup(node: ConcreteLiquidTagGraphQLInlineMarkup): GraphQLInlineMarkup {
+  return {
+    name: node.name,
+    type: NodeTypes.GraphQLInlineMarkup,
+    /**
+     * When we're in completion mode we won't necessarily have valid named
+     * arguments so we need to call toLiquidArgument instead of toNamedArgument.
+     * We cast using `as` so that this doesn't affect the type system used in
+     * other areas (like theme check) for a scenario that only occurs in
+     * completion mode. This means that our types are *wrong* in completion mode
+     * but this is the compromise we're making to get completions to work.
+     */
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,
   };

@@ -77,6 +77,7 @@ function documentLinksVisitor(
       if (
         node.name === 'graphql' &&
         typeof node.markup !== 'string' &&
+        'graphql' in node.markup &&
         isLiquidString(node.markup.graphql)
       ) {
         const snippet = node.markup.graphql;

@@ -77,10 +77,15 @@ Liquid <: Helpers {
     | liquidTagOpenCapture
     | liquidTagOpenForm
     | liquidTagOpenFor
+    | liquidTagOpenGraphQL
     | liquidTagOpenTablerow
     | liquidTagOpenIf
     | liquidTagOpenPaginate
     | liquidTagOpenUnless
+
+  liquidTagOpenGraphQL = liquidTagOpenRule<"graphql", liquidTagGraphQLInlineMarkup>
+  // Use negative lookahead to exclude file-based syntax (with "=")
+  liquidTagGraphQLInlineMarkup = variableSegment ~(space* "=") renderArguments
 
   liquidTagOpen =
     | liquidTagOpenStrict
@@ -162,7 +167,19 @@ Liquid <: Helpers {
   renderVariableExpression = space+ ("for" | "with") space+ liquidExpression<delimTag>
   renderAliasExpression = space+ "as" space+ variableSegment
 
-  liquidTagOpenBaseCase = liquidTagOpenRule<blockName, tagMarkup>
+  // Exclude graphql from base case since it has special handling via liquidTagOpenGraphQL and liquidTagGraphQL
+  liquidTagOpenBaseCase = liquidTagOpenRule<blockNameNotGraphql, tagMarkup>
+  blockNameNotGraphql =
+    ( "form"
+    | "paginate"
+    | "capture"
+    | "case"
+    | "for"
+    | "ifchanged"
+    | "if"
+    | "unless"
+    | "tablerow"
+    ) endOfIdentifier
 
   liquidTagOpenForm = liquidTagOpenRule<"form", liquidTagOpenFormMarkup>
   liquidTagOpenFormMarkup = arguments<delimTag> (space* ",")? space*
@@ -331,6 +348,7 @@ Liquid <: Helpers {
     | "capture"
     | "case"
     | "for"
+    | "graphql"
     | "ifchanged"
     | "if"
     | "unless"

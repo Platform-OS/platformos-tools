@@ -981,6 +981,262 @@ describe('Unit: Stage 2 (AST)', () => {
         expectPosition(ast, 'children.0');
       }
     });
+
+    // platformOS tags tests
+    describe('Case: platformOS Tags', () => {
+      it('should parse the background tag (file-based)', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% background job_id = 'example_partial', delay: 0.1, max_attempts: 3 %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('background');
+          expectPath(ast, 'children.0.markup.type').to.equal('BackgroundMarkup');
+          expectPath(ast, 'children.0.markup.jobId').to.equal('job_id');
+          expectPath(ast, 'children.0.markup.partial.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the inline background tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% background priority: 'low' %}{% log data %}{% endbackground %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('background');
+          expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the cache tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% cache 'my-key', expire: 20 %}<ul>items</ul>{% endcache %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('cache');
+          expectPath(ast, 'children.0.markup.type').to.equal('CacheMarkup');
+          expectPath(ast, 'children.0.markup.key.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the parse_json tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% parse_json car %}{ "type": "SUV" }{% endparse_json %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('parse_json');
+          expectPath(ast, 'children.0.markup.type').to.equal('VariableLookup');
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the try/catch tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% try %}content{% catch err %}{% log err %}{% endtry %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('try');
+          // try has branches like if/case
+          expectPath(ast, 'children.0.children').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.children.0.type').to.equal('LiquidBranch');
+          expectPath(ast, 'children.0.children.0.name').to.equal(null);
+          expectPath(ast, 'children.0.children.1.type').to.equal('LiquidBranch');
+          expectPath(ast, 'children.0.children.1.name').to.equal('catch');
+          expectPath(ast, 'children.0.children.1.markup.type').to.equal('VariableLookup');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the log tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% log 'hello world' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('log');
+          expectPath(ast, 'children.0.markup.type').to.equal('LogMarkup');
+          expectPath(ast, 'children.0.markup.value.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(0);
+          expectPosition(ast, 'children.0');
+
+          ast = toAST(`{% log params, type: 'error' %}`);
+          expectPath(ast, 'children.0.markup.value.type').to.equal('VariableLookup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+        }
+      });
+
+      it('should parse the print tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% print variable %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('print');
+          expectPath(ast, 'children.0.markup.type').to.equal('LiquidVariable');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the return tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% return result %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('return');
+          expectPath(ast, 'children.0.markup.type').to.equal('LiquidVariable');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the yield tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% yield 'name' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('yield');
+          expectPath(ast, 'children.0.markup.type').to.equal('String');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the session tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% session foo = 'bar' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('session');
+          expectPath(ast, 'children.0.markup.type').to.equal('SessionMarkup');
+          expectPath(ast, 'children.0.markup.name').to.equal('foo');
+          expectPath(ast, 'children.0.markup.value.type').to.equal('String');
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the export tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% export a, b, namespace: 'my_hash' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('export');
+          expectPath(ast, 'children.0.markup.type').to.equal('ExportMarkup');
+          expectPath(ast, 'children.0.markup.variables').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.namespace.type').to.equal('NamedArgument');
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the context tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% context language: 'en' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('context');
+          expectPath(ast, 'children.0.markup').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.0.type').to.equal('NamedArgument');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the sign_in tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% sign_in user_id: '123' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('sign_in');
+          expectPath(ast, 'children.0.markup').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.0.type').to.equal('NamedArgument');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the redirect_to tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% redirect_to '/path', status: 302 %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('redirect_to');
+          expectPath(ast, 'children.0.markup.type').to.equal('RedirectToMarkup');
+          expectPath(ast, 'children.0.markup.url.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the include_form tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% include_form 'form', id: x %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('include_form');
+          expectPath(ast, 'children.0.markup.type').to.equal('IncludeFormMarkup');
+          expectPath(ast, 'children.0.markup.form.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the spam_protection tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% spam_protection "v2", action: "submit" %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('spam_protection');
+          expectPath(ast, 'children.0.markup.type').to.equal('SpamProtectionMarkup');
+          expectPath(ast, 'children.0.markup.version.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the theme_render_rc tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% theme_render_rc 'partial' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('theme_render_rc');
+          expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
+          expectPath(ast, 'children.0.markup.snippet.type').to.equal('String');
+          expectPosition(ast, 'children.0');
+          expectPosition(ast, 'children.0.markup');
+        }
+      });
+
+      it('should parse the response_status tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% response_status 200 %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('response_status');
+          expectPath(ast, 'children.0.markup.type').to.equal('Number');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the response_headers tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% response_headers '{"Content-Type":"application/json"}' %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('response_headers');
+          expectPath(ast, 'children.0.markup.type').to.equal('String');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the rollback tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% rollback %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('rollback');
+          expectPath(ast, 'children.0.markup').to.equal('');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the transaction tag', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% transaction timeout: 5 %}content{% endtransaction %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('transaction');
+          expectPath(ast, 'children.0.markup').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.0.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+        }
+      });
+    });
   });
 
   describe('Unit: toLiquidHtmlAST(text)', () => {

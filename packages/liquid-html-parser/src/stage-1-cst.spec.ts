@@ -1662,6 +1662,261 @@ describe('Unit: Stage 1 (CST)', () => {
         });
       }
     });
+
+    // platformOS tags tests
+    describe('Case: platformOS Tags', () => {
+      it('should parse the background tag (file-based)', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% background job_id = 'example_partial', delay: 0.1, max_attempts: 3 %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('background');
+          expectPath(cst, '0.markup.type').to.equal('BackgroundMarkup');
+          expectPath(cst, '0.markup.jobId').to.equal('job_id');
+          expectPath(cst, '0.markup.partial.type').to.equal('String');
+          expectPath(cst, '0.markup.partial.value').to.equal('example_partial');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.args.0.name').to.equal('delay');
+          expectPath(cst, '0.markup.args.1.name').to.equal('max_attempts');
+        }
+      });
+
+      it('should parse the inline background tag open', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% background priority: 'low', delay: 0.5 %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('background');
+          expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.args.0.name').to.equal('priority');
+          expectPath(cst, '0.markup.args.1.name').to.equal('delay');
+        }
+      });
+
+      it('should parse the cache tag open', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% cache 'this is my key', expire: 20 %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('cache');
+          expectPath(cst, '0.markup.type').to.equal('CacheMarkup');
+          expectPath(cst, '0.markup.key.type').to.equal('String');
+          expectPath(cst, '0.markup.key.value').to.equal('this is my key');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.args.0.name').to.equal('expire');
+        }
+      });
+
+      it('should parse the parse_json tag open', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% parse_json car %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('parse_json');
+          expectPath(cst, '0.markup.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.name').to.equal('car');
+        }
+      });
+
+      it('should parse the try tag open', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% try %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('try');
+          expectPath(cst, '0.markup').to.equal(null);
+        }
+      });
+
+      it('should parse the catch tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% catch err %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('catch');
+          expectPath(cst, '0.markup.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.name').to.equal('err');
+        }
+      });
+
+      it('should parse the log tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% log 'hello world' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('log');
+          expectPath(cst, '0.markup.type').to.equal('LogMarkup');
+          expectPath(cst, '0.markup.value.type').to.equal('String');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(0);
+
+          cst = toCST(`{% log params, type: 'request-params' %}`);
+          expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.args.0.name').to.equal('type');
+        }
+      });
+
+      it('should parse the print tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% print variable %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('print');
+          expectPath(cst, '0.markup.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.expression.type').to.equal('VariableLookup');
+        }
+      });
+
+      it('should parse the return tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% return result %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('return');
+          expectPath(cst, '0.markup.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.expression.type').to.equal('VariableLookup');
+        }
+      });
+
+      it('should parse the yield tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% yield 'name' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('yield');
+          expectPath(cst, '0.markup.type').to.equal('String');
+        }
+      });
+
+      it('should parse the session tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% session foo = 'bar' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('session');
+          expectPath(cst, '0.markup.type').to.equal('SessionMarkup');
+          expectPath(cst, '0.markup.name').to.equal('foo');
+          expectPath(cst, '0.markup.value.type').to.equal('String');
+
+          cst = toCST(`{% session foo = variable %}`);
+          expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
+
+          cst = toCST(`{% session foo = null %}`);
+          expectPath(cst, '0.markup.value.type').to.equal('LiquidLiteral');
+        }
+      });
+
+      it('should parse the export tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% export a, b, namespace: 'my_hash' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('export');
+          expectPath(cst, '0.markup.type').to.equal('ExportMarkup');
+          expectPath(cst, '0.markup.variables').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.namespace.type').to.equal('NamedArgument');
+          expectPath(cst, '0.markup.namespace.name').to.equal('namespace');
+        }
+      });
+
+      it('should parse the context tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% context language: 'en' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('context');
+          expectPath(cst, '0.markup').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.0.type').to.equal('NamedArgument');
+          expectPath(cst, '0.markup.0.name').to.equal('language');
+        }
+      });
+
+      it('should parse the sign_in tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% sign_in user_id: '123' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('sign_in');
+          expectPath(cst, '0.markup').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.0.type').to.equal('NamedArgument');
+          expectPath(cst, '0.markup.0.name').to.equal('user_id');
+        }
+      });
+
+      it('should parse the redirect_to tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% redirect_to '/path' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('redirect_to');
+          expectPath(cst, '0.markup.type').to.equal('RedirectToMarkup');
+          expectPath(cst, '0.markup.url.type').to.equal('String');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(0);
+
+          cst = toCST(`{% redirect_to '/path', status: 302 %}`);
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.args.0.name').to.equal('status');
+        }
+      });
+
+      it('should parse the include_form tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% include_form 'form', id: x %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('include_form');
+          expectPath(cst, '0.markup.type').to.equal('IncludeFormMarkup');
+          expectPath(cst, '0.markup.form.type').to.equal('String');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.args.0.name').to.equal('id');
+        }
+      });
+
+      it('should parse the spam_protection tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% spam_protection "v2", action: "submit" %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('spam_protection');
+          expectPath(cst, '0.markup.type').to.equal('SpamProtectionMarkup');
+          expectPath(cst, '0.markup.version.type').to.equal('String');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.args.0.name').to.equal('action');
+        }
+      });
+
+      it('should parse the theme_render_rc tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% theme_render_rc 'partial' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('theme_render_rc');
+          expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
+          expectPath(cst, '0.markup.snippet.type').to.equal('String');
+        }
+      });
+
+      it('should parse the response_status tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% response_status 200 %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('response_status');
+          expectPath(cst, '0.markup.type').to.equal('Number');
+        }
+      });
+
+      it('should parse the response_headers tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% response_headers '{"Content-Type":"application/json"}' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('response_headers');
+          expectPath(cst, '0.markup.type').to.equal('String');
+        }
+      });
+
+      it('should parse the rollback tag', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% rollback %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('rollback');
+          expectPath(cst, '0.markup').to.equal(null);
+        }
+      });
+
+      it('should parse the transaction tag open', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% transaction timeout: 5 %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('transaction');
+          expectPath(cst, '0.markup').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.0.type').to.equal('NamedArgument');
+          expectPath(cst, '0.markup.0.name').to.equal('timeout');
+        }
+      });
+    });
   });
 
   describe('Unit: toLiquidHtmlCST(text)', () => {

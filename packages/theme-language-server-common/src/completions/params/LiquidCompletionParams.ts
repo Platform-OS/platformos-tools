@@ -443,7 +443,16 @@ function findCurrentNode(
       case NodeTypes.LiquidDocExampleNode:
       case NodeTypes.LiquidDocDescriptionNode:
       case NodeTypes.LiquidDocPromptNode:
-      case NodeTypes.RenderAliasExpression: {
+      case NodeTypes.RenderAliasExpression:
+      case NodeTypes.BackgroundMarkup:
+      case NodeTypes.BackgroundInlineMarkup:
+      case NodeTypes.CacheMarkup:
+      case NodeTypes.LogMarkup:
+      case NodeTypes.SessionMarkup:
+      case NodeTypes.ExportMarkup:
+      case NodeTypes.RedirectToMarkup:
+      case NodeTypes.IncludeFormMarkup:
+      case NodeTypes.SpamProtectionMarkup: {
         break;
       }
 

@@ -486,6 +486,130 @@ function printNode(
       return doc;
     }
 
+    case NodeTypes.BackgroundMarkup: {
+      const partial = path.call((p: any) => print(p), 'partial');
+      const doc: Doc = [node.jobId, ' = ', partial];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
+    case NodeTypes.BackgroundInlineMarkup: {
+      const doc: Doc = [];
+      if (node.args.length > 0) {
+        doc.push(
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
+    case NodeTypes.CacheMarkup: {
+      const key = path.call((p: any) => print(p), 'key');
+      const doc: Doc = [key];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
+    case NodeTypes.LogMarkup: {
+      const value = path.call((p: any) => print(p), 'value');
+      const doc: Doc = [value];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
+    case NodeTypes.SessionMarkup: {
+      const value = path.call((p: any) => print(p), 'value');
+      return [node.name, ' = ', value];
+    }
+
+    case NodeTypes.ExportMarkup: {
+      const variables = path.map((p: any) => print(p), 'variables');
+      const doc: Doc = [join(', ', variables)];
+      if (node.namespace) {
+        const ns = path.call((p: any) => print(p), 'namespace');
+        doc.push(',', line, 'namespace: ', ns);
+      }
+      return doc;
+    }
+
+    case NodeTypes.RedirectToMarkup: {
+      const url = path.call((p: any) => print(p), 'url');
+      const doc: Doc = [url];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
+    case NodeTypes.IncludeFormMarkup: {
+      const form = path.call((p: any) => print(p), 'form');
+      const doc: Doc = [form];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
+    case NodeTypes.SpamProtectionMarkup: {
+      const value = path.call((p: any) => print(p), 'value');
+      const doc: Doc = [value];
+      if (node.args.length > 0) {
+        doc.push(
+          ',',
+          line,
+          join(
+            [',', line],
+            path.map((p) => print(p), 'args'),
+          ),
+        );
+      }
+      return doc;
+    }
+
     case NodeTypes.RenderVariableExpression: {
       return [node.kind, ' ', path.call((p: any) => print(p), 'name')];
     }

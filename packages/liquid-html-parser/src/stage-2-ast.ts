@@ -79,6 +79,16 @@ import {
   ConcreteLiquidTagContentForMarkup,
   ConcreteComplexLiquidExpression,
   ConcreteLiquidTagHashAssignMarkup,
+  // platformOS concrete types
+  ConcreteLiquidTagBackgroundMarkup,
+  ConcreteLiquidTagBackgroundInlineMarkup,
+  ConcreteLiquidTagCacheMarkup,
+  ConcreteLiquidTagLogMarkup,
+  ConcreteLiquidTagSessionMarkup,
+  ConcreteLiquidTagExportMarkup,
+  ConcreteLiquidTagRedirectToMarkup,
+  ConcreteLiquidTagIncludeFormMarkup,
+  ConcreteLiquidTagSpamProtectionMarkup,
 } from './stage-1-cst';
 import { Comparators, NamedTags, NodeTypes, nonTraversableProperties, Position } from './types';
 import { assertNever, deepGet, dropLast } from './utils';
@@ -122,7 +132,17 @@ export type LiquidHtmlNode =
   | LiquidDocParamNode
   | LiquidDocExampleNode
   | LiquidDocPromptNode
-  | LiquidDocDescriptionNode;
+  | LiquidDocDescriptionNode
+  // platformOS markup types
+  | BackgroundMarkup
+  | BackgroundInlineMarkup
+  | CacheMarkup
+  | LogMarkup
+  | SessionMarkup
+  | ExportMarkup
+  | RedirectToMarkup
+  | IncludeFormMarkup
+  | SpamProtectionMarkup;
 
 /** The root node of all LiquidHTML ASTs. */
 export interface DocumentNode extends ASTNode<NodeTypes.Document> {
@@ -224,7 +244,28 @@ export type LiquidTagNamed =
   | LiquidTagSection
   | LiquidTagSections
   | LiquidTagTablerow
-  | LiquidTagUnless;
+  | LiquidTagUnless
+  // platformOS tags
+  | LiquidTagBackground
+  | LiquidTagCache
+  | LiquidTagContext
+  | LiquidTagExport
+  | LiquidTagIncludeForm
+  | LiquidTagLog
+  | LiquidTagParseJson
+  | LiquidTagPrint
+  | LiquidTagRedirectTo
+  | LiquidTagResponseHeaders
+  | LiquidTagResponseStatus
+  | LiquidTagReturn
+  | LiquidTagRollback
+  | LiquidTagSession
+  | LiquidTagSignIn
+  | LiquidTagSpamProtection
+  | LiquidTagThemeRenderRc
+  | LiquidTagTransaction
+  | LiquidTagTry
+  | LiquidTagYield;
 
 export interface LiquidTagNode<Name, Markup> extends ASTNode<NodeTypes.LiquidTag> {
   /** e.g. if, ifchanged, for, etc. */
@@ -494,6 +535,98 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
   args: LiquidNamedArgument[];
 }
 
+// platformOS tag interfaces
+export interface LiquidTagBackground
+  extends LiquidTagNode<NamedTags.background, BackgroundMarkup | BackgroundInlineMarkup> {}
+export interface LiquidTagCache extends LiquidTagNode<NamedTags.cache, CacheMarkup> {}
+export interface LiquidTagContext
+  extends LiquidTagNode<NamedTags.context, LiquidNamedArgument[]> {}
+export interface LiquidTagExport extends LiquidTagNode<NamedTags.export, ExportMarkup> {}
+export interface LiquidTagIncludeForm
+  extends LiquidTagNode<NamedTags.include_form, IncludeFormMarkup> {}
+export interface LiquidTagLog extends LiquidTagNode<NamedTags.log, LogMarkup> {}
+export interface LiquidTagParseJson
+  extends LiquidTagNode<NamedTags.parse_json, LiquidVariableLookup> {}
+export interface LiquidTagPrint extends LiquidTagNode<NamedTags.print, LiquidVariable> {}
+export interface LiquidTagRedirectTo
+  extends LiquidTagNode<NamedTags.redirect_to, RedirectToMarkup> {}
+export interface LiquidTagResponseHeaders
+  extends LiquidTagNode<NamedTags.response_headers, LiquidExpression> {}
+export interface LiquidTagResponseStatus
+  extends LiquidTagNode<NamedTags.response_status, LiquidNumber> {}
+export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable> {}
+export interface LiquidTagRollback extends LiquidTagNode<NamedTags.rollback, string> {}
+export interface LiquidTagSession extends LiquidTagNode<NamedTags.session, SessionMarkup> {}
+export interface LiquidTagSignIn
+  extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
+export interface LiquidTagSpamProtection
+  extends LiquidTagNode<NamedTags.spam_protection, SpamProtectionMarkup> {}
+export interface LiquidTagThemeRenderRc
+  extends LiquidTagNode<NamedTags.theme_render_rc, RenderMarkup> {}
+export interface LiquidTagTransaction
+  extends LiquidTagNode<NamedTags.transaction, LiquidNamedArgument[]> {}
+export interface LiquidTagTry extends LiquidTagNode<NamedTags.try, string> {}
+export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, LiquidExpression> {}
+
+// platformOS branch interface
+export interface LiquidBranchCatch
+  extends LiquidBranchNode<NamedTags.catch, LiquidVariableLookup> {}
+
+// platformOS markup interfaces
+/** {% background job_id = 'partial', [...namedArguments] %} (file-based) */
+export interface BackgroundMarkup extends ASTNode<NodeTypes.BackgroundMarkup> {
+  jobId: string;
+  partial: LiquidString | LiquidVariableLookup;
+  args: LiquidNamedArgument[];
+}
+
+/** {% background [...namedArguments] %}...{% endbackground %} (inline) */
+export interface BackgroundInlineMarkup extends ASTNode<NodeTypes.BackgroundInlineMarkup> {
+  args: LiquidNamedArgument[];
+}
+
+/** {% cache 'key', [...namedArguments] %}...{% endcache %} */
+export interface CacheMarkup extends ASTNode<NodeTypes.CacheMarkup> {
+  key: LiquidExpression;
+  args: LiquidNamedArgument[];
+}
+
+/** {% log value, [...namedArguments] %} */
+export interface LogMarkup extends ASTNode<NodeTypes.LogMarkup> {
+  value: LiquidExpression;
+  args: LiquidNamedArgument[];
+}
+
+/** {% session name = value %} */
+export interface SessionMarkup extends ASTNode<NodeTypes.SessionMarkup> {
+  name: string;
+  value: LiquidExpression;
+}
+
+/** {% export a, b, namespace: 'ns' %} */
+export interface ExportMarkup extends ASTNode<NodeTypes.ExportMarkup> {
+  variables: LiquidVariableLookup[];
+  namespace: LiquidNamedArgument;
+}
+
+/** {% redirect_to '/path', [...namedArguments] %} */
+export interface RedirectToMarkup extends ASTNode<NodeTypes.RedirectToMarkup> {
+  url: LiquidExpression;
+  args: LiquidNamedArgument[];
+}
+
+/** {% include_form 'form', [...namedArguments] %} */
+export interface IncludeFormMarkup extends ASTNode<NodeTypes.IncludeFormMarkup> {
+  form: LiquidString | LiquidVariableLookup;
+  args: LiquidNamedArgument[];
+}
+
+/** {% spam_protection 'version', [...namedArguments] %} */
+export interface SpamProtectionMarkup extends ASTNode<NodeTypes.SpamProtectionMarkup> {
+  version: LiquidExpression;
+  args: LiquidNamedArgument[];
+}
+
 /** Represents the `for name` or `with name` expressions in render nodes */
 export interface RenderVariableExpression extends ASTNode<NodeTypes.RenderVariableExpression> {
   /** {% render 'snippet' (for|with) name %} */
@@ -512,7 +645,7 @@ export interface RenderAliasExpression extends ASTNode<NodeTypes.RenderAliasExpr
 export type LiquidBranch = LiquidBranchUnnamed | LiquidBranchBaseCase | LiquidBranchNamed;
 
 /** The union type of the strictly typed LiquidBranch nodes */
-export type LiquidBranchNamed = LiquidBranchElsif | LiquidBranchWhen;
+export type LiquidBranchNamed = LiquidBranchElsif | LiquidBranchWhen | LiquidBranchCatch;
 
 interface LiquidBranchNode<Name, Markup> extends ASTNode<NodeTypes.LiquidBranch> {
   /**
@@ -930,13 +1063,13 @@ interface ASTBuildOptions {
 }
 
 export function isBranchedTag(node: LiquidHtmlNode) {
-  return node.type === NodeTypes.LiquidTag && ['if', 'for', 'unless', 'case'].includes(node.name);
+  return node.type === NodeTypes.LiquidTag && ['if', 'for', 'unless', 'case', 'try'].includes(node.name);
 }
 
 function isConcreteLiquidBranchDisguisedAsTag(
   node: LiquidHtmlConcreteNode,
-): node is ConcreteLiquidTag & { name: 'else' | 'elsif' | 'when' } {
-  return node.type === ConcreteNodeTypes.LiquidTag && ['else', 'elsif', 'when'].includes(node.name);
+): node is ConcreteLiquidTag & { name: 'else' | 'elsif' | 'when' | 'catch' } {
+  return node.type === ConcreteNodeTypes.LiquidTag && ['else', 'elsif', 'when', 'catch'].includes(node.name);
 }
 
 export function toLiquidAST(
@@ -1753,6 +1886,175 @@ function toNamedLiquidTag(
       };
     }
 
+    // platformOS tags
+    case NamedTags.background: {
+      // Handle both file-based and inline syntax
+      if (node.markup.type === ConcreteNodeTypes.BackgroundInlineMarkup) {
+        return {
+          ...liquidTagBaseAttributes(node),
+          name: node.name,
+          markup: toBackgroundInlineMarkup(node.markup),
+          children: [],
+        };
+      }
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toBackgroundMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.cache: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toCacheMarkup(node.markup),
+        children: [],
+      };
+    }
+
+    case NamedTags.parse_json: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toExpression(node.markup) as LiquidVariableLookup,
+        children: [],
+      };
+    }
+
+    case NamedTags.transaction: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: node.markup.map(toNamedArgument),
+        children: [],
+      };
+    }
+
+    case NamedTags.try: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: '',
+        blockEndPosition: { start: -1, end: -1 },
+        children: [],
+      };
+    }
+
+    case NamedTags.catch: {
+      return {
+        ...liquidBranchBaseAttributes(node),
+        name: node.name,
+        markup: toExpression(node.markup) as LiquidVariableLookup,
+      };
+    }
+
+    case NamedTags.log: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toLogMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.print:
+    case NamedTags.return: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toLiquidVariable(node.markup),
+      };
+    }
+
+    case NamedTags.yield: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toExpression(node.markup) as LiquidExpression,
+      };
+    }
+
+    case NamedTags.session: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toSessionMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.export: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toExportMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.context:
+    case NamedTags.sign_in: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: node.markup.map(toNamedArgument),
+      };
+    }
+
+    case NamedTags.redirect_to: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toRedirectToMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.include_form: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toIncludeFormMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.spam_protection: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toSpamProtectionMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.theme_render_rc: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toRenderMarkup(node.markup),
+      };
+    }
+
+    case NamedTags.response_status: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toExpression(node.markup) as LiquidNumber,
+      };
+    }
+
+    case NamedTags.response_headers: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toExpression(node.markup) as LiquidExpression,
+      };
+    }
+
+    case NamedTags.rollback: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: '',
+      };
+    }
+
     default: {
       return assertNever(node);
     }
@@ -2030,6 +2332,97 @@ function toGraphQLInlineMarkup(node: ConcreteLiquidTagGraphQLInlineMarkup): Grap
      * completion mode. This means that our types are *wrong* in completion mode
      * but this is the compromise we're making to get completions to work.
      */
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+// platformOS markup conversion functions
+function toBackgroundMarkup(node: ConcreteLiquidTagBackgroundMarkup): BackgroundMarkup {
+  return {
+    jobId: node.jobId,
+    type: NodeTypes.BackgroundMarkup,
+    partial: toExpression(node.partial) as LiquidString | LiquidVariableLookup,
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toBackgroundInlineMarkup(node: ConcreteLiquidTagBackgroundInlineMarkup): BackgroundInlineMarkup {
+  return {
+    type: NodeTypes.BackgroundInlineMarkup,
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toCacheMarkup(node: ConcreteLiquidTagCacheMarkup): CacheMarkup {
+  return {
+    type: NodeTypes.CacheMarkup,
+    key: toExpression(node.key),
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toLogMarkup(node: ConcreteLiquidTagLogMarkup): LogMarkup {
+  return {
+    type: NodeTypes.LogMarkup,
+    value: toExpression(node.value),
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toSessionMarkup(node: ConcreteLiquidTagSessionMarkup): SessionMarkup {
+  return {
+    type: NodeTypes.SessionMarkup,
+    name: node.name,
+    value: toExpression(node.value),
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toExportMarkup(node: ConcreteLiquidTagExportMarkup): ExportMarkup {
+  return {
+    type: NodeTypes.ExportMarkup,
+    variables: node.variables.map((v) => toExpression(v) as LiquidVariableLookup),
+    namespace: toNamedArgument(node.namespace),
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toRedirectToMarkup(node: ConcreteLiquidTagRedirectToMarkup): RedirectToMarkup {
+  return {
+    type: NodeTypes.RedirectToMarkup,
+    url: toExpression(node.url),
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toIncludeFormMarkup(node: ConcreteLiquidTagIncludeFormMarkup): IncludeFormMarkup {
+  return {
+    type: NodeTypes.IncludeFormMarkup,
+    form: toExpression(node.form) as LiquidString | LiquidVariableLookup,
+    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toSpamProtectionMarkup(node: ConcreteLiquidTagSpamProtectionMarkup): SpamProtectionMarkup {
+  return {
+    type: NodeTypes.SpamProtectionMarkup,
+    version: toExpression(node.version),
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,

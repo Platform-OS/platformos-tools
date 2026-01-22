@@ -54,6 +54,16 @@ export enum NodeTypes {
   LiquidDocParamNode = 'LiquidDocParamNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
   LiquidDocPromptNode = 'LiquidDocPromptNode',
+  // platformOS markup types
+  BackgroundMarkup = 'BackgroundMarkup',
+  BackgroundInlineMarkup = 'BackgroundInlineMarkup',
+  CacheMarkup = 'CacheMarkup',
+  LogMarkup = 'LogMarkup',
+  SessionMarkup = 'SessionMarkup',
+  ExportMarkup = 'ExportMarkup',
+  RedirectToMarkup = 'RedirectToMarkup',
+  IncludeFormMarkup = 'IncludeFormMarkup',
+  SpamProtectionMarkup = 'SpamProtectionMarkup',
 }
 
 // These are officially supported with special node types
@@ -83,6 +93,28 @@ export enum NamedTags {
   tablerow = 'tablerow',
   unless = 'unless',
   when = 'when',
+  // platformOS tags
+  background = 'background',
+  cache = 'cache',
+  catch = 'catch',
+  context = 'context',
+  export = 'export',
+  include_form = 'include_form',
+  log = 'log',
+  parse_json = 'parse_json',
+  print = 'print',
+  redirect_to = 'redirect_to',
+  response_headers = 'response_headers',
+  response_status = 'response_status',
+  return = 'return',
+  rollback = 'rollback',
+  session = 'session',
+  sign_in = 'sign_in',
+  spam_protection = 'spam_protection',
+  theme_render_rc = 'theme_render_rc',
+  transaction = 'transaction',
+  try = 'try',
+  yield = 'yield',
 }
 
 export enum Comparators {

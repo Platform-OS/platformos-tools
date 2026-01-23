@@ -1680,15 +1680,28 @@ describe('Unit: Stage 1 (CST)', () => {
         }
       });
 
-      it('should parse the inline background tag open', () => {
+      it('should parse the inline background tag with variable name only', () => {
         for (const { toCST, expectPath } of testCases) {
-          cst = toCST(`{% background priority: 'low', delay: 0.5 %}`);
+          cst = toCST(`{% background job_id %}`);
           expectPath(cst, '0.type').to.equal('LiquidTagOpen');
           expectPath(cst, '0.name').to.equal('background');
           expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(cst, '0.markup.args').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.jobId.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.jobId.name').to.equal('job_id');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(0);
+        }
+      });
+
+      it('should parse the inline background tag with variable name and args', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% background job_id, priority: 'low' %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('background');
+          expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(cst, '0.markup.jobId.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.jobId.name').to.equal('job_id');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
           expectPath(cst, '0.markup.args.0.name').to.equal('priority');
-          expectPath(cst, '0.markup.args.1.name').to.equal('delay');
         }
       });
 

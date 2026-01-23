@@ -16,6 +16,8 @@ import {
   FunctionMarkup,
   LiquidTagHashAssign,
   LiquidTagGraphQL,
+  LiquidTagBackground,
+  BackgroundInlineMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, ThemeDocset } from '../../types';
 import { isError, last } from '../../utils';
@@ -135,6 +137,12 @@ export const UndefinedObject: LiquidCheckDefinition = {
           indexVariableScope(node.name === 'for' ? 'forloop' : 'tablerowloop', {
             start: node.blockStartPosition.end,
             end: node.blockEndPosition?.start,
+          });
+        }
+
+        if (isLiquidTagBackground(node)) {
+          indexVariableScope(node.markup.jobId.name, {
+            start: node.blockStartPosition.start,
           });
         }
       },
@@ -297,4 +305,14 @@ function isLiquidTagIncrement(node: LiquidTag): node is LiquidTagIncrement {
 
 function isLiquidTagDecrement(node: LiquidTag): node is LiquidTagDecrement {
   return node.name === NamedTags.decrement && typeof node.markup !== 'string';
+}
+
+function isLiquidTagBackground(
+  node: LiquidTag,
+): node is LiquidTagBackground & { markup: BackgroundInlineMarkup } {
+  return (
+    node.name === NamedTags.background &&
+    typeof node.markup !== 'string' &&
+    node.markup.type === NodeTypes.BackgroundInlineMarkup
+  );
 }

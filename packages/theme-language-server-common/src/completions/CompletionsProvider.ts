@@ -49,6 +49,8 @@ export interface CompletionProviderDependencies {
   /** Function to find the theme root URI for a given file */
   findThemeRootURI?: FindThemeRootURI;
   log?: (message: string) => void;
+  /** Callback to notify when unable to infer properties for a variable */
+  notifyUnableToInferProperties?: (variableName: string) => void;
 }
 
 export class CompletionsProvider {
@@ -70,6 +72,7 @@ export class CompletionsProvider {
     documentsLocator,
     findThemeRootURI,
     log = () => {},
+    notifyUnableToInferProperties,
   }: CompletionProviderDependencies) {
     this.documentManager = documentManager;
     this.themeDocset = themeDocset;
@@ -95,6 +98,7 @@ export class CompletionsProvider {
         documentsLocator,
         findThemeRootURI,
         themeDocset,
+        notifyUnableToInferProperties,
       ),
       new FilterCompletionProvider(typeSystem),
       new TranslationCompletionProvider(documentManager, getTranslationsForURI),

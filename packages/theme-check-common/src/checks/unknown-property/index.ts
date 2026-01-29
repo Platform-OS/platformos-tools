@@ -18,7 +18,6 @@ import {
   inferShapeFromJSONString,
   inferShapeFromGraphQL,
   lookupPropertyPath,
-  mergePropertyIntoShape,
 } from './property-shape';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
@@ -149,15 +148,30 @@ export const UnknownProperty: LiquidCheckDefinition = {
           }
         }
 
-        // {% hash_assign x["key"] = value %}
+        // {% hash_assign x["key"] = value %} or {% hash_assign x["a"]["b"] = value %}
         if (isLiquidTagHashAssign(node)) {
           const markup = node.markup;
-          const key = getHashAssignKey(markup);
+          const variableName = markup.target.name;
+          const lookupPath = getHashAssignLookupPath(markup);
 
-          if (key) {
+          if (variableName && lookupPath && lookupPath.length > 0) {
+            // Determine value shape - check if value is a JSON string with parse_json filter
+            let valueShape: PropertyShape = { kind: 'primitive' };
+            if (markup.value.expression.type === NodeTypes.String) {
+              const hasParseJsonFilter = markup.value.filters.some(
+                (f) => f.name === 'parse_json' || f.name === 'to_hash',
+              );
+              if (hasParseJsonFilter) {
+                const inferredShape = inferShapeFromJSONString(markup.value.expression.value);
+                if (inferredShape) {
+                  valueShape = inferredShape;
+                }
+              }
+            }
+
             // Find existing shape for this variable
             const existingIdx = findLastApplicableShapeIndex(
-              markup.name,
+              variableName,
               node.position.start,
               variableShapes,
             );
@@ -165,19 +179,22 @@ export const UnknownProperty: LiquidCheckDefinition = {
             if (existingIdx !== -1) {
               // Merge the new property into existing shape
               const existing = variableShapes[existingIdx];
-              const newShape = mergePropertyIntoShape(existing.shape, key, { kind: 'primitive' });
+              const newShape = mergeNestedPropertyIntoShape(existing.shape, lookupPath, valueShape);
               variableShapes.push({
-                name: markup.name,
+                name: variableName,
                 shape: newShape,
                 range: [node.position.end],
               });
             } else {
               // Create new object shape with this property
-              const properties = new Map<string, PropertyShape>();
-              properties.set(key, { kind: 'primitive' });
+              const newShape = mergeNestedPropertyIntoShape(
+                { kind: 'object', properties: new Map() },
+                lookupPath,
+                valueShape,
+              );
               variableShapes.push({
-                name: markup.name,
-                shape: { kind: 'object', properties },
+                name: variableName,
+                shape: newShape,
                 range: [node.position.end],
               });
             }
@@ -290,24 +307,61 @@ function buildLookupPath(lookups: LiquidExpression[]): string[] | undefined {
   return path;
 }
 
-function getHashAssignKey(markup: HashAssignMarkup): string | undefined {
-  // hash_assign has a value that contains the assignment expression
-  // The key is typically in the name with bracket notation parsed
-  // Looking at the AST structure: {% hash_assign obj["key"] = value %}
-  // The name is "obj" and we need to extract "key" from the expression
-  // Actually, based on the HashAssignMarkup definition, name is the variable
-  // and value is the assigned value. The key access is part of the assignment itself.
+/**
+ * Extract the lookup path from a hash_assign target.
+ * For {% hash_assign a['key1']['key2'] = value %}, returns ['key1', 'key2']
+ */
+function getHashAssignLookupPath(markup: HashAssignMarkup): string[] | undefined {
+  const path: string[] = [];
 
-  // Let me check if there's a different structure. Looking at the grammar,
-  // hash_assign might store the path differently.
-  // For now, let's try to extract from the source if available
-  if (markup.source) {
-    const match = markup.source.match(/\["([^"]+)"\]|\['([^']+)'\]/);
-    if (match) {
-      return match[1] || match[2];
+  for (const lookup of markup.target.lookups) {
+    if (lookup.type === NodeTypes.String) {
+      path.push(lookup.value);
+    } else if (lookup.type === NodeTypes.Number) {
+      path.push(String(lookup.value));
+    } else {
+      // Dynamic lookup - can't determine statically
+      return undefined;
     }
   }
-  return undefined;
+
+  return path.length > 0 ? path : undefined;
+}
+
+/**
+ * Merge a nested property into a shape following a path.
+ * For path ['a', 'b'] and valueShape, creates/updates shape.a.b = valueShape
+ */
+function mergeNestedPropertyIntoShape(
+  shape: PropertyShape,
+  path: string[],
+  valueShape: PropertyShape,
+): PropertyShape {
+  if (path.length === 0) {
+    return valueShape;
+  }
+
+  const [key, ...rest] = path;
+
+  if (shape.kind !== 'object') {
+    // Convert to object
+    const properties = new Map<string, PropertyShape>();
+    if (rest.length === 0) {
+      properties.set(key, valueShape);
+    } else {
+      properties.set(key, mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape));
+    }
+    return { kind: 'object', properties };
+  }
+
+  const newProperties = new Map(shape.properties);
+  if (rest.length === 0) {
+    newProperties.set(key, valueShape);
+  } else {
+    const existingNested = newProperties.get(key) || { kind: 'object', properties: new Map() };
+    newProperties.set(key, mergeNestedPropertyIntoShape(existingNested, rest, valueShape));
+  }
+  return { kind: 'object', properties: newProperties };
 }
 
 // Type guards

@@ -486,10 +486,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should not report an offense when job_id is used with background block args', async () => {
+  it('should not report an offense when job_id is used after background block with args', async () => {
     const sourceCode = `
       {% background job_id, priority: 'low' %}
-        {{ job_id }}
+        {% assign a = 5 %}
       {% endbackground %}
       {{ job_id }}
     `;

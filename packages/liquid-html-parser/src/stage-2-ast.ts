@@ -322,10 +322,10 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
 export interface LiquidTagHashAssign
   extends LiquidTagNode<NamedTags.hash_assign, HashAssignMarkup> {}
 
-/** {% hash_assign name = value | parse_json %} */
+/** {% hash_assign target['key'] = value | parse_json %} */
 export interface HashAssignMarkup extends ASTNode<NodeTypes.HashAssignMarkup> {
-  /** the name of the variable that is being assigned */
-  name: string;
+  /** the target variable lookup (e.g., a['key'] or a['nested']['key']) */
+  target: LiquidVariableLookup;
   /** the value of the variable that is being assigned */
   value: LiquidVariable;
 }
@@ -2105,7 +2105,7 @@ function toAssignMarkup(node: ConcreteLiquidTagAssignMarkup): AssignMarkup {
 function toHashAssignMarkup(node: ConcreteLiquidTagHashAssignMarkup): HashAssignMarkup {
   return {
     type: NodeTypes.HashAssignMarkup,
-    name: node.name,
+    target: toExpression(node.target) as LiquidVariableLookup,
     value: toLiquidVariable(node.value),
     position: position(node),
     source: node.source,

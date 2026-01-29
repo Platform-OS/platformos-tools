@@ -26,7 +26,6 @@ import {
   inferShapeFromGraphQL,
   lookupPropertyPath,
   getAvailableProperties,
-  mergePropertyIntoShape,
 } from '../../PropertyShapeInference';
 
 const ArrayCoreProperties = ['size', 'first', 'last'] as const;
@@ -38,6 +37,8 @@ interface VariableShapeEntry {
   range: [start: number, end?: number];
 }
 
+export type NotifyUnableToInferProperties = (variableName: string) => void;
+
 export class ObjectAttributeCompletionProvider implements Provider {
   private graphqlSchemaCache: string | undefined;
   private graphqlSchemaLoaded = false;
@@ -48,6 +49,7 @@ export class ObjectAttributeCompletionProvider implements Provider {
     private readonly documentsLocator?: DocumentsLocator,
     private readonly findThemeRootURI?: FindThemeRootURI,
     private readonly themeDocset?: ThemeDocset,
+    private readonly notifyUnableToInferProperties?: NotifyUnableToInferProperties,
   ) {}
 
   private async getGraphQLSchema(): Promise<string | undefined> {
@@ -137,6 +139,14 @@ export class ObjectAttributeCompletionProvider implements Provider {
             .sort()
             .map((name) => createCompletionItem({ name }, { kind: CompletionItemKind.Property }));
         }
+      }
+
+      // Notify when variable has no known shape (not from parse_json/to_hash/graphql)
+      const hasKnownShape = variableShapes.some(
+        (s) => s.name === node.name && s.range[0] < node.position.start,
+      );
+      if (!hasKnownShape && this.notifyUnableToInferProperties) {
+        this.notifyUnableToInferProperties(node.name);
       }
     }
 
@@ -259,32 +269,50 @@ async function extractVariableShapes(
         }
       }
 
-      // {% hash_assign x["key"] = value %}
+      // {% hash_assign x["key"] = value %} or {% hash_assign x["a"]["b"] = value %}
       if (isLiquidTagHashAssign(node)) {
         const markup = node.markup;
-        const key = getHashAssignKey(markup);
+        const variableName = markup.target.name;
+        const lookupPath = getHashAssignLookupPath(markup);
 
-        if (key) {
+        if (variableName && lookupPath && lookupPath.length > 0) {
+          // Determine value shape - check if value is a JSON string with parse_json filter
+          let valueShape: PropertyShape = { kind: 'primitive' };
+          if (markup.value.expression.type === NodeTypes.String) {
+            const hasParseJsonFilter = markup.value.filters.some(
+              (f) => f.name === 'parse_json' || f.name === 'to_hash',
+            );
+            if (hasParseJsonFilter) {
+              const inferredShape = inferShapeFromJSONString(markup.value.expression.value);
+              if (inferredShape) {
+                valueShape = inferredShape;
+              }
+            }
+          }
+
           const existingIdx = findLastApplicableShapeIndex(
-            markup.name,
+            variableName,
             node.position.start,
             shapes,
           );
 
           if (existingIdx !== -1) {
             const existing = shapes[existingIdx];
-            const newShape = mergePropertyIntoShape(existing.shape, key, { kind: 'primitive' });
+            const newShape = mergeNestedPropertyIntoShape(existing.shape, lookupPath, valueShape);
             shapes.push({
-              name: markup.name,
+              name: variableName,
               shape: newShape,
               range: [node.position.end],
             });
           } else {
-            const properties = new Map<string, PropertyShape>();
-            properties.set(key, { kind: 'primitive' });
+            const newShape = mergeNestedPropertyIntoShape(
+              { kind: 'object', properties: new Map() },
+              lookupPath,
+              valueShape,
+            );
             shapes.push({
-              name: markup.name,
-              shape: { kind: 'object', properties },
+              name: variableName,
+              shape: newShape,
               range: [node.position.end],
             });
           }
@@ -356,14 +384,61 @@ function buildLookupPath(lookups: LiquidExpression[]): string[] | undefined {
   return path;
 }
 
-function getHashAssignKey(markup: HashAssignMarkup): string | undefined {
-  if (markup.source) {
-    const match = markup.source.match(/\["([^"]+)"\]|\['([^']+)'\]/);
-    if (match) {
-      return match[1] || match[2];
+/**
+ * Extract the lookup path from a hash_assign target.
+ * For {% hash_assign a['key1']['key2'] = value %}, returns ['key1', 'key2']
+ */
+function getHashAssignLookupPath(markup: HashAssignMarkup): string[] | undefined {
+  const path: string[] = [];
+
+  for (const lookup of markup.target.lookups) {
+    if (lookup.type === NodeTypes.String) {
+      path.push(lookup.value);
+    } else if (lookup.type === NodeTypes.Number) {
+      path.push(String(lookup.value));
+    } else {
+      // Dynamic lookup - can't determine statically
+      return undefined;
     }
   }
-  return undefined;
+
+  return path.length > 0 ? path : undefined;
+}
+
+/**
+ * Merge a nested property into a shape following a path.
+ * For path ['a', 'b'] and valueShape, creates/updates shape.a.b = valueShape
+ */
+function mergeNestedPropertyIntoShape(
+  shape: PropertyShape,
+  path: string[],
+  valueShape: PropertyShape,
+): PropertyShape {
+  if (path.length === 0) {
+    return valueShape;
+  }
+
+  const [key, ...rest] = path;
+
+  if (shape.kind !== 'object') {
+    // Convert to object
+    const properties = new Map<string, PropertyShape>();
+    if (rest.length === 0) {
+      properties.set(key, valueShape);
+    } else {
+      properties.set(key, mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape));
+    }
+    return { kind: 'object', properties };
+  }
+
+  const newProperties = new Map(shape.properties);
+  if (rest.length === 0) {
+    newProperties.set(key, valueShape);
+  } else {
+    const existingNested = newProperties.get(key) || { kind: 'object', properties: new Map() };
+    newProperties.set(key, mergeNestedPropertyIntoShape(existingNested, rest, valueShape));
+  }
+  return { kind: 'object', properties: newProperties };
 }
 
 // Type guards

@@ -346,6 +346,11 @@ export function startServer(
     fs,
     documentsLocator,
     findThemeRootURI,
+    notifyUnableToInferProperties: (variableName: string) => {
+      connection.window.showInformationMessage(
+        `Unable to infer properties for '${variableName}'. Property completion is only supported for variables from parse_json, to_hash, or graphql.`,
+      );
+    },
   });
   const hoverProvider = new HoverProvider(
     documentManager,

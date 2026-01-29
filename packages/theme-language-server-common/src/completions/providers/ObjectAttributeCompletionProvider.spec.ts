@@ -315,6 +315,26 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       `;
       await expect(provider).to.complete(source, ['added', 'existing']);
     });
+
+    it('should complete nested properties added via hash_assign', async () => {
+      const source = `
+        {% assign a = '{}' | parse_json %}
+        {% hash_assign a['nested'] = '{}' | parse_json %}
+        {% hash_assign a['nested']['key'] = 5 %}
+        {{ a.nested.█ }}
+      `;
+      await expect(provider).to.complete(source, ['key']);
+    });
+
+    it('should complete first level with nested hash_assign', async () => {
+      const source = `
+        {% assign a = '{}' | parse_json %}
+        {% hash_assign a['nested'] = '{}' | parse_json %}
+        {% hash_assign a['nested']['key'] = 5 %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['nested']);
+    });
   });
 
   describe('Case: global settings', () => {

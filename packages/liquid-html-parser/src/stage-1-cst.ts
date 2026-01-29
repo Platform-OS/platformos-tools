@@ -409,7 +409,7 @@ export interface ConcreteLiquidTagHashAssign
   extends ConcreteLiquidTagNode<NamedTags.hash_assign, ConcreteLiquidTagHashAssignMarkup> {}
 export interface ConcreteLiquidTagHashAssignMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.HashAssignMarkup> {
-  name: string;
+  target: ConcreteLiquidVariableLookup;
   value: ConcreteLiquidVariable;
 }
 
@@ -1051,7 +1051,7 @@ function toCST<T>(
     },
     liquidTagHashAssignMarkup: {
       type: ConcreteNodeTypes.HashAssignMarkup,
-      name: 0,
+      target: 0,
       value: 4,
       locStart,
       locEnd,

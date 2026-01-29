@@ -507,25 +507,29 @@ describe('Unit: Stage 1 (CST)', () => {
       it('should parse the hash_assign tag as hash_assign markup + liquid variable', () => {
         [
           {
-            expression: `x = "hi"`,
-            name: 'x',
+            expression: `x["key"] = "hi"`,
+            targetName: 'x',
+            targetLookups: 1,
             expressionType: 'String',
             expressionValue: 'hi',
             filters: [],
           },
           {
-            expression: `z = y | f`,
-            name: 'z',
+            expression: `z["a"]["b"] = y | f`,
+            targetName: 'z',
+            targetLookups: 2,
             expressionType: 'VariableLookup',
             filters: ['f'],
           },
-        ].forEach(({ expression, name, expressionType, expressionValue, filters }) => {
+        ].forEach(({ expression, targetName, targetLookups, expressionType, expressionValue, filters }) => {
           for (const { toCST, expectPath } of testCases) {
             cst = toCST(`{% hash_assign ${expression} -%}`);
             expectPath(cst, '0.type').to.equal('LiquidTag');
             expectPath(cst, '0.name').to.equal('hash_assign');
             expectPath(cst, '0.markup.type').to.equal('HashAssignMarkup');
-            expectPath(cst, '0.markup.name').to.equal(name);
+            expectPath(cst, '0.markup.target.type').to.equal('VariableLookup');
+            expectPath(cst, '0.markup.target.name').to.equal(targetName);
+            expectPath(cst, '0.markup.target.lookups').to.have.lengthOf(targetLookups);
             expectPath(cst, '0.markup.value.expression.type').to.equal(expressionType);
             if (expressionValue) {
               expectPath(cst, '0.markup.value.expression.value').to.equal(expressionValue);

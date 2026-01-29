@@ -76,8 +76,14 @@ export const UndefinedObject: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
-        if (isLiquidTagAssign(node) || isLiquidTagHashAssign(node) || isLiquidTagGraphQL(node)) {
+        if (isLiquidTagAssign(node) || isLiquidTagGraphQL(node)) {
           indexVariableScope(node.markup.name, {
+            start: node.blockStartPosition.end,
+          });
+        }
+
+        if (isLiquidTagHashAssign(node) && node.markup.target.name) {
+          indexVariableScope(node.markup.target.name, {
             start: node.blockStartPosition.end,
           });
         }
@@ -142,7 +148,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
 
         if (isLiquidTagBackground(node)) {
           indexVariableScope(node.markup.jobId.name, {
-            start: node.blockStartPosition.start,
+            start: node.blockEndPosition?.end,
           });
         }
       },
@@ -152,6 +158,9 @@ export const UndefinedObject: LiquidCheckDefinition = {
 
         const parent = last(ancestors);
         if (isLiquidTag(parent) && isLiquidTagCapture(parent)) return;
+
+        // Skip the jobId variable in background tag markup - it's being defined, not used
+        if (isBackgroundInlineMarkup(parent) && parent.jobId === node) return;
 
         variables.push(node);
       },
@@ -314,5 +323,14 @@ function isLiquidTagBackground(
     node.name === NamedTags.background &&
     typeof node.markup !== 'string' &&
     node.markup.type === NodeTypes.BackgroundInlineMarkup
+  );
+}
+
+function isBackgroundInlineMarkup(node: unknown): node is BackgroundInlineMarkup {
+  return (
+    typeof node === 'object' &&
+    node !== null &&
+    'type' in node &&
+    node.type === NodeTypes.BackgroundInlineMarkup
   );
 }

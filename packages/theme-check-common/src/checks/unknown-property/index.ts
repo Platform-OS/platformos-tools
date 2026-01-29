@@ -202,8 +202,13 @@ export const UnknownProperty: LiquidCheckDefinition = {
         }
       },
 
-      async VariableLookup(node: LiquidVariableLookup) {
+      async VariableLookup(node: LiquidVariableLookup, ancestors: LiquidHtmlNode[]) {
         if (node.lookups.length > 0) {
+          // Skip the target of hash_assign - it's being defined, not accessed
+          const parent = ancestors[ancestors.length - 1];
+          if (isHashAssignMarkup(parent) && parent.target === node) {
+            return;
+          }
           lookups.push(node);
         }
       },
@@ -385,6 +390,15 @@ function isLiquidTagGraphQL(
 
 function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {
   return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
+}
+
+function isHashAssignMarkup(node: unknown): node is HashAssignMarkup {
+  return (
+    typeof node === 'object' &&
+    node !== null &&
+    'type' in node &&
+    node.type === NodeTypes.HashAssignMarkup
+  );
 }
 
 function isGraphQLMarkup(markup: GraphQLMarkup | GraphQLInlineMarkup): markup is GraphQLMarkup {

@@ -236,18 +236,6 @@ export function lookupPropertyPath(shape: PropertyShape, path: string[]): Lookup
         continue;
       }
 
-      // Allow array-like access on objects (for GraphQL where we don't know if it's an array)
-      // Treat the object as if it could be an array of objects with the same properties
-      if (key === 'first' || key === 'last' || /^\d+$/.test(key)) {
-        // Stay at current shape - assume this object could be an array of similar objects
-        continue;
-      }
-
-      if (key === 'size') {
-        current = { kind: 'primitive', primitiveType: 'number' };
-        continue;
-      }
-
       return { shape: undefined, error: 'unknown_property', errorAt: i };
     }
   }

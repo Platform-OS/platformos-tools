@@ -132,7 +132,7 @@ Liquid <: Helpers {
   liquidTagAssignMarkup = variableSegment space* "=" space* liquidVariable<delimTag>
 
   liquidTagHashAssign = liquidTagRule<"hash_assign", liquidTagHashAssignMarkup>
-  liquidTagHashAssignMarkup = variableSegment space* "=" space* liquidVariable<delimTag>
+  liquidTagHashAssignMarkup = liquidVariableLookup<delimTag> space* "=" space* liquidVariable<delimTag>
 
   liquidTagCycle = liquidTagRule<"cycle", liquidTagCycleMarkup>
   liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidExpression<delimTag>, argumentSeparator> space*

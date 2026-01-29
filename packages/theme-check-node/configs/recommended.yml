@@ -132,6 +132,9 @@ UniqueStaticBlockId:
 UnknownFilter:
   enabled: true
   severity: 0
+UnknownProperty:
+  enabled: true
+  severity: 0
 UnrecognizedContentForArguments:
   enabled: true
   severity: 1

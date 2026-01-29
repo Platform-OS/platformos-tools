@@ -343,6 +343,9 @@ export function startServer(
     getThemeBlockNames,
     getMetafieldDefinitions,
     getDocDefinitionForURI,
+    fs,
+    documentsLocator,
+    findThemeRootURI,
   });
   const hoverProvider = new HoverProvider(
     documentManager,

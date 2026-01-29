@@ -4,9 +4,11 @@ import {
   SourceCodeType,
   ThemeDocset,
 } from '@platformos/theme-check-common';
+import { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';
 import { CompletionItem, CompletionParams } from 'vscode-languageserver';
 import { TypeSystem } from '../TypeSystem';
 import { DocumentManager } from '../documents';
+import { FindThemeRootURI } from '../internal-types';
 import { GetThemeSettingsSchemaForURI } from '../settings';
 import { GetTranslationsForURI } from '../translations';
 import { createLiquidCompletionParams } from './params';
@@ -40,6 +42,12 @@ export interface CompletionProviderDependencies {
   getMetafieldDefinitions: (rootUri: string) => Promise<MetafieldDefinitionMap>;
   getDocDefinitionForURI?: GetDocDefinitionForURI;
   getThemeBlockNames?: (rootUri: string, includePrivate: boolean) => Promise<string[]>;
+  /** File system for reading GraphQL files */
+  fs?: AbstractFileSystem;
+  /** Locator for finding documents by type */
+  documentsLocator?: DocumentsLocator;
+  /** Function to find the theme root URI for a given file */
+  findThemeRootURI?: FindThemeRootURI;
   log?: (message: string) => void;
 }
 
@@ -58,6 +66,9 @@ export class CompletionsProvider {
     getThemeSettingsSchemaForURI = async () => [],
     getDocDefinitionForURI = async (uri, _relativePath) => ({ uri }),
     getThemeBlockNames = async (_rootUri: string, _includePrivate: boolean) => [],
+    fs,
+    documentsLocator,
+    findThemeRootURI,
     log = () => {},
   }: CompletionProviderDependencies) {
     this.documentManager = documentManager;
@@ -78,7 +89,13 @@ export class CompletionsProvider {
       new HtmlAttributeValueCompletionProvider(),
       new LiquidTagsCompletionProvider(themeDocset),
       new ObjectCompletionProvider(typeSystem),
-      new ObjectAttributeCompletionProvider(typeSystem, getThemeSettingsSchemaForURI),
+      new ObjectAttributeCompletionProvider(
+        typeSystem,
+        fs,
+        documentsLocator,
+        findThemeRootURI,
+        themeDocset,
+      ),
       new FilterCompletionProvider(typeSystem),
       new TranslationCompletionProvider(documentManager, getTranslationsForURI),
       new PartialCompletionProvider(getPartialNamesForURI),

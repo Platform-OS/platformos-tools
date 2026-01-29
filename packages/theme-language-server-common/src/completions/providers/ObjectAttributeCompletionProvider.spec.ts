@@ -253,6 +253,70 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
     });
   });
 
+  describe('Case: parse_json filter with arrays', () => {
+    it('should complete properties of array elements accessed by index', async () => {
+      const source = `
+        {% assign a = '[{"name": "foo"}, {"name": "bar"}]' | parse_json %}
+        {{ a[0].█ }}
+      `;
+      await expect(provider).to.complete(source, ['name']);
+    });
+
+    it('should complete properties of array elements accessed with first/last', async () => {
+      const sources = [
+        `{% assign a = '[{"prop": 1}]' | parse_json %}
+         {{ a.first.█ }}`,
+        `{% assign a = '[{"prop": 1}]' | parse_json %}
+         {{ a.last.█ }}`,
+      ];
+      for (const source of sources) {
+        await expect(provider, source).to.complete(source, ['prop']);
+      }
+    });
+
+    it('should complete properties of nested objects in arrays', async () => {
+      const source = `
+        {% assign a = '[{"user": {"id": 1, "name": "test"}}]' | parse_json %}
+        {{ a[0].user.█ }}
+      `;
+      await expect(provider).to.complete(source, ['id', 'name']);
+    });
+
+    it('should complete array properties for JSON arrays', async () => {
+      const source = `
+        {% assign a = '[1, 2, 3]' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['first', 'last', 'size']);
+    });
+
+    it('should work with to_hash filter', async () => {
+      const source = `
+        {% assign a = '{"key": "value"}' | to_hash %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['key']);
+    });
+
+    it('should complete properties added via hash_assign to parse_json object', async () => {
+      const source = `
+        {% assign a = '{}' | parse_json %}
+        {% hash_assign a['key'] = 5 %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['key']);
+    });
+
+    it('should complete properties added via hash_assign to existing parse_json object', async () => {
+      const source = `
+        {% assign a = '{"existing": 1}' | parse_json %}
+        {% hash_assign a['added'] = 2 %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['added', 'existing']);
+    });
+  });
+
   describe('Case: global settings', () => {
     it('should complete basic settings by id as expected', async () => {
       const settings: SettingsSchemaJSONFile = [

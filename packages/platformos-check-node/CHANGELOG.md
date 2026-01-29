@@ -1,0 +1,1359 @@
+# @platformos/platformos-check-node
+
+## 3.23.0
+
+### Minor Changes
+
+- f00a1620: Remove 'CaptureOnContentForBlock' check — Theme development standards have evolved and changed, and this check has been fully deactivated on major themes. With more intense use blocks, this technique proven as a good approach to avoid duplication and promote reusability
+
+### Patch Changes
+
+- Updated dependencies [f00a1620]
+- Updated dependencies [450b3f28]
+- Updated dependencies [4bcb1126]
+- Updated dependencies [dd1f4c8f]
+  - @platformos/platformos-check-common@3.23.0
+  - @platformos/platformos-check-docs-updater@3.23.0
+
+## 3.22.0
+
+### Minor Changes
+
+- 0380e438: Added a new OrphanedSnippet theme check to discover and warn if a snippet isn't referenced anywhere
+
+### Patch Changes
+
+- Updated dependencies [2fb378ca]
+- Updated dependencies [0c0f6c06]
+- Updated dependencies [c2228360]
+- Updated dependencies [0380e438]
+- Updated dependencies [2784a83b]
+- Updated dependencies [39a6e632]
+  - @platformos/platformos-check-common@3.22.0
+  - @platformos/platformos-check-docs-updater@3.22.0
+
+## 3.21.0
+
+### Patch Changes
+
+- Updated dependencies [a7d0e2d0]
+- Updated dependencies [e1bf12c7]
+- Updated dependencies [1ebf9246]
+- Updated dependencies [374ff3de]
+- Updated dependencies [b226e52c]
+- Updated dependencies [0bfc7859]
+  - @platformos/platformos-check-common@3.21.0
+  - @platformos/platformos-check-docs-updater@3.21.0
+
+## 3.20.1
+
+### Patch Changes
+
+- d605777f: Remove theme-check ValidDocParamNames
+- Updated dependencies [d605777f]
+  - @platformos/platformos-check-common@3.20.1
+  - @platformos/platformos-check-docs-updater@3.20.1
+
+## 3.20.0
+
+### Patch Changes
+
+- 23992051: Update liquid paginate max limit rule from 50 to 250
+- Updated dependencies [f28daa84]
+- Updated dependencies [4ae72589]
+- Updated dependencies [23992051]
+- Updated dependencies [8ab6a8e7]
+  - @platformos/platformos-check-common@3.20.0
+  - @platformos/platformos-check-docs-updater@3.20.0
+
+## 3.19.0
+
+### Patch Changes
+
+- Updated dependencies [a3a513dc]
+  - @platformos/platformos-check-common@3.19.0
+  - @platformos/platformos-check-docs-updater@3.19.0
+
+## 3.18.1
+
+### Patch Changes
+
+- Updated dependencies [ce5cb33a]
+  - @platformos/platformos-check-common@3.18.1
+  - @platformos/platformos-check-docs-updater@3.18.1
+
+## 3.18.0
+
+### Minor Changes
+
+- 649da6df: Introduce check that warn developers that `{% stylesheet %}` and `{% javascript %}` tags only support static content
+- 444c9edc: Add hardcoded-routes theme check which reports a warning when hardcoded routes are used instead of the routes object
+
+### Patch Changes
+
+- 4477a6d9: Fix small windows bug in NodeFileSystem.readDirectory
+- 06840d80: Fix readDirectory issue when root finding did not work
+- Updated dependencies [649da6df]
+- Updated dependencies [4477a6d9]
+- Updated dependencies [606053f1]
+- Updated dependencies [444c9edc]
+  - @platformos/platformos-check-common@3.18.0
+  - @platformos/platformos-check-docs-updater@3.18.0
+
+## 3.17.1
+
+### Patch Changes
+
+- Updated dependencies [4d9ba806]
+  - @platformos/platformos-check-common@3.17.1
+  - @platformos/platformos-check-docs-updater@3.17.1
+
+## 3.17.0
+
+### Patch Changes
+
+- Updated dependencies [20625a1b]
+- Updated dependencies [c3504252]
+  - @platformos/platformos-check-common@3.17.0
+  - @platformos/platformos-check-docs-updater@3.17.0
+
+## 3.16.1
+
+### Patch Changes
+
+- Updated dependencies [83b1b760]
+  - @platformos/platformos-check-common@3.16.1
+  - @platformos/platformos-check-docs-updater@3.16.1
+
+## 3.16.0
+
+### Patch Changes
+
+- Updated dependencies [37f41c6e]
+- Updated dependencies [7f243690]
+- Updated dependencies [a1fa7376]
+- Updated dependencies [90577cd2]
+- Updated dependencies [19f5589b]
+  - @platformos/platformos-check-common@3.16.0
+  - @platformos/platformos-check-docs-updater@3.16.0
+
+## 3.15.1
+
+### Patch Changes
+
+- Updated dependencies [d7949240]
+  - @platformos/platformos-check-common@3.15.1
+  - @platformos/platformos-check-docs-updater@3.15.1
+
+## 3.15.0
+
+### Minor Changes
+
+- 4d557619: Add `content_for` argument theme checks if static block has LiquidDoc
+
+  - DuplicateContentForArguments - Ensures arguments provided for `content_for` tag are unique
+  - MissingContentForArguments - Ensures all required arguments, as per LiquidDoc, are provided
+  - UnrecognizedContentForArguments - Ensures arguments provided exclusively match LiquidDoc params
+  - ValidContentForArgumentTypes - Ensures arguments match type defined in LiquidDoc
+
+- c0f42c37: Restrict LiquidDoc param names in blocks based on `content_for` tag params
+
+  - LiquidDoc inside blocks have limitations on names because `content_for` tag uses the following param names:
+    - id
+    - type
+    - attributes
+    - block
+    - blocks
+    - class
+    - context
+    - inherit
+    - resource
+    - resources
+    - schema
+    - section
+    - sections
+    - settings
+    - snippet
+    - snippets
+    - template
+    - templates
+
+### Patch Changes
+
+- aa43656b: [internal] Building blocks to support LiquidDoc for blocks
+- Updated dependencies [4d557619]
+- Updated dependencies [067a75eb]
+- Updated dependencies [aa43656b]
+- Updated dependencies [dccca5a5]
+- Updated dependencies [c0f42c37]
+- Updated dependencies [39339f88]
+- Updated dependencies [660bd7df]
+- Updated dependencies [c0f42c37]
+  - @platformos/platformos-check-common@3.15.0
+  - @platformos/platformos-check-docs-updater@3.15.0
+
+## 3.14.1
+
+### Patch Changes
+
+- Updated dependencies [906455b0]
+  - @platformos/platformos-check-common@3.14.1
+  - @platformos/platformos-check-docs-updater@3.14.1
+
+## 3.14.0
+
+### Patch Changes
+
+- 75c02293: Fix slow render tag theme checks
+- Updated dependencies [b6f94d16]
+- Updated dependencies [75c02293]
+- Updated dependencies [e75f896d]
+- Updated dependencies [034a803b]
+- Updated dependencies [e75f896d]
+  - @platformos/platformos-check-common@3.14.0
+  - @platformos/platformos-check-docs-updater@3.14.0
+
+## 3.13.1
+
+### Patch Changes
+
+- @platformos/platformos-check-common@3.13.1
+- @platformos/platformos-check-docs-updater@3.13.1
+
+## 3.13.0
+
+### Patch Changes
+
+- Updated dependencies [d9204c55]
+- Updated dependencies [886ee4b1]
+- Updated dependencies [cf51a514]
+- Updated dependencies [3fff76bf]
+  - @platformos/platformos-check-common@3.13.0
+  - @platformos/platformos-check-docs-updater@3.13.0
+
+## 3.12.0
+
+### Patch Changes
+
+- 449d1623: Fix false positives when running theme check on theme app extensions
+- Updated dependencies [d42ed610]
+- Updated dependencies [ea9f2451]
+- Updated dependencies [6268e838]
+  - @platformos/platformos-check-common@3.12.0
+  - @platformos/platformos-check-docs-updater@3.12.0
+
+## 3.11.1
+
+### Patch Changes
+
+- 5a5b7592: [Bug fix] Fix file URI handling for Windows platforms
+- Updated dependencies [9ffbe27d]
+  - @platformos/platformos-check-common@3.11.1
+  - @platformos/platformos-check-docs-updater@3.11.1
+
+## 3.11.0
+
+### Minor Changes
+
+- 8a0393a1: Theme check to ensure liquid doc param names don't collide with reserved words
+
+  - Theme check will report a warning if param name collides with global liquid objects
+  - Theme check will report a warning if param name collides with liquid tags
+
+- c55077e7: Split ValidRenderSnippetParams theme check into MissingRenderSnippetParams and UnrecognizedRenderSnippetParams. This allows them to be disabled independantly.
+- a851f379: Add DuplicateRenderSnippetParams theme check
+
+  Introduces a new theme check to detect and report duplicate parameters in Liquid render tags. The check:
+
+  - Identifies duplicate parameter names in render snippets
+  - Provides suggestions to remove redundant parameters
+
+### Patch Changes
+
+- Updated dependencies [8a0393a1]
+- Updated dependencies [0d96194e]
+- Updated dependencies [21354237]
+- Updated dependencies [dafba833]
+- Updated dependencies [c55077e7]
+- Updated dependencies [48d4d79e]
+- Updated dependencies [a851f379]
+  - @platformos/platformos-check-common@3.11.0
+  - @platformos/platformos-check-docs-updater@3.11.0
+
+## 3.10.0
+
+### Minor Changes
+
+- 10493c9d: New `UnusedDocParam` theme-check rule
+
+  - Theme check will verify that parameters defined within a snippet's `doc` header are used within the body
+
+- f130a78f: Introduce a new theme check which validates the types of parameters passed to snippets against the liquidDoc header.
+
+  - Reports type mismatches
+  - Suggests autofixes (replace with default or remove value)
+  - Skips type checking for variable lookups
+  - Skips type checking for unknown parameters
+  - Skips type checking for unknown types
+
+- 1a4482eb: New theme checks to validate liquid doc params
+
+  - `UniqueDocParamNames` will check if param names are unique within the `doc` tag
+  - `ValidDocParamTypes` will check if the param types defined in the `doc` tag are supported
+
+- 754f7f66: New theme check to ensure `doc` tag is only used in snippet files
+
+### Patch Changes
+
+- Updated dependencies [10493c9d]
+- Updated dependencies [f130a78f]
+- Updated dependencies [1a4482eb]
+- Updated dependencies [5ad43a8c]
+- Updated dependencies [79c9f773]
+- Updated dependencies [754f7f66]
+- Updated dependencies [dc8c9fda]
+- Updated dependencies [beccb69e]
+  - @platformos/platformos-check-common@3.10.0
+  - @platformos/platformos-check-docs-updater@3.10.0
+
+## 3.9.0
+
+### Patch Changes
+
+- Updated dependencies [f077a9ec]
+- Updated dependencies [0bb780de]
+  - @platformos/platformos-check-common@3.9.0
+  - @platformos/platformos-check-docs-updater@3.9.0
+
+## 3.8.0
+
+### Minor Changes
+
+- fe84a17a: Add ValidRenderSnippetParams check which validates args passed to snippets with LiquidDoc definitions
+
+  - Checks that required parameters are provided
+  - Checks that unknown parameters are not provided
+
+- 055cef77: Theme check verifies if setting key exists within block schemas and section schemas
+
+  - Check if the keys inside `presets.[].settings` and `default.settings` exist as `settings.[].id` in the same file
+  - Check if the keys inside `presets.[](recursive .blocks.[]).settings` and `default.blocks.[].settings` exist as `settings.[].id` inside the referenced block's file
+
+### Patch Changes
+
+- Updated dependencies [fe84a17a]
+- Updated dependencies [055cef77]
+- Updated dependencies [e9c1d98a]
+- Updated dependencies [d32afb7f]
+  - @platformos/platformos-check-common@3.8.0
+  - @platformos/platformos-check-docs-updater@3.8.0
+
+## 3.7.2
+
+### Patch Changes
+
+- Updated dependencies [2ef93d17]
+  - @platformos/platformos-check-common@3.7.2
+  - @platformos/platformos-check-docs-updater@3.7.2
+
+## 3.7.1
+
+### Patch Changes
+
+- 841ca6d1: Update repository URL for all packages to be case sensitive
+- Updated dependencies [841ca6d1]
+  - @platformos/platformos-check-docs-updater@3.7.1
+  - @platformos/platformos-check-common@3.7.1
+
+## 3.7.0
+
+### Patch Changes
+
+- Updated dependencies [c85a6131]
+- Updated dependencies [913d5386]
+- Updated dependencies [931dc9b9]
+  - @platformos/platformos-check-common@3.7.0
+  - @platformos/platformos-check-docs-updater@3.7.0
+
+## 3.6.1
+
+### Patch Changes
+
+- @platformos/platformos-check-common@3.6.1
+- @platformos/platformos-check-docs-updater@3.6.1
+
+## 3.6.0
+
+### Patch Changes
+
+- Updated dependencies [c74850c8]
+- Updated dependencies [c60e61ba]
+- Updated dependencies [b31e0f85]
+- Updated dependencies [34c2268a]
+  - @platformos/platformos-check-common@3.6.0
+  - @platformos/platformos-check-docs-updater@3.6.0
+
+## 3.5.0
+
+### Minor Changes
+
+- d7436b4a: Add `JsonMissingBlock` check
+- 6f1862c8: Add `SchemaPresetsStaticBlocks` check
+
+### Patch Changes
+
+- Updated dependencies [8e909870]
+- Updated dependencies [d7436b4a]
+- Updated dependencies [6f1862c8]
+- Updated dependencies [d01e657b]
+  - @platformos/platformos-check-common@3.5.0
+  - @platformos/platformos-check-docs-updater@3.5.0
+
+## 3.4.0
+
+### Patch Changes
+
+- Updated dependencies [8912fab8]
+- Updated dependencies [51ec6a7a]
+  - @platformos/platformos-check-common@3.4.0
+  - @platformos/platformos-check-docs-updater@3.4.0
+
+## 3.3.0
+
+### Minor Changes
+
+- 05ae5ea8: Added MissingSchema theme check to identify missing schemas in theme app extensions.
+- 26215724: Add EmptyBlockContent Check
+- 73758ba1: Add LiquidFreeSettings check
+- 5e8a2bfe: Add `SchemaPresetsBlockOrder` check
+- 1083b2bc: Refactor ValidBlockTarget and ValidLocalBlocks.
+
+### Patch Changes
+
+- Updated dependencies [05ae5ea8]
+- Updated dependencies [3e69d732]
+- Updated dependencies [26215724]
+- Updated dependencies [73758ba1]
+- Updated dependencies [5e8a2bfe]
+- Updated dependencies [05b928ea]
+- Updated dependencies [1083b2bc]
+- Updated dependencies [a579d59e]
+- Updated dependencies [5a2caaee]
+- Updated dependencies [d2b5942a]
+  - @platformos/platformos-check-common@3.3.0
+  - @platformos/platformos-check-docs-updater@3.3.0
+
+## 3.2.2
+
+### Patch Changes
+
+- Updated dependencies [16e2f37]
+  - @platformos/platformos-check-common@3.2.2
+  - @platformos/platformos-check-docs-updater@3.2.2
+
+## 3.2.1
+
+### Patch Changes
+
+- 4a18a78: Temporarily disable ValidBlockTarget
+- Updated dependencies [4a18a78]
+  - @platformos/platformos-check-common@3.2.1
+  - @platformos/platformos-check-docs-updater@3.2.1
+
+## 3.2.0
+
+### Minor Changes
+
+- 3f7680e: Add the `ValidBlockTarget` Check
+- add2445: [Internal] Add better building blocks for dealing with `{% schema %}` content
+- 8a0bf78: Add the `ValidLocalBlocks` Check
+- c4813ff: Add the `BlockIdUsage` check
+
+### Patch Changes
+
+- 7a6dfe8: Fix weird root URI loading bug
+- Updated dependencies [3f7680e]
+- Updated dependencies [add2445]
+- Updated dependencies [8a0bf78]
+- Updated dependencies [7a6dfe8]
+- Updated dependencies [7317830]
+- Updated dependencies [c4813ff]
+- Updated dependencies [b558bfe]
+- Updated dependencies [9a07208]
+- Updated dependencies [f09c923]
+  - @platformos/platformos-check-common@3.2.0
+  - @platformos/platformos-check-docs-updater@3.2.0
+
+## 3.1.0
+
+### Minor Changes
+
+- b431db7: Add `ValidateSchemaName` check
+- 568d53b: Add the `ValidContentForArguments` check
+
+### Patch Changes
+
+- Updated dependencies [b431db7]
+- Updated dependencies [568d53b]
+- Updated dependencies [6014dfd]
+  - @platformos/platformos-check-common@3.1.0
+  - @platformos/platformos-check-docs-updater@3.1.0
+
+## 3.0.0
+
+### Major Changes
+
+- 4b574c1: [Breaking] Replace fs-based dependency injections with AbstractFileSystem injection
+
+  ```diff
+  runChecks(theme, {
+  - getDefaultTranslations,
+  - getDefaultLocale,
+  - getDefaultSchemaLocale,
+  - getDefaultSchemaTranslations,
+  - fileExists,
+  - fileSize,
+  + fs: new FileSystemImpl(),
+    themeDocset,
+    jsonValidationSet,
+  })
+  ```
+
+### Patch Changes
+
+- Updated dependencies [4b574c1]
+- Updated dependencies [4b574c1]
+- Updated dependencies [5fab0e9]
+  - @platformos/platformos-check-common@3.0.0
+  - @platformos/platformos-check-docs-updater@3.0.0
+
+## 2.9.2
+
+### Patch Changes
+
+- @platformos/platformos-check-common@2.9.2
+- @platformos/platformos-check-docs-updater@2.9.2
+
+## 2.9.1
+
+### Patch Changes
+
+- @platformos/platformos-check-common@2.9.1
+- @platformos/platformos-check-docs-updater@2.9.1
+
+## 2.9.0
+
+### Minor Changes
+
+- 457f9cb: Add CaptureOnContentForBlock check
+
+### Patch Changes
+
+- Updated dependencies [457f9cb]
+- Updated dependencies [edb7f2e]
+  - @platformos/platformos-check-common@2.9.0
+  - @platformos/platformos-check-docs-updater@2.9.0
+
+## 2.7.0
+
+### Minor Changes
+
+- bb79d83: Add VariableName check
+
+### Patch Changes
+
+- Updated dependencies [bb79d83]
+  - @platformos/platformos-check-common@2.7.0
+  - @platformos/platformos-check-docs-updater@2.7.0
+
+## 2.6.0
+
+### Patch Changes
+
+- Updated dependencies [ff78229]
+  - @platformos/platformos-check-common@2.6.0
+  - @platformos/platformos-check-docs-updater@2.6.0
+
+## 2.5.1
+
+### Patch Changes
+
+- 0dc03a9: Prevent loading the same plugin more than once
+- 312d804: Add logging support to the docs loader
+- Updated dependencies [ec1fbd7]
+- Updated dependencies [312d804]
+  - @platformos/platformos-check-common@2.5.1
+  - @platformos/platformos-check-docs-updater@2.5.1
+
+## 2.5.0
+
+### Minor Changes
+
+- 03b41e1: Breaking: `jsonValidationSet`'s schemas public API change
+
+  Now takes a function of the following signature:
+
+  ```ts
+  interface JsonValidationSet = {
+    schemas: (context: 'theme' | 'app') => Promise<SchemaDefinition[]>
+  }
+  ```
+
+  Reason being we want to support `fileMatch` overloading of `blocks/*.liquid` files and we needed a way to identify which context you're in.
+
+  Unfortunately, the JSON schema for `blocks/*.liquid` files in theme app extensions isn't the same one we have in themes. There doesn't seem to be a way to unify them either.
+
+- 03b41e1: Theme Check Config files now accept the `context` property
+
+  In your `.theme-check.yml` files, you can set the `context` property to `theme` or `app`. By default, it's `theme`. The `theme-check:theme-app-extension` config sets it to `app`.
+
+  You shouldn't need to care about this. It's there so we can do contextual things internally.
+
+- 03b41e1: Add support for the schemas manifest on Shopify/theme-liquid-docs
+
+  Shopify/theme-liquid-docs now supports composable JSON schemas (with relative paths). To solve the `blocks/*.liquid` file match JSON schema overload depending on the context (`app` or `theme`), we defined two manifests that describe the schemas required by your solution and define the fileMatch rules:
+
+  - [manifest_theme.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
+  - [manifest_theme_app_extension.json](https://github.com/Shopify/theme-liquid-docs/blob/main/schemas/manifest_theme.json)
+
+  `@platformos/platformos-check-docs-updater` now reads those manifests and downloads the tree of dependency that they require. We will no longer need to make new platformos-tools releases whenever we add new schemas. We'll be able to dev them and their file associations directly from Shopify/theme-liquid-docs and have downstream consumers updated automatically (the same way docs are automatically updated).
+
+### Patch Changes
+
+- Updated dependencies [03b41e1]
+- Updated dependencies [03b41e1]
+- Updated dependencies [03b41e1]
+  - @platformos/platformos-check-docs-updater@2.5.0
+  - @platformos/platformos-check-common@2.5.0
+
+## 2.4.0
+
+### Patch Changes
+
+- Updated dependencies [767d223]
+- Updated dependencies [767d223]
+- Updated dependencies [767d223]
+  - @platformos/platformos-check-common@2.4.0
+  - @platformos/platformos-check-docs-updater@2.4.0
+
+## 2.3.0
+
+### Minor Changes
+
+- 8e3c7e2: Breaking: add `getDefaultSchema{Locale,Translations}(Factory)?` dependencies
+
+  To be used to power `MatchingTranslations` for [Schema translations](https://shopify.dev/docs/storefronts/themes/architecture/locales/schema-locale-files).
+
+  To be used to power Schema translations code completion and hover in section and theme block `{% schema %}` JSON blobs.
+
+### Patch Changes
+
+- 8e3c7e2: Unify parseJSON usage
+- Updated dependencies [8e3c7e2]
+- Updated dependencies [8e3c7e2]
+- Updated dependencies [8e3c7e2]
+  - @platformos/platformos-check-common@2.3.0
+  - @platformos/platformos-check-docs-updater@2.3.0
+
+## 2.2.2
+
+### Patch Changes
+
+- 08ca661: Fix theme file glob on Windows (CLI issue)
+  - @platformos/platformos-check-common@2.2.2
+  - @platformos/platformos-check-docs-updater@2.2.2
+
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [8710bde]
+  - @platformos/platformos-check-common@2.2.1
+  - @platformos/platformos-check-docs-updater@2.2.1
+
+## 2.2.0
+
+### Minor Changes
+
+- d66d49c: Add `{findRoot, reusableFindRoot, PathHandler}` to the public API
+
+### Patch Changes
+
+- d66d49c: Improve root finding of theme app extensions and zipped themes
+
+  Folders for which all the following is true are considered a root:
+
+  - have a `snippets/` folder, and
+  - don't have a `../.theme-check.yml`,
+  - don't have a `../../.theme-check.yml`.
+
+  No config file or `.git` folder required.
+
+- d66d49c: Unify root finding algorithm for node LS and TC packages
+  - @platformos/platformos-check-common@2.2.0
+  - @platformos/platformos-check-docs-updater@2.2.0
+
+## 2.1.0
+
+### Minor Changes
+
+- 042f1e0: internal rename of `schemaValidators` to `jsonValidationSet`
+
+  The node packages absorbs this change and the dependency injection is not breaking.
+
+### Patch Changes
+
+- 402f151: Improve YAML parsing error messages caused by YAML aliases
+
+  ```yaml
+  ignore:
+    # this causes an error because * at the start of a statement in YAML
+    # is used for aliases to anchors such as `&.code-workspaces`
+    - *.code-workspaces
+
+    # what you want is this
+    - '*.code-worksapces'
+  ```
+
+  It’s a pretty obscure error for the non-initiated, so now we’ll
+  instead throw an error like this:
+
+  ```
+  YAML parsing error: Unresolved alias *.code-workspaces
+  Did you forget to wrap it in quotes? '*.code-workspaces'
+  ```
+
+- Updated dependencies [042f1e0]
+- Updated dependencies [a9ae65f]
+  - @platformos/platformos-check-docs-updater@2.1.0
+  - @platformos/platformos-check-common@2.1.0
+
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [84f9eda]
+  - @platformos/platformos-check-docs-updater@2.0.4
+  - @platformos/platformos-check-common@2.0.4
+
+## 2.0.3
+
+### Patch Changes
+
+- e5022ee: Fix loadConfig export to automatically select .theme-check.yml if present
+  - @platformos/platformos-check-common@2.0.3
+  - @platformos/platformos-check-docs-updater@2.0.3
+
+## 2.0.2
+
+### Patch Changes
+
+- 0990c47: Fix config validation problem that required optional settings
+- 617b766: Add parser support for trailing commas at the end of Liquid tags and filters
+- Updated dependencies [0990c47]
+- Updated dependencies [617b766]
+  - @platformos/platformos-check-common@2.0.2
+  - @platformos/platformos-check-docs-updater@2.0.2
+
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [8f19b87]
+  - @platformos/platformos-check-common@2.0.1
+  - @platformos/platformos-check-docs-updater@2.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 8451075: **Theme Check 2.0**
+
+  Our official release of the next iteration of Theme Check, the linter for Shopify themes.
+
+  What is is: A TypeScript rewrite of [Theme Check](https://github.com/Shopify/theme-check).
+
+  But... _why_? A couple of reasons:
+
+  - To lint Liquid files, we prefer _one_ Abstract Syntax Tree (AST) per file. Not one Liquid AST _and_ one HTML AST.
+    - Theme Check Ruby had weird duplicated checks because of that (such as `ParserBlockingJavaScript` and `ParserBlockingScriptTag`)
+    - For that we reused the `@platformos/liquid-html-parser` we wrote for the prettier plugin.
+    - One tree, two languages.
+  - We wanted to run the linter in the Online Store Code Editor and—unlike WASM or WebSockets—there is no overhead or latency cost to running a TypeScript-based Language Server in a Web Worker.
+  - Theme developers are Front End developers. If we were to make a Venn diagram, we'd observe that the intersection of Ruby _and_ Theme developers is much smaller than that of JavaScript _and_ Theme developers.
+    - This makes the TypeScript codebase easier to contribute to.
+    - This makes the plugin ecosystem more accessible (you're more likely to have a `package.json` file in a theme than a `Gemfile`).
+  - The `@platformos/cli` was rewritten in TypeScript. This made the Ruby integration very problematic.
+    - Windows performance was terrible
+    - Installation setup was weird, often problematic and complicated
+  - The VS Code extension required a secondary installation step, and thus lost the ability to automatically self-update
+
+  With the move to TypeScript, we believe that it will make it easier for us to ship more robust features _faster_.
+
+### Patch Changes
+
+- 8451075: `package.json` and README cleanups
+- Updated dependencies [8451075]
+- Updated dependencies [8451075]
+  - @platformos/platformos-check-common@2.0.0
+  - @platformos/platformos-check-docs-updater@2.0.0
+
+## 1.22.0
+
+### Minor Changes
+
+- 636895f: Make LiquidHTMLSyntaxError more tolerant to unclosed nodes in branching code
+- aeb9b3f: Add `UnclosedHTMLElement` check
+
+### Patch Changes
+
+- Updated dependencies [636895f]
+- Updated dependencies [aeb9b3f]
+  - @platformos/platformos-check-common@1.22.0
+  - @platformos/platformos-check-docs-updater@1.22.0
+
+## 1.21.0
+
+### Patch Changes
+
+- Updated dependencies [772a1ce]
+- Updated dependencies [b05a6a8]
+  - @platformos/platformos-check-docs-updater@1.21.0
+  - @platformos/platformos-check-common@1.21.0
+
+## 1.20.1
+
+### Patch Changes
+
+- Updated dependencies [79b0549]
+- Updated dependencies [ac1deb4]
+  - @platformos/platformos-check-common@1.20.1
+  - @platformos/platformos-check-docs-updater@1.20.1
+
+## 1.20.0
+
+### Minor Changes
+
+- 78813ea: Export config types (modern identifiers, legacy identifiers, etc.)
+
+### Patch Changes
+
+- 78813ea: Fix root finding for theme app extensions without a config file
+  - @platformos/platformos-check-common@1.20.0
+  - @platformos/platformos-check-docs-updater@1.20.0
+
+## 1.19.0
+
+### Patch Changes
+
+- Updated dependencies [d9f3063]
+  - @platformos/platformos-check-common@1.19.0
+  - @platformos/platformos-check-docs-updater@1.19.0
+
+## 1.18.2
+
+### Patch Changes
+
+- Updated dependencies [fe54680]
+- Updated dependencies [e00c319]
+  - @platformos/platformos-check-common@1.18.2
+  - @platformos/platformos-check-docs-updater@1.18.2
+
+## 1.18.1
+
+### Patch Changes
+
+- Updated dependencies [aa33c5f]
+- Updated dependencies [0d71145]
+  - @platformos/platformos-check-common@1.18.1
+  - @platformos/platformos-check-docs-updater@1.18.1
+
+## 1.18.0
+
+### Minor Changes
+
+- 96d4d5e: Re-add `ignoreMissing` support to `MissingTemplate`
+
+### Patch Changes
+
+- 84aa24c: Superfluous settings as warnings not errors
+- Updated dependencies [96d4d5e]
+- Updated dependencies [dacdd9f]
+  - @platformos/platformos-check-common@1.18.0
+  - @platformos/platformos-check-docs-updater@1.18.0
+
+## 1.17.0
+
+### Minor Changes
+
+- 2cf7a11: Rename and alias a couple of checks
+
+  - `DeprecatedFilters` -> `DeprecatedFilter`
+  - `DeprecatedTags` -> `DeprecatedTag`
+  - Alias `LiquidHTMLSyntaxError` with `SyntaxError` and `HtmlParsingError`
+  - Alias `ParserBlockingJavaScript` with `ParserBlockingScriptTag`
+  - Alias `JSONSyntaxError` with `ValidJson`
+  - Alias `AssetSizeCSS` with `AssetSizeCSSStylesheetTag`
+  - Alias `RemoteAsset` with `AssetUrlFilters`
+
+### Patch Changes
+
+- Updated dependencies [2cf7a11]
+- Updated dependencies [2cf7a11]
+  - @platformos/platformos-check-common@1.17.0
+  - @platformos/platformos-check-docs-updater@1.17.0
+
+## 1.16.1
+
+### Patch Changes
+
+- b3bd123: Fix backward compatibility with legacy `{include,exclude}_categories` settings
+- Updated dependencies [8d35241]
+- Updated dependencies [201f30c]
+- Updated dependencies [c0298e7]
+- Updated dependencies [6fad756]
+- Updated dependencies [fc86c91]
+  - @platformos/platformos-check-common@1.16.1
+  - @platformos/platformos-check-docs-updater@1.16.1
+
+## 1.16.0
+
+### Minor Changes
+
+- 279a464: Add `RemoteAsset` check
+
+### Patch Changes
+
+- Updated dependencies [279a464]
+- Updated dependencies [d71a5e2]
+  - @platformos/platformos-check-common@1.16.0
+  - @platformos/platformos-check-docs-updater@1.16.0
+
+## 1.15.0
+
+### Minor Changes
+
+- f8b4e05: Runs theme check with external docs
+
+### Patch Changes
+
+- Updated dependencies [6c2c00f]
+- Updated dependencies [f1a642f]
+  - @platformos/platformos-check-common@1.15.0
+  - @platformos/platformos-check-docs-updater@1.15.0
+
+## 1.14.1
+
+### Patch Changes
+
+- b7514f4: Fixup UndefinedObject for sections
+- Updated dependencies [b7514f4]
+  - @platformos/platformos-check-common@1.14.1
+
+## 1.14.0
+
+### Minor Changes
+
+- a05aebb: Add `AssetSizeJavascript` check
+
+### Patch Changes
+
+- Updated dependencies [beeb85f]
+- Updated dependencies [a05aebb]
+  - @platformos/platformos-check-common@1.14.0
+
+## 1.13.1
+
+### Patch Changes
+
+- 14b9ee2: Fixup package.json configs
+- Updated dependencies [14b9ee2]
+  - @platformos/platformos-check-common@1.13.1
+
+## 1.13.0
+
+### Minor Changes
+
+- 441a8c5: Remove `ImgLazyLoading`
+- 12c794a: Add `DeprecatedTags` check
+- 38f549b: Add .theme-check.yml support to the new Language Server in VS Code
+
+### Patch Changes
+
+- c00e929: Bug fix for `AssetSizeCSS`: Fixes redundant messages.
+- 7838869: Remove unused dep in theme-check-node
+- c00e929: Bug fix for `AssetSizeAppBlockCSS`: Corrects underlining issues.
+- c00e929: Bug fix for `AssetUrlFilters`: Reports better messaging.
+- b1b8366: Fix the recommended and severity values
+- c00e929: Bug fix for `AssetSizeAppBlockJavascript`: Corrects underlining issues.
+- Updated dependencies [441a8c5]
+- Updated dependencies [c00e929]
+- Updated dependencies [972c26c]
+- Updated dependencies [25b79f0]
+- Updated dependencies [f3cda64]
+- Updated dependencies [b1b8366]
+- Updated dependencies [c00e929]
+- Updated dependencies [c00e929]
+- Updated dependencies [12c794a]
+- Updated dependencies [b1b8366]
+- Updated dependencies [b1b8366]
+- Updated dependencies [c00e929]
+  - @platformos/platformos-check-common@1.13.0
+
+## 1.12.1
+
+### Patch Changes
+
+- Patch bump because it depends on @platformos/prettier-plugin-liquid
+- Updated dependencies
+- Updated dependencies [5479a63]
+- Updated dependencies [5479a63]
+  - @platformos/platformos-check-common@1.12.1
+  - @platformos/prettier-plugin-liquid@1.2.3
+
+## 1.12.0
+
+### Minor Changes
+
+- 5ba20bd: Fixed bug for `AssetUrlFilters` check
+- 5ba20bd: Add `ContentForHeaderModification` check
+- 5ba20bd: Add `AssetSizeCSS` check
+- 5ba20bd: Add `AssetSizeAppBlockJavascript` check
+- 5ba20bd: Add `AssetSizeAppBlockCSS` check
+
+### Patch Changes
+
+- Updated dependencies [5ba20bd]
+- Updated dependencies [5ba20bd]
+- Updated dependencies [5ba20bd]
+- Updated dependencies [5ba20bd]
+- Updated dependencies [5ba20bd]
+  - @platformos/platformos-check-common@1.12.0
+
+## 1.11.1
+
+### Patch Changes
+
+- 2e73166: Fix the `DocsetEntry` types to better match the theme-liquid-docs json files
+- Updated dependencies [2e73166]
+  - @platformos/platformos-check-common@1.11.1
+
+## 1.11.0
+
+### Minor Changes
+
+- e67a16d: Breaking: Dependency injected json schema validators
+
+### Patch Changes
+
+- Updated dependencies [e67a16d]
+  - @platformos/platformos-check-common@1.11.0
+
+## 1.10.0
+
+### Minor Changes
+
+- 4db7c7e: Add `UnknownFilter` check
+- a94f23c: Bump prettier-plugin-liquid to v1.2.1
+
+### Patch Changes
+
+- Updated dependencies [4db7c7e]
+- Updated dependencies [a94f23c]
+  - @platformos/platformos-check-common@1.10.0
+
+## 1.9.0
+
+### Minor Changes
+
+- b3ed3b9: Add `ValidSchema` check
+- d19500f: Add `AppBlockValidTags` check
+- 8e76424: Add support for `.theme-check.yml` config files
+
+  **New features**:
+
+  - Developers can write their own checks and publish them to [npm](https://npmjs.com)
+
+    Modules that follow the `@scope/theme-check-*` or `theme-check-*` naming conventions are automatically loaded.
+
+    The `require` property of the configuration file can be used to load checks that do not follow the naming convention.
+
+    See [Creating a Theme Check extension](docs/writing-your-own-check/index.md) for more info.
+
+  - `extends` can be an array
+  - `extends` can refer to node module dependencies
+  - `extends` also accepts "modern" config identifiers:
+    - `theme-check:all` for all the checks and with default settings
+    - `theme-check:recommended` for the recommended checks and settings
+    - `theme-check:theme-app-extension` for theme app extensions
+
+  **Removed features**:
+
+  - `include_categories: []`
+  - `exclude_categories: []`
+
+  **Replaced features**:
+
+  - `require: []` this can be used to load unconventional (or private) `theme-check-js` checks. Ruby checks are not supported.
+
+  **Breaking changes**:
+
+  - Custom checks written in Ruby won't work Theme Check in TypeScript
+  - The `*` (star) glob in `ignore` configurations does not capture the forward slash (`/`) unless at the end of the pattern.
+
+    Fix: replace `*` by `**`.
+
+    This comes from a difference between how `minimatch` and Ruby handles file globs.
+
+  Extra care has been placed to make the transition as smooth as possible.
+
+- 3096e53: Add `ValidHTMLTranslation` check
+- daf5189: Add `AssetPreload` check
+- 6fb9db9: Add `ImgLazyLoading` check
+
+### Patch Changes
+
+- Updated dependencies [b3ed3b9]
+- Updated dependencies [d19500f]
+- Updated dependencies [8e76424]
+- Updated dependencies [3096e53]
+- Updated dependencies [daf5189]
+- Updated dependencies [6fb9db9]
+  - @platformos/platformos-check-common@1.9.0
+
+## 1.8.0
+
+### Minor Changes
+
+- 2f0f941: Add `MissingAsset` check
+- fd3fc3c: Add `AssetUrlFilters`
+- 5ae97c9: Add `PaginationSize` check
+- 85cf8f3: Add `CdnPreconnect`
+- 051aff1: Introduce `ThemeDocset` and `ThemeSchemas` dependencies to support core checks
+
+### Patch Changes
+
+- Updated dependencies [2f0f941]
+- Updated dependencies [fd3fc3c]
+- Updated dependencies [5ae97c9]
+- Updated dependencies [85cf8f3]
+- Updated dependencies [051aff1]
+  - @platformos/platformos-check-common@1.8.0
+
+## 1.7.1
+
+### Patch Changes
+
+- Bump prettier-plugin-liquid to v1.1.0
+- Updated dependencies
+  - @platformos/platformos-check-common@1.7.1
+
+## 1.7.0
+
+### Minor Changes
+
+- 502bad8: Add documentation URLs to checks
+
+### Patch Changes
+
+- Updated dependencies [502bad8]
+  - @platformos/platformos-check-common@1.7.0
+
+## 1.6.0
+
+### Minor Changes
+
+- 9e99728: Add `UnusedAssign`
+- f99c896: Add `LiquidHTMLSyntaxError`
+- e0c131a: Add `JSONSyntaxError`
+- e0c131a: Breaking: `SourceCode` can take `ast: AST[T] | Error`, where `Error` is a parsing error
+- ccd5146: Add `DeprecatedLazysizes`
+- c715fbe: Add `ImgWidthAndHeight`
+- 9e99728: Add `RequiredLayoutThemeObject`
+- edd8925: Add `DeprecateBgsizes`
+
+### Patch Changes
+
+- 9d3d557: Fix RequiredLayoutThemeObject bugs
+- Updated dependencies [cad8e17]
+- Updated dependencies [9e99728]
+- Updated dependencies [f99c896]
+- Updated dependencies [e0c131a]
+- Updated dependencies [e0c131a]
+- Updated dependencies [ccd5146]
+- Updated dependencies [c715fbe]
+- Updated dependencies [9e99728]
+- Updated dependencies [9d3d557]
+- Updated dependencies [edd8925]
+  - @platformos/platformos-check-common@1.6.0
+
+## 1.5.1
+
+### Patch Changes
+
+- 60c92be: Fix unhandled TranslationKeyExists error
+- Updated dependencies [60c92be]
+  - @platformos/platformos-check-common@1.5.1
+
+## 1.5.0
+
+### Minor Changes
+
+- 71e6b44: Add support for fixes and suggestions
+
+  **New**: `context.report` now accepts two new properties:
+
+  - `fix: Fixer`, accepts a callback that is given a corrector and produces transformations that are deemed **safe to apply without confirmation** on the initial document.
+
+    - JSON checks will receive a [`JSONCorrector` (API)](packages/common/src/fixes/correctors/json-corrector.ts)
+    - LiquidHTML checks will receive a [`StringCorrector` (API)](packages/common/src/fixes/correctors/string-corrector)
+
+    ```typescript
+    type Fixer<S> = (corrector: Corrector<S>) => void;
+    ```
+
+  - `suggest: Suggestion[]`, accepts an array of Suggestion. Those are like fixes but are not considered safe either because there's multiple ways to fix the problem or because the change requires care.
+
+    ```typescript
+    type Suggestion<S> = {
+      message: String;
+      fix: Fixer<S>;
+    };
+    ```
+
+  Example usage:
+
+  ```typescript
+  // A safe change, add a "TODO" translation key
+  context.report({
+    message: `The translation for '${path}' is missing`,
+    startIndex: closest.loc!.start.offset,
+    endIndex: closest.loc!.end.offset,
+    fix(corrector) {
+      // corrector is inferred to be a JSONCorrector
+      corrector.add(path, 'TODO');
+    },
+  });
+
+  // An unsafe change, add `defer` or `async` attributes on the script tag
+  context.report({
+    message: 'Avoid parser blocking scripts by adding `defer` or `async` on this tag',
+    startIndex: node.position.start,
+    endIndex: node.position.end,
+    suggest: [{
+      message: 'Add defer attribute',
+      fix: corrector => {
+        // corrector is inferred to be a StringCorrector
+        corrector.insert(node.blockStartPosition.end, ' defer')
+      },
+    }, {
+      message: 'Add async attribute',
+      fix: corrector => {
+        // corrector is inferred to be a StringCorrector
+        corrector.insert(node.blockStartPosition.end, ' async')
+      };
+    }],
+  })
+  ```
+
+  Under the hood, corrector calls will be converted into a list of `Fix` objects.
+
+  One can implement a `FixApplicator` (a async function that takes a `SourceCode` and `Fix` objects) to apply fixes in different contexts.
+
+  - In Node.js, we'll implement a `FixApplicator` that applies the fixes to the initial file and then save the changes to disk.
+  - In the Language Server, we'll implement `FixApplicator`s that turn the `Fix`es into `TextEdit` objects.
+
+  **New**: the top level API now offers the `autofix` function, one that takes a `FixApplicator` as argument.
+
+  This `autofix` function applies all the _safe_ changes (and ignores suggestions).
+
+### Patch Changes
+
+- Updated dependencies [71e6b44]
+  - @platformos/platformos-check-common@1.5.0
+
+## 1.4.1
+
+### Patch Changes
+
+- a8cda19: Add TranslationKeyExists to allChecks array
+- Updated dependencies [9f8d47f]
+- Updated dependencies [a8cda19]
+  - @platformos/platformos-check-common@1.4.1
+
+## 1.4.0
+
+### Minor Changes
+
+- 9d419ca: Breaking: change dependency `get defaultLocale` to `getDefaultLocale(): Promise<string>`
+
+### Patch Changes
+
+- Updated dependencies [9d419ca]
+  - @platformos/platformos-check-common@1.4.0
+
+## 1.3.0
+
+### Minor Changes
+
+- 72a9330: Breaking: Add `defaultLocale` dependency
+- 72a9330: Add check TranslationKeyExists
+- 5329963: Breaking: change signature of `getDefaultTranslations` to return a `Promise<Translations>`
+
+### Patch Changes
+
+- Updated dependencies [72a9330]
+- Updated dependencies [5329963]
+- Updated dependencies [72a9330]
+- Updated dependencies [5329963]
+  - @platformos/platformos-check-common@1.3.0
+
+## 1.2.0
+
+### Patch Changes
+
+- Updated dependencies [4c099d5]
+- Updated dependencies [4c099d5]
+  - @platformos/platformos-check-common@1.2.0
+
+## 1.1.0
+
+### Minor Changes
+
+- f4a2f27: Simplify public API
+
+  Breaking changes:
+
+  - `Theme` is `SourceCode<S>[]` instead of `{ files: Map<string, SourceCode<S>> }`
+  - `SourceCode` no longer has a `relativePath` property
+  - `toSourceCode` no longer takes a `relativePath` as argument
+  - `Config` has a `root` property
+
+- 37fc98a: Add dependencies to public API
+
+  - `fileExists(absolutePath: string): Promise<boolean>` returns true when a file exists
+  - `getDefaultTranslations(): Promise<JSONObject>` returns the parsed JSON contents of the default translations file
+
+  These dependencies are now added to the `context` object and are usable by checks.
+
+  Those exists as a lean way to get rid of the assumptions that all files are in the `Theme` object. We should be able to go a long way with these.
+
+### Patch Changes
+
+- Updated dependencies [f4a2f27]
+- Updated dependencies [37fc98a]
+  - @platformos/platformos-check-common@1.1.0
+
+## 1.0.1
+
+### Patch Changes
+
+- d206674: Move toSourceCode to common for use in language-server-common
+- Updated dependencies [d206674]
+  - @platformos/platformos-check-common@1.0.1
+
+## 1.0.0
+
+### Major Changes
+
+- 233f00f: Initial release

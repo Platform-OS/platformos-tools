@@ -11,11 +11,11 @@
     "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
   "version": "1.0.0",
-  "publisher": "platformOS",
+  "publisher": "platformos",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
-  "displayName": "platformOS Liquid v2",
-  "description": "A complete developer experience for platformOS",
+  "displayName": "platformos Liquid v2",
+  "description": "A complete developer experience for platformos",
   "categories": [
     "Programming Languages",
     "Linters",
@@ -23,7 +23,7 @@
   ],
   "keywords": [
     "liquid",
-    "platformOS",
+    "platformos",
     "theme-check",
     "graphql"
   ],
@@ -61,18 +61,18 @@
     "vscode": "^1.104.0"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^2.9.0",
-    "@platformos/prettier-plugin-liquid": "^1.10.0",
-    "@platformos/theme-check-common": "^3.23.0",
-    "@platformos/theme-language-server-browser": "^2.20.0",
-    "@platformos/theme-language-server-common": "^2.20.0",
-    "@platformos/theme-language-server-node": "^2.20.0",
+    "@platformos/liquid-html-parser": "1.0.0",
+    "@platformos/prettier-plugin-liquid": "1.0.0",
+    "@platformos/platformos-check-common": "1.0.0",
+    "@platformos/platformos-language-server-browser": "1.0.0",
+    "@platformos/platformos-language-server-common": "1.0.0",
+    "@platformos/platformos-language-server-node": "1.0.0",
     "prettier": "^2.6.2",
     "vscode-languageclient": "^8.1.0",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@platformos/theme-check-docs-updater": "^3.23.0",
+    "@platformos/platformos-check-docs-updater": "1.0.0",
     "@types/glob": "^8.0.0",
     "@types/node": "^22",
     "@types/prettier": "^2.4.2",
@@ -115,7 +115,7 @@
       }
     ],
     "configuration": {
-      "title": "platformOS Liquid v2 | Syntax Highlighting & Linter by platformOS",
+      "title": "platformos Liquid v2 | Syntax Highlighting & Linter by platformos",
       "properties": {
         "platformosLiquid.trace.server": {
           "type": [

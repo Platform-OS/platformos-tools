@@ -1,9 +1,9 @@
-import { path } from '@platformos/theme-check-common';
+import { path } from '@platformos/platformos-check-common';
 import {
   AugmentedLocation,
   ThemeGraphDeadCodeRequest,
   ThemeGraphRootRequest,
-} from '@platformos/theme-language-server-common';
+} from '@platformos/platformos-language-server-common';
 import { commands, Position, Range, Uri, window, workspace } from 'vscode';
 import { BaseLanguageClient } from 'vscode-languageclient';
 

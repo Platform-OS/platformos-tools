@@ -1,6 +1,6 @@
 {
   "name": "@platformos/prettier-plugin-liquid",
-  "version": "1.10.0",
+  "version": "1.0.0",
   "description": "Prettier Liquid/HTML plugin by Shopify",
   "author": "CP Clermont <cp.clermont@shopify.com>",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/prettier-plugin-liquid#readme",
@@ -59,7 +59,7 @@
     "tsconfig-paths": "^3.14.1"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^2.9.0",
+    "@platformos/liquid-html-parser": "1.0.0",
     "html-styles": "^1.0.0"
   }
 }

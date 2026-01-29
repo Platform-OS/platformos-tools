@@ -6,12 +6,12 @@ import {
   AbstractFileSystem,
   FileTuple,
   FileStat,
-} from '@platformos/theme-language-server-browser';
+} from '@platformos/platformos-language-server-browser';
 import { Connection } from 'vscode-languageserver';
 
 /**
  * These are replaced at build time by the contents of
- * @platformos/theme-check-docs-updater's DocsManager
+ * @platformos/platformos-check-docs-updater's DocsManager
  */
 declare global {
   export const WEBPACK_TAGS: any[];

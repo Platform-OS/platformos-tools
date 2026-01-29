@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import { FileStat, FileTuple } from '@platformos/platformos-common';
-import { path } from '@platformos/theme-check-common';
+import { path } from '@platformos/platformos-check-common';
 import { commands, ExtensionContext, languages, Uri, workspace } from 'vscode';
 import {
   LanguageClient,

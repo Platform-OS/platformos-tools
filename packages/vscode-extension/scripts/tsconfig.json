@@ -8,11 +8,11 @@
     "composite": true,
     "declarationDir": "/tmp/vscode-extension-useless-declarations",
     "paths": {
-      "@platformos/theme-check-docs-updater": ["../../theme-check-docs-updater/src"]
+      "@platformos/platformos-check-docs-updater": ["../../platformos-check-docs-updater/src"]
     }
   },
   "include": ["**/*.ts"],
   "references": [
-    { "path": "../../theme-check-docs-updater/tsconfig.build.json" }
+    { "path": "../../platformos-check-docs-updater/tsconfig.build.json" }
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(yarn install)",
+      "Bash(yarn build:ts:*)",
+      "Bash(yarn test)",
+      "Bash(yarn test:*)",
+      "Bash(grep:*)",
+      "Bash(jq:*)"
+    ]
+  }
+}

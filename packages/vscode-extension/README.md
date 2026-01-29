@@ -2,14 +2,14 @@
   <br>
     <img src="https://github.com/Platform-OS/platformos-tools/packages/vscode-extensions/blob/main/images/pos.jpg?raw=true" alt="logo" width="150" height="160">
   <br>
-  platformOS Liquid
+  platformos Liquid
 </h1>
 
-<h4 align="center">A complete developer experience for platformOS</h4>
+<h4 align="center">A complete developer experience for platformos</h4>
 
-Official VS Code extension for [platformOS](https://documentation.platformos.com).
+Official VS Code extension for [platformos](https://documentation.platformos.com).
 
-[Features](#features) | [User guide](#user-guide) | [Installation](#installation) | [Configuration](#configuration) | [📦 VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=platformOS.platformos-check-vscode).
+[Features](#features) | [User guide](#user-guide) | [Installation](#installation) | [Configuration](#configuration) | [📦 VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=platformos.platformos-check-vscode).
 
 ## Features
 

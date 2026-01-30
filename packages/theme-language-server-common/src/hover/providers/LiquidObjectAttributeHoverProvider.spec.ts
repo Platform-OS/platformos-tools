@@ -177,4 +177,62 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
   it('should return nothing if there are no docs for that attribute', async () => {
     await expect(provider).to.hover(`{{ product.featured_foo█ }}`, null);
   });
+
+  describe('when hovering over parse_json variables', () => {
+    it('should return type info for object properties', async () => {
+      await expect(provider).to.hover(
+        `{% assign a = '{"name": "test", "count": 5}' | parse_json %}
+         {{ a.name█ }}`,
+        expect.stringMatching(/##* name: `string`/),
+      );
+    });
+
+    it('should return type info for nested object properties', async () => {
+      await expect(provider).to.hover(
+        `{% assign a = '{"user": {"id": 1, "name": "test"}}' | parse_json %}
+         {{ a.user█ }}`,
+        expect.stringMatching(/##* user: `object`/),
+      );
+      await expect(provider).to.hover(
+        `{% assign a = '{"user": {"id": 1, "name": "test"}}' | parse_json %}
+         {{ a.user█ }}`,
+        expect.stringContaining('Keys: id, name'),
+      );
+    });
+
+    it('should return type info for array properties', async () => {
+      await expect(provider).to.hover(
+        `{% assign a = '{"items": [1, 2, 3]}' | parse_json %}
+         {{ a.items█ }}`,
+        expect.stringMatching(/##* items: `number\[\]`/),
+      );
+    });
+
+    it('should return type info for nested array properties', async () => {
+      await expect(provider).to.hover(
+        `{% assign a = '[{"name": "test"}]' | parse_json %}
+         {{ a.first█ }}`,
+        expect.stringMatching(/##* first: `object`/),
+      );
+    });
+
+    it('should return type info for parse_json block syntax', async () => {
+      await expect(provider).to.hover(
+        `{% parse_json data %}
+           {"status": "active", "count": 5}
+         {% endparse_json %}
+         {{ data.status█ }}`,
+        expect.stringMatching(/##* status: `string`/),
+      );
+    });
+
+    it('should return type info for hash_assign with parse_json value', async () => {
+      await expect(provider).to.hover(
+        `{% assign a = '{}' | parse_json %}
+         {% hash_assign a['nested'] = '{"deep": "value"}' | parse_json %}
+         {{ a.nested█ }}`,
+        expect.stringMatching(/##* nested: `object`/),
+      );
+    });
+  });
 });

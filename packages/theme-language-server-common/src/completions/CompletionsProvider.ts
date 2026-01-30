@@ -4,7 +4,7 @@ import {
   SourceCodeType,
   ThemeDocset,
 } from '@platformos/theme-check-common';
-import { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';
+import type { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';
 import { CompletionItem, CompletionParams } from 'vscode-languageserver';
 import { TypeSystem } from '../TypeSystem';
 import { DocumentManager } from '../documents';
@@ -72,7 +72,6 @@ export class CompletionsProvider {
     documentsLocator,
     findThemeRootURI,
     log = () => {},
-    notifyUnableToInferProperties,
   }: CompletionProviderDependencies) {
     this.documentManager = documentManager;
     this.themeDocset = themeDocset;
@@ -81,6 +80,9 @@ export class CompletionsProvider {
       themeDocset,
       getThemeSettingsSchemaForURI,
       getMetafieldDefinitions,
+      fs,
+      documentsLocator,
+      findThemeRootURI,
     );
 
     this.providers = [
@@ -92,14 +94,7 @@ export class CompletionsProvider {
       new HtmlAttributeValueCompletionProvider(),
       new LiquidTagsCompletionProvider(themeDocset),
       new ObjectCompletionProvider(typeSystem),
-      new ObjectAttributeCompletionProvider(
-        typeSystem,
-        fs,
-        documentsLocator,
-        findThemeRootURI,
-        themeDocset,
-        notifyUnableToInferProperties,
-      ),
+      new ObjectAttributeCompletionProvider(typeSystem),
       new FilterCompletionProvider(typeSystem),
       new TranslationCompletionProvider(documentManager, getTranslationsForURI),
       new PartialCompletionProvider(getPartialNamesForURI),

@@ -1,7 +1,8 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidHtmlNode } from '@platformos/theme-check-common';
 import { Hover, HoverParams } from 'vscode-languageserver';
-import { TypeSystem, Unknown, Untyped, isArrayType } from '../../TypeSystem';
+import { TypeSystem, Unknown, Untyped, isArrayType, isShapeType } from '../../TypeSystem';
+import { shapeToTypeString, shapeToDetailString } from '../../PropertyShapeInference';
 import { render } from '../../docset';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 
@@ -33,6 +34,44 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
     const objectMap = await this.typeSystem.objectMap(uri, ancestors[0]);
     const parentType = await this.typeSystem.inferType(node, ancestors[0], uri);
 
+    // Handle ShapeType from parse_json, graphql, hash_assign
+    if (isShapeType(parentType)) {
+      const nodeType = await this.typeSystem.inferType(
+        { ...parentNode, lookups: parentNode.lookups.slice(0, lookupIndex + 1) },
+        ancestors[0],
+        uri,
+      );
+
+      // Return hover info for shape types
+      if (isShapeType(nodeType)) {
+        return {
+          contents: {
+            kind: 'markdown',
+            value: `### ${currentNode.value}: \`${shapeToTypeString(nodeType.shape)}\`\n${shapeToDetailString(nodeType.shape)}`,
+          },
+        };
+      }
+
+      // Handle primitive types from shape lookup
+      if (nodeType !== Unknown && nodeType !== Untyped && !isArrayType(nodeType)) {
+        return {
+          contents: {
+            kind: 'markdown',
+            value: `### ${currentNode.value}: \`${nodeType}\``,
+          },
+        };
+      }
+
+      if (nodeType === Unknown) return null;
+
+      return {
+        contents: {
+          kind: 'markdown',
+          value: `### ${currentNode.value}: \`${isArrayType(nodeType) ? `${nodeType.valueType}[]` : nodeType}\``,
+        },
+      };
+    }
+
     if (isArrayType(parentType) || parentType === 'string' || parentType === Untyped) {
       const nodeType = await this.typeSystem.inferType(
         { ...parentNode, lookups: parentNode.lookups.slice(0, lookupIndex + 1) },
@@ -40,8 +79,17 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
         uri,
       );
 
-      // 2D arrays and unknown types are not supported
+      // 2D arrays, unknown types and shape types are handled differently
       if (isArrayType(nodeType) || nodeType === Unknown) return null;
+
+      if (isShapeType(nodeType)) {
+        return {
+          contents: {
+            kind: 'markdown',
+            value: `### ${currentNode.value}: \`${shapeToTypeString(nodeType.shape)}\`\n${shapeToDetailString(nodeType.shape)}`,
+          },
+        };
+      }
 
       // We want want `## first: `nodeType` with the docs of the nodeType
       const entry = { ...(objectMap[nodeType] ?? {}), name: currentNode.value };
@@ -60,7 +108,7 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
     }
 
     const parentTypeProperties = objectMap[parentType]?.properties || [];
-    const entry = parentTypeProperties.find((p) => p.name === currentNode.value);
+    const entry = parentTypeProperties.find((p: { name: string }) => p.name === currentNode.value);
     if (!entry) {
       return null;
     }

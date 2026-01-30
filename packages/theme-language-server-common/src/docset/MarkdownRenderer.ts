@@ -1,5 +1,14 @@
 import { DocsetEntry, FilterEntry, ObjectEntry, TagEntry } from '@platformos/theme-check-common';
-import { ArrayType, PseudoType, Unknown, docsetEntryReturnType, isArrayType } from '../TypeSystem';
+import {
+  ArrayType,
+  PseudoType,
+  ShapeType,
+  Unknown,
+  docsetEntryReturnType,
+  isArrayType,
+  isShapeType,
+} from '../TypeSystem';
+import { shapeToTypeString, shapeToDetailString } from '../PropertyShapeInference';
 import { Attribute, Tag, Value } from './HtmlDocset';
 
 const HORIZONTAL_SEPARATOR = '\n\n---\n\n';
@@ -9,7 +18,7 @@ export type DocsetEntryType = 'filter' | 'tag' | 'object';
 
 export function render(
   entry: DocsetEntry | FilterEntry | TagEntry,
-  returnType?: PseudoType | ArrayType,
+  returnType?: PseudoType | ArrayType | ShapeType,
   docsetEntryType?: DocsetEntryType,
 ) {
   return [title(entry, returnType), docsetEntryBody(entry, returnType, docsetEntryType)]
@@ -23,11 +32,13 @@ export function renderHtmlEntry(entry: HtmlEntry, parentEntry?: HtmlEntry) {
 
 function title(
   entry: DocsetEntry | ObjectEntry | FilterEntry | HtmlEntry,
-  returnType?: PseudoType | ArrayType,
+  returnType?: PseudoType | ArrayType | ShapeType,
 ) {
   returnType = returnType ?? docsetEntryReturnType(entry as ObjectEntry, Unknown);
 
-  if (isArrayType(returnType)) {
+  if (isShapeType(returnType)) {
+    return `### ${entry.name}: \`${shapeToTypeString(returnType.shape)}\``;
+  } else if (isArrayType(returnType)) {
     return `### ${entry.name}: \`${returnType.valueType}[]\``;
   } else if (returnType !== Unknown) {
     return `### ${entry.name}: \`${returnType}\``;
@@ -47,16 +58,23 @@ function sanitize(s: string | undefined) {
 
 function docsetEntryBody(
   entry: DocsetEntry,
-  returnType?: PseudoType | ArrayType,
+  returnType?: PseudoType | ArrayType | ShapeType,
   docsetEntryType?: DocsetEntryType,
 ) {
-  return [
+  const bodyParts = [
     syntax(entry),
     entry.deprecation_reason,
     entry.summary,
     entry.description,
     platformOSDevReference(entry, returnType, docsetEntryType),
-  ]
+  ];
+
+  // Add shape details if returnType is a ShapeType
+  if (returnType && isShapeType(returnType)) {
+    bodyParts.unshift(shapeToDetailString(returnType.shape));
+  }
+
+  return bodyParts
     .map((x) => x?.toString())
     .map(sanitize)
     .filter(Boolean)
@@ -97,7 +115,7 @@ const platformOSDevRoot = `https://documentation.platformos.com/api-reference/li
 
 function platformOSDevReference(
   entry: DocsetEntry,
-  _?: PseudoType | ArrayType,
+  _?: PseudoType | ArrayType | ShapeType,
   docsetEntryType?: DocsetEntryType,
 ) {
   switch (docsetEntryType) {

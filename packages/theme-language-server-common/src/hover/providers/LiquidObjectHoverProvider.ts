@@ -1,6 +1,6 @@
 import { LiquidHtmlNode, LiquidVariableLookup, NodeTypes } from '@platformos/liquid-html-parser';
 import { Hover, HoverParams } from 'vscode-languageserver';
-import { TypeSystem, Unknown, isArrayType } from '../../TypeSystem';
+import { TypeSystem, Unknown, Untyped, isArrayType, isShapeType } from '../../TypeSystem';
 import { render } from '../../docset';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 
@@ -33,11 +33,23 @@ export class LiquidObjectHoverProvider implements BaseHoverProvider {
 
     const type = await this.typeSystem.inferType(node, ancestors[0], params.textDocument.uri);
     const objectMap = await this.typeSystem.objectMap(params.textDocument.uri, ancestors[0]);
-    const entry = objectMap[isArrayType(type) ? type.valueType : type];
 
     if (type === Unknown) {
       return null;
     }
+
+    // Handle ShapeType from parse_json, graphql, hash_assign
+    if (isShapeType(type)) {
+      return {
+        contents: {
+          kind: 'markdown',
+          value: render({ name: currentNode.name }, type, 'object'),
+        },
+      };
+    }
+
+    const entryType = isArrayType(type) ? type.valueType : type;
+    const entry = objectMap[entryType];
 
     if (!entry) {
       const entryByName = objectMap[currentNode.name] ?? {};

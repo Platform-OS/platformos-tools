@@ -28,6 +28,36 @@ export interface LookupResult {
 }
 
 /**
+ * Merge two shapes together, combining their properties
+ */
+function mergeShapes(a: PropertyShape, b: PropertyShape): PropertyShape {
+  // If same kind, merge appropriately
+  if (a.kind === 'object' && b.kind === 'object') {
+    const properties = new Map(a.properties);
+    if (b.properties) {
+      for (const [key, val] of b.properties) {
+        const existing = properties.get(key);
+        if (existing) {
+          properties.set(key, mergeShapes(existing, val));
+        } else {
+          properties.set(key, val);
+        }
+      }
+    }
+    return { kind: 'object', properties };
+  }
+  if (a.kind === 'array' && b.kind === 'array') {
+    const itemShape =
+      a.itemShape && b.itemShape
+        ? mergeShapes(a.itemShape, b.itemShape)
+        : a.itemShape || b.itemShape;
+    return { kind: 'array', itemShape };
+  }
+  // Different kinds or primitives - prefer the first
+  return a;
+}
+
+/**
  * Infer shape from a parsed JSON value
  */
 export function inferShapeFromJSON(value: unknown): PropertyShape {
@@ -44,7 +74,12 @@ export function inferShapeFromJSON(value: unknown): PropertyShape {
     return { kind: 'primitive', primitiveType: 'boolean' };
   }
   if (Array.isArray(value)) {
-    const itemShape = value.length > 0 ? inferShapeFromJSON(value[0]) : undefined;
+    // Merge shapes from all array elements
+    let itemShape: PropertyShape | undefined;
+    for (const item of value) {
+      const shape = inferShapeFromJSON(item);
+      itemShape = itemShape ? mergeShapes(itemShape, shape) : shape;
+    }
     return { kind: 'array', itemShape };
   }
   if (typeof value === 'object') {
@@ -246,6 +281,91 @@ export function getAvailableProperties(shape: PropertyShape): string[] {
   }
   if (shape.kind === 'primitive' && shape.primitiveType === 'string') {
     return ['size'];
+  }
+  return [];
+}
+
+export interface PropertyWithType {
+  name: string;
+  type: string;
+  detail: string;
+}
+
+/**
+ * Convert a PropertyShape to a human-readable type string
+ */
+export function shapeToTypeString(shape: PropertyShape): string {
+  if (shape.kind === 'primitive') {
+    return shape.primitiveType ?? 'any';
+  }
+  if (shape.kind === 'array') {
+    if (shape.itemShape) {
+      return `${shapeToTypeString(shape.itemShape)}[]`;
+    }
+    return 'array';
+  }
+  if (shape.kind === 'object') {
+    return 'object';
+  }
+  return 'any';
+}
+
+const MAX_KEYS_TO_SHOW = 5;
+
+/**
+ * Convert a PropertyShape to a detailed multi-line description
+ */
+export function shapeToDetailString(shape: PropertyShape): string {
+  const typeStr = shapeToTypeString(shape);
+  const lines: string[] = [`Type: ${typeStr}`];
+
+  if (shape.kind === 'object' && shape.properties && shape.properties.size > 0) {
+    const keys = Array.from(shape.properties.keys());
+    if (keys.length <= MAX_KEYS_TO_SHOW) {
+      lines.push(`Keys: ${keys.join(', ')}`);
+    } else {
+      const shown = keys.slice(0, MAX_KEYS_TO_SHOW).join(', ');
+      lines.push(`Keys: ${shown}, ... (+${keys.length - MAX_KEYS_TO_SHOW} more)`);
+    }
+  }
+
+  if (shape.kind === 'array' && shape.itemShape) {
+    if (shape.itemShape.kind === 'object' && shape.itemShape.properties && shape.itemShape.properties.size > 0) {
+      const keys = Array.from(shape.itemShape.properties.keys());
+      if (keys.length <= MAX_KEYS_TO_SHOW) {
+        lines.push(`Item keys: ${keys.join(', ')}`);
+      } else {
+        const shown = keys.slice(0, MAX_KEYS_TO_SHOW).join(', ');
+        lines.push(`Item keys: ${shown}, ... (+${keys.length - MAX_KEYS_TO_SHOW} more)`);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Get available properties with their types at a given shape (for autocomplete)
+ */
+export function getAvailablePropertiesWithTypes(shape: PropertyShape): PropertyWithType[] {
+  if (shape.kind === 'object' && shape.properties) {
+    return Array.from(shape.properties.entries()).map(([name, propShape]) => ({
+      name,
+      type: shapeToTypeString(propShape),
+      detail: shapeToDetailString(propShape),
+    }));
+  }
+  if (shape.kind === 'array') {
+    const itemType = shape.itemShape ? shapeToTypeString(shape.itemShape) : 'any';
+    const itemDetail = shape.itemShape ? shapeToDetailString(shape.itemShape) : 'Type: any';
+    return [
+      { name: 'first', type: itemType, detail: itemDetail },
+      { name: 'last', type: itemType, detail: itemDetail },
+      { name: 'size', type: 'number', detail: 'Type: number' },
+    ];
+  }
+  if (shape.kind === 'primitive' && shape.primitiveType === 'string') {
+    return [{ name: 'size', type: 'number', detail: 'Type: number' }];
   }
   return [];
 }

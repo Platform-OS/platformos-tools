@@ -6,7 +6,7 @@ import {
   InsertTextFormat,
   TextEdit,
 } from 'vscode-languageserver';
-import { PseudoType, TypeSystem, isArrayType } from '../../TypeSystem';
+import { PseudoType, TypeSystem, isArrayType, isShapeType } from '../../TypeSystem';
 import { memoize } from '../../utils';
 import { AugmentedLiquidSourceCode } from '../../documents';
 import { CURSOR, LiquidCompletionParams } from '../params';
@@ -47,7 +47,14 @@ export class FilterCompletionProvider implements Provider {
       params.textDocument.uri,
     );
     const partial = node.name.replace(CURSOR, '');
-    const options = await this.options(isArrayType(inputType) ? 'array' : inputType);
+    const normalizedType = isArrayType(inputType)
+      ? 'array'
+      : isShapeType(inputType)
+        ? inputType.shape.kind === 'array'
+          ? 'array'
+          : 'untyped'
+        : inputType;
+    const options = await this.options(normalizedType);
 
     return options
       .filter(({ name }) => name.startsWith(partial))

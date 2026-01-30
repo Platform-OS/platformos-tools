@@ -11,6 +11,11 @@ import {
   LiquidVariableLookup,
   NamedTags,
   NodeTypes,
+  TextNode,
+  GraphQLMarkup,
+  GraphQLInlineMarkup,
+  LiquidString,
+  HashAssignMarkup,
 } from '@platformos/liquid-html-parser';
 import {
   ArrayReturnType,
@@ -38,19 +43,43 @@ import {
 } from './settings';
 import { findLast, memo } from './utils';
 import { visit } from '@platformos/theme-check-common';
+import {
+  PropertyShape,
+  inferShapeFromJSONString,
+  inferShapeFromGraphQL,
+  lookupPropertyPath,
+  shapeToTypeString,
+  shapeToDetailString,
+} from './PropertyShapeInference';
+import { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';
+import { URI } from 'vscode-uri';
 
 export class TypeSystem {
+  private graphqlSchemaCache: string | undefined;
+  private graphqlSchemaLoaded = false;
+
   constructor(
     private readonly themeDocset: ThemeDocset,
     private readonly getThemeSettingsSchemaForURI: GetThemeSettingsSchemaForURI,
     private readonly getMetafieldDefinitions: (rootUri: string) => Promise<MetafieldDefinitionMap>,
+    private readonly fs?: AbstractFileSystem,
+    private readonly documentsLocator?: DocumentsLocator,
+    private readonly findThemeRootURI?: (uri: string) => Promise<string | null>,
   ) {}
+
+  private async getGraphQLSchema(): Promise<string | undefined> {
+    if (!this.graphqlSchemaLoaded) {
+      this.graphqlSchemaCache = (await this.themeDocset.graphQL()) ?? undefined;
+      this.graphqlSchemaLoaded = true;
+    }
+    return this.graphqlSchemaCache;
+  }
 
   async inferType(
     thing: Identifier | ComplexLiquidExpression | LiquidVariable | AssignMarkup,
     partialAst: LiquidHtmlNode,
     uri: string,
-  ): Promise<PseudoType | ArrayType> {
+  ): Promise<PseudoType | ArrayType | ShapeType> {
     const [objectMap, filtersMap, symbolsTable] = await Promise.all([
       this.objectMap(uri, partialAst),
       this.filtersMap(),
@@ -65,7 +94,7 @@ export class TypeSystem {
     partial: string,
     node: LiquidVariableLookup,
     uri: string,
-  ): Promise<{ entry: DocsetEntry; type: PseudoType | ArrayType }[]> {
+  ): Promise<{ entry: DocsetEntry; type: PseudoType | ArrayType | ShapeType }[]> {
     const [objectMap, filtersMap, symbolsTable] = await Promise.all([
       this.objectMap(uri, partialAst),
       this.filtersMap(),
@@ -81,7 +110,8 @@ export class TypeSystem {
       .map(([identifier, typeRanges]) => {
         const typeRange = findLast(typeRanges, (typeRange) => isCorrectTypeRange(typeRange, node))!;
         const type = resolveTypeRangeType(typeRange.type, symbolsTable, objectMap, filtersMap);
-        const entry = objectMap[isArrayType(type) ? type.valueType : type] ?? {};
+        const entryType = isArrayType(type) ? type.valueType : isShapeType(type) ? Untyped : type;
+        const entry = objectMap[entryType] ?? {};
         return {
           entry: { ...entry, name: identifier },
           type,
@@ -284,11 +314,20 @@ export class TypeSystem {
   });
 
   private async symbolsTable(partialAst: LiquidHtmlNode, uri: string): Promise<SymbolsTable> {
-    const seedSymbolsTable = await this.seedSymbolsTable(uri);
+    const [seedSymbolsTable, liquidDrops, graphqlSchema, rootUri] = await Promise.all([
+      this.seedSymbolsTable(uri),
+      this.themeDocset.liquidDrops(),
+      this.getGraphQLSchema(),
+      this.findThemeRootURI?.(uri) ?? null,
+    ]);
     return await buildSymbolsTable(
       partialAst,
       seedSymbolsTable,
-      await this.themeDocset.liquidDrops(),
+      liquidDrops,
+      graphqlSchema,
+      this.fs,
+      this.documentsLocator,
+      rootUri ?? undefined,
     );
   }
 
@@ -411,7 +450,7 @@ interface TypeRange {
   identifier: Identifier;
 
   /** The type of the variable */
-  type: PseudoType | ArrayType | LazyVariableType | LazyDeconstructedExpression;
+  type: PseudoType | ArrayType | ShapeType | LazyVariableType | LazyDeconstructedExpression;
 
   /**
    * The range may be one of two things:
@@ -429,6 +468,16 @@ export type ArrayType = {
 const arrayType = (valueType: PseudoType): ArrayType => ({
   kind: 'array',
   valueType,
+});
+
+/** ShapeType represents inferred types from parse_json, graphql, hash_assign */
+export type ShapeType = {
+  kind: 'shape';
+  shape: PropertyShape;
+};
+const shapeType = (shape: PropertyShape): ShapeType => ({
+  kind: 'shape',
+  shape,
 });
 
 /**
@@ -483,10 +532,62 @@ async function buildSymbolsTable(
   partialAst: LiquidHtmlNode,
   seedSymbolsTable: SymbolsTable,
   liquidDrops: ObjectEntry[],
+  graphqlSchema?: string,
+  fs?: AbstractFileSystem,
+  documentsLocator?: DocumentsLocator,
+  rootUri?: string,
 ): Promise<SymbolsTable> {
-  const typeRanges = await visit<SourceCodeType.LiquidHtml, TypeRange>(partialAst, {
+  // Track shapes for hash_assign merging
+  const variableShapes: Map<string, { shape: PropertyShape; rangeEnd: number }[]> = new Map();
+
+  const typeRanges = await visit<SourceCodeType.LiquidHtml, TypeRange | TypeRange[]>(partialAst, {
     // {% assign x = foo.x | filter %}
+    // {% assign x = '{"a": 1}' | parse_json %}
     async AssignMarkup(node) {
+      // Check if this has a parse_json or to_hash filter
+      const hasParseJsonFilter = node.value.filters?.some(
+        (f: { name: string }) => f.name === 'parse_json' || f.name === 'to_hash',
+      );
+
+      if (hasParseJsonFilter) {
+        let jsonString: string | undefined;
+
+        // Check if expression is a direct JSON string
+        if (node.value.expression.type === NodeTypes.String) {
+          jsonString = node.value.expression.value;
+        }
+
+        // Check if there's a default filter with a JSON string argument
+        if (!jsonString && node.value.filters) {
+          const defaultFilter = node.value.filters.find(
+            (f: { name: string }) => f.name === 'default',
+          );
+          if (defaultFilter && defaultFilter.args && defaultFilter.args.length > 0) {
+            const firstArg = defaultFilter.args[0];
+            if (firstArg.type === NodeTypes.String) {
+              jsonString = firstArg.value;
+            }
+          }
+        }
+
+        if (jsonString) {
+          const shape = inferShapeFromJSONString(jsonString);
+          if (shape) {
+            // Track shape for potential hash_assign merging
+            if (!variableShapes.has(node.name)) {
+              variableShapes.set(node.name, []);
+            }
+            variableShapes.get(node.name)!.push({ shape, rangeEnd: node.position.end });
+
+            return {
+              identifier: node.name,
+              type: shapeType(shape),
+              range: [node.position.end],
+            };
+          }
+        }
+      }
+
       return {
         identifier: node.name,
         type: lazyVariable(node.value, node.position.start),
@@ -551,10 +652,165 @@ async function buildSymbolsTable(
           range: [node.position.start, node.position.end],
         };
       }
+      // {% parse_json x %}{"a": 1}{% endparse_json %}
+      else if (isLiquidTagParseJson(node)) {
+        const variableName = node.markup.name;
+        if (variableName && node.children) {
+          const textContent = node.children
+            .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
+            .map((c) => c.value)
+            .join('');
+          const shape = inferShapeFromJSONString(textContent);
+          if (shape) {
+            // Track shape for potential hash_assign merging
+            if (!variableShapes.has(variableName)) {
+              variableShapes.set(variableName, []);
+            }
+            variableShapes.get(variableName)!.push({
+              shape,
+              rangeEnd: node.blockEndPosition?.end ?? node.position.end,
+            });
+
+            return {
+              identifier: variableName,
+              type: shapeType(shape),
+              range: [node.blockEndPosition?.end ?? node.position.end],
+            };
+          }
+        }
+      }
+      // {% graphql result %}...{% endgraphql %} (inline)
+      else if (isLiquidTagGraphQL(node) && isGraphQLInlineMarkup(node.markup)) {
+        const markup = node.markup;
+        if (node.children) {
+          const textContent = node.children
+            .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
+            .map((c) => c.value)
+            .join('');
+          const shape = inferShapeFromGraphQL(textContent, graphqlSchema);
+          if (shape) {
+            // Track shape for potential hash_assign merging
+            if (!variableShapes.has(markup.name)) {
+              variableShapes.set(markup.name, []);
+            }
+            variableShapes.get(markup.name)!.push({
+              shape,
+              rangeEnd: node.blockEndPosition?.end ?? node.position.end,
+            });
+
+            return {
+              identifier: markup.name,
+              type: shapeType(shape),
+              range: [node.blockEndPosition?.end ?? node.position.end],
+            };
+          }
+        }
+      }
+      // {% graphql result = 'file' %} (file-based)
+      else if (isLiquidTagGraphQL(node) && isGraphQLFileMarkup(node.markup)) {
+        const markup = node.markup;
+        if (fs && documentsLocator && rootUri && isLiquidString(markup.graphql)) {
+          const graphqlFile = markup.graphql.value;
+          try {
+            const located = await documentsLocator.locate(
+              URI.parse(rootUri),
+              'graphql',
+              graphqlFile,
+            );
+            if (located) {
+              const content = await fs.readFile(located);
+              const shape = inferShapeFromGraphQL(content, graphqlSchema);
+              if (shape) {
+                // Track shape for potential hash_assign merging
+                if (!variableShapes.has(markup.name)) {
+                  variableShapes.set(markup.name, []);
+                }
+                variableShapes.get(markup.name)!.push({
+                  shape,
+                  rangeEnd: node.position.end,
+                });
+
+                return {
+                  identifier: markup.name,
+                  type: shapeType(shape),
+                  range: [node.position.end],
+                };
+              }
+            }
+          } catch {
+            // File read error - skip
+          }
+        }
+      }
+      // {% hash_assign x['key'] = value %}
+      else if (isLiquidTagHashAssign(node)) {
+        const markup = node.markup;
+        const variableName = markup.target.name;
+        if (!variableName) return;
+
+        const lookupPath = getHashAssignLookupPath(markup);
+
+        // Determine value shape - check if value is a JSON string with parse_json filter
+        let valueShape: PropertyShape | undefined;
+        if (markup.value.expression.type === NodeTypes.String) {
+          const hasParseJsonFilter = markup.value.filters.some(
+            (f) => f.name === 'parse_json' || f.name === 'to_hash',
+          );
+          if (hasParseJsonFilter) {
+            valueShape = inferShapeFromJSONString(markup.value.expression.value) ?? undefined;
+          }
+        }
+
+        if (lookupPath && lookupPath.length > 0) {
+          // Nested property assignment: {% hash_assign a['key'] = value %}
+          const existingShapes = variableShapes.get(variableName) || [];
+          const existingShape = findLastApplicableShape(existingShapes, node.position.start);
+
+          let baseShape: PropertyShape;
+          if (existingShape) {
+            baseShape = existingShape.shape;
+          } else {
+            baseShape = { kind: 'object', properties: new Map() };
+          }
+
+          const newShape = mergeNestedPropertyIntoShape(
+            baseShape,
+            lookupPath,
+            valueShape ?? { kind: 'primitive' },
+          );
+
+          // Track the new shape
+          if (!variableShapes.has(variableName)) {
+            variableShapes.set(variableName, []);
+          }
+          variableShapes.get(variableName)!.push({ shape: newShape, rangeEnd: node.position.end });
+
+          return {
+            identifier: variableName,
+            type: shapeType(newShape),
+            range: [node.position.end],
+          };
+        } else if (valueShape) {
+          // Direct assignment: {% hash_assign a = value %} (works like assign)
+          if (!variableShapes.has(variableName)) {
+            variableShapes.set(variableName, []);
+          }
+          variableShapes.get(variableName)!.push({ shape: valueShape, rangeEnd: node.position.end });
+
+          return {
+            identifier: variableName,
+            type: shapeType(valueShape),
+            range: [node.position.end],
+          };
+        }
+      }
     },
   });
 
-  return typeRanges
+  // Flatten array results (some visitors return TypeRange[])
+  const flattenedRanges = typeRanges.flat();
+
+  return flattenedRanges
     .sort(({ range: [startA] }, { range: [startB] }) => startA - startB)
     .reduce((table, typeRange) => {
       table[typeRange.identifier] ??= [];
@@ -566,7 +822,7 @@ async function buildSymbolsTable(
 /**
  * Given a TypeRange['type'] (which may be lazy), resolve its type recursively.
  *
- * The output is a fully resolved PseudoType | ArrayType. Which means we
+ * The output is a fully resolved PseudoType | ArrayType | ShapeType. Which means we
  * could use it to power completions.
  */
 function resolveTypeRangeType(
@@ -574,7 +830,7 @@ function resolveTypeRangeType(
   symbolsTable: SymbolsTable,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
-): PseudoType | ArrayType {
+): PseudoType | ArrayType | ShapeType {
   if (typeof typeRangeType === 'string') {
     return typeRangeType;
   }
@@ -584,12 +840,22 @@ function resolveTypeRangeType(
       return typeRangeType;
     }
 
+    case 'shape': {
+      return typeRangeType;
+    }
+
     case 'deconstructed': {
-      const arrayType = inferType(typeRangeType.node, symbolsTable, objectMap, filtersMap);
-      if (typeof arrayType === 'string') {
+      const deconstructedType = inferType(typeRangeType.node, symbolsTable, objectMap, filtersMap);
+      if (typeof deconstructedType === 'string') {
+        return Untyped;
+      } else if (isShapeType(deconstructedType)) {
+        // Deconstruct shape array
+        if (deconstructedType.shape.kind === 'array' && deconstructedType.shape.itemShape) {
+          return shapeType(deconstructedType.shape.itemShape);
+        }
         return Untyped;
       } else {
-        return arrayType.valueType;
+        return deconstructedType.valueType;
       }
     }
 
@@ -604,7 +870,7 @@ function inferType(
   symbolsTable: SymbolsTable,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
-): PseudoType | ArrayType {
+): PseudoType | ArrayType | ShapeType {
   if (typeof thing === 'string') {
     return objectMap[thing as PseudoType]?.name ?? Untyped;
   }
@@ -702,7 +968,7 @@ function inferLookupType(
   symbolsTable: SymbolsTable,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
-): PseudoType | ArrayType {
+): PseudoType | ArrayType | ShapeType {
   // we return the type of the drop, so a.b.c
   const node = thing;
 
@@ -733,6 +999,11 @@ function inferLookupType(
     // e.g. images.size -> number
     if (isArrayType(curr)) {
       curr = inferArrayTypeLookupType(curr, lookup);
+    }
+
+    // Handle ShapeType from parse_json, graphql, hash_assign
+    else if (isShapeType(curr)) {
+      curr = inferShapeTypeLookupType(curr, lookup);
     }
 
     // e.g. product.featured_image -> image
@@ -827,6 +1098,116 @@ function inferArrayTypeLookupType(curr: ArrayType, lookup: LiquidExpression) {
   else {
     return Untyped;
   }
+}
+
+/**
+ * Infers the type of a lookup on a ShapeType (from parse_json, graphql, hash_assign)
+ */
+function inferShapeTypeLookupType(
+  curr: ShapeType,
+  lookup: LiquidExpression,
+): PseudoType | ArrayType | ShapeType {
+  const shape = curr.shape;
+
+  // Handle array shape lookups
+  if (shape.kind === 'array') {
+    // array[0] or array[variable] -> item type
+    if (lookup.type === NodeTypes.Number || lookup.type === NodeTypes.VariableLookup) {
+      if (shape.itemShape) {
+        return shapeToType(shape.itemShape);
+      }
+      return Untyped;
+    }
+
+    // array.first, array.last, array.size
+    if (lookup.type === NodeTypes.String) {
+      switch (lookup.value) {
+        case 'first':
+        case 'last':
+          if (shape.itemShape) {
+            return shapeToType(shape.itemShape);
+          }
+          return Untyped;
+        case 'size':
+          return 'number';
+        default:
+          return Unknown;
+      }
+    }
+
+    return Untyped;
+  }
+
+  // Handle object shape lookups
+  if (shape.kind === 'object') {
+    // Object lookups must be strings
+    if (lookup.type !== NodeTypes.String) {
+      return Untyped;
+    }
+
+    const propertyName = lookup.value;
+    const propertyShape = shape.properties?.get(propertyName);
+
+    if (propertyShape) {
+      return shapeToType(propertyShape);
+    }
+
+    return Unknown;
+  }
+
+  // Primitive shapes don't support lookups (except string.size, string.first, string.last)
+  if (shape.kind === 'primitive') {
+    if (shape.primitiveType === 'string' && lookup.type === NodeTypes.String) {
+      switch (lookup.value) {
+        case 'first':
+        case 'last':
+          return 'string';
+        case 'size':
+          return 'number';
+        default:
+          return Unknown;
+      }
+    }
+    return Unknown;
+  }
+
+  return Untyped;
+}
+
+/**
+ * Convert a PropertyShape to a PseudoType, ArrayType, or ShapeType
+ */
+function shapeToType(shape: PropertyShape): PseudoType | ArrayType | ShapeType {
+  if (shape.kind === 'primitive') {
+    switch (shape.primitiveType) {
+      case 'string':
+        return 'string';
+      case 'number':
+        return 'number';
+      case 'boolean':
+        return 'boolean';
+      default:
+        return Untyped;
+    }
+  }
+
+  if (shape.kind === 'array') {
+    // If array items are primitives, return ArrayType
+    if (shape.itemShape?.kind === 'primitive') {
+      const primitiveType = shape.itemShape.primitiveType;
+      if (primitiveType === 'string' || primitiveType === 'number' || primitiveType === 'boolean') {
+        return arrayType(primitiveType);
+      }
+    }
+    // Otherwise return ShapeType to preserve nested structure
+    return shapeType(shape);
+  }
+
+  if (shape.kind === 'object') {
+    return shapeType(shape);
+  }
+
+  return Untyped;
 }
 
 function inferPseudoTypePropertyType(
@@ -927,8 +1308,12 @@ function isArrayReturnType(rt: ReturnType): rt is ArrayReturnType {
   return rt.type === 'array';
 }
 
-export function isArrayType(thing: PseudoType | ArrayType): thing is ArrayType {
-  return typeof thing !== 'string';
+export function isArrayType(thing: PseudoType | ArrayType | ShapeType): thing is ArrayType {
+  return typeof thing !== 'string' && thing.kind === 'array';
+}
+
+export function isShapeType(thing: PseudoType | ArrayType | ShapeType): thing is ShapeType {
+  return typeof thing !== 'string' && thing.kind === 'shape';
 }
 
 /** Assumes findLast */
@@ -949,6 +1334,114 @@ function isLiquidTagIncrement(node: LiquidTag): node is LiquidTagIncrement {
 
 function isLiquidTagDecrement(node: LiquidTag): node is LiquidTagDecrement {
   return node.name === NamedTags.decrement && typeof node.markup !== 'string';
+}
+
+function isLiquidTagParseJson(
+  node: LiquidTag,
+): node is LiquidTag & { markup: { name: string }; children: LiquidHtmlNode[] } {
+  return node.name === NamedTags.parse_json && typeof node.markup !== 'string';
+}
+
+function isLiquidTagGraphQL(
+  node: LiquidTag,
+): node is LiquidTag & { markup: GraphQLMarkup | GraphQLInlineMarkup } {
+  return node.name === NamedTags.graphql && typeof node.markup !== 'string';
+}
+
+function isGraphQLInlineMarkup(
+  markup: GraphQLMarkup | GraphQLInlineMarkup,
+): markup is GraphQLInlineMarkup {
+  return markup.type === NodeTypes.GraphQLInlineMarkup;
+}
+
+function isGraphQLFileMarkup(
+  markup: GraphQLMarkup | GraphQLInlineMarkup,
+): markup is GraphQLMarkup {
+  return markup.type === NodeTypes.GraphQLMarkup;
+}
+
+function isLiquidString(node: LiquidString | LiquidVariableLookup): node is LiquidString {
+  return node.type === NodeTypes.String;
+}
+
+function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {
+  return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
+}
+
+/**
+ * Extract the lookup path from a hash_assign target.
+ * For {% hash_assign a['key1']['key2'] = value %}, returns ['key1', 'key2']
+ */
+function getHashAssignLookupPath(markup: HashAssignMarkup): string[] | undefined {
+  const path: string[] = [];
+
+  for (const lookup of markup.target.lookups) {
+    if (lookup.type === NodeTypes.String) {
+      path.push(lookup.value);
+    } else if (lookup.type === NodeTypes.Number) {
+      path.push(`${lookup.value}`);
+    } else {
+      // Dynamic lookup - can't determine statically
+      return undefined;
+    }
+  }
+
+  return path.length > 0 ? path : undefined;
+}
+
+/**
+ * Merge a nested property into a shape following a path.
+ * For path ['a', 'b'] and valueShape, creates/updates shape.a.b = valueShape
+ */
+function mergeNestedPropertyIntoShape(
+  shape: PropertyShape,
+  path: string[],
+  valueShape: PropertyShape,
+): PropertyShape {
+  if (path.length === 0) {
+    return valueShape;
+  }
+
+  const [key, ...rest] = path;
+
+  if (shape.kind !== 'object') {
+    // Convert to object
+    const properties = new Map<string, PropertyShape>();
+    if (rest.length === 0) {
+      properties.set(key, valueShape);
+    } else {
+      properties.set(
+        key,
+        mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape),
+      );
+    }
+    return { kind: 'object', properties };
+  }
+
+  const newProperties = new Map(shape.properties);
+  if (rest.length === 0) {
+    newProperties.set(key, valueShape);
+  } else {
+    const existingNested = newProperties.get(key) || { kind: 'object', properties: new Map() };
+    newProperties.set(key, mergeNestedPropertyIntoShape(existingNested, rest, valueShape));
+  }
+  return { kind: 'object', properties: newProperties };
+}
+
+/**
+ * Find the last applicable shape for a variable at a given position
+ */
+function findLastApplicableShape(
+  shapes: { shape: PropertyShape; rangeEnd: number }[],
+  position: number,
+): { shape: PropertyShape; rangeEnd: number } | undefined {
+  let result: { shape: PropertyShape; rangeEnd: number } | undefined;
+  for (const entry of shapes) {
+    if (entry.rangeEnd < position) {
+      result = entry;
+    }
+  }
+  return result;
 }
 
 function settingReturnType(setting: InputSetting): ObjectEntry['return_type'] {

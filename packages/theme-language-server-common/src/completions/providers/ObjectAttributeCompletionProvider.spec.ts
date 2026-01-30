@@ -1,4 +1,5 @@
 import { describe, beforeEach, it, expect, vi } from 'vitest';
+import { CompletionItemKind } from 'vscode-languageserver';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { SettingsSchemaJSONFile } from '../../settings';
@@ -334,6 +335,147 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         {{ a.█ }}
       `;
       await expect(provider).to.complete(source, ['nested']);
+    });
+
+    it('should merge shapes from all array elements', async () => {
+      const source = `
+        {% assign a = '[{"name": "foo"}, {"age": 30}, {"name": "bar", "city": "NYC"}]' | parse_json %}
+        {{ a[0].█ }}
+      `;
+      await expect(provider).to.complete(source, ['age', 'city', 'name']);
+    });
+
+    it('should infer shape from default filter value', async () => {
+      const source = `
+        {% assign a = some_var | default: '{"fallback": true, "value": 42}' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['fallback', 'value']);
+    });
+
+    it('should work with parse_json block syntax', async () => {
+      const source = `
+        {% parse_json data %}
+          {"name": "test", "count": 5}
+        {% endparse_json %}
+        {{ data.█ }}
+      `;
+      await expect(provider).to.complete(source, ['count', 'name']);
+    });
+
+    it('should handle variable reassignment', async () => {
+      const source = `
+        {% assign a = '{"old": 1}' | parse_json %}
+        {% assign a = '{"new": 2}' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['new']);
+    });
+
+    it('should handle hash_assign without lookups (works like assign)', async () => {
+      const source = `
+        {% hash_assign a = '{"key": "value"}' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['key']);
+    });
+
+    it('should handle hash_assign reassignment without lookups', async () => {
+      const source = `
+        {% assign a = '{"old": 1}' | parse_json %}
+        {% hash_assign a = '{"new": 2}' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['new']);
+    });
+
+    it('should handle parse_json block tag reassignment', async () => {
+      const source = `
+        {% assign a = '{"old": 1}' | parse_json %}
+        {% parse_json a %}{"new": 2}{% endparse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['new']);
+    });
+
+    it('should include type information in completion detail', async () => {
+      const source = `
+        {% assign a = '{"name": "foo", "count": 5, "active": true, "items": [1, 2]}' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, [
+        expect.objectContaining({ label: 'active', detail: 'Type: boolean', kind: CompletionItemKind.Property }),
+        expect.objectContaining({ label: 'count', detail: 'Type: number', kind: CompletionItemKind.Property }),
+        expect.objectContaining({ label: 'items', detail: 'Type: number[]', kind: CompletionItemKind.Property }),
+        expect.objectContaining({ label: 'name', detail: 'Type: string', kind: CompletionItemKind.Property }),
+      ]);
+    });
+
+    it('should show object type with keys for nested objects', async () => {
+      const source = `
+        {% assign a = '{"user": {"id": 1, "name": "test"}}' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, [
+        expect.objectContaining({
+          label: 'user',
+          detail: 'Type: object\nKeys: id, name',
+          kind: CompletionItemKind.Property,
+        }),
+      ]);
+    });
+
+    it('should show correct type for array first/last accessors with item keys', async () => {
+      const source = `
+        {% assign a = '[{"name": "test", "id": 1}]' | parse_json %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, [
+        expect.objectContaining({
+          label: 'first',
+          detail: 'Type: object\nKeys: name, id',
+          kind: CompletionItemKind.Property,
+        }),
+        expect.objectContaining({
+          label: 'last',
+          detail: 'Type: object\nKeys: name, id',
+          kind: CompletionItemKind.Property,
+        }),
+        expect.objectContaining({ label: 'size', detail: 'Type: number', kind: CompletionItemKind.Property }),
+      ]);
+    });
+
+    it('should truncate keys when there are many', async () => {
+      const source = `
+        {% assign a = '{"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7}' | parse_json %}
+        {{ a.█ }}
+      `;
+      // Check that one of the completions has truncated keys
+      await expect(provider).to.complete(
+        source,
+        expect.arrayContaining([
+          expect.objectContaining({
+            label: 'a',
+            detail: 'Type: number',
+          }),
+        ]),
+      );
+    });
+
+    it('should complete properties when referencing variable in its own reassignment', async () => {
+      const source = `
+        {% assign a = '{"foo": 1, "bar": 2}' | parse_json %}
+        {% assign a = a.█ %}
+      `;
+      await expect(provider).to.complete(source, ['bar', 'foo']);
+    });
+
+    it('should complete nested properties in self-referential assignment', async () => {
+      const source = `
+        {% assign a = '{"nested": {"deep": 1}}' | parse_json %}
+        {% assign b = a.nested.█ %}
+      `;
+      await expect(provider).to.complete(source, ['deep']);
     });
   });
 

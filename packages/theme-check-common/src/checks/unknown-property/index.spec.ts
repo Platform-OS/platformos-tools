@@ -5,7 +5,7 @@ import { UnknownProperty } from './index';
 describe('Module: UnknownProperty', () => {
   describe('JSON literal validation', () => {
     it('should report unknown property on JSON object', async () => {
-      const sourceCode = `{% assign a = '{"x": 5}' %}
+      const sourceCode = `{% assign a = '{"x": 5}' | parse_json %}
 {{ a.x }}
 {{ a.y }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
@@ -15,7 +15,7 @@ describe('Module: UnknownProperty', () => {
     });
 
     it('should not report for valid property access', async () => {
-      const sourceCode = `{% assign a = '{"x": 5, "y": 10}' %}
+      const sourceCode = `{% assign a = '{"x": 5, "y": 10}' | parse_json %}
 {{ a.x }}
 {{ a.y }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
@@ -23,7 +23,7 @@ describe('Module: UnknownProperty', () => {
     });
 
     it('should report property access on primitive', async () => {
-      const sourceCode = `{% assign a = '{"x": 5}' %}
+      const sourceCode = `{% assign a = '{"x": 5}' | parse_json %}
 {{ a.x.y }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
       expect(offenses).toHaveLength(1);
@@ -32,7 +32,7 @@ describe('Module: UnknownProperty', () => {
     });
 
     it('should handle nested objects', async () => {
-      const sourceCode = `{% assign a = '{"x": {"y": {"z": 1}}}' %}
+      const sourceCode = `{% assign a = '{"x": {"y": {"z": 1}}}' | parse_json %}
 {{ a.x.y.z }}
 {{ a.x.y.w }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
@@ -42,7 +42,7 @@ describe('Module: UnknownProperty', () => {
     });
 
     it('should handle arrays with first/last/size', async () => {
-      const sourceCode = `{% assign a = '[{"x": 1}, {"x": 2}]' %}
+      const sourceCode = `{% assign a = '[{"x": 1}, {"x": 2}]' | parse_json %}
 {{ a.first.x }}
 {{ a.last.x }}
 {{ a.size }}`;
@@ -51,7 +51,7 @@ describe('Module: UnknownProperty', () => {
     });
 
     it('should report unknown property on array item', async () => {
-      const sourceCode = `{% assign a = '[{"x": 1}, {"x": 2}]' %}
+      const sourceCode = `{% assign a = '[{"x": 1}, {"x": 2}]' | parse_json %}
 {{ a.first.y }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
       expect(offenses).toHaveLength(1);
@@ -59,7 +59,7 @@ describe('Module: UnknownProperty', () => {
     });
 
     it('should handle numeric index access on arrays', async () => {
-      const sourceCode = `{% assign a = '[{"x": 1}, {"x": 2}]' %}
+      const sourceCode = `{% assign a = '[{"x": 1}, {"x": 2}]' | parse_json %}
 {{ a[0].x }}
 {{ a[1].y }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
@@ -88,9 +88,9 @@ describe('Module: UnknownProperty', () => {
     });
 
     it('should handle variable reassignment', async () => {
-      const sourceCode = `{% assign a = '{"x": 1}' %}
+      const sourceCode = `{% assign a = '{"x": 1}' | parse_json %}
 {{ a.x }}
-{% assign a = '{"y": 2}' %}
+{% assign a = '{"y": 2}' | parse_json %}
 {{ a.y }}
 {{ a.x }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
@@ -216,7 +216,7 @@ query {
 
   describe('error message formatting', () => {
     it('should include variable name in error message', async () => {
-      const sourceCode = `{% assign myVar = '{"a": 1}' %}
+      const sourceCode = `{% assign myVar = '{"a": 1}' | parse_json %}
 {{ myVar.b }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
       expect(offenses).toHaveLength(1);
@@ -224,7 +224,7 @@ query {
     });
 
     it('should include full path for nested access errors', async () => {
-      const sourceCode = `{% assign obj = '{"a": {"b": 1}}' %}
+      const sourceCode = `{% assign obj = '{"a": {"b": 1}}' | parse_json %}
 {{ obj.a.c }}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
       expect(offenses).toHaveLength(1);

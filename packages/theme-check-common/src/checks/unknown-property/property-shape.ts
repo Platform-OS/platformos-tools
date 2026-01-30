@@ -29,6 +29,36 @@ export interface LookupResult {
 }
 
 /**
+ * Merge two shapes together, combining their properties
+ */
+function mergeShapes(a: PropertyShape, b: PropertyShape): PropertyShape {
+  // If same kind, merge appropriately
+  if (a.kind === 'object' && b.kind === 'object') {
+    const properties = new Map(a.properties);
+    if (b.properties) {
+      for (const [key, val] of b.properties) {
+        const existing = properties.get(key);
+        if (existing) {
+          properties.set(key, mergeShapes(existing, val));
+        } else {
+          properties.set(key, val);
+        }
+      }
+    }
+    return { kind: 'object', properties };
+  }
+  if (a.kind === 'array' && b.kind === 'array') {
+    const itemShape =
+      a.itemShape && b.itemShape
+        ? mergeShapes(a.itemShape, b.itemShape)
+        : a.itemShape || b.itemShape;
+    return { kind: 'array', itemShape };
+  }
+  // Different kinds or primitives - prefer the first
+  return a;
+}
+
+/**
  * Infer shape from a parsed JSON value
  */
 export function inferShapeFromJSON(value: unknown): PropertyShape {
@@ -45,7 +75,12 @@ export function inferShapeFromJSON(value: unknown): PropertyShape {
     return { kind: 'primitive', primitiveType: 'boolean' };
   }
   if (Array.isArray(value)) {
-    const itemShape = value.length > 0 ? inferShapeFromJSON(value[0]) : undefined;
+    // Merge shapes from all array elements
+    let itemShape: PropertyShape | undefined;
+    for (const item of value) {
+      const shape = inferShapeFromJSON(item);
+      itemShape = itemShape ? mergeShapes(itemShape, shape) : shape;
+    }
     return { kind: 'array', itemShape };
   }
   if (typeof value === 'object') {

@@ -2,6 +2,7 @@ import {
   LiquidHtmlNode,
   LiquidTag,
   LiquidVariableLookup,
+  LiquidVariable,
   LiquidExpression,
   LiquidString,
   NodeTypes,
@@ -66,19 +67,62 @@ export const UnknownProperty: LiquidCheckDefinition = {
     // Collect variable lookups to validate
     const lookups: LiquidVariableLookup[] = [];
 
+    // Helper to close previous shape ranges when a variable is reassigned
+    const closeShapeRange = (variableName: string, endPosition: number) => {
+      for (let i = variableShapes.length - 1; i >= 0; i--) {
+        if (variableShapes[i].name === variableName && variableShapes[i].range[1] === undefined) {
+          variableShapes[i].range[1] = endPosition;
+          break;
+        }
+      }
+    };
+
     return {
       async LiquidTag(node: LiquidTag) {
-        // {% assign x = '{"a": 5}' %}
+        // {% assign x = '{"a": 5}' | parse_json %}
+        // {% assign x = var | default: '{"fallback": true}' | parse_json %}
         if (isLiquidTagAssign(node)) {
           const markup = node.markup;
-          if (markup.value.expression.type === NodeTypes.String) {
-            const shape = inferShapeFromJSONString(markup.value.expression.value);
-            if (shape) {
-              variableShapes.push({
-                name: markup.name,
-                shape,
-                range: [node.position.end],
-              });
+
+          // Close any previous shape for this variable (reassignment)
+          closeShapeRange(markup.name, node.position.start);
+
+          const hasParseJsonFilter =
+            markup.value.filters &&
+            markup.value.filters.some(
+              (f: { name: string }) => f.name === 'parse_json' || f.name === 'to_hash',
+            );
+
+          if (hasParseJsonFilter) {
+            let jsonString: string | undefined;
+
+            // Check if expression is a direct JSON string
+            if (markup.value.expression.type === NodeTypes.String) {
+              jsonString = markup.value.expression.value;
+            }
+
+            // Check if there's a default filter with a JSON string argument
+            if (!jsonString && markup.value.filters) {
+              const defaultFilter = markup.value.filters.find(
+                (f: { name: string }) => f.name === 'default',
+              );
+              if (defaultFilter && defaultFilter.args && defaultFilter.args.length > 0) {
+                const firstArg = defaultFilter.args[0];
+                if (firstArg.type === NodeTypes.String) {
+                  jsonString = firstArg.value;
+                }
+              }
+            }
+
+            if (jsonString) {
+              const shape = inferShapeFromJSONString(jsonString);
+              if (shape) {
+                variableShapes.push({
+                  name: markup.name,
+                  shape,
+                  range: [node.position.end],
+                });
+              }
             }
           }
         }
@@ -87,6 +131,9 @@ export const UnknownProperty: LiquidCheckDefinition = {
         if (isLiquidTagParseJson(node)) {
           const variableName = node.markup.name;
           if (variableName && node.children) {
+            // Close any previous shape for this variable (reassignment)
+            closeShapeRange(variableName, node.position.start);
+
             const textContent = node.children
               .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
               .map((c) => c.value)
@@ -372,7 +419,7 @@ function mergeNestedPropertyIntoShape(
 // Type guards
 function isLiquidTagAssign(
   node: LiquidTag,
-): node is LiquidTag & { markup: { name: string; value: { expression: LiquidExpression } } } {
+): node is LiquidTag & { markup: { name: string; value: LiquidVariable } } {
   return node.name === NamedTags.assign && typeof node.markup !== 'string';
 }
 

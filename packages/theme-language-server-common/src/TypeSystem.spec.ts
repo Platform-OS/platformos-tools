@@ -15,7 +15,7 @@ import {
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
 import { SettingsSchemaJSONFile } from './settings';
-import { ArrayType, TypeSystem } from './TypeSystem';
+import { ArrayType, ShapeType, TypeSystem } from './TypeSystem';
 import { isLiquidVariableOutput, isNamedLiquidTag } from './utils';
 
 describe('Module: TypeSystem', () => {
@@ -462,7 +462,7 @@ describe('Module: TypeSystem', () => {
   });
 
   it('should support path-contextual variable types', async () => {
-    let inferredType: string | ArrayType;
+    let inferredType: string | ArrayType | ShapeType;
     const contexts: [string, string][] = [
       ['section', 'sections/my-section.liquid'],
       ['comment', 'sections/main-article.liquid'],

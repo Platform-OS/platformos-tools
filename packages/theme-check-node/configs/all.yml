@@ -76,6 +76,9 @@ HardcodedRoutes:
 ImgWidthAndHeight:
   enabled: true
   severity: 0
+InvalidHashAssignTarget:
+  enabled: true
+  severity: 0
 JSONMissingBlock:
   enabled: true
   severity: 0

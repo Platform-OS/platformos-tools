@@ -72,6 +72,7 @@ import { MetadataParamsCheck } from './metadata-params';
 import { GraphQLVariablesCheck } from './graphql-variables';
 import { GraphQLCheck } from './graphql';
 import { UnknownProperty } from './unknown-property';
+import { InvalidHashAssignTarget } from './invalid-hash-assign-target';
 
 export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCheckDefinition)[] = [
   AppBlockValidTags,
@@ -142,6 +143,7 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCh
   GraphQLVariablesCheck,
   GraphQLCheck,
   UnknownProperty,
+  InvalidHashAssignTarget,
 ];
 
 /**

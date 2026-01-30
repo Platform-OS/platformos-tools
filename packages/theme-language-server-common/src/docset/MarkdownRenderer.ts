@@ -3,10 +3,13 @@ import {
   ArrayType,
   PseudoType,
   ShapeType,
+  UnionType,
   Unknown,
   docsetEntryReturnType,
   isArrayType,
   isShapeType,
+  isUnionType,
+  typeToDisplayString,
 } from '../TypeSystem';
 import { shapeToTypeString, shapeToDetailString } from '../PropertyShapeInference';
 import { Attribute, Tag, Value } from './HtmlDocset';
@@ -18,7 +21,7 @@ export type DocsetEntryType = 'filter' | 'tag' | 'object';
 
 export function render(
   entry: DocsetEntry | FilterEntry | TagEntry,
-  returnType?: PseudoType | ArrayType | ShapeType,
+  returnType?: PseudoType | ArrayType | ShapeType | UnionType,
   docsetEntryType?: DocsetEntryType,
 ) {
   return [title(entry, returnType), docsetEntryBody(entry, returnType, docsetEntryType)]
@@ -32,11 +35,13 @@ export function renderHtmlEntry(entry: HtmlEntry, parentEntry?: HtmlEntry) {
 
 function title(
   entry: DocsetEntry | ObjectEntry | FilterEntry | HtmlEntry,
-  returnType?: PseudoType | ArrayType | ShapeType,
+  returnType?: PseudoType | ArrayType | ShapeType | UnionType,
 ) {
   returnType = returnType ?? docsetEntryReturnType(entry as ObjectEntry, Unknown);
 
-  if (isShapeType(returnType)) {
+  if (isUnionType(returnType)) {
+    return `### ${entry.name}: \`${typeToDisplayString(returnType)}\``;
+  } else if (isShapeType(returnType)) {
     return `### ${entry.name}: \`${shapeToTypeString(returnType.shape)}\``;
   } else if (isArrayType(returnType)) {
     return `### ${entry.name}: \`${returnType.valueType}[]\``;
@@ -58,7 +63,7 @@ function sanitize(s: string | undefined) {
 
 function docsetEntryBody(
   entry: DocsetEntry,
-  returnType?: PseudoType | ArrayType | ShapeType,
+  returnType?: PseudoType | ArrayType | ShapeType | UnionType,
   docsetEntryType?: DocsetEntryType,
 ) {
   const bodyParts = [
@@ -115,7 +120,7 @@ const platformOSDevRoot = `https://documentation.platformos.com/api-reference/li
 
 function platformOSDevReference(
   entry: DocsetEntry,
-  _?: PseudoType | ArrayType | ShapeType,
+  _?: PseudoType | ArrayType | ShapeType | UnionType,
   docsetEntryType?: DocsetEntryType,
 ) {
   switch (docsetEntryType) {

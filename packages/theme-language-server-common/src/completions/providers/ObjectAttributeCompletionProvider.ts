@@ -1,7 +1,7 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
 import { ObjectEntry } from '@platformos/theme-check-common';
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver';
-import { TypeSystem, isArrayType, isShapeType } from '../../TypeSystem';
+import { TypeSystem, isArrayType, isShapeType, isUnionType } from '../../TypeSystem';
 import { CURSOR, LiquidCompletionParams } from '../params';
 import { Provider, createCompletionItem, sortByName } from './common';
 import { getAvailablePropertiesWithTypes } from '../../PropertyShapeInference';
@@ -69,6 +69,11 @@ export class ObjectAttributeCompletionProvider implements Provider {
             { kind: CompletionItemKind.Property, detail: prop.detail },
           ),
         );
+    }
+
+    // UnionType doesn't have direct property completions
+    if (isUnionType(parentType)) {
+      return [];
     }
 
     const objectMap = await this.typeSystem.objectMap(params.textDocument.uri, partialAst);

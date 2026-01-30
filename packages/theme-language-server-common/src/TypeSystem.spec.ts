@@ -15,7 +15,7 @@ import {
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
 import { SettingsSchemaJSONFile } from './settings';
-import { ArrayType, ShapeType, TypeSystem } from './TypeSystem';
+import { ArrayType, ShapeType, TypeSystem, UnionType } from './TypeSystem';
 import { isLiquidVariableOutput, isNamedLiquidTag } from './utils';
 
 describe('Module: TypeSystem', () => {
@@ -462,7 +462,7 @@ describe('Module: TypeSystem', () => {
   });
 
   it('should support path-contextual variable types', async () => {
-    let inferredType: string | ArrayType | ShapeType;
+    let inferredType: string | ArrayType | ShapeType | UnionType;
     const contexts: [string, string][] = [
       ['section', 'sections/my-section.liquid'],
       ['comment', 'sections/main-article.liquid'],
@@ -561,6 +561,508 @@ describe('Module: TypeSystem', () => {
         kind: 'array',
         valueType: 'product',
       });
+    });
+  });
+
+  describe('cross-file type inference (A -> B -> C)', () => {
+    it('should infer types through chain of function calls with GraphQL at the end', async () => {
+      // Setup: File C calls GraphQL, B calls C, A calls B
+      // The type from GraphQL should propagate: C -> B -> A
+
+      const { MockFileSystem } = await import('@platformos/theme-check-common/src/test');
+      const { DocumentsLocator } = await import('@platformos/platformos-common');
+
+      const mockFiles = {
+        // File C: calls GraphQL and returns the result
+        'app/lib/deep/get_user.liquid': `{% graphql result %}
+query {
+  user {
+    id
+    name
+    email
+  }
+}
+{% endgraphql %}
+{% return result %}`,
+        // File B: calls C and returns its result
+        'app/lib/middle/get_data.liquid': `{% function user_data = 'deep/get_user' %}
+{% return user_data %}`,
+        // GraphQL query file (for file-based GraphQL test)
+        'app/graphql/get_products.graphql': `query {
+  products {
+    id
+    title
+    price
+  }
+}`,
+        // File that uses file-based GraphQL
+        'app/lib/products/fetch.liquid': `{% graphql result = 'get_products' %}
+{% return result %}`,
+        // File that calls the file-based GraphQL function
+        'app/lib/products/wrapper.liquid': `{% function products = 'products/fetch' %}
+{% return products %}`,
+      };
+
+      const rootUri = 'file:///project';
+      const fs = new MockFileSystem(mockFiles, rootUri);
+      const documentsLocator = new DocumentsLocator(fs);
+
+      const crossFileTypeSystem = new TypeSystem(
+        {
+          graphQL: async () => null, // No schema for simple inference
+          tags: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          filters: async () => [],
+          systemTranslations: async () => ({}),
+        },
+        async () => [],
+        async () => ({
+          article: [],
+          blog: [],
+          collection: [],
+          company: [],
+          company_location: [],
+          location: [],
+          market: [],
+          order: [],
+          page: [],
+          product: [],
+          variant: [],
+          shop: [],
+        }),
+        fs,
+        documentsLocator,
+        async () => rootUri,
+      );
+
+      // Test 1: File A calls B (which calls C with GraphQL)
+      // Check that `data` has the correct shape type
+      const fileASource = `{% function data = 'middle/get_data' %}
+{{ data }}`;
+      const fileAAst = toLiquidHtmlAST(fileASource);
+      const variableOutput = fileAAst.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+
+      const inferredType = await crossFileTypeSystem.inferType(
+        variableOutput.markup,
+        fileAAst,
+        `${rootUri}/app/views/pages/test.liquid`,
+      );
+
+      // The type of `data` should be a shape with the GraphQL structure
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        // data should have `user` property from GraphQL
+        const userShape = inferredType.shape.properties?.get('user');
+        expect(userShape).to.exist;
+        expect(userShape?.kind).to.equal('object');
+        expect(userShape?.properties?.get('name')?.kind).to.equal('primitive');
+        expect(userShape?.properties?.get('id')?.kind).to.equal('primitive');
+        expect(userShape?.properties?.get('email')?.kind).to.equal('primitive');
+      }
+
+      // Test 2: File-based GraphQL through chain
+      const fileBSource = `{% function products = 'products/wrapper' %}
+{{ products }}`;
+      const fileBAst = toLiquidHtmlAST(fileBSource);
+      const variableOutputB = fileBAst.children[1];
+      assert(isLiquidVariableOutput(variableOutputB));
+
+      const inferredTypeB = await crossFileTypeSystem.inferType(
+        variableOutputB.markup,
+        fileBAst,
+        `${rootUri}/app/views/pages/test2.liquid`,
+      );
+
+      expect(inferredTypeB).to.have.property('kind', 'shape');
+      if (typeof inferredTypeB !== 'string' && inferredTypeB.kind === 'shape') {
+        const productsShape = inferredTypeB.shape.properties?.get('products');
+        expect(productsShape).to.exist;
+        expect(productsShape?.kind).to.equal('object');
+        expect(productsShape?.properties?.get('id')?.kind).to.equal('primitive');
+        expect(productsShape?.properties?.get('title')?.kind).to.equal('primitive');
+        expect(productsShape?.properties?.get('price')?.kind).to.equal('primitive');
+      }
+    });
+
+    it('should handle multiple return types creating a union', async () => {
+      const { MockFileSystem } = await import('@platformos/theme-check-common/src/test');
+      const { DocumentsLocator } = await import('@platformos/platformos-common');
+
+      const mockFiles = {
+        // File with conditional returns
+        'app/lib/conditional/get_value.liquid': `
+          {% if condition %}
+            {% return 'string_value' %}
+          {% else %}
+            {% return 42 %}
+          {% endif %}
+        `,
+        // Wrapper that calls the conditional function
+        'app/lib/conditional/wrapper.liquid': `
+          {% function result = 'conditional/get_value' %}
+          {% return result %}
+        `,
+      };
+
+      const rootUri = 'file:///project';
+      const fs = new MockFileSystem(mockFiles, rootUri);
+      const documentsLocator = new DocumentsLocator(fs);
+
+      const unionTypeSystem = new TypeSystem(
+        {
+          graphQL: async () => null,
+          tags: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          filters: async () => [],
+          systemTranslations: async () => ({}),
+        },
+        async () => [],
+        async () => ({
+          article: [],
+          blog: [],
+          collection: [],
+          company: [],
+          company_location: [],
+          location: [],
+          market: [],
+          order: [],
+          page: [],
+          product: [],
+          variant: [],
+          shop: [],
+        }),
+        fs,
+        documentsLocator,
+        async () => rootUri,
+      );
+
+      // Call the wrapper that calls the conditional function
+      const sourceCode = `
+        {% function data = 'conditional/wrapper' %}
+        {{ data }}
+      `;
+      const ast = toLiquidHtmlAST(sourceCode);
+      const variableOutput = ast.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+
+      const inferredType = await unionTypeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        `${rootUri}/app/views/pages/test.liquid`,
+      );
+
+      // Should be a union type of string and number
+      expect(inferredType).to.have.property('kind', 'union');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'union') {
+        expect(inferredType.types).to.have.length(2);
+        expect(inferredType.types).to.include('string');
+        expect(inferredType.types).to.include('number');
+      }
+    });
+
+    it('should handle circular references gracefully', async () => {
+      const { MockFileSystem } = await import('@platformos/theme-check-common/src/test');
+      const { DocumentsLocator } = await import('@platformos/platformos-common');
+
+      const mockFiles = {
+        // File A calls B
+        'app/lib/circular/a.liquid': `
+          {% function result = 'circular/b' %}
+          {% return result %}
+        `,
+        // File B calls A (circular!)
+        'app/lib/circular/b.liquid': `
+          {% function result = 'circular/a' %}
+          {% return result %}
+        `,
+      };
+
+      const rootUri = 'file:///project';
+      const fs = new MockFileSystem(mockFiles, rootUri);
+      const documentsLocator = new DocumentsLocator(fs);
+
+      const circularTypeSystem = new TypeSystem(
+        {
+          graphQL: async () => null,
+          tags: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          filters: async () => [],
+          systemTranslations: async () => ({}),
+        },
+        async () => [],
+        async () => ({
+          article: [],
+          blog: [],
+          collection: [],
+          company: [],
+          company_location: [],
+          location: [],
+          market: [],
+          order: [],
+          page: [],
+          product: [],
+          variant: [],
+          shop: [],
+        }),
+        fs,
+        documentsLocator,
+        async () => rootUri,
+      );
+
+      // This should not hang or throw - it should return 'untyped' for circular refs
+      const sourceCode = `
+        {% function data = 'circular/a' %}
+        {{ data }}
+      `;
+      const ast = toLiquidHtmlAST(sourceCode);
+      const variableOutput = ast.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+
+      const inferredType = await circularTypeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        `${rootUri}/app/views/pages/test.liquid`,
+      );
+
+      // Should handle circular reference gracefully (returns 'untyped')
+      expect(inferredType).to.equal('untyped');
+    });
+
+    it('should infer types through 3-level chain: A -> B -> C with GraphQL', async () => {
+      const { MockFileSystem } = await import('@platformos/theme-check-common/src/test');
+      const { DocumentsLocator } = await import('@platformos/platformos-common');
+
+      const mockFiles = {
+        // File C: the deepest level, calls GraphQL
+        'app/lib/level3/fetch_data.liquid': `{% graphql result %}
+query {
+  records {
+    results {
+      id
+      properties {
+        name
+        value
+      }
+    }
+  }
+}
+{% endgraphql %}
+{% return result %}`,
+        // File B: middle level, calls C
+        'app/lib/level2/process_data.liquid': `{% function raw_data = 'level3/fetch_data' %}
+{% return raw_data %}`,
+        // File A: top level, calls B
+        'app/lib/level1/get_records.liquid': `{% function processed = 'level2/process_data' %}
+{% return processed %}`,
+      };
+
+      const rootUri = 'file:///project';
+      const fs = new MockFileSystem(mockFiles, rootUri);
+      const documentsLocator = new DocumentsLocator(fs);
+
+      const threeLevelTypeSystem = new TypeSystem(
+        {
+          graphQL: async () => null,
+          tags: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          filters: async () => [],
+          systemTranslations: async () => ({}),
+        },
+        async () => [],
+        async () => ({
+          article: [],
+          blog: [],
+          collection: [],
+          company: [],
+          company_location: [],
+          location: [],
+          market: [],
+          order: [],
+          page: [],
+          product: [],
+          variant: [],
+          shop: [],
+        }),
+        fs,
+        documentsLocator,
+        async () => rootUri,
+      );
+
+      // Consumer code calls file A (which calls B, which calls C)
+      // Test just `records` variable to verify the full shape is propagated
+      const sourceCode = `{% function records = 'level1/get_records' %}
+{{ records }}`;
+      const ast = toLiquidHtmlAST(sourceCode);
+      const variableOutput = ast.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+
+      const inferredType = await threeLevelTypeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        `${rootUri}/app/views/pages/consumer.liquid`,
+      );
+
+      // Verify the entire chain propagates the GraphQL shape correctly
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        // Check the nested structure: records.results should be an object
+        const recordsShape = inferredType.shape.properties?.get('records');
+        expect(recordsShape).to.exist;
+        expect(recordsShape?.kind).to.equal('object');
+
+        const resultsShape = recordsShape?.properties?.get('results');
+        expect(resultsShape).to.exist;
+        expect(resultsShape?.kind).to.equal('object');
+
+        // Check deeply nested properties
+        expect(resultsShape?.properties?.get('id')?.kind).to.equal('primitive');
+        const propertiesShape = resultsShape?.properties?.get('properties');
+        expect(propertiesShape).to.exist;
+        expect(propertiesShape?.kind).to.equal('object');
+        expect(propertiesShape?.properties?.get('name')?.kind).to.equal('primitive');
+        expect(propertiesShape?.properties?.get('value')?.kind).to.equal('primitive');
+      }
+    });
+
+    it('should merge hash_assign keys with existing function return shapes', async () => {
+      const { MockFileSystem } = await import('@platformos/theme-check-common/src/test');
+      const { DocumentsLocator } = await import('@platformos/platformos-common');
+
+      const mockFiles = {
+        // Function that returns a shape from GraphQL
+        'app/lib/api/get_user.liquid': `{% graphql result %}
+query {
+  user {
+    id
+    name
+  }
+}
+{% endgraphql %}
+{% return result %}`,
+      };
+
+      const rootUri = 'file:///project';
+      const fs = new MockFileSystem(mockFiles, rootUri);
+      const documentsLocator = new DocumentsLocator(fs);
+
+      const hashAssignTypeSystem = new TypeSystem(
+        {
+          graphQL: async () => null,
+          tags: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          filters: async () => [],
+          systemTranslations: async () => ({}),
+        },
+        async () => [],
+        async () => ({
+          article: [],
+          blog: [],
+          collection: [],
+          company: [],
+          company_location: [],
+          location: [],
+          market: [],
+          order: [],
+          page: [],
+          product: [],
+          variant: [],
+          shop: [],
+        }),
+        fs,
+        documentsLocator,
+        async () => rootUri,
+      );
+
+      // hash_assign should add 'extra' key while preserving 'user' key
+      const sourceCode = `{% function data = 'api/get_user' %}
+{% hash_assign data['extra'] = 'value' %}
+{{ data }}`;
+      const ast = toLiquidHtmlAST(sourceCode);
+      const variableOutput = ast.children[2];
+      assert(isLiquidVariableOutput(variableOutput));
+
+      const inferredType = await hashAssignTypeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        `${rootUri}/app/views/pages/test.liquid`,
+      );
+
+      // Should have both original 'user' key and new 'extra' key
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.properties?.get('user')).to.exist;
+        expect(inferredType.shape.properties?.get('extra')).to.exist;
+      }
+    });
+
+    it('should accumulate multiple hash_assign keys', async () => {
+      const { MockFileSystem } = await import('@platformos/theme-check-common/src/test');
+      const { DocumentsLocator } = await import('@platformos/platformos-common');
+
+      const mockFiles = {};
+
+      const rootUri = 'file:///project';
+      const fs = new MockFileSystem(mockFiles, rootUri);
+      const documentsLocator = new DocumentsLocator(fs);
+
+      const hashAssignTypeSystem = new TypeSystem(
+        {
+          graphQL: async () => null,
+          tags: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          filters: async () => [],
+          systemTranslations: async () => ({}),
+        },
+        async () => [],
+        async () => ({
+          article: [],
+          blog: [],
+          collection: [],
+          company: [],
+          company_location: [],
+          location: [],
+          market: [],
+          order: [],
+          page: [],
+          product: [],
+          variant: [],
+          shop: [],
+        }),
+        fs,
+        documentsLocator,
+        async () => rootUri,
+      );
+
+      // Multiple hash_assign calls should accumulate keys
+      const sourceCode = `{% assign data = '{}' | parse_json %}
+{% hash_assign data['key1'] = 'value1' %}
+{% hash_assign data['key2'] = 'value2' %}
+{% hash_assign data['key3'] = 'value3' %}
+{{ data }}`;
+      const ast = toLiquidHtmlAST(sourceCode);
+      const variableOutput = ast.children[4];
+      assert(isLiquidVariableOutput(variableOutput));
+
+      const inferredType = await hashAssignTypeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        `${rootUri}/app/views/pages/test.liquid`,
+      );
+
+      // Should have all three keys
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.properties?.get('key1')).to.exist;
+        expect(inferredType.shape.properties?.get('key2')).to.exist;
+        expect(inferredType.shape.properties?.get('key3')).to.exist;
+      }
     });
   });
 

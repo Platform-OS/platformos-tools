@@ -1,6 +1,13 @@
 import { LiquidHtmlNode, LiquidVariableLookup, NodeTypes } from '@platformos/liquid-html-parser';
 import { Hover, HoverParams } from 'vscode-languageserver';
-import { TypeSystem, Unknown, Untyped, isArrayType, isShapeType } from '../../TypeSystem';
+import {
+  TypeSystem,
+  Unknown,
+  Untyped,
+  isArrayType,
+  isShapeType,
+  isUnionType,
+} from '../../TypeSystem';
 import { render } from '../../docset';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 
@@ -40,6 +47,16 @@ export class LiquidObjectHoverProvider implements BaseHoverProvider {
 
     // Handle ShapeType from parse_json, graphql, hash_assign
     if (isShapeType(type)) {
+      return {
+        contents: {
+          kind: 'markdown',
+          value: render({ name: currentNode.name }, type, 'object'),
+        },
+      };
+    }
+
+    // Handle UnionType from function returns
+    if (isUnionType(type)) {
       return {
         contents: {
           kind: 'markdown',

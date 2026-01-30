@@ -1,7 +1,15 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidHtmlNode } from '@platformos/theme-check-common';
 import { Hover, HoverParams } from 'vscode-languageserver';
-import { TypeSystem, Unknown, Untyped, isArrayType, isShapeType } from '../../TypeSystem';
+import {
+  TypeSystem,
+  Unknown,
+  Untyped,
+  isArrayType,
+  isShapeType,
+  isUnionType,
+  typeToDisplayString,
+} from '../../TypeSystem';
 import { shapeToTypeString, shapeToDetailString } from '../../PropertyShapeInference';
 import { render } from '../../docset';
 import { BaseHoverProvider } from '../BaseHoverProvider';
@@ -72,7 +80,12 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
       };
     }
 
-    if (isArrayType(parentType) || parentType === 'string' || parentType === Untyped) {
+    if (
+      isArrayType(parentType) ||
+      parentType === 'string' ||
+      parentType === Untyped ||
+      isUnionType(parentType)
+    ) {
       const nodeType = await this.typeSystem.inferType(
         { ...parentNode, lookups: parentNode.lookups.slice(0, lookupIndex + 1) },
         ancestors[0],
@@ -91,6 +104,15 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
         };
       }
 
+      if (isUnionType(nodeType)) {
+        return {
+          contents: {
+            kind: 'markdown',
+            value: `### ${currentNode.value}: \`${typeToDisplayString(nodeType)}\``,
+          },
+        };
+      }
+
       // We want want `## first: `nodeType` with the docs of the nodeType
       const entry = { ...(objectMap[nodeType] ?? {}), name: currentNode.value };
 
@@ -100,6 +122,11 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
           value: render(entry, nodeType),
         },
       };
+    }
+
+    // UnionType doesn't have properties, so return null if it reaches here
+    if (isUnionType(parentType)) {
+      return null;
     }
 
     const parentEntry = objectMap[parentType];

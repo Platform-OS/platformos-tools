@@ -1,6 +1,7 @@
 import {
   AssignMarkup,
   ComplexLiquidExpression,
+  FunctionMarkup,
   LiquidDocParamNode,
   LiquidExpression,
   LiquidHtmlNode,
@@ -16,6 +17,7 @@ import {
   GraphQLInlineMarkup,
   LiquidString,
   HashAssignMarkup,
+  toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
 import {
   ArrayReturnType,
@@ -79,7 +81,7 @@ export class TypeSystem {
     thing: Identifier | ComplexLiquidExpression | LiquidVariable | AssignMarkup,
     partialAst: LiquidHtmlNode,
     uri: string,
-  ): Promise<PseudoType | ArrayType | ShapeType> {
+  ): Promise<PseudoType | ArrayType | ShapeType | UnionType> {
     const [objectMap, filtersMap, symbolsTable] = await Promise.all([
       this.objectMap(uri, partialAst),
       this.filtersMap(),
@@ -94,7 +96,7 @@ export class TypeSystem {
     partial: string,
     node: LiquidVariableLookup,
     uri: string,
-  ): Promise<{ entry: DocsetEntry; type: PseudoType | ArrayType | ShapeType }[]> {
+  ): Promise<{ entry: DocsetEntry; type: PseudoType | ArrayType | ShapeType | UnionType }[]> {
     const [objectMap, filtersMap, symbolsTable] = await Promise.all([
       this.objectMap(uri, partialAst),
       this.filtersMap(),
@@ -110,7 +112,11 @@ export class TypeSystem {
       .map(([identifier, typeRanges]) => {
         const typeRange = findLast(typeRanges, (typeRange) => isCorrectTypeRange(typeRange, node))!;
         const type = resolveTypeRangeType(typeRange.type, symbolsTable, objectMap, filtersMap);
-        const entryType = isArrayType(type) ? type.valueType : isShapeType(type) ? Untyped : type;
+        const entryType = isArrayType(type)
+          ? type.valueType
+          : isShapeType(type) || isUnionType(type)
+            ? Untyped
+            : type;
         const entry = objectMap[entryType] ?? {};
         return {
           entry: { ...entry, name: identifier },
@@ -314,12 +320,15 @@ export class TypeSystem {
   });
 
   private async symbolsTable(partialAst: LiquidHtmlNode, uri: string): Promise<SymbolsTable> {
-    const [seedSymbolsTable, liquidDrops, graphqlSchema, rootUri] = await Promise.all([
-      this.seedSymbolsTable(uri),
-      this.themeDocset.liquidDrops(),
-      this.getGraphQLSchema(),
-      this.findThemeRootURI?.(uri) ?? null,
-    ]);
+    const [seedSymbolsTable, liquidDrops, graphqlSchema, rootUri, objectMap, filtersMap] =
+      await Promise.all([
+        this.seedSymbolsTable(uri),
+        this.themeDocset.liquidDrops(),
+        this.getGraphQLSchema(),
+        this.findThemeRootURI?.(uri) ?? null,
+        this.objectMap(uri, partialAst),
+        this.filtersMap(),
+      ]);
     return await buildSymbolsTable(
       partialAst,
       seedSymbolsTable,
@@ -328,6 +337,9 @@ export class TypeSystem {
       this.fs,
       this.documentsLocator,
       rootUri ?? undefined,
+      undefined, // processingFiles
+      objectMap,
+      filtersMap,
     );
   }
 
@@ -450,7 +462,7 @@ interface TypeRange {
   identifier: Identifier;
 
   /** The type of the variable */
-  type: PseudoType | ArrayType | ShapeType | LazyVariableType | LazyDeconstructedExpression;
+  type: PseudoType | ArrayType | ShapeType | UnionType | LazyVariableType | LazyDeconstructedExpression;
 
   /**
    * The range may be one of two things:
@@ -478,6 +490,16 @@ export type ShapeType = {
 const shapeType = (shape: PropertyShape): ShapeType => ({
   kind: 'shape',
   shape,
+});
+
+/** UnionType represents multiple possible types (e.g., from conditional returns) */
+export type UnionType = {
+  kind: 'union';
+  types: (PseudoType | ArrayType | ShapeType)[];
+};
+const unionType = (types: (PseudoType | ArrayType | ShapeType)[]): UnionType => ({
+  kind: 'union',
+  types,
 });
 
 /**
@@ -536,6 +558,9 @@ async function buildSymbolsTable(
   fs?: AbstractFileSystem,
   documentsLocator?: DocumentsLocator,
   rootUri?: string,
+  processingFiles?: Set<string>,
+  objectMap?: ObjectMap,
+  filtersMap?: FiltersMap,
 ): Promise<SymbolsTable> {
   // Track shapes for hash_assign merging
   const variableShapes: Map<string, { shape: PropertyShape; rangeEnd: number }[]> = new Map();
@@ -761,14 +786,48 @@ async function buildSymbolsTable(
           }
         }
 
+        // Check for existing type - first in variableShapes, then in seedSymbolsTable
+        const existingShapes = variableShapes.get(variableName) || [];
+        const existingShapeEntry = findLastApplicableShape(existingShapes, node.position.start);
+
+        // Check seedSymbolsTable for existing type if not in variableShapes
+        let existingType: PseudoType | ArrayType | ShapeType | UnionType | undefined;
+        if (!existingShapeEntry && seedSymbolsTable[variableName]) {
+          const typeRanges = seedSymbolsTable[variableName];
+          // Find the most recent type before this position
+          for (const tr of typeRanges) {
+            if (tr.range[0] < node.position.start) {
+              // Resolve lazy types
+              if (typeof tr.type === 'string') {
+                existingType = tr.type;
+              } else if (tr.type.kind === 'shape' || tr.type.kind === 'array' || tr.type.kind === 'union') {
+                existingType = tr.type;
+              }
+            }
+          }
+        }
+
+        // Check if hash_assign is being applied to a non-object type (error case)
+        const nonObjectTypes = ['number', 'string', 'boolean'];
+        if (!existingShapeEntry && existingType) {
+          if (typeof existingType === 'string' && nonObjectTypes.includes(existingType)) {
+            // Can't hash_assign to a primitive - this is an error
+            // Return undefined to not change the type (let a check rule report the error)
+            return;
+          }
+          if (isArrayType(existingType)) {
+            // Can't hash_assign to an array - this is an error
+            return;
+          }
+        }
+
         if (lookupPath && lookupPath.length > 0) {
           // Nested property assignment: {% hash_assign a['key'] = value %}
-          const existingShapes = variableShapes.get(variableName) || [];
-          const existingShape = findLastApplicableShape(existingShapes, node.position.start);
-
           let baseShape: PropertyShape;
-          if (existingShape) {
-            baseShape = existingShape.shape;
+          if (existingShapeEntry) {
+            baseShape = existingShapeEntry.shape;
+          } else if (existingType && isShapeType(existingType)) {
+            baseShape = existingType.shape;
           } else {
             baseShape = { kind: 'object', properties: new Map() };
           }
@@ -804,6 +863,55 @@ async function buildSymbolsTable(
           };
         }
       }
+      // {% function result = 'partial/path', args... %}
+      else if (isLiquidTagFunction(node)) {
+        const markup = node.markup;
+        let returnType: PseudoType | ArrayType | ShapeType | UnionType | undefined;
+        if (
+          fs &&
+          documentsLocator &&
+          rootUri &&
+          objectMap &&
+          filtersMap &&
+          isLiquidString(markup.partial)
+        ) {
+          const partialPath = markup.partial.value;
+          try {
+            returnType = await inferFunctionReturnType(
+              partialPath,
+              fs,
+              documentsLocator,
+              rootUri,
+              seedSymbolsTable,
+              liquidDrops,
+              graphqlSchema,
+              processingFiles,
+              objectMap,
+              filtersMap,
+            );
+          } catch {
+            // File read/parse error - returnType stays undefined
+          }
+        }
+
+        // Track shape for potential hash_assign merging
+        if (returnType && isShapeType(returnType)) {
+          if (!variableShapes.has(markup.name)) {
+            variableShapes.set(markup.name, []);
+          }
+          variableShapes.get(markup.name)!.push({
+            shape: returnType.shape,
+            rangeEnd: node.position.end,
+          });
+        }
+
+        // Always add function variable to symbolsTable, using Untyped as fallback
+        return {
+          identifier: markup.name,
+          type: returnType ?? Untyped,
+          range: [node.position.end],
+        };
+      }
     },
   });
 
@@ -830,7 +938,7 @@ function resolveTypeRangeType(
   symbolsTable: SymbolsTable,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
-): PseudoType | ArrayType | ShapeType {
+): PseudoType | ArrayType | ShapeType | UnionType {
   if (typeof typeRangeType === 'string') {
     return typeRangeType;
   }
@@ -844,6 +952,10 @@ function resolveTypeRangeType(
       return typeRangeType;
     }
 
+    case 'union': {
+      return typeRangeType;
+    }
+
     case 'deconstructed': {
       const deconstructedType = inferType(typeRangeType.node, symbolsTable, objectMap, filtersMap);
       if (typeof deconstructedType === 'string') {
@@ -853,6 +965,8 @@ function resolveTypeRangeType(
         if (deconstructedType.shape.kind === 'array' && deconstructedType.shape.itemShape) {
           return shapeType(deconstructedType.shape.itemShape);
         }
+        return Untyped;
+      } else if (isUnionType(deconstructedType)) {
         return Untyped;
       } else {
         return deconstructedType.valueType;
@@ -870,7 +984,7 @@ function inferType(
   symbolsTable: SymbolsTable,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
-): PseudoType | ArrayType | ShapeType {
+): PseudoType | ArrayType | ShapeType | UnionType {
   if (typeof thing === 'string') {
     return objectMap[thing as PseudoType]?.name ?? Untyped;
   }
@@ -968,7 +1082,7 @@ function inferLookupType(
   symbolsTable: SymbolsTable,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
-): PseudoType | ArrayType | ShapeType {
+): PseudoType | ArrayType | ShapeType | UnionType {
   // we return the type of the drop, so a.b.c
   const node = thing;
 
@@ -989,7 +1103,12 @@ function inferLookupType(
    *
    * Once were done iterating, the type of the lookup is curr.
    */
-  let curr = inferIdentifierType(node, symbolsTable, objectMap, filtersMap);
+  let curr: PseudoType | ArrayType | ShapeType | UnionType = inferIdentifierType(
+    node,
+    symbolsTable,
+    objectMap,
+    filtersMap,
+  );
 
   for (let lookup of node.lookups) {
     // Here we redefine curr to be the returnType of the lookup.
@@ -1004,6 +1123,11 @@ function inferLookupType(
     // Handle ShapeType from parse_json, graphql, hash_assign
     else if (isShapeType(curr)) {
       curr = inferShapeTypeLookupType(curr, lookup);
+    }
+
+    // Handle UnionType - for now, treat as Untyped for lookups
+    else if (isUnionType(curr)) {
+      return Untyped;
     }
 
     // e.g. product.featured_image -> image
@@ -1036,7 +1160,7 @@ function inferIdentifierType(
   symbolsTable: SymbolsTable,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
-) {
+): PseudoType | ArrayType | ShapeType | UnionType {
   // The name of a variable
   const identifier = node.name;
 
@@ -1308,11 +1432,15 @@ function isArrayReturnType(rt: ReturnType): rt is ArrayReturnType {
   return rt.type === 'array';
 }
 
-export function isArrayType(thing: PseudoType | ArrayType | ShapeType): thing is ArrayType {
+export function isArrayType(
+  thing: PseudoType | ArrayType | ShapeType | UnionType,
+): thing is ArrayType {
   return typeof thing !== 'string' && thing.kind === 'array';
 }
 
-export function isShapeType(thing: PseudoType | ArrayType | ShapeType): thing is ShapeType {
+export function isShapeType(
+  thing: PseudoType | ArrayType | ShapeType | UnionType,
+): thing is ShapeType {
   return typeof thing !== 'string' && thing.kind === 'shape';
 }
 
@@ -1366,6 +1494,156 @@ function isLiquidString(node: LiquidString | LiquidVariableLookup): node is Liqu
 
 function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {
   return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
+}
+
+function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
+  return node.name === NamedTags.function && typeof node.markup !== 'string';
+}
+
+export function isUnionType(
+  thing: PseudoType | ArrayType | ShapeType | UnionType,
+): thing is UnionType {
+  return typeof thing !== 'string' && thing.kind === 'union';
+}
+
+/**
+ * Infer the return type of a function partial by analyzing its {% return %} statements.
+ */
+async function inferFunctionReturnType(
+  partialPath: string,
+  fs: AbstractFileSystem,
+  documentsLocator: DocumentsLocator,
+  rootUri: string,
+  seedSymbolsTable: SymbolsTable,
+  liquidDrops: ObjectEntry[],
+  graphqlSchema: string | undefined,
+  processingFiles: Set<string> | undefined,
+  objectMap: ObjectMap,
+  filtersMap: FiltersMap,
+): Promise<PseudoType | ArrayType | ShapeType | UnionType | undefined> {
+  // 1. Locate the file
+  const located = await documentsLocator.locate(URI.parse(rootUri), 'function', partialPath);
+  if (!located) return undefined;
+
+  // 2. Check for circular references
+  const trackingSet = processingFiles ?? new Set<string>();
+  if (trackingSet.has(located)) return Untyped;
+  trackingSet.add(located);
+
+  try {
+    // 3. Read and parse the partial
+    const content = await fs.readFile(located);
+    const partialAst = toLiquidHtmlAST(content);
+
+    // 4. Build symbols table for the partial (recursive)
+    const partialSymbolsTable = await buildSymbolsTable(
+      partialAst,
+      { ...seedSymbolsTable }, // Clone to avoid pollution
+      liquidDrops,
+      graphqlSchema,
+      fs,
+      documentsLocator,
+      rootUri,
+      trackingSet,
+      objectMap,
+      filtersMap,
+    );
+
+    // 5. Find all return statements and infer their types
+    const returnTypes: (PseudoType | ArrayType | ShapeType)[] = [];
+
+    await visit<SourceCodeType.LiquidHtml, void>(partialAst, {
+      async LiquidTag(node) {
+        if (node.name === NamedTags.return && typeof node.markup !== 'string') {
+          // markup is LiquidVariable - infer its type
+          const type = inferType(node.markup, partialSymbolsTable, objectMap, filtersMap);
+          // Flatten union types into individual types
+          if (isUnionType(type)) {
+            returnTypes.push(...type.types);
+          } else {
+            returnTypes.push(type);
+          }
+        }
+      },
+    });
+
+    if (returnTypes.length === 0) return undefined;
+    if (returnTypes.length === 1) return returnTypes[0];
+
+    // Dedupe types (same type appearing multiple times)
+    const uniqueTypes = dedupeTypes(returnTypes);
+    if (uniqueTypes.length === 1) return uniqueTypes[0];
+
+    return unionType(uniqueTypes);
+  } finally {
+    trackingSet.delete(located);
+  }
+}
+
+/**
+ * Deduplicate types by comparing their structure.
+ */
+function dedupeTypes(
+  types: (PseudoType | ArrayType | ShapeType)[],
+): (PseudoType | ArrayType | ShapeType)[] {
+  const seen = new Set<string>();
+  const result: (PseudoType | ArrayType | ShapeType)[] = [];
+
+  for (const type of types) {
+    const key = typeToKey(type);
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(type);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Convert a type to a string key for deduplication.
+ */
+function typeToKey(type: PseudoType | ArrayType | ShapeType): string {
+  if (typeof type === 'string') return type;
+  if (type.kind === 'array') return `array:${type.valueType}`;
+  if (type.kind === 'shape') return `shape:${JSON.stringify(shapeToSimpleObject(type.shape))}`;
+  return 'unknown';
+}
+
+/**
+ * Convert a PropertyShape to a simple object for JSON serialization.
+ */
+function shapeToSimpleObject(shape: PropertyShape): unknown {
+  if (shape.kind === 'primitive') {
+    return { kind: 'primitive', type: shape.primitiveType };
+  }
+  if (shape.kind === 'array') {
+    return {
+      kind: 'array',
+      itemShape: shape.itemShape ? shapeToSimpleObject(shape.itemShape) : null,
+    };
+  }
+  if (shape.kind === 'object') {
+    const props: Record<string, unknown> = {};
+    if (shape.properties) {
+      for (const [key, value] of shape.properties) {
+        props[key] = shapeToSimpleObject(value);
+      }
+    }
+    return { kind: 'object', properties: props };
+  }
+  return { kind: 'unknown' };
+}
+
+/**
+ * Convert a type to a display string for hover/completions.
+ */
+export function typeToDisplayString(type: PseudoType | ArrayType | ShapeType | UnionType): string {
+  if (typeof type === 'string') return type;
+  if (type.kind === 'array') return `Array<${type.valueType}>`;
+  if (type.kind === 'shape') return shapeToTypeString(type.shape);
+  if (type.kind === 'union') return type.types.map((t) => typeToDisplayString(t)).join(' | ');
+  return 'unknown';
 }
 
 /**

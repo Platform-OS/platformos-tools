@@ -1,7 +1,7 @@
 import { DocsetEntry } from '@platformos/theme-check-common';
 import { CompletionItem, CompletionItemTag, MarkupContent } from 'vscode-languageserver';
 import { DocsetEntryType, render } from '../../../docset';
-import { ArrayType, PseudoType, ShapeType } from '../../../TypeSystem';
+import { ArrayType, PseudoType, ShapeType, UnionType } from '../../../TypeSystem';
 
 // ASCII tokens that make a string appear lower in the list.
 //
@@ -19,7 +19,7 @@ export function createCompletionItem(
   entry: DocsetEntry & { deprioritized?: boolean },
   extraProperties: Partial<CompletionItem> = {},
   docsetEntryType?: DocsetEntryType,
-  entryType?: PseudoType | ArrayType | ShapeType,
+  entryType?: PseudoType | ArrayType | ShapeType | UnionType,
 ): CompletionItem {
   // prettier-ignore
   const sortToken = entry.deprecated
@@ -41,7 +41,7 @@ export function createCompletionItem(
 function documentationProperties(
   entry: DocsetEntry,
   docsetEntryType?: DocsetEntryType,
-  entryType?: PseudoType | ArrayType | ShapeType,
+  entryType?: PseudoType | ArrayType | ShapeType | UnionType,
 ): {
   documentation: MarkupContent;
 } {

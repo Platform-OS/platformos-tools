@@ -6,7 +6,7 @@ import {
   InsertTextFormat,
   TextEdit,
 } from 'vscode-languageserver';
-import { PseudoType, TypeSystem, isArrayType, isShapeType } from '../../TypeSystem';
+import { PseudoType, TypeSystem, isArrayType, isShapeType, isUnionType } from '../../TypeSystem';
 import { memoize } from '../../utils';
 import { AugmentedLiquidSourceCode } from '../../documents';
 import { CURSOR, LiquidCompletionParams } from '../params';
@@ -53,7 +53,9 @@ export class FilterCompletionProvider implements Provider {
         ? inputType.shape.kind === 'array'
           ? 'array'
           : 'untyped'
-        : inputType;
+        : isUnionType(inputType)
+          ? 'untyped'
+          : inputType;
     const options = await this.options(normalizedType);
 
     return options

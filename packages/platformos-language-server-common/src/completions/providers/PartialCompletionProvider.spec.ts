@@ -98,6 +98,10 @@ describe('Module: PartialCompletionProvider with paths', async () => {
       getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     });
 
-    await expect(provider).to.complete('{% render "/modules/user/commands', ['create', 'update', 'delete']);
+    await expect(provider).to.complete('{% render "/modules/user/commands', [
+      'create',
+      'update',
+      'delete',
+    ]);
   });
 });

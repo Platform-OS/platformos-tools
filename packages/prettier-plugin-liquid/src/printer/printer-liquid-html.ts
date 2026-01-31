@@ -329,7 +329,11 @@ function printNode(
     }
 
     case NodeTypes.HashAssignMarkup: {
-      return [path.call((p: any) => print(p), 'target'), ' = ', path.call((p: any) => print(p), 'value')];
+      return [
+        path.call((p: any) => print(p), 'target'),
+        ' = ',
+        path.call((p: any) => print(p), 'value'),
+      ];
     }
 
     case NodeTypes.CycleMarkup: {

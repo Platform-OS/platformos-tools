@@ -1,4 +1,10 @@
-import { Offense, path, Position, Severity, SourceCodeType } from '@platformos/platformos-check-common';
+import {
+  Offense,
+  path,
+  Position,
+  Severity,
+  SourceCodeType,
+} from '@platformos/platformos-check-common';
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';

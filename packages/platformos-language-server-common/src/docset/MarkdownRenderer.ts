@@ -1,4 +1,9 @@
-import { DocsetEntry, FilterEntry, ObjectEntry, TagEntry } from '@platformos/platformos-check-common';
+import {
+  DocsetEntry,
+  FilterEntry,
+  ObjectEntry,
+  TagEntry,
+} from '@platformos/platformos-check-common';
 import {
   ArrayType,
   PseudoType,

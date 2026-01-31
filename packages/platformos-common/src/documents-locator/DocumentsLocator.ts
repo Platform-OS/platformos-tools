@@ -110,10 +110,7 @@ export class DocumentsLocator {
     type: 'partial' | 'view' | 'graphql' | 'asset',
   ): Promise<string[]> {
     const parsed = this.parseModulePath(filePrefix);
-    const searchPaths = this.getSearchPaths(
-      type,
-      parsed.isModule ? parsed.moduleName : undefined,
-    );
+    const searchPaths = this.getSearchPaths(type, parsed.isModule ? parsed.moduleName : undefined);
 
     const results = new Set<string>();
 
@@ -147,12 +144,13 @@ export class DocumentsLocator {
         if (!matchesType(name)) continue;
 
         const parsedName = name.slice(basePath.length);
-        if (!parsedName.startsWith("/" + parsed.key)) continue;
+        if (!parsedName.startsWith('/' + parsed.key)) continue;
         let result = parsedName.slice(parsed.key.length);
 
-        if ((parsed.key.endsWith("/") || parsed.key === '') && result.startsWith("/")) result = result.slice(1);
+        if ((parsed.key.endsWith('/') || parsed.key === '') && result.startsWith('/'))
+          result = result.slice(1);
 
-        if(type !== 'asset') {
+        if (type !== 'asset') {
           const index = result.lastIndexOf('.');
           result = index === -1 ? result : result.slice(0, index);
         }
@@ -192,11 +190,7 @@ export class DocumentsLocator {
     }
   }
 
-  async list(
-    rootUri: URI,
-    nodeName: string|undefined,
-    filePrefix: string,
-  ): Promise<string[]> {
+  async list(rootUri: URI, nodeName: string | undefined, filePrefix: string): Promise<string[]> {
     switch (nodeName) {
       case 'function':
         return this.listFiles(rootUri, filePrefix, 'partial');

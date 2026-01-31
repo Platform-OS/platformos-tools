@@ -115,8 +115,8 @@ export class TypeSystem {
         const entryType = isArrayType(type)
           ? type.valueType
           : isShapeType(type) || isUnionType(type)
-            ? Untyped
-            : type;
+          ? Untyped
+          : type;
         const entry = objectMap[entryType] ?? {};
         return {
           entry: { ...entry, name: identifier },
@@ -462,7 +462,13 @@ interface TypeRange {
   identifier: Identifier;
 
   /** The type of the variable */
-  type: PseudoType | ArrayType | ShapeType | UnionType | LazyVariableType | LazyDeconstructedExpression;
+  type:
+    | PseudoType
+    | ArrayType
+    | ShapeType
+    | UnionType
+    | LazyVariableType
+    | LazyDeconstructedExpression;
 
   /**
    * The range may be one of two things:
@@ -800,7 +806,11 @@ async function buildSymbolsTable(
               // Resolve lazy types
               if (typeof tr.type === 'string') {
                 existingType = tr.type;
-              } else if (tr.type.kind === 'shape' || tr.type.kind === 'array' || tr.type.kind === 'union') {
+              } else if (
+                tr.type.kind === 'shape' ||
+                tr.type.kind === 'array' ||
+                tr.type.kind === 'union'
+              ) {
                 existingType = tr.type;
               }
             }
@@ -854,7 +864,9 @@ async function buildSymbolsTable(
           if (!variableShapes.has(variableName)) {
             variableShapes.set(variableName, []);
           }
-          variableShapes.get(variableName)!.push({ shape: valueShape, rangeEnd: node.position.end });
+          variableShapes
+            .get(variableName)!
+            .push({ shape: valueShape, rangeEnd: node.position.end });
 
           return {
             identifier: variableName,
@@ -1482,9 +1494,7 @@ function isGraphQLInlineMarkup(
   return markup.type === NodeTypes.GraphQLInlineMarkup;
 }
 
-function isGraphQLFileMarkup(
-  markup: GraphQLMarkup | GraphQLInlineMarkup,
-): markup is GraphQLMarkup {
+function isGraphQLFileMarkup(markup: GraphQLMarkup | GraphQLInlineMarkup): markup is GraphQLMarkup {
   return markup.type === NodeTypes.GraphQLMarkup;
 }
 

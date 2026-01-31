@@ -312,7 +312,9 @@ export const UnknownProperty: LiquidCheckDefinition = {
             const invalidLookup = lookup.lookups[result.errorAt];
 
             context.report({
-              message: `Cannot access property '${path[result.errorAt]}' on primitive value '${accessPath}'.`,
+              message: `Cannot access property '${
+                path[result.errorAt]
+              }' on primitive value '${accessPath}'.`,
               startIndex: invalidLookup.position.start,
               endIndex: invalidLookup.position.end,
             });
@@ -401,7 +403,10 @@ function mergeNestedPropertyIntoShape(
     if (rest.length === 0) {
       properties.set(key, valueShape);
     } else {
-      properties.set(key, mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape));
+      properties.set(
+        key,
+        mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape),
+      );
     }
     return { kind: 'object', properties };
   }

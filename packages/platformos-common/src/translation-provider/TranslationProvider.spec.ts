@@ -80,7 +80,8 @@ describe('TranslationProvider', () => {
   describe('translate', () => {
     it('should translate a simple key', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en/general.yml': 'en:\n  general:\n    hello: Hello World',
+        'file:///project/app/translations/en/general.yml':
+          'en:\n  general:\n    hello: Hello World',
       });
       const provider = new TranslationProvider(fs);
 

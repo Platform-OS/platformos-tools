@@ -194,7 +194,11 @@ export async function extractVariableShapes(
 
         if (variableName && lookupPath && lookupPath.length > 0) {
           // Nested property assignment: {% hash_assign a['key'] = value %}
-          const existingIdx = findLastApplicableShapeIndex(variableName, node.position.start, shapes);
+          const existingIdx = findLastApplicableShapeIndex(
+            variableName,
+            node.position.start,
+            shapes,
+          );
 
           if (existingIdx !== -1) {
             const existing = shapes[existingIdx];
@@ -259,7 +263,10 @@ export function findLastApplicableShapeIndex(
   return lastIdx;
 }
 
-export function buildLookupPath(lookups: LiquidExpression[], cursor?: string): string[] | undefined {
+export function buildLookupPath(
+  lookups: LiquidExpression[],
+  cursor?: string,
+): string[] | undefined {
   const path: string[] = [];
 
   for (const lookup of lookups) {
@@ -317,7 +324,10 @@ function mergeNestedPropertyIntoShape(
     if (rest.length === 0) {
       properties.set(key, valueShape);
     } else {
-      properties.set(key, mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape));
+      properties.set(
+        key,
+        mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape),
+      );
     }
     return { kind: 'object', properties };
   }

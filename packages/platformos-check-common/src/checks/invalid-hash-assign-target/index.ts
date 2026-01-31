@@ -11,13 +11,7 @@ import {
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isError } from '../../utils';
 
-type VariableType =
-  | 'number'
-  | 'string'
-  | 'boolean'
-  | 'object'
-  | 'array'
-  | 'untyped';
+type VariableType = 'number' | 'string' | 'boolean' | 'object' | 'array' | 'untyped';
 
 interface VariableTypeEntry {
   name: string;
@@ -51,10 +45,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
     // Helper to close previous type ranges when a variable is reassigned
     const closeTypeRange = (variableName: string, endPosition: number) => {
       for (let i = variableTypes.length - 1; i >= 0; i--) {
-        if (
-          variableTypes[i].name === variableName &&
-          variableTypes[i].range[1] === undefined
-        ) {
+        if (variableTypes[i].name === variableName && variableTypes[i].range[1] === undefined) {
           variableTypes[i].range[1] = endPosition;
           break;
         }
@@ -62,10 +53,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
     };
 
     // Find the applicable type for a variable at a given position
-    const findVariableType = (
-      variableName: string,
-      position: number,
-    ): VariableType | undefined => {
+    const findVariableType = (variableName: string, position: number): VariableType | undefined => {
       let result: VariableType | undefined;
 
       for (const entry of variableTypes) {
@@ -86,10 +74,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
         const lastFilter = variable.filters[variable.filters.length - 1];
 
         // Filters that return objects
-        if (
-          lastFilter.name === 'parse_json' ||
-          lastFilter.name === 'to_hash'
-        ) {
+        if (lastFilter.name === 'parse_json' || lastFilter.name === 'to_hash') {
           return 'object';
         }
 
@@ -190,8 +175,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
 
         // {% increment x %} / {% decrement x %}
         if (
-          (node.name === NamedTags.increment ||
-            node.name === NamedTags.decrement) &&
+          (node.name === NamedTags.increment || node.name === NamedTags.decrement) &&
           typeof node.markup !== 'string' &&
           node.markup.name
         ) {
@@ -263,10 +247,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
           const variableName = markup.target.name;
 
           if (variableName) {
-            const existingType = findVariableType(
-              variableName,
-              node.position.start,
-            );
+            const existingType = findVariableType(variableName, node.position.start);
 
             // Report error if target is a primitive type
             if (
@@ -320,8 +301,6 @@ function isLiquidTagGraphQL(
   return node.name === NamedTags.graphql && typeof node.markup !== 'string';
 }
 
-function isLiquidTagHashAssign(
-  node: LiquidTag,
-): node is LiquidTag & { markup: HashAssignMarkup } {
+function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {
   return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
 }

@@ -539,8 +539,7 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
 export interface LiquidTagBackground
   extends LiquidTagNode<NamedTags.background, BackgroundMarkup | BackgroundInlineMarkup> {}
 export interface LiquidTagCache extends LiquidTagNode<NamedTags.cache, CacheMarkup> {}
-export interface LiquidTagContext
-  extends LiquidTagNode<NamedTags.context, LiquidNamedArgument[]> {}
+export interface LiquidTagContext extends LiquidTagNode<NamedTags.context, LiquidNamedArgument[]> {}
 export interface LiquidTagExport extends LiquidTagNode<NamedTags.export, ExportMarkup> {}
 export interface LiquidTagIncludeForm
   extends LiquidTagNode<NamedTags.include_form, IncludeFormMarkup> {}
@@ -557,8 +556,7 @@ export interface LiquidTagResponseStatus
 export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable> {}
 export interface LiquidTagRollback extends LiquidTagNode<NamedTags.rollback, string> {}
 export interface LiquidTagSession extends LiquidTagNode<NamedTags.session, SessionMarkup> {}
-export interface LiquidTagSignIn
-  extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
+export interface LiquidTagSignIn extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
 export interface LiquidTagSpamProtection
   extends LiquidTagNode<NamedTags.spam_protection, SpamProtectionMarkup> {}
 export interface LiquidTagThemeRenderRc
@@ -1064,13 +1062,18 @@ interface ASTBuildOptions {
 }
 
 export function isBranchedTag(node: LiquidHtmlNode) {
-  return node.type === NodeTypes.LiquidTag && ['if', 'for', 'unless', 'case', 'try'].includes(node.name);
+  return (
+    node.type === NodeTypes.LiquidTag && ['if', 'for', 'unless', 'case', 'try'].includes(node.name)
+  );
 }
 
 function isConcreteLiquidBranchDisguisedAsTag(
   node: LiquidHtmlConcreteNode,
 ): node is ConcreteLiquidTag & { name: 'else' | 'elsif' | 'when' | 'catch' } {
-  return node.type === ConcreteNodeTypes.LiquidTag && ['else', 'elsif', 'when', 'catch'].includes(node.name);
+  return (
+    node.type === ConcreteNodeTypes.LiquidTag &&
+    ['else', 'elsif', 'when', 'catch'].includes(node.name)
+  );
 }
 
 export function toLiquidAST(
@@ -2351,7 +2354,9 @@ function toBackgroundMarkup(node: ConcreteLiquidTagBackgroundMarkup): Background
   };
 }
 
-function toBackgroundInlineMarkup(node: ConcreteLiquidTagBackgroundInlineMarkup): BackgroundInlineMarkup {
+function toBackgroundInlineMarkup(
+  node: ConcreteLiquidTagBackgroundInlineMarkup,
+): BackgroundInlineMarkup {
   return {
     type: NodeTypes.BackgroundInlineMarkup,
     jobId: toExpression(node.jobId) as LiquidVariableLookup,

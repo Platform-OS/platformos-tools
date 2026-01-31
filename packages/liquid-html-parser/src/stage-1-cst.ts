@@ -471,7 +471,10 @@ export interface ConcreteLiquidTagYield
 
 // platformos block tag open interfaces
 export interface ConcreteLiquidTagOpenBackground
-  extends ConcreteLiquidTagOpenNode<NamedTags.background, ConcreteLiquidTagBackgroundInlineMarkup> {}
+  extends ConcreteLiquidTagOpenNode<
+    NamedTags.background,
+    ConcreteLiquidTagBackgroundInlineMarkup
+  > {}
 export interface ConcreteLiquidTagOpenCache
   extends ConcreteLiquidTagOpenNode<NamedTags.cache, ConcreteLiquidTagCacheMarkup> {}
 export interface ConcreteLiquidTagOpenParseJson
@@ -535,8 +538,7 @@ export interface ConcreteLiquidTagCacheMarkup
   args: ConcreteLiquidNamedArgument[];
 }
 
-export interface ConcreteLiquidTagLogMarkup
-  extends ConcreteBasicNode<ConcreteNodeTypes.LogMarkup> {
+export interface ConcreteLiquidTagLogMarkup extends ConcreteBasicNode<ConcreteNodeTypes.LogMarkup> {
   value: ConcreteLiquidExpression;
   args: ConcreteLiquidNamedArgument[];
 }

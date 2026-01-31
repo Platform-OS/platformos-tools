@@ -1,4 +1,9 @@
-import { createCorrector, Fix, FixDescription, flattenFixes } from '@platformos/platformos-check-common';
+import {
+  createCorrector,
+  Fix,
+  FixDescription,
+  flattenFixes,
+} from '@platformos/platformos-check-common';
 import {
   ApplyWorkspaceEditRequest,
   Command,

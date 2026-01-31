@@ -239,12 +239,15 @@ export function startServer(
     return file.getLiquidDoc();
   };
 
-  const getPartialNamesForURI: GetPartialNamesForURI = safe(async (uri: string, partial: string, type: string|undefined) => {
-    const rootUri = await findThemeRootURI(uri);
-    if (!rootUri) return [];
+  const getPartialNamesForURI: GetPartialNamesForURI = safe(
+    async (uri: string, partial: string, type: string | undefined) => {
+      const rootUri = await findThemeRootURI(uri);
+      if (!rootUri) return [];
 
-    return await documentsLocator.list(URI.parse(rootUri), type, partial)
-  }, []);
+      return await documentsLocator.list(URI.parse(rootUri), type, partial);
+    },
+    [],
+  );
 
   const getThemeSettingsSchemaForURI = safe(async (uri: string) => {
     const rootUri = await findThemeRootURI(uri);

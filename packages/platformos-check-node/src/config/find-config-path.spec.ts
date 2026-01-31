@@ -14,7 +14,11 @@ describe('Unit: findConfigPath', () => {
   });
 
   it('finds a .platformos-check.yml config file', async () => {
-    const configPath = await createMockConfigFile(tempDir, 'dummy content', '.platformos-check.yml');
+    const configPath = await createMockConfigFile(
+      tempDir,
+      'dummy content',
+      '.platformos-check.yml',
+    );
     const foundConfigPath = await findConfigPath(tempDir);
     expect(foundConfigPath).to.eql(configPath);
   });

@@ -330,7 +330,11 @@ export function shapeToDetailString(shape: PropertyShape): string {
   }
 
   if (shape.kind === 'array' && shape.itemShape) {
-    if (shape.itemShape.kind === 'object' && shape.itemShape.properties && shape.itemShape.properties.size > 0) {
+    if (
+      shape.itemShape.kind === 'object' &&
+      shape.itemShape.properties &&
+      shape.itemShape.properties.size > 0
+    ) {
       const keys = Array.from(shape.itemShape.properties.keys());
       if (keys.length <= MAX_KEYS_TO_SHOW) {
         lines.push(`Item keys: ${keys.join(', ')}`);

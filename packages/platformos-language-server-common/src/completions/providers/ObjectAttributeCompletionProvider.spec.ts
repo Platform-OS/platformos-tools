@@ -404,10 +404,26 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         {{ a.█ }}
       `;
       await expect(provider).to.complete(source, [
-        expect.objectContaining({ label: 'active', detail: 'Type: boolean', kind: CompletionItemKind.Property }),
-        expect.objectContaining({ label: 'count', detail: 'Type: number', kind: CompletionItemKind.Property }),
-        expect.objectContaining({ label: 'items', detail: 'Type: number[]', kind: CompletionItemKind.Property }),
-        expect.objectContaining({ label: 'name', detail: 'Type: string', kind: CompletionItemKind.Property }),
+        expect.objectContaining({
+          label: 'active',
+          detail: 'Type: boolean',
+          kind: CompletionItemKind.Property,
+        }),
+        expect.objectContaining({
+          label: 'count',
+          detail: 'Type: number',
+          kind: CompletionItemKind.Property,
+        }),
+        expect.objectContaining({
+          label: 'items',
+          detail: 'Type: number[]',
+          kind: CompletionItemKind.Property,
+        }),
+        expect.objectContaining({
+          label: 'name',
+          detail: 'Type: string',
+          kind: CompletionItemKind.Property,
+        }),
       ]);
     });
 
@@ -441,7 +457,11 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
           detail: 'Type: object\nKeys: name, id',
           kind: CompletionItemKind.Property,
         }),
-        expect.objectContaining({ label: 'size', detail: 'Type: number', kind: CompletionItemKind.Property }),
+        expect.objectContaining({
+          label: 'size',
+          detail: 'Type: number',
+          kind: CompletionItemKind.Property,
+        }),
       ]);
     });
 

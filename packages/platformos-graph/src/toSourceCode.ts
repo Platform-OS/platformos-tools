@@ -1,4 +1,8 @@
-import { asError, toSourceCode as tcToSourceCode, UriString } from '@platformos/platformos-check-common';
+import {
+  asError,
+  toSourceCode as tcToSourceCode,
+  UriString,
+} from '@platformos/platformos-check-common';
 import { parse as acornParse, Program } from 'acorn';
 import {
   CssSourceCode,

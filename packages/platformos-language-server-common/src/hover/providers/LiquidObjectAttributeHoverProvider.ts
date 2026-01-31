@@ -55,7 +55,9 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
         return {
           contents: {
             kind: 'markdown',
-            value: `### ${currentNode.value}: \`${shapeToTypeString(nodeType.shape)}\`\n${shapeToDetailString(nodeType.shape)}`,
+            value: `### ${currentNode.value}: \`${shapeToTypeString(
+              nodeType.shape,
+            )}\`\n${shapeToDetailString(nodeType.shape)}`,
           },
         };
       }
@@ -75,7 +77,9 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
       return {
         contents: {
           kind: 'markdown',
-          value: `### ${currentNode.value}: \`${isArrayType(nodeType) ? `${nodeType.valueType}[]` : nodeType}\``,
+          value: `### ${currentNode.value}: \`${
+            isArrayType(nodeType) ? `${nodeType.valueType}[]` : nodeType
+          }\``,
         },
       };
     }
@@ -99,7 +103,9 @@ export class LiquidObjectAttributeHoverProvider implements BaseHoverProvider {
         return {
           contents: {
             kind: 'markdown',
-            value: `### ${currentNode.value}: \`${shapeToTypeString(nodeType.shape)}\`\n${shapeToDetailString(nodeType.shape)}`,
+            value: `### ${currentNode.value}: \`${shapeToTypeString(
+              nodeType.shape,
+            )}\`\n${shapeToDetailString(nodeType.shape)}`,
           },
         };
       }

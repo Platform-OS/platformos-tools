@@ -1,4 +1,8 @@
-import { LiquidCheckDefinition, Severity, SourceCodeType } from '@platformos/platformos-check-common';
+import {
+  LiquidCheckDefinition,
+  Severity,
+  SourceCodeType,
+} from '@platformos/platformos-check-common';
 
 export const LiquidFilter: LiquidCheckDefinition = {
   meta: {

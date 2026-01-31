@@ -132,7 +132,6 @@ describe('Unit: readYamlConfigDescription', () => {
         checkSettings: {},
       });
     });
-
   });
 
   describe('Unit: require', () => {

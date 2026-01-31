@@ -46,13 +46,13 @@ describe('Unit: loadConfig', () => {
   });
 
   it('has no checks if it extends nothing', async () => {
-    const configPath = await createMockConfigFile(tempDir, `extends: nothing`);
+    const configPath = await createMockConfigFile(tempDir, `extends: platformos-check:nothing`);
     const config = await loadConfig(configPath, tempDir);
     expect(config.checks).to.be.empty;
   });
 
   it('loads the nothing config', async () => {
-    const configPath = await createMockConfigFile(tempDir, `extends: nothing`);
+    const configPath = await createMockConfigFile(tempDir, `extends: platformos-check:nothing`);
     const config = await loadConfig(configPath, tempDir);
     expect(config.checks).to.eql([]);
   });
@@ -141,7 +141,7 @@ describe('Unit: loadConfig', () => {
     const configPath = await createMockConfigFile(
       tempDir,
       `
-extends: nothing
+extends: platformos-check:nothing
 require: '@acme/unconventional'
 NodeModuleCheck:
   enabled: true
@@ -157,7 +157,7 @@ NodeModuleCheck:
     const configPath = await createMockConfigFile(
       tempDir,
       `
-extends: nothing
+extends: platformos-check:nothing
 require: './checks.js'
 NodeModuleCheck:
   enabled: true
@@ -173,7 +173,7 @@ NodeModuleCheck:
     const configPath = await createMockConfigFile(
       tempDir,
       `
-extends: nothing
+extends: platformos-check:nothing
 SyntaxError:
   enabled: true
       `,

@@ -68,7 +68,7 @@ describe('Unit: readYamlConfigDescription', () => {
     });
 
     it('uses an absolute path as is', async () => {
-      const baseConfigPath = await createMockYamlFile(`extends: :nothing`);
+      const baseConfigPath = await createMockYamlFile(`extends: platformos-check:nothing`);
       const filePath = await createMockYamlFile(`extends: '${baseConfigPath}'`);
       const config = await readYamlConfigDescription(filePath);
       expect(config).toEqual({
@@ -89,7 +89,7 @@ describe('Unit: readYamlConfigDescription', () => {
       // mock other config file
       await fs.writeFile(
         path.join(mockConfigFolder, 'platformos-check.yml'),
-        'extends: nothing',
+        'extends: platformos-check:nothing',
         'utf8',
       );
 
@@ -133,31 +133,6 @@ describe('Unit: readYamlConfigDescription', () => {
       });
     });
 
-    it('translates legacy extend values to modern ones', async () => {
-      const testCases = [
-        {
-          testCase: 'translates legacy `:default` to `platformos-check:recommended`',
-          extendsValue: [':default'],
-          expected: ['platformos-check:recommended'],
-        },
-        {
-          testCase: 'translates legacy `default` to `platformos-check:recommended`',
-          extendsValue: 'default',
-          expected: ['platformos-check:recommended'],
-        },
-        {
-          testCase: 'translates legacy [`:nothing`] to platformos-check:nothing',
-          extendsValue: [':nothing'],
-          expected: ['platformos-check:nothing'],
-        },
-      ];
-
-      for (const { testCase, extendsValue, expected } of testCases) {
-        const filePath = await createMockYamlFile(`extends: ${extendsValue}`);
-        const config = await readYamlConfigDescription(filePath);
-        expect(config.extends, testCase).toEqual(expected);
-      }
-    });
   });
 
   describe('Unit: require', () => {

@@ -38,13 +38,6 @@ export const ModernIdentifiers = [
 
 export type ModernIdentifier = (typeof ModernIdentifiers)[number];
 
-export const LegacyIdentifiers = new Map(
-  Object.entries({
-    default: 'platformos-check:recommended',
-    nothing: 'platformos-check:nothing',
-  }),
-);
-
 export type ConvenienceSeverity = 'error' | 'suggestion' | 'style' | 'warning' | 'info';
 
 export const ConvenienceSeverities: { [k in ConvenienceSeverity]: Severity } = {

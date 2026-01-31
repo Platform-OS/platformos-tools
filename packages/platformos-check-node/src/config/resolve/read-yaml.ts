@@ -8,7 +8,6 @@ import {
   ConfigFragment,
   ConvenienceSeverities,
   ConvenienceSeverity,
-  LegacyIdentifiers,
   ModernIdentifier,
 } from '../types';
 
@@ -120,14 +119,12 @@ export async function readYamlConfigDescription(
  * resolves the `extends:` property of configuration files.
  *
  * pathLike can be any of the following:
- * - legacy identifiers:
- *   - a symbol (e.g. :default, :nothing)
- *   - the special string version of the symbols (e.g. default, nothing)
  * - modern identifiers:
  *   - platformos-check:all
  *   - platformos-check:recommended
- *   - a node_module (e.g. '@acme/platformos-check-recommended')
- *   - a relative path (e.g. '../configurations/.platformos-check.yml')
+ *   - platformos-check:nothing
+ * - a node_module (e.g. '@acme/platformos-check-recommended')
+ * - a relative path (e.g. '../configurations/.platformos-check.yml')
  *
  * @returns {string} resolved absolute path of the extended config
  */
@@ -137,10 +134,6 @@ function resolveExtends(
   /** pathLike textual value of the `extends` property in the config file */
   pathLike: string,
 ): ModernIdentifier | string | undefined {
-  if (pathLike.startsWith(':') || LegacyIdentifiers.has(pathLike)) {
-    return LegacyIdentifiers.get(pathLike.replace(/^:/, '')) as ModernIdentifier | undefined;
-  }
-
   if (pathLike.startsWith('platformos-check:')) {
     return pathLike;
   }

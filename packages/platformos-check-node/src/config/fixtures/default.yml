@@ -1,6 +1,6 @@
 root: .
 
-extends: :nothing
+extends: platformos-check:nothing
 
 require: []
 
@@ -29,10 +29,6 @@ NestedSnippet:
   enabled: true
   ignore: []
   max_nesting_level: 3
-
-RequiredLayoutThemeObject:
-  enabled: true
-  ignore: []
 
 SpaceInsideBraces:
   enabled: true
@@ -101,7 +97,6 @@ UndefinedObject:
   enabled: true
   ignore: []
   exclude_snippets: true
-  config_type: :default
 
 RequiredDirectories:
   enabled: true

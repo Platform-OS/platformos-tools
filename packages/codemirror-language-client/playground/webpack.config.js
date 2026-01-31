@@ -7,7 +7,7 @@ const path = require('path');
 const { DefinePlugin } = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { default: TsconfigPathsPlugin } = require('tsconfig-paths-webpack-plugin');
-const { ThemeLiquidDocsManager } = require('@platformos/theme-check-docs-updater');
+const { ThemeLiquidDocsManager } = require('@platformos/platformos-check-docs-updater');
 
 /** @type {() => Promise<WebpackConfig>} */
 const config = async () => {

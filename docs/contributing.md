@@ -52,7 +52,7 @@ Once you've made some changes to your local platformos-tools packages, to see th
 
 ### Developing for codemirror-language-client
 
-Run the following command to start a browser instance that runs `@platformos/theme-language-server-browser`.
+Run the following command to start a browser instance for the CodeMirror language client playground.
 
 ```
 yarn playground

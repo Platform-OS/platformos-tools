@@ -79,7 +79,7 @@ import {
   ConcreteLiquidTagContentForMarkup,
   ConcreteComplexLiquidExpression,
   ConcreteLiquidTagHashAssignMarkup,
-  // platformOS concrete types
+  // platformos concrete types
   ConcreteLiquidTagBackgroundMarkup,
   ConcreteLiquidTagBackgroundInlineMarkup,
   ConcreteLiquidTagCacheMarkup,
@@ -133,7 +133,7 @@ export type LiquidHtmlNode =
   | LiquidDocExampleNode
   | LiquidDocPromptNode
   | LiquidDocDescriptionNode
-  // platformOS markup types
+  // platformos markup types
   | BackgroundMarkup
   | BackgroundInlineMarkup
   | CacheMarkup
@@ -245,7 +245,7 @@ export type LiquidTagNamed =
   | LiquidTagSections
   | LiquidTagTablerow
   | LiquidTagUnless
-  // platformOS tags
+  // platformos tags
   | LiquidTagBackground
   | LiquidTagCache
   | LiquidTagContext
@@ -535,7 +535,7 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
   args: LiquidNamedArgument[];
 }
 
-// platformOS tag interfaces
+// platformos tag interfaces
 export interface LiquidTagBackground
   extends LiquidTagNode<NamedTags.background, BackgroundMarkup | BackgroundInlineMarkup> {}
 export interface LiquidTagCache extends LiquidTagNode<NamedTags.cache, CacheMarkup> {}
@@ -568,11 +568,11 @@ export interface LiquidTagTransaction
 export interface LiquidTagTry extends LiquidTagNode<NamedTags.try, string> {}
 export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, LiquidExpression> {}
 
-// platformOS branch interface
+// platformos branch interface
 export interface LiquidBranchCatch
   extends LiquidBranchNode<NamedTags.catch, LiquidVariableLookup> {}
 
-// platformOS markup interfaces
+// platformos markup interfaces
 /** {% background job_id = 'partial', [...namedArguments] %} (file-based) */
 export interface BackgroundMarkup extends ASTNode<NodeTypes.BackgroundMarkup> {
   jobId: string;
@@ -1887,7 +1887,7 @@ function toNamedLiquidTag(
       };
     }
 
-    // platformOS tags
+    // platformos tags
     case NamedTags.background: {
       // Handle both file-based and inline syntax
       if (node.markup.type === ConcreteNodeTypes.BackgroundInlineMarkup) {
@@ -2339,7 +2339,7 @@ function toGraphQLInlineMarkup(node: ConcreteLiquidTagGraphQLInlineMarkup): Grap
   };
 }
 
-// platformOS markup conversion functions
+// platformos markup conversion functions
 function toBackgroundMarkup(node: ConcreteLiquidTagBackgroundMarkup): BackgroundMarkup {
   return {
     jobId: node.jobId,

@@ -1,0 +1,33 @@
+{
+  "name": "@platformos/platformos-language-server-browser",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "CP Clermont <cp.clermont@shopify.com>",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-language-server-browser#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Platform-OS/platformos-tools.git",
+    "directory": "packages/platformos-language-server-browser"
+  },
+  "bugs": {
+    "url": "https://github.com/Platform-OS/platformos-tools/issues"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "@platformos:registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "yarn build:ts",
+    "build:ci": "yarn build",
+    "build:ts": "tsc -b tsconfig.build.json",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@platformos/platformos-language-server-common": "1.0.0",
+    "vscode-languageserver": "^8.0.2"
+  }
+}

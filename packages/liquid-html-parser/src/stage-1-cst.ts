@@ -95,7 +95,7 @@ export enum ConcreteNodeTypes {
   LiquidDocDescriptionNode = 'LiquidDocDescriptionNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
   LiquidDocPromptNode = 'LiquidDocPromptNode',
-  // platformOS markup types
+  // platformos markup types
   BackgroundMarkup = 'BackgroundMarkup',
   BackgroundInlineMarkup = 'BackgroundInlineMarkup',
   CacheMarkup = 'CacheMarkup',
@@ -258,7 +258,7 @@ export type ConcreteLiquidTagOpenNamed =
   | ConcreteLiquidTagOpenFor
   | ConcreteLiquidTagOpenPaginate
   | ConcreteLiquidTagOpenTablerow
-  // platformOS block tags
+  // platformos block tags
   | ConcreteLiquidTagOpenBackground
   | ConcreteLiquidTagOpenCache
   | ConcreteLiquidTagOpenParseJson
@@ -350,7 +350,7 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagSection
   | ConcreteLiquidTagSections
   | ConcreteLiquidTagWhen
-  // platformOS tags
+  // platformos tags
   | ConcreteLiquidTagBackground
   | ConcreteLiquidTagCatch
   | ConcreteLiquidTagContext
@@ -433,7 +433,7 @@ export interface ConcreteLiquidTagFunction
 export interface ConcreteLiquidTagGraphQL
   extends ConcreteLiquidTagNode<NamedTags.graphql, ConcreteLiquidTagGraphQLMarkup> {}
 
-// platformOS simple tag interfaces
+// platformos simple tag interfaces
 export interface ConcreteLiquidTagBackground
   extends ConcreteLiquidTagNode<NamedTags.background, ConcreteLiquidTagBackgroundMarkup> {}
 export interface ConcreteLiquidTagCatch
@@ -469,7 +469,7 @@ export interface ConcreteLiquidTagThemeRenderRc
 export interface ConcreteLiquidTagYield
   extends ConcreteLiquidTagNode<NamedTags.yield, ConcreteLiquidExpression> {}
 
-// platformOS block tag open interfaces
+// platformos block tag open interfaces
 export interface ConcreteLiquidTagOpenBackground
   extends ConcreteLiquidTagOpenNode<NamedTags.background, ConcreteLiquidTagBackgroundInlineMarkup> {}
 export interface ConcreteLiquidTagOpenCache
@@ -515,7 +515,7 @@ export interface ConcreteLiquidTagGraphQLInlineMarkup
   args: ConcreteLiquidNamedArgument[];
 }
 
-// platformOS markup interfaces
+// platformos markup interfaces
 export interface ConcreteLiquidTagBackgroundMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.BackgroundMarkup> {
   jobId: string;
@@ -1114,7 +1114,7 @@ function toCST<T>(
       source,
     },
 
-    // platformOS tag mappings
+    // platformos tag mappings
     liquidTagBackground: 0,
     liquidTagBackgroundMarkup: {
       type: ConcreteNodeTypes.BackgroundMarkup,

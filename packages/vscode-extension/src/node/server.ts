@@ -1,5 +1,5 @@
 import type { AbstractFileSystem } from '@platformos/platformos-common';
-import { getConnection, NodeFileSystem, startServer } from '@platformos/theme-language-server-node';
+import { getConnection, NodeFileSystem, startServer } from '@platformos/platformos-language-server-node';
 import { VsCodeFileSystem } from '../common/VsCodeFileSystem';
 
 const connection = getConnection();

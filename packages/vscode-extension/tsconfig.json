@@ -12,22 +12,22 @@
     "composite": true,
     "noImplicitAny": false,
     "paths": {
-      "@platformos/theme-language-server-browser": ["../../theme-language-server-browser/src"],
-      "@platformos/theme-language-server-common": ["../../theme-language-server-common/src"],
-      "@platformos/theme-language-server-node": ["../../theme-language-server-node/src"],
-      "@platformos/theme-check-common": ["../../theme-check-common/src"],
+      "@platformos/platformos-language-server-browser": ["../../platformos-language-server-browser/src"],
+      "@platformos/platformos-language-server-common": ["../../platformos-language-server-common/src"],
+      "@platformos/platformos-language-server-node": ["../../platformos-language-server-node/src"],
+      "@platformos/platformos-check-common": ["../../platformos-check-common/src"],
       "@platformos/prettier-plugin-liquid": ["../../prettier-plugin-liquid/src"],
-      "@platformos/liquid-html-parser": ["../../theme-language-server-node/src"],
+      "@platformos/liquid-html-parser": ["../../platformos-language-server-node/src"],
       "@platformos/platformos-common": ["../platformos-common/src"]
     }
   },
   "include": ["src/**/*"],
   "exclude": ["src/**/*.spec.ts", "node_modules"],
   "references": [
-    { "path": "../theme-language-server-browser/tsconfig.build.json" },
-    { "path": "../theme-language-server-common/tsconfig.build.json" },
-    { "path": "../theme-language-server-node/tsconfig.build.json" },
-    { "path": "../theme-check-common/tsconfig.build.json" },
+    { "path": "../platformos-language-server-browser/tsconfig.build.json" },
+    { "path": "../platformos-language-server-common/tsconfig.build.json" },
+    { "path": "../platformos-language-server-node/tsconfig.build.json" },
+    { "path": "../platformos-check-common/tsconfig.build.json" },
     { "path": "../prettier-plugin-liquid/tsconfig.build.json" },
     { "path": "../liquid-html-parser/tsconfig.build.json" },
     { "path": "../platformos-common/tsconfig.build.json" }

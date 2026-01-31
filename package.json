@@ -13,9 +13,9 @@
     "packages/codemirror-language-client",
     "packages/liquid-html-parser",
     "packages/prettier-plugin-liquid",
-    "packages/theme-check-*",
-    "packages/theme-graph",
-    "packages/theme-language-server-*",
+    "packages/platformos-check-*",
+    "packages/platformos-graph",
+    "packages/platformos-language-server-*",
     "packages/vscode-extension",
     "packages/release-orchestrator"
   ],
@@ -36,7 +36,7 @@
     "postrelease": "yarn --cwd packages/prettier-plugin-liquid prerelease",
     "reset": "find . -name \"node_modules\" -type d -prune -exec rm -rf '{}' +",
     "test": "vitest",
-    "theme-check": "node packages/theme-check-node/dist/cli.js",
+    "theme-check": "node packages/platformos-check-node/dist/cli.js",
     "type-check": "yarn workspaces run type-check"
   },
   "devDependencies": {

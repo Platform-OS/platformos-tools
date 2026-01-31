@@ -1,4 +1,4 @@
-import { path } from '@platformos/theme-check-common';
+import { path } from '@platformos/platformos-check-common';
 import {
   AugmentedLocation,
   AugmentedReference,
@@ -6,7 +6,7 @@ import {
   ThemeGraphDidUpdateNotification,
   ThemeGraphReferenceRequest,
   ThemeGraphRootRequest,
-} from '@platformos/theme-language-server-common';
+} from '@platformos/platformos-language-server-common';
 import {
   commands,
   Event,
@@ -26,8 +26,8 @@ import { BaseLanguageClient } from 'vscode-languageclient';
 
 export function setupContext() {
   const enabled = workspace.getConfiguration().get('platformosCheck.preloadOnBoot', true);
-  commands.executeCommand('setContext', 'shopify.themeGraph.references.enabled', enabled);
-  commands.executeCommand('setContext', 'shopify.themeGraph.dependencies.enabled', enabled);
+  commands.executeCommand('setContext', 'platformos.graph.references.enabled', enabled);
+  commands.executeCommand('setContext', 'platformos.graph.dependencies.enabled', enabled);
 }
 
 export function watchReferencesTreeViewConfig() {

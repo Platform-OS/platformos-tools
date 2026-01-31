@@ -14,13 +14,13 @@
     "paths": {
       "@platformos/codemirror-language-client": ["../src"],
       "@platformos/lang-jsonc": ["../../lang-jsonc/src"],
-      "@platformos/theme-language-server-browser": ["../../theme-language-server-browser/src"]
+      "@platformos/platformos-language-server-browser": ["../../platformos-language-server-browser/src"]
     }
   },
   "references": [
     { "path": ".." },
     { "path": "../../lang-jsonc" },
-    { "path": "../../theme-language-server-browser" }
+    { "path": "../../platformos-language-server-browser" }
   ]
 }
 

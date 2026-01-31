@@ -1,4 +1,4 @@
-import { path as pathUtils } from '@platformos/theme-check-common';
+import { path as pathUtils } from '@platformos/platformos-check-common';
 import { FileStat, FileTuple } from '@platformos/platformos-common';
 import * as path from 'node:path';
 import { commands, ExtensionContext, languages, Uri, workspace } from 'vscode';
@@ -44,8 +44,8 @@ export async function activate(context: ExtensionContext) {
     setupContext();
     context.subscriptions.push(
       commands.registerCommand('platformosLiquid.deadCode', makeDeadCode(client)),
-      createReferencesTreeView('shopify.themeGraph.references', context, client, 'references'),
-      createReferencesTreeView('shopify.themeGraph.dependencies', context, client, 'dependencies'),
+      createReferencesTreeView('platformos.graph.references', context, client, 'references'),
+      createReferencesTreeView('platformos.graph.dependencies', context, client, 'dependencies'),
       watchReferencesTreeViewConfig(),
     );
   }

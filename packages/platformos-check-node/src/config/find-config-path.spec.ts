@@ -13,8 +13,8 @@ describe('Unit: findConfigPath', () => {
     await removeTmpFolder(tempDir);
   });
 
-  it('finds a .theme-check.yml config file', async () => {
-    const configPath = await createMockConfigFile(tempDir, 'dummy content', '.theme-check.yml');
+  it('finds a .platformos-check.yml config file', async () => {
+    const configPath = await createMockConfigFile(tempDir, 'dummy content', '.platformos-check.yml');
     const foundConfigPath = await findConfigPath(tempDir);
     expect(foundConfigPath).to.eql(configPath);
   });

@@ -24,7 +24,7 @@ export async function resolveConfig(
   if (isModernIdentifier(configPath)) {
     const modernConfigPath = path.join(
       modernConfigsPath(),
-      configPath.replace(/^theme-check:/, '') + '.yml',
+      configPath.replace(/^platformos-check:/, '') + '.yml',
     );
     return resolveConfig(modernConfigPath);
   }

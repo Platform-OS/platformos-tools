@@ -48,14 +48,14 @@ For Prettier version 3 and above, the plugin must also be declared in the [confi
 
 ## Usage
 
-See our [Wiki](https://github.com/Shopify/prettier-plugin-liquid/wiki) pages on the subject:
+See our [Wiki](https://github.com/Platform-OS/platformos-tools/wiki) pages on the subject:
 
-- [In the terminal](https://github.com/shopify/prettier-plugin-liquid/wiki/Use-it-in-your-terminal) (with Node.js)
-- [In the browser](https://github.com/shopify/prettier-plugin-liquid/wiki/Use-it-in-the-browser)
-- [In your editor](https://github.com/shopify/prettier-plugin-liquid/wiki/Use-it-in-your-editor)
-- [In a CI workflow](https://github.com/shopify/prettier-plugin-liquid/wiki/Use-it-in-CI)
-- [As a pre-commit hook](https://github.com/shopify/prettier-plugin-liquid/wiki/Use-it-as-a-pre-commit-hook)
-- [With a bundler](https://github.com/shopify/prettier-plugin-liquid/wiki/Use-it-with-a-bundler)
+- [In the terminal](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-in-your-terminal) (with Node.js)
+- [In the browser](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-in-the-browser)
+- [In your editor](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-in-your-editor)
+- [In a CI workflow](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-in-CI)
+- [As a pre-commit hook](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-as-a-pre-commit-hook)
+- [With a bundler](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-with-a-bundler)
 
 ## Playground
 
@@ -147,7 +147,7 @@ Examples:
 
 ## Known issues
 
-Take a look at our [known issues](./KNOWN_ISSUES.md) and [open issues](https://github.com/Shopify/prettier-plugin-liquid/issues).
+Take a look at our [known issues](./KNOWN_ISSUES.md) and [open issues](https://github.com/Platform-OS/platformos-tools/issues).
 
 ## Contributing
 

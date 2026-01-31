@@ -16,7 +16,7 @@ root: ./dist
 ignore:
   - assets
   - config
-extends: theme-check:recommended
+extends: platformos-check:recommended
 SomeCheck:
   enabled: false
   ignore: [snippets]
@@ -41,7 +41,7 @@ describe('Unit: readYamlConfigDescription', () => {
     expect(config).toEqual({
       root: './dist',
       ignore: ['assets', 'config'],
-      extends: ['theme-check:recommended'],
+      extends: ['platformos-check:recommended'],
       require: [],
       checkSettings: {
         SomeCheck: {
@@ -56,13 +56,13 @@ describe('Unit: readYamlConfigDescription', () => {
   describe('Unit: extends', () => {
     it('supports array arguments', async () => {
       const filePath = await createMockYamlFile(
-        `extends: ['theme-check:recommended', 'theme-check:all']`,
+        `extends: ['platformos-check:recommended', 'platformos-check:all']`,
       );
       const config = await readYamlConfigDescription(filePath);
       expect(config).toEqual({
         ignore: [],
         require: [],
-        extends: ['theme-check:recommended', 'theme-check:all'],
+        extends: ['platformos-check:recommended', 'platformos-check:all'],
         checkSettings: {},
       });
     });
@@ -80,7 +80,7 @@ describe('Unit: readYamlConfigDescription', () => {
     });
 
     it('interprets relative paths as relative to the config file', async () => {
-      const filePath = await createMockYamlFile(`extends: './configurations/theme-check.yml'`);
+      const filePath = await createMockYamlFile(`extends: './configurations/platformos-check.yml'`);
       const mockConfigFolder = path.join(tempDir, 'configurations');
 
       // mock config-relative other config
@@ -88,14 +88,14 @@ describe('Unit: readYamlConfigDescription', () => {
 
       // mock other config file
       await fs.writeFile(
-        path.join(mockConfigFolder, 'theme-check.yml'),
+        path.join(mockConfigFolder, 'platformos-check.yml'),
         'extends: nothing',
         'utf8',
       );
 
       const config = await readYamlConfigDescription(filePath);
       expect(config).toEqual({
-        extends: [path.join(tempDir, 'configurations', 'theme-check.yml')],
+        extends: [path.join(tempDir, 'configurations', 'platformos-check.yml')],
         ignore: [],
         require: [],
         checkSettings: {},
@@ -136,25 +136,19 @@ describe('Unit: readYamlConfigDescription', () => {
     it('translates legacy extend values to modern ones', async () => {
       const testCases = [
         {
-          testCase: 'translates legacy `:default` to `theme-check:recommended`',
+          testCase: 'translates legacy `:default` to `platformos-check:recommended`',
           extendsValue: [':default'],
-          expected: ['theme-check:recommended'],
+          expected: ['platformos-check:recommended'],
         },
         {
-          testCase: 'translates legacy `default` to `theme-check:recommended`',
+          testCase: 'translates legacy `default` to `platformos-check:recommended`',
           extendsValue: 'default',
-          expected: ['theme-check:recommended'],
+          expected: ['platformos-check:recommended'],
         },
         {
-          testCase:
-            'translates legacy `:theme_app_extensions` to `theme-check:theme-app-extension`',
-          extendsValue: [':theme_app_extensions'],
-          expected: ['theme-check:theme-app-extension'],
-        },
-        {
-          testCase: 'translates legacy [`:nothing`] to []',
+          testCase: 'translates legacy [`:nothing`] to platformos-check:nothing',
           extendsValue: [':nothing'],
-          expected: ['theme-check:nothing'],
+          expected: ['platformos-check:nothing'],
         },
       ];
 

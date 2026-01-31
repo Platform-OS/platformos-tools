@@ -215,8 +215,7 @@ export type CheckDefinition<
          * When values are given, this check will be `enabled: false` in the `all.yml` configuration
          * and `enabled: true` within all yaml configurations with a matching filename.
          *
-         * targets: ["theme-app-extension"] will set the check to `enabled: true`
-         * only within `theme-app-extension.yml`
+         * Note: theme-app-extension target is deprecated (Shopify-specific)
          */
         targets?: ConfigTarget[];
 

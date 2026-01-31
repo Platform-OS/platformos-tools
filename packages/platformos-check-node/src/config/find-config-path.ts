@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileExists } from '../file-utils';
 
-const DiscoverableConfigFileNames = ['.theme-check.yml'] as const;
+const DiscoverableConfigFileNames = ['.platformos-check.yml'] as const;
 
 export function findConfigPath(root: string): Promise<string | undefined> {
   const paths = DiscoverableConfigFileNames.map((file) => path.join(root, file));

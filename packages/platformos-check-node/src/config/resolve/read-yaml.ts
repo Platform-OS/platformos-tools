@@ -52,9 +52,9 @@ function parseYamlFile(absolutePath: string, contents: string): { [k in string]:
  * ConfigFragment object.
  */
 export async function readYamlConfigDescription(
-  /** the absolute path to a theme-check.yml file */
+  /** the absolute path to a .platformos-check.yml file */
   absolutePath: AbsolutePath,
-  /** only the root config has `extends: theme-check:recommended` by default, it's nothing everywhere else */
+  /** only the root config has `extends: platformos-check:recommended` by default, it's nothing everywhere else */
   isRootConfig: boolean = false,
 ): Promise<ConfigFragment> {
   const root = path.dirname(absolutePath);
@@ -91,7 +91,7 @@ export async function readYamlConfigDescription(
       .filter(isString);
     delete yamlFile.extends;
   } else if (isRootConfig) {
-    config.extends = [resolveExtends(root, 'theme-check:recommended')!];
+    config.extends = [resolveExtends(root, 'platformos-check:recommended')!];
   }
 
   if (yamlFile.context) {
@@ -121,14 +121,13 @@ export async function readYamlConfigDescription(
  *
  * pathLike can be any of the following:
  * - legacy identifiers:
- *   - a symbol (e.g. :default, :nothing, :theme_app_extension)
+ *   - a symbol (e.g. :default, :nothing)
  *   - the special string version of the symbols (e.g. default, nothing)
  * - modern identifiers:
- *   - theme-check:all
- *   - theme-check:recommended
- *   - theme-check:theme-app-extension
- *   - a node_module (e.g. '@acme/theme-check-recommended')
- *   - a relative path (e.g. '../configurations/theme-check.yml')
+ *   - platformos-check:all
+ *   - platformos-check:recommended
+ *   - a node_module (e.g. '@acme/platformos-check-recommended')
+ *   - a relative path (e.g. '../configurations/.platformos-check.yml')
  *
  * @returns {string} resolved absolute path of the extended config
  */
@@ -142,7 +141,7 @@ function resolveExtends(
     return LegacyIdentifiers.get(pathLike.replace(/^:/, '')) as ModernIdentifier | undefined;
   }
 
-  if (pathLike.startsWith('theme-check:')) {
+  if (pathLike.startsWith('platformos-check:')) {
     return pathLike;
   }
 
@@ -153,7 +152,7 @@ function resolveExtends(
  * resolves a pathLike property from the configuration file.
  *
  * pathLike can be any of the following:
- *   - a node_module (e.g. '@acme/theme-check-extension')
+ *   - a node_module (e.g. '@acme/platformos-check-extension')
  *   - a relative path (e.g. './lib/main.js')
  *
  * @returns {string} resolved absolute path of the extended config

@@ -19,15 +19,15 @@ The `*.tmLanguage.json` files are _generated_ by our build and are _not_ maintai
 
 ### Setup
 
-Visual Studio Code only lets you debug _extensions_, so we'll use [`theme-check-vscode`](https://github.com/shopify/theme-check-vscode) for this. Since this repository is a `git submodule` of `theme-check-vscode`.
+Visual Studio Code only lets you debug _extensions_, so we'll use [`platformos-tools`](https://github.com/Platform-OS/platformos-tools) for this. Since this repository is a `git submodule` of `platformos-tools`.
 
-1. Clone [theme-check-vscode](https://github.com/Shopify/theme-check-vscode).
+1. Clone [platformos-tools](https://github.com/Platform-OS/platformos-tools).
 
   ```sh
-  git clone --recurse-submodules https://github.com/Shopify/theme-check-vscode
+  git clone --recurse-submodules https://github.com/Platform-OS/platformos-tools
   ```
 
-  NOTE: If you forgot the `--recurse-submodules` flag, you can fix it with the following command at the root of the `theme-check-vscode` directory:
+  NOTE: If you forgot the `--recurse-submodules` flag, you can fix it with the following command at the root of the `platformos-tools` directory:
 
   ```sh
   git submodule update --init --recursive
@@ -36,16 +36,16 @@ Visual Studio Code only lets you debug _extensions_, so we'll use [`theme-check-
 2. Install dependencies
 
   ```
-  cd theme-check-vscode
+  cd platformos-tools
   yarn install
   ```
 
 ### Visual development
 
-1. In a terminal, at the root of `theme-check-vscode`, build the extension:
+1. In a terminal, at the root of `platformos-tools`, build the extension:
 
    ```sh
-   cd path/to/theme-check-vscode
+   cd path/to/platformos-tools
    npm run build
    ```
 
@@ -55,7 +55,7 @@ Visual Studio Code only lets you debug _extensions_, so we'll use [`theme-check-
    npm run dev:syntax
    ```
 
-3. In VS Code, at the root of `theme-check-vscode`, open `src/extension.js`.
+3. In VS Code, at the root of `platformos-tools`, open `src/extension.js`.
 
 4. Press `F5` (or Run > Start Debugging menu option).
 
@@ -63,7 +63,7 @@ Visual Studio Code only lets you debug _extensions_, so we'll use [`theme-check-
 
   ![vscode extension development](images/vscode-extension-development.png)
 
-6. In the `[Extension Development Host]` window, open the `theme-check-vscode/syntaxes/test` folder. Open any `*.liquid` file.
+6. In the `[Extension Development Host]` window, open the `platformos-tools/syntaxes/test` folder. Open any `*.liquid` file.
 
 7. In the other window, make modifications to any of the language grammar files (the YAML files).
 
@@ -79,10 +79,10 @@ It is highly recommended you setup [VS Code's Scope inspector](https://code.visu
 
 Turns out this is kind of hard to test. The folks at Microsoft have a text-based workflow that involves committing "baseline" outputs for a series of files. We're doing the same here.
 
-1. In a terminal, go into the `theme-check-vscode/syntaxes` folder.
+1. In a terminal, go into the `platformos-tools/syntaxes` folder.
 
   ```sh
-  cd path/to/theme-check-vscode
+  cd path/to/platformos-tools
   cd syntaxes
   ```
 
@@ -94,7 +94,7 @@ Turns out this is kind of hard to test. The folks at Microsoft have a text-based
   yarn test
   ```
 
-4. Inspect the result of the `theme-check-vsode/syntaxes/test/generated/*.baseline.txt` files.
+4. Inspect the result of the `platformos-tools/syntaxes/test/generated/*.baseline.txt` files.
 
 5. Look at the diff between your changes and the accepted baselines:
 

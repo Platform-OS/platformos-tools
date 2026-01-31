@@ -31,19 +31,17 @@ export type ConfigDescription = Omit<ConfigFragment, 'extends' | 'context'> & {
 };
 
 export const ModernIdentifiers = [
-  'theme-check:nothing',
-  'theme-check:recommended',
-  'theme-check:theme-app-extension',
-  'theme-check:all',
+  'platformos-check:nothing',
+  'platformos-check:recommended',
+  'platformos-check:all',
 ] as const;
 
 export type ModernIdentifier = (typeof ModernIdentifiers)[number];
 
 export const LegacyIdentifiers = new Map(
   Object.entries({
-    default: 'theme-check:recommended',
-    nothing: 'theme-check:nothing',
-    theme_app_extensions: 'theme-check:theme-app-extension',
+    default: 'platformos-check:recommended',
+    nothing: 'platformos-check:nothing',
   }),
 );
 

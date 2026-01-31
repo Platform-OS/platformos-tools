@@ -1,6 +1,6 @@
 extends:
   # this turns PBS on
-  - theme-check:all
+  - platformos-check:all
   # this turns it off
   - ./disable-parser-blocking.yml
   # this turns something else off

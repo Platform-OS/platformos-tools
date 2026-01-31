@@ -111,18 +111,12 @@ SomeCheck:
     for (const modernIdentifier of ModernIdentifiers) {
       const filePath = await createMockYamlFile(`extends: ${modernIdentifier}`);
       const config = await resolveConfig(filePath);
-      if (modernIdentifier === 'theme-check:nothing') {
+      if (modernIdentifier === 'platformos-check:nothing') {
         expect(config.checkSettings.ParserBlockingScript).not.to.exist;
       } else {
         expect(config.checkSettings.ParserBlockingScript!.enabled).to.be.true;
       }
     }
-  });
-
-  it('correctly resolves the theme app extension context', async () => {
-    const filePath = await createMockYamlFile(`extends: theme-check:theme-app-extension`);
-    const config = await resolveConfig(filePath);
-    expect(config.context).to.equal('app');
   });
 
   async function createMockYamlFile(content: string): Promise<string> {

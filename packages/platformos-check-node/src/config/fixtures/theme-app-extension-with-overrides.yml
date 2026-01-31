@@ -1,7 +1,0 @@
-extends: theme-check:theme-app-extension
-
-ParserBlockingScript:
-  enabled: false
-
-UnusedAssign:
-  severity: "error"

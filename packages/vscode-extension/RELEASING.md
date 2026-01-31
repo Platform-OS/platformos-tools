@@ -2,4 +2,4 @@
 
 2.  Wait a bit for the dependencies to be available on npm.
 
-3.  On [Shipit](https://shipit.shopify.io/Platform-OS/platformos-tools/vscode-marketplace), deploy the commit.
+3.  The VS Code extension will be automatically published via the release workflow.

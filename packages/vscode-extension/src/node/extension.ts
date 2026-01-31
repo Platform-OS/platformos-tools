@@ -58,7 +58,7 @@ export function deactivate() {
 async function startServer(context: ExtensionContext) {
   const serverOptions = await getServerOptions(context);
   console.info(
-    'shopify.theme-check-vscode Server options %s',
+    'platformOS.platformos-check-vscode Server options %s',
     JSON.stringify(serverOptions, null, 2),
   );
   if (!serverOptions) {

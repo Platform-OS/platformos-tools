@@ -38,28 +38,6 @@ describe('Unit: loadConfig', () => {
     expect(config.context).to.eql('theme');
   });
 
-  describe.each(['shopify.extension.toml', 'shopify.app.toml'])(
-    'when the root contains a %s file',
-    (fileName) => {
-      beforeEach(async () => {
-        const filePath = path.join(tempDir, fileName);
-        await fs.writeFile(filePath, '', 'utf8');
-      });
-
-      it('sets the context to app', async () => {
-        const config = await loadConfig(undefined, tempDir);
-        expect(config.context).to.eql('app');
-      });
-
-      it('calls resolveConfig with theme-check:theme-app-extension', async () => {
-        const spy = vi.spyOn(resolveModule, 'resolveConfig');
-        await loadConfig(undefined, tempDir);
-        expect(spy).toHaveBeenCalledWith('theme-check:theme-app-extension', true);
-        vi.restoreAllMocks();
-      });
-    },
-  );
-
   it('extends the recommended config by default', async () => {
     const configPath = await createMockConfigFile(tempDir, `ignore: ['src/**']`);
     const config = await loadConfig(configPath, tempDir);
@@ -80,13 +58,13 @@ describe('Unit: loadConfig', () => {
   });
 
   it('loads the recommended config', async () => {
-    const configPath = await createMockConfigFile(tempDir, `extends: theme-check:recommended`);
+    const configPath = await createMockConfigFile(tempDir, `extends: platformos-check:recommended`);
     const config = await loadConfig(configPath, tempDir);
     expect(config.checks).to.eql(recommended);
   });
 
   it('loads the all config', async () => {
-    const configPath = await createMockConfigFile(tempDir, `extends: theme-check:all`);
+    const configPath = await createMockConfigFile(tempDir, `extends: platformos-check:all`);
     const config = await loadConfig(configPath, tempDir);
     expect(config.checks).to.eql(
       allChecks.filter(
@@ -96,32 +74,6 @@ describe('Unit: loadConfig', () => {
           check.meta.targets.includes(ConfigTarget.All),
       ),
     );
-  });
-
-  it('loads a compound config', async () => {
-    const configPath = await createMockConfigFile(
-      tempDir,
-      `extends: theme-check:theme-app-extension`,
-    );
-    const config = await loadConfig(configPath, path.dirname(configPath));
-
-    const ParserBlockingScript = check('ParserBlockingScript')!;
-    expect(config.checks).to.include(ParserBlockingScript);
-
-    const RequiredLayoutThemeObject = check('RequiredLayoutThemeObject');
-    expect(config.checks).not.to.include(RequiredLayoutThemeObject);
-  });
-
-  it('loads a compound config, with overrides', async () => {
-    const configPath = path.resolve(__dirname, 'fixtures/theme-app-extension-with-overrides.yml');
-    const config = await loadConfig(configPath, path.dirname(configPath));
-
-    const ParserBlockingScript = check('ParserBlockingScript')!;
-    expect(config.checks).not.to.include(ParserBlockingScript);
-
-    const UnusedAssign = check('UnusedAssign')!;
-    expect(UnusedAssign.meta.severity).to.equal(Severity.WARNING);
-    expect(config.settings.UnusedAssign!.severity).to.equal(Severity.ERROR);
   });
 
   it('loads a multi-compound config, with overrides', async () => {

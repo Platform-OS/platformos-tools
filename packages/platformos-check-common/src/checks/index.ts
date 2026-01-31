@@ -39,7 +39,6 @@ import { ParserBlockingScript } from './parser-blocking-script';
 import { SchemaPresetsBlockOrder } from './schema-presets-block-order';
 import { SchemaPresetsStaticBlocks } from './schema-presets-static-blocks';
 import { RemoteAsset } from './remote-asset';
-import { RequiredLayoutThemeObject } from './required-layout-theme-object';
 import { ReservedDocParamNames } from './reserved-doc-param-names';
 import { StaticStylesheetAndJavascriptTags } from './static-stylesheet-and-javascript-tags';
 import { TranslationKeyExists } from './translation-key-exists';
@@ -110,7 +109,6 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCh
   SchemaPresetsBlockOrder,
   SchemaPresetsStaticBlocks,
   RemoteAsset,
-  RequiredLayoutThemeObject,
   ReservedDocParamNames,
   StaticStylesheetAndJavascriptTags,
   TranslationKeyExists,

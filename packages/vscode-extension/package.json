@@ -24,7 +24,7 @@
   "keywords": [
     "liquid",
     "platformOS",
-    "theme-check",
+    "platformos-check",
     "graphql"
   ],
   "preview": false,
@@ -90,7 +90,7 @@
     "vscode-test": "^1.3.0"
   },
   "activationEvents": [
-    "workspaceContains:**/.theme-check.yml",
+    "workspaceContains:**/.platformos-check.yml",
     "workspaceContains:**/*.liquid"
   ],
   "main": "./dist/node/extension.js",

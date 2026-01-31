@@ -121,9 +121,6 @@ ParserBlockingScript:
 RemoteAsset:
   enabled: true
   severity: 1
-RequiredLayoutThemeObject:
-  enabled: true
-  severity: 0
 ReservedDocParamNames:
   enabled: true
   severity: 0

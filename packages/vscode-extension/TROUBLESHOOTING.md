@@ -20,14 +20,14 @@ First we need to make sure that you have a running version of the language serve
 
   ![](https://screenshot.click/09-01-n2w5k-f5kj1.png)
 
-5. We expect either the path to your `shopify` CLI or the path to `theme-check-language-server` on your machine.
+5. We expect either the path to your `pos-cli` CLI or the path to `platformos-check-language-server` on your machine.
 
    If you don't see that, either you did not install it or we can't find it (presumably because of a problem with you `$PATH` environment variable).
 
    When that happens, try hardcoding _**ONE**_ of the two following `settings.json` configuration:
 
-    - `"platformosLiquid.languageServerPath"` the path to the `theme-check-language-server` executable.
-    - OR `"platformosLiquid.shopifyCLIPath"`, the path to the `shopify` CLI.
+    - `"platformosLiquid.languageServerPath"` the path to the `platformos-check-language-server` executable.
+    - OR `"platformosLiquid.posCliPath"`, the path to the `pos-cli` CLI.
 
   **Note:** If you are on Windows, you'd find the path with the `where` command, also note that JSON requires escaping backslashes in paths.
 

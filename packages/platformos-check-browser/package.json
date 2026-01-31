@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
-  "author": "CP Clermont <cp.clermont@shopify.com>",
+  "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-check-browser#readme",
   "repository": {
     "type": "git",

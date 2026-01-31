@@ -1,10 +1,10 @@
 {
   "name": "platformos-tools",
   "version": "1.0.0",
-  "description": "The Swiss Army Knife for Shopify Liquid themes. Everything you need in one handy monorepo!",
+  "description": "Developer tools for platformOS. Everything you need in one handy monorepo!",
   "main": "index.js",
   "repository": "https://github.com/Platform-OS/platformos-tools",
-  "author": "Albert Chu <albert.chu@shopify.com>",
+  "author": "platformOS",
   "license": "MIT",
   "private": true,
   "workspaces": [

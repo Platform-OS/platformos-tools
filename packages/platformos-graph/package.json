@@ -2,7 +2,7 @@
   "name": "@platformos/platformos-graph",
   "version": "1.0.0",
   "description": "Shopify Theme Graph as a data structure",
-  "author": "CP Clermont <cp.clermont@shopify.com>",
+  "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-graph#readme",
   "repository": {
     "type": "git",

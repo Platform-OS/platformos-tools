@@ -1,30 +1,30 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/theme-check-vscode/blob/main/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
-  Theme Check
+  platformOS Check
 </h1>
 
-<h4 align="center">A linter for Shopify Themes</h4>
+<h4 align="center">A linter for platformOS</h4>
 
-Theme Check helps you follow best practices by analyzing the files inside your Shopify theme.
+platformOS Check helps you follow best practices by analyzing your platformOS files.
 
 Theme Check is available [to code editors that support the Language Server Protocol](https://github.com/Platform-OS/platformos-tools/wiki).
 
 You may be interested by the sibling modules:
 
-- `@platformos/theme-check-common`: (you are here) npm module to run checks on a [Theme](https://github.com/Shopify/theme-check-js/blob/121715a68cc107023fceb7983f590c468095cda9/packages/common/src/types.ts#L6-L8) (runtime agnostic).
-- `@platformos/theme-check-node`: npm module to run checks from a [Node.js ](https://nodejs.org) runtime.
-- `@platformos/theme-check-browser`: npm module to run checks in a Browser.
+- `@platformos/platformos-check-common`: (you are here) npm module to run checks (runtime agnostic).
+- `@platformos/platformos-check-node`: npm module to run checks from a [Node.js ](https://nodejs.org) runtime.
+- `@platformos/platformos-check-browser`: npm module to run checks in a Browser.
 
 ## Installation
 
 ### CLI
 
-Theme Check is integrated in the [Shopify CLI](https://github.com/Shopify/cli).
+platformOS Check is integrated in the [platformOS CLI (pos-cli)](https://github.com/Platform-OS/pos-cli).
 
 ```bash
-shopify theme check
+pos-cli check
 ```
 
 ### As a library
@@ -32,24 +32,20 @@ shopify theme check
 There are three libraries:
 
 ```
-yarn add @platformos/theme-check-node
-yarn add @platformos/theme-check-common
-yarn add @platformos/theme-check-browser
+yarn add @platformos/platformos-check-node
+yarn add @platformos/platformos-check-common
+yarn add @platformos/platformos-check-browser
 ```
 
 ## Usage
 
-This repo only contains the library over the functionality. The CLI is implemented in [Shopify/cli](https://github.com/shopify/cli).
-
-For CLI usage documentation, refer to [shopify.dev](https://shopify.dev/docs/storefronts/themes/tools/theme-check).
-
 ### Node
 
-The node version comes with batteries included. All you need is the root path of the theme.
+The node version comes with batteries included.
 
 ```ts
 // simple-cli.ts
-import { check } from '@platformos/theme-check-node';
+import { check } from '@platformos/platformos-check-node';
 
 async function main() {
   const root = process.cwd();
@@ -65,7 +61,7 @@ main();
 The browser version is a bit more complex, you need to provide your own implementation of all the dependency injections.
 
 ```ts
-import { simpleCheck, recommended, ThemeData, Config, Dependencies } from '@platformos/theme-check-browser';
+import { simpleCheck, recommended, ThemeData, Config, Dependencies } from '@platformos/platformos-check-browser';
 
 async function main() {
   const themeDesc = {

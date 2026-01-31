@@ -1,11 +1,11 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/theme-check-vscode/blob/main/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
-  Shopify Theme Tools
+  platformOS Tools
 </h1>
 
-<h4 align="center">Everything developer experience for Shopify themes</h4>
+<h4 align="center">Developer tools for platformOS</h4>
 
 <p align="center">
   <a href="https://github.com/Platform-OS/platformos-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
@@ -14,7 +14,7 @@
 
 <div align="center">
 
-🗣 [Slack](https://join.slack.com/t/shopifypartners/shared_invite/zt-sdr2quab-mGkzkttZ2hnVm0~8noSyvw) | 📝 [Changelog](https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/CHANGELOG.md)
+📝 [Changelog](https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/CHANGELOG.md)
 
 </div>
 
@@ -29,15 +29,19 @@ This monorepo is home of platformOS developer tools:
 - [`@platformos/lang-jsonc`](./packages/lang-jsonc) — JSONC language support utilities.
 - [`platformos-check-vscode`](./packages/vscode-extension) — The VS Code extension for platformOS Liquid development.
 
-These tools are also integrated in the [Online Store Code Editor](https://shopify.dev/docs/storefronts/themes/tools/code-editor) and the [Shopify CLI](https://shopify.dev/docs/api/shopify-cli/theme).
+These tools are integrated in the [platformOS CLI (pos-cli)](https://github.com/Platform-OS/pos-cli).
 
 They can be used individually or collectively, catering to varied use cases and offering flexibility in their application.
 
 ## Contributing
 
-Contributions to the Theme Tools repository are highly encouraged.
+Contributions to the platformOS Tools repository are highly encouraged.
 
 See [CONTRIBUTING.md](./docs/contributing.md) for more details.
+
+## Credits
+
+This project was originally forked from [Shopify's Theme Tools](https://github.com/Shopify/theme-tools). We are grateful to Shopify and the open-source community for creating and maintaining these excellent developer tools. The original project is licensed under MIT, and we continue to maintain this fork under the same license.
 
 ## License
 

@@ -1,14 +1,14 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/theme-check-vscode/blob/main/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
-  Shopify Liquid Prettier Plugin
+  platformOS Liquid Prettier Plugin
 </h1>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@platformos/prettier-plugin-liquid"><img src="https://img.shields.io/npm/v/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="Version"></a>
-  <a href="https://github.com/Shopify/prettier-plugin-liquid/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
-  <a href="https://github.com/Shopify/prettier-plugin-liquid-prototype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Shopify/prettier-plugin-liquid-prototype/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Platform-OS/platformos-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
+  <a href="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml/badge.svg"></a>
   <!--
     <a href="https://npmcharts.com/compare/@platformos/prettier-plugin-liquid?minimal=true"><img src="https://img.shields.io/npm/dm/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="Downloads"></a>
   -->
@@ -16,17 +16,17 @@
 
 <div align="center">
 
-🗣 [Slack](https://join.slack.com/t/shopifypartners/shared_invite/zt-sdr2quab-mGkzkttZ2hnVm0~8noSyvw) | 💬 [Discussions](https://github.com/Shopify/prettier-plugin-liquid/discussions) | 📝 [Changelog](./CHANGELOG.md)
+💬 [Discussions](https://github.com/Platform-OS/platformos-tools/discussions) | 📝 [Changelog](./CHANGELOG.md)
 
 </div>
 
 [Prettier](https://prettier.io) is an opinionated code formatter. It enforces a consistent style by parsing your code and re-printing it with its own rules that take the maximum line length into account, wrapping code when necessary.
 
-![demo](https://github.com/Shopify/prettier-plugin-liquid/blob/main/docs/demo.gif?raw=true)
+![demo](https://github.com/Platform-OS/platformos-tools/blob/main/docs/demo.gif?raw=true)
 
 ## Can this be used in production?
 
-Yes! It's also available in the [Online Store Code Editor](https://shopify.dev/themes/tools/code-editor#formatting-theme-code).
+Yes!
 
 ## Installation
 

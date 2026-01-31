@@ -25,7 +25,7 @@
 
 This section is intended for internal folks.
 
-### Shopify/CLI
+### pos-cli
 
 1. Upgrade deps and commit
 
@@ -35,17 +35,12 @@ This section is intended for internal folks.
    branch="bump-platformos-tools-$(date -u '+%Y-%m-%d')"
    git checkout -b $branch
    # Update dependencies as needed based on the packages that were released
-   git checkout pnpm-lock.yaml
-   pnpm install
-   pnpm changeset add
    git add .
    git commit -m 'Bump Platform-OS/platformos-tools packages'
    git push origin $branch
    ```
 
 2. Make your PR
-
-3. [Create a patch release](https://vault.shopify.io/teams/2493/pages/Releasing~FkHb.md#creating-a-new-patch-version) if [the next minor release](https://vault.shopify.io/teams/2493/pages/Releasing~FkHb.md#release-schedule) is more than one week away
 
 ## Release Orchestrator FAQ
 ### What does this project do?

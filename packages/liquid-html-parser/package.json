@@ -1,8 +1,8 @@
 {
   "name": "@platformos/liquid-html-parser",
   "version": "2.9.0",
-  "description": "Liquid HTML parser by Shopify",
-  "author": "CP Clermont <cp.clermont@shopify.com>",
+  "description": "Liquid HTML parser for platformOS",
+  "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/liquid-html-parser#readme",
   "repository": {
     "type": "git",

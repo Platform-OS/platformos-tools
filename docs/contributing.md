@@ -6,7 +6,6 @@ Thank you for your interest in contributing to platformos-tools! Your contributi
 
 - [Setting Up Your Environment](#setting-up-your-environment)
 - [Setup for the VS Code Extension](#setup-for-the-vscode-extension)
-- [Setup for the Online Store](#setup-for-the-online-store)
 - [Submitting a Pull Request](#submitting-a-pull-request)
 - [Reporting Issues](#reporting-issues)
 - [Code of Conduct](#code-of-conduct)
@@ -62,7 +61,7 @@ yarn playground
 
 #### In Chrome
 
-Run the following command to start a `@vscode/test-web` instance in Chrome with the Shopify Liquid extension loaded.
+Run the following command to start a `@vscode/test-web` instance in Chrome with the platformOS Liquid extension loaded.
 
 ```bash
 yarn dev:web

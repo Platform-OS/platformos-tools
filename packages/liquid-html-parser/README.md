@@ -1,6 +1,6 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/theme-check-vscode/blob/main/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
   Liquid HTML parser
 </h1>
@@ -8,13 +8,13 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@platformos/liquid-html-parser"><img src="https://img.shields.io/npm/v/@platformos/liquid-html-parser.svg?sanitize=true" alt="Version"></a>
   <a href="https://github.com/Platform-OS/platformos-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/liquid-html-parser.svg?sanitize=true" alt="License"></a>
-  <a href="https://github.com/Shopify/liquid-html-parser-prototype/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Shopify/prettier-plugin-liquid-prototype/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml/badge.svg"></a>
   <!--
     <a href="https://npmcharts.com/compare/@platformos/liquid-html-parser?minimal=true"><img src="https://img.shields.io/npm/dm/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="Downloads"></a>
   -->
 </p>
 
-This module provides the Liquid HTML parser that powers the prettier plugin, linter and language server for Liquid-powered Shopify themes.
+This module provides the Liquid HTML parser that powers the prettier plugin, linter and language server for platformOS.
 
 It turns a `.liquid` file contents into an Abstract Syntax Tree (AST) that contains _both_ Liquid and HTML nodes.
 

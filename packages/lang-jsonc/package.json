@@ -6,7 +6,7 @@
     "access": "public",
     "@platformos:registry": "https://registry.npmjs.org"
   },
-  "author": "CP Clermont <cp.clermont@shopify.com>",
+  "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/lang-jsonc#readme",
   "repository": {
     "type": "git",

@@ -1,13 +1,13 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
-  Theme Graph
+  platformOS Graph
 </h1>
 
-<h4 align="center">A data structure that represents your Shopify theme</h4>
+<h4 align="center">A data structure that represents your platformOS application</h4>
 
-A Shopify Theme Graph is a data structure that spans Liquid, JSON, JavaScript and CSS files.
+A platformOS Graph is a data structure that spans Liquid, JSON, JavaScript and CSS files.
 
 It has the following interface:
 

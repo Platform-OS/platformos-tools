@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Scripts to initialize theme-check data with assets from the theme-liquid-docs repo.",
   "main": "dist/index.js",
-  "author": "Albert Chu <albert.chu@shopify.com>",
+  "author": "platformOS",
   "license": "MIT",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-check-docs-updater#readme",
   "repository": {

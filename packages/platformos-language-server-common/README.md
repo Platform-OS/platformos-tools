@@ -1,23 +1,23 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/theme-check-vscode/blob/main/images/shopify_glyph.png?raw=true" alt="logo" width="141" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
-  Theme Language Server
+  platformOS Language Server
 </h1>
 
-The [Language Server Protocol](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) empowers developers to provide code editing features to all code editors in a single code base with no code-editor-specific code. 
+The [Language Server Protocol](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/) empowers developers to provide code editing features to all code editors in a single code base with no code-editor-specific code.
 
-This module serves as a runtime-agnostic Liquid Language Server so that we can also run it inside the Online Store Code Editor (via a [CodeMirror Language Client](https://github.com/shopify/code-mirror-language-client)).
+This module serves as a runtime-agnostic Liquid Language Server.
 
 You may be interested in the sibling modules:
 
-- [`@platformos/theme-language-server-common`](../theme-language-server-common) — (you are here) Runtime agnostic [Language Server](https://microsoft.github.io/language-server-protocol/) that can run in browser or Node.js.  
-- [`@platformos/theme-language-server-browser`](../browser) — Browser specific wrapper over the common library.  
-- [`@platformos/theme-language-server-node`](../node) — Node.js specific wrapper over the common library.  
+- [`@platformos/platformos-language-server-common`](../platformos-language-server-common) — (you are here) Runtime agnostic [Language Server](https://microsoft.github.io/language-server-protocol/) that can run in browser or Node.js.
+- [`@platformos/platformos-language-server-browser`](../platformos-language-server-browser) — Browser specific wrapper over the common library.
+- [`@platformos/platformos-language-server-node`](../platformos-language-server-node) — Node.js specific wrapper over the common library.
 
 ## Usage
 
-This repo only contains the library over the functionality. The CLI is implemented in [Shopify/cli](https://github.com/shopify/cli).
+The language server is integrated in the [platformOS CLI (pos-cli)](https://github.com/Platform-OS/pos-cli).
 
 ### Node
 
@@ -25,7 +25,7 @@ The Node.js version comes with batteries included and uses <a href="https://en.w
 
 ```typescript
 // slim-cli.ts
-import { startServer } from '@platformos/theme-language-server-node';
+import { startServer } from '@platformos/platformos-language-server-node';
 
 // start the server (batteries included)
 startServer();
@@ -37,7 +37,7 @@ The browser version accepts a [Web Worker](https://developer.mozilla.org/en-US/d
 
 ```typescript
 // worker.ts
-import { startServer, Dependencies } from '@platformos/theme-language-server-browser';
+import { startServer, Dependencies } from '@platformos/platformos-language-server-browser';
 
 // Provide implementations for the dependency injections
 const dependencies: Dependencies = { /* ... */ };

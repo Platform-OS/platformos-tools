@@ -36,7 +36,7 @@ DeprecatedTag:
 DuplicateContentForArguments:
   enabled: true
   severity: 1
-DuplicateRenderSnippetArguments:
+DuplicateRenderPartialArguments:
   enabled: true
   severity: 1
 EmptyBlockContent:
@@ -85,7 +85,7 @@ MissingTemplate:
   enabled: true
   severity: 0
   ignoreMissing: []
-OrphanedSnippet:
+OrphanedPartial:
   enabled: true
   severity: 1
 PaginationSize:
@@ -138,7 +138,7 @@ UnknownProperty:
 UnrecognizedContentForArguments:
   enabled: true
   severity: 1
-UnrecognizedRenderSnippetArguments:
+UnrecognizedRenderPartialArguments:
   enabled: true
   severity: 1
 UnusedAssign:
@@ -168,7 +168,7 @@ ValidJSON:
 ValidLocalBlocks:
   enabled: true
   severity: 0
-ValidRenderSnippetArgumentTypes:
+ValidRenderPartialArgumentTypes:
   enabled: true
   severity: 1
 ValidSchema:

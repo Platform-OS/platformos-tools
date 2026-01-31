@@ -9,7 +9,7 @@ import {
 
 export type GetDocDefinitionForURI = (
   uri: UriString,
-  category: 'blocks' | 'snippets',
+  category: 'blocks' | 'app/views/partials',
   name: string,
 ) => Promise<DocDefinition | undefined>;
 

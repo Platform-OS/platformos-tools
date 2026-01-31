@@ -7,7 +7,7 @@ const rootUri = 'file:///';
 describe('Module: containOffense', () => {
   const offenses: Offense[] = [
     buildOffense(`The translation for 'hello.world' is missing`, 'locales/en.json'),
-    buildOffense(`'snippets/missing.liquid' does not exist`, 'layout/theme.liquid'),
+    buildOffense(`'app/views/partials/missing.liquid' does not exist`, 'layout/theme.liquid'),
   ];
 
   describe('with string assertions', () => {

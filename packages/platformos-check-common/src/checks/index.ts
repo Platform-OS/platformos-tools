@@ -20,7 +20,7 @@ import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedFontsOnSectionsAndBlocks } from './deprecated-fonts-on-sections-and-blocks';
 import { DeprecatedFontsOnSettingsSchema } from './deprecated-fonts-on-settings-schema';
 import { DeprecatedTag } from './deprecated-tag';
-import { DuplicateRenderSnippetArguments } from './duplicate-render-snippet-arguments';
+import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
 import { DuplicateContentForArguments } from './duplicate-content-for-arguments';
 import { EmptyBlockContent } from './empty-block-content';
 import { HardcodedRoutes } from './hardcoded-routes';
@@ -33,7 +33,7 @@ import { MatchingTranslations } from './matching-translations';
 import { MissingAsset } from './missing-asset';
 import { MissingContentForArguments } from './missing-content-for-arguments';
 import { MissingTemplate } from './missing-template';
-import { OrphanedSnippet } from './orphaned-snippet';
+import { OrphanedPartial } from './orphaned-partial';
 import { PaginationSize } from './pagination-size';
 import { ParserBlockingScript } from './parser-blocking-script';
 import { SchemaPresetsBlockOrder } from './schema-presets-block-order';
@@ -48,7 +48,7 @@ import { UniqueDocParamNames } from './unique-doc-param-names';
 import { UniqueStaticBlockId } from './unique-static-block-id';
 import { UnknownFilter } from './unknown-filter';
 import { UnrecognizedContentForArguments } from './unrecognized-content-for-arguments';
-import { UnrecognizedRenderSnippetArguments } from './unrecognized-render-snippet-arguments';
+import { UnrecognizedRenderPartialArguments } from './unrecognized-render-partial-arguments';
 import { UnusedAssign } from './unused-assign';
 import { UnusedDocParam } from './unused-doc-param';
 import { ValidContentForArguments } from './valid-content-for-arguments';
@@ -58,7 +58,7 @@ import { ValidHTMLTranslation } from './valid-html-translation';
 import { ValidJSON } from './valid-json';
 import { ValidDocParamTypes } from './valid-doc-param-types';
 import { ValidLocalBlocks } from './valid-local-blocks';
-import { ValidRenderSnippetArgumentTypes } from './valid-render-snippet-argument-types';
+import { ValidRenderPartialArgumentTypes } from './valid-render-partial-argument-types';
 import { ValidSchema } from './valid-schema';
 import { ValidSchemaName } from './valid-schema-name';
 import { ValidSettingsKey } from './valid-settings-key';
@@ -90,7 +90,7 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCh
   DeprecatedFontsOnSettingsSchema,
   DeprecatedTag,
   DuplicateContentForArguments,
-  DuplicateRenderSnippetArguments,
+  DuplicateRenderPartialArguments,
   EmptyBlockContent,
   HardcodedRoutes,
   ImgWidthAndHeight,
@@ -103,7 +103,7 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCh
   MissingContentForArguments,
   MissingTemplate,
   AppBlockMissingSchema,
-  OrphanedSnippet,
+  OrphanedPartial,
   PaginationSize,
   ParserBlockingScript,
   SchemaPresetsBlockOrder,
@@ -119,7 +119,7 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCh
   UniqueStaticBlockId,
   UnknownFilter,
   UnrecognizedContentForArguments,
-  UnrecognizedRenderSnippetArguments,
+  UnrecognizedRenderPartialArguments,
   UnusedAssign,
   UnusedDocParam,
   ValidBlockTarget,
@@ -129,7 +129,7 @@ export const allChecks: (LiquidCheckDefinition | JSONCheckDefinition | GraphQLCh
   ValidJSON,
   ValidDocParamTypes,
   ValidLocalBlocks,
-  ValidRenderSnippetArgumentTypes,
+  ValidRenderPartialArgumentTypes,
   ValidSchema,
   ValidSettingsKey,
   ValidStaticBlockType,

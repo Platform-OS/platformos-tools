@@ -52,7 +52,7 @@ describe('AppBlockMissingSchema', () => {
     const offenses = await runLiquidCheck(
       AppBlockMissingSchema,
       sourceCode,
-      'snippets/footer.liquid',
+      'app/views/partials/footer.liquid',
     );
     expect(offenses).to.have.lengthOf(0);
   });

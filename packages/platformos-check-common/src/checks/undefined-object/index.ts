@@ -234,7 +234,7 @@ function getContextualObjects(relativePath: string): string[] {
     return ['app', 'section', 'recommendations', 'block'];
   }
 
-  if (relativePath.startsWith('snippets/')) {
+  if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
     return ['app'];
   }
 

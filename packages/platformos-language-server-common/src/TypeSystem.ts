@@ -384,7 +384,7 @@ export class TypeSystem {
 
 const SECTION_FILE_REGEX = /sections[\/\\][^.\\\/]*\.liquid$/;
 const BLOCK_FILE_REGEX = /blocks[\/\\][^.\\\/]*\.liquid$/;
-const SNIPPET_FILE_REGEX = /snippets[\/\\][^.\\\/]*\.liquid$/;
+const PARTIAL_FILE_REGEX = /(views[\/\\]partials[\/\\]|[\/\\]lib[\/\\])[^.]*\.liquid$/;
 const LAYOUT_FILE_REGEX = /layout[\/\\]checkout\.liquid$/;
 
 function getContextualEntries(uri: string): string[] {
@@ -412,7 +412,7 @@ function getContextualEntries(uri: string): string[] {
   if (BLOCK_FILE_REGEX.test(normalizedUri)) {
     return ['app', 'section', 'recommendations', 'block'];
   }
-  if (SNIPPET_FILE_REGEX.test(normalizedUri)) {
+  if (PARTIAL_FILE_REGEX.test(normalizedUri)) {
     return ['app'];
   }
   return [];

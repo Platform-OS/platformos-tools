@@ -4,7 +4,7 @@ import { Hover, HoverParams } from 'vscode-languageserver';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 import { formatLiquidDocContentMarkdown } from '../../utils/liquidDoc';
 
-export class RenderSnippetHoverProvider implements BaseHoverProvider {
+export class RenderPartialHoverProvider implements BaseHoverProvider {
   constructor(private getDocDefinitionForURI: GetDocDefinitionForURI) {}
 
   async hover(
@@ -21,17 +21,17 @@ export class RenderSnippetHoverProvider implements BaseHoverProvider {
       return null;
     }
 
-    const snippetName = currentNode.value;
+    const partialName = currentNode.value;
     const docDefinition = await this.getDocDefinitionForURI(
       params.textDocument.uri,
-      'snippets',
-      snippetName,
+      'app/views/partials',
+      partialName,
     );
 
     return {
       contents: {
         kind: 'markdown',
-        value: formatLiquidDocContentMarkdown(snippetName, docDefinition),
+        value: formatLiquidDocContentMarkdown(partialName, docDefinition),
       },
     };
   }

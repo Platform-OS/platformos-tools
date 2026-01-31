@@ -28,7 +28,7 @@ import {
   ObjectCompletionProvider,
   Provider,
   PartialCompletionProvider,
-  RenderSnippetParameterCompletionProvider,
+  RenderPartialParameterCompletionProvider,
   TranslationCompletionProvider,
 } from './providers';
 import { GetPartialNamesForURI } from './providers/PartialCompletionProvider';
@@ -98,7 +98,7 @@ export class CompletionsProvider {
       new FilterCompletionProvider(typeSystem),
       new TranslationCompletionProvider(documentManager, getTranslationsForURI),
       new PartialCompletionProvider(getPartialNamesForURI),
-      new RenderSnippetParameterCompletionProvider(getDocDefinitionForURI),
+      new RenderPartialParameterCompletionProvider(getDocDefinitionForURI),
       new FilterNamedParameterCompletionProvider(themeDocset),
       new LiquidDocTagCompletionProvider(),
       new LiquidDocParamTypeCompletionProvider(themeDocset),

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { DuplicateRenderSnippetArguments } from '.';
+import { DuplicateRenderPartialArguments } from '.';
 import { runLiquidCheck, applySuggestions } from '../../test';
 
-describe('Module: DuplicateRenderSnippetArguments', () => {
+describe('Module: DuplicateRenderPartialArguments', () => {
   function runCheck(sourceCode: string) {
-    return runLiquidCheck(DuplicateRenderSnippetArguments, sourceCode);
+    return runLiquidCheck(DuplicateRenderPartialArguments, sourceCode);
   }
 
   describe('detection', () => {

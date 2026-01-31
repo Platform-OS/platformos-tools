@@ -7,5 +7,5 @@ export { HtmlTagHoverProvider } from './HtmlTagHoverProvider';
 export { HtmlAttributeHoverProvider } from './HtmlAttributeHoverProvider';
 export { HtmlAttributeValueHoverProvider } from './HtmlAttributeValueHoverProvider';
 export { TranslationHoverProvider } from './TranslationHoverProvider';
-export { RenderSnippetHoverProvider } from './RenderSnippetHoverProvider';
-export { RenderSnippetParameterHoverProvider } from './RenderSnippetParameterHoverProvider';
+export { RenderPartialHoverProvider } from './RenderPartialHoverProvider';
+export { RenderPartialParameterHoverProvider } from './RenderPartialParameterHoverProvider';

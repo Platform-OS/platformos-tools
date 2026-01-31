@@ -31,7 +31,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ClientCapabilities } from '../../ClientCapabilities';
 import { AugmentedLiquidSourceCode, DocumentManager, isLiquidSourceCode } from '../../documents';
 import { FindThemeRootURI } from '../../internal-types';
-import { snippetName } from '../../utils/uri';
+import { partialName } from '../../utils/uri';
 import { BaseRenameProvider } from '../BaseRenameProvider';
 
 export class LiquidVariableRenameProvider implements BaseRenameProvider {
@@ -106,7 +106,7 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
     if (this.clientCapabilities.hasApplyEditSupport && liquidDocParamUpdated) {
       const themeFiles = this.documentManager.theme(rootUri, true);
       const liquidSourceCodes = themeFiles.filter(isLiquidSourceCode);
-      const name = snippetName(params.textDocument.uri);
+      const name = partialName(params.textDocument.uri);
 
       await updateRenderTags(this.connection, liquidSourceCodes, name, oldName, params.newName);
     }
@@ -221,12 +221,12 @@ function textReplaceRange(
 async function updateRenderTags(
   connection: Connection,
   liquidSourceCodes: AugmentedLiquidSourceCode[],
-  snippetName: string,
+  partialName: string,
   oldParamName: string,
   newParamName: string,
 ) {
-  const editLabel = `Rename snippet parameter '${oldParamName}' to '${newParamName}'`;
-  const annotationId = 'renameSnippetParameter';
+  const editLabel = `Rename partial parameter '${oldParamName}' to '${newParamName}'`;
+  const annotationId = 'renamePartialParameter';
   const workspaceEdit: WorkspaceEdit = {
     documentChanges: [],
     changeAnnotations: {
@@ -242,7 +242,7 @@ async function updateRenderTags(
     const textDocument = sourceCode.textDocument;
     const edits: TextEdit[] = await visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
       async RenderMarkup(node: RenderMarkup) {
-        if (node.snippet.type !== NodeTypes.String || node.snippet.value !== snippetName) {
+        if (node.snippet.type !== NodeTypes.String || node.snippet.value !== partialName) {
           return;
         }
 

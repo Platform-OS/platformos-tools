@@ -7,7 +7,7 @@ import { DocumentManager } from '../../documents';
 import { MockConnection, mockConnection } from '../../test/MockConnection';
 import { RenameHandler } from '../RenameHandler';
 
-describe('Module: SnippetRenameHandler', () => {
+describe('Module: PartialRenameHandler', () => {
   const mockRoot = 'mock-fs:';
   const findThemeRootURI = async () => mockRoot;
   let capabilities: ClientCapabilities;
@@ -23,8 +23,8 @@ describe('Module: SnippetRenameHandler', () => {
       {
         'sections/section.liquid': `<div>{% render 'oldName', foo: 'bar' %}oldName</div>`,
         'blocks/block.liquid': `<div>{% render 'oldName', foo: 'baz' %}</div>`,
-        'snippets/oldName.liquid': `<div>oldName{%</div>`,
-        'snippets/other.liquid': `<div>{% render 'oldName' %}{% render 'other' %}</div>`,
+        'app/views/partials/oldName.liquid': `<div>oldName{%</div>`,
+        'app/views/partials/other.liquid': `<div>{% render 'oldName' %}{% render 'other' %}</div>`,
       },
       mockRoot,
     );
@@ -45,8 +45,8 @@ describe('Module: SnippetRenameHandler', () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/snippets/oldName.liquid',
-            newUri: 'mock-fs:/snippets/newName.liquid',
+            oldUri: 'mock-fs:/app/views/partials/oldName.liquid',
+            newUri: 'mock-fs:/app/views/partials/newName.liquid',
           },
         ],
       });
@@ -63,12 +63,12 @@ describe('Module: SnippetRenameHandler', () => {
       });
     });
 
-    it('returns a needConfirmation: false workspace edit for renaming a snippet', async () => {
+    it('returns a needConfirmation: false workspace edit for renaming a partial', async () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/snippets/oldName.liquid',
-            newUri: 'mock-fs:/snippets/newName.liquid',
+            oldUri: 'mock-fs:/app/views/partials/oldName.liquid',
+            newUri: 'mock-fs:/app/views/partials/newName.liquid',
           },
         ],
       });
@@ -79,11 +79,11 @@ describe('Module: SnippetRenameHandler', () => {
       };
 
       expect(connection.spies.sendRequest).toHaveBeenCalledWith('workspace/applyEdit', {
-        label: "Rename snippet 'oldName' to 'newName'",
+        label: "Rename partial 'oldName' to 'newName'",
         edit: {
           changeAnnotations: {
-            renameSnippet: {
-              label: `Rename snippet 'oldName' to 'newName'`,
+            renamePartial: {
+              label: `Rename partial 'oldName' to 'newName'`,
               needsConfirmation: false,
             },
           },
@@ -94,7 +94,7 @@ describe('Module: SnippetRenameHandler', () => {
                 version: null,
               },
               edits: [expectedTextEdit],
-              annotationId: 'renameSnippet',
+              annotationId: 'renamePartial',
             },
             {
               textDocument: {
@@ -102,15 +102,15 @@ describe('Module: SnippetRenameHandler', () => {
                 version: null,
               },
               edits: [expectedTextEdit],
-              annotationId: 'renameSnippet',
+              annotationId: 'renamePartial',
             },
             {
               textDocument: {
-                uri: 'mock-fs:/snippets/other.liquid',
+                uri: 'mock-fs:/app/views/partials/other.liquid',
                 version: null,
               },
               edits: [expectedTextEdit],
-              annotationId: 'renameSnippet',
+              annotationId: 'renamePartial',
             },
           ],
         },
@@ -121,8 +121,8 @@ describe('Module: SnippetRenameHandler', () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/snippets/oldName.liquid',
-            newUri: 'mock-fs:/snippets/newName.liquid',
+            oldUri: 'mock-fs:/app/views/partials/oldName.liquid',
+            newUri: 'mock-fs:/app/views/partials/newName.liquid',
           },
         ],
       });
@@ -132,8 +132,8 @@ describe('Module: SnippetRenameHandler', () => {
         {
           'sections/section.liquid': `<div>{% render 'newName', foo: 'bar' %}oldName</div>`,
           'blocks/block.liquid': `<div>{% render 'newName', foo: 'baz' %}</div>`,
-          'snippets/newName.liquid': `<div>oldName{%</div>`,
-          'snippets/other.liquid': `<div>{% render 'newName' %}{% render 'other' %}</div>`,
+          'app/views/partials/newName.liquid': `<div>oldName{%</div>`,
+          'app/views/partials/other.liquid': `<div>{% render 'newName' %}{% render 'other' %}</div>`,
         },
         'mock-fs:',
       );

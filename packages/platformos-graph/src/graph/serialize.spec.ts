@@ -43,12 +43,12 @@ describe('Unit: serializeThemeGraph', () => {
         },
         {
           source: { uri: 'file:///theme/sections/custom-section.liquid', range: [10, 15] },
-          target: { uri: 'file:///theme/snippets/parent.liquid' },
+          target: { uri: 'file:///theme/app/views/partials/parent.liquid' },
           type: 'direct',
         },
         {
-          source: { uri: 'file:///theme/snippets/parent.liquid', range: [20, 25] },
-          target: { uri: 'file:///theme/snippets/child.liquid' },
+          source: { uri: 'file:///theme/app/views/partials/parent.liquid', range: [20, 25] },
+          target: { uri: 'file:///theme/app/views/partials/child.liquid' },
           type: 'direct',
         },
         {

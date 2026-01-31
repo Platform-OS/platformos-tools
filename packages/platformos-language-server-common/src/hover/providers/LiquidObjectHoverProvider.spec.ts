@@ -225,7 +225,7 @@ describe('Module: LiquidObjectHoverProvider', async () => {
       ['predictive_search', 'sections/predictive-search.liquid'],
       ['recommendations', 'sections/recommendations.liquid'],
       ['app', 'blocks/recommendations.liquid'],
-      ['app', 'snippets/recommendations.liquid'],
+      ['app', 'app/views/partials/recommendations.liquid'],
     ];
     for (const [object, relativePath] of contexts) {
       const source = `{{ ${object}█ }}`;

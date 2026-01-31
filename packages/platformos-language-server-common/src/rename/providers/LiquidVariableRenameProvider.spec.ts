@@ -9,7 +9,7 @@ import { ClientCapabilities } from '../../ClientCapabilities';
 const mockRoot = 'file:';
 
 describe('LiquidVariableRenameProvider', () => {
-  const textDocumentUri = `${mockRoot}///snippets/example-snippet.liquid`;
+  const textDocumentUri = `${mockRoot}///app/views/partials/example-partial.liquid`;
   const findThemeRootURI = async () => mockRoot;
 
   let capabilities: ClientCapabilities;
@@ -380,12 +380,12 @@ describe('LiquidVariableRenameProvider', () => {
       createSectionWithSource(
         documentManager,
         'section1',
-        `<div>{% render 'example-snippet', name: 'Bob' %}</div>`,
+        `<div>{% render 'example-partial', name: 'Bob' %}</div>`,
       );
       createSectionWithSource(
         documentManager,
         'section2',
-        `<div>{% render 'example-snippet', age: 60 %}</div>`,
+        `<div>{% render 'example-partial', age: 60 %}</div>`,
       );
 
       const params = {
@@ -399,11 +399,11 @@ describe('LiquidVariableRenameProvider', () => {
 
       expect(connection.spies.sendRequest).toHaveBeenCalledOnce();
       expect(connection.spies.sendRequest).toHaveBeenCalledWith('workspace/applyEdit', {
-        label: `Rename snippet parameter 'name' to 'first_name'`,
+        label: `Rename partial parameter 'name' to 'first_name'`,
         edit: {
           changeAnnotations: {
-            renameSnippetParameter: {
-              label: `Rename snippet parameter 'name' to 'first_name'`,
+            renamePartialParameter: {
+              label: `Rename partial parameter 'name' to 'first_name'`,
               needsConfirmation: false,
             },
           },
@@ -428,7 +428,7 @@ describe('LiquidVariableRenameProvider', () => {
                   },
                 },
               ],
-              annotationId: 'renameSnippetParameter',
+              annotationId: 'renamePartialParameter',
             },
           ],
         },
@@ -437,13 +437,13 @@ describe('LiquidVariableRenameProvider', () => {
 
     ['with', 'for'].forEach((aliasTag) => {
       it(`updates render tag's '${aliasTag} as' alias when exists`, async () => {
-        const renderTagSource = `<div>{% render 'example-snippet' ${aliasTag} 'Bob' as name %}</div>`;
+        const renderTagSource = `<div>{% render 'example-partial' ${aliasTag} 'Bob' as name %}</div>`;
 
         createSectionWithSource(documentManager, 'section1', renderTagSource);
         createSectionWithSource(
           documentManager,
           'section2',
-          `<div>{% render 'example-snippet' ${aliasTag} 'Bob' as friend %}</div>`,
+          `<div>{% render 'example-partial' ${aliasTag} 'Bob' as friend %}</div>`,
         );
 
         const params = {
@@ -457,11 +457,11 @@ describe('LiquidVariableRenameProvider', () => {
 
         expect(connection.spies.sendRequest).toHaveBeenCalledOnce();
         expect(connection.spies.sendRequest).toHaveBeenCalledWith('workspace/applyEdit', {
-          label: `Rename snippet parameter 'name' to 'first_name'`,
+          label: `Rename partial parameter 'name' to 'first_name'`,
           edit: {
             changeAnnotations: {
-              renameSnippetParameter: {
-                label: `Rename snippet parameter 'name' to 'first_name'`,
+              renamePartialParameter: {
+                label: `Rename partial parameter 'name' to 'first_name'`,
                 needsConfirmation: false,
               },
             },
@@ -486,7 +486,7 @@ describe('LiquidVariableRenameProvider', () => {
                     },
                   },
                 ],
-                annotationId: 'renameSnippetParameter',
+                annotationId: 'renamePartialParameter',
               },
             ],
           },

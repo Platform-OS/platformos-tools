@@ -53,7 +53,7 @@ describe('Module: ReservedDocParamNames', () => {
       const offenses = await runLiquidCheck(
         ReservedDocParamNames,
         sourceCode,
-        'snippets/file.liquid',
+        'app/views/partials/file.liquid',
       );
 
       expect(offenses).to.have.length(0);

@@ -12,9 +12,9 @@ import { Provider } from './common';
 import { formatLiquidDocParameter, getParameterCompletionTemplate } from '../../utils/liquidDoc';
 import { GetDocDefinitionForURI } from '@platformos/platformos-check-common';
 
-export type GetSnippetNamesForURI = (uri: string) => Promise<string[]>;
+export type GetPartialNamesForURI = (uri: string) => Promise<string[]>;
 
-export class RenderSnippetParameterCompletionProvider implements Provider {
+export class RenderPartialParameterCompletionProvider implements Provider {
   constructor(private readonly getDocDefinitionForURI: GetDocDefinitionForURI) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
@@ -35,13 +35,13 @@ export class RenderSnippetParameterCompletionProvider implements Provider {
 
     const userInputStr = node.name?.replace(CURSOR, '') || '';
 
-    const snippetDefinition = await this.getDocDefinitionForURI(
+    const partialDefinition = await this.getDocDefinitionForURI(
       params.textDocument.uri,
-      'snippets',
+      'app/views/partials',
       parentNode.snippet.value,
     );
 
-    const liquidDocParams = snippetDefinition?.liquidDoc?.parameters;
+    const liquidDocParams = partialDefinition?.liquidDoc?.parameters;
 
     if (!liquidDocParams) {
       return [];

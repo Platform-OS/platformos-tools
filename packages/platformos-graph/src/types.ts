@@ -156,8 +156,8 @@ export const enum LiquidModuleKind {
   /** blocks/*.liquid files */
   Block = 'block',
 
-  /** snippets/*.liquid files */
-  Snippet = 'snippet',
+  /** app/views/partials/*.liquid files */
+  Partial = 'partial',
 
   /** templates/*.liquid files (forgot those existed...) */
   Template = 'template',

@@ -11,9 +11,9 @@ async function main() {
   const args = process.argv.slice(2);
   const themePath = args[0];
   if (!args[0]) {
-    console.error('Usage: scripts/snippets-usage <theme-root-path>');
+    console.error('Usage: scripts/partials-usage <theme-root-path>');
     console.error();
-    console.error('This script will output a list of snippets and the files that use them.');
+    console.error('This script will output a list of partials and the files that use them.');
     process.exit(0);
   }
 
@@ -28,22 +28,22 @@ async function main() {
 
     const relative = path.relative(file.uri, root);
 
-    visit(file.ast, {
-      LiquidTag(node: LiquidTag) {
+    await visit(file.ast, {
+      async LiquidTag(node: LiquidTag) {
         if (node.name !== 'include' && node.name !== 'render') return;
         if (typeof node.markup === 'string') return;
         const snippet = node.markup.snippet;
         if (snippet.type !== NodeTypes.String) return;
-        const snippetPath = `snippets/${snippet.value}.liquid`;
-        stats[snippetPath] ??= {};
-        stats[snippetPath][relative] ??= 0;
-        stats[snippetPath][relative]++;
+        const partialPath = `app/views/partials/${snippet.value}.liquid`;
+        stats[partialPath] ??= {};
+        stats[partialPath][relative] ??= 0;
+        stats[partialPath][relative]++;
       },
     });
   }
 
-  for (const [snippet, usedBy] of Object.entries(stats)) {
-    console.log(snippet);
+  for (const [partial, usedBy] of Object.entries(stats)) {
+    console.log(partial);
     for (const [file, count] of Object.entries(usedBy)) {
       console.log(`  ${count.toString().padEnd(2)} ${file}`);
     }

@@ -80,7 +80,7 @@ describe('Unit: loadConfig', () => {
     const configPath = path.resolve(__dirname, 'fixtures/multi-compound.yml');
     const config = await loadConfig(configPath, path.dirname(configPath));
 
-    expect(config.settings.ImgWidthAndHeight!.ignore).to.eql(['snippets/**']);
+    expect(config.settings.ImgWidthAndHeight!.ignore).to.eql(['app/views/partials/**']);
 
     const ParserBlockingScript = check('ParserBlockingScript');
     expect(config.checks).to.include(ParserBlockingScript);

@@ -1,17 +1,17 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { LiquidNamedArgument, RenderMarkup } from '@platformos/liquid-html-parser';
-import { getSnippetName, reportDuplicateArguments } from '../../liquid-doc/arguments';
+import { getPartialName, reportDuplicateArguments } from '../../liquid-doc/arguments';
 
-export const DuplicateRenderSnippetArguments: LiquidCheckDefinition = {
+export const DuplicateRenderPartialArguments: LiquidCheckDefinition = {
   meta: {
-    code: 'DuplicateRenderSnippetArguments',
-    name: 'Duplicate Render Snippet Arguments',
-    aliases: ['DuplicateRenderSnippetParams'],
+    code: 'DuplicateRenderPartialArguments',
+    name: 'Duplicate Render Partial Arguments',
+    aliases: ['DuplicateRenderPartialParams'],
     docs: {
       description:
-        'This check ensures that no duplicate argument names are provided when rendering a snippet.',
+        'This check ensures that no duplicate argument names are provided when rendering a partial.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/duplicate-render-snippet-arguments',
+      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/duplicate-render-partial-arguments',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,
@@ -22,9 +22,9 @@ export const DuplicateRenderSnippetArguments: LiquidCheckDefinition = {
   create(context) {
     return {
       async RenderMarkup(node: RenderMarkup) {
-        const snippetName = getSnippetName(node);
+        const partialName = getPartialName(node);
 
-        if (!snippetName) return;
+        if (!partialName) return;
 
         const encounteredArgNames = new Set<string>();
         const duplicateArgs: LiquidNamedArgument[] = [];
@@ -41,7 +41,7 @@ export const DuplicateRenderSnippetArguments: LiquidCheckDefinition = {
           encounteredArgNames.add(param.name);
         }
 
-        reportDuplicateArguments(context, node, duplicateArgs, snippetName);
+        reportDuplicateArguments(context, node, duplicateArgs, partialName);
       },
     };
   },

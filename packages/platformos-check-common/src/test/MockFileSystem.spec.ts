@@ -9,8 +9,8 @@ describe('MockFileSystem', () => {
     fs = new MockFileSystem({
       'layout/theme.liquid': 'theme.liquid content',
       'layout/password.liquid': 'password.liquid content',
-      'snippets/product-card.liquid': 'product-card.liquid content',
-      'snippets/product-variant.liquid': 'product-variant.liquid content',
+      'app/views/partials/product-card.liquid': 'product-card.liquid content',
+      'app/views/partials/product-variant.liquid': 'product-variant.liquid content',
       'sections/section.liquid': 'section.liquid content',
       'assets/js/foo.js': 'foo.js content',
       'assets/js/bar.js': 'bar.js content',
@@ -50,7 +50,7 @@ describe('MockFileSystem', () => {
       const result = await fs.readDirectory('file:/');
       expect(result).to.eql([
         ['file:/layout', FileType.Directory],
-        ['file:/snippets', FileType.Directory],
+        ['file:/app', FileType.Directory],
         ['file:/sections', FileType.Directory],
         ['file:/assets', FileType.Directory],
       ]);

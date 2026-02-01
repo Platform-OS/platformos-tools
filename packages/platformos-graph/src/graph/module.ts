@@ -180,9 +180,6 @@ export function getPartialModule(themeGraph: ThemeGraph, partial: string): Liqui
   });
 }
 
-// Legacy alias for backwards compatibility
-export const getSnippetModule = getPartialModule;
-
 export function getLayoutModule(
   themeGraph: ThemeGraph,
   layoutName: string | false | undefined = 'theme',

@@ -473,20 +473,20 @@ export interface ContentForMarkup extends ASTNode<NodeTypes.ContentForMarkup> {
   args: LiquidNamedArgument[];
 }
 
-/** {% render 'snippet' [(with|for) variable [as alias]], [...namedArguments] %} */
+/** {% render 'partial' [(with|for) variable [as alias]], [...namedArguments] %} */
 export interface RenderMarkup extends ASTNode<NodeTypes.RenderMarkup> {
   /** {% render snippet %} */
   snippet: LiquidString | LiquidVariableLookup;
-  /** {% render 'snippet' with thing as alias %} */
+  /** {% render 'partial' with thing as alias %} */
   alias: RenderAliasExpression | null;
-  /** {% render 'snippet' [with variable] %} */
+  /** {% render 'partial' [with variable] %} */
   variable: RenderVariableExpression | null;
   /**
    * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
    * because the NamedArgument isn't fully typed out.
-   * E.g. {% render 'snippet', arg1: value1, arg2█ %}
+   * E.g. {% render 'partial', arg1: value1, arg2█ %}
    *
-   * @example {% render 'snippet', arg1: value1, arg2: value2 %}
+   * @example {% render 'partial', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
 }
@@ -628,15 +628,15 @@ export interface SpamProtectionMarkup extends ASTNode<NodeTypes.SpamProtectionMa
 
 /** Represents the `for name` or `with name` expressions in render nodes */
 export interface RenderVariableExpression extends ASTNode<NodeTypes.RenderVariableExpression> {
-  /** {% render 'snippet' (for|with) name %} */
+  /** {% render 'partial' (for|with) name %} */
   kind: 'for' | 'with';
-  /** {% render 'snippet' (for|with) name %} */
+  /** {% render 'partial' (for|with) name %} */
   name: LiquidExpression;
 }
 
 /** Represents the `as name` expressions in render nodes */
 export interface RenderAliasExpression extends ASTNode<NodeTypes.RenderAliasExpression> {
-  /** {% render 'snippet' for array as name %}` or `{% render 'snippet' with object as name %} */
+  /** {% render 'partial' for array as name %}` or `{% render 'snippet' with object as name %} */
   value: string;
 }
 
@@ -997,7 +997,7 @@ export interface LiquidDocParamNode extends ASTNode<NodeTypes.LiquidDocParamNode
   paramDescription: TextNode | null;
   /** Optional type annotation for the parameter (e.g. "{string}", "{number}") */
   paramType: TextNode | null;
-  /** Whether this parameter must be passed when using the snippet */
+  /** Whether this parameter must be passed when using the partial */
   required: boolean;
 }
 

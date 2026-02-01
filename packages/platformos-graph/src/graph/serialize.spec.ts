@@ -1,7 +1,7 @@
 import { path as pathUtils } from '@platformos/platformos-check-common';
 import { describe, expect, it } from 'vitest';
 import { ThemeGraph } from '../types';
-import { getSectionModule, getSnippetModule, getTemplateModule } from './module';
+import { getSectionModule, getPartialModule, getTemplateModule } from './module';
 import { serializeThemeGraph } from './serialize';
 import { bind } from './traverse';
 
@@ -17,17 +17,17 @@ describe('Unit: serializeThemeGraph', () => {
 
     const template = getTemplateModule(graph, p('templates/index.json'));
     const customSection = getSectionModule(graph, 'custom-section');
-    const parentSnippet = getSnippetModule(graph, 'parent');
-    const childSnippet = getSnippetModule(graph, 'child');
+    const parentPartial = getPartialModule(graph, 'parent');
+    const childPartial = getPartialModule(graph, 'child');
     bind(template, customSection, { sourceRange: [0, 5] });
-    bind(customSection, parentSnippet, { sourceRange: [10, 15] });
-    bind(parentSnippet, childSnippet, { sourceRange: [20, 25] });
+    bind(customSection, parentPartial, { sourceRange: [10, 15] });
+    bind(parentPartial, childPartial, { sourceRange: [20, 25] });
 
     const section2 = getSectionModule(graph, 'section2');
     bind(template, section2, { sourceRange: [20, 25] });
 
     graph.entryPoints = [template];
-    [template, customSection, section2, parentSnippet, childSnippet].forEach((module) => {
+    [template, customSection, section2, parentPartial, childPartial].forEach((module) => {
       graph.modules[module.uri] = module;
     });
 

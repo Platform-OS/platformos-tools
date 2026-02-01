@@ -65,7 +65,7 @@ describe('Module: DuplicateContentForArguments', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('should not report for variable render tags where snippet name is a variable', async () => {
+    it('should not report for variable render tags where partial name is a variable', async () => {
       const sourceCode = `
         {% render my_variable, param1: 'value1', param1: 'value2' %}
       `;

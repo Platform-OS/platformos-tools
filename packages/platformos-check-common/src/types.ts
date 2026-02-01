@@ -351,7 +351,7 @@ export type Translations = {
  * It could be a specific range that points to a specific range
  * {
  *   // e.g. `<parent-component></parent-component>`
- *   source: { uri: 'file:///snippets/parent.liquid', range: [167, 190] },
+ *   source: { uri: 'file:///app/views/partials/parent.liquid', range: [167, 190] },
  *
  *   // e.g. window.customElements.define('parent-component', ParentComponent);
  *   target: { uri: 'file:///assets/theme.js', range: [0, undefined] }

@@ -90,8 +90,8 @@ describe('Module: UnrecognizedRenderPartialParams', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('should not report when snippet name is a VariableLookup', async () => {
-      const sourceCode = `{% assign snippet_name = 'card' %}{% render snippet_name, title: 'My Card' %}`;
+    it('should not report when partial name is a VariableLookup', async () => {
+      const sourceCode = `{% assign partial_name = 'card' %}{% render partial_name, title: 'My Card' %}`;
       const offenses = await runLiquidCheck(
         UnrecognizedRenderPartialArguments,
         sourceCode,

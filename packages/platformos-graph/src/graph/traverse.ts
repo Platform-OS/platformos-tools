@@ -34,7 +34,7 @@ import {
   getLayoutModule,
   getSectionGroupModule,
   getSectionModule,
-  getSnippetModule,
+  getPartialModule,
   getThemeBlockModule,
 } from './module';
 
@@ -156,13 +156,13 @@ async function traverseLiquidModule(
       };
     },
 
-    // {% render 'snippet' %}
+    // {% render 'partial' %}
     RenderMarkup: async (node, ancestors) => {
       const snippet = node.snippet;
       const tag = ancestors.at(-1)!;
       if (!isString(snippet) && snippet.type === NodeTypes.String) {
         return {
-          target: getSnippetModule(themeGraph, snippet.value),
+          target: getPartialModule(themeGraph, snippet.value),
           sourceRange: [tag.position.start, tag.position.end],
         };
       }

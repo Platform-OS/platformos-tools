@@ -132,7 +132,7 @@ describe('Module: index', () => {
               source: loc('blocks/group.liquid'),
               target: loc('app/views/partials/parent.liquid'),
               type: 'direct',
-            }, // direct dep in snippet
+            }, // direct dep in partial
             {
               source: loc('blocks/group.liquid'),
               target: loc('blocks/text.liquid'),

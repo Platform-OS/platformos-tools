@@ -28,10 +28,10 @@ describe('Module: MissingTemplate', () => {
           },
           suggest: undefined,
           type: 'LiquidHtml',
-          uri: 'file:///app/views/partials/snippet.liquid',
+          uri: 'file:///app/views/partials/partial.liquid',
         },
         filesWith: (file: string) => ({
-          'app/views/partials/snippet.liquid': file,
+          'app/views/partials/partial.liquid': file,
         }),
       },
       {
@@ -39,12 +39,12 @@ describe('Module: MissingTemplate', () => {
         file: "{% include 'missing' %}",
         expected: {
           message: "'missing' does not exist",
-          uri: 'file:///app/views/partials/snippet.liquid',
+          uri: 'file:///app/views/partials/partial.liquid',
           start: { index: 11, line: 0, character: 11 },
           end: { index: 20, line: 0, character: 20 },
         },
         filesWith: (file: string) => ({
-          'app/views/partials/snippet.liquid': file,
+          'app/views/partials/partial.liquid': file,
         }),
       },
     ];

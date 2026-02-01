@@ -128,7 +128,7 @@ describe('Module: ValidContentForParamTypes', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('should not report when snippet has no doc comment', async () => {
+    it('should not report when partial has no doc comment', async () => {
       const sourceCode = `{% content_for 'block', type: 'card', title: 123 %}`;
       const offenses = await runLiquidCheck(
         ValidContentForArgumentTypes,
@@ -136,7 +136,7 @@ describe('Module: ValidContentForParamTypes', () => {
         undefined,
         {},
         {
-          'blocks/card.liquid': `<h1>This snippet has no doc comment</h1>`,
+          'blocks/card.liquid': `<h1>This partial has no doc comment</h1>`,
         },
       );
       expect(offenses).toHaveLength(0);

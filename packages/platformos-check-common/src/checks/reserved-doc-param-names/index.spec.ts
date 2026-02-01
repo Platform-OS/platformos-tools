@@ -41,7 +41,7 @@ describe('Module: ReservedDocParamNames', () => {
     });
   });
 
-  describe('snippet file', () => {
+  describe('partial file', () => {
     it('should not report an error when a doc param shares names with reserved content_for tag params', async () => {
       const sourceCode = `
         {% doc %}

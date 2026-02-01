@@ -4,7 +4,7 @@ import { LiquidHtmlNode } from '../types';
 import { extractDocDefinition } from './liquidDoc';
 
 describe('Unit: extractDocDefinition', () => {
-  const uri = 'file:///snippets/fake.liquid';
+  const uri = 'file:///app/views/partials/fake.liquid';
 
   function toAST(code: string) {
     return toSourceCode(uri, code).ast as LiquidHtmlNode;

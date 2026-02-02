@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "./src/**/*.ts",
+    "./src/**/*.json"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/**/*.spec.ts"
+  ],
+  "references": [
+    {
+      "path": "../platformos-check-common/tsconfig.build.json"
+    },
+    {
+      "path": "../liquid-html-parser/tsconfig.build.json"
+    },
+    { "path": "../platformos-common/tsconfig.build.json" }
+  ]
+}

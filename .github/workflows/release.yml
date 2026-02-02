@@ -49,7 +49,7 @@ jobs:
 
       - name: Query VS Code Marketplace version
         id: marketplace-version
-        run: echo "version=$(yarn --silent vsce show --json Shopify.theme-check-vscode | jq -r .versions[0].version)" >> $GITHUB_OUTPUT
+        run: echo "version=$(yarn --silent vsce show --json platformOS.platformos-check-vscode | jq -r .versions[0].version)" >> $GITHUB_OUTPUT
 
       - name: Query VS Code Package version (Before running changeset version)
         id: package-version
@@ -60,8 +60,8 @@ jobs:
         uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1.5.3
         with:
           # Put date in the title and commit message
-          title: "Theme Tools Release — ${{ steps.date.outputs.date }}"
-          commit: "Theme Tools Release — ${{ steps.date.outputs.date }}"
+          title: "platformOS Tools Release — ${{ steps.date.outputs.date }}"
+          commit: "platformOS Tools Release — ${{ steps.date.outputs.date }}"
           # When there are no changesets, this gets called
           publish: yarn changeset publish
           # When there are changesets, this gets called and then a PR is opened/updated

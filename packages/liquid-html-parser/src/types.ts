@@ -54,7 +54,7 @@ export enum NodeTypes {
   LiquidDocParamNode = 'LiquidDocParamNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
   LiquidDocPromptNode = 'LiquidDocPromptNode',
-  // platformOS markup types
+  // platformos markup types
   BackgroundMarkup = 'BackgroundMarkup',
   BackgroundInlineMarkup = 'BackgroundInlineMarkup',
   CacheMarkup = 'CacheMarkup',
@@ -93,7 +93,7 @@ export enum NamedTags {
   tablerow = 'tablerow',
   unless = 'unless',
   when = 'when',
-  // platformOS tags
+  // platformos tags
   background = 'background',
   cache = 'cache',
   catch = 'catch',

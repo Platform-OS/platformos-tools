@@ -22,27 +22,19 @@
    git add CHANGELOG.md package.json src/index.ts playground/index.html
    git commit -m "Bump version to $VERSION"
    git push origin "bump/v$VERSION"
-   gh pr create --base="main" --head="Shopify:bump/v$VERSION"
+   gh pr create --base="main" --head="Platform-OS:bump/v$VERSION"
    ```
 
 6. Merge your PR to main.
 
-7. Push the tag
+7. [Create a GitHub release](https://github.com/Platform-OS/platformos-tools/releases/new) for the change.
 
    ```bash
-   git tag v$VERSION
-   git push origin v$VERSION
-   ```
-
-8. On [Shipit](https://shipit.shopify.io/shopify/prettier-plugin-liquid), deploy your commit.
-
-9. [Create a GitHub release](https://github.com/Shopify/prettier-plugin-liquid/releases/new) for the change.
-
-   ```
    git fetch origin
    git fetch origin --tags
-   git reset origin v$VERSION
-   gh release create -t v$VERSION
+   git tag v$VERSION
+   git push origin v$VERSION
+   gh release create v$VERSION -t v$VERSION
    ```
 
    (It's a good idea to copy parts of the CHANGELOG in there)

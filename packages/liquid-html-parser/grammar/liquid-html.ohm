@@ -67,7 +67,7 @@ Liquid <: Helpers {
     | liquidTagSection
     | liquidTagSections
     | liquidTagWhen
-    // platformOS tags
+    // platformos tags
     | liquidTagBackground
     | liquidTagCatch
     | liquidTagContext
@@ -100,7 +100,7 @@ Liquid <: Helpers {
     | liquidTagOpenIf
     | liquidTagOpenPaginate
     | liquidTagOpenUnless
-    // platformOS block tags
+    // platformos block tags
     | liquidTagOpenBackground
     | liquidTagOpenCache
     | liquidTagOpenParseJson
@@ -184,7 +184,7 @@ Liquid <: Helpers {
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
   liquidTagGraphQLMarkup = variableSegment space* "=" space* snippetExpression renderArguments
 
-  // platformOS simple tags
+  // platformos simple tags
   liquidTagBackground = liquidTagRule<"background", liquidTagBackgroundMarkup>
   liquidTagBackgroundMarkup = variableSegment space* "=" space* snippetExpression renderArguments
 
@@ -267,7 +267,7 @@ Liquid <: Helpers {
     | "if"
     | "unless"
     | "tablerow"
-    // platformOS blocks that need base case handling
+    // platformos blocks that need base case handling
     | "cache"
     | "parse_json"
     | "transaction"
@@ -446,7 +446,7 @@ Liquid <: Helpers {
     | "if"
     | "unless"
     | "tablerow"
-    // platformOS blocks
+    // platformos blocks
     | "background"
     | "cache"
     | "parse_json"

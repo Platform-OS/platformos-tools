@@ -79,7 +79,7 @@ import {
   ConcreteLiquidTagContentForMarkup,
   ConcreteComplexLiquidExpression,
   ConcreteLiquidTagHashAssignMarkup,
-  // platformOS concrete types
+  // platformos concrete types
   ConcreteLiquidTagBackgroundMarkup,
   ConcreteLiquidTagBackgroundInlineMarkup,
   ConcreteLiquidTagCacheMarkup,
@@ -133,7 +133,7 @@ export type LiquidHtmlNode =
   | LiquidDocExampleNode
   | LiquidDocPromptNode
   | LiquidDocDescriptionNode
-  // platformOS markup types
+  // platformos markup types
   | BackgroundMarkup
   | BackgroundInlineMarkup
   | CacheMarkup
@@ -245,7 +245,7 @@ export type LiquidTagNamed =
   | LiquidTagSections
   | LiquidTagTablerow
   | LiquidTagUnless
-  // platformOS tags
+  // platformos tags
   | LiquidTagBackground
   | LiquidTagCache
   | LiquidTagContext
@@ -473,20 +473,20 @@ export interface ContentForMarkup extends ASTNode<NodeTypes.ContentForMarkup> {
   args: LiquidNamedArgument[];
 }
 
-/** {% render 'snippet' [(with|for) variable [as alias]], [...namedArguments] %} */
+/** {% render 'partial' [(with|for) variable [as alias]], [...namedArguments] %} */
 export interface RenderMarkup extends ASTNode<NodeTypes.RenderMarkup> {
   /** {% render snippet %} */
   snippet: LiquidString | LiquidVariableLookup;
-  /** {% render 'snippet' with thing as alias %} */
+  /** {% render 'partial' with thing as alias %} */
   alias: RenderAliasExpression | null;
-  /** {% render 'snippet' [with variable] %} */
+  /** {% render 'partial' [with variable] %} */
   variable: RenderVariableExpression | null;
   /**
    * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
    * because the NamedArgument isn't fully typed out.
-   * E.g. {% render 'snippet', arg1: value1, arg2█ %}
+   * E.g. {% render 'partial', arg1: value1, arg2█ %}
    *
-   * @example {% render 'snippet', arg1: value1, arg2: value2 %}
+   * @example {% render 'partial', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
 }
@@ -535,12 +535,11 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
   args: LiquidNamedArgument[];
 }
 
-// platformOS tag interfaces
+// platformos tag interfaces
 export interface LiquidTagBackground
   extends LiquidTagNode<NamedTags.background, BackgroundMarkup | BackgroundInlineMarkup> {}
 export interface LiquidTagCache extends LiquidTagNode<NamedTags.cache, CacheMarkup> {}
-export interface LiquidTagContext
-  extends LiquidTagNode<NamedTags.context, LiquidNamedArgument[]> {}
+export interface LiquidTagContext extends LiquidTagNode<NamedTags.context, LiquidNamedArgument[]> {}
 export interface LiquidTagExport extends LiquidTagNode<NamedTags.export, ExportMarkup> {}
 export interface LiquidTagIncludeForm
   extends LiquidTagNode<NamedTags.include_form, IncludeFormMarkup> {}
@@ -557,8 +556,7 @@ export interface LiquidTagResponseStatus
 export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable> {}
 export interface LiquidTagRollback extends LiquidTagNode<NamedTags.rollback, string> {}
 export interface LiquidTagSession extends LiquidTagNode<NamedTags.session, SessionMarkup> {}
-export interface LiquidTagSignIn
-  extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
+export interface LiquidTagSignIn extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
 export interface LiquidTagSpamProtection
   extends LiquidTagNode<NamedTags.spam_protection, SpamProtectionMarkup> {}
 export interface LiquidTagThemeRenderRc
@@ -568,11 +566,11 @@ export interface LiquidTagTransaction
 export interface LiquidTagTry extends LiquidTagNode<NamedTags.try, string> {}
 export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, LiquidExpression> {}
 
-// platformOS branch interface
+// platformos branch interface
 export interface LiquidBranchCatch
   extends LiquidBranchNode<NamedTags.catch, LiquidVariableLookup> {}
 
-// platformOS markup interfaces
+// platformos markup interfaces
 /** {% background job_id = 'partial', [...namedArguments] %} (file-based) */
 export interface BackgroundMarkup extends ASTNode<NodeTypes.BackgroundMarkup> {
   jobId: string;
@@ -630,15 +628,15 @@ export interface SpamProtectionMarkup extends ASTNode<NodeTypes.SpamProtectionMa
 
 /** Represents the `for name` or `with name` expressions in render nodes */
 export interface RenderVariableExpression extends ASTNode<NodeTypes.RenderVariableExpression> {
-  /** {% render 'snippet' (for|with) name %} */
+  /** {% render 'partial' (for|with) name %} */
   kind: 'for' | 'with';
-  /** {% render 'snippet' (for|with) name %} */
+  /** {% render 'partial' (for|with) name %} */
   name: LiquidExpression;
 }
 
 /** Represents the `as name` expressions in render nodes */
 export interface RenderAliasExpression extends ASTNode<NodeTypes.RenderAliasExpression> {
-  /** {% render 'snippet' for array as name %}` or `{% render 'snippet' with object as name %} */
+  /** {% render 'partial' for array as name %}` or `{% render 'snippet' with object as name %} */
   value: string;
 }
 
@@ -999,7 +997,7 @@ export interface LiquidDocParamNode extends ASTNode<NodeTypes.LiquidDocParamNode
   paramDescription: TextNode | null;
   /** Optional type annotation for the parameter (e.g. "{string}", "{number}") */
   paramType: TextNode | null;
-  /** Whether this parameter must be passed when using the snippet */
+  /** Whether this parameter must be passed when using the partial */
   required: boolean;
 }
 
@@ -1064,13 +1062,18 @@ interface ASTBuildOptions {
 }
 
 export function isBranchedTag(node: LiquidHtmlNode) {
-  return node.type === NodeTypes.LiquidTag && ['if', 'for', 'unless', 'case', 'try'].includes(node.name);
+  return (
+    node.type === NodeTypes.LiquidTag && ['if', 'for', 'unless', 'case', 'try'].includes(node.name)
+  );
 }
 
 function isConcreteLiquidBranchDisguisedAsTag(
   node: LiquidHtmlConcreteNode,
 ): node is ConcreteLiquidTag & { name: 'else' | 'elsif' | 'when' | 'catch' } {
-  return node.type === ConcreteNodeTypes.LiquidTag && ['else', 'elsif', 'when', 'catch'].includes(node.name);
+  return (
+    node.type === ConcreteNodeTypes.LiquidTag &&
+    ['else', 'elsif', 'when', 'catch'].includes(node.name)
+  );
 }
 
 export function toLiquidAST(
@@ -1887,7 +1890,7 @@ function toNamedLiquidTag(
       };
     }
 
-    // platformOS tags
+    // platformos tags
     case NamedTags.background: {
       // Handle both file-based and inline syntax
       if (node.markup.type === ConcreteNodeTypes.BackgroundInlineMarkup) {
@@ -2339,7 +2342,7 @@ function toGraphQLInlineMarkup(node: ConcreteLiquidTagGraphQLInlineMarkup): Grap
   };
 }
 
-// platformOS markup conversion functions
+// platformos markup conversion functions
 function toBackgroundMarkup(node: ConcreteLiquidTagBackgroundMarkup): BackgroundMarkup {
   return {
     jobId: node.jobId,
@@ -2351,7 +2354,9 @@ function toBackgroundMarkup(node: ConcreteLiquidTagBackgroundMarkup): Background
   };
 }
 
-function toBackgroundInlineMarkup(node: ConcreteLiquidTagBackgroundInlineMarkup): BackgroundInlineMarkup {
+function toBackgroundInlineMarkup(
+  node: ConcreteLiquidTagBackgroundInlineMarkup,
+): BackgroundInlineMarkup {
   return {
     type: NodeTypes.BackgroundInlineMarkup,
     jobId: toExpression(node.jobId) as LiquidVariableLookup,

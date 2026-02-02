@@ -9,7 +9,7 @@ To learn more about our release practices, please read [our releasing documentat
 - [Whitespace handling](./prettier-plugin-liquid/whitespace-handling.md)
 
 ## Theme Check
-- [Writing your own check](./theme-check-common/writing-your-own-check)
+- [Writing your own check](./platformos-check-common/writing-your-own-check)
 
 We encourage you to explore these documents to better understand the capabilities and usage of each tool.
 

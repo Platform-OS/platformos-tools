@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["**/*.spec.ts"],
+  "references": [
+    { "path": "../platformos-language-server-common/tsconfig.build.json" },
+    { "path": "../platformos-check-docs-updater/tsconfig.build.json" },
+    { "path": "../platformos-check-node/tsconfig.build.json" },
+    { "path": "../platformos-common/tsconfig.build.json" }
+  ]
+}

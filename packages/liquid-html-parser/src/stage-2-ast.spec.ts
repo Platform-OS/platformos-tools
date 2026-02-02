@@ -982,8 +982,8 @@ describe('Unit: Stage 2 (AST)', () => {
       }
     });
 
-    // platformOS tags tests
-    describe('Case: platformOS Tags', () => {
+    // platformos tags tests
+    describe('Case: platformos Tags', () => {
       it('should parse the background tag (file-based)', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
           ast = toAST(`{% background job_id = 'example_partial', delay: 0.1, max_attempts: 3 %}`);

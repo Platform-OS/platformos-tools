@@ -59,7 +59,8 @@ describe('DocumentsLocator', () => {
 
     it('should locate a module partial in app/modules path', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/modules/user/public/lib/helper.liquid': '{% comment %}helper{% endcomment %}',
+        'file:///project/app/modules/user/public/lib/helper.liquid':
+          '{% comment %}helper{% endcomment %}',
       });
       const locator = new DocumentsLocator(fs);
 
@@ -90,7 +91,8 @@ describe('DocumentsLocator', () => {
 
     it('should check private module paths when public does not exist', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/modules/admin/private/views/partials/secret.liquid': '<div>secret</div>',
+        'file:///project/app/modules/admin/private/views/partials/secret.liquid':
+          '<div>secret</div>',
       });
       const locator = new DocumentsLocator(fs);
 

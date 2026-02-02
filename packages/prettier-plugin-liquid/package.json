@@ -1,8 +1,8 @@
 {
   "name": "@platformos/prettier-plugin-liquid",
   "version": "1.10.0",
-  "description": "Prettier Liquid/HTML plugin by Shopify",
-  "author": "CP Clermont <cp.clermont@shopify.com>",
+  "description": "Prettier Liquid/HTML plugin for platformOS",
+  "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/prettier-plugin-liquid#readme",
   "repository": {
     "type": "git",

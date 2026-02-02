@@ -1,0 +1,5 @@
+extends:
+  - platformos-check:recommended
+ignore:
+  - 'src/**'
+  - 'dist/**'

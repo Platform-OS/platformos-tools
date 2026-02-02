@@ -271,7 +271,7 @@ function printNamedLiquidBlockStart(
       ]);
     }
 
-    // platformOS tags
+    // platformos tags
     case NamedTags.background: {
       const markup = node.markup;
       const trailingWhitespace = markup.args.length > 0 ? line : ' ';
@@ -288,7 +288,8 @@ function printNamedLiquidBlockStart(
       return tagWithArrayMarkup(trailingWhitespace);
     }
     case NamedTags.export: {
-      const trailingWhitespace = node.markup.variables.length > 1 || node.markup.namespace ? line : ' ';
+      const trailingWhitespace =
+        node.markup.variables.length > 1 || node.markup.namespace ? line : ' ';
       return tag(trailingWhitespace);
     }
     case NamedTags.include_form:

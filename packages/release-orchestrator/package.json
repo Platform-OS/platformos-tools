@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "description": "Internal platformos-tools package for handling the release process.",
   "main": "dist/index.js",
-  "author": "Albert Chu <albert.chu@shopify.com>",
+  "author": "platformOS",
   "license": "MIT",
   "private": true,
   "scripts": {

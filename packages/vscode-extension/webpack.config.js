@@ -5,7 +5,7 @@ const webpack = require('webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 const { default: TsconfigPathsPlugin } = require('tsconfig-paths-webpack-plugin');
 const path = require('path');
-const { ThemeLiquidDocsManager } = require('@platformos/theme-check-docs-updater');
+const { ThemeLiquidDocsManager } = require('@platformos/platformos-check-docs-updater');
 
 /** @type WebpackConfig */
 const baseConfig = {
@@ -81,12 +81,12 @@ const desktopConfig = {
           // buit it works :)
           //
           // This is also why we have __dirname as 'eval-only'.
-          from: path.resolve(__dirname, '../theme-check-node/configs'),
+          from: path.resolve(__dirname, '../platformos-check-node/configs'),
           to: 'configs',
         },
         {
           // Same deal but for the fallback docset and schema files.
-          from: path.resolve(__dirname, '../theme-check-docs-updater/data'),
+          from: path.resolve(__dirname, '../platformos-check-docs-updater/data'),
           to: 'data',
         },
         {

@@ -31,7 +31,7 @@ export function reportUnknownArguments(
   if (node.type === NodeTypes.ContentForMarkup) {
     errorOwnerMessage = ` in content_for tag for static block '${name}'`;
   } else if (node.type === NodeTypes.RenderMarkup) {
-    errorOwnerMessage = ` in render tag for snippet '${name}'`;
+    errorOwnerMessage = ` in render tag for partial '${name}'`;
   } else if (node.type === NodeTypes.FunctionMarkup) {
     errorOwnerMessage = ` in function tag for partial '${name}'`;
   }
@@ -64,7 +64,7 @@ export function reportMissingArguments(
   if (node.type === NodeTypes.ContentForMarkup) {
     errorOwnerMessage = ` in content_for tag for static block '${name}'`;
   } else if (node.type === NodeTypes.RenderMarkup) {
-    errorOwnerMessage = ` in render tag for snippet '${name}'`;
+    errorOwnerMessage = ` in render tag for partial '${name}'`;
   } else if (node.type === NodeTypes.FunctionMarkup) {
     errorOwnerMessage = ` in function tag for partial '${name}'`;
   }
@@ -94,7 +94,7 @@ export function reportDuplicateArguments(
   if (node.type === NodeTypes.ContentForMarkup) {
     errorOwnerMessage = ` in content_for tag for static block '${name}'`;
   } else if (node.type === NodeTypes.RenderMarkup) {
-    errorOwnerMessage = ` in render tag for snippet '${name}'`;
+    errorOwnerMessage = ` in render tag for partial '${name}'`;
   } else if (node.type === NodeTypes.FunctionMarkup) {
     errorOwnerMessage = ` in function tag for partial '${name}'`;
   }
@@ -231,20 +231,20 @@ export function getBlockName(node: ContentForMarkup) {
   return contentForTypeArg.value;
 }
 
-export function getSnippetName(node: RenderMarkup) {
-  if (!isLiquidString(node.snippet)) {
-    return;
+export function getPartialName(node: RenderMarkup | FunctionMarkup): string | undefined {
+  if (node.type === NodeTypes.RenderMarkup) {
+    if (!isLiquidString(node.snippet)) {
+      return;
+    }
+    return node.snippet.value;
   }
 
-  return node.snippet.value;
-}
-
-export function getPartialName(node: FunctionMarkup) {
-  if (!isLiquidString(node.partial)) {
-    return;
+  if (node.type === NodeTypes.FunctionMarkup) {
+    if (!isLiquidString(node.partial)) {
+      return;
+    }
+    return node.partial.value;
   }
-
-  return node.partial.value;
 }
 
 export async function getLiquidDocParams(

@@ -223,7 +223,7 @@ export function startServer(
 
   const getDocDefinitionForURI = async (
     uri: UriString,
-    category: 'snippets' | 'blocks',
+    category: 'app/views/partials' | 'blocks',
     name: string,
   ): Promise<DocDefinition | undefined> => {
     const rootUri = await findThemeRootURI(uri);

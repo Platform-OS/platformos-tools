@@ -20,7 +20,7 @@ const checkDef: CheckDefinition = {
 describe('Function: isIgnored', () => {
   it('should return false when no ignore patterns are provided', () => {
     const result = isIgnored(
-      toUri('snippets/foo.liquid'),
+      toUri('app/views/partials/foo.liquid'),
       config({
         checkIgnore: [],
         globalIgnore: [],
@@ -32,7 +32,7 @@ describe('Function: isIgnored', () => {
 
   it('should return true when the file matches a base ignore pattern', () => {
     const result = isIgnored(
-      toUri('snippets/foo.liquid'),
+      toUri('app/views/partials/foo.liquid'),
       config({
         checkIgnore: ['*.liquid'],
         globalIgnore: [],
@@ -45,7 +45,7 @@ describe('Function: isIgnored', () => {
 
   it('should return false when the file does not matches a negative pattern', () => {
     const result = isIgnored(
-      toUri('snippets/foo.liquid'),
+      toUri('app/views/partials/foo.liquid'),
       config({
         checkIgnore: ['!snippets/*'],
         globalIgnore: [],
@@ -58,9 +58,9 @@ describe('Function: isIgnored', () => {
 
   it('should return true when the file matches an ignore pattern', () => {
     const result = isIgnored(
-      toUri('snippets/foo.liquid'),
+      toUri('app/views/partials/foo.liquid'),
       config({
-        checkIgnore: ['snippets/*.liquid'],
+        checkIgnore: ['app/views/partials/*.liquid'],
         globalIgnore: [],
       }),
       checkDef,
@@ -71,7 +71,7 @@ describe('Function: isIgnored', () => {
 
   it('should return false when the file does not match any ignore patterns', () => {
     const result = isIgnored(
-      toUri('snippets/foo.liquid'),
+      toUri('app/views/partials/foo.liquid'),
       config({
         checkIgnore: ['other-snippets/*.liquid'],
         globalIgnore: [],
@@ -84,10 +84,10 @@ describe('Function: isIgnored', () => {
 
   it('should return true when the file matches a global ignore pattern', () => {
     const result = isIgnored(
-      toUri('snippets/foo.liquid'),
+      toUri('app/views/partials/foo.liquid'),
       config({
         checkIgnore: [],
-        globalIgnore: ['snippets/*.liquid'],
+        globalIgnore: ['app/views/partials/*.liquid'],
       }),
       checkDef,
     );
@@ -97,10 +97,10 @@ describe('Function: isIgnored', () => {
 
   it('should return true when the file matches both check-specific and global ignore patterns', () => {
     const result = isIgnored(
-      toUri('snippets/foo.liquid'),
+      toUri('app/views/partials/foo.liquid'),
       config({
-        checkIgnore: ['snippets/*.liquid'],
-        globalIgnore: ['snippets/*.liquid'],
+        checkIgnore: ['app/views/partials/*.liquid'],
+        globalIgnore: ['app/views/partials/*.liquid'],
       }),
       checkDef,
     );

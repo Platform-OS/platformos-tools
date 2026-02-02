@@ -12,7 +12,7 @@ ParserBlockingScript:
 
 ImgWidthAndHeight:
   ignore:
-    - 'snippets/**'
+    - 'app/views/partials/**'
 
 UnusedAssign:
   severity: 'error'

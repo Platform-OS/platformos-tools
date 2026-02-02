@@ -1,39 +1,39 @@
 import { expect, describe, it } from 'vitest';
-import { OrphanedSnippet } from './index';
+import { OrphanedPartial } from './index';
 import { runLiquidCheck } from '../../test';
 
-describe('Module: OrphanedSnippet', () => {
-  describe('when the snippet is not referenced by any files', () => {
+describe('Module: OrphanedPartial', () => {
+  describe('when the partial is not referenced by any files', () => {
     it('should report a warning', async () => {
       const sourceCode = `<div>Orphaned content</div>`;
 
       const offenses = await runLiquidCheck(
-        OrphanedSnippet,
+        OrphanedPartial,
         sourceCode,
-        'snippets/orphaned.liquid',
+        'app/views/partials/orphaned.liquid',
         {
           getReferences: async (uri) => [],
         },
       );
 
       expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toBe('This snippet is not referenced by any other files');
+      expect(offenses[0].message).toBe('This partial is not referenced by any other files');
     });
   });
 
-  describe('when the snippet is referenced by other files', () => {
+  describe('when the partial is referenced by other files', () => {
     it('should not report a warning', async () => {
-      const sourceCode = `<div>Referenced snippet</div>`;
+      const sourceCode = `<div>Referenced partial</div>`;
 
       const offenses = await runLiquidCheck(
-        OrphanedSnippet,
+        OrphanedPartial,
         sourceCode,
-        'snippets/product-card.liquid',
+        'app/views/partials/product-card.liquid',
         {
           getReferences: async (uri) => [
             {
               source: { uri: 'templates/product.liquid' },
-              target: { uri: 'snippets/product-card.liquid' },
+              target: { uri: 'app/views/partials/product-card.liquid' },
               type: 'direct',
             },
           ],
@@ -44,11 +44,11 @@ describe('Module: OrphanedSnippet', () => {
     });
   });
 
-  describe('when checking non-snippet files', () => {
+  describe('when checking non-partial files', () => {
     it('should not report warnings for templates', async () => {
       const sourceCode = `{% section 'header' %}`;
 
-      const offenses = await runLiquidCheck(OrphanedSnippet, sourceCode, 'templates/index.liquid', {
+      const offenses = await runLiquidCheck(OrphanedPartial, sourceCode, 'templates/index.liquid', {
         getReferences: async (uri) => [],
       });
 

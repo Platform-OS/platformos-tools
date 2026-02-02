@@ -10,23 +10,23 @@ import {
 } from 'vscode-languageserver-protocol';
 import { ClientCapabilities } from '../../ClientCapabilities';
 import { DocumentManager, isLiquidSourceCode } from '../../documents';
-import { isSnippet, snippetName } from '../../utils/uri';
+import { isPartial, partialName } from '../../utils/uri';
 import { BaseRenameHandler } from '../BaseRenameHandler';
 import { FindThemeRootURI } from '../../internal-types';
 
 /**
- * The SnippetRenameHandler will handle snippet renames.
+ * The PartialRenameHandler will handle partial renames.
  *
- * We'll change all the render and include tags that reference the old snippet
- * to reference the new snippet.
+ * We'll change all the render and include tags that reference the old partial
+ * to reference the new partial.
  *
  *   {% render 'oldName' %} -> {% render 'newName' %}
  *
  * We'll do this by visiting all the liquid files in the theme and looking for
- * render and include tags that reference the old snippet. We'll then create a
- * WorkspaceEdit that changes the references to the new snippet.
+ * render and include tags that reference the old partial. We'll then create a
+ * WorkspaceEdit that changes the references to the new partial.
  */
-export class SnippetRenameHandler implements BaseRenameHandler {
+export class PartialRenameHandler implements BaseRenameHandler {
   constructor(
     private documentManager: DocumentManager,
     private connection: Connection,
@@ -37,7 +37,7 @@ export class SnippetRenameHandler implements BaseRenameHandler {
   async onDidRenameFiles(params: RenameFilesParams): Promise<void> {
     if (!this.capabilities.hasApplyEditSupport) return;
     const relevantRenames = params.files.filter(
-      (file) => isSnippet(file.oldUri) && isSnippet(file.newUri),
+      (file) => isPartial(file.oldUri) && isPartial(file.newUri),
     );
 
     // Only preload if you have something to do (folder renames are not supported)
@@ -48,10 +48,10 @@ export class SnippetRenameHandler implements BaseRenameHandler {
     await this.documentManager.preload(rootUri);
     const theme = this.documentManager.theme(rootUri, true);
     const liquidSourceCodes = theme.filter(isLiquidSourceCode);
-    const oldSnippetName = snippetName(rename.oldUri);
-    const newSnippetName = snippetName(rename.newUri);
-    const editLabel = `Rename snippet '${oldSnippetName}' to '${newSnippetName}'`;
-    const annotationId = 'renameSnippet';
+    const oldPartialName = partialName(rename.oldUri);
+    const newPartialName = partialName(rename.newUri);
+    const editLabel = `Rename partial '${oldPartialName}' to '${newPartialName}'`;
+    const annotationId = 'renamePartial';
     const workspaceEdit: WorkspaceEdit = {
       documentChanges: [],
       changeAnnotations: {
@@ -74,9 +74,9 @@ export class SnippetRenameHandler implements BaseRenameHandler {
             return;
           }
           const snippet = node.markup.snippet;
-          if (snippet.type === NodeTypes.String && snippet.value === oldSnippetName) {
+          if (snippet.type === NodeTypes.String && snippet.value === oldPartialName) {
             return {
-              newText: `${newSnippetName}`,
+              newText: `${newPartialName}`,
               range: Range.create(
                 textDocument.positionAt(snippet.position.start + 1), // +1 to skip the opening quote
                 textDocument.positionAt(snippet.position.end - 1), // -1 to skip the closing quote

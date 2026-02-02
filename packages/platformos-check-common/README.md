@@ -65,8 +65,8 @@ import { simpleCheck, recommended, ThemeData, Config, Dependencies } from '@plat
 
 async function main() {
   const themeDesc = {
-    'snippets/product-card.liquid': '{{ product | image_url | image_tag }}',
-    'snippets/for-loop.liquid': '{% for variant in product.variants %}...{% endfor %}',
+    'app/views/partials/product-card.liquid': '{{ product | image_url | image_tag }}',
+    'app/views/partials/for-loop.liquid': '{% for variant in product.variants %}...{% endfor %}',
   };
 
   const config: Config = {

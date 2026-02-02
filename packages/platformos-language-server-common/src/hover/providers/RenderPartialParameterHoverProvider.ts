@@ -4,7 +4,7 @@ import { Hover, HoverParams } from 'vscode-languageserver';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 import { formatLiquidDocParameter } from '../../utils/liquidDoc';
 
-export class RenderSnippetParameterHoverProvider implements BaseHoverProvider {
+export class RenderPartialParameterHoverProvider implements BaseHoverProvider {
   constructor(private getDocDefinitionForURI: GetDocDefinitionForURI) {}
 
   async hover(
@@ -24,7 +24,7 @@ export class RenderSnippetParameterHoverProvider implements BaseHoverProvider {
 
     const docDefinition = await this.getDocDefinitionForURI(
       params.textDocument.uri,
-      'snippets',
+      'app/views/partials',
       parentNode.snippet.value,
     );
 

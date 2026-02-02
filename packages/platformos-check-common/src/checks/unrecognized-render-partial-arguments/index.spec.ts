@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { applySuggestions, MockTheme, runLiquidCheck } from '../../test';
-import { UnrecognizedRenderSnippetArguments } from '.';
+import { UnrecognizedRenderPartialArguments } from '.';
 
-function check(snippet: string, source: string) {
+function check(partial: string, source: string) {
   return runLiquidCheck(
-    UnrecognizedRenderSnippetArguments,
+    UnrecognizedRenderPartialArguments,
     source,
     undefined,
     {},
     {
-      'snippets/card.liquid': snippet,
+      'app/views/partials/card.liquid': partial,
     },
   );
 }
 
-const defaultSnippet = `
+const defaultPartial = `
   {% doc %}
     @param {string} required_string - A required string
     @param {number} required_number - A required number
@@ -27,7 +27,7 @@ const defaultSnippet = `
   {% enddoc %}
 `;
 
-describe('Module: UnrecognizedRenderSnippetParams', () => {
+describe('Module: UnrecognizedRenderPartialParams', () => {
   describe('unknown arguments', () => {
     it('should report unknown arguments that are provided in the render markup', async () => {
       const sourceCode = `
@@ -40,28 +40,28 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
         second_unknown_param: 'second unknown',
         %}
         `;
-      const offenses = await check(defaultSnippet, sourceCode);
+      const offenses = await check(defaultPartial, sourceCode);
 
       expect(offenses).toHaveLength(2);
       expect(offenses[0].message).toBe(
-        "Unknown argument 'unknown_param' in render tag for snippet 'card'.",
+        "Unknown argument 'unknown_param' in render tag for partial 'card'.",
       );
       expect(offenses[1].message).toBe(
-        "Unknown argument 'second_unknown_param' in render tag for snippet 'card'.",
+        "Unknown argument 'second_unknown_param' in render tag for partial 'card'.",
       );
     });
   });
 
   describe('edge cases', () => {
-    it('should not report when snippet has no doc comment', async () => {
+    it('should not report when partial has no doc comment', async () => {
       const sourceCode = `{% render 'card', title: 'My Card' %}`;
       const offenses = await runLiquidCheck(
-        UnrecognizedRenderSnippetArguments,
+        UnrecognizedRenderPartialArguments,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `<h1>This snippet has no doc comment</h1>`,
+          'app/views/partials/card.liquid': `<h1>This partial has no doc comment</h1>`,
         },
       );
 
@@ -71,12 +71,12 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
     it('should not report when LiquidDoc definition has no defined params', async () => {
       const sourceCode = `{% render 'card', title: 'My Card' %}`;
       const offenses = await runLiquidCheck(
-        UnrecognizedRenderSnippetArguments,
+        UnrecognizedRenderPartialArguments,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
               {% doc %}
                 @description this is a description
                 @example this is an example
@@ -90,15 +90,15 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('should not report when snippet name is a VariableLookup', async () => {
-      const sourceCode = `{% assign snippet_name = 'card' %}{% render snippet_name, title: 'My Card' %}`;
+    it('should not report when partial name is a VariableLookup', async () => {
+      const sourceCode = `{% assign partial_name = 'card' %}{% render partial_name, title: 'My Card' %}`;
       const offenses = await runLiquidCheck(
-        UnrecognizedRenderSnippetArguments,
+        UnrecognizedRenderPartialArguments,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
               {% doc %}
                 @param {string} title - The title of the card
                 @param {string} description - The description of the card
@@ -114,7 +114,7 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
 
     it('should report when "with/for" alias syntax is used', async () => {
       const mockTheme = {
-        'snippets/card.liquid': `
+        'app/views/partials/card.liquid': `
           {% doc %}
             @param {string} title - The title of the card
           {% enddoc %}
@@ -124,7 +124,7 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
 
       let sourceCode = `{% render 'card' with 'my-card' as unknown_param %}`;
       let offenses = await runLiquidCheck(
-        UnrecognizedRenderSnippetArguments,
+        UnrecognizedRenderPartialArguments,
         sourceCode,
         undefined,
         {},
@@ -133,7 +133,7 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
 
       expect(offenses).toHaveLength(1);
       expect(offenses[0].message).toBe(
-        "Unknown argument 'unknown_param' in render tag for snippet 'card'.",
+        "Unknown argument 'unknown_param' in render tag for partial 'card'.",
       );
       expect(offenses[0].start.index).toBe(sourceCode.indexOf('with'));
       expect(offenses[0].end.index).toBe(
@@ -142,7 +142,7 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
 
       sourceCode = `{% render 'card' for array as unknown_param %}`;
       offenses = await runLiquidCheck(
-        UnrecognizedRenderSnippetArguments,
+        UnrecognizedRenderPartialArguments,
         sourceCode,
         undefined,
         {},
@@ -151,7 +151,7 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
 
       expect(offenses).toHaveLength(1);
       expect(offenses[0].message).toBe(
-        "Unknown argument 'unknown_param' in render tag for snippet 'card'.",
+        "Unknown argument 'unknown_param' in render tag for partial 'card'.",
       );
       expect(offenses[0].start.index).toBe(sourceCode.indexOf('for'));
       expect(offenses[0].end.index).toBe(
@@ -162,12 +162,12 @@ describe('Module: UnrecognizedRenderSnippetParams', () => {
     it('should correctly suggest removing aliases with variable whitespace', async () => {
       let sourceCode = `{% render 'card' with 'my-card'       as   unknown_param %}`;
       let offenses = await runLiquidCheck(
-        UnrecognizedRenderSnippetArguments,
+        UnrecognizedRenderPartialArguments,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
           {% doc %}
             @param {string} title - The title of the card
           {% enddoc %}

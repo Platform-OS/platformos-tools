@@ -470,7 +470,7 @@ describe('Module: TypeSystem', () => {
       ['predictive_search', 'sections/predictive-search.liquid'],
       ['recommendations', 'sections/recommendations.liquid'],
       ['app', 'blocks/recommendations.liquid'],
-      ['app', 'snippets/recommendations.liquid'],
+      ['app', 'app/views/partials/recommendations.liquid'],
       ['locale', 'layout/checkout.liquid'],
     ];
     for (const [object, path] of contexts) {

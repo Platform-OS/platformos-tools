@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { DuplicateRenderSnippetArguments } from '.';
+import { DuplicateRenderPartialArguments } from '.';
 import { runLiquidCheck, applySuggestions } from '../../test';
 
-describe('Module: DuplicateRenderSnippetArguments', () => {
+describe('Module: DuplicateRenderPartialArguments', () => {
   function runCheck(sourceCode: string) {
-    return runLiquidCheck(DuplicateRenderSnippetArguments, sourceCode);
+    return runLiquidCheck(DuplicateRenderPartialArguments, sourceCode);
   }
 
   describe('detection', () => {
@@ -87,7 +87,7 @@ describe('Module: DuplicateRenderSnippetArguments', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('should not report for variable render tags where snippet name is a variable', async () => {
+    it('should not report for variable render tags where partial name is a variable', async () => {
       const sourceCode = `
         {% render my_variable, param1: 'value1', param1: 'value2' %}
       `;

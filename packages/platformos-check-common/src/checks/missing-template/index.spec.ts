@@ -6,7 +6,7 @@ describe('Module: MissingTemplate', () => {
   it('should report missing template errors', async () => {
     const testCases = [
       {
-        testCase: 'should report the missing snippet to be rendered with "render"',
+        testCase: 'should report the missing partial to be rendered with "render"',
         file: `
         {% render 'missing' with foo as arg          %}
         {% render myvariable %}
@@ -28,23 +28,23 @@ describe('Module: MissingTemplate', () => {
           },
           suggest: undefined,
           type: 'LiquidHtml',
-          uri: 'file:///snippets/snippet.liquid',
+          uri: 'file:///app/views/partials/partial.liquid',
         },
         filesWith: (file: string) => ({
-          'snippets/snippet.liquid': file,
+          'app/views/partials/partial.liquid': file,
         }),
       },
       {
-        testCase: 'should report the missing snippet to be rendered with "include"',
+        testCase: 'should report the missing partial to be rendered with "include"',
         file: "{% include 'missing' %}",
         expected: {
           message: "'missing' does not exist",
-          uri: 'file:///snippets/snippet.liquid',
+          uri: 'file:///app/views/partials/partial.liquid',
           start: { index: 11, line: 0, character: 11 },
           end: { index: 20, line: 0, character: 20 },
         },
         filesWith: (file: string) => ({
-          'snippets/snippet.liquid': file,
+          'app/views/partials/partial.liquid': file,
         }),
       },
     ];

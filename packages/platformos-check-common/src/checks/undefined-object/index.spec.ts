@@ -263,7 +263,7 @@ describe('Module: UndefinedObject', () => {
     {{ my_var }}
       `;
 
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'snippets/file.liquid');
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'app/views/partials/file.liquid');
 
     expect(offenses).toHaveLength(1);
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_var' used."]);
@@ -278,7 +278,7 @@ describe('Module: UndefinedObject', () => {
       {{ text }}
     `;
 
-    const filePath = 'snippets/file.liquid';
+    const filePath = 'app/views/partials/file.liquid';
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode, filePath);
 
     expect(offenses).toHaveLength(0);
@@ -318,7 +318,7 @@ describe('Module: UndefinedObject', () => {
       ['comment', 'sections/main-article.liquid'],
       ['block', 'blocks/theme-app-extension.liquid'],
       ['app', 'blocks/theme-app-extension.liquid'],
-      ['app', 'snippets/theme-app-extension.liquid'],
+      ['app', 'app/views/partials/theme-app-extension.liquid'],
     ];
     for (const [object, goodPath] of contexts) {
       offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, goodPath);
@@ -417,7 +417,7 @@ describe('Module: UndefinedObject', () => {
       {% assign text = text | default: "value" %}
     `;
 
-    const filePath = 'snippets/file.liquid';
+    const filePath = 'app/views/partials/file.liquid';
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode, filePath);
 
     expect(offenses).toHaveLength(0);

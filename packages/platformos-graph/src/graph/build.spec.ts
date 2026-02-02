@@ -130,9 +130,9 @@ describe('Module: index', () => {
           expect.arrayContaining([
             {
               source: loc('blocks/group.liquid'),
-              target: loc('snippets/parent.liquid'),
+              target: loc('app/views/partials/parent.liquid'),
               type: 'direct',
-            }, // direct dep in snippet
+            }, // direct dep in partial
             {
               source: loc('blocks/group.liquid'),
               target: loc('blocks/text.liquid'),
@@ -169,25 +169,25 @@ describe('Module: index', () => {
         );
       });
 
-      it("finds the snippets/parent's dependencies and references", async () => {
-        const parentSnippet = graph.modules[p('snippets/parent.liquid')];
-        assert(parentSnippet);
-        assert(parentSnippet.type === ModuleType.Liquid);
-        assert(parentSnippet.kind === LiquidModuleKind.Snippet);
+      it("finds the app/views/partials/parent's dependencies and references", async () => {
+        const parentPartial = graph.modules[p('app/views/partials/parent.liquid')];
+        assert(parentPartial);
+        assert(parentPartial.type === ModuleType.Liquid);
+        assert(parentPartial.kind === LiquidModuleKind.Partial);
 
         // outgoing links
-        const deps = parentSnippet.dependencies;
-        assert(deps.map((x) => x.source.uri).every((x) => x === parentSnippet.uri));
+        const deps = parentPartial.dependencies;
+        assert(deps.map((x) => x.source.uri).every((x) => x === parentPartial.uri));
         expect(deps.map((x) => x.target.uri)).toEqual(
           expect.arrayContaining([
-            p('snippets/child.liquid'), // {% render 'child' %}
+            p('app/views/partials/child.liquid'), // {% render 'child' %}
             p('assets/theme.js'), // <parent-element>
           ]),
         );
 
         // ingoing links
-        const refs = parentSnippet.references;
-        assert(refs.map((x) => x.target.uri).every((x) => x === parentSnippet.uri));
+        const refs = parentPartial.references;
+        assert(refs.map((x) => x.target.uri).every((x) => x === parentPartial.uri));
         expect(refs.map((x) => x.source.uri)).toEqual(
           expect.arrayContaining([
             p('blocks/group.liquid'), // {% render 'parent' %}
@@ -195,12 +195,12 @@ describe('Module: index', () => {
         );
 
         // {% render 'child', children: children %} dependency
-        const parentSource = await dependencies.getSourceCode(p('snippets/parent.liquid'));
+        const parentSource = await dependencies.getSourceCode(p('app/views/partials/parent.liquid'));
         assert(parentSource);
         assert(parentSource.type === SourceCodeType.LiquidHtml);
-        expect(parentSnippet.dependencies.map((x) => x.source)).toContainEqual(
+        expect(parentPartial.dependencies.map((x) => x.source)).toContainEqual(
           expect.objectContaining({
-            uri: p('snippets/parent.liquid'),
+            uri: p('app/views/partials/parent.liquid'),
             range: [
               parentSource.source.indexOf('{% render "child"'),
               parentSource.source.indexOf('{% render "child"') +
@@ -210,9 +210,9 @@ describe('Module: index', () => {
         );
 
         // <parent-element> dependency
-        expect(parentSnippet.dependencies.map((x) => x.source)).toContainEqual(
+        expect(parentPartial.dependencies.map((x) => x.source)).toContainEqual(
           expect.objectContaining({
-            uri: p('snippets/parent.liquid'),
+            uri: p('app/views/partials/parent.liquid'),
             range: [
               parentSource.source.indexOf('<parent-element'),
               parentSource.source.indexOf('<parent-element') + '<parent-element'.length,

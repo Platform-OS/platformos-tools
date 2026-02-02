@@ -41,7 +41,7 @@ describe('Module: ReservedDocParamNames', () => {
     });
   });
 
-  describe('snippet file', () => {
+  describe('partial file', () => {
     it('should not report an error when a doc param shares names with reserved content_for tag params', async () => {
       const sourceCode = `
         {% doc %}
@@ -53,7 +53,7 @@ describe('Module: ReservedDocParamNames', () => {
       const offenses = await runLiquidCheck(
         ReservedDocParamNames,
         sourceCode,
-        'snippets/file.liquid',
+        'app/views/partials/file.liquid',
       );
 
       expect(offenses).to.have.length(0);

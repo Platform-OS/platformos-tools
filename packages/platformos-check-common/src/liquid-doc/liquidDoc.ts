@@ -9,7 +9,7 @@ import {
 
 export type GetDocDefinitionForURI = (
   uri: UriString,
-  category: 'blocks' | 'snippets',
+  category: 'blocks' | 'app/views/partials',
   name: string,
 ) => Promise<DocDefinition | undefined>;
 
@@ -46,9 +46,9 @@ export interface LiquidDocDescription extends LiquidDocNode {
   nodeType: 'description';
 }
 
-export async function hasLiquidDoc(snippet: LiquidHtmlNode): Promise<boolean> {
+export async function hasLiquidDoc(partial: LiquidHtmlNode): Promise<boolean> {
   let foundDocTag = false;
-  await visit<SourceCodeType.LiquidHtml, void>(snippet, {
+  await visit<SourceCodeType.LiquidHtml, void>(partial, {
     async LiquidRawTag(node) {
       if (node.name === 'doc') foundDocTag = true;
     },

@@ -90,7 +90,7 @@ describe('Module: MissingContentForArguments', () => {
         undefined,
         {},
         {
-          'blocks/card.liquid': `<h1>This snippet has no doc comment</h1>`,
+          'blocks/card.liquid': `<h1>This partial has no doc comment</h1>`,
         },
       );
 

@@ -6,20 +6,20 @@ import {
   findTypeMismatchParams,
   generateTypeMismatchSuggestions,
   getLiquidDocParams,
-  getSnippetName,
+  getPartialName,
   reportTypeMismatches,
 } from '../../liquid-doc/arguments';
 
-export const ValidRenderSnippetArgumentTypes: LiquidCheckDefinition = {
+export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
   meta: {
-    code: 'ValidRenderSnippetArgumentTypes',
-    name: 'Valid Render Snippet Argument Types',
-    aliases: ['ValidRenderSnippetParamTypes'],
+    code: 'ValidRenderPartialArgumentTypes',
+    name: 'Valid Render Partial Argument Types',
+    aliases: ['ValidRenderPartialParamTypes'],
     docs: {
       description:
-        'This check ensures that arguments passed to snippet match the expected types defined in the liquidDoc header if present.',
+        'This check ensures that arguments passed to partial match the expected types defined in the liquidDoc header if present.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/valid-render-snippet-argument-types',
+      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/valid-render-partial-argument-types',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,
@@ -68,13 +68,13 @@ export const ValidRenderSnippetArgumentTypes: LiquidCheckDefinition = {
 
     return {
       async RenderMarkup(node: RenderMarkup) {
-        const snippetName = getSnippetName(node);
+        const partialName = getPartialName(node);
 
-        if (!snippetName) return;
+        if (!partialName) return;
 
         const liquidDocParameters = await getLiquidDocParams(
           context,
-          `snippets/${snippetName}.liquid`,
+          `app/views/partials/${partialName}.liquid`,
         );
 
         if (!liquidDocParameters) return;

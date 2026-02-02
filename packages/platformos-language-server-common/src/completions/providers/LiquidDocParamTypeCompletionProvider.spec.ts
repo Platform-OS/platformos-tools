@@ -26,11 +26,11 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
     });
   });
 
-  it("offers type completions within liquid doc's param type tag for snippets", async () => {
+  it("offers type completions within liquid doc's param type tag for partials", async () => {
     const sources = [`{% doc %} @param {█`, `{% doc %} @param  {  █`];
 
     for (const source of sources) {
-      await expect(provider).to.complete({ source, relativePath: 'file://snippets/file.liquid' }, [
+      await expect(provider).to.complete({ source, relativePath: 'file://app/views/partials/file.liquid' }, [
         ...Object.values(BasicParamTypes),
         'product',
       ]);
@@ -54,7 +54,7 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
 
     for (const source of sources) {
       await expect(provider).to.complete(
-        { source, relativePath: 'file://snippets/file.liquid' },
+        { source, relativePath: 'file://app/views/partials/file.liquid' },
         [],
       );
     }

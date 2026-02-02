@@ -59,8 +59,12 @@ export function getModule(themeGraph: ThemeGraph, uri: UriString): ThemeModule |
       return getSectionModule(themeGraph, path.basename(uri, '.liquid'));
     }
 
+    case relativePath.includes('/views/partials') || relativePath.includes('/lib/'): {
+      return getPartialModule(themeGraph, path.basename(uri, '.liquid'));
+    }
+
     case relativePath.startsWith('snippets'): {
-      return getSnippetModule(themeGraph, path.basename(uri, '.liquid'));
+      return getPartialModule(themeGraph, path.basename(uri, '.liquid'));
     }
 
     case relativePath.startsWith('templates'): {
@@ -165,11 +169,11 @@ export function getAssetModule(
   });
 }
 
-export function getSnippetModule(themeGraph: ThemeGraph, snippet: string): LiquidModule {
-  const uri = path.join(themeGraph.rootUri, 'snippets', `${snippet}.liquid`);
+export function getPartialModule(themeGraph: ThemeGraph, partial: string): LiquidModule {
+  const uri = path.join(themeGraph.rootUri, 'app/views/partials', `${partial}.liquid`);
   return module(themeGraph, {
     type: ModuleType.Liquid,
-    kind: LiquidModuleKind.Snippet,
+    kind: LiquidModuleKind.Partial,
     uri: uri,
     dependencies: [],
     references: [],

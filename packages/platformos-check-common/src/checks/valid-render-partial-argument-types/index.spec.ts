@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { runLiquidCheck, applySuggestions } from '../../test';
-import { ValidRenderSnippetArgumentTypes } from '.';
+import { ValidRenderPartialArgumentTypes } from '.';
 import { BasicParamTypes } from '../../liquid-doc/utils';
 
-describe('Module: ValidRenderSnippetParamTypes', () => {
+describe('Module: ValidRenderPartialParamTypes', () => {
   describe('type validation', () => {
     const typeTests = [
       {
@@ -52,12 +52,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
           it(`should accept ${value} for ${test.type}`, async () => {
             const sourceCode = `{% render 'card', param: ${value} %}`;
             const offenses = await runLiquidCheck(
-              ValidRenderSnippetArgumentTypes,
+              ValidRenderPartialArgumentTypes,
               sourceCode,
               undefined,
               {},
               {
-                'snippets/card.liquid': makeSnippet(test.type),
+                'app/views/partials/card.liquid': makeSnippet(test.type),
               },
             );
             expect(offenses).toHaveLength(0);
@@ -68,12 +68,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
           it(`should reject ${value} for ${test.type}`, async () => {
             const sourceCode = `{% render 'card', param: ${value} %}`;
             const offenses = await runLiquidCheck(
-              ValidRenderSnippetArgumentTypes,
+              ValidRenderPartialArgumentTypes,
               sourceCode,
               undefined,
               {},
               {
-                'snippets/card.liquid': makeSnippet(test.type),
+                'app/views/partials/card.liquid': makeSnippet(test.type),
               },
             );
             expect(offenses).toHaveLength(1);
@@ -90,12 +90,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should handle mixed case type annotations', async () => {
       const sourceCode = `{% render 'card', text: "hello", count: 5, flag: true, data: product %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
             {% doc %}
               @param {String} text - The text
               @param {NUMBER} count - The count
@@ -112,12 +112,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should ignore variable lookups', async () => {
       const sourceCode = `{% render 'card', title: product_title %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
             {% doc %}
               @param {String} title - The title
             {% enddoc %}
@@ -128,15 +128,15 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('should not report when snippet has no doc comment', async () => {
+    it('should not report when partial has no doc comment', async () => {
       const sourceCode = `{% render 'card', title: 123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `<h1>This snippet has no doc comment</h1>`,
+          'app/views/partials/card.liquid': `<h1>This partial has no doc comment</h1>`,
         },
       );
       expect(offenses).toHaveLength(0);
@@ -145,12 +145,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should not enforce unsupported types', async () => {
       const sourceCode = `{% render 'card', title: 123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
             {% doc %}
               @param {Unsupported} title - The title
             {% enddoc %}
@@ -164,12 +164,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should not report for unrecognized arguments', async () => {
       const sourceCode = `{% render 'card', title: "hello", unrecognized: 123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
             {% doc %}
               @param {String} title - The title
             {% enddoc %}
@@ -183,12 +183,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should report when `with` alias is used', async () => {
       const sourceCode = `{% render 'card' with 12 as title %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
           {% doc %}
             @param {String} title - The title
           {% enddoc %}
@@ -205,12 +205,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should report when `for` alias is used', async () => {
       const sourceCode = `{% render 'card' for 123 as title %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
           {% doc %}
             @param {String} title - The title
           {% enddoc %}
@@ -236,12 +236,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should suggest replacing with default value for type or removing value', async () => {
       const sourceCode = `{% render 'card', param: 123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 
@@ -259,12 +259,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should allow users to fix a single argument when multiple are provided`', async () => {
       const sourceCode = `{% render 'card', title: 123, count: 5 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
           {% doc %}
             @param {string} title - The title
             @param {number} count - The count
@@ -286,12 +286,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should handle arguments with trailing commas', async () => {
       const sourceCode = `{% render 'card', param: 123, %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 
@@ -307,12 +307,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
         count: 5
       %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': `
+          'app/views/partials/card.liquid': `
           {% doc %}
             @param {string} title - The title
             @param {number} count - The count
@@ -333,12 +333,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should handle argument with no space after colon', async () => {
       const sourceCode = `{% render 'card', param:123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 
@@ -351,12 +351,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should handle argument with multiple spaces after colon', async () => {
       const sourceCode = `{% render 'card', param:     123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 
@@ -371,12 +371,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
         123 
       %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 
@@ -391,12 +391,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should suggest removal and replacement if expected type has a default value', async () => {
       const sourceCode = `{% render 'card', param: 123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 
@@ -409,12 +409,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it("should only suggest removal if expected type default value is ''", async () => {
       const sourceCode = `{% render 'card', param: 123 %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('object'),
+          'app/views/partials/card.liquid': makeSnippet('object'),
         },
       );
 
@@ -426,12 +426,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should handle when aliases `with` syntax is used', async () => {
       const sourceCode = `{% render 'card' with 123 as param %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 
@@ -447,12 +447,12 @@ describe('Module: ValidRenderSnippetParamTypes', () => {
     it('should handle when aliases `for` syntax is used', async () => {
       const sourceCode = `{% render 'card' for 123 as param %}`;
       const offenses = await runLiquidCheck(
-        ValidRenderSnippetArgumentTypes,
+        ValidRenderPartialArgumentTypes,
         sourceCode,
         undefined,
         {},
         {
-          'snippets/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makeSnippet('string'),
         },
       );
 

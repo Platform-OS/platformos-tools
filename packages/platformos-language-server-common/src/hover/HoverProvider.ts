@@ -18,8 +18,8 @@ import {
   LiquidObjectHoverProvider,
   LiquidTagHoverProvider,
   TranslationHoverProvider,
-  RenderSnippetHoverProvider,
-  RenderSnippetParameterHoverProvider,
+  RenderPartialHoverProvider,
+  RenderPartialParameterHoverProvider,
 } from './providers';
 import { HtmlAttributeValueHoverProvider } from './providers/HtmlAttributeValueHoverProvider';
 import { findCurrentNode } from '@platformos/platformos-check-common';
@@ -59,8 +59,8 @@ export class HoverProvider {
       new HtmlAttributeHoverProvider(),
       new HtmlAttributeValueHoverProvider(),
       new TranslationHoverProvider(documentManager, translationProvider, findThemeRootURI),
-      new RenderSnippetHoverProvider(getDocDefinitionForURI),
-      new RenderSnippetParameterHoverProvider(getDocDefinitionForURI),
+      new RenderPartialHoverProvider(getDocDefinitionForURI),
+      new RenderPartialParameterHoverProvider(getDocDefinitionForURI),
       new LiquidDocTagHoverProvider(documentManager),
     ];
   }

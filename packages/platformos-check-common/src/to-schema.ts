@@ -4,6 +4,7 @@ import {
   NamedTags,
   NodeTypes,
 } from '@platformos/liquid-html-parser';
+import { isPartial as isPartialPath } from '@platformos/platformos-common';
 import { parseJSON } from './json';
 import * as path from './path';
 import { toJSONAST } from './to-source-code';
@@ -52,9 +53,12 @@ export function isSection(uri: UriString) {
   return path.dirname(uri).endsWith('sections');
 }
 
-export function isSnippet(uri: UriString) {
-  return path.dirname(uri).endsWith('snippets');
+export function isPartial(uri: UriString) {
+  return isPartialPath(uri);
 }
+
+// Legacy alias for backwards compatibility
+export const isSnippet = isPartial;
 
 export function isBlockSchema(
   schema: AppBlockSchema | SectionSchema | ThemeBlockSchema | undefined,

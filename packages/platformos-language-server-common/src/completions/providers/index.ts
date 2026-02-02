@@ -12,9 +12,9 @@ export { ObjectCompletionProvider } from './ObjectCompletionProvider';
 export { TranslationCompletionProvider } from './TranslationCompletionProvider';
 export { PartialCompletionProvider } from './PartialCompletionProvider';
 export {
-  GetSnippetNamesForURI,
-  RenderSnippetParameterCompletionProvider,
-} from './RenderSnippetParameterCompletionProvider';
+  GetPartialNamesForURI,
+  RenderPartialParameterCompletionProvider,
+} from './RenderPartialParameterCompletionProvider';
 export { LiquidDocTagCompletionProvider } from './LiquidDocTagCompletionProvider';
 export { LiquidDocParamTypeCompletionProvider } from './LiquidDocParamTypeCompletionProvider';
 export { Provider } from './common/Provider';

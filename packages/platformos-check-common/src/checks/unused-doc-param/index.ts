@@ -8,7 +8,7 @@ export const UnusedDocParam: LiquidCheckDefinition = {
     name: 'Prevent unused doc parameters',
     docs: {
       description:
-        'This check exists to ensure any parameters defined in the `doc` tag are used within the snippet.',
+        'This check exists to ensure any parameters defined in the `doc` tag are used within the partial.',
       recommended: true,
       url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/unused-doc-param',
     },

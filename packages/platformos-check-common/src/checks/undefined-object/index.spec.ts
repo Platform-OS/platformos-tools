@@ -263,7 +263,11 @@ describe('Module: UndefinedObject', () => {
     {{ my_var }}
       `;
 
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'app/views/partials/file.liquid');
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/partials/file.liquid',
+    );
 
     expect(offenses).toHaveLength(1);
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_var' used."]);

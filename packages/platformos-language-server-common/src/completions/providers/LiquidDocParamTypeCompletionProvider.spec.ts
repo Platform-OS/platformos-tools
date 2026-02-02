@@ -30,10 +30,10 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
     const sources = [`{% doc %} @param {█`, `{% doc %} @param  {  █`];
 
     for (const source of sources) {
-      await expect(provider).to.complete({ source, relativePath: 'file://app/views/partials/file.liquid' }, [
-        ...Object.values(BasicParamTypes),
-        'product',
-      ]);
+      await expect(provider).to.complete(
+        { source, relativePath: 'file://app/views/partials/file.liquid' },
+        [...Object.values(BasicParamTypes), 'product'],
+      );
     }
   });
 

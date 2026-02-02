@@ -195,7 +195,9 @@ describe('Module: index', () => {
         );
 
         // {% render 'child', children: children %} dependency
-        const parentSource = await dependencies.getSourceCode(p('app/views/partials/parent.liquid'));
+        const parentSource = await dependencies.getSourceCode(
+          p('app/views/partials/parent.liquid'),
+        );
         assert(parentSource);
         assert(parentSource.type === SourceCodeType.LiquidHtml);
         expect(parentPartial.dependencies.map((x) => x.source)).toContainEqual(

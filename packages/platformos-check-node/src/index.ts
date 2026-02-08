@@ -38,6 +38,7 @@ const asyncGlob = promisify(glob);
 export * from '@platformos/platformos-check-common';
 export * from './config/types';
 export { NodeFileSystem };
+export { runBackfillDocsCLI } from './backfill-docs';
 
 export const loadConfig: typeof resolveConfig = async (configPath, root) => {
   configPath ??= await findConfigPath(root);

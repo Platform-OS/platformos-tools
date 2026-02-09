@@ -71,7 +71,8 @@ export async function backfillDocs(
   const usageMap = await collectPartialUsages(theme, verbose, log);
 
   const totalCalls = Array.from(usageMap.values()).reduce(
-    (sum, usage) => sum + Array.from(usage.arguments.values()).reduce((s, a) => s + a.usageCount, 0),
+    (sum, usage) =>
+      sum + Array.from(usage.arguments.values()).reduce((s, a) => s + a.usageCount, 0),
     0,
   );
   log(`Found ${totalCalls} partial calls referencing ${usageMap.size} partials\n`);

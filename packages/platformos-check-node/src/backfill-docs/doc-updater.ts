@@ -170,11 +170,7 @@ export async function updateDocInSource(
   const newDocTag = `{% doc %}${newDocContent}{% enddoc %}`;
 
   // Replace the old doc tag with the new one
-  return (
-    source.slice(0, docInfo.startIndex) +
-    newDocTag +
-    source.slice(docInfo.endIndex)
-  );
+  return source.slice(0, docInfo.startIndex) + newDocTag + source.slice(docInfo.endIndex);
 }
 
 /**

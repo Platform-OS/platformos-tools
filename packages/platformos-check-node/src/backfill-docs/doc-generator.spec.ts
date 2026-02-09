@@ -34,10 +34,7 @@ describe('Module: doc-generator', () => {
     });
 
     it('generates doc tag with multiple params', () => {
-      const tag = generateDocTag([
-        '@param {string} [name]',
-        '@param {number} [count]',
-      ]);
+      const tag = generateDocTag(['@param {string} [name]', '@param {number} [count]']);
       expect(tag).toBe(
         '{% doc %}\n  @param {string} [name]\n  @param {number} [count]\n{% enddoc %}\n',
       );

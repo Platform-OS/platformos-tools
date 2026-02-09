@@ -40,10 +40,7 @@ function getPartialName(node: RenderMarkup | FunctionMarkup): string | undefined
  * Merge a new argument into the existing usage map.
  * When the same argument has different types across calls, use 'object'.
  */
-function mergeArgument(
-  existingArgs: Map<string, ArgumentInfo>,
-  arg: LiquidNamedArgument,
-): void {
+function mergeArgument(existingArgs: Map<string, ArgumentInfo>, arg: LiquidNamedArgument): void {
   const inferredType = inferArgumentType(arg.value);
   const existing = existingArgs.get(arg.name);
 

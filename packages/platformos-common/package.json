@@ -11,7 +11,7 @@
     "url": "git+https://github.com/Platform-OS/platformos-tools.git"
   },
   "license": "MIT",
-  "author": "",
+  "author": "platformOS",
   "main": "dist/index.js",
   "scripts": {
     "build": "yarn build:ts",

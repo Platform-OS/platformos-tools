@@ -10,6 +10,10 @@
     "type": "git",
     "url": "git+https://github.com/Platform-OS/platformos-tools.git"
   },
+  "publishConfig": {
+    "access": "public",
+    "@platformos:registry": "https://registry.npmjs.org"
+  },
   "license": "MIT",
   "author": "platformOS",
   "main": "dist/index.js",

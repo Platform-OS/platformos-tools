@@ -1,6 +1,6 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/master/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
   platformOS Tools
 </h1>
@@ -15,7 +15,7 @@
 
 <div align="center">
 
-📝 [Changelog](https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/CHANGELOG.md) |
+📝 [Changelog](https://github.com/Platform-OS/platformos-tools/blob/master/packages/vscode-extension/CHANGELOG.md) |
 📚 [Documentation](https://github.com/Platform-OS/platformos-tools/tree/main/docs) |
 🐛 [Report Issues](https://github.com/Platform-OS/platformos-tools/issues)
 

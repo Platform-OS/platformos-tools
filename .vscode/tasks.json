@@ -27,7 +27,7 @@
     {
       "label": "theme check build",
       "type": "shell",
-      "command": "yarn --cwd packages/theme-check-node build:ts"
+      "command": "yarn --cwd packages/platformos-check-node build:ts"
     },
     {
       "label": "playground",

@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["./src/**/*.ts"],
+  "exclude": ["./dist"],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "rootDir": "src",
+    "lib": [
+      "es2019",
+      "webworker"
+    ],
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "paths": {
+      "@platformos/platformos-check-common": ["../platformos-check-common/src"]
+    }
+  },
+  "references": [
+    { "path": "../platformos-check-common" }
+  ]
+}
+

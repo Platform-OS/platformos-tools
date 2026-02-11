@@ -1,14 +1,14 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Shopify/liquid-tm-grammar/blob/main/images/shopify_glyph.png?raw=true" alt="logo" width="150" height="160">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
-  Shopify Liquid TextMate Grammar
+  platformOS Liquid TextMate Grammar
   <br>
 </h1>
 
-<h4 align="center">The official syntax highlighting grammar for Shopify Liquid</h4>
+<h4 align="center">Syntax highlighting grammar for platformOS Liquid</h4>
 
-This repository contains the official syntax highlighting rules for the [Shopify flavor of Liquid](https://shopify.dev/themes).
+This repository contains the syntax highlighting rules for platformOS Liquid.
 
 [Features](#features) | [Development](#development) | [Credits](#credits)
 

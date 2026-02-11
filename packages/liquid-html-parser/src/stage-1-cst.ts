@@ -84,6 +84,7 @@ export enum ConcreteNodeTypes {
   RenderMarkup = 'RenderMarkup',
   FunctionMarkup = 'FunctionMarkup',
   GraphQLMarkup = 'GraphQLMarkup',
+  GraphQLInlineMarkup = 'GraphQLInlineMarkup',
   PaginateMarkup = 'PaginateMarkup',
   RenderVariableExpression = 'RenderVariableExpression',
   RenderAliasExpression = 'RenderAliasExpression',
@@ -94,6 +95,16 @@ export enum ConcreteNodeTypes {
   LiquidDocDescriptionNode = 'LiquidDocDescriptionNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
   LiquidDocPromptNode = 'LiquidDocPromptNode',
+  // platformos markup types
+  BackgroundMarkup = 'BackgroundMarkup',
+  BackgroundInlineMarkup = 'BackgroundInlineMarkup',
+  CacheMarkup = 'CacheMarkup',
+  LogMarkup = 'LogMarkup',
+  SessionMarkup = 'SessionMarkup',
+  ExportMarkup = 'ExportMarkup',
+  RedirectToMarkup = 'RedirectToMarkup',
+  IncludeFormMarkup = 'IncludeFormMarkup',
+  SpamProtectionMarkup = 'SpamProtectionMarkup',
 }
 
 export const LiquidLiteralValues = {
@@ -240,12 +251,19 @@ export type ConcreteLiquidTagOpen = ConcreteLiquidTagOpenBaseCase | ConcreteLiqu
 export type ConcreteLiquidTagOpenNamed =
   | ConcreteLiquidTagOpenCase
   | ConcreteLiquidTagOpenCapture
+  | ConcreteLiquidTagOpenGraphQL
   | ConcreteLiquidTagOpenIf
   | ConcreteLiquidTagOpenUnless
   | ConcreteLiquidTagOpenForm
   | ConcreteLiquidTagOpenFor
   | ConcreteLiquidTagOpenPaginate
-  | ConcreteLiquidTagOpenTablerow;
+  | ConcreteLiquidTagOpenTablerow
+  // platformos block tags
+  | ConcreteLiquidTagOpenBackground
+  | ConcreteLiquidTagOpenCache
+  | ConcreteLiquidTagOpenParseJson
+  | ConcreteLiquidTagOpenTransaction
+  | ConcreteLiquidTagOpenTry;
 
 export interface ConcreteLiquidTagOpenNode<Name, Markup>
   extends ConcreteBasicLiquidNode<ConcreteNodeTypes.LiquidTagOpen> {
@@ -260,6 +278,8 @@ export interface ConcreteLiquidTagOpenCapture
 
 export interface ConcreteLiquidTagOpenCase
   extends ConcreteLiquidTagOpenNode<NamedTags.case, ConcreteLiquidExpression> {}
+export interface ConcreteLiquidTagOpenGraphQL
+  extends ConcreteLiquidTagOpenNode<NamedTags.graphql, ConcreteLiquidTagGraphQLInlineMarkup> {}
 export interface ConcreteLiquidTagWhen
   extends ConcreteLiquidTagNode<NamedTags.when, ConcreteLiquidExpression[]> {}
 
@@ -329,7 +349,25 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagGraphQL
   | ConcreteLiquidTagSection
   | ConcreteLiquidTagSections
-  | ConcreteLiquidTagWhen;
+  | ConcreteLiquidTagWhen
+  // platformos tags
+  | ConcreteLiquidTagBackground
+  | ConcreteLiquidTagCatch
+  | ConcreteLiquidTagContext
+  | ConcreteLiquidTagExport
+  | ConcreteLiquidTagIncludeForm
+  | ConcreteLiquidTagLog
+  | ConcreteLiquidTagPrint
+  | ConcreteLiquidTagRedirectTo
+  | ConcreteLiquidTagResponseHeaders
+  | ConcreteLiquidTagResponseStatus
+  | ConcreteLiquidTagReturn
+  | ConcreteLiquidTagRollback
+  | ConcreteLiquidTagSession
+  | ConcreteLiquidTagSignIn
+  | ConcreteLiquidTagSpamProtection
+  | ConcreteLiquidTagThemeRenderRc
+  | ConcreteLiquidTagYield;
 
 export interface ConcreteLiquidTagNode<Name, Markup>
   extends ConcreteBasicLiquidNode<ConcreteNodeTypes.LiquidTag> {
@@ -371,7 +409,7 @@ export interface ConcreteLiquidTagHashAssign
   extends ConcreteLiquidTagNode<NamedTags.hash_assign, ConcreteLiquidTagHashAssignMarkup> {}
 export interface ConcreteLiquidTagHashAssignMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.HashAssignMarkup> {
-  name: string;
+  target: ConcreteLiquidVariableLookup;
   value: ConcreteLiquidVariable;
 }
 
@@ -394,6 +432,57 @@ export interface ConcreteLiquidTagFunction
   extends ConcreteLiquidTagNode<NamedTags.function, ConcreteLiquidTagFunctionMarkup> {}
 export interface ConcreteLiquidTagGraphQL
   extends ConcreteLiquidTagNode<NamedTags.graphql, ConcreteLiquidTagGraphQLMarkup> {}
+
+// platformos simple tag interfaces
+export interface ConcreteLiquidTagBackground
+  extends ConcreteLiquidTagNode<NamedTags.background, ConcreteLiquidTagBackgroundMarkup> {}
+export interface ConcreteLiquidTagCatch
+  extends ConcreteLiquidTagNode<NamedTags.catch, ConcreteLiquidVariableLookup> {}
+export interface ConcreteLiquidTagContext
+  extends ConcreteLiquidTagNode<NamedTags.context, ConcreteLiquidNamedArgument[]> {}
+export interface ConcreteLiquidTagExport
+  extends ConcreteLiquidTagNode<NamedTags.export, ConcreteLiquidTagExportMarkup> {}
+export interface ConcreteLiquidTagIncludeForm
+  extends ConcreteLiquidTagNode<NamedTags.include_form, ConcreteLiquidTagIncludeFormMarkup> {}
+export interface ConcreteLiquidTagLog
+  extends ConcreteLiquidTagNode<NamedTags.log, ConcreteLiquidTagLogMarkup> {}
+export interface ConcreteLiquidTagPrint
+  extends ConcreteLiquidTagNode<NamedTags.print, ConcreteLiquidVariable> {}
+export interface ConcreteLiquidTagRedirectTo
+  extends ConcreteLiquidTagNode<NamedTags.redirect_to, ConcreteLiquidTagRedirectToMarkup> {}
+export interface ConcreteLiquidTagResponseHeaders
+  extends ConcreteLiquidTagNode<NamedTags.response_headers, ConcreteLiquidExpression> {}
+export interface ConcreteLiquidTagResponseStatus
+  extends ConcreteLiquidTagNode<NamedTags.response_status, ConcreteNumberLiteral> {}
+export interface ConcreteLiquidTagReturn
+  extends ConcreteLiquidTagNode<NamedTags.return, ConcreteLiquidVariable> {}
+export interface ConcreteLiquidTagRollback
+  extends ConcreteLiquidTagNode<NamedTags.rollback, string> {}
+export interface ConcreteLiquidTagSession
+  extends ConcreteLiquidTagNode<NamedTags.session, ConcreteLiquidTagSessionMarkup> {}
+export interface ConcreteLiquidTagSignIn
+  extends ConcreteLiquidTagNode<NamedTags.sign_in, ConcreteLiquidNamedArgument[]> {}
+export interface ConcreteLiquidTagSpamProtection
+  extends ConcreteLiquidTagNode<NamedTags.spam_protection, ConcreteLiquidTagSpamProtectionMarkup> {}
+export interface ConcreteLiquidTagThemeRenderRc
+  extends ConcreteLiquidTagNode<NamedTags.theme_render_rc, ConcreteLiquidTagRenderMarkup> {}
+export interface ConcreteLiquidTagYield
+  extends ConcreteLiquidTagNode<NamedTags.yield, ConcreteLiquidExpression> {}
+
+// platformos block tag open interfaces
+export interface ConcreteLiquidTagOpenBackground
+  extends ConcreteLiquidTagOpenNode<
+    NamedTags.background,
+    ConcreteLiquidTagBackgroundInlineMarkup
+  > {}
+export interface ConcreteLiquidTagOpenCache
+  extends ConcreteLiquidTagOpenNode<NamedTags.cache, ConcreteLiquidTagCacheMarkup> {}
+export interface ConcreteLiquidTagOpenParseJson
+  extends ConcreteLiquidTagOpenNode<NamedTags.parse_json, ConcreteLiquidVariableLookup> {}
+export interface ConcreteLiquidTagOpenTransaction
+  extends ConcreteLiquidTagOpenNode<NamedTags.transaction, ConcreteLiquidNamedArgument[]> {}
+export interface ConcreteLiquidTagOpenTry
+  extends ConcreteLiquidTagOpenNode<NamedTags.try, string> {}
 
 export interface ConcreteLiquidTagContentForMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.ContentForMarkup> {
@@ -421,6 +510,67 @@ export interface ConcreteLiquidTagGraphQLMarkup
   name: string;
   graphql: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagGraphQLInlineMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.GraphQLInlineMarkup> {
+  name: string;
+  args: ConcreteLiquidNamedArgument[];
+}
+
+// platformos markup interfaces
+export interface ConcreteLiquidTagBackgroundMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.BackgroundMarkup> {
+  jobId: string;
+  partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
+  args: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagBackgroundInlineMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.BackgroundInlineMarkup> {
+  jobId: ConcreteLiquidVariableLookup;
+  args: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagCacheMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.CacheMarkup> {
+  key: ConcreteLiquidExpression;
+  args: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagLogMarkup extends ConcreteBasicNode<ConcreteNodeTypes.LogMarkup> {
+  value: ConcreteLiquidExpression;
+  args: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagSessionMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.SessionMarkup> {
+  name: string;
+  value: ConcreteLiquidExpression;
+}
+
+export interface ConcreteLiquidTagExportMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.ExportMarkup> {
+  variables: ConcreteLiquidVariableLookup[];
+  namespace: ConcreteLiquidNamedArgument;
+}
+
+export interface ConcreteLiquidTagRedirectToMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.RedirectToMarkup> {
+  url: ConcreteLiquidExpression;
+  args: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagIncludeFormMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.IncludeFormMarkup> {
+  form: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
+  args: ConcreteLiquidNamedArgument[];
+}
+
+export interface ConcreteLiquidTagSpamProtectionMarkup
+  extends ConcreteBasicNode<ConcreteNodeTypes.SpamProtectionMarkup> {
+  version: ConcreteLiquidExpression;
+  args: ConcreteLiquidNamedArgument[];
 }
 
 export interface ConcreteRenderVariableExpression
@@ -781,6 +931,7 @@ function toCST<T>(
     liquidTagOpenForm: 0,
     liquidTagOpenFormMarkup: 0,
     liquidTagOpenFor: 0,
+    liquidTagOpenGraphQL: 0,
     liquidTagOpenForMarkup: {
       type: ConcreteNodeTypes.ForMarkup,
       variableName: 0,
@@ -902,7 +1053,7 @@ function toCST<T>(
     },
     liquidTagHashAssignMarkup: {
       type: ConcreteNodeTypes.HashAssignMarkup,
-      name: 0,
+      target: 0,
       value: 4,
       locStart,
       locEnd,
@@ -956,6 +1107,119 @@ function toCST<T>(
       locEnd,
       source,
     },
+    liquidTagGraphQLInlineMarkup: {
+      type: ConcreteNodeTypes.GraphQLInlineMarkup,
+      name: 0,
+      args: 1,
+      locStart,
+      locEnd,
+      source,
+    },
+
+    // platformos tag mappings
+    liquidTagBackground: 0,
+    liquidTagBackgroundMarkup: {
+      type: ConcreteNodeTypes.BackgroundMarkup,
+      jobId: 0,
+      partial: 4,
+      args: 5,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagOpenBackground: 0,
+    liquidTagBackgroundInlineMarkup: {
+      type: ConcreteNodeTypes.BackgroundInlineMarkup,
+      jobId: 0,
+      args: 2,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagOpenCache: 0,
+    liquidTagCacheMarkup: {
+      type: ConcreteNodeTypes.CacheMarkup,
+      key: 0,
+      args: 1,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagOpenParseJson: 0,
+    liquidTagOpenTransaction: 0,
+    liquidTagOpenTransactionMarkup: 0,
+    liquidTagOpenTry: 0,
+    liquidTagCatch: 0,
+    liquidTagLog: 0,
+    liquidTagLogMarkup: {
+      type: ConcreteNodeTypes.LogMarkup,
+      value: 0,
+      args: 1,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagPrint: 0,
+    liquidTagReturn: 0,
+    liquidTagYield: 0,
+    liquidTagYieldMarkup: 0,
+    liquidTagSession: 0,
+    liquidTagSessionMarkup: {
+      type: ConcreteNodeTypes.SessionMarkup,
+      name: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagExport: 0,
+    liquidTagExportMarkup: {
+      type: ConcreteNodeTypes.ExportMarkup,
+      variables: 0,
+      namespace: 2,
+      locStart,
+      locEnd,
+      source,
+    },
+    exportVariable: 0,
+    liquidTagContext: 0,
+    liquidTagContextMarkup: 0,
+    liquidTagSignIn: 0,
+    liquidTagSignInMarkup: 0,
+    liquidTagRedirectTo: 0,
+    liquidTagRedirectToMarkup: {
+      type: ConcreteNodeTypes.RedirectToMarkup,
+      url: 0,
+      args: 1,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagIncludeForm: 0,
+    liquidTagIncludeFormMarkup: {
+      type: ConcreteNodeTypes.IncludeFormMarkup,
+      form: 0,
+      args: 1,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagSpamProtection: 0,
+    liquidTagSpamProtectionMarkup: {
+      type: ConcreteNodeTypes.SpamProtectionMarkup,
+      version: 0,
+      args: 1,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagThemeRenderRc: 0,
+    liquidTagResponseStatus: 0,
+    liquidTagResponseStatusMarkup: 0,
+    liquidTagResponseHeaders: 0,
+    liquidTagResponseHeadersMarkup: 0,
+    liquidTagRollback: 0,
+
     renderArguments: 1,
     completionModeRenderArguments: function (
       _0,

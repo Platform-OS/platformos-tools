@@ -3,11 +3,11 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [
-    ["@shopify/prettier-plugin-liquid"],
-    ["@shopify/theme-language-server-*"],
-    ["@shopify/theme-check-*"],
-    ["@shopify/theme-graph"],
-    ["theme-check-vscode"]
+    ["@platformos/prettier-plugin-liquid"],
+    ["@platformos/platformos-language-server-*"],
+    ["@platformos/platformos-check-*"],
+    ["@platformos/platformos-graph"],
+    ["platformos-check-vscode"]
   ],
   "linked": [],
   "access": "restricted",

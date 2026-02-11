@@ -67,6 +67,24 @@ Liquid <: Helpers {
     | liquidTagSection
     | liquidTagSections
     | liquidTagWhen
+    // platformos tags
+    | liquidTagBackground
+    | liquidTagCatch
+    | liquidTagContext
+    | liquidTagExport
+    | liquidTagIncludeForm
+    | liquidTagLog
+    | liquidTagPrint
+    | liquidTagRedirectTo
+    | liquidTagResponseHeaders
+    | liquidTagResponseStatus
+    | liquidTagReturn
+    | liquidTagRollback
+    | liquidTagSession
+    | liquidTagSignIn
+    | liquidTagSpamProtection
+    | liquidTagThemeRenderRc
+    | liquidTagYield
 
   liquidTag =
     | liquidTagStrict
@@ -77,10 +95,21 @@ Liquid <: Helpers {
     | liquidTagOpenCapture
     | liquidTagOpenForm
     | liquidTagOpenFor
+    | liquidTagOpenGraphQL
     | liquidTagOpenTablerow
     | liquidTagOpenIf
     | liquidTagOpenPaginate
     | liquidTagOpenUnless
+    // platformos block tags
+    | liquidTagOpenBackground
+    | liquidTagOpenCache
+    | liquidTagOpenParseJson
+    | liquidTagOpenTransaction
+    | liquidTagOpenTry
+
+  liquidTagOpenGraphQL = liquidTagOpenRule<"graphql", liquidTagGraphQLInlineMarkup>
+  // Use negative lookahead to exclude file-based syntax (with "=")
+  liquidTagGraphQLInlineMarkup = variableSegment ~(space* "=") renderArguments
 
   liquidTagOpen =
     | liquidTagOpenStrict
@@ -103,7 +132,7 @@ Liquid <: Helpers {
   liquidTagAssignMarkup = variableSegment space* "=" space* liquidVariable<delimTag>
 
   liquidTagHashAssign = liquidTagRule<"hash_assign", liquidTagHashAssignMarkup>
-  liquidTagHashAssignMarkup = variableSegment space* "=" space* liquidVariable<delimTag>
+  liquidTagHashAssignMarkup = liquidVariableLookup<delimTag> space* "=" space* liquidVariable<delimTag>
 
   liquidTagCycle = liquidTagRule<"cycle", liquidTagCycleMarkup>
   liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidExpression<delimTag>, argumentSeparator> space*
@@ -155,6 +184,70 @@ Liquid <: Helpers {
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
   liquidTagGraphQLMarkup = variableSegment space* "=" space* snippetExpression renderArguments
 
+  // platformos simple tags
+  liquidTagBackground = liquidTagRule<"background", liquidTagBackgroundMarkup>
+  liquidTagBackgroundMarkup = variableSegment space* "=" space* snippetExpression renderArguments
+
+  liquidTagOpenBackground = liquidTagOpenRule<"background", liquidTagBackgroundInlineMarkup>
+  // Use negative lookahead to exclude file-based syntax (with "=")
+  // jobId is required before any arguments
+  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") variableSegmentAsLookup argumentSeparatorOptionalComma tagArguments space*
+
+  liquidTagOpenCache = liquidTagOpenRule<"cache", liquidTagCacheMarkup>
+  liquidTagCacheMarkup = liquidExpression<delimTag> renderArguments
+
+  liquidTagOpenParseJson = liquidTagOpenRule<"parse_json", variableSegmentAsLookupMarkup>
+
+  liquidTagOpenTransaction = liquidTagOpenRule<"transaction", liquidTagOpenTransactionMarkup>
+  liquidTagOpenTransactionMarkup = tagArguments space*
+
+  liquidTagOpenTry = liquidTagOpenRule<"try", empty>
+
+  liquidTagCatch = liquidTagRule<"catch", variableSegmentAsLookupMarkup>
+
+  liquidTagLog = liquidTagRule<"log", liquidTagLogMarkup>
+  liquidTagLogMarkup = liquidExpression<delimTag> renderArguments
+
+  liquidTagPrint = liquidTagRule<"print", liquidTagEchoMarkup>
+
+  liquidTagReturn = liquidTagRule<"return", liquidTagEchoMarkup>
+
+  liquidTagYield = liquidTagRule<"yield", liquidTagYieldMarkup>
+  liquidTagYieldMarkup = liquidExpression<delimTag> space*
+
+  liquidTagSession = liquidTagRule<"session", liquidTagSessionMarkup>
+  liquidTagSessionMarkup = variableSegment space* "=" space* liquidExpression<delimTag> space*
+
+  liquidTagExport = liquidTagRule<"export", liquidTagExportMarkup>
+  liquidTagExportMarkup = nonemptyListOf<exportVariable, argumentSeparator> argumentSeparatorOptionalComma namedArgument<delimTag> space*
+  // Variable lookup that is NOT followed by ":" (to distinguish from named arguments)
+  exportVariable = variableSegmentAsLookup ~(space* ":")
+
+  liquidTagContext = liquidTagRule<"context", liquidTagContextMarkup>
+  liquidTagContextMarkup = tagArguments space*
+
+  liquidTagSignIn = liquidTagRule<"sign_in", liquidTagSignInMarkup>
+  liquidTagSignInMarkup = tagArguments space*
+
+  liquidTagRedirectTo = liquidTagRule<"redirect_to", liquidTagRedirectToMarkup>
+  liquidTagRedirectToMarkup = liquidExpression<delimTag> renderArguments
+
+  liquidTagIncludeForm = liquidTagRule<"include_form", liquidTagIncludeFormMarkup>
+  liquidTagIncludeFormMarkup = snippetExpression renderArguments
+
+  liquidTagSpamProtection = liquidTagRule<"spam_protection", liquidTagSpamProtectionMarkup>
+  liquidTagSpamProtectionMarkup = liquidExpression<delimTag> renderArguments
+
+  liquidTagThemeRenderRc = liquidTagRule<"theme_render_rc", liquidTagRenderMarkup>
+
+  liquidTagResponseStatus = liquidTagRule<"response_status", liquidTagResponseStatusMarkup>
+  liquidTagResponseStatusMarkup = liquidNumber space*
+
+  liquidTagResponseHeaders = liquidTagRule<"response_headers", liquidTagResponseHeadersMarkup>
+  liquidTagResponseHeadersMarkup = liquidExpression<delimTag> space*
+
+  liquidTagRollback = liquidTagRule<"rollback", empty>
+
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?
   snippetExpression = liquidString<delimTag> | variableSegmentAsLookup
@@ -162,7 +255,24 @@ Liquid <: Helpers {
   renderVariableExpression = space+ ("for" | "with") space+ liquidExpression<delimTag>
   renderAliasExpression = space+ "as" space+ variableSegment
 
-  liquidTagOpenBaseCase = liquidTagOpenRule<blockName, tagMarkup>
+  // Exclude graphql and background from base case since they have special handling
+  liquidTagOpenBaseCase = liquidTagOpenRule<blockNameNotSpecial, tagMarkup>
+  blockNameNotSpecial =
+    ( "form"
+    | "paginate"
+    | "capture"
+    | "case"
+    | "for"
+    | "ifchanged"
+    | "if"
+    | "unless"
+    | "tablerow"
+    // platformos blocks that need base case handling
+    | "cache"
+    | "parse_json"
+    | "transaction"
+    | "try"
+    ) endOfIdentifier
 
   liquidTagOpenForm = liquidTagOpenRule<"form", liquidTagOpenFormMarkup>
   liquidTagOpenFormMarkup = arguments<delimTag> (space* ",")? space*
@@ -331,10 +441,17 @@ Liquid <: Helpers {
     | "capture"
     | "case"
     | "for"
+    | "graphql"
     | "ifchanged"
     | "if"
     | "unless"
     | "tablerow"
+    // platformos blocks
+    | "background"
+    | "cache"
+    | "parse_json"
+    | "transaction"
+    | "try"
     ) endOfIdentifier
 
   delimTag = "-%}" | "%}"

@@ -16,8 +16,8 @@ export default defineConfig({
       },
     },
     setupFiles: [
-      './packages/theme-check-common/src/test/test-setup.ts',
-      './packages/theme-language-server-common/src/test/test-setup.ts',
+      './packages/platformos-check-common/src/test/test-setup.ts',
+      './packages/platformos-language-server-common/src/test/test-setup.ts'
     ],
   },
 });

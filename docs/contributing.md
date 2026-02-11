@@ -6,7 +6,6 @@ Thank you for your interest in contributing to platformos-tools! Your contributi
 
 - [Setting Up Your Environment](#setting-up-your-environment)
 - [Setup for the VS Code Extension](#setup-for-the-vscode-extension)
-- [Setup for the Online Store](#setup-for-the-online-store)
 - [Submitting a Pull Request](#submitting-a-pull-request)
 - [Reporting Issues](#reporting-issues)
 - [Code of Conduct](#code-of-conduct)
@@ -52,7 +51,7 @@ Once you've made some changes to your local platformos-tools packages, to see th
 
 ### Developing for codemirror-language-client
 
-Run the following command to start a browser instance that runs `@platformos/theme-language-server-browser`.
+Run the following command to start a browser instance for the CodeMirror language client playground.
 
 ```
 yarn playground
@@ -62,7 +61,7 @@ yarn playground
 
 #### In Chrome
 
-Run the following command to start a `@vscode/test-web` instance in Chrome with the Shopify Liquid extension loaded.
+Run the following command to start a `@vscode/test-web` instance in Chrome with the platformOS Liquid extension loaded.
 
 ```bash
 yarn dev:web

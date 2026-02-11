@@ -25,7 +25,7 @@
 
 This section is intended for internal folks.
 
-### Shopify/CLI
+### pos-cli
 
 1. Upgrade deps and commit
 
@@ -34,19 +34,13 @@ This section is intended for internal folks.
    git checkout origin/main
    branch="bump-platformos-tools-$(date -u '+%Y-%m-%d')"
    git checkout -b $branch
-   pnpm recursive --filter @platformos/theme update --latest @platformos/theme-language-server-node @platformos/theme-check-node
-   pnpm recursive --filter @platformos/app update --latest @platformos/theme-check-node
-   git checkout pnpm-lock.yaml
-   pnpm install
-   pnpm changeset add
+   # Update dependencies as needed based on the packages that were released
    git add .
    git commit -m 'Bump Platform-OS/platformos-tools packages'
    git push origin $branch
    ```
 
 2. Make your PR
-
-3. [Create a patch release](https://vault.shopify.io/teams/2493/pages/Releasing~FkHb.md#creating-a-new-patch-version) if [the next minor release](https://vault.shopify.io/teams/2493/pages/Releasing~FkHb.md#release-schedule) is more than one week away
 
 ## Release Orchestrator FAQ
 ### What does this project do?
@@ -79,10 +73,10 @@ By that ommission, one might think we should not update these internal dependenc
 
 #### Consider the example:
 
-A react app uses `@platformos/theme-language-server-browser` to drive theme-check on a web page.
-We add 3 new checks to `@platformos/theme-check-common` but add no breaking changes. This would be a minor version bump.
+A package in the monorepo depends on `@platformos/platformos-common` for shared utilities.
+We add important changes to `@platformos/platformos-common` with no breaking changes. This would be a minor version bump.
 
-If we don't patch bump `@platformos/theme-language-server-browser`, then the react app would never get any of the new checks until we end up updating `@platformos/theme-language-server-browser` for unrelated reasons. We split out the different components of theme-check into separate packages for reusability but when it is used by a dependant package, we consider it as part of the functionality of that dependant package.
+If we don't patch bump the dependent packages, they would not get the updates until we end up modifying them for unrelated reasons. We split out common functionality into separate packages for reusability, but when used by a dependent package, we consider it as part of that package's functionality.
 
 Our takeaway from this real usecase is that it is necessary to apply these patch version bumps in order to deliver updates consistently to end developers who depend on them.
 
@@ -91,11 +85,10 @@ For context, this refers to [the library's documented config option](https://git
 
 At the time of writing this doc; the end of that documentation states: `this is only applied for packages which are already released in the current release. If A depends on B and we only release B then A won't be bumped.`
 
-This affects an important case for us: Nested monorail dependencies relying on each other. Consider this actual relationship within the platformos-tools repo:
-`@platformos/theme-language-server-node` depends on `@platformos/theme-language-server-common` which depends on `@platformos/theme-check-common`.
+This affects an important case for us: Nested monorepo dependencies relying on each other. For packages with nested dependency chains within the platformos-tools repo.
 
 Please note we [already have `@changesets/cli` configured with `updateinternaldependencies: patch`](../.changeset/config.json) for its ability to patch bump internal dependencies once they are already in the release.
 
-When we perform a release where there is an update to the minor version of `@platformos/theme-check-common`, but no update to `@platformos/theme-language-server-common`, then `changesets version`(the main command we use to apply a version bump) will not change `@platformos/theme-language-server-common` or `@platformos/theme-language-server-node`. So effectively we would have needed to manually bump those two packages within our monorepo before they could have access to the updates in `@platformos/theme-check-common`. Its high context, boring and repetitive dependency management work that's easy to miss which could result in outdated logic running under our noses. The `release-orchestrator` package enables us to automatically resolve any nested internal dependencies within the monorepo so that we don't need to worry about it.
+When we perform a release where there is an update to the minor version of a core package, but no update to packages that depend on it, then `changesets version` (the main command we use to apply a version bump) will not automatically bump those dependent packages. This could result in outdated logic running. The `release-orchestrator` package enables us to automatically resolve any nested internal dependencies within the monorepo so that we don't need to worry about it.
 
 Should `@changesets/cli` ever consider changing `updateinternaldependencies: patch`to apply to all packages outside of the current release, we may scrap this package.

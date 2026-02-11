@@ -1,15 +1,15 @@
-import { findRoot, makeFileExists } from '@platformos/theme-check-common';
+import { findRoot, makeFileExists } from '@platformos/platformos-check-common';
 import {
   Dependencies,
   getConnection,
   recommendedChecks,
   startServer,
-} from '@platformos/theme-language-server-browser';
+} from '@platformos/platformos-language-server-browser';
 import { VsCodeFileSystem } from '../common/VsCodeFileSystem';
 
 /**
  * These are replaced at build time by the contents of
- * @platformos/theme-check-docs-updater's DocsManager
+ * @platformos/platformos-check-docs-updater's DocsManager
  */
 declare global {
   export const WEBPACK_TAGS: any[];

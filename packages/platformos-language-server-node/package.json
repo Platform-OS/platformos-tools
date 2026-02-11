@@ -1,0 +1,42 @@
+{
+  "name": "@platformos/platformos-language-server-node",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "platformOS",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-language-server-node#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Platform-OS/platformos-tools.git",
+    "directory": "packages/platformos-language-server-node"
+  },
+  "bugs": {
+    "url": "https://github.com/Platform-OS/platformos-tools/issues"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "@platformos:registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "yarn build:ts",
+    "build:ci": "yarn build",
+    "build:ts": "tsc -b tsconfig.build.json",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@platformos/platformos-check-docs-updater": "0.0.1",
+    "@platformos/platformos-check-node": "0.0.1",
+    "@platformos/platformos-language-server-common": "0.0.1",
+    "glob": "^8.0.3",
+    "node-fetch": "^2.6.11",
+    "vscode-languageserver": "^8.0.2",
+    "vscode-uri": "^3.0.7"
+  },
+  "devDependencies": {
+    "@types/node-fetch": "^2.6.4",
+    "mktemp": "^1.0.1"
+  }
+}

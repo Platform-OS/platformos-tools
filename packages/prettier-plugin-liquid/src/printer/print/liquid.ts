@@ -271,6 +271,57 @@ function printNamedLiquidBlockStart(
       ]);
     }
 
+    // platformos tags
+    case NamedTags.background: {
+      const markup = node.markup;
+      const trailingWhitespace = markup.args.length > 0 ? line : ' ';
+      return tag(trailingWhitespace);
+    }
+    case NamedTags.cache: {
+      const trailingWhitespace = node.markup.args.length > 0 ? line : ' ';
+      return tag(trailingWhitespace);
+    }
+    case NamedTags.context:
+    case NamedTags.sign_in:
+    case NamedTags.transaction: {
+      const trailingWhitespace = node.markup.length > 0 ? line : ' ';
+      return tagWithArrayMarkup(trailingWhitespace);
+    }
+    case NamedTags.export: {
+      const trailingWhitespace =
+        node.markup.variables.length > 1 || node.markup.namespace ? line : ' ';
+      return tag(trailingWhitespace);
+    }
+    case NamedTags.include_form:
+    case NamedTags.spam_protection:
+    case NamedTags.theme_render_rc: {
+      const trailingWhitespace = node.markup.args.length > 0 ? line : ' ';
+      return tag(trailingWhitespace);
+    }
+    case NamedTags.log:
+    case NamedTags.redirect_to: {
+      const trailingWhitespace = node.markup.args.length > 0 ? line : ' ';
+      return tag(trailingWhitespace);
+    }
+    case NamedTags.parse_json:
+    case NamedTags.catch: {
+      return tag(' ');
+    }
+    case NamedTags.print:
+    case NamedTags.return:
+    case NamedTags.yield:
+    case NamedTags.response_headers:
+    case NamedTags.response_status: {
+      return tag(' ');
+    }
+    case NamedTags.session: {
+      return tag(' ');
+    }
+    case NamedTags.rollback:
+    case NamedTags.try: {
+      return tag('');
+    }
+
     default: {
       return assertNever(node);
     }

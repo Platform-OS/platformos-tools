@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": [
+    "./src/**/*.ts"
+  ],
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "baseUrl": ".",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "paths": {
+      "@platformos/platformos-check-common": ["../platformos-check-common/src"],
+      "@platformos/liquid-html-parser": ["../liquid-html-parser/src"],
+      "@platformos/platformos-graph": ["../platformos-graph/src"],
+      "@platformos/platformos-common": ["../platformos-common/src"]
+    }
+  },
+  "references": [
+    { "path": "../platformos-check-common" },
+    { "path": "../liquid-html-parser" },
+    { "path": "../platformos-graph" },
+    { "path": "../platformos-common" }
+  ]
+}

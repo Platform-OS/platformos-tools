@@ -23,3 +23,4 @@ packages/lang-jsonc/src/parser.*
 .vscode-test-web
 packages/theme-graph/playground/src/graph.json
 .claude
+.devcontainer

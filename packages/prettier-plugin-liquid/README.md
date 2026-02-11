@@ -57,10 +57,6 @@ See our [Wiki](https://github.com/Platform-OS/platformos-tools/wiki) pages on th
 - [As a pre-commit hook](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-as-a-pre-commit-hook)
 - [With a bundler](https://github.com/Platform-OS/platformos-tools/wiki/Use-it-with-a-bundler)
 
-## Playground
-
-You can try it out in your browser in the [playground](https://shopify.github.io/prettier-plugin-liquid/).
-
 ## Configuration
 
 Prettier for Liquid supports the following options.

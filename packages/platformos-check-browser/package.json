@@ -5,7 +5,7 @@
   "types": "dist/index.d.ts",
   "license": "MIT",
   "author": "platformOS",
-  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-check-browser#readme",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/platformos-check-browser#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/Platform-OS/platformos-tools.git",

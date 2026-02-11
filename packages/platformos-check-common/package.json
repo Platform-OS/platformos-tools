@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "platformOS",
-  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-check-common#readme",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/platformos-check-common#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/Platform-OS/platformos-tools.git",

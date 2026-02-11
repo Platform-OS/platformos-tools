@@ -7,7 +7,7 @@
     "@platformos:registry": "https://registry.npmjs.org"
   },
   "author": "platformOS",
-  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/lang-jsonc#readme",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/lang-jsonc#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/Platform-OS/platformos-tools.git",

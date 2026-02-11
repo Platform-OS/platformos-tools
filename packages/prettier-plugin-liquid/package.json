@@ -3,7 +3,7 @@
   "version": "0.0.3",
   "description": "Prettier Liquid/HTML plugin for platformOS",
   "author": "platformOS",
-  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/prettier-plugin-liquid#readme",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/prettier-plugin-liquid#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/Platform-OS/platformos-tools.git",

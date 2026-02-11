@@ -3,7 +3,7 @@
   "version": "0.0.3",
   "description": "Liquid HTML parser for platformOS",
   "author": "platformOS",
-  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/liquid-html-parser#readme",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/liquid-html-parser#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/Platform-OS/platformos-tools.git",

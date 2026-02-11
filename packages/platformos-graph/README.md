@@ -55,7 +55,7 @@ See [types.md](./src/types.ts) for more details and [how-it-works.md](./docs/how
 ## Installation
 
 ```bash
-npm install @platformos/theme-graph
+npm install @platformos/platformos-graph
 ```
 
 ## Usage
@@ -68,15 +68,15 @@ The theme graph is used by the VS Code extension to power the dependencies, refe
 
 ```
 Usage:
-  theme-graph <path-to-theme-directory>
+  platformos-graph <path-to-theme-directory>
 
 Example:
-  theme-graph horizon > graph.json
+  platformos-graph horizon > graph.json
 ```
 
 ### As a library
 
-[See bin/theme-graph](./bin/theme-graph) for inspiration.
+[See bin/platformos-graph](./bin/platformos-graph) for inspiration.
 
 ## Contributing
 

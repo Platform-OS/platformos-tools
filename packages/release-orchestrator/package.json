@@ -1,6 +1,6 @@
 {
   "name": "release-orchestrator",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Internal platformos-tools package for handling the release process.",
   "main": "dist/index.js",
   "author": "platformOS",

@@ -1,5 +1,14 @@
 ## platformos-check-vscode
 
-## 1.0.0
+## 0.0.2
 
-- Initial release of the PlatformOS Check VSCode extension.
+### Patch Changes
+
+- Beta release
+- Updated dependencies
+  - @platformos/liquid-html-parser@0.0.2
+  - @platformos/platformos-check-common@0.0.2
+  - @platformos/platformos-language-server-browser@0.0.2
+  - @platformos/platformos-language-server-common@0.0.2
+  - @platformos/platformos-language-server-node@0.0.2
+  - @platformos/prettier-plugin-liquid@0.0.2

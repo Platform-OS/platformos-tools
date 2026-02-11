@@ -1,4 +1,4 @@
-# @platformos/liquid-html-parser
+# @platformos/platformos-common
 
 ## 0.0.2
 

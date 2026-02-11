@@ -8,9 +8,7 @@
 <h4 align="center">A comprehensive suite of developer tools for platformOS Liquid development</h4>
 
 <p align="center">
-  <a href="https://github.com/Platform-OS/platformos-tools/blob/master/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
   <a href="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/Platform-OS/platformos-tools/issues"><img alt="Issues" src="https://img.shields.io/github/issues/Platform-OS/platformos-tools"></a>
 </p>
 
 <div align="center">

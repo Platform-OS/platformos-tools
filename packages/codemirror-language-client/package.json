@@ -1,6 +1,6 @@
 {
   "name": "@platformos/codemirror-language-client",
-  "version": "0.7.4",
+  "version": "0.0.1",
   "description": "A Language Client for CodeMirror",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/codemirror-language-client#readme",

@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-graph",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Shopify Theme Graph as a data structure",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/main/packages/platformos-graph#readme",

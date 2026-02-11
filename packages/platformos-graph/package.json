@@ -29,13 +29,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^2.9.0",
-    "@platformos/platformos-check-common": "1.0.0",
+    "@platformos/liquid-html-parser": "^0.0.1",
+    "@platformos/platformos-check-common": "0.0.1",
     "acorn": "^8.14.1",
     "acorn-walk": "^8.3.4",
     "vscode-uri": "^3.0.7"
   },
   "devDependencies": {
-    "@platformos/platformos-check-node": "1.0.0"
+    "@platformos/platformos-check-node": "0.0.1"
   }
 }

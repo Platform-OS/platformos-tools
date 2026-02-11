@@ -61,18 +61,18 @@
     "vscode": "^1.104.0"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^2.9.0",
-    "@platformos/prettier-plugin-liquid": "^1.10.0",
-    "@platformos/platformos-check-common": "1.0.0",
-    "@platformos/platformos-language-server-browser": "1.0.0",
-    "@platformos/platformos-language-server-common": "1.0.0",
-    "@platformos/platformos-language-server-node": "1.0.0",
+    "@platformos/liquid-html-parser": "^0.0.1",
+    "@platformos/prettier-plugin-liquid": "^0.0.1",
+    "@platformos/platformos-check-common": "0.0.1",
+    "@platformos/platformos-language-server-browser": "0.0.1",
+    "@platformos/platformos-language-server-common": "0.0.1",
+    "@platformos/platformos-language-server-node": "0.0.1",
     "prettier": "^2.6.2",
     "vscode-languageclient": "^8.1.0",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@platformos/platformos-check-docs-updater": "1.0.0",
+    "@platformos/platformos-check-docs-updater": "0.0.1",
     "@types/glob": "^8.0.0",
     "@types/node": "^22",
     "@types/prettier": "^2.4.2",

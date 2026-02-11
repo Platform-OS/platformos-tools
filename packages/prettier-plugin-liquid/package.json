@@ -59,7 +59,7 @@
     "tsconfig-paths": "^3.14.1"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^2.9.0",
+    "@platformos/liquid-html-parser": "^0.0.1",
     "html-styles": "^1.0.0"
   }
 }

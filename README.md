@@ -1,6 +1,6 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/master/packages/vscode-extension/images/platformos_logo.png?raw=true" alt="platformOS logo" width="200">
   <br>
   platformOS Tools
 </h1>
@@ -8,14 +8,14 @@
 <h4 align="center">A comprehensive suite of developer tools for platformOS Liquid development</h4>
 
 <p align="center">
-  <a href="https://github.com/Platform-OS/platformos-tools/blob/main/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
+  <a href="https://github.com/Platform-OS/platformos-tools/blob/master/LICENSE.md"><img src="https://img.shields.io/npm/l/@platformos/prettier-plugin-liquid.svg?sanitize=true" alt="License"></a>
   <a href="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Platform-OS/platformos-tools/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/Platform-OS/platformos-tools/issues"><img alt="Issues" src="https://img.shields.io/github/issues/Platform-OS/platformos-tools"></a>
 </p>
 
 <div align="center">
 
-📝 [Changelog](https://github.com/Platform-OS/platformos-tools/blob/main/packages/vscode-extension/CHANGELOG.md) |
+📝 [Changelog](https://github.com/Platform-OS/platformos-tools/blob/master/packages/vscode-extension/CHANGELOG.md) |
 📚 [Documentation](https://github.com/Platform-OS/platformos-tools/tree/main/docs) |
 🐛 [Report Issues](https://github.com/Platform-OS/platformos-tools/issues)
 

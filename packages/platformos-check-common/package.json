@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@platformos/liquid-html-parser": "0.0.4",
+    "@platformos/platformos-common": "0.0.4",
     "cross-fetch": "^4.0.0",
     "graphql": "^16.12.0",
     "js-yaml": "^3.14.1",

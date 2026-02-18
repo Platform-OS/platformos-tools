@@ -38,7 +38,7 @@ export class DocumentsLocator {
         case 'partial':
           return ['app/lib'];
         case 'view':
-          return ['app/views/partials'];
+          return ['app/views/partials', 'app/lib'];
         case 'graphql':
           return ['app/graphql'];
         case 'asset':

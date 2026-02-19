@@ -19,7 +19,21 @@ function createMockFileSystem(files: Record<string, string>): AbstractFileSystem
       }
       throw new Error(`File not found: ${uri}`);
     }),
-    readDirectory: vi.fn(async (_uri: string): Promise<FileTuple[]> => []),
+    readDirectory: vi.fn(async (uri: string): Promise<FileTuple[]> => {
+      const dirPrefix = uri.endsWith('/') ? uri : uri + '/';
+      const results: FileTuple[] = [];
+      const seen = new Set<string>();
+      for (const filePath of fileSet) {
+        if (!filePath.startsWith(dirPrefix)) continue;
+        const rest = filePath.slice(dirPrefix.length);
+        const firstSegment = rest.split('/')[0];
+        if (seen.has(firstSegment)) continue;
+        seen.add(firstSegment);
+        const isNested = rest.includes('/');
+        results.push([dirPrefix + firstSegment, isNested ? FileType.Directory : FileType.File]);
+      }
+      return results;
+    }),
   };
 }
 
@@ -27,9 +41,21 @@ describe('TranslationProvider', () => {
   const rootUri = URI.parse('file:///project');
 
   describe('findTranslationFile', () => {
-    it('should find translation file in app/translations', async () => {
+    it('should find translation in a single locale file', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en/general.yml': 'en:\n  hello: Hello',
+        'file:///project/app/translations/en.yml': 'en:\n  general:\n    hello: Hello',
+      });
+      const provider = new TranslationProvider(fs);
+
+      const [file, key] = await provider.findTranslationFile(rootUri, 'general.hello', 'en');
+
+      expect(file).toBe('file:///project/app/translations/en.yml');
+      expect(key).toBe('general.hello');
+    });
+
+    it('should find translation file via directory scan', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/general.yml': 'en:\n  general:\n    hello: Hello',
       });
       const provider = new TranslationProvider(fs);
 
@@ -39,10 +65,53 @@ describe('TranslationProvider', () => {
       expect(key).toBe('general.hello');
     });
 
-    it('should find module translation file', async () => {
+    it('should prefer single locale file over directory scan', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en.yml': 'en:\n  general:\n    hello: From single file',
+        'file:///project/app/translations/en/general.yml':
+          'en:\n  general:\n    hello: From directory',
+      });
+      const provider = new TranslationProvider(fs);
+
+      const [file] = await provider.findTranslationFile(rootUri, 'general.hello', 'en');
+
+      expect(file).toBe('file:///project/app/translations/en.yml');
+    });
+
+    it('should fall back to directory scan when key not in single locale file', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en.yml': 'en:\n  other:\n    key: value',
+        'file:///project/app/translations/en/general.yml': 'en:\n  general:\n    hello: Hello',
+      });
+      const provider = new TranslationProvider(fs);
+
+      const [file, key] = await provider.findTranslationFile(rootUri, 'general.hello', 'en');
+
+      expect(file).toBe('file:///project/app/translations/en/general.yml');
+      expect(key).toBe('general.hello');
+    });
+
+    it('should find module translation in single locale file', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/modules/user/public/translations/en.yml':
+          'en:\n  messages:\n    welcome: Welcome',
+      });
+      const provider = new TranslationProvider(fs);
+
+      const [file, key] = await provider.findTranslationFile(
+        rootUri,
+        'modules/user/messages.welcome',
+        'en',
+      );
+
+      expect(file).toBe('file:///project/app/modules/user/public/translations/en.yml');
+      expect(key).toBe('messages.welcome');
+    });
+
+    it('should find module translation via directory scan', async () => {
       const fs = createMockFileSystem({
         'file:///project/app/modules/user/public/translations/en/messages.yml':
-          'en:\n  welcome: Welcome',
+          'en:\n  messages:\n    welcome: Welcome',
       });
       const provider = new TranslationProvider(fs);
 
@@ -78,7 +147,18 @@ describe('TranslationProvider', () => {
   });
 
   describe('translate', () => {
-    it('should translate a simple key', async () => {
+    it('should translate a simple key from single locale file', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en.yml': 'en:\n  general:\n    hello: Hello World',
+      });
+      const provider = new TranslationProvider(fs);
+
+      const result = await provider.translate(rootUri, 'general.hello', 'en');
+
+      expect(result).toBe('Hello World');
+    });
+
+    it('should translate a simple key from directory file', async () => {
       const fs = createMockFileSystem({
         'file:///project/app/translations/en/general.yml':
           'en:\n  general:\n    hello: Hello World',
@@ -104,7 +184,7 @@ describe('TranslationProvider', () => {
 
     it('should return undefined for missing nested key', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en/general.yml': 'en:\n  existing: value',
+        'file:///project/app/translations/en.yml': 'en:\n  existing: value',
       });
       const provider = new TranslationProvider(fs);
 
@@ -115,7 +195,7 @@ describe('TranslationProvider', () => {
 
     it('should translate module keys', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/modules/admin/public/translations/en/dashboard.yml':
+        'file:///project/app/modules/admin/public/translations/en.yml':
           'en:\n  dashboard:\n    title: Admin Dashboard',
       });
       const provider = new TranslationProvider(fs);
@@ -127,7 +207,7 @@ describe('TranslationProvider', () => {
 
     it('should use default locale when not specified', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en/common.yml': 'en:\n  common:\n    yes: Yes',
+        'file:///project/app/translations/en.yml': 'en:\n  common:\n    yes: Yes',
       });
       const provider = new TranslationProvider(fs);
 

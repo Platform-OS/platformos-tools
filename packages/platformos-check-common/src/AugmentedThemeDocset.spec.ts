@@ -67,6 +67,108 @@ describe('Module: AugmentedThemeDocset', async () => {
 
       expect(filters).to.deep.include({ name: 'h' });
     });
+
+    it('should expand aliases from filter entries', async () => {
+      const docset = new AugmentedThemeDocset({
+        graphQL: async () => null,
+        filters: async () => [
+          {
+            name: 'parse_json',
+            summary: 'Parses a JSON string',
+            aliases: ['to_hash'],
+            return_type: [{ type: 'hash', name: '' }],
+          } as any,
+        ],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        tags: async () => [],
+        systemTranslations: async () => ({}),
+      });
+
+      const filters = await docset.filters();
+      const names = filters.map((f) => f.name);
+
+      expect(names).toContain('parse_json');
+      expect(names).toContain('to_hash');
+    });
+
+    it('should copy all properties from base filter to alias entry', async () => {
+      const docset = new AugmentedThemeDocset({
+        graphQL: async () => null,
+        filters: async () => [
+          {
+            name: 'translate',
+            summary: 'Translates a key',
+            syntax: 'string | translate',
+            parameters: [
+              {
+                name: 'scope',
+                required: false,
+                positional: false,
+                types: ['string'],
+                description: '',
+              },
+            ],
+            aliases: ['t'],
+          } as any,
+        ],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        tags: async () => [],
+        systemTranslations: async () => ({}),
+      });
+
+      const filters = await docset.filters();
+      const aliasEntry = filters.find((f) => f.name === 't');
+
+      expect(aliasEntry).toBeDefined();
+      expect(aliasEntry!.summary).toBe('Translates a key');
+      expect(aliasEntry!.syntax).toBe('string | translate');
+      expect(aliasEntry!.parameters).toHaveLength(1);
+    });
+
+    it('should expand multiple aliases for a single filter', async () => {
+      const docset = new AugmentedThemeDocset({
+        graphQL: async () => null,
+        filters: async () => [
+          {
+            name: 'hash_add_key',
+            summary: 'Adds a key to a hash',
+            aliases: ['add_hash_key', 'assign_to_hash_key'],
+          } as any,
+        ],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        tags: async () => [],
+        systemTranslations: async () => ({}),
+      });
+
+      const filters = await docset.filters();
+      const names = filters.map((f) => f.name);
+
+      expect(names).toContain('hash_add_key');
+      expect(names).toContain('add_hash_key');
+      expect(names).toContain('assign_to_hash_key');
+    });
+
+    it('should not add aliases for filters without aliases', async () => {
+      const docset = new AugmentedThemeDocset({
+        graphQL: async () => null,
+        filters: async () => [
+          { name: 'upcase', summary: 'Uppercases a string' },
+          { name: 'downcase', summary: 'Downcases a string' },
+        ],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        tags: async () => [],
+        systemTranslations: async () => ({}),
+      });
+
+      const filters = await docset.filters();
+      const officialNames = filters.filter((f) => f.name === 'upcase' || f.name === 'downcase');
+
+      expect(officialNames).toHaveLength(2);
+    });
   });
 
   describe('objects', async () => {

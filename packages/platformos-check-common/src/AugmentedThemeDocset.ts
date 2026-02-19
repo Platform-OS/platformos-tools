@@ -10,24 +10,13 @@ import {
 import { memo } from './utils';
 
 const toFilterEntry = (name: string): FilterEntry => ({ name });
-const aliasedFilters: [string, string][] = [
-  ['camelcase', 'camelize'],
-  ['handle', 'handleize'],
-  ['t', 'translate'],
-];
 
-const toAliasedFilterEntry =
-  (entries: FilterEntry[]) =>
-  ([alias, baseName]: [string, string]): FilterEntry => {
-    const baseEntry = entries.find((entry) => entry.name === baseName);
-    if (!baseEntry) {
-      return toFilterEntry(alias);
-    }
-    return {
-      ...baseEntry,
-      name: alias,
-    };
-  };
+const expandAliases = (entries: FilterEntry[]): FilterEntry[] => {
+  return entries.flatMap((entry) => {
+    const aliases: string[] = (entry as any).aliases ?? [];
+    return aliases.map((alias) => ({ ...entry, name: alias }));
+  });
+};
 
 const undocumentedFilters = [
   '_online_store_editor_live_setting',
@@ -110,7 +99,7 @@ export class AugmentedThemeDocset implements ThemeDocset {
     const officialFilters = await this.themeDocset.filters();
     return [
       ...officialFilters,
-      ...aliasedFilters.map(toAliasedFilterEntry(officialFilters)),
+      ...expandAliases(officialFilters),
       ...undocumentedFilters.map(toFilterEntry),
     ];
   });

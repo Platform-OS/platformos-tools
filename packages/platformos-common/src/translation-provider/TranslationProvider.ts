@@ -21,6 +21,27 @@ export class TranslationProvider {
     return (await this.isFile(path)) ? this.fs.readFile(path) : undefined;
   }
 
+  private async listYmlFiles(dirUri: string): Promise<string[]> {
+    try {
+      const entries = await this.fs.readDirectory(dirUri);
+      return entries
+        .filter(([, type]) => type === FileType.File)
+        .map(([name]) => name)
+        .filter((name) => name.endsWith('.yml'));
+    } catch {
+      return [];
+    }
+  }
+
+  private findKeyInYaml(data: any, defaultLocale: string, key: string): boolean {
+    let pointer = data;
+    for (const part of [defaultLocale, ...key.split('.')]) {
+      pointer = pointer?.[part];
+      if (pointer === undefined) return false;
+    }
+    return true;
+  }
+
   private parseModuleKey(translationKey: string): ModuleKeyInfo {
     if (!translationKey.startsWith('modules/')) {
       return { isModule: false, key: translationKey };
@@ -50,19 +71,35 @@ export class TranslationProvider {
     defaultLocale: string,
   ): Promise<[string | undefined, string | undefined]> {
     const parsed = this.parseModuleKey(translationKey);
-    const fileName = parsed.key.split('.')[0];
 
-    if (!fileName) {
+    if (!parsed.key) {
       return [undefined, undefined];
     }
 
     const searchPaths = this.getSearchPaths(parsed.isModule ? parsed.moduleName : undefined);
 
     for (const basePath of searchPaths) {
-      const uri = Utils.joinPath(rootUri, basePath, defaultLocale, `${fileName}.yml`).toString();
+      // Strategy A: single locale file ({basePath}/{locale}.yml)
+      const singleFileUri = Utils.joinPath(rootUri, basePath, `${defaultLocale}.yml`).toString();
+      const singleContents = await this.readFileIfExists(singleFileUri);
+      if (singleContents) {
+        const data = yaml.load(singleContents);
+        if (this.findKeyInYaml(data, defaultLocale, parsed.key)) {
+          return [singleFileUri, parsed.key];
+        }
+      }
 
-      if (await this.isFile(uri)) {
-        return [uri, parsed.key];
+      // Strategy B: scan all yml files in locale directory ({basePath}/{locale}/*.yml)
+      const localeDirUri = Utils.joinPath(rootUri, basePath, defaultLocale).toString();
+      const ymlFiles = await this.listYmlFiles(localeDirUri);
+      for (const fileUri of ymlFiles) {
+        const contents = await this.readFileIfExists(fileUri);
+        if (contents) {
+          const data = yaml.load(contents);
+          if (this.findKeyInYaml(data, defaultLocale, parsed.key)) {
+            return [fileUri, parsed.key];
+          }
+        }
       }
     }
 

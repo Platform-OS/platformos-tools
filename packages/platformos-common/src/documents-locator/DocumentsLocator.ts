@@ -29,10 +29,7 @@ export class DocumentsLocator {
     return moduleName ? { isModule: true, moduleName, key } : { isModule: false, key: fileName };
   }
 
-  private getSearchPaths(
-    type: 'partial' | 'graphql' | 'asset',
-    moduleName?: string,
-  ): string[] {
+  private getSearchPaths(type: 'partial' | 'graphql' | 'asset', moduleName?: string): string[] {
     if (!moduleName) {
       switch (type) {
         case 'partial':

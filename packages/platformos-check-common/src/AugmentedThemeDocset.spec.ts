@@ -100,7 +100,15 @@ describe('Module: AugmentedThemeDocset', async () => {
             name: 'translate',
             summary: 'Translates a key',
             syntax: 'string | translate',
-            parameters: [{ name: 'scope', required: false, positional: false, types: ['string'], description: '' }],
+            parameters: [
+              {
+                name: 'scope',
+                required: false,
+                positional: false,
+                types: ['string'],
+                description: '',
+              },
+            ],
             aliases: ['t'],
           } as any,
         ],

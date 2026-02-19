@@ -30,10 +30,7 @@ function createMockFileSystem(files: Record<string, string>): AbstractFileSystem
         if (seen.has(firstSegment)) continue;
         seen.add(firstSegment);
         const isNested = rest.includes('/');
-        results.push([
-          dirPrefix + firstSegment,
-          isNested ? FileType.Directory : FileType.File,
-        ]);
+        results.push([dirPrefix + firstSegment, isNested ? FileType.Directory : FileType.File]);
       }
       return results;
     }),
@@ -46,8 +43,7 @@ describe('TranslationProvider', () => {
   describe('findTranslationFile', () => {
     it('should find translation in a single locale file', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en.yml':
-          'en:\n  general:\n    hello: Hello',
+        'file:///project/app/translations/en.yml': 'en:\n  general:\n    hello: Hello',
       });
       const provider = new TranslationProvider(fs);
 
@@ -59,8 +55,7 @@ describe('TranslationProvider', () => {
 
     it('should find translation file via directory scan', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en/general.yml':
-          'en:\n  general:\n    hello: Hello',
+        'file:///project/app/translations/en/general.yml': 'en:\n  general:\n    hello: Hello',
       });
       const provider = new TranslationProvider(fs);
 
@@ -72,8 +67,7 @@ describe('TranslationProvider', () => {
 
     it('should prefer single locale file over directory scan', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en.yml':
-          'en:\n  general:\n    hello: From single file',
+        'file:///project/app/translations/en.yml': 'en:\n  general:\n    hello: From single file',
         'file:///project/app/translations/en/general.yml':
           'en:\n  general:\n    hello: From directory',
       });
@@ -86,10 +80,8 @@ describe('TranslationProvider', () => {
 
     it('should fall back to directory scan when key not in single locale file', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en.yml':
-          'en:\n  other:\n    key: value',
-        'file:///project/app/translations/en/general.yml':
-          'en:\n  general:\n    hello: Hello',
+        'file:///project/app/translations/en.yml': 'en:\n  other:\n    key: value',
+        'file:///project/app/translations/en/general.yml': 'en:\n  general:\n    hello: Hello',
       });
       const provider = new TranslationProvider(fs);
 
@@ -157,8 +149,7 @@ describe('TranslationProvider', () => {
   describe('translate', () => {
     it('should translate a simple key from single locale file', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/translations/en.yml':
-          'en:\n  general:\n    hello: Hello World',
+        'file:///project/app/translations/en.yml': 'en:\n  general:\n    hello: Hello World',
       });
       const provider = new TranslationProvider(fs);
 

@@ -30,14 +30,12 @@ export class DocumentsLocator {
   }
 
   private getSearchPaths(
-    type: 'partial' | 'view' | 'graphql' | 'asset',
+    type: 'partial' | 'graphql' | 'asset',
     moduleName?: string,
   ): string[] {
     if (!moduleName) {
       switch (type) {
         case 'partial':
-          return ['app/lib'];
-        case 'view':
           return ['app/views/partials', 'app/lib'];
         case 'graphql':
           return ['app/graphql'];
@@ -49,19 +47,12 @@ export class DocumentsLocator {
     switch (type) {
       case 'partial':
         return [
-          `app/modules/${moduleName}/public/lib`,
-          `app/modules/${moduleName}/private/lib`,
-          `modules/${moduleName}/public/lib`,
-          `modules/${moduleName}/private/lib`,
-        ];
-      case 'view':
-        return [
           `app/modules/${moduleName}/public/views/partials`,
           `app/modules/${moduleName}/private/views/partials`,
-          `modules/${moduleName}/public/views/partials`,
-          `modules/${moduleName}/private/views/partials`,
           `app/modules/${moduleName}/public/lib`,
           `app/modules/${moduleName}/private/lib`,
+          `modules/${moduleName}/public/views/partials`,
+          `modules/${moduleName}/private/views/partials`,
           `modules/${moduleName}/public/lib`,
           `modules/${moduleName}/private/lib`,
         ];
@@ -85,13 +76,13 @@ export class DocumentsLocator {
   private async locateFile(
     rootUri: URI,
     fileName: string,
-    type: 'partial' | 'view' | 'graphql' | 'asset',
+    type: 'partial' | 'graphql' | 'asset',
   ): Promise<string | undefined> {
     const parsed = this.parseModulePath(fileName);
     const searchPaths = this.getSearchPaths(type, parsed.isModule ? parsed.moduleName : undefined);
 
     let targetFile = parsed.key;
-    if (type === 'partial' || type === 'view') {
+    if (type === 'partial') {
       targetFile += '.liquid';
     } else if (type === 'graphql') {
       targetFile += '.graphql';
@@ -111,7 +102,7 @@ export class DocumentsLocator {
   private async listFiles(
     rootUri: URI,
     filePrefix: string,
-    type: 'partial' | 'view' | 'graphql' | 'asset',
+    type: 'partial' | 'graphql' | 'asset',
   ): Promise<string[]> {
     const parsed = this.parseModulePath(filePrefix);
     const searchPaths = this.getSearchPaths(type, parsed.isModule ? parsed.moduleName : undefined);
@@ -121,7 +112,6 @@ export class DocumentsLocator {
     const matchesType = (name: string): boolean => {
       switch (type) {
         case 'partial':
-        case 'view':
           return name.endsWith('.liquid');
         case 'graphql':
           return name.endsWith('.graphql');
@@ -176,12 +166,10 @@ export class DocumentsLocator {
     fileName: string,
   ): Promise<string | undefined> {
     switch (nodeName) {
-      case 'function':
-        return this.locateFile(rootUri, fileName, 'partial');
-
       case 'render':
       case 'include':
-        return this.locateFile(rootUri, fileName, 'view');
+      case 'function':
+        return this.locateFile(rootUri, fileName, 'partial');
 
       case 'graphql':
         return this.locateFile(rootUri, fileName, 'graphql');
@@ -197,11 +185,9 @@ export class DocumentsLocator {
   async list(rootUri: URI, nodeName: string | undefined, filePrefix: string): Promise<string[]> {
     switch (nodeName) {
       case 'function':
-        return this.listFiles(rootUri, filePrefix, 'partial');
-
       case 'render':
       case 'include':
-        return this.listFiles(rootUri, filePrefix, 'view');
+        return this.listFiles(rootUri, filePrefix, 'partial');
 
       case 'graphql':
         return this.listFiles(rootUri, filePrefix, 'graphql');

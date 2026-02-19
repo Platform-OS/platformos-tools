@@ -54,6 +54,10 @@ export enum NodeTypes {
   LiquidDocParamNode = 'LiquidDocParamNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
   LiquidDocPromptNode = 'LiquidDocPromptNode',
+  JsonHashLiteral = 'JsonHashLiteral',
+  JsonArrayLiteral = 'JsonArrayLiteral',
+  JsonKeyValuePair = 'JsonKeyValuePair',
+
   // platformos markup types
   BackgroundMarkup = 'BackgroundMarkup',
   BackgroundInlineMarkup = 'BackgroundInlineMarkup',

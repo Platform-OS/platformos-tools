@@ -95,6 +95,10 @@ export enum ConcreteNodeTypes {
   LiquidDocDescriptionNode = 'LiquidDocDescriptionNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
   LiquidDocPromptNode = 'LiquidDocPromptNode',
+  JsonHashLiteral = 'JsonHashLiteral',
+  JsonArrayLiteral = 'JsonArrayLiteral',
+  JsonKeyValuePair = 'JsonKeyValuePair',
+
   // platformos markup types
   BackgroundMarkup = 'BackgroundMarkup',
   BackgroundInlineMarkup = 'BackgroundInlineMarkup',
@@ -402,6 +406,8 @@ export interface ConcreteLiquidTagAssign
 export interface ConcreteLiquidTagAssignMarkup
   extends ConcreteBasicNode<ConcreteNodeTypes.AssignMarkup> {
   name: string;
+  target: ConcreteLiquidVariableLookup;
+  operator: string;
   value: ConcreteLiquidVariable;
 }
 
@@ -615,7 +621,9 @@ export type ConcreteLiquidExpression =
   | ConcreteNumberLiteral
   | ConcreteLiquidLiteral
   | ConcreteLiquidRange
-  | ConcreteLiquidVariableLookup;
+  | ConcreteLiquidVariableLookup
+  | ConcreteJsonHashLiteral
+  | ConcreteJsonArrayLiteral;
 
 export type ConcreteComplexLiquidExpression =
   | ConcreteLiquidBooleanExpression
@@ -650,6 +658,27 @@ export interface ConcreteLiquidVariableLookup
   name: string | null;
   lookups: ConcreteLiquidExpression[];
 }
+
+export interface ConcreteJsonHashLiteral
+  extends ConcreteBasicNode<ConcreteNodeTypes.JsonHashLiteral> {
+  entries: ConcreteJsonKeyValuePair[];
+}
+
+export interface ConcreteJsonKeyValuePair
+  extends ConcreteBasicNode<ConcreteNodeTypes.JsonKeyValuePair> {
+  key: ConcreteLiquidExpression;
+  value: ConcreteJsonValue;
+}
+
+export interface ConcreteJsonArrayLiteral
+  extends ConcreteBasicNode<ConcreteNodeTypes.JsonArrayLiteral> {
+  elements: ConcreteJsonValue[];
+}
+
+export type ConcreteJsonValue =
+  | ConcreteJsonHashLiteral
+  | ConcreteJsonArrayLiteral
+  | ConcreteLiquidExpression;
 
 export type ConcreteHtmlNode =
   | ConcreteHtmlDoctype
@@ -1045,12 +1074,67 @@ function toCST<T>(
     liquidTagLayoutMarkup: 0,
     liquidTagAssignMarkup: {
       type: ConcreteNodeTypes.AssignMarkup,
-      name: 0,
+      name: (tokens: Node[]) => tokens[0].children[0].sourceString,
+      target: 0,
+      operator: 2,
       value: 4,
       locStart,
       locEnd,
       source,
     },
+    assignTarget: {
+      type: ConcreteNodeTypes.VariableLookup,
+      name: 0,
+      lookups: 1,
+      locStart,
+      locEnd,
+      source,
+    },
+    assignOperator: (node: Node) => node.sourceString,
+    liquidAssignVariable: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      rawSource: (tokens: Node[]) =>
+        source.slice(locStart(tokens), tokens[tokens.length - 2].source.endIdx).trimEnd(),
+      locStart,
+      locEnd: locEndSecondToLast,
+      source,
+    },
+    liquidAssignExpression: 0,
+    liquidJsonHashLiteral: {
+      type: ConcreteNodeTypes.JsonHashLiteral,
+      entries: 2,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidJsonKeyValue: {
+      type: ConcreteNodeTypes.JsonKeyValuePair,
+      key: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidJsonKey: 0,
+    liquidJsonBareKey: {
+      type: ConcreteNodeTypes.VariableLookup,
+      name: 0,
+      lookups: () => [],
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidJsonArrayLiteral: {
+      type: ConcreteNodeTypes.JsonArrayLiteral,
+      elements: 2,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidJsonValue: 0,
+    liquidJsonSep: 1,
     liquidTagHashAssignMarkup: {
       type: ConcreteNodeTypes.HashAssignMarkup,
       target: 0,

@@ -48,8 +48,10 @@ import { visit } from '@platformos/platformos-check-common';
 import {
   PropertyShape,
   inferShapeFromJSONString,
+  inferShapeFromJsonLiteral,
   inferShapeFromGraphQL,
   lookupPropertyPath,
+  mergeShapes,
   shapeToTypeString,
   shapeToDetailString,
 } from './PropertyShapeInference';
@@ -574,51 +576,202 @@ async function buildSymbolsTable(
   const typeRanges = await visit<SourceCodeType.LiquidHtml, TypeRange | TypeRange[]>(partialAst, {
     // {% assign x = foo.x | filter %}
     // {% assign x = '{"a": 1}' | parse_json %}
+    // {% assign x = {a: 1, b: "hello"} %}
+    // {% assign x["key"] = value %}
+    // {% assign arr << item %}
     async AssignMarkup(node) {
-      // Check if this has a parse_json or to_hash filter
-      const hasParseJsonFilter = node.value.filters?.some(
-        (f: { name: string }) => f.name === 'parse_json' || f.name === 'to_hash',
-      );
+      const expression = node.value.expression;
+      let valueShape: PropertyShape | undefined;
 
-      if (hasParseJsonFilter) {
-        let jsonString: string | undefined;
+      // Resolver for variable references inside JSON literals
+      const resolveExpr = (expr: LiquidExpression): PropertyShape | undefined => {
+        if (expr.type !== NodeTypes.VariableLookup || !expr.name) return undefined;
 
-        // Check if expression is a direct JSON string
-        if (node.value.expression.type === NodeTypes.String) {
-          jsonString = node.value.expression.value;
-        }
+        // Look up the variable's shape from already-processed assignments
+        const shapes = variableShapes.get(expr.name);
+        const shapeEntry = shapes
+          ? findLastApplicableShape(shapes, node.position.start)
+          : undefined;
+        let shape = shapeEntry?.shape;
 
-        // Check if there's a default filter with a JSON string argument
-        if (!jsonString && node.value.filters) {
-          const defaultFilter = node.value.filters.find(
-            (f: { name: string }) => f.name === 'default',
-          );
-          if (defaultFilter && defaultFilter.args && defaultFilter.args.length > 0) {
-            const firstArg = defaultFilter.args[0];
-            if (firstArg.type === NodeTypes.String) {
-              jsonString = firstArg.value;
+        // Fall back to seedSymbolsTable
+        if (!shape && seedSymbolsTable[expr.name]) {
+          for (const tr of seedSymbolsTable[expr.name]) {
+            if (tr.range[0] < node.position.start) {
+              if (typeof tr.type !== 'string' && tr.type.kind === 'shape') {
+                shape = tr.type.shape;
+              } else if (typeof tr.type === 'string' || tr.type.kind === 'array') {
+                shape = resolvedTypeToShape(tr.type);
+              }
             }
           }
         }
 
-        if (jsonString) {
-          const shape = inferShapeFromJSONString(jsonString);
-          if (shape) {
-            // Track shape for potential hash_assign merging
-            if (!variableShapes.has(node.name)) {
-              variableShapes.set(node.name, []);
-            }
-            variableShapes.get(node.name)!.push({ shape, rangeEnd: node.position.end });
+        if (!shape) return undefined;
 
-            return {
-              identifier: node.name,
-              type: shapeType(shape),
-              range: [node.position.end],
-            };
+        // Resolve lookups (e.g. a.x or a["key"])
+        for (const lookup of expr.lookups) {
+          if (shape.kind === 'object' && lookup.type === NodeTypes.String && shape.properties) {
+            const prop = shape.properties.get(lookup.value);
+            if (prop) {
+              shape = prop;
+            } else {
+              return undefined;
+            }
+          } else if (shape.kind === 'array') {
+            if (
+              lookup.type === NodeTypes.Number ||
+              (lookup.type === NodeTypes.String &&
+                (lookup.value === 'first' || lookup.value === 'last'))
+            ) {
+              shape = shape.itemShape;
+              if (!shape) return undefined;
+            } else {
+              return undefined;
+            }
+          } else {
+            return undefined;
+          }
+        }
+
+        return shape;
+      };
+
+      // Case 1: JSON literal expression
+      if (
+        expression.type === NodeTypes.JsonHashLiteral ||
+        expression.type === NodeTypes.JsonArrayLiteral
+      ) {
+        valueShape = inferShapeFromJsonLiteral(expression, resolveExpr);
+      }
+
+      // Case 2: parse_json / to_hash filter on a string
+      if (!valueShape) {
+        const hasParseJsonFilter = node.value.filters?.some(
+          (f: { name: string }) => f.name === 'parse_json' || f.name === 'to_hash',
+        );
+        if (hasParseJsonFilter) {
+          let jsonString: string | undefined;
+          if (expression.type === NodeTypes.String) {
+            jsonString = expression.value;
+          }
+          if (!jsonString && node.value.filters) {
+            const defaultFilter = node.value.filters.find(
+              (f: { name: string }) => f.name === 'default',
+            );
+            if (
+              defaultFilter &&
+              defaultFilter.args &&
+              defaultFilter.args.length > 0 &&
+              defaultFilter.args[0].type === NodeTypes.String
+            ) {
+              jsonString = defaultFilter.args[0].value;
+            }
+          }
+          if (jsonString) {
+            valueShape = inferShapeFromJSONString(jsonString) ?? undefined;
           }
         }
       }
 
+      // Case 3: Infer primitive shape for << and LHS lookup scenarios
+      if (!valueShape && ((node.lookups && node.lookups.length > 0) || node.operator === '<<')) {
+        if (expression.type === NodeTypes.String) {
+          valueShape = { kind: 'primitive', primitiveType: 'string' };
+        } else if (expression.type === NodeTypes.Number) {
+          valueShape = { kind: 'primitive', primitiveType: 'number' };
+        } else if (expression.type === NodeTypes.LiquidLiteral) {
+          if (expression.value === null) {
+            valueShape = { kind: 'primitive', primitiveType: 'null' };
+          } else if (typeof expression.value === 'boolean') {
+            valueShape = { kind: 'primitive', primitiveType: 'boolean' };
+          }
+        }
+      }
+
+      // Handle lookups on the LHS (assign x["key"] = value)
+      if (node.lookups && node.lookups.length > 0) {
+        const lookupPath = getAssignLookupPath(node.lookups);
+        if (lookupPath && lookupPath.length > 0) {
+          const existingShapes = variableShapes.get(node.name) || [];
+          const existingShapeEntry = findLastApplicableShape(existingShapes, node.position.start);
+
+          let baseShape: PropertyShape;
+          if (existingShapeEntry) {
+            baseShape = existingShapeEntry.shape;
+          } else {
+            let existingType: PseudoType | ArrayType | ShapeType | UnionType | undefined;
+            if (seedSymbolsTable[node.name]) {
+              for (const tr of seedSymbolsTable[node.name]) {
+                if (tr.range[0] < node.position.start) {
+                  if (typeof tr.type !== 'string' && tr.type.kind === 'shape') {
+                    existingType = tr.type;
+                  }
+                }
+              }
+            }
+            baseShape =
+              existingType && isShapeType(existingType)
+                ? existingType.shape
+                : { kind: 'object', properties: new Map() };
+          }
+
+          const newShape = mergeNestedPropertyIntoShape(
+            baseShape,
+            lookupPath,
+            valueShape ?? { kind: 'primitive' },
+          );
+
+          if (!variableShapes.has(node.name)) variableShapes.set(node.name, []);
+          variableShapes.get(node.name)!.push({ shape: newShape, rangeEnd: node.position.end });
+
+          return {
+            identifier: node.name,
+            type: shapeType(newShape),
+            range: [node.position.end],
+          };
+        }
+      }
+
+      // Handle << operator (array append)
+      if (node.operator === '<<') {
+        const itemShape: PropertyShape = valueShape ?? { kind: 'primitive' };
+        const existingShapes = variableShapes.get(node.name) || [];
+        const existingShapeEntry = findLastApplicableShape(existingShapes, node.position.start);
+
+        let arrayShape: PropertyShape;
+        if (existingShapeEntry?.shape.kind === 'array') {
+          const existing = existingShapeEntry.shape.itemShape;
+          arrayShape = {
+            kind: 'array',
+            itemShape: existing ? mergeShapes(existing, itemShape) : itemShape,
+          };
+        } else {
+          arrayShape = { kind: 'array', itemShape };
+        }
+
+        if (!variableShapes.has(node.name)) variableShapes.set(node.name, []);
+        variableShapes.get(node.name)!.push({ shape: arrayShape, rangeEnd: node.position.end });
+
+        return {
+          identifier: node.name,
+          type: shapeType(arrayShape),
+          range: [node.position.end],
+        };
+      }
+
+      // Simple assignment with shape (JSON literal or parse_json)
+      if (valueShape) {
+        if (!variableShapes.has(node.name)) variableShapes.set(node.name, []);
+        variableShapes.get(node.name)!.push({ shape: valueShape, rangeEnd: node.position.end });
+        return {
+          identifier: node.name,
+          type: shapeType(valueShape),
+          range: [node.position.end],
+        };
+      }
+
+      // Default: lazy variable type
       return {
         identifier: node.name,
         type: lazyVariable(node.value, node.position.start),
@@ -1022,6 +1175,16 @@ function inferType(
       return arrayType('number');
     }
 
+    // JSON literal expressions: {key: val} or [1, 2, 3]
+    case NodeTypes.JsonHashLiteral:
+    case NodeTypes.JsonArrayLiteral: {
+      const resolver = (expr: LiquidExpression): PropertyShape | undefined => {
+        const type = inferType(expr, symbolsTable, objectMap, filtersMap);
+        return resolvedTypeToShape(type);
+      };
+      return shapeType(inferShapeFromJsonLiteral(thing, resolver));
+    }
+
     // The type of the assign markup is the type of the right hand side.
     // {% assign x = y.property | filter1 | filter2 %}
     case NodeTypes.AssignMarkup: {
@@ -1346,6 +1509,36 @@ function shapeToType(shape: PropertyShape): PseudoType | ArrayType | ShapeType {
   return Untyped;
 }
 
+/**
+ * Convert a resolved type back to a PropertyShape (inverse of shapeToType).
+ * Used when embedding resolved variable types into JSON literal shapes.
+ */
+function resolvedTypeToShape(
+  type: PseudoType | ArrayType | ShapeType | UnionType,
+): PropertyShape | undefined {
+  if (typeof type === 'string') {
+    switch (type) {
+      case 'string':
+        return { kind: 'primitive', primitiveType: 'string' };
+      case 'number':
+        return { kind: 'primitive', primitiveType: 'number' };
+      case 'boolean':
+        return { kind: 'primitive', primitiveType: 'boolean' };
+      case Untyped:
+      case Unknown:
+        return undefined;
+      default:
+        return { kind: 'primitive' };
+    }
+  }
+  if (isShapeType(type)) return type.shape;
+  if (isArrayType(type)) {
+    const itemShape = resolvedTypeToShape(type.valueType);
+    return { kind: 'array', itemShape };
+  }
+  return undefined;
+}
+
 function inferPseudoTypePropertyType(
   curr: PseudoType, // settings
   lookup: LiquidExpression,
@@ -1654,6 +1847,24 @@ export function typeToDisplayString(type: PseudoType | ArrayType | ShapeType | U
   if (type.kind === 'shape') return shapeToTypeString(type.shape);
   if (type.kind === 'union') return type.types.map((t) => typeToDisplayString(t)).join(' | ');
   return 'unknown';
+}
+
+/**
+ * Extract the lookup path from assign lookups.
+ * For {% assign a["key1"]["key2"] = value %}, returns ['key1', 'key2']
+ */
+function getAssignLookupPath(lookups: LiquidExpression[]): string[] | undefined {
+  const path: string[] = [];
+  for (const lookup of lookups) {
+    if (lookup.type === NodeTypes.String) {
+      path.push(lookup.value);
+    } else if (lookup.type === NodeTypes.Number) {
+      path.push(`${lookup.value}`);
+    } else {
+      return undefined;
+    }
+  }
+  return path.length > 0 ? path : undefined;
 }
 
 /**

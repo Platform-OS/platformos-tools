@@ -272,6 +272,10 @@ function getConditionIdentifierForMarkup(condition: string | LiquidConditionalEx
         condition.relation,
         getConditionIdentifierForMarkup(condition.right),
       ].join(' ');
+    case NodeTypes.JsonHashLiteral:
+      return '{}';
+    case NodeTypes.JsonArrayLiteral:
+      return '[]';
     default: {
       return assertNever(condition);
     }

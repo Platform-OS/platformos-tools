@@ -446,6 +446,91 @@ describe('Unit: Stage 2 (AST)', () => {
         });
       });
 
+      it('should parse enhanced assign tags with lookups and operators', () => {
+        for (const { toAST, expectPath } of testCases) {
+          // bracket notation LHS
+          ast = toAST(`{% assign x["foo"] = 'bar' %}`);
+          expectPath(ast, 'children.0.markup.type').to.eql('AssignMarkup');
+          expectPath(ast, 'children.0.markup.name').to.eql('x');
+          expectPath(ast, 'children.0.markup.lookups').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.lookups.0.type').to.eql('String');
+          expectPath(ast, 'children.0.markup.lookups.0.value').to.eql('foo');
+          expectPath(ast, 'children.0.markup.operator').to.eql('=');
+
+          // dot notation LHS
+          ast = toAST(`{% assign x.foo = 'bar' %}`);
+          expectPath(ast, 'children.0.markup.name').to.eql('x');
+          expectPath(ast, 'children.0.markup.lookups').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.lookups.0.type').to.eql('String');
+          expectPath(ast, 'children.0.markup.lookups.0.value').to.eql('foo');
+
+          // mixed notation
+          ast = toAST(`{% assign x.foo["bar"] = 'baz' %}`);
+          expectPath(ast, 'children.0.markup.lookups').to.have.lengthOf(2);
+
+          // array append operator
+          ast = toAST(`{% assign x << 'foo' %}`);
+          expectPath(ast, 'children.0.markup.operator').to.eql('<<');
+          expectPath(ast, 'children.0.markup.name').to.eql('x');
+          expectPath(ast, 'children.0.markup.lookups').to.have.lengthOf(0);
+
+          // simple assign backward compatibility
+          ast = toAST(`{% assign x = 'hi' %}`);
+          expectPath(ast, 'children.0.markup.name').to.eql('x');
+          expectPath(ast, 'children.0.markup.lookups').to.have.lengthOf(0);
+          expectPath(ast, 'children.0.markup.operator').to.eql('=');
+        }
+      });
+
+      it('should parse assign tags with JSON literals', () => {
+        for (const { toAST, expectPath } of testCases) {
+          // empty hash
+          ast = toAST(`{% assign x = {} %}`);
+          expectPath(ast, 'children.0.markup.value.expression.type').to.eql('JsonHashLiteral');
+          expectPath(ast, 'children.0.markup.value.expression.entries').to.have.lengthOf(0);
+
+          // empty array
+          ast = toAST(`{% assign x = [] %}`);
+          expectPath(ast, 'children.0.markup.value.expression.type').to.eql('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.value.expression.elements').to.have.lengthOf(0);
+
+          // hash with entries
+          ast = toAST(`{% assign x = { "key": "value" } %}`);
+          expectPath(ast, 'children.0.markup.value.expression.type').to.eql('JsonHashLiteral');
+          expectPath(ast, 'children.0.markup.value.expression.entries').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.value.expression.entries.0.type').to.eql(
+            'JsonKeyValuePair',
+          );
+          expectPath(ast, 'children.0.markup.value.expression.entries.0.key.type').to.eql('String');
+          expectPath(ast, 'children.0.markup.value.expression.entries.0.value.type').to.eql(
+            'String',
+          );
+
+          // array with elements
+          ast = toAST(`{% assign x = ["a", "b"] %}`);
+          expectPath(ast, 'children.0.markup.value.expression.type').to.eql('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.value.expression.elements').to.have.lengthOf(2);
+
+          // nested JSON
+          ast = toAST(`{% assign x = { "nested": { "deep": true }, "arr": [1, 2] } %}`);
+          expectPath(ast, 'children.0.markup.value.expression.type').to.eql('JsonHashLiteral');
+          expectPath(ast, 'children.0.markup.value.expression.entries').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.value.expression.entries.0.value.type').to.eql(
+            'JsonHashLiteral',
+          );
+          expectPath(ast, 'children.0.markup.value.expression.entries.1.value.type').to.eql(
+            'JsonArrayLiteral',
+          );
+
+          // bare key
+          ast = toAST(`{% assign x = { foo: "bar" } %}`);
+          expectPath(ast, 'children.0.markup.value.expression.entries.0.key.type').to.eql(
+            'VariableLookup',
+          );
+          expectPath(ast, 'children.0.markup.value.expression.entries.0.key.name').to.eql('foo');
+        }
+      });
+
       it('should parse render tags', () => {
         [
           {

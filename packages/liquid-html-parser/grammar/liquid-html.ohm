@@ -129,7 +129,33 @@ Liquid <: Helpers {
   liquidTagEchoMarkup = liquidVariable<delimTag>
 
   liquidTagAssign = liquidTagRule<"assign", liquidTagAssignMarkup>
-  liquidTagAssignMarkup = variableSegment space* "=" space* liquidVariable<delimTag>
+  liquidTagAssignMarkup = assignTarget<delimTag> space* assignOperator space* liquidAssignVariable<delimTag>
+
+  // Assign-specific sub-rules
+  assignTarget<delim> = variableSegment lookup<delim>*
+  assignOperator = "<<" | "="
+
+  // Assign variable: like liquidVariable but expression allows JSON literals
+  liquidAssignVariable<delim> = liquidAssignExpression<delim> liquidFilter<delim>* space* &delim
+  liquidAssignExpression<delim> =
+    | liquidJsonHashLiteral<delim>
+    | liquidJsonArrayLiteral<delim>
+    | liquidComplexExpression<delim>
+
+  // JSON literal rules (assign-only, recursive)
+  liquidJsonHashLiteral<delim> =
+    "{" space* listOf<liquidJsonKeyValue<delim>, liquidJsonSep> space* "}"
+  liquidJsonKeyValue<delim> =
+    liquidJsonKey<delim> space* ":" space* liquidJsonValue<delim>
+  liquidJsonKey<delim> = liquidString<delim> | liquidJsonBareKey
+  liquidJsonBareKey = variableSegment
+  liquidJsonArrayLiteral<delim> =
+    "[" space* listOf<liquidJsonValue<delim>, liquidJsonSep> space* "]"
+  liquidJsonValue<delim> =
+    | liquidJsonHashLiteral<delim>
+    | liquidJsonArrayLiteral<delim>
+    | liquidExpression<delim>
+  liquidJsonSep = space* "," space*
 
   liquidTagHashAssign = liquidTagRule<"hash_assign", liquidTagHashAssignMarkup>
   liquidTagHashAssignMarkup = liquidVariableLookup<delimTag> space* "=" space* liquidVariable<delimTag>

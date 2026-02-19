@@ -60,6 +60,10 @@ export class DocumentsLocator {
           `app/modules/${moduleName}/private/views/partials`,
           `modules/${moduleName}/public/views/partials`,
           `modules/${moduleName}/private/views/partials`,
+          `app/modules/${moduleName}/public/lib`,
+          `app/modules/${moduleName}/private/lib`,
+          `modules/${moduleName}/public/lib`,
+          `modules/${moduleName}/private/lib`,
         ];
       case 'graphql':
         return [

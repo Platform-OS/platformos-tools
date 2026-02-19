@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-graph",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Shopify Theme Graph as a data structure",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/platformos-graph#readme",
@@ -29,13 +29,13 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^0.0.4",
-    "@platformos/platformos-check-common": "0.0.4",
+    "@platformos/liquid-html-parser": "^0.0.5",
+    "@platformos/platformos-check-common": "0.0.5",
     "acorn": "^8.14.1",
     "acorn-walk": "^8.3.4",
     "vscode-uri": "^3.0.7"
   },
   "devDependencies": {
-    "@platformos/platformos-check-node": "0.0.4"
+    "@platformos/platformos-check-node": "0.0.5"
   }
 }

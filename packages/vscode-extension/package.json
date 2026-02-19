@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "platformOS",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
@@ -61,18 +61,18 @@
     "vscode": "^1.104.0"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^0.0.4",
-    "@platformos/prettier-plugin-liquid": "^0.0.4",
-    "@platformos/platformos-check-common": "0.0.4",
-    "@platformos/platformos-language-server-browser": "0.0.4",
-    "@platformos/platformos-language-server-common": "0.0.4",
-    "@platformos/platformos-language-server-node": "0.0.4",
+    "@platformos/liquid-html-parser": "^0.0.5",
+    "@platformos/prettier-plugin-liquid": "^0.0.5",
+    "@platformos/platformos-check-common": "0.0.5",
+    "@platformos/platformos-language-server-browser": "0.0.5",
+    "@platformos/platformos-language-server-common": "0.0.5",
+    "@platformos/platformos-language-server-node": "0.0.5",
     "prettier": "^2.6.2",
     "vscode-languageclient": "^8.1.0",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@platformos/platformos-check-docs-updater": "0.0.4",
+    "@platformos/platformos-check-docs-updater": "0.0.5",
     "@types/glob": "^8.0.0",
     "@types/node": "^22",
     "@types/prettier": "^2.4.2",

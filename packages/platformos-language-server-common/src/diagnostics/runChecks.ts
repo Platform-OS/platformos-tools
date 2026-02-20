@@ -29,10 +29,15 @@ export function makeRunChecks(
     getMetafieldDefinitions,
     cssLanguageService,
     themeGraphManager,
+    includeFilesFromDisk,
   }: Pick<
     Dependencies,
     'fs' | 'loadConfig' | 'themeDocset' | 'jsonValidationSet' | 'getMetafieldDefinitions'
-  > & { cssLanguageService?: CSSLanguageService; themeGraphManager?: ThemeGraphManager },
+  > & {
+    cssLanguageService?: CSSLanguageService;
+    themeGraphManager?: ThemeGraphManager;
+    includeFilesFromDisk?: () => boolean;
+  },
 ) {
   return async function runChecks(triggerURIs: string[]): Promise<void> {
     // This function takes an array of triggerURIs so that we can correctly
@@ -53,7 +58,7 @@ export function makeRunChecks(
 
     async function runChecksForRoot(configFileRootUri: string) {
       const config = await loadConfig(configFileRootUri, fs);
-      const theme = documentManager.theme(config.rootUri);
+      const theme = documentManager.theme(config.rootUri, includeFilesFromDisk?.());
 
       const cssOffenses = cssLanguageService
         ? await Promise.all(

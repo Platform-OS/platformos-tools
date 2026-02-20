@@ -54,7 +54,7 @@ import {
 import { debounce } from '../utils';
 import { VERSION } from '../version';
 import { CachedFileSystem } from './CachedFileSystem';
-import { Configuration } from './Configuration';
+import { Configuration, INCLUDE_FILES_FROM_DISK } from './Configuration';
 import { safe } from './safe';
 import { ThemeGraphManager } from './ThemeGraphManager';
 import { DocumentsLocator } from '@platformos/platformos-common';
@@ -194,6 +194,7 @@ export function startServer(
       getMetafieldDefinitions,
       cssLanguageService,
       themeGraphManager,
+      includeFilesFromDisk: () => configuration[INCLUDE_FILES_FROM_DISK],
     }),
     100,
   );
@@ -202,7 +203,7 @@ export function startServer(
     const rootURI = await findThemeRootURI(uri);
     if (!rootURI) return {};
 
-    const theme = documentManager.theme(rootURI);
+    const theme = documentManager.theme(rootURI, configuration[INCLUDE_FILES_FROM_DISK]);
     const getDefaultTranslations = makeGetDefaultTranslations(fs, theme, rootURI);
     const [defaultTranslations, shopifyTranslations] = await Promise.all([
       getDefaultTranslations(),
@@ -216,7 +217,7 @@ export function startServer(
     const rootURI = await findThemeRootURI(uri);
     if (!rootURI) return {};
 
-    const theme = documentManager.theme(rootURI);
+    const theme = documentManager.theme(rootURI, configuration[INCLUDE_FILES_FROM_DISK]);
     const getDefaultSchemaTranslations = makeGetDefaultSchemaTranslations(fs, theme, rootURI);
     return getDefaultSchemaTranslations();
   };

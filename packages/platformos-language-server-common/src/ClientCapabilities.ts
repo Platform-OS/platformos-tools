@@ -44,7 +44,7 @@ export class ClientCapabilities {
   }
 
   initializationOption<T>(key: string, defaultValue: T): T {
-    // { 'themeCheck.checkOnSave': true }
+    // { 'platformosCheck.checkOnSave': true }
     const direct = this.initializationOptions?.[key];
     if (direct !== undefined) return direct;
 

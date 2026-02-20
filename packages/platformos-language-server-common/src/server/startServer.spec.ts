@@ -117,9 +117,9 @@ describe('Module: server', () => {
     connection.setup(
       {},
       {
-        'themeCheck.checkOnOpen': false,
-        'themeCheck.checkOnChange': false,
-        'themeCheck.checkOnSave': false,
+        'platformosCheck.checkOnOpen': false,
+        'platformosCheck.checkOnChange': false,
+        'platformosCheck.checkOnSave': false,
       },
     );
     await flushAsync();
@@ -154,9 +154,9 @@ describe('Module: server', () => {
         },
       },
       {
-        'themeCheck.checkOnOpen': false,
-        'themeCheck.checkOnChange': false,
-        'themeCheck.checkOnSave': false,
+        'platformosCheck.checkOnOpen': false,
+        'platformosCheck.checkOnChange': false,
+        'platformosCheck.checkOnSave': false,
       },
     );
     await flushAsync();

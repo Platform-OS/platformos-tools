@@ -50,12 +50,19 @@
     "ts-node": "^10.9.1",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.9.0",
-    "vitest": "^2.1.9",
+    "vitest": "^4.0.18",
     "vscode-languageserver-protocol": "^3.17.3",
     "vscode-languageserver-textdocument": "^1.0.8",
-    "webpack": "^5.94.0",
+    "webpack": "^5.105.2",
     "webpack-cli": "^5.0.0",
-    "webpack-dev-server": "^4.11.1"
+    "webpack-dev-server": "^5.2.3"
+  },
+  "resolutions": {
+    "minimatch": "^10.2.2",
+    "lodash": "^4.17.23",
+    "ajv": "^8.18.0",
+    "diff": "^5.2.0",
+    "qs": "^6.14.1"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

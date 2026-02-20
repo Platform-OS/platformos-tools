@@ -32,7 +32,7 @@ describe('Module: TranslationHoverProvider', async () => {
       `,
         }),
       ),
-      async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
       undefined,
       undefined,
       undefined,

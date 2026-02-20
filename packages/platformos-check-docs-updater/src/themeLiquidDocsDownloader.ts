@@ -1,6 +1,5 @@
 import { Mode } from '@platformos/platformos-check-common';
 import envPaths from 'env-paths';
-import fetch from 'node-fetch';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Logger, noop, tap } from './utils';

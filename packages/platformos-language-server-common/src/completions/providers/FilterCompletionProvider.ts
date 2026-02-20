@@ -50,12 +50,12 @@ export class FilterCompletionProvider implements Provider {
     const normalizedType = isArrayType(inputType)
       ? 'array'
       : isShapeType(inputType)
-      ? inputType.shape.kind === 'array'
-        ? 'array'
-        : 'untyped'
-      : isUnionType(inputType)
-      ? 'untyped'
-      : inputType;
+        ? inputType.shape.kind === 'array'
+          ? 'array'
+          : 'untyped'
+        : isUnionType(inputType)
+          ? 'untyped'
+          : inputType;
     const options = await this.options(normalizedType);
 
     return options

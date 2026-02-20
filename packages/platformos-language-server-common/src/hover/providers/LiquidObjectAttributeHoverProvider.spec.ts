@@ -60,7 +60,7 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
         systemTranslations: async () => ({}),
       },
       new TranslationProvider(new MockFileSystem({})),
-      async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     );
   });
 

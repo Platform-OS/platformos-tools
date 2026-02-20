@@ -115,8 +115,8 @@ export class TypeSystem {
         const entryType = isArrayType(type)
           ? type.valueType
           : isShapeType(type) || isUnionType(type)
-          ? Untyped
-          : type;
+            ? Untyped
+            : type;
         const entry = objectMap[entryType] ?? {};
         return {
           entry: { ...entry, name: identifier },

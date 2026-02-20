@@ -51,16 +51,14 @@ describe('Module: CSSLanguageService', () => {
 
       const completions = await cssLanguageService.completions(params);
       assert(isCompletionList(completions));
-      expect(completions.items).to.have.lengthOf(357);
+      expect(completions.items).to.have.lengthOf(377);
       expect(completions.items[0].label).to.equal(':active');
       expect(completions.items[0].documentation).to.deep.equal({
         kind: 'markdown',
         value:
-          dedent(`Applies while an element is being activated by the user\\. For example, between the times the user presses the mouse button and releases it\\.
-
-(Edge 12, Firefox 1, Safari 1, Chrome 1, IE 4, Opera 5)
-
-[MDN Reference](https://developer.mozilla.org/docs/Web/CSS/:active)`),
+          `Applies while an element is being activated by the user\\. For example, between the times the user presses the mouse button and releases it\\.\n\n` +
+          `![Baseline icon](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTAiIHZpZXdCb3g9IjAgMCA1NDAgMzAwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxzdHlsZT4KICAgIC5ncmVlbi1zaGFwZSB7CiAgICAgIGZpbGw6ICNDNEVFRDA7IC8qIExpZ2h0IG1vZGUgKi8KICAgIH0KCiAgICBAbWVkaWEgKHByZWZlcnMtY29sb3Itc2NoZW1lOiBkYXJrKSB7CiAgICAgIC5ncmVlbi1zaGFwZSB7CiAgICAgICAgZmlsbDogIzEyNTIyNTsgLyogRGFyayBtb2RlICovCiAgICAgIH0KICAgIH0KICA8L3N0eWxlPgogIDxwYXRoIGQ9Ik00MjAgMzBMMzkwIDYwTDQ4MCAxNTBMMzkwIDI0MEwzMzAgMTgwTDMwMCAyMTBMMzkwIDMwMEw1NDAgMTUwTDQyMCAzMFoiIGNsYXNzPSJncmVlbi1zaGFwZSIvPgogIDxwYXRoIGQ9Ik0xNTAgMEwzMCAxMjBMNjAgMTUwTDE1MCA2MEwyMTAgMTIwTDI0MCA5MEwxNTAgMFoiIGNsYXNzPSJncmVlbi1zaGFwZSIvPgogIDxwYXRoIGQ9Ik0zOTAgMEw0MjAgMzBMMTUwIDMwMEwwIDE1MEwzMCAxMjBMMTUwIDI0MEwzOTAgMFoiIGZpbGw9IiMxRUE0NDYiLz4KPC9zdmc+) _Widely available across major browsers (Baseline since 2015)_\n\n` +
+          `[MDN Reference](https://developer.mozilla.org/docs/Web/CSS/:active)`,
       });
     });
   });
@@ -83,13 +81,13 @@ describe('Module: CSSLanguageService', () => {
       assert(hover !== null);
       expect(hover.contents).to.eql({
         kind: 'plaintext',
-        // Dedent this
         value:
           dedent(`In combination with 'float' and 'position', determines the type of box or boxes that are generated for an element.
-        (Edge 12, Firefox 1, Safari 1, Chrome 1, IE 4, Opera 7)
-        
+
+        Widely available across major browsers (Baseline since 2015)
+
         Syntax: [ <display-outside> || <display-inside> ] | <display-listitem> | <display-internal> | <display-box> | <display-legacy>
-        
+
         MDN Reference: https://developer.mozilla.org/docs/Web/CSS/display`),
       });
     });

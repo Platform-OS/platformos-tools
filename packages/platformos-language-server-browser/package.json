@@ -28,6 +28,6 @@
   },
   "dependencies": {
     "@platformos/platformos-language-server-common": "0.0.6",
-    "vscode-languageserver": "^8.0.2"
+    "vscode-languageserver": "^9.0.1"
   }
 }

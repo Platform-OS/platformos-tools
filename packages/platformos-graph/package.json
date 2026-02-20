@@ -31,9 +31,9 @@
   "dependencies": {
     "@platformos/liquid-html-parser": "^0.0.6",
     "@platformos/platformos-check-common": "0.0.6",
-    "acorn": "^8.14.1",
-    "acorn-walk": "^8.3.4",
-    "vscode-uri": "^3.0.7"
+    "acorn": "^8.16.0",
+    "acorn-walk": "^8.3.5",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@platformos/platformos-check-node": "0.0.6"

@@ -34,7 +34,7 @@ describe('Module: ContentForBlockParameterCompletionProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 
@@ -266,7 +266,7 @@ describe('Module: ContentForBlockParameterCompletionProvider', async () => {
           tags: async () => [],
           systemTranslations: async () => ({}),
         },
-        getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+        getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
         getDocDefinitionForURI: async (_uri, _category, _name) => {
           return {
             uri: 'file:///blocks/product-card.liquid',

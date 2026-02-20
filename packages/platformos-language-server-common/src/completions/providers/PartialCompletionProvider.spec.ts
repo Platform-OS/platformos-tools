@@ -19,7 +19,7 @@ describe('Module: RenderSnippetCompletionProvider', async () => {
       },
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_) => ['product-card', 'image'],
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 
@@ -47,7 +47,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         }
         return [];
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
 
     await expect(provider).to.complete('{% render "/modules/user/commands', ['test']);
@@ -71,7 +71,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         }
         return [];
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
 
     await expect(provider).to.complete('{% render "/commands', ['test2']);
@@ -95,7 +95,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         }
         return [];
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
 
     await expect(provider).to.complete('{% render "/modules/user/commands', [

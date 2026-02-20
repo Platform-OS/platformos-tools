@@ -1,5 +1,5 @@
 import lineColumn from 'line-column';
-import { MatchResult } from 'ohm-js';
+import { FailedMatchResult } from 'ohm-js';
 import { NodeTypes, Position } from './types';
 
 interface LineColPosition {
@@ -10,7 +10,7 @@ interface LineColPosition {
 export class LiquidHTMLCSTParsingError extends SyntaxError {
   loc?: { start: LineColPosition; end: LineColPosition };
 
-  constructor(ohm: MatchResult) {
+  constructor(ohm: FailedMatchResult) {
     super(ohm.shortMessage);
     this.name = 'LiquidHTMLParsingError';
 

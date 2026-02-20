@@ -9,11 +9,10 @@ module.exports = {
   plugins: ['@typescript-eslint'],
   rules: {
     '@typescript-eslint/naming-convention': 'warn',
-    '@typescript-eslint/semi': 'warn',
     'no-throw-literal': 'warn',
     curly: 'warn',
     eqeqeq: 'warn',
-    semi: 'off',
+    semi: 'warn',
   },
   env: {
     'node': true,

@@ -576,7 +576,7 @@ export function printLiquidDoc(
 
   if (nodes.length === 0) return [];
 
-  const lines = [nodes[0]] as (string[] | doc.builders.Concat)[];
+  const lines = [nodes[0]] as (string[] | Doc)[];
 
   for (let i = 1; i < nodes.length; i++) {
     lines.push(hardline);

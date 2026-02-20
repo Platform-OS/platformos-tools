@@ -1,9 +1,6 @@
 import { CheckDefinition, SourceCodeType } from '@platformos/platformos-check-common';
-import glob from 'glob';
-import { promisify } from 'node:util';
+import { glob } from 'glob';
 import { AbsolutePath } from '../temp';
-
-const asyncGlob = promisify(glob);
 
 type ModulePath = string;
 
@@ -49,7 +46,7 @@ export async function findThirdPartyChecks(nodeModuleRoot: AbsolutePath): Promis
     globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/theme-check-*/'),
     globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/@*/theme-check-*/'),
   ];
-  const results = await Promise.all(paths.map((path) => asyncGlob(path)));
+  const results = await Promise.all(paths.map((path) => glob(path)));
   return results
     .flat()
     .filter(

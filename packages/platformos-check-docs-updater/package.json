@@ -32,11 +32,9 @@
   "dependencies": {
     "@platformos/platformos-check-common": "0.0.6",
     "env-paths": "^2.2.1",
-    "he": "^1.2.0",
-    "node-fetch": "^2.6.11"
+    "he": "^1.2.0"
   },
   "devDependencies": {
-    "@types/he": "^1.2.3",
-    "@types/node-fetch": "^2.6.4"
+    "@types/he": "^1.2.3"
   }
 }

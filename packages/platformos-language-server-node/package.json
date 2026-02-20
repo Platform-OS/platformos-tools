@@ -30,13 +30,9 @@
     "@platformos/platformos-check-docs-updater": "0.0.6",
     "@platformos/platformos-check-node": "0.0.6",
     "@platformos/platformos-language-server-common": "0.0.6",
-    "glob": "^8.0.3",
-    "node-fetch": "^2.6.11",
-    "vscode-languageserver": "^8.0.2",
-    "vscode-uri": "^3.0.7"
+    "glob": "^13.0.0",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-uri": "^3.1.0"
   },
-  "devDependencies": {
-    "@types/node-fetch": "^2.6.4",
-    "mktemp": "^1.0.1"
-  }
+  "devDependencies": {}
 }

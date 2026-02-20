@@ -24,16 +24,13 @@ import { ThemeLiquidDocsManager } from '@platformos/platformos-check-docs-update
 import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { URI } from 'vscode-uri';
-import glob = require('glob');
+import { glob } from 'glob';
 
 import { autofix } from './autofix';
 import { findConfigPath, loadConfig as resolveConfig } from './config';
 import { NodeFileSystem } from './NodeFileSystem';
 import { fileURLToPath } from 'node:url';
-
-const asyncGlob = promisify(glob);
 
 export * from '@platformos/platformos-check-common';
 export * from './config/types';
@@ -178,7 +175,7 @@ export async function getTheme(config: Config): Promise<Theme> {
   // the path is normalised and '\' are replaced with '/' and then passed to the glob function
   let normalizedGlob = getThemeFilesPathPattern(config.rootUri);
 
-  const paths = await asyncGlob(normalizedGlob, { absolute: true }).then((result) =>
+  const paths = await glob(normalizedGlob, { absolute: true }).then((result) =>
     // Global ignored paths should not be part of the theme
     result.filter((filePath) => !isIgnored(filePath, config)),
   );

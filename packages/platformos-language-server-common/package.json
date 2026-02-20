@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-language-server-common",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "platformOS",
@@ -27,9 +27,9 @@
     "type-check": "tsc --noEmit -p ./tsconfig.json"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^0.0.6",
-    "@platformos/platformos-check-common": "0.0.6",
-    "@platformos/platformos-graph": "0.0.6",
+    "@platformos/liquid-html-parser": "^0.0.7",
+    "@platformos/platformos-check-common": "0.0.7",
+    "@platformos/platformos-graph": "0.0.7",
     "@vscode/web-custom-data": "^0.4.6",
     "vscode-json-languageservice": "^5.7.1",
     "vscode-languageserver": "^9.0.1",

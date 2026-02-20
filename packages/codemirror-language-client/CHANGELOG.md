@@ -1,5 +1,11 @@
 # @platformos/codemirror-language-client
 
+## 0.0.7
+
+### Patch Changes
+
+- Update dependencies
+
 ## 0.0.6
 
 ### Patch Changes

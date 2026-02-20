@@ -90,7 +90,7 @@ async function main() {
     worker,
     {
       initializationOptions: {
-        'themeCheck.preloadOnBoot': false,
+        'platformosCheck.preloadOnBoot': false,
       },
     },
     {

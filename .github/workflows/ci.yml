@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22
           cache: "yarn"
           cache-dependency-path: "yarn.lock"
 
@@ -37,7 +37,7 @@ jobs:
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
-        node-version: [18, 20]
+        node-version: [22, 24]
 
     name: Tests / OS ${{ matrix.os }} / NodeJS ${{ matrix.node-version }}
 

@@ -1,5 +1,14 @@
 # shopify/theme-graph
 
+## 0.0.6
+
+### Patch Changes
+
+- Beta release
+- Updated dependencies
+  - @platformos/liquid-html-parser@0.0.6
+  - @platformos/platformos-check-common@0.0.6
+
 ## 0.0.5
 
 ### Patch Changes

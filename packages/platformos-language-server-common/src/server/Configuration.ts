@@ -26,7 +26,10 @@ export class Configuration {
   [PRELOAD_ON_BOOT]: boolean = true;
   [INCLUDE_FILES_FROM_DISK]: boolean = false;
 
-  constructor(private connection: Connection, private capabilities: ClientCapabilities) {
+  constructor(
+    private connection: Connection,
+    private capabilities: ClientCapabilities,
+  ) {
     this.connection = connection;
     this.capabilities = capabilities;
   }

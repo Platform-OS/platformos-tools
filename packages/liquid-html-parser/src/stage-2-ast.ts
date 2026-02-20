@@ -319,8 +319,10 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
   value: LiquidVariable;
 }
 
-export interface LiquidTagHashAssign
-  extends LiquidTagNode<NamedTags.hash_assign, HashAssignMarkup> {}
+export interface LiquidTagHashAssign extends LiquidTagNode<
+  NamedTags.hash_assign,
+  HashAssignMarkup
+> {}
 
 /** {% hash_assign target['key'] = value | parse_json %} */
 export interface HashAssignMarkup extends ASTNode<NodeTypes.HashAssignMarkup> {
@@ -331,12 +333,16 @@ export interface HashAssignMarkup extends ASTNode<NodeTypes.HashAssignMarkup> {
 }
 
 /** https://shopify.dev/docs/api/liquid/tags#increment */
-export interface LiquidTagIncrement
-  extends LiquidTagNode<NamedTags.increment, LiquidVariableLookup> {}
+export interface LiquidTagIncrement extends LiquidTagNode<
+  NamedTags.increment,
+  LiquidVariableLookup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#decrement */
-export interface LiquidTagDecrement
-  extends LiquidTagNode<NamedTags.decrement, LiquidVariableLookup> {}
+export interface LiquidTagDecrement extends LiquidTagNode<
+  NamedTags.decrement,
+  LiquidVariableLookup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#capture */
 export interface LiquidTagCapture extends LiquidTagNode<NamedTags.capture, LiquidVariableLookup> {}
@@ -392,12 +398,16 @@ export interface LiquidTagIf extends LiquidTagConditional<NamedTags.if> {}
 export interface LiquidTagUnless extends LiquidTagConditional<NamedTags.unless> {}
 
 /** {% elsif cond %} */
-export interface LiquidBranchElsif
-  extends LiquidBranchNode<NamedTags.elsif, LiquidConditionalExpression> {}
+export interface LiquidBranchElsif extends LiquidBranchNode<
+  NamedTags.elsif,
+  LiquidConditionalExpression
+> {}
 
 // Helper for creating the types of if and unless
-export interface LiquidTagConditional<Name>
-  extends LiquidTagNode<Name, LiquidConditionalExpression> {}
+export interface LiquidTagConditional<Name> extends LiquidTagNode<
+  Name,
+  LiquidConditionalExpression
+> {}
 
 /** The union type of all conditional expression nodes */
 export type LiquidConditionalExpression =
@@ -433,16 +443,20 @@ export interface PaginateMarkup extends ASTNode<NodeTypes.PaginateMarkup> {
 }
 
 /** https://shopify.dev/docs/api/liquid/tags#content_for */
-export interface LiquidTagContentFor
-  extends LiquidTagNode<NamedTags.content_for, ContentForMarkup> {}
+export interface LiquidTagContentFor extends LiquidTagNode<
+  NamedTags.content_for,
+  ContentForMarkup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#render */
 export interface LiquidTagRender extends LiquidTagNode<NamedTags.render, RenderMarkup> {}
 
 export interface LiquidTagFunction extends LiquidTagNode<NamedTags.function, FunctionMarkup> {}
 
-export interface LiquidTagGraphQL
-  extends LiquidTagNode<NamedTags.graphql, GraphQLMarkup | GraphQLInlineMarkup> {}
+export interface LiquidTagGraphQL extends LiquidTagNode<
+  NamedTags.graphql,
+  GraphQLMarkup | GraphQLInlineMarkup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#include */
 export interface LiquidTagInclude extends LiquidTagNode<NamedTags.include, RenderMarkup> {}
@@ -536,39 +550,59 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
 }
 
 // platformos tag interfaces
-export interface LiquidTagBackground
-  extends LiquidTagNode<NamedTags.background, BackgroundMarkup | BackgroundInlineMarkup> {}
+export interface LiquidTagBackground extends LiquidTagNode<
+  NamedTags.background,
+  BackgroundMarkup | BackgroundInlineMarkup
+> {}
 export interface LiquidTagCache extends LiquidTagNode<NamedTags.cache, CacheMarkup> {}
 export interface LiquidTagContext extends LiquidTagNode<NamedTags.context, LiquidNamedArgument[]> {}
 export interface LiquidTagExport extends LiquidTagNode<NamedTags.export, ExportMarkup> {}
-export interface LiquidTagIncludeForm
-  extends LiquidTagNode<NamedTags.include_form, IncludeFormMarkup> {}
+export interface LiquidTagIncludeForm extends LiquidTagNode<
+  NamedTags.include_form,
+  IncludeFormMarkup
+> {}
 export interface LiquidTagLog extends LiquidTagNode<NamedTags.log, LogMarkup> {}
-export interface LiquidTagParseJson
-  extends LiquidTagNode<NamedTags.parse_json, LiquidVariableLookup> {}
+export interface LiquidTagParseJson extends LiquidTagNode<
+  NamedTags.parse_json,
+  LiquidVariableLookup
+> {}
 export interface LiquidTagPrint extends LiquidTagNode<NamedTags.print, LiquidVariable> {}
-export interface LiquidTagRedirectTo
-  extends LiquidTagNode<NamedTags.redirect_to, RedirectToMarkup> {}
-export interface LiquidTagResponseHeaders
-  extends LiquidTagNode<NamedTags.response_headers, LiquidExpression> {}
-export interface LiquidTagResponseStatus
-  extends LiquidTagNode<NamedTags.response_status, LiquidNumber> {}
+export interface LiquidTagRedirectTo extends LiquidTagNode<
+  NamedTags.redirect_to,
+  RedirectToMarkup
+> {}
+export interface LiquidTagResponseHeaders extends LiquidTagNode<
+  NamedTags.response_headers,
+  LiquidExpression
+> {}
+export interface LiquidTagResponseStatus extends LiquidTagNode<
+  NamedTags.response_status,
+  LiquidNumber
+> {}
 export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable> {}
 export interface LiquidTagRollback extends LiquidTagNode<NamedTags.rollback, string> {}
 export interface LiquidTagSession extends LiquidTagNode<NamedTags.session, SessionMarkup> {}
 export interface LiquidTagSignIn extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
-export interface LiquidTagSpamProtection
-  extends LiquidTagNode<NamedTags.spam_protection, SpamProtectionMarkup> {}
-export interface LiquidTagThemeRenderRc
-  extends LiquidTagNode<NamedTags.theme_render_rc, RenderMarkup> {}
-export interface LiquidTagTransaction
-  extends LiquidTagNode<NamedTags.transaction, LiquidNamedArgument[]> {}
+export interface LiquidTagSpamProtection extends LiquidTagNode<
+  NamedTags.spam_protection,
+  SpamProtectionMarkup
+> {}
+export interface LiquidTagThemeRenderRc extends LiquidTagNode<
+  NamedTags.theme_render_rc,
+  RenderMarkup
+> {}
+export interface LiquidTagTransaction extends LiquidTagNode<
+  NamedTags.transaction,
+  LiquidNamedArgument[]
+> {}
 export interface LiquidTagTry extends LiquidTagNode<NamedTags.try, string> {}
 export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, LiquidExpression> {}
 
 // platformos branch interface
-export interface LiquidBranchCatch
-  extends LiquidBranchNode<NamedTags.catch, LiquidVariableLookup> {}
+export interface LiquidBranchCatch extends LiquidBranchNode<
+  NamedTags.catch,
+  LiquidVariableLookup
+> {}
 
 // platformos markup interfaces
 /** {% background job_id = 'partial', [...namedArguments] %} (file-based) */

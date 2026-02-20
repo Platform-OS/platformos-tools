@@ -26,7 +26,7 @@ jobs:
           cache-dependency-path: "yarn.lock"
 
       - name: Install the packages
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: yarn install --frozen-lockfile --ignore-engines --ignore-optional
 
       - name: Build the code
         run: yarn build

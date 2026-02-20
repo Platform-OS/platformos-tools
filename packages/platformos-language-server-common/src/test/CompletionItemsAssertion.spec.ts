@@ -19,7 +19,7 @@ describe('Module: CompletionItemsAssertion', () => {
         tags: async () => [{ name: 'render' }],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
+      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 

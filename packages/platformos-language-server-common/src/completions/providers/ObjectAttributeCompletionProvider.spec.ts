@@ -72,7 +72,6 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         objects: async () => _objects,
         liquidDrops: async () => _objects,
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
     });
   });

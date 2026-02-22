@@ -77,7 +77,6 @@ describe('Module: runChecks', () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       jsonValidationSet: {
         schemas: async () => [],
@@ -233,7 +232,6 @@ describe('Module: runChecks', () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       jsonValidationSet: {
         schemas: async () => [],

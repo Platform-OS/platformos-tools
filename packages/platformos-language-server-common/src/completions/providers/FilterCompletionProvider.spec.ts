@@ -134,7 +134,6 @@ describe('Module: FilterCompletionProvider', async () => {
         objects: async () => objects,
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
     });
   });

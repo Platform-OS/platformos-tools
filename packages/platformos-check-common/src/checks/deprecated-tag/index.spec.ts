@@ -32,9 +32,6 @@ const mockDependencies = {
         },
       ];
     },
-    async systemTranslations() {
-      return {};
-    },
   },
 };
 

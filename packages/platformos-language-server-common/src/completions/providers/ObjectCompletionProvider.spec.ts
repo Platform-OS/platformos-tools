@@ -51,7 +51,6 @@ describe('Module: ObjectCompletionProvider', async () => {
         objects: async () => _objects,
         liquidDrops: async () => _objects,
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
     });
   });

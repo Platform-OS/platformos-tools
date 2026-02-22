@@ -59,7 +59,6 @@ const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
       objects: async () => [],
       liquidDrops: async () => [],
       tags: async () => [],
-      systemTranslations: async () => ({}),
     },
     new TranslationProvider(new MockFileSystem({})),
     async () => ({}),

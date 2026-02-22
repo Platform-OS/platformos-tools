@@ -1,114 +1,129 @@
-import { LiquidRawTag, NodeTypes } from '@platformos/liquid-html-parser';
-import { SourceCodeType, findCurrentNode } from '@platformos/platformos-check-common';
-import { LanguageService, Stylesheet, getCSSLanguageService } from 'vscode-css-languageservice';
+import { getCSSLanguageService, LanguageService } from 'vscode-css-languageservice';
+import {
+  HtmlRawNode,
+  LiquidHtmlNode,
+  NodeTypes,
+  RawMarkupKinds,
+  walk,
+} from '@platformos/liquid-html-parser';
+import { isError, SourceCodeType } from '@platformos/platformos-check-common';
 import {
   CompletionItem,
   CompletionList,
   CompletionParams,
-  Diagnostic,
-  DocumentDiagnosticParams,
   Hover,
   HoverParams,
   ClientCapabilities as LSPClientCapabilities,
+  Position,
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DocumentManager } from '../documents';
 
 export class CSSLanguageService {
   private service: LanguageService | null = null;
+  // Standalone .css files — managed independently of DocumentManager
+  private cssDocuments: Map<string, TextDocument> = new Map();
 
   constructor(private documentManager: DocumentManager) {}
 
-  async setup(clientCapabilities: LSPClientCapabilities) {
-    this.service = getCSSLanguageService({
-      clientCapabilities,
-    });
+  setup(clientCapabilities: LSPClientCapabilities) {
+    this.service = getCSSLanguageService({ clientCapabilities });
   }
 
-  async completions(params: CompletionParams): Promise<null | CompletionList | CompletionItem[]> {
+  open(uri: string, source: string, version: number) {
+    this.cssDocuments.set(uri, TextDocument.create(uri, 'css', version, source));
+  }
+
+  change(uri: string, source: string, version: number) {
+    const existing = this.cssDocuments.get(uri);
+    if (existing) {
+      this.cssDocuments.set(uri, TextDocument.update(existing, [{ text: source }], version));
+    } else {
+      this.open(uri, source, version);
+    }
+  }
+
+  close(uri: string) {
+    this.cssDocuments.delete(uri);
+  }
+
+  async completions(params: CompletionParams): Promise<CompletionList | CompletionItem[] | null> {
     const service = this.service;
     if (!service) return null;
-    const documents = this.getDocuments(params, service);
-    if (!documents) return null;
-    const [stylesheetTextDocument, stylesheetDocument] = documents;
-    return service.doComplete(stylesheetTextDocument, params.position, stylesheetDocument);
-  }
 
-  async diagnostics(params: DocumentDiagnosticParams): Promise<Diagnostic[]> {
-    const service = this.service;
-    if (!service) return [];
-    const documents = this.getDocuments(params, service);
-    if (!documents) return [];
-    const [stylesheetTextDocument, stylesheetDocument] = documents;
-    return service.doValidation(stylesheetTextDocument, stylesheetDocument);
+    const uri = params.textDocument.uri;
+
+    if (uri.endsWith('.css')) {
+      const textDoc = this.cssDocuments.get(uri);
+      if (!textDoc) return null;
+      const stylesheet = service.parseStylesheet(textDoc);
+      return service.doComplete(textDoc, params.position, stylesheet);
+    }
+
+    const embedded = this.findEmbeddedCSS(uri, params.position);
+    if (!embedded) return null;
+    const stylesheet = service.parseStylesheet(embedded.virtualDoc);
+    return service.doComplete(embedded.virtualDoc, params.position, stylesheet);
   }
 
   async hover(params: HoverParams): Promise<Hover | null> {
     const service = this.service;
     if (!service) return null;
-    const documents = this.getDocuments(params, service);
-    if (!documents) return null;
-    const [stylesheetTextDocument, stylesheetDocument] = documents;
-    return service.doHover(stylesheetTextDocument, params.position, stylesheetDocument);
+
+    const uri = params.textDocument.uri;
+
+    if (uri.endsWith('.css')) {
+      const textDoc = this.cssDocuments.get(uri);
+      if (!textDoc) return null;
+      const stylesheet = service.parseStylesheet(textDoc);
+      return service.doHover(textDoc, params.position, stylesheet);
+    }
+
+    const embedded = this.findEmbeddedCSS(uri, params.position);
+    if (!embedded) return null;
+    const stylesheet = service.parseStylesheet(embedded.virtualDoc);
+    return service.doHover(embedded.virtualDoc, params.position, stylesheet);
   }
 
-  private getDocuments(
-    params: HoverParams | CompletionParams | DocumentDiagnosticParams,
-    service: LanguageService,
-  ): [TextDocument, Stylesheet] | null {
-    const document = this.documentManager.get(params.textDocument.uri);
-    if (!document) return null;
+  /**
+   * Finds the <style> block under the cursor in a .liquid file and builds a
+   * virtual CSS TextDocument whose line numbers align with the parent document.
+   *
+   * Strategy: prefix body.value with N newlines where N equals the line number
+   * of blockStartPosition.end. This keeps line numbers in sync so the same LSP
+   * Position can be passed directly to the CSS service.
+   *
+   * Note: character offsets are only accurate when <style> is on its own line
+   * (the typical case). Inline `<style>css</style>` is not handled perfectly.
+   */
+  private findEmbeddedCSS(uri: string, position: Position): { virtualDoc: TextDocument } | null {
+    const document = this.documentManager.get(uri);
+    if (!document || document.type !== SourceCodeType.LiquidHtml) return null;
+    if (isError(document.ast)) return null;
 
-    switch (document.type) {
-      case SourceCodeType.GraphQL:
-      case SourceCodeType.JSON:
-      case SourceCodeType.YAML: {
-        return null;
-      }
-      case SourceCodeType.LiquidHtml: {
-        if (document.ast instanceof Error) return null;
-        const textDocument = document.textDocument;
-        let offset = 0;
-        let isDiagnostics = false;
-        if ('position' in params && params.position.line !== 0 && params.position.character !== 0) {
-          offset = textDocument.offsetAt(params.position);
-        } else {
-          const stylesheetIndex = document.source.indexOf('{% stylesheet %}');
-          offset = stylesheetIndex;
-          isDiagnostics = true;
+    const offset = document.textDocument.offsetAt(position);
+
+    let foundNode: HtmlRawNode | null = null;
+    walk(document.ast as LiquidHtmlNode, (node) => {
+      if (node.type === NodeTypes.HtmlRawNode) {
+        const rawNode = node as HtmlRawNode;
+        if (
+          rawNode.body.kind === RawMarkupKinds.css &&
+          rawNode.blockStartPosition.end <= offset &&
+          offset <= rawNode.blockEndPosition.start
+        ) {
+          foundNode = rawNode;
         }
-        const [node, ancestors] = findCurrentNode(document.ast, offset);
-        let stylesheetTag = [...ancestors].find(
-          (node): node is LiquidRawTag =>
-            node.type === NodeTypes.LiquidRawTag && node.name === 'stylesheet',
-        );
-        if (isDiagnostics && 'children' in node && node.children) {
-          stylesheetTag = node.children.find(
-            (node): node is LiquidRawTag =>
-              node.type === NodeTypes.LiquidRawTag && node.name === 'stylesheet',
-          );
-        }
-
-        if (!stylesheetTag) return null;
-
-        const schemaLineNumber = textDocument.positionAt(stylesheetTag.blockStartPosition.end).line;
-        // Hacking away "same line numbers" here by prefixing the file with newlines
-        // This way params.position will be at the same line number in this fake jsonTextDocument
-        // Which means that the completions will be at the same line number in the Liquid document
-        const stylesheetString =
-          Array(schemaLineNumber).fill('\n').join('') +
-          stylesheetTag.source
-            .slice(stylesheetTag.blockStartPosition.end, stylesheetTag.blockEndPosition.start)
-            .replace(/\n$/, ''); // Remove trailing newline so parsing errors don't show up on `{% endstylesheet %}`
-        const stylesheetTextDocument = TextDocument.create(
-          textDocument.uri,
-          'json',
-          textDocument.version,
-          stylesheetString,
-        );
-        const stylesheetDocument = service.parseStylesheet(stylesheetTextDocument);
-        return [stylesheetTextDocument, stylesheetDocument];
       }
-    }
+    });
+
+    if (!foundNode) return null;
+
+    const node = foundNode as HtmlRawNode;
+    const bodyStartPos = document.textDocument.positionAt(node.blockStartPosition.end);
+    const prefix = '\n'.repeat(bodyStartPos.line);
+    const virtualDoc = TextDocument.create(uri + '#style', 'css', 0, prefix + node.body.value);
+
+    return { virtualDoc };
   }
 }

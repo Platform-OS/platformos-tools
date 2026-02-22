@@ -14,7 +14,6 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
     });
   });

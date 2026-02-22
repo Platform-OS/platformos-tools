@@ -392,7 +392,6 @@ describe('Module: server', () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       jsonValidationSet: {
         schemas: async () => [],

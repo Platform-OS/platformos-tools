@@ -17,14 +17,12 @@ declare global {
   export const WEBPACK_TAGS: any[];
   export const WEBPACK_FILTERS: any[];
   export const WEBPACK_OBJECTS: any[];
-  export const WEBPACK_SYSTEM_TRANSLATIONS: any;
   export const WEBPACK_SCHEMAS: any;
 }
 
 const tags = WEBPACK_TAGS;
 const filters = WEBPACK_FILTERS;
 const objects = WEBPACK_OBJECTS;
-const systemTranslations = WEBPACK_SYSTEM_TRANSLATIONS;
 const schemas = WEBPACK_SCHEMAS;
 
 const worker = self as any as Worker;
@@ -65,7 +63,6 @@ startServer(
       tags: async () => tags,
       objects: async () => objects,
       liquidDrops: async () => objects,
-      systemTranslations: async () => systemTranslations,
     },
     jsonValidationSet: {
       schemas: async () => schemas,

@@ -60,7 +60,6 @@ describe('Module: RenderSnippetParameterCompletionProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       getDocDefinitionForURI: async (_uri, snippetName) => {
         if (mockSnippetName === snippetName) {

@@ -12,17 +12,6 @@ describe('detectTrailingAssignValue', async () => {
     }
   });
 
-  it('should not report when the boolean expression is in a schema tag', async () => {
-    const sourceCode = `{% schema %}
-      {
-        "visible_if": "{{ this > that }}"
-      }
-    {% endschema %}`;
-
-    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-    expect(offenses).to.have.length(0);
-  });
-
   it('should report all use of boolean expressions', async () => {
     const testCases = [
       [`{% assign foo = something == else %}`, '{% assign foo = something %}'],

@@ -3,7 +3,6 @@ import {
   ObjectEntry,
   TagEntry,
   PlatformOSDocset,
-  Translations,
 } from './types';
 import { memo } from './utils';
 
@@ -81,7 +80,4 @@ export class AugmentedPlatformOSDocset implements PlatformOSDocset {
     return [...(await this.platformosDocset.tags()), ...undocumentedTags.map(toTagEntry)];
   });
 
-  systemTranslations = memo(async (): Promise<Translations> => {
-    return this.platformosDocset.systemTranslations();
-  });
 }

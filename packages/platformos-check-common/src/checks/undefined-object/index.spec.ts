@@ -361,33 +361,6 @@ describe('Module: UndefinedObject', () => {
     expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
   });
 
-  it('should not report an offense when using variables inside visible_if statements in a schema tag', async () => {
-    const sourceCode = `
-    {% schema %}
-    {
-      "settings": [
-        {
-          "type": "text",
-          "label": "foo",
-          "id": "foo",
-        }
-        {
-          "type": "text",
-          "label": "bar",
-          "id": "bar",
-          "visible_if": "{{ block.settings.foo }}",
-        }
-      ]
-    }
-    {% endschema %}
-    `;
-
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
-
-    assert(offenses.length == 0);
-    expect(offenses).to.be.empty;
-  });
-
   it('should report an offense when job_id is used inside background block', async () => {
     const sourceCode = `
       {% background job_id %}

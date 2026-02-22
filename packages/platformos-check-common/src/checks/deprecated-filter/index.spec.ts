@@ -35,9 +35,6 @@ const mockDependencies = {
     async tags() {
       return [];
     },
-    async systemTranslations() {
-      return {};
-    },
   },
 };
 

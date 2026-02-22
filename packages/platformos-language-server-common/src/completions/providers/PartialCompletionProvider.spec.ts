@@ -14,7 +14,6 @@ describe('Module: RenderSnippetCompletionProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_) => ['product-card', 'image'],
@@ -36,7 +35,6 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_uri, partial, _tag) => {
@@ -59,7 +57,6 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_uri, partial, _tag) => {
@@ -82,7 +79,6 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_uri, partial, _tag) => {

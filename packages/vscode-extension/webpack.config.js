@@ -129,11 +129,10 @@ const browserClientConfig = {
 
 const browserServerConfig = async () => {
   const docsManager = new PlatformOSLiquidDocsManager();
-  const [tags, filters, objects, systemTranslations, schemas] = await Promise.all([
+  const [tags, filters, objects, schemas] = await Promise.all([
     docsManager.tags(),
     docsManager.filters(),
     docsManager.objects(),
-    docsManager.systemTranslations(),
     docsManager.schemas(),
   ]);
 
@@ -155,7 +154,6 @@ const browserServerConfig = async () => {
         WEBPACK_TAGS: JSON.stringify(tags),
         WEBPACK_FILTERS: JSON.stringify(filters),
         WEBPACK_OBJECTS: JSON.stringify(objects),
-        WEBPACK_SYSTEM_TRANSLATIONS: JSON.stringify(systemTranslations),
         WEBPACK_SCHEMAS: JSON.stringify(schemas),
       }),
     ],

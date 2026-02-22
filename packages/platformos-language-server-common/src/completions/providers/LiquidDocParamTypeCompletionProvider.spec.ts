@@ -19,7 +19,6 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
           },
         ],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
     });
   });

@@ -18,7 +18,6 @@ describe('Module: RenderSnippetParameterHoverProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       new TranslationProvider(new MockFileSystem({})),
     );

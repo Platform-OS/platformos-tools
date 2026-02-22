@@ -6,10 +6,7 @@ import he from 'he';
 const paths = envPaths('platformos-liquid-docs');
 export const root = paths.cache;
 
-export const PlatformOSLiquidDocsRootFallback =
-  'https://raw.githubusercontent.com/Shopify/theme-liquid-docs/main';
 export const PlatformOSLiquidDocsRoot = 'https://documentation.platformos.com/api/liquid';
-export const PlatformOSCustomSchemas = ['tags', 'latest', 'objects', 'filters'];
 export const PlatformOSGraphQLSchema = 'https://documentation.platformos.com/api/graphql/schema';
 
 export type Resource = (typeof Resources)[number];
@@ -27,18 +24,6 @@ const PLATFORMOS_LIQUID_DOCS: Record<Resource | 'latest', string> = {
   latest: 'latest.json',
   platformos_system_translations: 'data/platformos_system_translations.json',
 };
-
-export async function downloadSchema(
-  relativeUri: string,
-  destination: string = root,
-  log: Logger = noop,
-) {
-  const remotePath = schemaUrl(relativeUri);
-  const localPath = schemaPath(relativeUri, destination);
-  const text = await download(remotePath, log);
-  await fs.writeFile(localPath, text, 'utf8');
-  return text;
-}
 
 export async function downloadResource(
   resource: Resource | 'latest',
@@ -84,24 +69,11 @@ export function resourcePath(resource: Resource | 'latest', destination: string 
 }
 
 export function resourceUrl(resource: Resource | 'latest') {
-  let resourceRoot = `${PlatformOSLiquidDocsRootFallback}`;
-
-  if (PlatformOSCustomSchemas.includes(resource)) {
-    resourceRoot = PlatformOSLiquidDocsRoot;
-  }
+  const resourceRoot = process.env.PLATFORMOS_TLD_ROOT
+    ? `file:${process.env.PLATFORMOS_TLD_ROOT}`
+    : PlatformOSLiquidDocsRoot;
   const relativePath = PLATFORMOS_LIQUID_DOCS[resource];
   return `${resourceRoot}/${relativePath}`;
-}
-
-export function schemaPath(relativeUri: string, destination: string = root) {
-  return path.resolve(destination, path.basename(relativeUri));
-}
-
-export function schemaUrl(relativeUri: string) {
-  const schemaRoot = process.env.PLATFORMOS_TLD_ROOT
-    ? `file:${process.env.PLATFORMOS_TLD_ROOT}`
-    : PlatformOSLiquidDocsRootFallback;
-  return `${schemaRoot}/schemas/${relativeUri}`;
 }
 
 export async function exists(path: string) {
@@ -148,8 +120,4 @@ export async function downloadPlatformOSLiquidDocs(destination: string, log: Log
   // there are no additional schemas to download.
 
   await downloadGraphQLSchema(destination, log);
-}
-
-function unique<T>(array: T[]): T[] {
-  return [...new Set(array).values()];
 }

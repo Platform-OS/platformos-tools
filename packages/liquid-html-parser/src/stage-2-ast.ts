@@ -67,7 +67,6 @@ import {
   ConcreteLiquidTagOpenNamed,
   ConcreteLiquidTagOpen,
   ConcreteLiquidArgument,
-  ConcretePaginateMarkup,
   ConcreteLiquidCondition,
   ConcreteLiquidComparison,
   ConcreteLiquidTagForMarkup,
@@ -122,7 +121,6 @@ export type LiquidHtmlNode =
   | FunctionMarkup
   | GraphQLMarkup
   | GraphQLInlineMarkup
-  | PaginateMarkup
   | RawMarkup
   | RenderVariableExpression
   | RenderAliasExpression
@@ -237,12 +235,9 @@ export type LiquidTagNamed =
   | LiquidTagIncrement
   | LiquidTagLayout
   | LiquidTagLiquid
-  | LiquidTagPaginate
   | LiquidTagRender
   | LiquidTagFunction
   | LiquidTagGraphQL
-  | LiquidTagSection
-  | LiquidTagSections
   | LiquidTagTablerow
   | LiquidTagUnless
   // platformos tags
@@ -429,19 +424,6 @@ export interface LiquidComparison extends ASTNode<NodeTypes.Comparison> {
   right: LiquidExpression;
 }
 
-/** https://shopify.dev/docs/api/liquid/tags#paginate */
-export interface LiquidTagPaginate extends LiquidTagNode<NamedTags.paginate, PaginateMarkup> {}
-
-/** {% paginate collection by pageSize [...namedArgs] %} */
-export interface PaginateMarkup extends ASTNode<NodeTypes.PaginateMarkup> {
-  /** {% paginate collection by pageSize %} */
-  collection: LiquidExpression;
-  /** {% paginate collection by pageSize %} */
-  pageSize: LiquidExpression;
-  /** optional named arguments such as `window_size: 10` */
-  args: LiquidNamedArgument[];
-}
-
 /** https://shopify.dev/docs/api/liquid/tags#content_for */
 export interface LiquidTagContentFor extends LiquidTagNode<
   NamedTags.content_for,
@@ -460,12 +442,6 @@ export interface LiquidTagGraphQL extends LiquidTagNode<
 
 /** https://shopify.dev/docs/api/liquid/tags#include */
 export interface LiquidTagInclude extends LiquidTagNode<NamedTags.include, RenderMarkup> {}
-
-/** https://shopify.dev/docs/api/liquid/tags#section */
-export interface LiquidTagSection extends LiquidTagNode<NamedTags.section, LiquidString> {}
-
-/** https://shopify.dev/docs/api/liquid/tags#sections */
-export interface LiquidTagSections extends LiquidTagNode<NamedTags.sections, LiquidString> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#layout */
 export interface LiquidTagLayout extends LiquidTagNode<NamedTags.layout, LiquidExpression> {}
@@ -1836,15 +1812,7 @@ function toNamedLiquidTag(
       };
     }
 
-    case NamedTags.layout:
-    case NamedTags.section: {
-      return {
-        ...liquidTagBaseAttributes(node),
-        name: node.name,
-        markup: toExpression(node.markup) as LiquidString,
-      };
-    }
-    case NamedTags.sections: {
+    case NamedTags.layout: {
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
@@ -1867,15 +1835,6 @@ function toNamedLiquidTag(
         ...liquidTagBaseAttributes(node),
         name: node.name,
         markup: toForMarkup(node.markup),
-        children: [],
-      };
-    }
-
-    case NamedTags.paginate: {
-      return {
-        ...liquidTagBaseAttributes(node),
-        name: node.name,
-        markup: toPaginateMarkup(node.markup),
         children: [],
       };
     }
@@ -2171,17 +2130,6 @@ function toForMarkup(node: ConcreteLiquidTagForMarkup): ForMarkup {
   };
 }
 
-function toPaginateMarkup(node: ConcretePaginateMarkup): PaginateMarkup {
-  return {
-    type: NodeTypes.PaginateMarkup,
-    collection: toExpression(node.collection),
-    pageSize: toExpression(node.pageSize),
-    position: position(node),
-    args: node.args ? node.args.map(toNamedArgument) : [],
-    source: node.source,
-  };
-}
-
 function toRawMarkup(
   node: ConcreteHtmlRawTag | ConcreteLiquidRawTag,
   options: ASTBuildOptions,
@@ -2265,21 +2213,8 @@ function toRawMarkupKindFromHtmlNode(node: ConcreteHtmlRawTag): RawMarkupKinds {
   }
 }
 
-function toRawMarkupKindFromLiquidNode(node: ConcreteLiquidRawTag): RawMarkupKinds {
-  switch (node.name) {
-    case 'javascript':
-      return RawMarkupKinds.javascript;
-    case 'stylesheet':
-    case 'style':
-      if (liquidToken.test(node.body)) {
-        return RawMarkupKinds.text;
-      }
-      return RawMarkupKinds.css;
-    case 'schema':
-      return RawMarkupKinds.json;
-    default:
-      return RawMarkupKinds.text;
-  }
+function toRawMarkupKindFromLiquidNode(_node: ConcreteLiquidRawTag): RawMarkupKinds {
+  return RawMarkupKinds.text;
 }
 
 function toContentForMarkup(node: ConcreteLiquidTagContentForMarkup): ContentForMarkup {

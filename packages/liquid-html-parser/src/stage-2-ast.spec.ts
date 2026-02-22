@@ -944,34 +944,6 @@ describe('Unit: Stage 2 (AST)', () => {
       }
     });
 
-    it('should parse raw-like tags', () => {
-      const tags = ['javascript', 'style'];
-      for (const { toAST, expectPath, expectPosition } of testCases) {
-        for (const tag of tags) {
-          const code = `
-            {% ${tag} %}
-              {% liquid
-                assign x = 1
-                assign x = 2
-              %}
-              /* comment string */
-            {% end${tag} %}
-          `;
-          ast = toAST(code);
-          expectPath(ast, 'children.0').to.exist;
-          expectPath(ast, 'children.0.type').to.eql('LiquidRawTag');
-          expectPath(ast, 'children.0.body.type').to.eql('RawMarkup');
-          expectPath(ast, 'children.0.body.nodes.0.type').to.eql('LiquidTag');
-          expectPath(ast, 'children.0.body.nodes.0.markup.0.name').to.eql('assign');
-          expectPath(ast, 'children.0.body.nodes.0.markup.1.name').to.eql('assign');
-          expectPath(ast, 'children.0.body.nodes.1.type').to.eql('TextNode');
-          expectPosition(ast, 'children.0.body.nodes.0.markup.0').toEqual('assign x = 1');
-          expectPosition(ast, 'children.0.body.nodes.0.markup.1').toEqual('assign x = 2');
-          expectPosition(ast, 'children.0.body.nodes.1').toEqual('/* comment string */');
-        }
-      }
-    });
-
     it(`should parse a basic text node into a TextNode`, () => {
       for (const { toAST, expectPath, expectPosition } of testCases) {
         ast = toAST('Hello world!');

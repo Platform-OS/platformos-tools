@@ -207,11 +207,7 @@ function printNamedLiquidBlockStart(
     case NamedTags.capture:
     case NamedTags.increment:
     case NamedTags.decrement:
-    case NamedTags.layout:
-    case NamedTags.section: {
-      return tag(' ');
-    }
-    case NamedTags.sections: {
+    case NamedTags.layout: {
       return tag(' ');
     }
 
@@ -224,10 +220,6 @@ function printNamedLiquidBlockStart(
     case NamedTags.for: {
       const trailingWhitespace = node.markup.reversed || node.markup.args.length > 0 ? line : ' ';
       return tag(trailingWhitespace);
-    }
-
-    case NamedTags.paginate: {
-      return tag(line);
     }
 
     case NamedTags.if:

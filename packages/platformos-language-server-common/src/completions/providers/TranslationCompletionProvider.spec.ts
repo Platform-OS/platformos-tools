@@ -14,7 +14,6 @@ describe('Module: TranslationCompletionProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       getTranslationsForURI: async (_) => ({
         general: {

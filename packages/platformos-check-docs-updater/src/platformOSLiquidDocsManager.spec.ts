@@ -32,8 +32,6 @@ vi.mock('node:fs/promises', async () => {
     'MOCKED_CACHE/platformos-liquid-docs/objects.json': '[{"name": "product"}]',
     'MOCKED_CACHE/platformos-liquid-docs/tags.json': '[{"name": "if"}]',
     'MOCKED_CACHE/platformos-liquid-docs/latest.json': '{"revision": "1"}',
-    'MOCKED_CACHE/platformos-liquid-docs/platformos_system_translations.json':
-      '{"pos.general.cart": "Cart"}',
   };
 
   return {
@@ -87,15 +85,6 @@ describe('Module: PlatformOSLiquidDocsManager', async () => {
     it('should return an array', async () => {
       const tags = await manager.tags();
       expect(tags).to.eql([{ name: 'if' }]);
-    });
-  });
-
-  describe('Unit: systemTranslations', () => {
-    it('should return the parsed JSON content of the system translations', async () => {
-      const systemTranslations = await manager.systemTranslations();
-      expect(systemTranslations).to.eql({
-        'pos.general.cart': 'Cart',
-      });
     });
   });
 });

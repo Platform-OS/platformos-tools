@@ -5,7 +5,6 @@ import {
   SchemaDefinition,
   TagEntry,
   PlatformOSDocset,
-  Translations,
 } from '@platformos/platformos-check-common';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -40,16 +39,7 @@ export class PlatformOSLiquidDocsManager implements PlatformOSDocset, JsonValida
   });
 
   graphQL = memo(async (): Promise<string | null> => {
-    return findSuitableResource(this.graphQLLoaders(), (x: string) => x, null, this.log);
-  });
-
-  systemTranslations = memo(async (): Promise<Translations> => {
-    return findSuitableResource(
-      this.loaders('platformos_system_translations'),
-      JSON.parse,
-      {},
-      this.log,
-    );
+    return findSuitableResource(this.graphqlLoaders(), (x: string) => x, null, this.log);
   });
 
   // platformOS does not use JSON schemas for sections/blocks/settings.
@@ -114,7 +104,7 @@ export class PlatformOSLiquidDocsManager implements PlatformOSDocset, JsonValida
     ];
   }
 
-  private graphQLLoaders(): Loader<string>[] {
+  private graphqlLoaders(): Loader<string>[] {
     return [
       loader(() => this.loadGraphQL(), `loadGraphQL()`),
       loader(() => fallbackGraphQL(this.log), `fallbackSchema()`),

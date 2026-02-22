@@ -15,7 +15,6 @@ describe('Module: ContentForCompletionProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
     });
   });

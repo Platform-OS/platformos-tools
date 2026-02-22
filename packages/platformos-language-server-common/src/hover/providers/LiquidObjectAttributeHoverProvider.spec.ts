@@ -57,7 +57,6 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
         objects: async () => _objects,
         liquidDrops: async () => _objects,
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       new TranslationProvider(new MockFileSystem({})),
     );

@@ -51,7 +51,6 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
       ],
       liquidDrops: async () => [],
       tags: async () => [],
-      systemTranslations: async () => ({}),
     });
   });
 
@@ -82,7 +81,6 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       });
 
       const filters = await docset.filters();
@@ -115,7 +113,6 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       });
 
       const filters = await docset.filters();
@@ -140,7 +137,6 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       });
 
       const filters = await docset.filters();
@@ -161,7 +157,6 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       });
 
       const filters = await docset.filters();

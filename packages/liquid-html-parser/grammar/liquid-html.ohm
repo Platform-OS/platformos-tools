@@ -64,8 +64,6 @@ Liquid <: Helpers {
     | liquidTagRender
     | liquidTagFunction
     | liquidTagGraphQL
-    | liquidTagSection
-    | liquidTagSections
     | liquidTagWhen
     // platformos tags
     | liquidTagBackground
@@ -98,7 +96,6 @@ Liquid <: Helpers {
     | liquidTagOpenGraphQL
     | liquidTagOpenTablerow
     | liquidTagOpenIf
-    | liquidTagOpenPaginate
     | liquidTagOpenUnless
     // platformos block tags
     | liquidTagOpenBackground
@@ -141,12 +138,6 @@ Liquid <: Helpers {
   liquidTagDecrement = liquidTagRule<"decrement", variableSegmentAsLookupMarkup>
   liquidTagOpenCapture = liquidTagOpenRule<"capture", variableSegmentAsLookupMarkup>
   variableSegmentAsLookupMarkup = variableSegmentAsLookup space*
-
-  liquidTagSection = liquidTagRule<"section", liquidTagSectionMarkup>
-  liquidTagSectionMarkup = liquidString<delimTag> space*
-
-  liquidTagSections = liquidTagRule<"sections", liquidTagSectionsMarkup>
-  liquidTagSectionsMarkup = liquidString<delimTag> space*
 
   liquidTagLayout = liquidTagRule<"layout", liquidTagLayoutMarkup>
   liquidTagLayoutMarkup = liquidExpression<delimTag> space*
@@ -259,7 +250,6 @@ Liquid <: Helpers {
   liquidTagOpenBaseCase = liquidTagOpenRule<blockNameNotSpecial, tagMarkup>
   blockNameNotSpecial =
     ( "form"
-    | "paginate"
     | "capture"
     | "case"
     | "for"
@@ -278,6 +268,7 @@ Liquid <: Helpers {
   liquidTagOpenFormMarkup = arguments<delimTag> (space* ",")? space*
 
   liquidTagOpenFor = liquidTagOpenRule<"for", liquidTagOpenForMarkup>
+
   liquidTagOpenForMarkup =
     variableSegment space* "in" space* liquidExpression<delimTag>
     (space* "reversed")? argumentSeparatorOptionalComma
@@ -315,10 +306,6 @@ Liquid <: Helpers {
     | "<")
     | ("contains" ~identifier)
 
-  liquidTagOpenPaginate = liquidTagOpenRule<"paginate", liquidTagOpenPaginateMarkup>
-  liquidTagOpenPaginateMarkup =
-    liquidExpression<delimTag> space+ "by" space+ liquidExpression<delimTag> argumentSeparatorOptionalComma tagArguments (space* ",")? space*
-
   liquidDrop = "{{" "-"? space* liquidDropCases "-"? "}}"
   liquidDropCases = liquidVariable<delimVO> | liquidDropBaseCase
   liquidDropBaseCase = anyExceptStar<delimVO>
@@ -326,10 +313,6 @@ Liquid <: Helpers {
 
   liquidRawTag =
     | liquidRawTagImpl<"raw">
-    | liquidRawTagImpl<"javascript">
-    | liquidRawTagImpl<"schema">
-    | liquidRawTagImpl<"stylesheet">
-    | liquidRawTagImpl<"style">
   liquidRawTagImpl<name> =
     "{%" "-"? space* (name endOfIdentifier) space* tagMarkup "-"? "%}"
     anyExceptStar<liquidRawTagClose<name>>
@@ -434,9 +417,7 @@ Liquid <: Helpers {
     letter (alnum | "_")*
 
   blockName =
-    // Shopify blocks
     ( "form"
-    | "paginate"
     // Base blocks
     | "capture"
     | "case"

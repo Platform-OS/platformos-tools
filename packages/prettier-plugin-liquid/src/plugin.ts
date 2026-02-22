@@ -50,12 +50,6 @@ const options: SupportOptions = {
     default: false,
     description: 'Always print link tags on a single line to remove clutter',
   },
-  indentSchema: {
-    type: 'boolean',
-    category: 'LIQUID',
-    default: false,
-    description: 'Indent the contents of the {% schema %} tag',
-  },
   liquidDocParamDash: {
     type: 'boolean',
     category: 'LIQUID',

@@ -89,7 +89,6 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => tags,
-        systemTranslations: async () => ({}),
       },
     });
   });
@@ -108,9 +107,6 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
     await expect(provider).to.complete('{% comment %} hello there {% end', ['endcomment']);
     await expect(provider).to.complete('{% if cond %} hello {% else %} then {% end', ['endif']);
     await expect(provider).to.complete('{% for i in (1..3) %}{% end', ['endfor']);
-    await expect(provider).to.complete('{% javascript %} console.log("hi") {% end', [
-      'endjavascript',
-    ]);
     await expect(provider).to.complete('{% form "cart", cart %} ... {% end', ['endform']);
   });
 
@@ -137,10 +133,6 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
       'endif',
     ]);
     await expect(provider).to.complete('{% for i in (1..3) %}{% e', ['echo', 'endfor']);
-    await expect(provider).to.complete('{% javascript %} console.log("hi") {% e', [
-      'echo',
-      'endjavascript',
-    ]);
     await expect(provider).to.complete('{% form "cart", cart %} ... {% e', ['echo', 'endform']);
   });
 
@@ -148,7 +140,6 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
     await expect(provider).to.complete('{% comment %} hello there {% endz', []);
     await expect(provider).to.complete('{% if cond %} hello {% else %} then {% endz', []);
     await expect(provider).to.complete('{% for i in (1..3) %}{% endz', []);
-    await expect(provider).to.complete('{% javascript %} console.log("hi") {% endz', []);
     await expect(provider).to.complete('{% form "cart", cart %} ... {% endz', []);
   });
 
@@ -164,10 +155,6 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
       allTags.concat('endif'),
     );
     await expect(provider).to.complete('{% for i in (1..3) %}{% ', allTags.concat('endfor'));
-    await expect(provider).to.complete(
-      '{% javascript %} console.log("hi") {% ',
-      allTags.concat('endjavascript'),
-    );
     await expect(provider).to.complete(
       '{% form "cart", cart %} ... {% ',
       allTags.concat('endform'),

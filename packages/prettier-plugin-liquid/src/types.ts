@@ -22,7 +22,6 @@ export type LiquidParserOptions = ParserOptions<LiquidHtmlNode> & {
   singleLineLinkTags: boolean;
   liquidSingleQuote: boolean;
   embeddedSingleQuote: boolean;
-  indentSchema: boolean;
   captureWhitespaceSensitivity: 'strict' | 'ignore';
   liquidDocParamDash: boolean;
 };

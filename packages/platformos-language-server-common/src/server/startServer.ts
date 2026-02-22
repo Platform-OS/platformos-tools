@@ -24,7 +24,6 @@ import { CodeActionKinds, CodeActionsProvider } from '../codeActions';
 import { Commands, ExecuteCommandProvider } from '../commands';
 import { CompletionsProvider } from '../completions';
 import { GetPartialNamesForURI } from '../completions/providers/PartialCompletionProvider';
-import { CSSLanguageService } from '../css/CSSLanguageService';
 import { DefinitionProvider } from '../definitions/DefinitionProvider';
 import { DiagnosticsManager, makeRunChecks } from '../diagnostics';
 import { DocumentHighlightsProvider } from '../documentHighlights/DocumentHighlightsProvider';
@@ -32,6 +31,7 @@ import { DocumentLinksProvider } from '../documentLinks';
 import { AugmentedJsonSourceCode, DocumentManager } from '../documents';
 import { OnTypeFormattingProvider } from '../formatting';
 import { HoverProvider } from '../hover';
+import { CSSLanguageService } from '../css/CSSLanguageService';
 import { JSONLanguageService } from '../json/JSONLanguageService';
 import { LinkedEditingRangesProvider } from '../linkedEditingRanges/LinkedEditingRangesProvider';
 import { RenameProvider } from '../rename/RenameProvider';
@@ -158,26 +158,21 @@ export function startServer(
 
   // These are augmented here so that the caching is maintained over different runs.
   const platformosDocset = new AugmentedPlatformOSDocset(remotePlatformOSDocset);
-  const cssLanguageService = new CSSLanguageService(documentManager);
   const runChecks = debounce(
     makeRunChecks(documentManager, diagnosticsManager, {
       fs,
       loadConfig,
       platformosDocset,
       jsonValidationSet,
-      cssLanguageService,
       appGraphManager,
       includeFilesFromDisk: () => configuration[INCLUDE_FILES_FROM_DISK],
     }),
     100,
   );
 
-  // In platformOS, every translation is explicitly defined by the user — there is no concept of
-  // a "default locale" file. We only return system translations here; user-defined translations
+  // In platformOS, there are no built-in system translations. User-defined translations
   // are resolved via TranslationProvider at the point of lookup.
-  const getTranslationsForURI: GetTranslationsForURI = async (_uri) => {
-    return platformosDocset.systemTranslations();
-  };
+  const getTranslationsForURI: GetTranslationsForURI = async (_uri) => ({});
 
   const getDocDefinitionForURI = async (
     uri: UriString,
@@ -233,6 +228,7 @@ export function startServer(
     documentManager,
     jsonValidationSet,
   );
+  const cssLanguageService = new CSSLanguageService(documentManager);
   const completionsProvider = new CompletionsProvider({
     documentManager,
     platformosDocset,
@@ -268,8 +264,8 @@ export function startServer(
 
   connection.onInitialize((params) => {
     clientCapabilities.setup(params.capabilities, params.initializationOptions);
-    cssLanguageService.setup(params.capabilities);
     jsonLanguageService.setup(params.capabilities);
+    cssLanguageService.setup(params.capabilities);
     configuration.setup();
 
     const fileOperationRegistrationOptions: FileOperationRegistrationOptions = {
@@ -354,6 +350,9 @@ export function startServer(
         {
           globPattern: '**/*.graphql',
         },
+        {
+          globPattern: '**/*.css',
+        },
       ],
     });
 
@@ -366,6 +365,10 @@ export function startServer(
   connection.onDidOpenTextDocument(async (params) => {
     if (hasUnsupportedDocument(params)) return;
     const { uri, text, version } = params.textDocument;
+    if (uri.endsWith('.css')) {
+      cssLanguageService.open(uri, text, version);
+      return;
+    }
     documentManager.open(uri, text, version);
     if (await configuration.shouldCheckOnOpen()) {
       runChecks([uri]);
@@ -394,6 +397,10 @@ export function startServer(
   connection.onDidChangeTextDocument(async (params) => {
     if (hasUnsupportedDocument(params)) return;
     const { uri, version } = params.textDocument;
+    if (uri.endsWith('.css')) {
+      cssLanguageService.change(uri, params.contentChanges[0].text, version);
+      return;
+    }
     documentManager.change(uri, params.contentChanges[0].text, version);
     if (await configuration.shouldCheckOnChange()) {
       runChecks([uri]);
@@ -414,6 +421,10 @@ export function startServer(
   connection.onDidCloseTextDocument((params) => {
     if (hasUnsupportedDocument(params)) return;
     const { uri } = params.textDocument;
+    if (uri.endsWith('.css')) {
+      cssLanguageService.close(uri);
+      return;
+    }
     documentManager.close(uri);
     diagnosticsManager.clear(uri);
   });

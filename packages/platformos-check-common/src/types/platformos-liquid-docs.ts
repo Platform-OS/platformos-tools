@@ -1,5 +1,3 @@
-import { Translations } from '..';
-
 /**
  * platformOS Liquid docset.
  */
@@ -21,9 +19,6 @@ export interface PlatformOSDocset {
 
   /** Returns graphql root query */
   graphQL(): Promise<string | null>;
-
-  /** Returns built-in system translations available in platformOS. */
-  systemTranslations(): Promise<Translations>;
 }
 
 /** A URI that will uniquely describe the schema */

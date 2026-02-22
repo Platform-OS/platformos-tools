@@ -86,7 +86,7 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
-      `SyntaxError: expected "#", a letter, "yield", "theme_render_rc", "spam_protection", "sign_in", "session", "rollback", "return", "response_status", "response_headers", "redirect_to", "print", "log", "include_form", "export", "context", "catch", "background", "when", "sections", "section", "graphql", "function", "render", "liquid", "layout", "increment", "include", "elsif", "else", "echo", "decrement", "content_for", "cycle", "continue", "break", "hash_assign", "assign", "try", "transaction", "parse_json", "cache", "tablerow", "unless", "if", "ifchanged", "for", "case", "capture", "paginate", "form", "end", "style", "stylesheet", "schema", "javascript", "raw", "comment", or "doc"`,
+      `SyntaxError: expected "#", a letter, "yield", "theme_render_rc", "spam_protection", "sign_in", "session", "rollback", "return", "response_status", "response_headers", "redirect_to", "print", "log", "include_form", "export", "context", "catch", "background", "when", "graphql", "function", "render", "liquid", "layout", "increment", "include", "elsif", "else", "echo", "decrement", "content_for", "cycle", "continue", "break", "hash_assign", "assign", "try", "transaction", "parse_json", "cache", "tablerow", "unless", "if", "ifchanged", "for", "case", "capture", "form", "end", "raw", "comment", or "doc"`,
     );
   });
 
@@ -95,11 +95,6 @@ describe('Module: LiquidHTMLSyntaxError', () => {
       {% if some_variable %}
         Hello, world!
       {% endif %}
-      {% schema %}
-      {
-        "settings": [{ "visible_if": "{{ foo.bar == true }}" }]
-      }
-      {% endschema %}
     `;
 
     const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);

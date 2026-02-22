@@ -240,13 +240,7 @@ function printNode(
         return [node.value.trimEnd(), hardline];
       }
 
-      const parentNode = node.parentNode;
-      const shouldNotIndentBody =
-        parentNode &&
-        parentNode.type === NodeTypes.LiquidRawTag &&
-        parentNode.name === 'schema' &&
-        !options.indentSchema;
-      const shouldIndentBody = node.kind !== RawMarkupKinds.markdown && !shouldNotIndentBody;
+      const shouldIndentBody = node.kind !== RawMarkupKinds.markdown;
       const lines = bodyLines(node.value);
       const rawFirstLineIsntIndented = !!node.value.split(/\r?\n/)[0]?.match(/\S/);
       const shouldSkipFirstLine = rawFirstLineIsntIndented;
@@ -370,28 +364,6 @@ function printNode(
           line,
           join(
             line,
-            path.map((p) => print(p), 'args'),
-          ),
-        ]);
-      }
-
-      return doc;
-    }
-
-    case NodeTypes.PaginateMarkup: {
-      const doc = [
-        path.call((p: any) => print(p), 'collection'),
-        line,
-        'by ',
-        path.call((p: any) => print(p), 'pageSize'),
-      ];
-
-      if (node.args.length > 0) {
-        doc.push([
-          ',',
-          line,
-          join(
-            [',', line],
             path.map((p) => print(p), 'args'),
           ),
         ]);

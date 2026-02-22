@@ -16,7 +16,6 @@ describe('Module: CompletionItemsAssertion', () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [{ name: 'render' }],
-        systemTranslations: async () => ({}),
       },
     });
   });

@@ -139,7 +139,6 @@ function testCheck(sourceCode: string) {
       filters: () => Promise.resolve([]),
       objects: () => Promise.resolve([]),
       liquidDrops: () => Promise.resolve([]),
-      systemTranslations: () => Promise.resolve({}),
     },
   });
 }

@@ -1,5 +1,5 @@
 import { LiquidRawTag, NodeTypes } from '@platformos/liquid-html-parser';
-import { Mode, Modes, SourceCodeType, findCurrentNode } from '@platformos/platformos-check-common';
+import { SourceCodeType, findCurrentNode } from '@platformos/platformos-check-common';
 import { LanguageService, Stylesheet, getCSSLanguageService } from 'vscode-css-languageservice';
 import {
   CompletionItem,
@@ -61,7 +61,8 @@ export class CSSLanguageService {
 
     switch (document.type) {
       case SourceCodeType.GraphQL:
-      case SourceCodeType.JSON: {
+      case SourceCodeType.JSON:
+      case SourceCodeType.YAML: {
         return null;
       }
       case SourceCodeType.LiquidHtml: {

@@ -10,7 +10,7 @@ import {
 import LiquidFormatter from '../common/formatter';
 import { vscodePrettierFormat } from './formatter';
 import { documentSelectors } from '../common/constants';
-import { makeDeadCode, openLocation } from '../common/commands';
+import { openLocation } from '../common/commands';
 import {
   createReferencesTreeView,
   setupContext,
@@ -41,7 +41,6 @@ export async function activate(context: ExtensionContext) {
   if (client) {
     setupContext();
     context.subscriptions.push(
-      commands.registerCommand('platformosLiquid.deadCode', makeDeadCode(client)),
       createReferencesTreeView('platformos.graph.references', context, client, 'references'),
       createReferencesTreeView('platformos.graph.dependencies', context, client, 'dependencies'),
       watchReferencesTreeViewConfig(),
@@ -54,7 +53,7 @@ export function deactivate() {
 }
 
 async function startServer(context: ExtensionContext) {
-  console.log('Starting Theme Check Language Server');
+  console.log('Starting App Check Language Server');
   const clientOptions: LanguageClientOptions = {
     documentSelector: documentSelectors as DocumentSelector,
   };
@@ -77,7 +76,7 @@ async function startServer(context: ExtensionContext) {
   });
 
   client.start();
-  console.log('Theme Check Language Server started');
+  console.log('App Check Language Server started');
 }
 
 function createWorkerLanguageClient(
@@ -91,7 +90,7 @@ function createWorkerLanguageClient(
   // create the language server client to communicate with the server running in the worker
   return new LanguageClient(
     'platformosLiquid',
-    'Theme Check Language Server',
+    'App Check Language Server',
     clientOptions,
     worker,
   );

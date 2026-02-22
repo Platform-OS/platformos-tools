@@ -3,7 +3,6 @@ import yaml from 'js-yaml';
 import { DocumentsLocator, DocumentType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
-import { getLiquidDocParams } from '../../liquid-doc/arguments';
 import { relative } from '../../path';
 
 type Metadata = {
@@ -64,12 +63,13 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
       }
       let params = extractMetadataParams(await context.fs.readFile(locatedFile));
       if (!params) {
-        const liquidDocParameters = await getLiquidDocParams(
-          context,
-          relative(locatedFile, context.config.rootUri),
+        if (!context.getDocDefinition) return;
+        const relativePath = relative(locatedFile, context.config.rootUri);
+        const docDef = await context.getDocDefinition(relativePath);
+        if (!docDef?.liquidDoc?.parameters) return;
+        const liquidDocParameters = new Map(
+          docDef.liquidDoc.parameters.map((p) => [p.name, p]),
         );
-
-        if (!liquidDocParameters) return;
 
         params = Array.from(liquidDocParameters.values())
           .filter((p) => p.required)

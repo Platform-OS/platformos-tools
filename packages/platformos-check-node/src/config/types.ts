@@ -1,4 +1,4 @@
-import { ChecksSettings, Mode, Severity } from '@platformos/platformos-check-common';
+import { ChecksSettings, Severity } from '@platformos/platformos-check-common';
 
 /**
  * The pipeline goes like this:
@@ -7,7 +7,7 @@ import { ChecksSettings, Mode, Severity } from '@platformos/platformos-check-com
  * -> ConfigFragment      # an intermediate representation of the file
  * -> ConfigFragment[]    # the file and its extends
  * -> ConfigDescription   # the flattened config (no extends)
- * -> Config              # the theme check config
+ * -> Config              # the platformos-check config
  *
  * Our goal is to support more than one config file format, so what we'll
  * do is have one adapter per file format that outputs a ConfigFragment.
@@ -21,13 +21,11 @@ export interface ConfigFragment {
   extends: string[];
   require: string[];
   checkSettings: ChecksSettings;
-  context?: Mode;
 }
 
 /** A ConfigDescription is a ConfigFragment that doesn't extend anything. */
-export type ConfigDescription = Omit<ConfigFragment, 'extends' | 'context'> & {
+export type ConfigDescription = Omit<ConfigFragment, 'extends'> & {
   extends: [];
-  context: Mode;
 };
 
 export const ModernIdentifiers = [

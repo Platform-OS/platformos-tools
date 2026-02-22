@@ -1,9 +1,9 @@
 import { afterEach, assert, beforeEach, describe, expect, it } from 'vitest';
-import { Config, SourceCodeType, getTheme, getThemeFilesPathPattern } from './index';
+import { Config, SourceCodeType, getApp, getAppFilesPathPattern } from './index';
 import { Workspace, makeTempWorkspace } from './test/test-helpers';
 import { pathToFileURL } from 'node:url';
 
-describe('Unit: getTheme', () => {
+describe('Unit: getApp', () => {
   let workspace: Workspace;
 
   beforeEach(async () => {
@@ -23,13 +23,12 @@ describe('Unit: getTheme', () => {
 
   it('should correctly get theme on all platforms', async () => {
     const config: Config = {
-      context: 'theme',
       checks: [],
       rootUri: workspace.rootUri,
       settings: {},
     };
 
-    const theme = await getTheme(config);
+    const theme = await getApp(config);
     expect(theme).to.have.lengthOf(2);
     const jsonFile = theme.find((sc) => sc.type === SourceCodeType.JSON);
     assert(jsonFile);
@@ -39,13 +38,13 @@ describe('Unit: getTheme', () => {
   });
 });
 
-describe('Unit: getThemeFilesPathPattern', () => {
+describe('Unit: getAppFilesPathPattern', () => {
   // This is mostly just to catch edge cases in Windows paths. We want
   // to ensure that paths do not start with a leading slash on Windows.
   it('should correctly format the glob pattern', () => {
     const rootUri = pathToFileURL(__dirname);
-    const normalizedGlob = getThemeFilesPathPattern(rootUri.toString());
+    const normalizedGlob = getAppFilesPathPattern(rootUri.toString());
 
-    expect(normalizedGlob).to.equal(__dirname.replace(/\\/g, '/') + '/**/*.{liquid,json,graphql}');
+    expect(normalizedGlob).to.equal(__dirname.replace(/\\/g, '/') + '/**/*.{liquid,json,graphql,yml,yaml}');
   });
 });

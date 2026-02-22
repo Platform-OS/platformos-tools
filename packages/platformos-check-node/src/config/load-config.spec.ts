@@ -35,7 +35,6 @@ describe('Unit: loadConfig', () => {
   it('loads the recommended config by default', async () => {
     const config = await loadConfig(undefined, __dirname);
     expect(config.checks).to.eql(recommended);
-    expect(config.context).to.eql('theme');
   });
 
   it('extends the recommended config by default', async () => {
@@ -112,7 +111,7 @@ describe('Unit: loadConfig', () => {
     const configPath = path.resolve(__dirname, 'fixtures/node-module-rec.yml');
     const globalModulePath = await createMockNodeModule(
       thisNodeModuleRoot(),
-      'theme-check-global-extension',
+      'platformos-check-global-extension',
       mockNodeModuleCheck,
     );
     const config = await loadConfig(configPath, tempDir);
@@ -123,7 +122,7 @@ describe('Unit: loadConfig', () => {
 
   it('loads a community-provided extension by automatic node_module discovery (unscoped)', async () => {
     const configPath = path.resolve(__dirname, 'fixtures/node-module-rec.yml');
-    await createMockNodeModule(tempDir, 'theme-check-node-example', mockNodeModuleCheck);
+    await createMockNodeModule(tempDir, 'platformos-check-node-example', mockNodeModuleCheck);
     const config = await loadConfig(configPath, tempDir);
     const nodeModuleCheck = config.checks.find((check) => check.meta.code === 'NodeModuleCheck');
     expect(nodeModuleCheck).to.exist;
@@ -131,7 +130,7 @@ describe('Unit: loadConfig', () => {
 
   it('loads a community-provided extension by automatic node_module discovery (scoped)', async () => {
     const configPath = path.resolve(__dirname, 'fixtures/node-module-rec.yml');
-    await createMockNodeModule(tempDir, '@acme/theme-check-node-example', mockNodeModuleCheck);
+    await createMockNodeModule(tempDir, '@acme/platformos-check-node-example', mockNodeModuleCheck);
     const config = await loadConfig(configPath, tempDir);
     const nodeModuleCheck = config.checks.find((check) => check.meta.code === 'NodeModuleCheck');
     expect(nodeModuleCheck).to.exist;

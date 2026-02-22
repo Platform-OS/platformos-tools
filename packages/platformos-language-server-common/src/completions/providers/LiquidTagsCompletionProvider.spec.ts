@@ -1,7 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
-import { MetafieldDefinitionMap, TagEntry } from '@platformos/platformos-check-common';
+import { TagEntry } from '@platformos/platformos-check-common';
 import { InsertTextFormat, InsertTextMode, TextEdit } from 'vscode-languageserver-protocol';
 
 const caseSyntax = `{% case variable %}
@@ -83,7 +83,7 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -91,7 +91,6 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
         tags: async () => tags,
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 

@@ -3,43 +3,16 @@
 # Do not modify manually. Your changes will be overwritten.
 ignore:
   - node_modules/**
-AssetPreload:
-  enabled: true
-  severity: 1
-BlockIdUsage:
-  enabled: true
-  severity: 1
-CdnPreconnect:
-  enabled: true
-  severity: 0
-ContentForHeaderModification:
-  enabled: true
-  severity: 0
-DeprecateBgsizes:
-  enabled: true
-  severity: 1
-DeprecateLazysizes:
-  enabled: true
-  severity: 1
 DeprecatedFilter:
-  enabled: true
-  severity: 1
-DeprecatedFontsOnSectionsAndBlocks:
-  enabled: true
-  severity: 1
-DeprecatedFontsOnSettingsSchema:
   enabled: true
   severity: 1
 DeprecatedTag:
   enabled: true
   severity: 1
-DuplicateContentForArguments:
+DuplicateFunctionArguments:
   enabled: true
   severity: 1
 DuplicateRenderPartialArguments:
-  enabled: true
-  severity: 1
-EmptyBlockContent:
   enabled: true
   severity: 1
 GraphQLCheck:
@@ -48,24 +21,15 @@ GraphQLCheck:
 GraphQLVariablesCheck:
   enabled: true
   severity: 0
-HardcodedRoutes:
-  enabled: true
-  severity: 1
 ImgWidthAndHeight:
   enabled: true
   severity: 0
 InvalidHashAssignTarget:
   enabled: true
   severity: 0
-JSONMissingBlock:
-  enabled: true
-  severity: 0
 JSONSyntaxError:
   enabled: true
   severity: 0
-LiquidFreeSettings:
-  enabled: true
-  severity: 1
 LiquidHTMLSyntaxError:
   enabled: true
   severity: 0
@@ -78,37 +42,17 @@ MetadataParamsCheck:
 MissingAsset:
   enabled: true
   severity: 0
-MissingContentForArguments:
-  enabled: true
-  severity: 1
-MissingTemplate:
+MissingPartial:
   enabled: true
   severity: 0
   ignoreMissing: []
 OrphanedPartial:
   enabled: true
   severity: 1
-PaginationSize:
-  enabled: true
-  severity: 1
-  minSize: 1
-  maxSize: 250
 ParserBlockingScript:
   enabled: true
   severity: 0
-RemoteAsset:
-  enabled: true
-  severity: 1
 ReservedDocParamNames:
-  enabled: true
-  severity: 0
-SchemaPresetsBlockOrder:
-  enabled: true
-  severity: 1
-SchemaPresetsStaticBlocks:
-  enabled: true
-  severity: 0
-StaticStylesheetAndJavascriptTags:
   enabled: true
   severity: 0
 TranslationKeyExists:
@@ -123,21 +67,12 @@ UndefinedObject:
 UniqueDocParamNames:
   enabled: true
   severity: 0
-UniqueSettingId:
-  enabled: true
-  severity: 0
-UniqueStaticBlockId:
-  enabled: true
-  severity: 0
 UnknownFilter:
   enabled: true
   severity: 0
 UnknownProperty:
   enabled: true
   severity: 0
-UnrecognizedContentForArguments:
-  enabled: true
-  severity: 1
 UnrecognizedRenderPartialArguments:
   enabled: true
   severity: 1
@@ -145,12 +80,6 @@ UnusedAssign:
   enabled: true
   severity: 1
 UnusedDocParam:
-  enabled: true
-  severity: 1
-ValidBlockTarget:
-  enabled: true
-  severity: 0
-ValidContentForArgumentTypes:
   enabled: true
   severity: 1
 ValidContentForArguments:
@@ -165,27 +94,9 @@ ValidHTMLTranslation:
 ValidJSON:
   enabled: true
   severity: 0
-ValidLocalBlocks:
-  enabled: true
-  severity: 0
 ValidRenderPartialArgumentTypes:
   enabled: true
   severity: 1
-ValidSchema:
-  enabled: true
-  severity: 0
-ValidSchemaName:
-  enabled: true
-  severity: 0
-ValidSettingsKey:
-  enabled: true
-  severity: 0
-ValidStaticBlockType:
-  enabled: true
-  severity: 0
-ValidVisibleIf:
-  enabled: true
-  severity: 0
 VariableName:
   enabled: true
   severity: 1

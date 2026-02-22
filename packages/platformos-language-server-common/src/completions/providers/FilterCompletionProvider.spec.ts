@@ -1,6 +1,5 @@
 import {
   FilterEntry,
-  MetafieldDefinitionMap,
   ObjectEntry,
 } from '@platformos/platformos-check-common';
 import { InsertTextFormat, type TextEdit } from 'vscode-languageserver';
@@ -129,7 +128,7 @@ describe('Module: FilterCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => filters,
         objects: async () => objects,
@@ -137,7 +136,6 @@ describe('Module: FilterCompletionProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 

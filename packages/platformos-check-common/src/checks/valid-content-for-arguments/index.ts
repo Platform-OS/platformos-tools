@@ -13,7 +13,7 @@ export const ValidContentForArguments: LiquidCheckDefinition = {
     docs: {
       description:
         'This check is aimed at preventing the use of invalid arguments for the content_for tag.',
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/valid-content-for-arguments',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/valid-content-for-arguments',
       recommended: true,
     },
     type: SourceCodeType.LiquidHtml,

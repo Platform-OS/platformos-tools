@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 import { BasicParamTypes } from '@platformos/platformos-check-common';
 
 describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
@@ -10,7 +9,7 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -22,7 +21,6 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 
@@ -35,13 +33,6 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
         [...Object.values(BasicParamTypes), 'product'],
       );
     }
-  });
-
-  it('offers completions within liquid doc tag for blocks', async () => {
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://blocks/file.liquid' },
-      ['param', 'example', 'description'],
-    );
   });
 
   it("does not offer completion if it's not within liquid doc's param type tag", async () => {
@@ -60,20 +51,4 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
     }
   });
 
-  it("does not offer completion if it's not within a snippet or block", async () => {
-    await expect(provider).to.complete(
-      { source: `{% doc %} @param {█`, relativePath: 'file://sections/file.liquid' },
-      [],
-    );
-
-    await expect(provider).to.complete(
-      { source: `{% doc %} @param {█`, relativePath: 'file://templates/file.liquid' },
-      [],
-    );
-
-    await expect(provider).to.complete(
-      { source: `{% doc %} @param {█`, relativePath: 'file://layout/file.liquid' },
-      [],
-    );
-  });
 });

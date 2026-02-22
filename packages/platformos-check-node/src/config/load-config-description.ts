@@ -41,7 +41,6 @@ export async function loadConfigDescription(
   const rootUri = URI.file(root);
   return {
     settings: unaliasedSettings(configDescription.checkSettings, checks),
-    context: configDescription.context ?? 'theme',
     checks,
     ignore: configDescription.ignore,
     rootUri: resolveRoot(rootUri, configDescription.root),

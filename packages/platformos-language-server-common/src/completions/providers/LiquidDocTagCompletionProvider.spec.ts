@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 
 describe('Module: LiquidDocTagCompletionProvider', async () => {
   let provider: CompletionsProvider;
@@ -9,7 +8,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -17,7 +16,6 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 
@@ -29,13 +27,6 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
     await expect(provider).to.complete(
       { source: `{% doc %} @par█`, relativePath: 'file://app/views/partials/file.liquid' },
       ['param'],
-    );
-  });
-
-  it('offers completions within liquid doc tag for blocks', async () => {
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://blocks/file.liquid' },
-      ['param', 'example', 'description'],
     );
   });
 
@@ -53,20 +44,6 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
     );
   });
 
-  it('does not offer completion if it is not a snippet file or block', async () => {
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://sections/file.liquid' },
-      [],
-    );
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://templates/file.liquid' },
-      [],
-    );
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://layout/file.liquid' },
-      [],
-    );
-  });
 
   describe('nodes that accept free-form text', () => {
     it('offers completions when @ is at the start of a new line following an implicit description', async () => {

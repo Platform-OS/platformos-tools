@@ -4,7 +4,6 @@ import {
   loadConfig as nodeLoadConfig,
   makeFileExists,
   path,
-  recursiveReadDirectory,
 } from '@platformos/platformos-check-node';
 
 import { AbstractFileSystem } from '@platformos/platformos-common';
@@ -22,35 +21,24 @@ function asFsPath(uriOrPath: string | URI) {
   }
 }
 
-const hasThemeAppExtensionConfig = async (rootUri: string, fs: AbstractFileSystem) => {
-  const files = await recursiveReadDirectory(fs, rootUri, ([uri]) =>
-    uri.endsWith('.extension.toml'),
-  );
-  return files.length > 0;
-};
-
 export const loadConfig: Dependencies['loadConfig'] = async function loadConfig(uriString, fs) {
   const fileUri = path.normalize(uriString);
   const fileExists = makeFileExists(fs);
   const rootUriString = await findRoot(fileUri, fileExists);
   if (!rootUriString) {
-    throw new Error(`Could not find theme root for ${fileUri}`);
+    throw new Error(`Could not find app root for ${fileUri}`);
   }
 
   const rootUri = URI.parse(rootUriString);
   const scheme = rootUri.scheme;
-  const configUri = Utils.joinPath(rootUri, '.theme-check.yml');
-  const [configExists, isDefinitelyThemeAppExtension] = await Promise.all([
-    fileExists(path.normalize(configUri)),
-    hasThemeAppExtensionConfig(path.normalize(rootUri), fs),
-  ]);
+  const configUri = Utils.joinPath(rootUri, '.platformos-check.yml');
+  const configExists = await fileExists(path.normalize(configUri));
+
   if (scheme === 'file') {
     const configPath = asFsPath(configUri);
     const rootPath = asFsPath(rootUri);
     if (configExists) {
       return nodeLoadConfig(configPath, rootPath).then(normalizeRoot);
-    } else if (isDefinitelyThemeAppExtension) {
-      return nodeLoadConfig('theme-check:theme-app-extension', rootPath).then(normalizeRoot);
     } else {
       return nodeLoadConfig(undefined, rootPath).then(normalizeRoot);
     }
@@ -61,7 +49,6 @@ export const loadConfig: Dependencies['loadConfig'] = async function loadConfig(
     return {
       checks: recommendedChecks,
       settings: {},
-      context: isDefinitelyThemeAppExtension ? 'app' : 'theme',
       rootUri: path.normalize(rootUri),
     };
   }

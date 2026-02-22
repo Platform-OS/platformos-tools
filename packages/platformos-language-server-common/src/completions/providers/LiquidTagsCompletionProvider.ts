@@ -7,7 +7,7 @@ import {
   NodeTypes,
   RAW_TAGS,
 } from '@platformos/liquid-html-parser';
-import { TagEntry, ThemeDocset } from '@platformos/platformos-check-common';
+import { TagEntry, PlatformOSDocset } from '@platformos/platformos-check-common';
 import {
   CompletionItem,
   CompletionItemKind,
@@ -23,7 +23,7 @@ import { CURSOR, LiquidCompletionParams } from '../params';
 import { Provider, createCompletionItem, sortByName } from './common';
 
 export class LiquidTagsCompletionProvider implements Provider {
-  constructor(private readonly themeDocset: ThemeDocset) {}
+  constructor(private readonly platformosDocset: PlatformOSDocset) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
@@ -39,7 +39,7 @@ export class LiquidTagsCompletionProvider implements Provider {
 
     const partial = node.name.replace(CURSOR, '');
     const blockParent = findParentNode(partial, ancestors);
-    const tags = await this.themeDocset.tags();
+    const tags = await this.platformosDocset.tags();
     return tags
       .filter(({ name }) => name.startsWith(partial))
       .sort(sortByName)

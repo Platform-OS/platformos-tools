@@ -1,1 +1,1 @@
-export type FindThemeRootURI = (uri: string) => Promise<string | null>;
+export type FindAppRootURI = (uri: string) => Promise<string | null>;

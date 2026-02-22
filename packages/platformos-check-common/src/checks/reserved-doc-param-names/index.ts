@@ -1,10 +1,10 @@
 import { TextNode } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isBlock } from '../../to-schema';
 import {
   REQUIRED_CONTENT_FOR_ARGUMENTS,
   RESERVED_CONTENT_FOR_ARGUMENTS,
 } from '../../tags/content-for';
+import { isPartial } from '@platformos/platformos-common';
 
 export const ReservedDocParamNames: LiquidCheckDefinition = {
   meta: {
@@ -14,7 +14,7 @@ export const ReservedDocParamNames: LiquidCheckDefinition = {
       description:
         'This check exists to ensure any parameter names defined in LiquidDoc do not collide with reserved words.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/reserved-doc-param-names',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/reserved-doc-param-names',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,
@@ -23,14 +23,15 @@ export const ReservedDocParamNames: LiquidCheckDefinition = {
   },
 
   create(context) {
-    if (!isBlock(context.file.uri)) {
-      return {};
-    }
-
     const defaultParameterNames = [
       ...REQUIRED_CONTENT_FOR_ARGUMENTS,
       ...RESERVED_CONTENT_FOR_ARGUMENTS,
     ];
+
+    // Does not apply to partials (rendered via `render` tag; param names do not conflict with content_for)
+    if (isPartial(context.file.uri)) {
+      return {};
+    }
 
     return {
       async LiquidDocParamNode(node) {

@@ -15,15 +15,13 @@ import {
   PropertyNode,
   ValueNode,
 } from './jsonc/types';
-import { JsonValidationSet, ThemeDocset } from './types/theme-liquid-docs';
-import { AppBlockSchema, SectionSchema, ThemeBlockSchema } from './types/theme-schemas';
+import { JsonValidationSet, PlatformOSDocset } from './types/platformos-liquid-docs';
 import { DocDefinition } from './liquid-doc/liquidDoc';
 import { GraphQLCorrector } from './fixes/correctors/graphql-corrector';
 
 export * from './jsonc/types';
 export * from './types/schema-prop-factory';
-export * from './types/theme-liquid-docs';
-export * from './types/theme-schemas';
+export * from './types/platformos-liquid-docs';
 
 export const isObjectNode = (node?: ASTNode): node is ObjectNode => node?.type === 'Object';
 export const isArrayNode = (node?: ASTNode): node is ArrayNode => node?.type === 'Array';
@@ -31,9 +29,7 @@ export const isPropertyNode = (node?: ASTNode): node is PropertyNode => node?.ty
 export const isValueNode = (node?: ASTNode): node is ValueNode => node?.type === 'Value';
 export const isLiteralNode = (node?: ASTNode): node is LiteralNode => node?.type === 'Literal';
 
-export const Modes = ['theme', 'app'] as const;
-export type Mode = (typeof Modes)[number];
-export type Theme = SourceCode<SourceCodeType>[];
+export type App = SourceCode<SourceCodeType>[];
 
 export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
   ? {
@@ -53,6 +49,7 @@ export enum SourceCodeType {
   JSON = 'JSON',
   LiquidHtml = 'LiquidHtml',
   GraphQL = 'GraphQL',
+  YAML = 'YAML',
 }
 
 export type LiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml>;
@@ -82,6 +79,13 @@ export type JSONCheckDefinition<S extends Schema = Schema> = CheckDefinition<
 >;
 export type JSONCheck = Check<SourceCodeType.JSON>;
 
+export type YAMLSourceCode = SourceCode<SourceCodeType.YAML>;
+export type YAMLCheckDefinition<S extends Schema = Schema> = CheckDefinition<
+  SourceCodeType.YAML,
+  S
+>;
+export type YAMLCheck = Check<SourceCodeType.YAML>;
+
 export interface PlatformOSFile {
   name: string;
   module_name: string;
@@ -99,6 +103,7 @@ export type AST = {
     [SourceCodeType.JSON]: JSONNode;
     [SourceCodeType.LiquidHtml]: LiquidHtmlNode;
     [SourceCodeType.GraphQL]: GraphQLDocumentNode;
+    [SourceCodeType.YAML]: JSONNode; // YAML shares the JSONNode AST
   }[T];
 };
 
@@ -107,6 +112,7 @@ export type NodeTypes = {
     [SourceCodeType.JSON]: JSONNodeTypes;
     [SourceCodeType.LiquidHtml]: LiquidHtmlNodeTypes;
     [SourceCodeType.GraphQL]: 'Document';
+    [SourceCodeType.YAML]: JSONNodeTypes; // YAML shares JSON node types
   }[T];
 };
 
@@ -136,12 +142,6 @@ export type GraphQLCheckDefinition<S extends Schema = Schema> = CheckDefinition<
 >;
 
 export interface Config {
-  // I know, it's `context` in the config and `Mode` in the code...
-  // We already have something named "Context" internally when you're writing a check.
-  // I don't like "Mode" as a public API in the configs. Context sounds more Shopify-y.
-  // So we have `context: theme` and `context: app` as valid .theme-check.yml configs.
-  // I think it's rather obvious what they mean.
-  context: Mode;
   settings: ChecksSettings;
   checks: CheckDefinition<SourceCodeType, Schema>[];
   rootUri: string; // e.g. file:///path-to-root
@@ -214,8 +214,6 @@ export type CheckDefinition<
          *
          * When values are given, this check will be `enabled: false` in the `all.yml` configuration
          * and `enabled: true` within all yaml configurations with a matching filename.
-         *
-         * Note: theme-app-extension target is deprecated (Shopify-specific)
          */
         targets?: ConfigTarget[];
 
@@ -302,37 +300,6 @@ type CheckLifecycleMethods<T extends SourceCodeType> = {
   onCodePathEnd(file: SourceCode<T> & { ast: AST[T] }): Promise<void>;
 };
 
-export type MetafieldCategory =
-  | 'article'
-  | 'blog'
-  | 'collection'
-  | 'company'
-  | 'company_location'
-  | 'location'
-  | 'market'
-  | 'order'
-  | 'page'
-  | 'product'
-  | 'variant'
-  | 'shop';
-
-export type MetafieldDefinitionMap = {
-  [key in MetafieldCategory]: MetafieldDefinition[];
-};
-
-export type MetafieldDefinition = {
-  key: string;
-  name: string;
-  namespace: string;
-  description: string;
-  type: MetafieldDefinitionType;
-};
-
-type MetafieldDefinitionType = {
-  category: string;
-  name: string;
-};
-
 export type Translations = {
   [k in string]: string | Translations;
 };
@@ -344,17 +311,8 @@ export type Translations = {
  *
  * It could be a specific range that points to a whole file
  * {
- *   source: { uri: 'file:///templates/index.json', range: [167, 190] },
- *   target: 'file:///sections/custom-section.liquid'
- * }
- *
- * It could be a specific range that points to a specific range
- * {
- *   // e.g. `<parent-component></parent-component>`
  *   source: { uri: 'file:///app/views/partials/parent.liquid', range: [167, 190] },
- *
- *   // e.g. window.customElements.define('parent-component', ParentComponent);
- *   target: { uri: 'file:///assets/theme.js', range: [0, undefined] }
+ *   target: 'file:///app/views/partials/child.liquid'
  * }
  */
 export type Reference = {
@@ -362,9 +320,8 @@ export type Reference = {
   target: Location;
 
   type:
-    | 'direct' // explicit dependency, e.g. {% render 'child' %}
-    | 'indirect' // indirect dependency, e.g. "blocks": [{ "type": "@theme" }]
-    | 'preset'; // preset dependency
+    | 'direct' // explicit dependency, e.g. {% render 'partial' %}
+    | 'indirect'; // indirect dependency
 };
 
 export type Range = [start: number, end: number]; // represents a range in the source code
@@ -380,41 +337,16 @@ export interface Dependencies {
   fs: AbstractFileSystem;
 
   /** The typing information */
-  themeDocset?: ThemeDocset;
+  platformosDocset?: PlatformOSDocset;
 
-  /** The blocks/sections JSON schemas */
+  /** The JSON schemas */
   jsonValidationSet?: JsonValidationSet;
-
-  /** Returns the typing information for the theme's metafields */
-  getMetafieldDefinitions?: (rootUri: UriString) => Promise<MetafieldDefinitionMap>;
-
-  /**
-   * Asynchronously get the block schema for 'blocks/${name}.liquid'
-   * May return undefined when the theme isn't preloaded.
-   * See {@link ThemeBlockSchema} for more information
-   */
-  getBlockSchema?: (name: string) => Promise<ThemeBlockSchema | undefined>;
-
-  /**
-   * Asynchronously get the section schema for 'section/${name}.liquid'
-   * May return undefined when the theme isn't preloaded or if there are none.
-   * See {@link SectionSchema} for more information
-   */
-  getSectionSchema?: (name: string) => Promise<SectionSchema | undefined>;
-
-  /**
-   * (In theme app extension mode)
-   * Asynchronously get the block schema for 'blocks/${name}.liquid'
-   * May return undefined when the theme isn't preloaded.
-   * See {@link AppBlockSchema} for more information
-   */
-  getAppBlockSchema?: (name: string) => Promise<AppBlockSchema | undefined>;
 
   /**
    * Asynchronously get the Liquid HTML AST for a file.
-   * May return undefined when the theme isn't preloaded.
+   * May return undefined when the app isn't preloaded.
    *
-   * Used in theme-checks for cross-file checks rather that going through fs.
+   * Used in checks for cross-file checks rather than going through fs.
    */
   getDocDefinition?: (relativePath: string) => Promise<DocDefinition | undefined>;
 
@@ -436,10 +368,7 @@ export interface AugmentedDependencies extends Dependencies {
   fileExists: (uri: UriString) => Promise<boolean>;
   fileSize: (uri: UriString) => Promise<number>;
   getDefaultLocale: () => Promise<string>;
-  getDefaultSchemaLocale: () => Promise<string>;
   getDefaultTranslations(): Promise<Translations>;
-  getDefaultSchemaTranslations(): Promise<Translations>;
-  mode: Mode;
 }
 
 type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeType
@@ -461,6 +390,7 @@ export type Corrector<T extends SourceCodeType> = T extends SourceCodeType
       [SourceCodeType.JSON]: JSONCorrector;
       [SourceCodeType.LiquidHtml]: StringCorrector;
       [SourceCodeType.GraphQL]: GraphQLCorrector;
+      [SourceCodeType.YAML]: StringCorrector; // no YAML autofix yet; StringCorrector as placeholder
     }[T]
   : never;
 
@@ -613,5 +543,4 @@ export enum Severity {
 export enum ConfigTarget {
   All = 'all',
   Recommended = 'recommended',
-  ThemeAppExtension = 'theme-app-extension',
 }

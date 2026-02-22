@@ -33,7 +33,7 @@ export const SUPPORTED_LIQUID_DOC_TAG_HANDLES = {
       `- The type of parameter is optional and can be ${Object.values(BasicParamTypes)
         .map((type) => `\`${type}\``)
         .join(', ')}\n` +
-      ` or liquid object that isn't exclusively a global object in our [API Docs](https://shopify.dev/docs/api/liquid/objects)\n` +
+      ` or liquid object that isn't exclusively a global object in our [API Docs](https://documentation.platformos.com/api-reference/liquid/platformos-objects)\n` +
       '- An optional parameter is denoted by square brackets around the parameter name\n' +
       '- The description is optional Markdown text',
     example:

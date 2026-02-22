@@ -1,11 +1,11 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
-import { LiquidHtmlNode, ThemeDocset } from '@platformos/platformos-check-common';
+import { LiquidHtmlNode, PlatformOSDocset } from '@platformos/platformos-check-common';
 import { Hover } from 'vscode-languageserver';
 import { render } from '../../docset';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 
 export class LiquidTagHoverProvider implements BaseHoverProvider {
-  constructor(public themeDocset: ThemeDocset) {}
+  constructor(public platformosDocset: PlatformOSDocset) {}
 
   async hover(currentNode: LiquidHtmlNode): Promise<Hover | null> {
     if (
@@ -17,7 +17,7 @@ export class LiquidTagHoverProvider implements BaseHoverProvider {
     }
 
     const name = currentNode.name;
-    const entries = await this.themeDocset.tags();
+    const entries = await this.platformosDocset.tags();
     const entry = entries.find((entry) => entry.name === name);
     if (!entry) {
       return null;

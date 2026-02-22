@@ -32,14 +32,12 @@ export class ContentForCompletionProvider implements Provider {
     const options = [
       {
         keyword: 'block',
-        description: 'Renders a static theme block within `sections` or `theme blocks`.\n',
+        description: 'Renders a named block defined elsewhere in the app.\n',
         syntax: "content_for 'block', type: '$1', id: '$2'",
       },
       {
         keyword: 'blocks',
-        description: `Renders block elements within sections or other blocks as configured in the JSON template or section groups.
-See [theme blocks](https://shopify.dev/docs/storefronts/themes/architecture/blocks/theme-blocks)
-to see how to create theme blocks that can be used this way.\n`,
+        description: 'Renders all blocks associated with the current context.\n',
         syntax: `content_for 'blocks'`,
       },
     ];

@@ -20,7 +20,7 @@ export class JSONCParseErrors extends Error {
 }
 
 /**
- * At some point, we started supporting JSONC. Theme Check 2 was built on top of
+ * At some point, we started supporting JSONC. App Check 2 was built on top of
  * `json-to-ast` which does not support comments.
  *
  * This little adapter here will take a tree we get from `jsonc-parser` and

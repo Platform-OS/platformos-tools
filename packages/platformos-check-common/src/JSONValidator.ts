@@ -11,7 +11,7 @@ export class JSONValidator {
     config: Config,
   ): Promise<JSONValidator | undefined> {
     if (!jsonValidationSet) return;
-    return new JSONValidator(await jsonValidationSet.schemas(config.context));
+    return new JSONValidator(await jsonValidationSet.schemas());
   }
 
   constructor(schemas: SchemaDefinition[]) {

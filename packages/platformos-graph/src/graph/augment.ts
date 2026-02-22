@@ -1,9 +1,4 @@
-import {
-  memoize,
-  memo,
-  recursiveReadDirectory as findAllFiles,
-  path,
-} from '@platformos/platformos-check-common';
+import { memoize, path } from '@platformos/platformos-check-common';
 import { toSourceCode } from '../toSourceCode';
 import { AugmentedDependencies, IDependencies } from '../types';
 import { identity } from '../utils';
@@ -11,8 +6,6 @@ import { identity } from '../utils';
 export function augmentDependencies(rootUri: string, ideps: IDependencies): AugmentedDependencies {
   return {
     fs: ideps.fs,
-    getBlockSchema: memoize(ideps.getBlockSchema, identity),
-    getSectionSchema: memoize(ideps.getSectionSchema, identity),
 
     // parse at most once
     getSourceCode: memoize(
@@ -25,10 +18,5 @@ export function augmentDependencies(rootUri: string, ideps: IDependencies): Augm
     ),
 
     getWebComponentDefinitionReference: ideps.getWebComponentDefinitionReference,
-    getThemeBlockNames: memo(() =>
-      findAllFiles(ideps.fs, path.join(rootUri, 'blocks'), ([uri]) => uri.endsWith('.liquid')).then(
-        (uris) => uris.map((uri) => path.basename(uri, '.liquid')),
-      ),
-    ),
   };
 }

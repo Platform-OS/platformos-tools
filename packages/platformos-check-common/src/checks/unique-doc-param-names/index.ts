@@ -8,7 +8,7 @@ export const UniqueDocParamNames: LiquidCheckDefinition = {
       description:
         'This check exists to ensure any parameter names defined in the `doc` tag are unique.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/unique-doc-param-names',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/unique-doc-param-names',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

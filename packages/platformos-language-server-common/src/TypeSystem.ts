@@ -23,26 +23,17 @@ import {
   ArrayReturnType,
   DocsetEntry,
   FilterEntry,
-  MetafieldDefinitionMap,
-  MetafieldDefinition,
   ObjectEntry,
   ReturnType,
   SourceCodeType,
-  ThemeDocset,
+  PlatformOSDocset,
   isError,
   parseJSON,
   path,
-  FETCHED_METAFIELD_CATEGORIES,
   BasicParamTypes,
   getValidParamTypes,
   parseParamType,
 } from '@platformos/platformos-check-common';
-import {
-  GetThemeSettingsSchemaForURI,
-  InputSetting,
-  isInputSetting,
-  isSettingsCategory,
-} from './settings';
 import { findLast, memo } from './utils';
 import { visit } from '@platformos/platformos-check-common';
 import {
@@ -61,17 +52,15 @@ export class TypeSystem {
   private graphqlSchemaLoaded = false;
 
   constructor(
-    private readonly themeDocset: ThemeDocset,
-    private readonly getThemeSettingsSchemaForURI: GetThemeSettingsSchemaForURI,
-    private readonly getMetafieldDefinitions: (rootUri: string) => Promise<MetafieldDefinitionMap>,
+    private readonly platformosDocset: PlatformOSDocset,
     private readonly fs?: AbstractFileSystem,
     private readonly documentsLocator?: DocumentsLocator,
-    private readonly findThemeRootURI?: (uri: string) => Promise<string | null>,
+    private readonly findAppRootURI?: (uri: string) => Promise<string | null>,
   ) {}
 
   private async getGraphQLSchema(): Promise<string | undefined> {
     if (!this.graphqlSchemaLoaded) {
-      this.graphqlSchemaCache = (await this.themeDocset.graphQL()) ?? undefined;
+      this.graphqlSchemaCache = (await this.platformosDocset.graphQL()) ?? undefined;
       this.graphqlSchemaLoaded = true;
     }
     return this.graphqlSchemaCache;
@@ -125,173 +114,14 @@ export class TypeSystem {
       });
   }
 
-  public async themeSettingProperties(uri: string): Promise<ObjectEntry[]> {
-    const themeSettingsSchema = await this.getThemeSettingsSchemaForURI(uri);
-    const categories = themeSettingsSchema.filter(isSettingsCategory);
-    const result: ObjectEntry[] = [];
-    for (const category of categories) {
-      const inputSettings = category.settings.filter(isInputSetting);
-      for (const setting of inputSettings) {
-        result.push({
-          name: setting.id,
-          summary: '', // TODO, this should lookup the locale file for settings... setting.label
-          description: '', // TODO , this should lookup the locale file as well... setting.info,
-          return_type: settingReturnType(setting),
-          access: {
-            global: false,
-            parents: [],
-            template: [],
-          },
-        });
-      }
-    }
-    return result;
-  }
-
   /**
    * An indexed representation of objects.json by name
    *
    * e.g. objectMap['product'] returns the product ObjectEntry.
    */
   public objectMap = async (uri: string, ast: LiquidHtmlNode): Promise<ObjectMap> => {
-    const [objectMap, themeSettingProperties, metafieldDefinitionsObjectMap] = await Promise.all([
-      this._objectMap(),
-      this.themeSettingProperties(uri),
-      this.metafieldDefinitionsObjectMap(uri),
-    ]);
-
-    // Here we shallow mutate `settings.properties` to have the properties made
-    // available by settings_schema.json
-    const result: ObjectMap = {
-      ...objectMap,
-      settings: {
-        ...(objectMap.settings ?? {}),
-        properties: themeSettingProperties,
-      },
-      ...customMetafieldTypeEntries(objectMap['metafield']),
-      ...metafieldDefinitionsObjectMap,
-    };
-
-    // For each metafield definition fetched, we need to override existing types with `metafields` property
-    // to `${category}_metafield`.
-    //
-    // WARNING: Since we aren't cloning the object, we are mutating the original type for all themes in
-    // the workspace. However, this is fine since these changes are not unique to a theme.
-    for (let category of FETCHED_METAFIELD_CATEGORIES) {
-      if (!result[category]) continue;
-
-      let metafieldsProperty = result[category].properties?.find(
-        (prop) => prop.name === 'metafields',
-      );
-
-      if (!metafieldsProperty) continue;
-
-      metafieldsProperty.return_type = [{ type: `${category}_metafields`, name: '' }];
-    }
-
-    // Deal with sections/file.liquid section.settings by infering the type from the {% schema %}
-    if (/[\/\\]sections[\/\\]/.test(uri) && result.section) {
-      result.section = JSON.parse(JSON.stringify(result.section)); // easy deep clone
-      const settings = result.section.properties?.find((x) => x.name === 'settings');
-      if (!settings || !settings.return_type) return result;
-      settings.return_type = [{ type: 'section_settings', name: '' }];
-      result.section_settings = {
-        name: 'section_settings',
-        access: {
-          global: false,
-          parents: [],
-          template: [],
-        },
-        properties: schemaSettingsAsProperties(ast),
-        return_type: [],
-      };
-    }
-
-    // Deal with blocks/files.liquid block.settings in a similar fashion
-    if (/[\/\\]blocks[\/\\]/.test(uri) && result.block) {
-      result.block = JSON.parse(JSON.stringify(result.block)); // easy deep clone
-      const settings = result.block.properties?.find((x) => x.name === 'settings');
-      if (!settings || !settings.return_type) return result;
-      settings.return_type = [{ type: 'block_settings', name: '' }];
-      result.block_settings = {
-        name: 'block_settings',
-        access: {
-          global: false,
-          parents: [],
-          template: [],
-        },
-        properties: schemaSettingsAsProperties(ast),
-        return_type: [],
-      };
-    }
-
-    return result;
+    return this._objectMap();
   };
-
-  public async metafieldDefinitionsObjectMap(uri: string): Promise<ObjectMap> {
-    let result: ObjectMap = {};
-
-    const metafieldDefinitionMap = await this.getMetafieldDefinitions(uri);
-
-    for (let [category, definitions] of Object.entries(metafieldDefinitionMap)) {
-      // Metafield definitions need to be grouped by their namespace
-      let metafieldNamespaces = new Map<string, ObjectEntry[]>();
-
-      for (let definition of definitions as MetafieldDefinition[]) {
-        if (!metafieldNamespaces.has(definition.namespace)) {
-          metafieldNamespaces.set(definition.namespace, []);
-        }
-
-        metafieldNamespaces.get(definition.namespace)!.push({
-          name: definition.key,
-          description: definition.description,
-          return_type: metafieldReturnType(definition.type.name),
-        });
-      }
-
-      let metafieldGroupProperties: ObjectEntry[] = [];
-
-      for (let [namespace, namespaceProperties] of metafieldNamespaces) {
-        const metafieldCategoryNamespaceHandle = `${category}_metafield_${namespace}`;
-
-        // Since the namespace can be shared by multiple categories, we need to make sure the return_type
-        // handle is unique across all categories
-        metafieldGroupProperties.push({
-          name: namespace,
-          return_type: [{ type: metafieldCategoryNamespaceHandle, name: '' }],
-          access: {
-            global: false,
-            parents: [],
-            template: [],
-          },
-        });
-
-        result[metafieldCategoryNamespaceHandle] = {
-          name: metafieldCategoryNamespaceHandle,
-          properties: namespaceProperties,
-          access: {
-            global: false,
-            parents: [],
-            template: [],
-          },
-        };
-      }
-
-      const metafieldCategoryHandle = `${category}_metafields`;
-
-      result[metafieldCategoryHandle] = {
-        name: metafieldCategoryHandle,
-        properties: metafieldGroupProperties,
-        access: {
-          global: false,
-          parents: [],
-          template: [],
-        },
-      };
-    }
-
-    return result;
-  }
 
   // This is the big one we reuse (memoized)
   private _objectMap = memo(async (): Promise<ObjectMap> => {
@@ -312,20 +142,20 @@ export class TypeSystem {
   });
 
   public filterEntries = memo(async () => {
-    return this.themeDocset.filters();
+    return this.platformosDocset.filters();
   });
 
   public objectEntries = memo(async () => {
-    return this.themeDocset.objects();
+    return this.platformosDocset.objects();
   });
 
   private async symbolsTable(partialAst: LiquidHtmlNode, uri: string): Promise<SymbolsTable> {
     const [seedSymbolsTable, liquidDrops, graphqlSchema, rootUri, objectMap, filtersMap] =
       await Promise.all([
         this.seedSymbolsTable(uri),
-        this.themeDocset.liquidDrops(),
+        this.platformosDocset.liquidDrops(),
         this.getGraphQLSchema(),
-        this.findThemeRootURI?.(uri) ?? null,
+        this.findAppRootURI?.(uri) ?? null,
         this.objectMap(uri, partialAst),
         this.filtersMap(),
       ]);
@@ -382,41 +212,16 @@ export class TypeSystem {
   };
 }
 
-const SECTION_FILE_REGEX = /sections[\/\\][^.\\\/]*\.liquid$/;
-const BLOCK_FILE_REGEX = /blocks[\/\\][^.\\\/]*\.liquid$/;
 const PARTIAL_FILE_REGEX = /(views[\/\\]partials[\/\\]|[\/\\]lib[\/\\])[^.]*\.liquid$/;
-const LAYOUT_FILE_REGEX = /layout[\/\\]checkout\.liquid$/;
 
 function getContextualEntries(uri: string): string[] {
   const normalizedUri = path.normalize(uri);
-  if (LAYOUT_FILE_REGEX.test(normalizedUri)) {
-    return [
-      'locale',
-      'direction',
-      'skip_to_content_link',
-      'checkout_html_classes',
-      'checkout_stylesheets',
-      'checkout_scripts',
-      'content_for_logo',
-      'breadcrumb',
-      'order_summary_toggle',
-      'content_for_order_summary',
-      'alternative_payment_methods',
-      'content_for_footer',
-      'tracking_code',
-    ];
-  }
-  if (SECTION_FILE_REGEX.test(normalizedUri)) {
-    return ['section', 'predictive_search', 'recommendations', 'comment'];
-  }
-  if (BLOCK_FILE_REGEX.test(normalizedUri)) {
-    return ['app', 'section', 'recommendations', 'block'];
-  }
   if (PARTIAL_FILE_REGEX.test(normalizedUri)) {
     return ['app'];
   }
   return [];
 }
+
 
 /** An indexed representation on objects.json (by name) */
 type ObjectMap = Record<ObjectEntryName, ObjectEntry>;
@@ -656,12 +461,6 @@ async function buildSymbolsTable(
           identifier: node.markup.name!,
           type: String,
           range: [node.position.end],
-        };
-      } else if (['form', 'paginate'].includes(node.name)) {
-        return {
-          identifier: node.name,
-          type: node.name,
-          range: [node.blockStartPosition.end, end(node.blockEndPosition?.end)],
         };
       } else if (['for', 'tablerow'].includes(node.name)) {
         return {
@@ -1732,217 +1531,4 @@ function findLastApplicableShape(
   return result;
 }
 
-function settingReturnType(setting: InputSetting): ObjectEntry['return_type'] {
-  switch (setting.type) {
-    // basic settings
-    case 'checkbox':
-      return [{ type: 'boolean', name: '' }];
 
-    case 'range':
-    case 'number':
-      return [{ type: 'number', name: '' }];
-
-    case 'radio':
-    case 'select':
-    case 'text':
-    case 'textarea':
-      return [{ type: 'string', name: '' }];
-
-    // specialized settings
-    case 'article':
-      return [{ type: 'article', name: '' }];
-
-    case 'blog':
-      return [{ type: 'blog', name: '' }];
-
-    case 'collection':
-      return [{ type: 'collection', name: '' }];
-
-    case 'collection_list':
-      return [{ type: 'array', array_value: 'collection' }];
-
-    case 'color':
-      return [{ type: 'color', name: '' }];
-
-    case 'color_background':
-      return [{ type: 'string', name: '' }];
-
-    case 'color_scheme':
-      return [{ type: 'color_scheme', name: '' }];
-
-    // TODO ??
-    case 'color_scheme_group':
-      return [];
-
-    case 'font_picker':
-      return [{ type: 'font', name: '' }];
-
-    case 'html':
-      return [{ type: 'string', name: '' }];
-
-    case 'image_picker':
-      return [{ type: 'image', name: '' }];
-
-    case 'inline_richtext':
-      return [{ type: 'string', name: '' }];
-
-    case 'link_list':
-      return [{ type: 'linklist', name: '' }];
-
-    case 'liquid':
-      return [{ type: 'string', name: '' }];
-
-    case 'page':
-      return [{ type: 'page', name: '' }];
-
-    case 'product':
-      return [{ type: 'product', name: '' }];
-
-    case 'product_list':
-      return [{ type: 'array', array_value: 'product' }];
-
-    case 'richtext':
-      return [{ type: 'string', name: '' }];
-
-    case 'text_alignment':
-      return [{ type: 'string', name: '' }];
-
-    case 'url':
-      return [{ type: 'string', name: '' }];
-
-    case 'video':
-      return [{ type: 'video', name: '' }];
-
-    case 'video_url':
-      return [{ type: 'string', name: '' }];
-
-    default:
-      return [];
-  }
-}
-
-const METAFIELD_TYPE_TO_TYPE = Object.freeze({
-  single_line_text_field: String,
-  multi_line_text_field: String,
-  url_reference: String,
-  date: String,
-  date_time: String,
-  number_integer: 'number',
-  number_decimal: 'number',
-  product_reference: 'product',
-  collection_reference: 'collection',
-  variant_reference: 'variant',
-  page_reference: 'page',
-  boolean: 'boolean',
-  color: 'color',
-  weight: 'measurement',
-  volume: 'measurement',
-  dimension: 'measurement',
-  rating: 'rating',
-  money: 'money',
-  json: Untyped,
-  metaobject_reference: 'metaobject',
-  mixed_reference: Untyped,
-  rich_text_field: Untyped,
-  file_reference: Untyped,
-});
-
-const REFERENCE_TYPE_METAFIELDS = Object.entries(METAFIELD_TYPE_TO_TYPE)
-  .filter(([metafieldType, _type]) => metafieldType.endsWith('_reference'))
-  .map(([_metafieldType, type]) => type);
-
-function metafieldReturnType(metafieldType: string): ObjectEntry['return_type'] {
-  let isArray = metafieldType.startsWith('list.');
-
-  if (isArray) {
-    metafieldType = metafieldType.split('.')[1];
-  }
-
-  let type = 'metafield_' + ((METAFIELD_TYPE_TO_TYPE as any)[metafieldType] ?? Untyped);
-
-  if (isArray) {
-    return [{ type: `${type}_array`, name: '' }];
-  }
-
-  return [{ type: type, name: '' }];
-}
-
-// The default `metafield` type has an untyped `value` property.
-// We need to create new metafield types with the labels `metafield_x` and `metafield_x_array`
-// where x is the type of metafield inside the `value` property. The metafields ending with `x_array`
-// is where the value is an array of type x.
-const customMetafieldTypeEntries = memo((baseMetafieldEntry: ObjectEntry) => {
-  if (!baseMetafieldEntry) return {} as ObjectMap;
-
-  return [
-    ...new Set([...Object.values(METAFIELD_TYPE_TO_TYPE), ...FETCHED_METAFIELD_CATEGORIES]),
-  ].reduce((map, type) => {
-    {
-      const metafieldEntry = JSON.parse(JSON.stringify(baseMetafieldEntry)); // easy deep clone
-      const metafieldValueProp = metafieldEntry.properties?.find(
-        (prop: any) => prop.name === 'value',
-      );
-
-      if (metafieldValueProp) {
-        metafieldValueProp.return_type = [{ type: type, name: '' }];
-        metafieldValueProp.description = '';
-        metafieldEntry.name = `metafield_${type}`;
-        map[metafieldEntry.name] = metafieldEntry;
-      }
-    }
-
-    {
-      const metafieldArrayEntry = JSON.parse(JSON.stringify(baseMetafieldEntry)); // easy deep clone
-      const metafieldArrayValueProp = metafieldArrayEntry.properties?.find(
-        (prop: any) => prop.name === 'value',
-      );
-
-      if (metafieldArrayValueProp) {
-        // A metafield definition using a list of references does not use an array, but a separate type of collection.
-        // For auto-completion purposes, we can't use the array type
-        // https://shopify.dev/docs/api/liquid/objects/metafield#metafield-determining-the-length-of-a-list-metafield
-        if (REFERENCE_TYPE_METAFIELDS.includes(type as any)) {
-          metafieldArrayValueProp.return_type = [{ type: 'untyped', name: '' }];
-        } else {
-          metafieldArrayValueProp.return_type = [{ type: 'array', name: '', array_value: type }];
-        }
-        metafieldArrayValueProp.description = '';
-        metafieldArrayEntry.name = `metafield_${type}_array`;
-        map[metafieldArrayEntry.name] = metafieldArrayEntry;
-      }
-    }
-
-    return map;
-  }, {} as ObjectMap);
-});
-
-function schemaSettingsAsProperties(ast: LiquidHtmlNode): ObjectEntry[] {
-  if (ast.type !== NodeTypes.Document) return [];
-  try {
-    const source = ast._source; // (the unfixed source)
-    const start = /\{%\s*schema\s*%\}/m.exec(source);
-    const end = /\{%\s*endschema\s*%\}/m.exec(source);
-    if (!start || !end) return [];
-    const schema = source.slice(start.index + start[0].length, end.index);
-    const json = parseJSON(schema);
-    if (isError(json) || !('settings' in json) || !Array.isArray(json.settings)) return [];
-    const result: ObjectEntry[] = [];
-    const inputSettings = json.settings.filter(isInputSetting);
-    for (const setting of inputSettings) {
-      result.push({
-        name: setting.id,
-        summary: '', // TODO, this should lookup the locale file for settings... setting.label
-        description: '', // TODO , this should lookup the locale file as well... setting.info,
-        return_type: settingReturnType(setting),
-        access: {
-          global: false,
-          parents: [],
-          template: [],
-        },
-      });
-    }
-    return result;
-  } catch (_) {
-    return [];
-  }
-}

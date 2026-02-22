@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 
 describe('Module: TranslationCompletionProvider', async () => {
   let provider: CompletionsProvider;
@@ -9,7 +8,7 @@ describe('Module: TranslationCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -17,7 +16,6 @@ describe('Module: TranslationCompletionProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
       getTranslationsForURI: async (_) => ({
         general: {
           username_html: '<b>username</b>',

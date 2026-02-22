@@ -1,5 +1,6 @@
 import { RelativePath, UriString } from './types';
 import { URI, Utils } from 'vscode-uri';
+export { isPartial, isLayout, isPage } from '@platformos/platformos-common';
 
 export { URI, Utils };
 
@@ -43,3 +44,4 @@ export function fsPath(uri: UriString | URI): string {
 function asUri(uri: UriString | URI): URI {
   return URI.isUri(uri) ? uri : URI.parse(uri);
 }
+

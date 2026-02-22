@@ -1,10 +1,6 @@
 import {
-  LiquidSourceCode,
   memoize,
   path as pathUtils,
-  SectionSchema,
-  ThemeBlockSchema,
-  toSchema,
 } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
@@ -28,16 +24,6 @@ export async function getDependencies(rootUri: string, fs: AbstractFileSystem = 
   const getSourceCode = makeGetSourceCode(fs);
   const deps = {
     fs,
-    getSectionSchema: memoize(async (name: string) => {
-      const uri = pathUtils.join(skeleton, 'sections', `${name}.liquid`);
-      const sourceCode = (await getSourceCode(uri)) as LiquidSourceCode;
-      return (await toSchema('theme', uri, sourceCode, async () => true)) as SectionSchema;
-    }, identity),
-    getBlockSchema: memoize(async (name: string) => {
-      const uri = pathUtils.join(skeleton, 'blocks', `${name}.liquid`);
-      const sourceCode = (await getSourceCode(uri)) as LiquidSourceCode;
-      return (await toSchema('theme', uri, sourceCode, async () => true)) as ThemeBlockSchema;
-    }, identity),
     getSourceCode,
     getWebComponentDefinitionReference: (customElementName: string) =>
       webComponentDefs.get(customElementName),

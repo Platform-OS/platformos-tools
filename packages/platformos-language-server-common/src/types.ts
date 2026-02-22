@@ -1,6 +1,6 @@
 import {
   Config,
-  Dependencies as ThemeCheckDependencies,
+  Dependencies as CheckDependencies,
 } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import { URI } from 'vscode-languageserver';
@@ -10,10 +10,7 @@ import { WithOptional } from './utils';
 import { Range } from 'vscode-json-languageservice';
 import { Reference } from '@platformos/platformos-graph';
 
-export type Dependencies = WithOptional<
-  RequiredDependencies,
-  'log' | 'getMetafieldDefinitions' | 'fetchMetafieldDefinitionsForURI'
->;
+export type Dependencies = WithOptional<RequiredDependencies, 'log'>;
 
 export interface RequiredDependencies {
   /**
@@ -34,25 +31,25 @@ export interface RequiredDependencies {
    *
    * @example
    *
-   * Here's an example VS Code workspace a partner could run
+   * Here's an example VS Code workspace a developer could run
    * ```
-   * theme1/
-   *   src/
-   *     locales/
-   *     sections/
-   *     snippets/
-   *   dist/
-   *     locales/
-   *     sections/
-   *       foo.liquud
-   *     snippets/
-   * theme2/
-   *   locales/
-   *   sections/
-   *   snippets/
+   * my-app/
+   *   .pos
+   *   app/
+   *     views/
+   *       layouts/
+   *       pages/
+   *       partials/
+   *     lib/
+   *     assets/
+   * another-app/
+   *   .pos
+   *   app/
+   *     views/
+   *       pages/
    * ```
    *
-   * In this situation, we have 3 different "roots."
+   * In this situation, we have 2 different "roots."
    *
    * @param uri - a file path
    * @returns {Promise<Config>}
@@ -61,19 +58,17 @@ export interface RequiredDependencies {
 
   /**
    * In local environments, the Language Server can download the latest versions
-   * of themes docset from `Shopify/theme-liquid-docs`. However, this is not
-   * possible in the browser, so we implement different solutions for each
-   * environment.
+   * of the platformOS Liquid docset. In the browser, the docset must be
+   * precompiled into the bundle at build time.
    */
-  themeDocset: NonNullable<ThemeCheckDependencies['themeDocset']>;
+  platformosDocset: NonNullable<CheckDependencies['platformosDocset']>;
 
   /**
-   * In local environments, the Language Server can download the latest versions
-   * of themes schemas from `Shopify/theme-liquid-docs`. Due to limitations in
-   * browser environments, json schemas must be precompiled into validators prior
-   * to theme-check instantiation.
+   * In local environments, the Language Server can download the latest JSON
+   * validation schemas. In browser environments, schemas must be precompiled
+   * into validators prior to platformos-check instantiation.
    */
-  jsonValidationSet: NonNullable<ThemeCheckDependencies['jsonValidationSet']>;
+  jsonValidationSet: NonNullable<CheckDependencies['jsonValidationSet']>;
 
   /**
    * A file system abstraction that allows the Language Server to read files by URI.
@@ -86,22 +81,10 @@ export interface RequiredDependencies {
    */
   fs: AbstractFileSystem;
 
-  /**
-   * In local environments, the Language Server can download the metafield definitions
-   * and provide a set of memoized definitions. In other environments, we rely on dynamically
-   * fetching the set of metafield definitions every time.
-   */
-  getMetafieldDefinitions: ThemeCheckDependencies['getMetafieldDefinitions'];
-
-  /**
-   * Fetch Metafield definitions using the CLI provided the URI of the project root.
-   * This should only be used in node environments; not on the browser.
-   */
-  fetchMetafieldDefinitionsForURI: (uri: URI) => Promise<void>;
 }
 
-export namespace ThemeGraphReferenceRequest {
-  export const method = 'themeGraph/references';
+export namespace AppGraphReferenceRequest {
+  export const method = 'appGraph/references';
   export const type = new rpc.RequestType<Params, Response, void>(method);
   export interface Params {
     uri: string;
@@ -111,8 +94,8 @@ export namespace ThemeGraphReferenceRequest {
   export type Response = AugmentedReference[];
 }
 
-export namespace ThemeGraphDependenciesRequest {
-  export const method = 'themeGraph/dependencies';
+export namespace AppGraphDependenciesRequest {
+  export const method = 'appGraph/dependencies';
   export const type = new rpc.RequestType<Params, Response, void>(method);
   export interface Params {
     uri: string;
@@ -122,8 +105,8 @@ export namespace ThemeGraphDependenciesRequest {
   export type Response = AugmentedReference[];
 }
 
-export namespace ThemeGraphRootRequest {
-  export const method = 'themeGraph/rootUri';
+export namespace AppGraphRootRequest {
+  export const method = 'appGraph/rootUri';
   export const type = new rpc.RequestType<Params, Response, void>(method);
   export interface Params {
     uri: string;
@@ -131,17 +114,8 @@ export namespace ThemeGraphRootRequest {
   export type Response = string;
 }
 
-export namespace ThemeGraphDeadCodeRequest {
-  export const method = 'themeGraph/deadCode';
-  export const type = new rpc.RequestType<Params, Response, void>(method);
-  export interface Params {
-    uri: string;
-  }
-  export type Response = string[];
-}
-
-export namespace ThemeGraphDidUpdateNotification {
-  export const method = 'themeGraph/onDidChangeTree';
+export namespace AppGraphDidUpdateNotification {
+  export const method = 'appGraph/onDidChangeTree';
   export const type = new rpc.NotificationType<Params>(method);
   export interface Params {
     uri: string;

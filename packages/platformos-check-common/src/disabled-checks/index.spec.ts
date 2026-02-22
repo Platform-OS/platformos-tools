@@ -259,4 +259,39 @@ ${buildComment('theme-check-enable')}
       });
     });
   });
+
+  describe('platformos-check prefix', () => {
+    it('should disable checks using platformos-check-disable prefix', async () => {
+      for (const buildComment of commentTypes) {
+        const file = `${buildComment('platformos-check-disable LiquidFilter')}
+{{ 'asset' | random_filter }}
+{% render 'something' %}`;
+
+        const offenses = await check({ 'code.liquid': file }, checks);
+        expect(offenses).to.have.length(1);
+        expectRenderMarkupOffense(offenses, 'something.liquid');
+      }
+    });
+
+    it('should disable all checks using platformos-check-disable prefix', async () => {
+      for (const buildComment of commentTypes) {
+        const file = `${buildComment('platformos-check-disable')}
+{{ 'asset' | random_filter }}
+{% render 'something' %}`;
+
+        const offenses = await check({ 'code.liquid': file }, checks);
+        expect(offenses).to.have.length(0);
+      }
+    });
+
+    it('should disable next line using platformos-check-disable-next-line prefix', async () => {
+      const file = `{% # platformos-check-disable-next-line %}
+{% render 'something' %}
+{% render 'other-thing' %}`;
+
+      const offenses = await check({ 'code.liquid': file }, checks);
+      expect(offenses).to.have.length(1);
+      expectRenderMarkupOffense(offenses, 'other-thing.liquid');
+    });
+  });
 });

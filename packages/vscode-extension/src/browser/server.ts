@@ -35,17 +35,16 @@ const dependencies: Dependencies = {
     const fileExists = makeFileExists(fs);
     const rootUri = await findRoot(uri, fileExists);
     if (!rootUri) {
-      throw new Error(`Could not find theme root for ${uri}`);
+      throw new Error(`Could not find app root for ${uri}`);
     }
 
     return {
-      context: 'theme',
       settings: {},
       checks: recommendedChecks,
       rootUri,
     };
   },
-  themeDocset: {
+  platformosDocset: {
     graphQL: async () => null,
     filters: async () => filters,
     objects: async () => objects,

@@ -14,7 +14,7 @@ import { HtmlTagNameRenameProvider } from './providers/HtmlTagNameRenameProvider
 import { LiquidVariableRenameProvider } from './providers/LiquidVariableRenameProvider';
 import { Connection } from 'vscode-languageserver';
 import { ClientCapabilities } from '../ClientCapabilities';
-import { FindThemeRootURI } from '../internal-types';
+import { FindAppRootURI } from '../internal-types';
 
 /**
  * RenameProvider is responsible for providing rename support for the theme language server.
@@ -28,7 +28,7 @@ export class RenameProvider {
     connection: Connection,
     clientCapabilities: ClientCapabilities,
     private documentManager: DocumentManager,
-    findThemeRootURI: FindThemeRootURI,
+    findAppRootURI: FindAppRootURI,
   ) {
     this.providers = [
       new HtmlTagNameRenameProvider(documentManager),
@@ -36,7 +36,7 @@ export class RenameProvider {
         connection,
         clientCapabilities,
         documentManager,
-        findThemeRootURI,
+        findAppRootURI,
       ),
     ];
   }

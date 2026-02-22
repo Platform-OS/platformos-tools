@@ -1,9 +1,0 @@
-{
-  "compilerOptions": {
-    "baseUrl": "./assets",
-    "lib": ["es2020", "dom"],
-    "allowJs": true,
-    "checkJs": true
-  },
-  "include": ["./assets/**/*.js"],
-}

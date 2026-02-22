@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 
 describe('Module: RenderSnippetCompletionProvider', async () => {
   let provider: CompletionsProvider;
@@ -9,7 +8,7 @@ describe('Module: RenderSnippetCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -19,7 +18,6 @@ describe('Module: RenderSnippetCompletionProvider', async () => {
       },
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_) => ['product-card', 'image'],
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 
@@ -32,7 +30,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
   it('should complete module paths - /modules/user/commands/test', async () => {
     const provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -47,7 +45,6 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         }
         return [];
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
 
     await expect(provider).to.complete('{% render "/modules/user/commands', ['test']);
@@ -56,7 +53,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
   it('should complete root commands path - /commands/test2', async () => {
     const provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -71,7 +68,6 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         }
         return [];
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
 
     await expect(provider).to.complete('{% render "/commands', ['test2']);
@@ -80,7 +76,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
   it('should complete multiple files in directory', async () => {
     const provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -95,7 +91,6 @@ describe('Module: PartialCompletionProvider with paths', async () => {
         }
         return [];
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
 
     await expect(provider).to.complete('{% render "/modules/user/commands', [

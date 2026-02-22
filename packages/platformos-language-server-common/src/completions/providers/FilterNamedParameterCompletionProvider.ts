@@ -1,5 +1,5 @@
 import { LiquidVariableLookup, NodeTypes } from '@platformos/liquid-html-parser';
-import { ThemeDocset } from '@platformos/platformos-check-common';
+import { PlatformOSDocset } from '@platformos/platformos-check-common';
 import {
   CompletionItem,
   CompletionItemKind,
@@ -11,7 +11,7 @@ import { Provider, createCompletionItem } from './common';
 import { AugmentedLiquidSourceCode } from '../../documents';
 
 export class FilterNamedParameterCompletionProvider implements Provider {
-  constructor(private readonly themeDocset: ThemeDocset) {}
+  constructor(private readonly platformosDocset: PlatformOSDocset) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
@@ -34,7 +34,7 @@ export class FilterNamedParameterCompletionProvider implements Provider {
       return [];
     }
 
-    const filters = await this.themeDocset.filters();
+    const filters = await this.platformosDocset.filters();
     const foundFilter = filters.find((f) => f.name === currentContext.name);
 
     if (!foundFilter?.parameters) {
@@ -92,7 +92,7 @@ export class FilterNamedParameterCompletionProvider implements Provider {
     // If the cursor is inside the parameter or at the end and it's the same
     // value as the one we're offering a completion for then we want to restrict
     // the insert to just the name of the parameter.
-    // e.g. `{{ product | image_url: cr█op: 'center' }}` and we're offering `crop`
+    // e.g. `{{ context | parameterize: in█put: 'hello' }}` and we're offering `input`
     if (node.name + remainingText.slice(0, existingParameterOffset) == name) {
       newText = name;
       format = InsertTextFormat.PlainText;
@@ -101,8 +101,8 @@ export class FilterNamedParameterCompletionProvider implements Provider {
 
     // If the cursor is at the beginning of the string we can consider all
     // options and should not replace any text.
-    // e.g. `{{ product | image_url: █crop: 'center' }}`
-    // e.g. `{{ product | image_url: █ }}`
+    // e.g. `{{ context | parameterize: █input: 'hello' }}`
+    // e.g. `{{ context | parameterize: █ }}`
     if (node.name === '█') {
       end = start;
     }

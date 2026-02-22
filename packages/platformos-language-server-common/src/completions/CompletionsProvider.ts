@@ -1,21 +1,17 @@
 import {
   GetDocDefinitionForURI,
-  MetafieldDefinitionMap,
   SourceCodeType,
-  ThemeDocset,
+  PlatformOSDocset,
 } from '@platformos/platformos-check-common';
 import type { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';
 import { CompletionItem, CompletionParams } from 'vscode-languageserver';
 import { TypeSystem } from '../TypeSystem';
 import { DocumentManager } from '../documents';
-import { FindThemeRootURI } from '../internal-types';
-import { GetThemeSettingsSchemaForURI } from '../settings';
+import { FindAppRootURI } from '../internal-types';
 import { GetTranslationsForURI } from '../translations';
 import { createLiquidCompletionParams } from './params';
 import {
   ContentForCompletionProvider,
-  ContentForBlockTypeCompletionProvider,
-  ContentForParameterCompletionProvider,
   FilterCompletionProvider,
   FilterNamedParameterCompletionProvider,
   HtmlAttributeCompletionProvider,
@@ -35,19 +31,16 @@ import { GetPartialNamesForURI } from './providers/PartialCompletionProvider';
 
 export interface CompletionProviderDependencies {
   documentManager: DocumentManager;
-  themeDocset: ThemeDocset;
+  platformosDocset: PlatformOSDocset;
   getTranslationsForURI?: GetTranslationsForURI;
   getPartialNamesForURI?: GetPartialNamesForURI;
-  getThemeSettingsSchemaForURI?: GetThemeSettingsSchemaForURI;
-  getMetafieldDefinitions: (rootUri: string) => Promise<MetafieldDefinitionMap>;
   getDocDefinitionForURI?: GetDocDefinitionForURI;
-  getThemeBlockNames?: (rootUri: string, includePrivate: boolean) => Promise<string[]>;
   /** File system for reading GraphQL files */
   fs?: AbstractFileSystem;
   /** Locator for finding documents by type */
   documentsLocator?: DocumentsLocator;
   /** Function to find the theme root URI for a given file */
-  findThemeRootURI?: FindThemeRootURI;
+  findAppRootURI?: FindAppRootURI;
   log?: (message: string) => void;
   /** Callback to notify when unable to infer properties for a variable */
   notifyUnableToInferProperties?: (variableName: string) => void;
@@ -56,52 +49,45 @@ export interface CompletionProviderDependencies {
 export class CompletionsProvider {
   private providers: Provider[] = [];
   readonly documentManager: DocumentManager;
-  readonly themeDocset: ThemeDocset;
+  readonly platformosDocset: PlatformOSDocset;
   readonly log: (message: string) => void;
 
   constructor({
     documentManager,
-    themeDocset,
-    getMetafieldDefinitions,
+    platformosDocset,
     getTranslationsForURI = async () => ({}),
     getPartialNamesForURI = async () => [],
-    getThemeSettingsSchemaForURI = async () => [],
-    getDocDefinitionForURI = async (uri, _relativePath) => ({ uri }),
-    getThemeBlockNames = async (_rootUri: string, _includePrivate: boolean) => [],
+    getDocDefinitionForURI = async (uri, _partialName) => ({ uri }),
     fs,
     documentsLocator,
-    findThemeRootURI,
+    findAppRootURI,
     log = () => {},
   }: CompletionProviderDependencies) {
     this.documentManager = documentManager;
-    this.themeDocset = themeDocset;
+    this.platformosDocset = platformosDocset;
     this.log = log;
     const typeSystem = new TypeSystem(
-      themeDocset,
-      getThemeSettingsSchemaForURI,
-      getMetafieldDefinitions,
+      platformosDocset,
       fs,
       documentsLocator,
-      findThemeRootURI,
+      findAppRootURI,
     );
 
     this.providers = [
       new ContentForCompletionProvider(),
-      new ContentForBlockTypeCompletionProvider(getThemeBlockNames),
-      new ContentForParameterCompletionProvider(getDocDefinitionForURI),
       new HtmlTagCompletionProvider(),
       new HtmlAttributeCompletionProvider(documentManager),
       new HtmlAttributeValueCompletionProvider(),
-      new LiquidTagsCompletionProvider(themeDocset),
+      new LiquidTagsCompletionProvider(platformosDocset),
       new ObjectCompletionProvider(typeSystem),
       new ObjectAttributeCompletionProvider(typeSystem),
       new FilterCompletionProvider(typeSystem),
       new TranslationCompletionProvider(documentManager, getTranslationsForURI),
       new PartialCompletionProvider(getPartialNamesForURI),
       new RenderPartialParameterCompletionProvider(getDocDefinitionForURI),
-      new FilterNamedParameterCompletionProvider(themeDocset),
+      new FilterNamedParameterCompletionProvider(platformosDocset),
       new LiquidDocTagCompletionProvider(),
-      new LiquidDocParamTypeCompletionProvider(themeDocset),
+      new LiquidDocParamTypeCompletionProvider(platformosDocset),
     ];
   }
 

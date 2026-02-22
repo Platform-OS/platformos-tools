@@ -1,4 +1,3 @@
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InsertTextFormat } from 'vscode-json-languageservice';
 import { DocumentManager } from '../../documents';
@@ -10,7 +9,7 @@ describe('Module: ContentForCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -18,7 +17,6 @@ describe('Module: ContentForCompletionProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 

@@ -5,7 +5,7 @@ const webpack = require('webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 const { default: TsconfigPathsPlugin } = require('tsconfig-paths-webpack-plugin');
 const path = require('path');
-const { ThemeLiquidDocsManager } = require('@platformos/platformos-check-docs-updater');
+const { PlatformOSLiquidDocsManager } = require('@platformos/platformos-check-docs-updater');
 
 /** @type WebpackConfig */
 const baseConfig = {
@@ -14,6 +14,7 @@ const baseConfig = {
     port: 3000,
   },
   resolve: {
+    conditionNames: ['import', 'require', 'node', 'default'],
     extensions: ['.ts', '.js'],
     plugins: [new TsconfigPathsPlugin({})],
   },
@@ -46,6 +47,9 @@ const baseConfig = {
   },
   infrastructureLogging: {
     level: 'log', // enables logging required for problem matchers
+  },
+  performance: {
+    hints: false,
   },
 }
 
@@ -124,13 +128,13 @@ const browserClientConfig = {
 };
 
 const browserServerConfig = async () => {
-  const docsManager = new ThemeLiquidDocsManager();
+  const docsManager = new PlatformOSLiquidDocsManager();
   const [tags, filters, objects, systemTranslations, schemas] = await Promise.all([
     docsManager.tags(),
     docsManager.filters(),
     docsManager.objects(),
     docsManager.systemTranslations(),
-    docsManager.schemas('theme'),
+    docsManager.schemas(),
   ]);
 
   return {

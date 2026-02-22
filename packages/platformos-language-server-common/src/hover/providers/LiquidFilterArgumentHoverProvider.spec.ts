@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 import { TranslationProvider } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 
@@ -36,7 +35,6 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
         systemTranslations: async () => ({}),
       },
       new TranslationProvider(new MockFileSystem({})),
-      async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     );
   });
 

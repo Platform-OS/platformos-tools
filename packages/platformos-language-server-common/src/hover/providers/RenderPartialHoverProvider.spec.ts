@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
+
 import { GetDocDefinitionForURI, DocDefinition } from '@platformos/platformos-check-common';
 import { TranslationProvider } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
@@ -77,9 +77,7 @@ const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
       systemTranslations: async () => ({}),
     },
     new TranslationProvider(new MockFileSystem({})),
-    async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     async () => ({}),
-    async () => [],
     getSnippetDefinition,
   );
 };

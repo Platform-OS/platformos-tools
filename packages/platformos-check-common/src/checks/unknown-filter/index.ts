@@ -7,7 +7,7 @@ export const UnknownFilter: LiquidCheckDefinition = {
     name: 'Prevent use of unknown filters',
     docs: {
       description: 'This check is aimed at preventing the use of unknown filters.',
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/unknown-filter',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/unknown-filter',
       recommended: true,
     },
     type: SourceCodeType.LiquidHtml,
@@ -17,13 +17,13 @@ export const UnknownFilter: LiquidCheckDefinition = {
   },
 
   create(context) {
-    if (!context.themeDocset) {
+    if (!context.platformosDocset) {
       return {};
     }
 
     return {
       async LiquidFilter(node) {
-        const knownFilters = await context.themeDocset!.filters();
+        const knownFilters = await context.platformosDocset!.filters();
 
         if (!knownFilters.some((filter) => filter.name === node.name)) {
           context.report({

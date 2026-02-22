@@ -1,7 +1,7 @@
 /**
  * The AbstractFileSystem interface is used to abstract file system operations.
  *
- * This way, the Theme Check library can be used in different environments,
+ * This way, the App Check library can be used in different environments,
  * such as the browser, node.js or VS Code (which works with local files, remote
  * files and on the web)
  */

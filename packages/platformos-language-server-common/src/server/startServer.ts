@@ -1,17 +1,11 @@
 import {
-  AugmentedThemeDocset,
+  AugmentedPlatformOSDocset,
   DocDefinition,
   findRoot as findConfigFileRoot,
   isError,
   makeFileExists,
   makeGetDefaultLocaleFileUri,
-  makeGetDefaultSchemaLocaleFileUri,
-  makeGetDefaultSchemaTranslations,
-  makeGetDefaultTranslations,
-  makeGetMetafieldDefinitions,
   memoize,
-  MetafieldDefinitionMap,
-  parseJSON,
   path,
   SourceCodeType,
   UriString,
@@ -24,7 +18,6 @@ import {
   InitializeResult,
   ShowDocumentRequest,
   TextDocumentSyncKind,
-  WorkspaceFolder,
 } from 'vscode-languageserver';
 import { ClientCapabilities } from '../ClientCapabilities';
 import { CodeActionKinds, CodeActionsProvider } from '../codeActions';
@@ -46,17 +39,16 @@ import { RenameHandler } from '../renamed/RenameHandler';
 import { GetTranslationsForURI } from '../translations';
 import {
   Dependencies,
-  ThemeGraphDeadCodeRequest,
-  ThemeGraphDependenciesRequest,
-  ThemeGraphReferenceRequest,
-  ThemeGraphRootRequest,
+  AppGraphDependenciesRequest,
+  AppGraphReferenceRequest,
+  AppGraphRootRequest,
 } from '../types';
 import { debounce } from '../utils';
 import { VERSION } from '../version';
 import { CachedFileSystem } from './CachedFileSystem';
 import { Configuration, INCLUDE_FILES_FROM_DISK } from './Configuration';
 import { safe } from './safe';
-import { ThemeGraphManager } from './ThemeGraphManager';
+import { AppGraphManager } from './AppGraphManager';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { relative } from '@platformos/platformos-check-common/src/path';
 import { URI } from 'vscode-uri';
@@ -84,7 +76,7 @@ const hasUnsupportedDocument = (params: any) => {
  * This code runs in node and the browser, it can't talk to the file system
  * or make requests. Stuff like that should be injected.
  *
- * In browser, theme-check-js wants these things:
+ * In browser, platformos-check-js wants these things:
  *   - fileExists(path)
  *   - defaultTranslations
  *
@@ -97,8 +89,7 @@ export function startServer(
     loadConfig: injectedLoadConfig,
     log = defaultLogger,
     jsonValidationSet,
-    themeDocset: remoteThemeDocset,
-    fetchMetafieldDefinitionsForURI,
+    platformosDocset: remotePlatformOSDocset,
   }: Dependencies,
 ) {
   const fs = new CachedFileSystem(injectedFs);
@@ -111,21 +102,20 @@ export function startServer(
     fs,
     connection,
     clientCapabilities,
-    getModeForURI,
     isValidSchema,
   );
-  const themeGraphManager = new ThemeGraphManager(
+  const appGraphManager = new AppGraphManager(
     connection,
     documentManager,
     fs,
-    findThemeRootURI,
+    findAppRootURI,
   );
   const diagnosticsManager = new DiagnosticsManager(connection);
   const documentsLocator = new DocumentsLocator(fs);
   const translationProvider = new TranslationProvider(fs);
   const documentLinksProvider = new DocumentLinksProvider(
     documentManager,
-    findThemeRootURI,
+    findAppRootURI,
     documentsLocator,
     translationProvider,
   );
@@ -150,87 +140,55 @@ export function startServer(
     connection,
     clientCapabilities,
     documentManager,
-    findThemeRootURI,
+    findAppRootURI,
   );
   const renameHandler = new RenameHandler(
     connection,
     clientCapabilities,
     documentManager,
-    findThemeRootURI,
+    findAppRootURI,
   );
 
-  async function findThemeRootURI(uri: string): Promise<string | null> {
+  async function findAppRootURI(uri: string): Promise<string | null> {
     const rootUri = await findConfigFileRoot(uri, fileExists);
     if (!rootUri) return null;
     const config = await loadConfig(rootUri, fs);
     return config.rootUri;
   }
 
-  const getMetafieldDefinitionsForRootUri = memoize(
-    makeGetMetafieldDefinitions(fs),
-    (rootUri) => rootUri,
-  );
-
-  const getMetafieldDefinitions: NonNullable<Dependencies['getMetafieldDefinitions']> = async (
-    uri: string,
-  ) => {
-    const rootUri = await findThemeRootURI(uri);
-    if (!rootUri) {
-      return {} as MetafieldDefinitionMap;
-    }
-
-    return getMetafieldDefinitionsForRootUri(rootUri);
-  };
-
   // These are augmented here so that the caching is maintained over different runs.
-  const themeDocset = new AugmentedThemeDocset(remoteThemeDocset);
+  const platformosDocset = new AugmentedPlatformOSDocset(remotePlatformOSDocset);
   const cssLanguageService = new CSSLanguageService(documentManager);
   const runChecks = debounce(
     makeRunChecks(documentManager, diagnosticsManager, {
       fs,
       loadConfig,
-      themeDocset,
+      platformosDocset,
       jsonValidationSet,
-      getMetafieldDefinitions,
       cssLanguageService,
-      themeGraphManager,
+      appGraphManager,
       includeFilesFromDisk: () => configuration[INCLUDE_FILES_FROM_DISK],
     }),
     100,
   );
 
-  const getTranslationsForURI: GetTranslationsForURI = async (uri) => {
-    const rootURI = await findThemeRootURI(uri);
-    if (!rootURI) return {};
-
-    const theme = documentManager.theme(rootURI, configuration[INCLUDE_FILES_FROM_DISK]);
-    const getDefaultTranslations = makeGetDefaultTranslations(fs, theme, rootURI);
-    const [defaultTranslations, shopifyTranslations] = await Promise.all([
-      getDefaultTranslations(),
-      themeDocset.systemTranslations(),
-    ]);
-
-    return { ...shopifyTranslations, ...defaultTranslations };
-  };
-
-  const getSchemaTranslationsForURI: GetTranslationsForURI = async (uri) => {
-    const rootURI = await findThemeRootURI(uri);
-    if (!rootURI) return {};
-
-    const theme = documentManager.theme(rootURI, configuration[INCLUDE_FILES_FROM_DISK]);
-    const getDefaultSchemaTranslations = makeGetDefaultSchemaTranslations(fs, theme, rootURI);
-    return getDefaultSchemaTranslations();
+  // In platformOS, every translation is explicitly defined by the user — there is no concept of
+  // a "default locale" file. We only return system translations here; user-defined translations
+  // are resolved via TranslationProvider at the point of lookup.
+  const getTranslationsForURI: GetTranslationsForURI = async (_uri) => {
+    return platformosDocset.systemTranslations();
   };
 
   const getDocDefinitionForURI = async (
     uri: UriString,
-    category: 'app/views/partials' | 'blocks',
     name: string,
   ): Promise<DocDefinition | undefined> => {
-    const rootUri = await findThemeRootURI(uri);
+    const rootUri = await findAppRootURI(uri);
     if (!rootUri) return undefined;
 
-    const fileUri = path.join(rootUri, category, `${name}.liquid`);
+    const fileUri = await documentsLocator.locate(URI.parse(rootUri), 'render', name);
+    if (!fileUri) return undefined;
+
     const file = documentManager.get(fileUri);
 
     if (!file || file.type !== SourceCodeType.LiquidHtml || isError(file.ast)) {
@@ -242,59 +200,13 @@ export function startServer(
 
   const getPartialNamesForURI: GetPartialNamesForURI = safe(
     async (uri: string, partial: string, type: string | undefined) => {
-      const rootUri = await findThemeRootURI(uri);
+      const rootUri = await findAppRootURI(uri);
       if (!rootUri) return [];
 
       return await documentsLocator.list(URI.parse(rootUri), type, partial);
     },
     [],
   );
-
-  const getThemeSettingsSchemaForURI = safe(async (uri: string) => {
-    const rootUri = await findThemeRootURI(uri);
-    if (!rootUri) return [];
-
-    const settingsSchemaUri = path.join(rootUri, 'config', 'settings_schema.json');
-    const contents = await fs.readFile(settingsSchemaUri);
-    const json = parseJSON(contents);
-    if (isError(json) || !Array.isArray(json)) {
-      throw new Error('Settings JSON file not in correct format');
-    }
-    return json;
-  }, []);
-
-  async function getModeForURI(uri: string) {
-    const rootUri = await findConfigFileRoot(uri, fileExists);
-    if (!rootUri) return 'theme';
-    const config = await loadConfig(rootUri, fs);
-    return config.context;
-  }
-
-  const getThemeBlockNames = safe(async (uri: string, includePrivate: boolean) => {
-    const rootUri = await findThemeRootURI(uri);
-    if (!rootUri) return [];
-
-    const blocks = await fs.readDirectory(path.join(rootUri, 'blocks'));
-    const blockNames = blocks.map(([uri]) => path.basename(uri, '.liquid'));
-
-    if (includePrivate) {
-      return blockNames;
-    }
-
-    return blockNames.filter((blockName) => !blockName.startsWith('_'));
-  }, []);
-
-  async function getThemeBlockSchema(uri: string, name: string) {
-    const rootUri = await findThemeRootURI(uri);
-    if (!rootUri) return;
-
-    const blockUri = path.join(rootUri, 'blocks', `${name}.liquid`);
-    const doc = documentManager.get(blockUri);
-    if (!doc || doc.type !== SourceCodeType.LiquidHtml) {
-      return;
-    }
-    return doc.getSchema();
-  }
 
   // Defined as a function to solve a circular dependency (doc manager & json
   // lang service both need each other)
@@ -304,7 +216,7 @@ export function startServer(
 
   const getDefaultLocaleFileUri = makeGetDefaultLocaleFileUri(fs);
   async function getDefaultLocaleSourceCode(uri: string) {
-    const rootUri = await findThemeRootURI(uri);
+    const rootUri = await findAppRootURI(uri);
     if (!rootUri) return null;
 
     const defaultLocaleFileUri = await getDefaultLocaleFileUri(rootUri);
@@ -313,43 +225,24 @@ export function startServer(
     return (documentManager.get(defaultLocaleFileUri) as AugmentedJsonSourceCode) ?? null;
   }
 
-  const getDefaultSchemaLocaleFileUri = makeGetDefaultSchemaLocaleFileUri(fs);
-  async function getDefaultSchemaLocaleSourceCode(uri: string) {
-    const rootUri = await findThemeRootURI(uri);
-    if (!rootUri) return null;
-
-    const defaultLocaleFileUri = await getDefaultSchemaLocaleFileUri(rootUri);
-    if (!defaultLocaleFileUri) return null;
-
-    return (documentManager.get(defaultLocaleFileUri) as AugmentedJsonSourceCode) ?? null;
-  }
   const definitionsProvider = new DefinitionProvider(
     documentManager,
     getDefaultLocaleSourceCode,
-    getDefaultSchemaLocaleSourceCode,
   );
   const jsonLanguageService = new JSONLanguageService(
     documentManager,
     jsonValidationSet,
-    getSchemaTranslationsForURI,
-    getModeForURI,
-    getThemeBlockNames,
-    getThemeBlockSchema,
-    findThemeRootURI,
   );
   const completionsProvider = new CompletionsProvider({
     documentManager,
-    themeDocset,
+    platformosDocset,
     getTranslationsForURI,
     getPartialNamesForURI,
-    getThemeSettingsSchemaForURI,
     log,
-    getThemeBlockNames,
-    getMetafieldDefinitions,
     getDocDefinitionForURI,
     fs,
     documentsLocator,
-    findThemeRootURI,
+    findAppRootURI,
     notifyUnableToInferProperties: (variableName: string) => {
       connection.window.showInformationMessage(
         `Unable to infer properties for '${variableName}'. Property completion is only supported for variables from parse_json, to_hash, or graphql.`,
@@ -358,13 +251,11 @@ export function startServer(
   });
   const hoverProvider = new HoverProvider(
     documentManager,
-    themeDocset,
+    platformosDocset,
     translationProvider,
-    getMetafieldDefinitions,
     getTranslationsForURI,
-    getThemeSettingsSchemaForURI,
     getDocDefinitionForURI,
-    findThemeRootURI,
+    findAppRootURI,
   );
 
   const executeCommandProvider = new ExecuteCommandProvider(
@@ -374,18 +265,6 @@ export function startServer(
     runChecks,
     connection,
   );
-
-  const fetchMetafieldDefinitionsForWorkspaceFolders = async (folders: WorkspaceFolder[]) => {
-    if (!fetchMetafieldDefinitionsForURI) return;
-
-    for (let folder of folders) {
-      const mode = await getModeForURI(folder.uri);
-
-      if (mode === 'theme') {
-        fetchMetafieldDefinitionsForURI(folder.uri);
-      }
-    }
-  };
 
   connection.onInitialize((params) => {
     clientCapabilities.setup(params.capabilities, params.initializationOptions);
@@ -452,7 +331,7 @@ export function startServer(
         },
       },
       serverInfo: {
-        name: 'theme-language-server',
+        name: 'platformos-language-server',
         version: VERSION,
       },
     };
@@ -478,17 +357,6 @@ export function startServer(
       ],
     });
 
-    if (clientCapabilities.hasWorkspaceFoldersSupport) {
-      connection.workspace.getWorkspaceFolders().then(async (folders) => {
-        if (!folders) return;
-
-        fetchMetafieldDefinitionsForWorkspaceFolders(folders);
-      });
-
-      connection.workspace.onDidChangeWorkspaceFolders(async (params) => {
-        fetchMetafieldDefinitionsForWorkspaceFolders(params.added);
-      });
-    }
   });
 
   connection.onDidChangeConfiguration((_params) => {
@@ -516,7 +384,7 @@ export function startServer(
     // If we open a file that we know is liquid, then we can kind of guarantee
     // we'll find a theme root and we'll preload that.
     if (await configuration.shouldPreloadOnBoot()) {
-      const rootUri = await findThemeRootURI(uri);
+      const rootUri = await findAppRootURI(uri);
       if (rootUri) {
         documentManager.preload(rootUri);
       }
@@ -637,13 +505,12 @@ export function startServer(
       fs.stat.invalidate(oldUri);
       fs.stat.invalidate(newUri);
 
-      themeGraphManager.rename(oldUri, newUri);
+      appGraphManager.rename(oldUri, newUri);
     }
 
-    // We should complete refactors before running theme check
     await renameHandler.onDidRenameFiles(params);
 
-    // MissingAssets/MissingSnippet should be rerun when a file is deleted
+    // MissingAssets/MissingPartial should be rerun when a file is deleted
     // since the file rename might cause an error.
     runChecks.force(triggerUris);
   });
@@ -659,7 +526,6 @@ export function startServer(
    *
    * Not redundant for operations that happen outside of the editor
    *   - git pull, checkout, reset, stash pop, etc.
-   *   - shopify theme metafields pull
    *   - etc.
    *
    * It always runs and onDid* will never fire without a corresponding onDidChangeWatchedFiles.
@@ -672,8 +538,8 @@ export function startServer(
     const triggerUris = params.changes.map((change) => change.uri);
     const updates: Promise<any>[] = [];
     for (const change of params.changes) {
-      // Theme Check config changes should clear the config cache
-      if (change.uri.endsWith('.theme-check.yml')) {
+      // App Check config changes should clear the config cache
+      if (change.uri.endsWith('.platformos-check.yml')) {
         loadConfig.clearCache();
         continue;
       }
@@ -690,7 +556,7 @@ export function startServer(
           fs.readDirectory.invalidate(path.dirname(change.uri));
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
-          themeGraphManager.create(change.uri);
+          appGraphManager.create(change.uri);
           // If a file is created under out feet, we update its contents.
           updates.push(documentManager.changeFromDisk(change.uri));
           break;
@@ -699,7 +565,7 @@ export function startServer(
           // A changed file invalidates readFile and stat (but not readDirectory)
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
-          themeGraphManager.change(change.uri);
+          appGraphManager.change(change.uri);
           // If the file is not open, we update its contents in the doc manager
           // If it is open, then we don't need to update it because the document manager
           // will have the version from the editor.
@@ -713,59 +579,42 @@ export function startServer(
           fs.readDirectory.invalidate(path.dirname(change.uri));
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
-          themeGraphManager.delete(change.uri);
+          appGraphManager.delete(change.uri);
           // If a file is deleted, it's removed from the document manager
           documentManager.delete(change.uri);
           break;
       }
 
-      if (change.uri.endsWith('metafields.json')) {
-        updates.push(
-          findThemeRootURI(change.uri).then((rootUri) => {
-            if (rootUri) {
-              getMetafieldDefinitionsForRootUri.invalidate(rootUri);
-            }
-          }),
-        );
-      }
+      // metafields.json support removed
     }
 
     await Promise.all(updates);
 
-    // MissingAssets/MissingSnippet should be rerun when a file is deleted
+    // MissingAssets/MissingPartial should be rerun when a file is deleted
     // since an error might be introduced (and vice versa).
     runChecks.force(triggerUris);
   });
 
-  connection.onRequest(ThemeGraphReferenceRequest.type, async (params) => {
+  connection.onRequest(AppGraphReferenceRequest.type, async (params) => {
     if (hasUnsupportedDocument(params)) return [];
     const { uri, offset, includeIndirect } = params;
-    return themeGraphManager.getReferences(uri, offset, { includeIndirect }).catch((_) => []);
+    return appGraphManager.getReferences(uri, offset, { includeIndirect }).catch((_) => []);
   });
 
-  connection.onRequest(ThemeGraphDependenciesRequest.type, async (params) => {
+  connection.onRequest(AppGraphDependenciesRequest.type, async (params) => {
     if (hasUnsupportedDocument(params)) return [];
     const { uri, offset, includeIndirect } = params;
-    return themeGraphManager.getDependencies(uri, offset, { includeIndirect }).catch((_) => []);
+    return appGraphManager.getDependencies(uri, offset, { includeIndirect }).catch((_) => []);
   });
 
-  connection.onRequest(ThemeGraphRootRequest.type, async (params) => {
+  connection.onRequest(AppGraphRootRequest.type, async (params) => {
     if (hasUnsupportedDocument(params)) return '';
     const { uri } = params;
-    const rootUri = await findThemeRootURI(uri).catch((_) => undefined);
+    const rootUri = await findAppRootURI(uri).catch((_) => undefined);
     if (!rootUri || path.dirname(rootUri) === rootUri) {
       console.error(uri);
     }
     return rootUri;
-  });
-
-  connection.onRequest(ThemeGraphDeadCodeRequest.type, async (params) => {
-    if (hasUnsupportedDocument(params)) return [];
-    const { uri } = params;
-    const rootUri = await findThemeRootURI(uri);
-    if (!rootUri) return [];
-    const deadFiles = await themeGraphManager.deadCode(rootUri);
-    return deadFiles;
   });
 
   connection.listen();

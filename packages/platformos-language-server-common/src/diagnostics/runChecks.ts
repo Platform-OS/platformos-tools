@@ -5,10 +5,8 @@ import {
   Offense,
   path,
   Reference,
-  SectionSchema,
   Severity,
   SourceCodeType,
-  ThemeBlockSchema,
 } from '@platformos/platformos-check-common';
 
 import { CSSLanguageService } from '../css/CSSLanguageService';
@@ -16,7 +14,7 @@ import { AugmentedSourceCode, DocumentManager } from '../documents';
 import { Dependencies } from '../types';
 import { DiagnosticsManager } from './DiagnosticsManager';
 import { offenseSeverity } from './offenseToDiagnostic';
-import { ThemeGraphManager } from '../server/ThemeGraphManager';
+import { AppGraphManager } from '../server/AppGraphManager';
 
 export function makeRunChecks(
   documentManager: DocumentManager,
@@ -24,18 +22,14 @@ export function makeRunChecks(
   {
     fs,
     loadConfig,
-    themeDocset,
+    platformosDocset,
     jsonValidationSet,
-    getMetafieldDefinitions,
     cssLanguageService,
-    themeGraphManager,
+    appGraphManager,
     includeFilesFromDisk,
-  }: Pick<
-    Dependencies,
-    'fs' | 'loadConfig' | 'themeDocset' | 'jsonValidationSet' | 'getMetafieldDefinitions'
-  > & {
+  }: Pick<Dependencies, 'fs' | 'loadConfig' | 'platformosDocset' | 'jsonValidationSet'> & {
     cssLanguageService?: CSSLanguageService;
-    themeGraphManager?: ThemeGraphManager;
+    appGraphManager?: AppGraphManager;
     includeFilesFromDisk?: () => boolean;
   },
 ) {
@@ -45,10 +39,10 @@ export function makeRunChecks(
     // workspaces.
     //
     // e.g. if a user renames
-    //  theme1/snippets/a.liquid to
-    //  theme1/snippets/b.liquid
+    //  app1/app/views/partials/a.liquid to
+    //  app1/app/views/partials/b.liquid
     //
-    // then we recheck theme1
+    // then we recheck app1
     const fileExists = makeFileExists(fs);
     const rootURIs = await Promise.all(triggerURIs.map((uri) => findRoot(uri, fileExists)));
     const deduplicatedRootURIs = new Set<string>(rootURIs.filter((x): x is string => !!x));
@@ -58,42 +52,22 @@ export function makeRunChecks(
 
     async function runChecksForRoot(configFileRootUri: string) {
       const config = await loadConfig(configFileRootUri, fs);
-      const theme = documentManager.theme(config.rootUri, includeFilesFromDisk?.());
+      const app = documentManager.app(config.rootUri, includeFilesFromDisk?.());
 
       const cssOffenses = cssLanguageService
         ? await Promise.all(
-            theme.map((sourceCode) => getCSSDiagnostics(cssLanguageService, sourceCode)),
+            app.map((sourceCode) => getCSSDiagnostics(cssLanguageService, sourceCode)),
           ).then((offenses) => offenses.flat())
         : [];
 
-      const themeOffenses = await check(theme, config, {
+      const appOffenses = await check(app, config, {
         fs,
-        themeDocset,
+        platformosDocset,
         jsonValidationSet,
-        getMetafieldDefinitions,
 
         async getReferences(uri: string): Promise<Reference[]> {
-          if (!themeGraphManager) return [];
-          return themeGraphManager.getReferences(uri);
-        },
-
-        // TODO should do something for app blocks?
-        async getBlockSchema(name) {
-          // We won't preload here. If it's available, we'll give it. Otherwise expect nothing.
-          const uri = path.join(config.rootUri, 'blocks', `${name}.liquid`);
-          const doc = documentManager.get(uri);
-          if (doc?.type !== SourceCodeType.LiquidHtml) return undefined;
-          const schema = await doc.getSchema();
-          return schema as ThemeBlockSchema | undefined;
-        },
-
-        async getSectionSchema(name) {
-          // We won't preload here. If it's available, we'll give it. Otherwise expect nothing.
-          const uri = path.join(config.rootUri, 'sections', `${name}.liquid`);
-          const doc = documentManager.get(uri);
-          if (doc?.type !== SourceCodeType.LiquidHtml) return undefined;
-          const schema = await doc.getSchema();
-          return schema as SectionSchema | undefined;
+          if (!appGraphManager) return [];
+          return appGraphManager.getReferences(uri);
         },
 
         async getDocDefinition(relativePath) {
@@ -103,12 +77,12 @@ export function makeRunChecks(
           return doc.getLiquidDoc();
         },
       });
-      const offenses = [...themeOffenses, ...cssOffenses];
+      const offenses = [...appOffenses, ...cssOffenses];
 
-      // We iterate over the theme files (as opposed to offenses) because if
+      // We iterate over the app files (as opposed to offenses) because if
       // there were offenses before, we need to send an empty array to clear
       // them.
-      for (const sourceCode of theme) {
+      for (const sourceCode of app) {
         const sourceCodeOffenses = offenses.filter((offense) => offense.uri === sourceCode.uri);
         diagnosticsManager.set(sourceCode.uri, sourceCode.version, sourceCodeOffenses);
       }

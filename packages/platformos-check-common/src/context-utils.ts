@@ -1,15 +1,11 @@
-import { URI, Utils } from 'vscode-uri';
+import { load } from 'js-yaml';
 import { AbstractFileSystem, FileTuple, FileType, UriString } from '@platformos/platformos-common';
-import { parseJSON } from './json';
 import { join } from './path';
 import {
-  MetafieldCategory,
-  MetafieldDefinitionMap,
   SourceCodeType,
-  Theme,
+  App,
   Translations,
 } from './types';
-import { isError } from './utils';
 
 export type FileExists = (uri: string) => Promise<boolean>;
 
@@ -33,71 +29,52 @@ export const makeFileSize = (fs: AbstractFileSystem) =>
     }
   };
 
-export const makeGetDefaultLocaleFileUri = getDefaultLocaleFileUriFactoryFactory('default.json');
-export const makeGetDefaultSchemaLocaleFileUri =
-  getDefaultLocaleFileUriFactoryFactory('.default.schema.json');
-function getDefaultLocaleFileUriFactoryFactory(postfix = '.default.json') {
-  return function getDefaultLocaleFileUriFactory(fs: AbstractFileSystem) {
-    return (rootUri: string) => getDefaultLocaleFile(fs, rootUri, postfix);
-  };
-}
+export const makeGetDefaultLocaleFileUri = (fs: AbstractFileSystem) =>
+  (rootUri: string) => getDefaultLocaleFile(fs, rootUri);
 
-export const makeGetDefaultLocale = getDefaultLocaleFactoryFactory('.default.json');
-export const makeGetDefaultSchemaLocale = getDefaultLocaleFactoryFactory('.default.schema.json');
-function getDefaultLocaleFactoryFactory(postfix = '.default.json') {
-  return function getDefaultLocaleFactory(fs: AbstractFileSystem, rootUri: string) {
-    return cached(() => getDefaultLocale(fs, rootUri, postfix));
-  };
-}
+export const makeGetDefaultLocale = (fs: AbstractFileSystem, rootUri: string) =>
+  cached(() => getDefaultLocale(fs, rootUri));
 
-export const makeGetDefaultTranslations = getDefaultTranslationsFactoryFactory('.default.json');
-export const makeGetDefaultSchemaTranslations =
-  getDefaultTranslationsFactoryFactory('.default.schema.json');
-// prettier-ignore
-function getDefaultTranslationsFactoryFactory(postfix = '.default.json') {
-  return function getDefaultTranslationsFactory(fs: AbstractFileSystem, theme: Theme, rootUri: string) {
-    return cached(() => getDefaultTranslations(fs, theme, rootUri, postfix));
-  };
-}
+export const makeGetDefaultTranslations = (fs: AbstractFileSystem, app: App, rootUri: string) =>
+  cached(() => getDefaultTranslations(fs, app, rootUri));
 
 async function getDefaultLocaleFile(
   fs: AbstractFileSystem,
   rootUri: string,
-  postfix = '.default.json',
-) {
-  const files = await fs.readDirectory(join(rootUri, 'locales'));
-  return files.find(([uri]) => uri.endsWith(postfix))?.[0];
+): Promise<string | undefined> {
+  const enYmlUri = join(rootUri, 'app/translations/en.yml');
+  try {
+    await fs.stat(enYmlUri);
+    return enYmlUri;
+  } catch {
+    return undefined;
+  }
 }
 
 async function getDefaultLocale(
-  fs: AbstractFileSystem,
-  rootUri: string,
-  postfix: string,
+  _fs: AbstractFileSystem,
+  _rootUri: string,
 ): Promise<string> {
-  try {
-    const defaultLocaleFile = await getDefaultLocaleFile(fs, rootUri, postfix);
-    if (!defaultLocaleFile) return 'en';
-    const defaultLocaleFileName = Utils.basename(URI.parse(defaultLocaleFile));
-    return defaultLocaleFileName.split('.')[0];
-  } catch (error) {
-    console.error(error);
-    return 'en';
-  }
+  // In platformOS, en.yml is always the reference translation file
+  return 'en';
 }
 
 async function getDefaultTranslations(
   fs: AbstractFileSystem,
-  theme: Theme,
+  app: App,
   rootUri: string,
-  postfix: string,
 ): Promise<Translations> {
   try {
-    const bufferTranslations = getDefaultTranslationsFromBuffer(theme, postfix);
+    const bufferTranslations = getDefaultTranslationsFromBuffer(app);
     if (bufferTranslations) return bufferTranslations;
-    const defaultLocaleFile = await getDefaultLocaleFile(fs, rootUri, postfix);
+    const defaultLocaleFile = await getDefaultLocaleFile(fs, rootUri);
     if (!defaultLocaleFile) return {};
-    const defaultTranslationsFile = await fs.readFile(defaultLocaleFile);
-    return parseJSON(defaultTranslationsFile, {});
+    const yamlContent = await fs.readFile(defaultLocaleFile);
+    const data = load(yamlContent) as Record<string, any>;
+    if (!data || typeof data !== 'object') return {};
+    // YAML translation files wrap content under the locale key: { en: { hello: 'Hello' } }
+    const localeKey = Object.keys(data)[0];
+    return (localeKey && data[localeKey]) ?? {};
   } catch (error) {
     console.error(error);
     return {};
@@ -105,17 +82,21 @@ async function getDefaultTranslations(
 }
 
 /** It might be that you have an open buffer, we prefer translations from there if available */
-function getDefaultTranslationsFromBuffer(theme: Theme, postfix: string): Translations | undefined {
-  const defaultTranslationsSourceCode = theme.find(
+function getDefaultTranslationsFromBuffer(app: App): Translations | undefined {
+  const defaultTranslationsSourceCode = app.find(
     (sourceCode) =>
-      sourceCode.type === SourceCodeType.JSON &&
-      sourceCode.uri.match(/locales/) &&
-      sourceCode.uri.endsWith(postfix),
+      sourceCode.type === SourceCodeType.YAML &&
+      sourceCode.uri.endsWith('/en.yml'),
   );
   if (!defaultTranslationsSourceCode) return undefined;
-  const translations = parseJSON(defaultTranslationsSourceCode.source);
-  if (isError(translations)) return undefined;
-  return translations;
+  try {
+    const data = load(defaultTranslationsSourceCode.source) as Record<string, any>;
+    if (!data || typeof data !== 'object') return undefined;
+    const localeKey = Object.keys(data)[0];
+    return (localeKey && data[localeKey]) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function cached<T>(fn: () => Promise<T>): () => Promise<T>;
@@ -158,63 +139,3 @@ function isIgnored([uri, type]: FileTuple) {
   return type === FileType.Directory && ignoredFolders.some((folder) => uri.endsWith(folder));
 }
 
-export const FETCHED_METAFIELD_CATEGORIES: MetafieldCategory[] = [
-  'article',
-  'blog',
-  'collection',
-  'company',
-  'company_location',
-  'location',
-  'market',
-  'order',
-  'page',
-  'product',
-  'variant',
-  'shop',
-];
-
-export const makeGetMetafieldDefinitions = (fs: AbstractFileSystem) =>
-  async function (rootUri: string): Promise<MetafieldDefinitionMap> {
-    const definitions = {
-      article: [],
-      blog: [],
-      collection: [],
-      company: [],
-      company_location: [],
-      location: [],
-      market: [],
-      order: [],
-      page: [],
-      product: [],
-      variant: [],
-      shop: [],
-    } as MetafieldDefinitionMap;
-
-    try {
-      const content = await fs.readFile(join(rootUri, '.shopify', 'metafields.json'));
-      const json = parseJSON(content);
-
-      if (isError(json)) return definitions;
-
-      return FETCHED_METAFIELD_CATEGORIES.reduce((definitions, group) => {
-        try {
-          definitions[group] = json[group].map((definition: any) => ({
-            key: definition.key,
-            name: definition.name,
-            namespace: definition.namespace,
-            description: definition.description,
-            type: {
-              category: definition.type.category,
-              name: definition.type.name,
-            },
-          }));
-        } catch (error) {
-          // If there are errors in the file, we ignore it
-        }
-
-        return definitions;
-      }, definitions);
-    } catch (err) {
-      return definitions;
-    }
-  };

@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 import '../../../../platformos-check-common/src/test/test-setup';
 import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../../utils/liquidDoc';
 import { TranslationProvider } from '@platformos/platformos-common';
@@ -22,7 +21,6 @@ describe('Module: RenderSnippetParameterHoverProvider', async () => {
         systemTranslations: async () => ({}),
       },
       new TranslationProvider(new MockFileSystem({})),
-      async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     );
   });
 

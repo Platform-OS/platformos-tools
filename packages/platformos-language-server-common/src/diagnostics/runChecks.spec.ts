@@ -45,7 +45,7 @@ describe('Module: runChecks', () => {
   let connection: { sendDiagnostics: ReturnType<typeof vi.fn> };
   let runChecks: ReturnType<typeof makeRunChecks>;
   let fs: MockFileSystem;
-  const rootUri = path.normalize('browser:///theme');
+  const rootUri = path.normalize('browser:///app');
   const fileUri = path.join(rootUri, 'app', 'input.liquid');
 
   beforeEach(() => {
@@ -67,12 +67,11 @@ describe('Module: runChecks', () => {
     runChecks = makeRunChecks(documentManager, diagnosticsManager, {
       fs,
       loadConfig: async () => ({
-        context: 'theme' as const,
         settings: {},
         checks: [LiquidFilter],
         rootUri,
       }),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -98,7 +97,7 @@ describe('Module: runChecks', () => {
       version: fileVersion,
       diagnostics: [
         {
-          source: 'theme-check',
+          source: 'platformos-check',
           code: 'LiquidFilter',
           message: 'Liquid filter can not be used',
           severity: 1,
@@ -147,7 +146,7 @@ describe('Module: runChecks', () => {
         fileVersion: 0,
         diagnostics: [
           {
-            source: 'theme-check',
+            source: 'platformos-check',
             code: 'LiquidFilter',
             message: 'Liquid filter can not be used',
             severity: 1,
@@ -171,7 +170,7 @@ describe('Module: runChecks', () => {
         fileVersion: 0,
         diagnostics: [
           {
-            source: 'theme-check',
+            source: 'platformos-check',
             code: 'LiquidFilter',
             message: 'Liquid filter can not be used',
             severity: 1,
@@ -206,17 +205,17 @@ describe('Module: runChecks', () => {
   });
 
   it('should use the contents of the default translations file buffer (if any) instead of the result of the factory', async () => {
-    const defaultPath = 'locales/en.default.json';
+    const defaultPath = 'app/translations/en.yml';
     const defaultURI = path.join(rootUri, ...defaultPath.split('/'));
-    const frPath = 'locales/fr.json';
+    const frPath = 'app/translations/fr.yml';
     const frURI = path.join(rootUri, ...frPath.split('/'));
     const files = {
       '.pos': '',
       'app/test': '',
       '.git/test': 'test',
       'modules/test': 'test',
-      [defaultPath]: JSON.stringify({ hello: 'hello' }),
-      [frPath]: JSON.stringify({ hello: 'bonjour', hi: 'salut' }),
+      [defaultPath]: 'en:\n  hello: hello',
+      [frPath]: 'fr:\n  hello: bonjour\n  hi: salut',
     };
 
     const matchingTranslation = allChecks.filter((c) => c.meta.code === 'MatchingTranslations');
@@ -224,12 +223,11 @@ describe('Module: runChecks', () => {
     runChecks = makeRunChecks(documentManager, diagnosticsManager, {
       fs: new MockFileSystem(files, rootUri),
       loadConfig: async () => ({
-        context: 'theme',
         settings: {},
         checks: matchingTranslation,
         rootUri: rootUri,
       }),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -251,20 +249,16 @@ describe('Module: runChecks', () => {
         version: 0,
         diagnostics: expect.arrayContaining([
           {
-            source: 'theme-check',
+            source: 'platformos-check',
             code: 'MatchingTranslations',
             codeDescription: { href: expect.any(String) },
             message: `A default translation for 'hi' does not exist`,
             severity: 1,
             range: {
-              end: {
-                character: 31,
-                line: 0,
-              },
-              start: {
-                character: 19,
-                line: 0,
-              },
+              // 'fr:\n  hello: bonjour\n  hi: salut'
+              // line 2 starts at offset 21, 'hi: salut' spans offsets 23-31
+              start: { line: 2, character: 2 },
+              end: { line: 2, character: 10 },
             },
           },
         ]),
@@ -273,7 +267,7 @@ describe('Module: runChecks', () => {
 
     // Change the contents of the defaultURI buffer, expect frURI to be fixed
     documentManager.open(defaultURI, files[defaultPath], 0);
-    documentManager.change(defaultURI, JSON.stringify({ hello: 'hello', hi: 'hi' }), 1);
+    documentManager.change(defaultURI, 'en:\n  hello: hello\n  hi: hi', 1);
     connection.sendDiagnostics.mockClear();
     await runChecks([frURI]);
     expect(connection.sendDiagnostics).toHaveBeenCalledWith({

@@ -3,7 +3,6 @@ import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { HtmlData } from '../../docset';
 import { sortByName } from './common';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 
 const allTagNames = [...HtmlData.tags].sort(sortByName).map((x) => x.name);
 
@@ -13,7 +12,7 @@ describe('Module: HtmlTagCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
@@ -21,7 +20,6 @@ describe('Module: HtmlTagCompletionProvider', async () => {
         tags: async () => [],
         systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 

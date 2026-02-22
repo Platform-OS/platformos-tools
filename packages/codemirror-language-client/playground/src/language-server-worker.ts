@@ -30,7 +30,6 @@ const schemas = WEBPACK_SCHEMAS;
 const worker = self as any as Worker;
 
 const loadConfig: Dependencies['loadConfig'] = async (_uri, fileExists) => ({
-  context: 'theme',
   settings: {},
   checks: allChecks,
   rootUri: 'browser:/',
@@ -60,7 +59,7 @@ startServer(
   worker,
   {
     fs: new MainThreadFileSystem(connection),
-    themeDocset: {
+    platformosDocset: {
       graphQL: async () => null,
       filters: async () => filters,
       tags: async () => tags,

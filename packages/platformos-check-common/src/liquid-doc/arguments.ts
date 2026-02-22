@@ -3,7 +3,6 @@
  * errors when LiquidDoc exists
  */
 import {
-  ContentForMarkup,
   RenderMarkup,
   FunctionMarkup,
   LiquidNamedArgument,
@@ -17,20 +16,21 @@ import {
   isTypeCompatible,
 } from './utils';
 import { isLiquidString } from '../checks/utils';
+import { DocumentsLocator } from '@platformos/platformos-common';
+import { URI } from 'vscode-uri';
+import { relative } from '../path';
 
 /**
  * Report error when unknown arguments are provided for `content_for` tag or `render` tag
  */
 export function reportUnknownArguments(
   context: Context<SourceCodeType.LiquidHtml>,
-  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
+  node: RenderMarkup | FunctionMarkup,
   unknownProvidedArgs: LiquidNamedArgument[],
   name: string,
 ) {
   let errorOwnerMessage = '';
-  if (node.type === NodeTypes.ContentForMarkup) {
-    errorOwnerMessage = ` in content_for tag for static block '${name}'`;
-  } else if (node.type === NodeTypes.RenderMarkup) {
+  if (node.type === NodeTypes.RenderMarkup) {
     errorOwnerMessage = ` in render tag for partial '${name}'`;
   } else if (node.type === NodeTypes.FunctionMarkup) {
     errorOwnerMessage = ` in function tag for partial '${name}'`;
@@ -56,14 +56,12 @@ export function reportUnknownArguments(
  */
 export function reportMissingArguments(
   context: Context<SourceCodeType.LiquidHtml>,
-  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
+  node: RenderMarkup | FunctionMarkup,
   missingRequiredArgs: LiquidDocParameter[],
   name: string,
 ) {
   let errorOwnerMessage = '';
-  if (node.type === NodeTypes.ContentForMarkup) {
-    errorOwnerMessage = ` in content_for tag for static block '${name}'`;
-  } else if (node.type === NodeTypes.RenderMarkup) {
+  if (node.type === NodeTypes.RenderMarkup) {
     errorOwnerMessage = ` in render tag for partial '${name}'`;
   } else if (node.type === NodeTypes.FunctionMarkup) {
     errorOwnerMessage = ` in function tag for partial '${name}'`;
@@ -86,14 +84,12 @@ export function reportMissingArguments(
 
 export function reportDuplicateArguments(
   context: Context<SourceCodeType.LiquidHtml>,
-  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
+  node: RenderMarkup | FunctionMarkup,
   duplicateArgs: LiquidNamedArgument[],
   name: string,
 ) {
   let errorOwnerMessage = '';
-  if (node.type === NodeTypes.ContentForMarkup) {
-    errorOwnerMessage = ` in content_for tag for static block '${name}'`;
-  } else if (node.type === NodeTypes.RenderMarkup) {
+  if (node.type === NodeTypes.RenderMarkup) {
     errorOwnerMessage = ` in render tag for partial '${name}'`;
   } else if (node.type === NodeTypes.FunctionMarkup) {
     errorOwnerMessage = ` in function tag for partial '${name}'`;
@@ -209,26 +205,12 @@ export function generateTypeMismatchSuggestions(
 }
 
 function isLastArg(
-  node: RenderMarkup | ContentForMarkup | FunctionMarkup,
+  node: RenderMarkup | FunctionMarkup,
   arg: LiquidNamedArgument,
 ): boolean {
   return (
     node.args.length == 1 || arg.position.start == node.args[node.args.length - 1].position.start
   );
-}
-
-export function getBlockName(node: ContentForMarkup) {
-  if (node.contentForType.value !== 'block') {
-    return;
-  }
-
-  const contentForTypeArg = node.args.find((arg) => arg.name == 'type')?.value;
-
-  if (!contentForTypeArg || !isLiquidString(contentForTypeArg)) {
-    return;
-  }
-
-  return contentForTypeArg.value;
 }
 
 export function getPartialName(node: RenderMarkup | FunctionMarkup): string | undefined {
@@ -249,19 +231,27 @@ export function getPartialName(node: RenderMarkup | FunctionMarkup): string | un
 
 export async function getLiquidDocParams(
   context: Context<SourceCodeType.LiquidHtml>,
-  relativePath: string,
+  partialName: string,
 ) {
-  const docDefinition = context.getDocDefinition && (await context.getDocDefinition(relativePath));
+  if (!context.getDocDefinition) return;
 
-  if (!docDefinition?.liquidDoc?.parameters) {
-    return;
+  // Use DocumentsLocator to find the partial across all platformOS locations,
+  // including app/views/partials/, app/lib/, and module paths.
+  const locator = new DocumentsLocator(context.fs);
+  const fileUri = await locator.locate(URI.parse(context.config.rootUri), 'render', partialName);
+  if (!fileUri) return undefined;
+
+  const relativePath = relative(fileUri, context.config.rootUri);
+  const docDefinition = await context.getDocDefinition(relativePath);
+  if (docDefinition?.liquidDoc?.parameters) {
+    return new Map(docDefinition.liquidDoc.parameters.map((p) => [p.name, p]));
   }
 
-  return new Map(docDefinition.liquidDoc.parameters.map((p) => [p.name, p]));
+  return undefined;
 }
 
 export function makeRemoveArgumentCorrector(
-  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
+  node: RenderMarkup | FunctionMarkup,
   arg: LiquidNamedArgument,
 ) {
   return (fixer: StringCorrector) => {
@@ -287,7 +277,7 @@ export function makeRemoveArgumentCorrector(
 }
 
 export function makeAddArgumentCorrector(
-  node: ContentForMarkup | RenderMarkup | FunctionMarkup,
+  node: RenderMarkup | FunctionMarkup,
   arg: LiquidDocParameter,
 ) {
   return (fixer: StringCorrector) => {

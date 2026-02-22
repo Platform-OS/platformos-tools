@@ -1,7 +1,7 @@
 import { path as pathUtils, SourceCodeType } from '@platformos/platformos-check-common';
 import { assert, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { buildThemeGraph } from '../index';
-import { Dependencies, JsonModuleKind, LiquidModuleKind, ModuleType, ThemeGraph } from '../types';
+import { buildAppGraph } from '../index';
+import { Dependencies, LiquidModuleKind, ModuleType, AppGraph } from '../types';
 import { getDependencies, skeleton } from './test-helpers';
 
 describe('Module: index', () => {
@@ -14,162 +14,51 @@ describe('Module: index', () => {
     dependencies = await getDependencies(rootUri);
   }, 15000);
 
-  describe('Unit: buildThemeGraph', { timeout: 10000 }, () => {
-    it('build a graph of the theme', { timeout: 10000 }, async () => {
-      const graph = await buildThemeGraph(rootUri, dependencies);
+  describe('Unit: buildAppGraph', { timeout: 10000 }, () => {
+    it('builds a graph of the app', { timeout: 10000 }, async () => {
+      const graph = await buildAppGraph(rootUri, dependencies);
       expect(graph).toBeDefined();
     });
 
-    describe('with a valid theme graph', () => {
-      let graph: ThemeGraph;
+    describe('with a valid app graph', () => {
+      let graph: AppGraph;
 
       beforeEach(async () => {
-        graph = await buildThemeGraph(rootUri, dependencies);
+        graph = await buildAppGraph(rootUri, dependencies);
       });
 
-      it('have a root URI', () => {
+      it('has a root URI', () => {
         expect(graph.rootUri).toBeDefined();
         expect(graph.rootUri).toBe(rootUri);
       });
 
-      // We're using sections as entry points because the section rendering API can render
-      // any section without it needing a preset or default value in its schema.
-      it('infers entry points from the templates folder and section files', () => {
-        expect(graph.entryPoints).toHaveLength(3);
+      it('infers entry points from layouts and pages', () => {
+        expect(graph.entryPoints).toHaveLength(2);
         expect(graph.entryPoints.map((x) => x.uri)).toEqual(
           expect.arrayContaining([
-            p('templates/index.json'),
-            p('sections/custom-section.liquid'),
-            p('sections/header.liquid'),
+            p('app/views/layouts/application.liquid'),
+            p('app/views/pages/index.liquid'),
           ]),
         );
       });
 
-      it("finds layout/theme.liquid's dependencies and references", () => {
-        const themeLayout = graph.modules[p('layout/theme.liquid')];
-        assert(themeLayout);
+      it("finds app/views/layouts/application.liquid's dependencies", () => {
+        const layout = graph.modules[p('app/views/layouts/application.liquid')];
+        assert(layout);
+        assert(layout.type === ModuleType.Liquid);
+        assert(layout.kind === LiquidModuleKind.Layout);
 
-        // outgoing links
-        const deps = themeLayout.dependencies;
-        assert(deps.map((x) => x.source.uri).every((x) => x === p('layout/theme.liquid')));
+        const deps = layout.dependencies;
         expect(deps.map((x) => x.target.uri)).toEqual(
           expect.arrayContaining([
-            p('sections/header-group.json'),
             p('assets/theme.js'),
             p('assets/theme.css'),
+            p('app/views/partials/header.liquid'),
           ]),
-        );
-
-        // ingoing links
-        const refs = themeLayout.references;
-        expect(refs).toHaveLength(1);
-        assert(refs.map((x) => x.target.uri).every((x) => x === p('layout/theme.liquid')));
-        expect(refs.map((x) => x.source.uri)).toEqual(
-          expect.arrayContaining([p('templates/index.json')]),
         );
       });
 
-      it("finds templates/index.json's dependencies and references", () => {
-        const indexTemplate = graph.modules[p('templates/index.json')];
-        assert(indexTemplate);
-        assert(indexTemplate.type === ModuleType.Json);
-        assert(indexTemplate.kind === JsonModuleKind.Template);
-
-        // outgoing links
-        const deps = indexTemplate.dependencies;
-        assert(deps.map((x) => x.source.uri).every((x) => x === p('templates/index.json')));
-        expect(deps.map((x) => x.target.uri)).toEqual(
-          expect.arrayContaining([
-            p('layout/theme.liquid'),
-            p('sections/custom-section.liquid'),
-            p('blocks/group.liquid'),
-            p('blocks/text.liquid'),
-          ]),
-        );
-
-        // ingoing links
-        const refs = indexTemplate.references;
-        expect(refs).toHaveLength(0);
-      });
-
-      it("finds sections/custom-section's dependencies and references", () => {
-        const customSection = graph.modules[p('sections/custom-section.liquid')];
-        assert(customSection);
-        assert(customSection.type === ModuleType.Liquid);
-        assert(customSection.kind === LiquidModuleKind.Section);
-
-        // outgoing links
-        const deps = customSection.dependencies;
-        assert(deps.map((x) => x.source.uri).every((x) => x === customSection.uri));
-        expect(deps.map((x) => x.target.uri)).toEqual(
-          expect.arrayContaining([
-            p('blocks/group.liquid'),
-            p('blocks/text.liquid'),
-            p('blocks/_private.liquid'),
-          ]),
-        );
-
-        // ingoing links
-        const refs = customSection.references;
-        assert(refs.map((x) => x.target.uri).every((x) => x === customSection.uri));
-        expect(refs.map((x) => x.source.uri)).toEqual(
-          expect.arrayContaining([p('templates/index.json'), p('sections/header-group.json')]),
-        );
-        expect(refs).toHaveLength(2);
-      });
-
-      it("finds blocks/group's dependencies and references", () => {
-        const groupBlock = graph.modules[p('blocks/group.liquid')];
-        assert(groupBlock);
-        assert(groupBlock.type === ModuleType.Liquid);
-        assert(groupBlock.kind === LiquidModuleKind.Block);
-
-        const deps = groupBlock.dependencies;
-        assert(deps.map((x) => x.source.uri).every((x) => x === groupBlock.uri));
-        expect(deps).toEqual(
-          expect.arrayContaining([
-            {
-              source: loc('blocks/group.liquid'),
-              target: loc('app/views/partials/parent.liquid'),
-              type: 'direct',
-            }, // direct dep in partial
-            {
-              source: loc('blocks/group.liquid'),
-              target: loc('blocks/text.liquid'),
-              type: 'indirect',
-            }, // indirect because of @theme
-            {
-              source: loc('blocks/group.liquid'),
-              target: loc('blocks/text.liquid'),
-              type: 'preset',
-            }, // direct dep in preset
-          ]),
-        );
-
-        const refs = groupBlock.references;
-        assert(refs.map((x) => x.target.uri).every((x) => x === groupBlock.uri));
-        expect(refs.map((x) => x.source.uri)).toEqual(
-          expect.arrayContaining([
-            p('templates/index.json'),
-            p('sections/custom-section.liquid'), // @theme ref
-            p('sections/header-group.json'), // custom-section > group
-            p('blocks/group.liquid'), // @theme ref
-          ]),
-        );
-
-        expect(refs).toContainEqual(
-          // Expecting the `@theme` reference in the custom-section schema to be indirect
-          expect.objectContaining({
-            type: 'indirect',
-            source: {
-              uri: p('sections/custom-section.liquid'),
-              range: [expect.any(Number), expect.any(Number)],
-            },
-          }),
-        );
-      });
-
-      it("finds the app/views/partials/parent's dependencies and references", async () => {
+      it("finds app/views/partials/parent's dependencies and references", async () => {
         const parentPartial = graph.modules[p('app/views/partials/parent.liquid')];
         assert(parentPartial);
         assert(parentPartial.type === ModuleType.Liquid);
@@ -180,21 +69,12 @@ describe('Module: index', () => {
         assert(deps.map((x) => x.source.uri).every((x) => x === parentPartial.uri));
         expect(deps.map((x) => x.target.uri)).toEqual(
           expect.arrayContaining([
-            p('app/views/partials/child.liquid'), // {% render 'child' %}
-            p('assets/theme.js'), // <parent-element>
+            p('app/views/partials/child.liquid'),
+            p('assets/theme.js'),
           ]),
         );
 
-        // ingoing links
-        const refs = parentPartial.references;
-        assert(refs.map((x) => x.target.uri).every((x) => x === parentPartial.uri));
-        expect(refs.map((x) => x.source.uri)).toEqual(
-          expect.arrayContaining([
-            p('blocks/group.liquid'), // {% render 'parent' %}
-          ]),
-        );
-
-        // {% render 'child', children: children %} dependency
+        // {% render 'child' %} dependency
         const parentSource = await dependencies.getSourceCode(
           p('app/views/partials/parent.liquid'),
         );
@@ -210,36 +90,19 @@ describe('Module: index', () => {
             ],
           }),
         );
-
-        // <parent-element> dependency
-        expect(parentPartial.dependencies.map((x) => x.source)).toContainEqual(
-          expect.objectContaining({
-            uri: p('app/views/partials/parent.liquid'),
-            range: [
-              parentSource.source.indexOf('<parent-element'),
-              parentSource.source.indexOf('<parent-element') + '<parent-element'.length,
-            ],
-          }),
-        );
       });
 
-      it("finds the blocks/_static's dependencies and references", () => {
-        const staticBlock = graph.modules[p('blocks/_static.liquid')];
-        assert(staticBlock);
-        assert(staticBlock.type === ModuleType.Liquid);
-        assert(staticBlock.kind === LiquidModuleKind.Block);
+      it("finds app/views/partials/child's references", () => {
+        const childPartial = graph.modules[p('app/views/partials/child.liquid')];
+        assert(childPartial);
+        assert(childPartial.type === ModuleType.Liquid);
+        assert(childPartial.kind === LiquidModuleKind.Partial);
 
-        // outgoing links
-        const deps = staticBlock.dependencies;
-        expect(deps).toEqual([]);
-
-        // ingoing links
-        const refs = staticBlock.references;
-        assert(refs.map((x) => x.target.uri).every((x) => x === staticBlock.uri));
+        const refs = childPartial.references;
         expect(refs.map((x) => x.source.uri)).toEqual(
           expect.arrayContaining([
-            p('sections/header-group.json'),
-            p('blocks/render-static.liquid'),
+            p('app/views/partials/parent.liquid'),
+            p('app/views/partials/header.liquid'),
           ]),
         );
       });

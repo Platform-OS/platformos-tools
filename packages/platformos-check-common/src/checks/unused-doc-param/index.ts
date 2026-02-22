@@ -10,7 +10,7 @@ export const UnusedDocParam: LiquidCheckDefinition = {
       description:
         'This check exists to ensure any parameters defined in the `doc` tag are used within the partial.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/unused-doc-param',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/unused-doc-param',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,

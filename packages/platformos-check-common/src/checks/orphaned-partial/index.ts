@@ -1,4 +1,4 @@
-import { isPartial } from '../../to-schema';
+import { isPartial } from '../../path';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 
 export const OrphanedPartial: LiquidCheckDefinition = {
@@ -6,9 +6,9 @@ export const OrphanedPartial: LiquidCheckDefinition = {
     code: 'OrphanedPartial',
     name: 'Prevent orphaned partials',
     docs: {
-      description: 'This check exists to prevent orphaned partials in themes.',
+      description: 'This check exists to prevent orphaned partials in platformOS apps.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/orphaned-partial',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/orphaned-partial',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,

@@ -1,17 +1,24 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
-import { MetafieldDefinitionMap, ObjectEntry } from '@platformos/platformos-check-common';
+import { ObjectEntry } from '@platformos/platformos-check-common';
 
 describe('Module: ObjectCompletionProvider', async () => {
   let provider: CompletionsProvider;
 
   beforeEach(async () => {
     const _objects: ObjectEntry[] = [
-      { name: 'all_products' },
+      {
+        name: 'context',
+        access: { global: true, parents: [], template: [] },
+        properties: [
+          { name: 'current_user', return_type: [{ type: 'current_user', name: '' }] },
+          { name: 'params', return_type: [{ type: 'untyped', name: '' }] },
+        ],
+      },
       { name: 'global' },
       {
-        name: 'section',
+        name: 'form',
         access: {
           global: false,
           template: [],
@@ -19,7 +26,7 @@ describe('Module: ObjectCompletionProvider', async () => {
         },
       },
       {
-        name: 'block',
+        name: 'app',
         access: {
           global: false,
           template: [],
@@ -27,123 +34,43 @@ describe('Module: ObjectCompletionProvider', async () => {
         },
       },
       {
-        name: 'predictive_search',
-        access: {
-          global: false,
-          template: [],
-          parents: [],
-        },
-      },
-      {
-        name: 'recommendations',
-        access: {
-          global: false,
-          template: [],
-          parents: [],
-        },
-      },
-      {
-        name: 'product',
-        properties: [
-          {
-            name: 'metafields',
-          },
-        ],
-      },
-      {
-        name: 'metafield',
-        access: {
-          global: false,
-          template: [],
-          parents: [],
-        },
-        properties: [
-          {
-            name: 'type',
-            description: 'the type of the metafield',
-            return_type: [{ type: 'string', name: '' }],
-          },
-          {
-            name: 'value',
-            description: 'the value of the metafield',
-            return_type: [{ type: 'untyped', name: '' }],
-          },
-        ],
+        name: 'current_user',
+        access: { global: false, parents: [], template: [] },
+        properties: [{ name: 'name' }, { name: 'email' }],
       },
     ];
 
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => _objects,
         liquidDrops: async () => _objects,
         tags: async () => [],
-        systemTranslations: async () => ({}),
-      },
-      getMetafieldDefinitions: async (_rootUri: string) => {
-        return {
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [],
-          page: [],
-          product: [
-            {
-              key: 'color',
-              name: 'color',
-              namespace: 'custom',
-              description: 'the color of the product',
-              type: {
-                category: 'COLOR',
-                name: 'color',
-              },
-            },
-          ],
-          variant: [],
-          shop: [],
-        } as MetafieldDefinitionMap;
       },
     });
   });
 
   it('should complete variable lookups', async () => {
     const contexts = [
-      `{{ a█`,
-      `{% echo a█ %}`,
-      `{% assign x = a█ %}`,
-      `{% for a in a█ %}`,
-      `{% for a in b reversed limit: a█ %}`,
-      `{% paginate b by a█ %}`,
-      `{% paginate b by col, window_size: a█ %}`,
-      `{% if a█ %}`,
-      `{% if a > a█ %}`,
-      `{% if a > b or a█ %}`,
-      `{% if a > b or c > a█ %}`,
-      `{% elsif a > a█ %}`,
-      `{% when a█ %}`,
-      `{% when a, a█ %}`,
-      `{% cycle a█ %}`,
-      `{% cycle 'foo', a█ %}`,
-      `{% cycle 'foo': a█ %}`,
-      `{% render 'snip', var: a█ %}`,
-      `{% render 'snip' for a█ as item %}`,
-      `{% render 'snip' with a█ as name %}`,
-      `{% for x in (1..a█) %}`,
-      // `{% paginate a█ by 50 %}`,
-      `<a-{{ a█ }}`,
-      `<a data-{{ a█ }}`,
-      `<a data={{ a█ }}`,
-      `<a data="{{ a█ }}"`,
-      `<a data='x{{ a█ }}'`,
+      `{{ c█`,
+      `{% echo c█ %}`,
+      `{% assign x = c█ %}`,
+      `{% for a in c█ %}`,
+      `{% for a in b reversed limit: c█ %}`,
+      `{% if c█ %}`,
+      `{% if a > c█ %}`,
+      `{% if a > b or c█ %}`,
+      `{% for x in (1..c█) %}`,
+      `<a-{{ c█ }}`,
+      `<a data-{{ c█ }}`,
+      `<a data={{ c█ }}`,
+      `<a data="{{ c█ }}"`,
+      `<a data='x{{ c█ }}'`,
     ];
     await Promise.all(
-      contexts.map((context) => expect(provider, context).to.complete(context, ['all_products'])),
+      contexts.map((context) => expect(provider, context).to.complete(context, ['context'])),
     );
   });
 
@@ -154,8 +81,6 @@ describe('Module: ObjectCompletionProvider', async () => {
       `{% assign x = █ %}`,
       `{% for a in █ %}`,
       `{% for a in b reversed limit: █ %}`,
-      `{% paginate b by █ %}`,
-      `{% paginate b by col, window_size: █ %}`,
       `{% if █ %}`,
       `{% if a > █ %}`,
       `{% if a > b or █ %}`,
@@ -170,7 +95,6 @@ describe('Module: ObjectCompletionProvider', async () => {
       `{% render 'snip' for █ as item %}`,
       `{% render 'snip' with █ as name %}`,
       `{% for x in (1..█) %}`,
-      // `{% paginate █ by 50 %}`,
       `<a-{{ █ }}`,
       `<a data-{{ █ }}`,
       `<a data={{ █ }}`,
@@ -180,17 +104,15 @@ describe('Module: ObjectCompletionProvider', async () => {
 
     await Promise.all(
       contexts.map((context) =>
-        expect(provider, context).to.complete(context, ['all_products', 'global', 'product']),
+        expect(provider, context).to.complete(context, ['context', 'global']),
       ),
     );
   });
 
   it('should complete contextual variables', async () => {
     const contexts: [string, string][] = [
-      ['{% paginate all_products by 5 %}{{ pagi█ }}{% endpaginate %}', 'paginate'],
-      ['{% form "cart" %}{{ for█ }}{% endform %}', 'form'],
-      ['{% for p in all_products %}{{ for█ }}{% endfor %}', 'forloop'],
-      ['{% tablerow p in all_products %}{{ tablerow█ }}{% endtablerow %}', 'tablerowloop'],
+      ['{% for p in context.posts %}{{ for█ }}{% endfor %}', 'forloop'],
+      ['{% tablerow p in context.posts %}{{ tablerow█ }}{% endtablerow %}', 'tablerowloop'],
       ['{% layout non█ %}', 'none'],
       ['{% increment var %}{{ var█ }}', 'var'],
       ['{% decrement var %}{{ var█ }}', 'var'],
@@ -205,10 +127,8 @@ describe('Module: ObjectCompletionProvider', async () => {
 
   it('should complete relative-path-dependent contextual variables', async () => {
     const contexts: [string, string][] = [
-      ['section', 'sections/main-product.liquid'],
-      ['block', 'blocks/my-block.liquid'],
-      ['predictive_search', 'sections/predictive-search.liquid'],
-      ['recommendations', 'sections/recommendations.liquid'],
+      ['app', 'app/views/partials/my-partial.liquid'],
+      ['app', 'app/lib/helpers/my-helper.liquid'],
     ];
     for (const [object, relativePath] of contexts) {
       const source = `{{ ${object}█ }}`;
@@ -219,14 +139,5 @@ describe('Module: ObjectCompletionProvider', async () => {
 
   it('should not complete anything if there is nothing to complete', async () => {
     await expect(provider).to.complete('{% assign x = "█" %}', []);
-  });
-
-  it('should complete metafields defined by getMetafieldDefinitions', async () => {
-    await expect(provider).to.complete('{% echo product.metafields.█ %}', ['custom']);
-    await expect(provider).to.complete('{% echo product.metafields.custom.█ %}', ['color']);
-    await expect(provider).to.complete('{% echo product.metafields.custom.color.█ %}', [
-      'type',
-      'value',
-    ]);
   });
 });

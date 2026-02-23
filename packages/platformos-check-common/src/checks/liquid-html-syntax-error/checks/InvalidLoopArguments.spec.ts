@@ -109,7 +109,7 @@ describe('detectInvalidLoopArguments', async () => {
 
 function testCheck(sourceCode: string) {
   return runLiquidCheck(LiquidHTMLSyntaxError, sourceCode, undefined, {
-    themeDocset: {
+    platformosDocset: {
       graphQL: async () => null,
       tags: () =>
         Promise.resolve([
@@ -139,7 +139,6 @@ function testCheck(sourceCode: string) {
       filters: () => Promise.resolve([]),
       objects: () => Promise.resolve([]),
       liquidDrops: () => Promise.resolve([]),
-      systemTranslations: () => Promise.resolve({}),
     },
   });
 }

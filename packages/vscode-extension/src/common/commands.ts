@@ -1,15 +1,14 @@
 import { path } from '@platformos/platformos-check-common';
 import {
   AugmentedLocation,
-  ThemeGraphDeadCodeRequest,
-  ThemeGraphRootRequest,
+  AppGraphRootRequest,
 } from '@platformos/platformos-language-server-common';
-import { commands, Position, Range, Uri, window, workspace } from 'vscode';
+import { Position, Range, Uri, window, workspace } from 'vscode';
 import { BaseLanguageClient } from 'vscode-languageclient';
 
 export function openLocation(ref: AugmentedLocation) {
   if (ref.exists === false || !ref.position) {
-    commands.executeCommand('vscode.open', Uri.parse(ref.uri));
+    window.showTextDocument(Uri.parse(ref.uri));
     return;
   }
 
@@ -23,33 +22,4 @@ export function openLocation(ref: AugmentedLocation) {
       preview: true,
     });
   });
-}
-
-export function makeDeadCode(client: BaseLanguageClient) {
-  return async function deadCode() {
-    const uri = window.activeTextEditor?.document.uri.toString();
-    if (!uri) return;
-    const [rootUri, deadCode] = await Promise.all([
-      client.sendRequest(ThemeGraphRootRequest.type, { uri }),
-      client.sendRequest(ThemeGraphDeadCodeRequest.type, { uri }),
-    ]);
-
-    if (deadCode.length === 0) {
-      window.showInformationMessage('No dead code found.');
-    } else {
-      const relativePaths = deadCode.map((file) => path.relative(file, rootUri));
-      const selectedFiles = await window.showQuickPick(relativePaths, {
-        canPickMany: true,
-        placeHolder: 'Select files to open',
-      });
-      if (selectedFiles) {
-        selectedFiles.forEach((file) => {
-          const uri = path.join(rootUri, file);
-          workspace.openTextDocument(Uri.parse(uri)).then((doc) => {
-            window.showTextDocument(doc, { preview: false, preserveFocus: true, viewColumn: 2 });
-          });
-        });
-      }
-    }
-  };
 }

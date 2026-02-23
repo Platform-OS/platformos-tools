@@ -19,7 +19,7 @@ export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
       description:
         'This check ensures that arguments passed to partial match the expected types defined in the liquidDoc header if present.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/valid-render-partial-argument-types',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/valid-render-partial-argument-types',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,
@@ -72,10 +72,7 @@ export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
 
         if (!partialName) return;
 
-        const liquidDocParameters = await getLiquidDocParams(
-          context,
-          `app/views/partials/${partialName}.liquid`,
-        );
+        const liquidDocParameters = await getLiquidDocParams(context, partialName);
 
         if (!liquidDocParameters) return;
 

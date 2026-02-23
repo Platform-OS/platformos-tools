@@ -125,7 +125,7 @@ function getCssDisplay(node: AugmentedNode<WithSiblings>, options: LiquidParserO
     case NodeTypes.CycleMarkup:
     case NodeTypes.ContentForMarkup:
     case NodeTypes.ForMarkup:
-    case NodeTypes.PaginateMarkup:
+
     case NodeTypes.RenderMarkup:
     case NodeTypes.FunctionMarkup:
     case NodeTypes.GraphQLMarkup:
@@ -252,7 +252,7 @@ function getNodeCssStyleWhiteSpace(
     case NodeTypes.CycleMarkup:
     case NodeTypes.ContentForMarkup:
     case NodeTypes.ForMarkup:
-    case NodeTypes.PaginateMarkup:
+
     case NodeTypes.RenderMarkup:
     case NodeTypes.FunctionMarkup:
     case NodeTypes.GraphQLMarkup:

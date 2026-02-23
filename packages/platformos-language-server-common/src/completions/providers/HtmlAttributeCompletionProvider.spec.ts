@@ -3,7 +3,6 @@ import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { HtmlData } from '../../docset';
 import { sortByName } from './common';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 
 const globalAttributeNames = [...HtmlData.globalAttributes].sort(sortByName).map((x) => x.name);
 const aTag = HtmlData.tags.find((x) => x.name === 'a')!;
@@ -15,15 +14,13 @@ describe('Module: HtmlAttributeCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     });
   });
 

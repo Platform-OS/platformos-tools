@@ -7,20 +7,17 @@ import {
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
 import {
-  MetafieldDefinitionMap,
   path as pathUtils,
   BasicParamTypes,
   ObjectEntry,
 } from '@platformos/platformos-check-common';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
-import { SettingsSchemaJSONFile } from './settings';
 import { ArrayType, ShapeType, TypeSystem, UnionType } from './TypeSystem';
 import { isLiquidVariableOutput, isNamedLiquidTag } from './utils';
 
 describe('Module: TypeSystem', () => {
   let typeSystem: TypeSystem;
-  let settingsProvider: any;
   const literalContexts = [
     { value: `10`, type: 'number' },
     { value: `'string'`, type: 'string' },
@@ -28,53 +25,62 @@ describe('Module: TypeSystem', () => {
     //      { value: `null`, type: 'untyped' },
   ];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const _objects: ObjectEntry[] = [
       {
-        name: 'all_products',
-        return_type: [{ type: 'array', array_value: 'product' }],
-      },
-      {
-        name: 'product',
-        access: {
-          global: true,
-          parents: [],
-          template: [],
-        },
+        name: 'context',
+        access: { global: true, parents: [], template: [] },
         return_type: [],
         properties: [
           {
-            name: 'featured_image',
-            description: 'ze best image for ze product',
+            name: 'models',
+            description: 'a list of user-defined data models (e.g. from GraphQL)',
+            return_type: [{ type: 'array', array_value: 'model' }],
+          },
+          {
+            name: 'current_user',
+            description: 'the current user',
+            return_type: [{ type: 'current_user', name: '' }],
+          },
+        ],
+      },
+      {
+        // 'model' represents a generic user-defined data model in platformOS
+        // (e.g. a record returned from a GraphQL query)
+        name: 'model',
+        properties: [
+          {
+            name: 'thumbnail',
+            description: 'a thumbnail image',
             return_type: [{ type: 'image', name: '' }],
           },
           {
             name: 'images',
-            description: 'all images for ze product',
+            description: 'all images for the model',
             return_type: [{ type: 'array', array_value: 'image' }],
           },
           {
             name: 'title',
-            description: 'the title of the product',
+            description: 'the title of the model',
             return_type: [{ type: 'string', name: '' }],
           },
           {
-            name: 'metafields',
+            name: 'metadata',
             return_type: [{ type: 'untyped', name: '' }],
           },
         ],
       },
       {
-        name: 'metafield',
+        name: 'current_user',
         properties: [
           {
-            name: 'type',
-            description: 'the type of the metafield',
+            name: 'name',
+            description: 'the name of the user',
             return_type: [{ type: 'string', name: '' }],
           },
           {
-            name: 'value',
-            description: 'the value of the metafield',
+            name: 'info',
+            description: 'additional info',
             return_type: [{ type: 'untyped', name: '' }],
           },
         ],
@@ -85,17 +91,7 @@ describe('Module: TypeSystem', () => {
         properties: [], // these should be populated dynamically
       },
       {
-        name: 'predictive_search',
-        access: { global: false, parents: [], template: [] },
-        return_type: [],
-      },
-      {
-        name: 'comment',
-        access: { global: false, parents: [], template: [] },
-        return_type: [],
-      },
-      {
-        name: 'recommendations',
+        name: 'locale',
         access: { global: false, parents: [], template: [] },
         return_type: [],
       },
@@ -104,109 +100,19 @@ describe('Module: TypeSystem', () => {
         access: { global: false, parents: [], template: [] },
         return_type: [],
       },
-      {
-        name: 'section',
-        access: { global: false, parents: [], template: [] },
-        return_type: [],
-        properties: [
-          {
-            name: 'settings',
-            return_type: [{ type: 'untyped', name: '' }],
-          },
-        ],
-      },
-      {
-        name: 'block',
-        access: { global: false, parents: [], template: [] },
-        return_type: [],
-        properties: [
-          {
-            name: 'settings',
-            return_type: [{ type: 'untyped', name: '' }],
-          },
-        ],
-      },
-      {
-        name: 'locale',
-        access: { global: false, parents: [], template: [] },
-        return_type: [],
-      },
     ];
-    settingsProvider = vi.fn().mockResolvedValue([]);
-    typeSystem = new TypeSystem(
-      {
-        graphQL: async () => null,
-        tags: async () => [],
-        objects: async () => _objects,
-        liquidDrops: async () => _objects,
-        filters: async () => [
-          {
-            name: 'size',
-            return_type: [{ type: 'number', name: '' }],
-          },
-        ],
-        systemTranslations: async () => ({}),
-      },
-      settingsProvider,
-      async (_uri: string) => {
-        return {
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [
-            {
-              key: 'prods',
-              name: 'products',
-              namespace: 'related',
-              description: 'related products',
-              type: {
-                category: 'REFERENCE',
-                name: 'list.product_reference',
-              },
-            },
-          ],
-          page: [],
-          product: [
-            {
-              key: 'code',
-              name: 'code',
-              namespace: 'manufacturer',
-              description: 'the code provided by the manufacturer',
-              type: {
-                category: 'TEXT',
-                name: 'single_line_text_field',
-              },
-            },
-            {
-              key: 'id',
-              name: 'id',
-              namespace: 'manufacturer',
-              description: 'the id provided by the manufacturer',
-              type: {
-                category: 'INTEGER',
-                name: 'number_integer',
-              },
-            },
-            {
-              key: 'is_rare',
-              name: 'is_rare',
-              namespace: 'custom',
-              description: 'is this product rare?',
-              type: {
-                category: 'BOOLEAN',
-                name: 'boolean',
-              },
-            },
-          ],
-          variant: [],
-          shop: [],
-        } as MetafieldDefinitionMap;
-      },
-    );
+    typeSystem = new TypeSystem({
+      graphQL: async () => null,
+      tags: async () => [],
+      objects: async () => _objects,
+      liquidDrops: async () => _objects,
+      filters: async () => [
+        {
+          name: 'size',
+          return_type: [{ type: 'number', name: '' }],
+        },
+      ],
+    });
   });
 
   it('should return the type of assign markup nodes (basic test)', async () => {
@@ -240,21 +146,21 @@ describe('Module: TypeSystem', () => {
   });
 
   it('should return the type of array variables', async () => {
-    const ast = toLiquidHtmlAST(`{% assign x = all_products %}`);
+    const ast = toLiquidHtmlAST(`{% assign x = context.models %}`);
     const xVariable = (ast as any).children[0].markup as AssignMarkup;
     const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
-    expect(inferredType).to.eql({ kind: 'array', valueType: 'product' });
+    expect(inferredType).to.eql({ kind: 'array', valueType: 'model' });
   });
 
   it('should return the type of object properties', async () => {
-    const ast = toLiquidHtmlAST(`{% assign x = all_products[0].featured_image %}`);
+    const ast = toLiquidHtmlAST(`{% assign x = context.models[0].thumbnail %}`);
     const xVariable = (ast as any).children[0].markup as AssignMarkup;
     const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
     expect(inferredType).to.equal('image');
   });
 
   it('should return the type of filtered variables', async () => {
-    const ast = toLiquidHtmlAST(`{% assign x = product | size %}`);
+    const ast = toLiquidHtmlAST(`{% assign x = context | size %}`);
     const xVariable = (ast as any).children[0].markup as AssignMarkup;
     const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
     expect(inferredType).to.equal('number');
@@ -262,7 +168,7 @@ describe('Module: TypeSystem', () => {
 
   describe('when using string builtin methods', () => {
     it('should return number for size', async () => {
-      const ast = toLiquidHtmlAST(`{{ product.title.size }}`);
+      const ast = toLiquidHtmlAST(`{{ context.current_user.name.size }}`);
       const xVariable = (ast as any).children[0].markup as LiquidVariable;
       const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
       expect(inferredType).to.equal('number');
@@ -270,7 +176,7 @@ describe('Module: TypeSystem', () => {
 
     ['first', 'last'].forEach((method) => {
       it(`should return string for ${method}`, async () => {
-        const ast = toLiquidHtmlAST(`{{ product.title.${method} }}`);
+        const ast = toLiquidHtmlAST(`{{ context.current_user.name.${method} }}`);
         const xVariable = (ast as any).children[0].markup as LiquidVariable;
         const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
         expect(inferredType).to.equal('string');
@@ -280,7 +186,7 @@ describe('Module: TypeSystem', () => {
 
   describe('when using array builtin methods', () => {
     it('should return number for size', async () => {
-      const ast = toLiquidHtmlAST(`{{ product.images.size }}`);
+      const ast = toLiquidHtmlAST(`{{ context.models[0].images.size }}`);
       const xVariable = (ast as any).children[0].markup as LiquidVariable;
       const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
       expect(inferredType).to.equal('number');
@@ -288,7 +194,7 @@ describe('Module: TypeSystem', () => {
 
     ['first', 'last'].forEach((method) => {
       it(`should return the value type of the array for ${method}`, async () => {
-        const ast = toLiquidHtmlAST(`{{ product.images.${method} }}`);
+        const ast = toLiquidHtmlAST(`{{ context.models[0].images.${method} }}`);
         const xVariable = (ast as any).children[0].markup as LiquidVariable;
         const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
         expect(inferredType).to.equal('image');
@@ -308,7 +214,7 @@ describe('Module: TypeSystem', () => {
 
     it('should return the type of the default value lookup', async () => {
       const ast = toLiquidHtmlAST(`
-        {% assign d = product.featured_image %}
+        {% assign d = context.models[0].thumbnail %}
         {% assign x = unknown | default: d %}
       `);
       const xVariable = (ast as any).children[1].markup as AssignMarkup;
@@ -318,7 +224,7 @@ describe('Module: TypeSystem', () => {
   });
 
   it('should return the type of variables in for loop', async () => {
-    const ast = toLiquidHtmlAST(`{% for item in all_products %}{{ item }}{% endfor %}`);
+    const ast = toLiquidHtmlAST(`{% for item in context.models %}{{ item }}{% endfor %}`);
     const forLoop = ast.children[0];
     assert(isNamedLiquidTag(forLoop, NamedTags.for) && forLoop.children?.length === 1);
     const branch = forLoop.children[0];
@@ -328,150 +234,14 @@ describe('Module: TypeSystem', () => {
     const variable = variableOutput.markup;
 
     const inferredType = await typeSystem.inferType(variable, ast, 'file:///file.liquid');
-    expect(inferredType).to.equal('product');
+    expect(inferredType).to.equal('model');
   });
 
-  it('should patch the properties of settings when a schema is available', async () => {
-    settingsProvider.mockResolvedValue([
-      {
-        name: 'category',
-        settings: [
-          {
-            id: 'slide',
-            label: 'Slide label',
-            type: 'checkbox',
-          },
-          {
-            id: 'my_font',
-            label: 'my font',
-            type: 'font_picker',
-          },
-        ],
-      },
-    ] as SettingsSchemaJSONFile);
-
-    const contexts = [
-      { id: 'slide', expectedType: 'boolean' },
-      { id: 'my_font', expectedType: 'font' },
-    ];
-    for (const { id, expectedType } of contexts) {
-      const ast = toLiquidHtmlAST(`{{ settings.${id} }}`);
-      const variableOutput = ast.children[0];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
-      );
-      expect(inferredType).to.eql(expectedType);
-    }
-  });
-
-  it('should support section settings in section files', async () => {
-    const sourceCode = `
-      {{ section.settings.my_list }}
-      {% schema %}
-      {
-        "name": "section-settings-example",
-        "tag": "section",
-        "settings": [
-          {
-            "id": "my_list",
-            "label": "t:my-setting.label",
-            "type": "product_list"
-          }
-        ]
-      }
-      {% endschema %}
-    `;
-    const ast = toLiquidHtmlAST(sourceCode);
-    const variableOutput = ast.children[0];
-    assert(isLiquidVariableOutput(variableOutput));
-    const inferredType = await typeSystem.inferType(
-      variableOutput.markup,
-      ast,
-      'file:///sections/my-section.liquid',
-    );
-    expect(inferredType).to.eql({ kind: 'array', valueType: 'product' } as ArrayType);
-  });
-
-  it('should support block settings in blocks files', async () => {
-    const sourceCode = `
-      {{ block.settings.my_list }}
-      {% schema %}
-      {
-        "name": "section-settings-example",
-        "tag": "section",
-        "settings": [
-          {
-            "id": "my_list",
-            "label": "t:my-setting.label",
-            "type": "product_list"
-          }
-        ]
-      }
-      {% endschema %}
-    `;
-    const ast = toLiquidHtmlAST(sourceCode);
-    const variableOutput = ast.children[0];
-    assert(isLiquidVariableOutput(variableOutput));
-    const inferredType = await typeSystem.inferType(
-      variableOutput.markup,
-      ast,
-      'file:///blocks/my-section.liquid',
-    );
-    expect(inferredType).to.eql({ kind: 'array', valueType: 'product' } as ArrayType);
-  });
-
-  // TODO
-  it.skip('should support narrowing the type of blocks', async () => {
-    const sourceCode = `
-      {% for block in section.blocks %}
-        {% case block.type %}
-          {% when 'slide' %}
-            {{ block.settings.image }}
-          {% else %}
-        {% endcase }
-        {% if block.type == 'slide' %}
-          {{ block.settings.image }}
-        {% endif %}
-      {% endfor %}
-      {% schema %}
-      {
-        "name": "Slideshow",
-        "tag": "section",
-        "class": "slideshow",
-        "settings": [],
-        "blocks": [
-          {
-            "name": "Slide",
-            "type": "slide",
-            "settings": [
-              {
-                "type": "image_picker",
-                "id": "image",
-                "label": "Image"
-              }
-            ]
-          }
-        ]
-      }
-      {% endschema %}
-    `;
-    const ast = toLiquidHtmlAST(sourceCode);
-  });
-
-  it('should support path-contextual variable types', async () => {
+  it('should support path-contextual variable types for partials', async () => {
     let inferredType: string | ArrayType | ShapeType | UnionType;
     const contexts: [string, string][] = [
-      ['section', 'sections/my-section.liquid'],
-      ['comment', 'sections/main-article.liquid'],
-      ['block', 'blocks/my-block.liquid'],
-      ['predictive_search', 'sections/predictive-search.liquid'],
-      ['recommendations', 'sections/recommendations.liquid'],
-      ['app', 'blocks/recommendations.liquid'],
       ['app', 'app/views/partials/recommendations.liquid'],
-      ['locale', 'layout/checkout.liquid'],
+      ['app', 'app/lib/helpers/my-helper.liquid'],
     ];
     for (const [object, path] of contexts) {
       const sourceCode = `{{ ${object} }}`;
@@ -518,16 +288,16 @@ describe('Module: TypeSystem', () => {
         const inferredType = await typeSystem.inferType(
           variableOutput.markup,
           ast,
-          'file:///snippets/example.liquid',
+          'file:///app/views/partials/example.liquid',
         );
         expect(inferredType).to.eql(expectedType);
       });
     });
 
-    it(`should support complex liquid doc params type: product`, async () => {
+    it(`should support complex liquid doc params type: current_user`, async () => {
       const sourceCode = `
         {% doc %}
-          @param {product} data - some data
+          @param {current_user} data - the current user object
         {% enddoc %}
         {{ data }}
       `;
@@ -537,15 +307,15 @@ describe('Module: TypeSystem', () => {
       const inferredType = await typeSystem.inferType(
         variableOutput.markup,
         ast,
-        'file:///snippets/example.liquid',
+        'file:///app/views/partials/example.liquid',
       );
-      expect(inferredType).to.eql('product');
+      expect(inferredType).to.eql('current_user');
     });
 
-    it(`should support array liquid doc params type: product[]`, async () => {
+    it(`should support array liquid doc params type: current_user[]`, async () => {
       const sourceCode = `
         {% doc %}
-          @param {product[]} data - some data
+          @param {current_user[]} data - a list of users
         {% enddoc %}
         {{ data }}
       `;
@@ -555,11 +325,11 @@ describe('Module: TypeSystem', () => {
       const inferredType = await typeSystem.inferType(
         variableOutput.markup,
         ast,
-        'file:///snippets/example.liquid',
+        'file:///app/views/partials/example.liquid',
       );
       expect(inferredType).to.eql({
         kind: 'array',
-        valueType: 'product',
+        valueType: 'current_user',
       });
     });
   });
@@ -614,23 +384,7 @@ query {
           objects: async () => [],
           liquidDrops: async () => [],
           filters: async () => [],
-          systemTranslations: async () => ({}),
         },
-        async () => [],
-        async () => ({
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [],
-          page: [],
-          product: [],
-          variant: [],
-          shop: [],
-        }),
         fs,
         documentsLocator,
         async () => rootUri,
@@ -717,23 +471,7 @@ query {
           objects: async () => [],
           liquidDrops: async () => [],
           filters: async () => [],
-          systemTranslations: async () => ({}),
         },
-        async () => [],
-        async () => ({
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [],
-          page: [],
-          product: [],
-          variant: [],
-          shop: [],
-        }),
         fs,
         documentsLocator,
         async () => rootUri,
@@ -791,23 +529,7 @@ query {
           objects: async () => [],
           liquidDrops: async () => [],
           filters: async () => [],
-          systemTranslations: async () => ({}),
         },
-        async () => [],
-        async () => ({
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [],
-          page: [],
-          product: [],
-          variant: [],
-          shop: [],
-        }),
         fs,
         documentsLocator,
         async () => rootUri,
@@ -871,23 +593,7 @@ query {
           objects: async () => [],
           liquidDrops: async () => [],
           filters: async () => [],
-          systemTranslations: async () => ({}),
         },
-        async () => [],
-        async () => ({
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [],
-          page: [],
-          product: [],
-          variant: [],
-          shop: [],
-        }),
         fs,
         documentsLocator,
         async () => rootUri,
@@ -957,23 +663,7 @@ query {
           objects: async () => [],
           liquidDrops: async () => [],
           filters: async () => [],
-          systemTranslations: async () => ({}),
         },
-        async () => [],
-        async () => ({
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [],
-          page: [],
-          product: [],
-          variant: [],
-          shop: [],
-        }),
         fs,
         documentsLocator,
         async () => rootUri,
@@ -1018,23 +708,7 @@ query {
           objects: async () => [],
           liquidDrops: async () => [],
           filters: async () => [],
-          systemTranslations: async () => ({}),
         },
-        async () => [],
-        async () => ({
-          article: [],
-          blog: [],
-          collection: [],
-          company: [],
-          company_location: [],
-          location: [],
-          market: [],
-          order: [],
-          page: [],
-          product: [],
-          variant: [],
-          shop: [],
-        }),
         fs,
         documentsLocator,
         async () => rootUri,

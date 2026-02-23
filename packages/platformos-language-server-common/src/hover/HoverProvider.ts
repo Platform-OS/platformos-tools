@@ -1,8 +1,7 @@
 import {
   GetDocDefinitionForURI,
-  MetafieldDefinitionMap,
   SourceCodeType,
-  ThemeDocset,
+  PlatformOSDocset,
 } from '@platformos/platformos-check-common';
 import { Hover, HoverParams } from 'vscode-languageserver';
 import { TypeSystem } from '../TypeSystem';
@@ -23,42 +22,31 @@ import {
 } from './providers';
 import { HtmlAttributeValueHoverProvider } from './providers/HtmlAttributeValueHoverProvider';
 import { findCurrentNode } from '@platformos/platformos-check-common';
-import { GetThemeSettingsSchemaForURI } from '../settings';
 import { LiquidDocTagHoverProvider } from './providers/LiquidDocTagHoverProvider';
-import { ContentForArgumentHoverProvider } from './providers/ContentForArgumentHoverProvider';
-import { ContentForTypeHoverProvider } from './providers/ContentForTypeHoverProvider';
 import { TranslationProvider } from '@platformos/platformos-common';
-import { FindThemeRootURI } from '../../src/internal-types';
+import { FindAppRootURI } from '../../src/internal-types';
 export class HoverProvider {
   private providers: BaseHoverProvider[] = [];
 
   constructor(
     readonly documentManager: DocumentManager,
-    readonly themeDocset: ThemeDocset,
+    readonly platformosDocset: PlatformOSDocset,
     readonly translationProvider: TranslationProvider,
-    readonly getMetafieldDefinitions: (rootUri: string) => Promise<MetafieldDefinitionMap>,
     readonly getTranslationsForURI: GetTranslationsForURI = async () => ({}),
-    readonly getSettingsSchemaForURI: GetThemeSettingsSchemaForURI = async () => [],
     readonly getDocDefinitionForURI: GetDocDefinitionForURI = async () => undefined,
-    readonly findThemeRootURI: FindThemeRootURI = async () => null,
+    readonly findAppRootURI: FindAppRootURI = async () => null,
   ) {
-    const typeSystem = new TypeSystem(
-      themeDocset,
-      getSettingsSchemaForURI,
-      getMetafieldDefinitions,
-    );
+    const typeSystem = new TypeSystem(platformosDocset);
     this.providers = [
-      new ContentForArgumentHoverProvider(getDocDefinitionForURI),
-      new ContentForTypeHoverProvider(getDocDefinitionForURI),
-      new LiquidTagHoverProvider(themeDocset),
-      new LiquidFilterArgumentHoverProvider(themeDocset),
-      new LiquidFilterHoverProvider(themeDocset),
+      new LiquidTagHoverProvider(platformosDocset),
+      new LiquidFilterArgumentHoverProvider(platformosDocset),
+      new LiquidFilterHoverProvider(platformosDocset),
       new LiquidObjectHoverProvider(typeSystem),
       new LiquidObjectAttributeHoverProvider(typeSystem),
       new HtmlTagHoverProvider(),
       new HtmlAttributeHoverProvider(),
       new HtmlAttributeValueHoverProvider(),
-      new TranslationHoverProvider(documentManager, translationProvider, findThemeRootURI),
+      new TranslationHoverProvider(documentManager, translationProvider, findAppRootURI),
       new RenderPartialHoverProvider(getDocDefinitionForURI),
       new RenderPartialParameterHoverProvider(getDocDefinitionForURI),
       new LiquidDocTagHoverProvider(documentManager),

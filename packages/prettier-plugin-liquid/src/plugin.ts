@@ -30,14 +30,12 @@ const options: SupportOptions = {
     ],
     category: 'LIQUID',
     default: 'strict',
-    since: '1.5.0',
   },
   liquidSingleQuote: {
     type: 'boolean',
     category: 'LIQUID',
     default: true,
     description: 'Use single quotes instead of double quotes in Liquid tags and objects.',
-    since: '0.2.0',
   },
   embeddedSingleQuote: {
     type: 'boolean',
@@ -45,28 +43,18 @@ const options: SupportOptions = {
     default: true,
     description:
       'Use single quotes instead of double quotes in embedded languages (JavaScript, CSS, TypeScript inside <script>, <style> or Liquid equivalent).',
-    since: '0.4.0',
   },
   singleLineLinkTags: {
     type: 'boolean',
     category: 'HTML',
     default: false,
     description: 'Always print link tags on a single line to remove clutter',
-    since: '0.1.0',
-  },
-  indentSchema: {
-    type: 'boolean',
-    category: 'LIQUID',
-    default: false,
-    description: 'Indent the contents of the {% schema %} tag',
-    since: '0.1.0',
   },
   liquidDocParamDash: {
     type: 'boolean',
     category: 'LIQUID',
     default: true,
     description: 'Append a dash (-) to separate descriptions in {% doc %} @param annotations',
-    since: '1.6.4',
   },
 };
 

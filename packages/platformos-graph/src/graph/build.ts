@@ -3,33 +3,37 @@ import {
   path,
   UriString,
 } from '@platformos/platformos-check-common';
-import { IDependencies, ThemeGraph, ThemeModule } from '../types';
+import { IDependencies, AppGraph, AppModule } from '../types';
 import { augmentDependencies } from './augment';
 import { getModule } from './module';
 import { traverseModule } from './traverse';
 
-export async function buildThemeGraph(
+export async function buildAppGraph(
   rootUri: UriString,
   ideps: IDependencies,
   entryPoints?: UriString[],
-): Promise<ThemeGraph> {
+): Promise<AppGraph> {
   const deps = augmentDependencies(rootUri, ideps);
 
   entryPoints =
     entryPoints ??
     (await findAllFiles(deps.fs, rootUri, ([uri]) => {
-      // Templates are entry points in the theme graph.
-      const isTemplateFile = uri.startsWith(path.join(rootUri, 'templates'));
+      // Layouts are entry points — they wrap all page content.
+      const isLayoutFile =
+        (uri.startsWith(path.join(rootUri, 'app/views/layouts')) ||
+          uri.startsWith(path.join(rootUri, 'views/layouts'))) &&
+        uri.endsWith('.liquid');
 
-      // Since any section file can be rendered directly by the Section Rendering API,
-      // we consider all section files as entry points.
-      const isSectionFile =
-        uri.startsWith(path.join(rootUri, 'sections')) && uri.endsWith('.liquid');
+      // Pages are also entry points — they are directly requested.
+      const isPageFile =
+        (uri.startsWith(path.join(rootUri, 'app/views/pages')) ||
+          uri.startsWith(path.join(rootUri, 'views/pages'))) &&
+        uri.endsWith('.liquid');
 
-      return isTemplateFile || isSectionFile;
+      return isLayoutFile || isPageFile;
     }));
 
-  const graph: ThemeGraph = {
+  const graph: AppGraph = {
     entryPoints: [],
     modules: {},
     rootUri,
@@ -37,7 +41,7 @@ export async function buildThemeGraph(
 
   graph.entryPoints = entryPoints
     .map((uri) => getModule(graph, uri))
-    .filter((x): x is ThemeModule => x !== undefined);
+    .filter((x): x is AppModule => x !== undefined);
 
   await Promise.all(graph.entryPoints.map((entry) => traverseModule(entry, graph, deps)));
 

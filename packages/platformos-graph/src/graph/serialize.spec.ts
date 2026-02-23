@@ -1,59 +1,52 @@
 import { path as pathUtils } from '@platformos/platformos-check-common';
 import { describe, expect, it } from 'vitest';
-import { ThemeGraph } from '../types';
-import { getSectionModule, getPartialModule, getTemplateModule } from './module';
-import { serializeThemeGraph } from './serialize';
+import { AppGraph } from '../types';
+import { getLayoutModule, getPartialModule } from './module';
+import { serializeAppGraph } from './serialize';
 import { bind } from './traverse';
 
-describe('Unit: serializeThemeGraph', () => {
+describe('Unit: serializeAppGraph', () => {
   it('serialize the graph', () => {
-    const rootUri = 'file:///theme';
+    const rootUri = 'file:///app';
     const p = (part: string) => pathUtils.join(rootUri, part);
-    const graph: ThemeGraph = {
+    const graph: AppGraph = {
       entryPoints: [],
       modules: {},
       rootUri,
     };
 
-    const template = getTemplateModule(graph, p('templates/index.json'));
-    const customSection = getSectionModule(graph, 'custom-section');
+    const layout = getLayoutModule(graph, p('app/views/layouts/application.liquid'))!;
+    const headerPartial = getPartialModule(graph, 'header');
     const parentPartial = getPartialModule(graph, 'parent');
     const childPartial = getPartialModule(graph, 'child');
-    bind(template, customSection, { sourceRange: [0, 5] });
-    bind(customSection, parentPartial, { sourceRange: [10, 15] });
+
+    bind(layout, headerPartial, { sourceRange: [0, 5] });
+    bind(layout, parentPartial, { sourceRange: [10, 15] });
     bind(parentPartial, childPartial, { sourceRange: [20, 25] });
 
-    const section2 = getSectionModule(graph, 'section2');
-    bind(template, section2, { sourceRange: [20, 25] });
-
-    graph.entryPoints = [template];
-    [template, customSection, section2, parentPartial, childPartial].forEach((module) => {
+    graph.entryPoints = [layout];
+    [layout, headerPartial, parentPartial, childPartial].forEach((module) => {
       graph.modules[module.uri] = module;
     });
 
-    const { nodes, edges } = serializeThemeGraph(graph);
-    expect(nodes).toHaveLength(5);
-    expect(edges).toHaveLength(4);
+    const { nodes, edges } = serializeAppGraph(graph);
+    expect(nodes).toHaveLength(4);
+    expect(edges).toHaveLength(3);
     expect(edges).toEqual(
       expect.arrayContaining([
         {
-          source: { uri: 'file:///theme/templates/index.json', range: [0, 5] },
-          target: { uri: 'file:///theme/sections/custom-section.liquid' },
+          source: { uri: p('app/views/layouts/application.liquid'), range: [0, 5] },
+          target: { uri: p('app/views/partials/header.liquid') },
           type: 'direct',
         },
         {
-          source: { uri: 'file:///theme/sections/custom-section.liquid', range: [10, 15] },
-          target: { uri: 'file:///theme/app/views/partials/parent.liquid' },
+          source: { uri: p('app/views/layouts/application.liquid'), range: [10, 15] },
+          target: { uri: p('app/views/partials/parent.liquid') },
           type: 'direct',
         },
         {
-          source: { uri: 'file:///theme/app/views/partials/parent.liquid', range: [20, 25] },
-          target: { uri: 'file:///theme/app/views/partials/child.liquid' },
-          type: 'direct',
-        },
-        {
-          source: { uri: 'file:///theme/templates/index.json', range: [20, 25] },
-          target: { uri: 'file:///theme/sections/section2.liquid' },
+          source: { uri: p('app/views/partials/parent.liquid'), range: [20, 25] },
+          target: { uri: p('app/views/partials/child.liquid') },
           type: 'direct',
         },
       ]),

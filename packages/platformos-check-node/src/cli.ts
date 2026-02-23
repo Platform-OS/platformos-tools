@@ -1,11 +1,11 @@
-import { themeCheckRun } from './index';
+import { appCheckRun } from './index';
 import { runBackfillDocsCLI } from './backfill-docs';
 import path from 'node:path';
 
-async function runThemeCheck(args: string[]): Promise<void> {
+async function runCheck(args: string[]): Promise<void> {
   const root = path.resolve(args[0] || '.');
   const configPath = args[1] ? path.resolve(args[1]) : undefined;
-  const { theme, config, offenses } = await themeCheckRun(
+  const { app, config, offenses } = await appCheckRun(
     root,
     configPath,
     console.error.bind(console),
@@ -14,7 +14,7 @@ async function runThemeCheck(args: string[]): Promise<void> {
   console.log(JSON.stringify(config, null, 2));
   console.log(
     JSON.stringify(
-      theme.map((x) => x.uri),
+      app.map((x) => x.uri),
       null,
       2,
     ),
@@ -23,13 +23,13 @@ async function runThemeCheck(args: string[]): Promise<void> {
 
 function printUsage(): void {
   console.log(`
-Usage: theme-check [command] [options]
+Usage: platformos-check [command] [options]
 
 Commands:
-  <path>              Run theme checks on the specified path (default)
+  <path>              Run platformos checks on the specified path (default)
   backfill-docs       Backfill doc tags in partial files based on usage
 
-Run 'theme-check <command> --help' for more information on a command.
+Run 'platformos-check <command> --help' for more information on a command.
 `);
 }
 
@@ -53,8 +53,8 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Default: run theme check
-  await runThemeCheck(args);
+  // Default: run platformos check
+  await runCheck(args);
 }
 
 main();

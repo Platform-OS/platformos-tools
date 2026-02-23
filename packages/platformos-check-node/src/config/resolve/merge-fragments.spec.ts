@@ -7,7 +7,6 @@ const emptyConfig: ConfigDescription = {
   ignore: [],
   require: [],
   checkSettings: {},
-  context: 'theme',
 };
 
 describe('Unit: mergeFragments', () => {
@@ -18,7 +17,6 @@ describe('Unit: mergeFragments', () => {
         extends: [],
         ignore: ['assets'],
         require: ['./lib/index.js'],
-        context: 'theme',
         checkSettings: {
           SomeCheck: {
             enabled: true,
@@ -31,7 +29,6 @@ describe('Unit: mergeFragments', () => {
         extends: [],
         ignore: ['config'],
         require: ['@acme/theme-check-extension'],
-        context: 'theme',
         checkSettings: {
           AnotherCheck: {
             enabled: false,
@@ -59,7 +56,6 @@ describe('Unit: mergeFragments', () => {
       extends: [],
       ignore: ['assets', 'config', 'node_modules'],
       require: ['./lib/index.js', '@acme/theme-check-extension'],
-      context: 'theme',
       checkSettings: {
         SomeCheck: {
           enabled: false,
@@ -133,7 +129,6 @@ describe('Unit: mergeFragments', () => {
       ignore: [],
       require: [],
       checkSettings: {},
-      context: 'theme',
     });
   });
 
@@ -144,7 +139,6 @@ describe('Unit: mergeFragments', () => {
         extends: [],
         ignore: [],
         require: [],
-        context: 'theme',
         checkSettings: {
           SomeCheck: {
             enabled: true,
@@ -178,7 +172,6 @@ describe('Unit: mergeFragments', () => {
       extends: [],
       ignore: [],
       require: [],
-      context: 'theme',
       checkSettings: {
         SomeCheck: {
           enabled: false,

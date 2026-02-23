@@ -1,7 +1,7 @@
 import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
 import { deepGet } from '../utils';
 import { normalize, relative } from '../path';
-import { MockTheme } from './MockTheme';
+import { MockApp } from './MockApp';
 import * as path from '../path';
 
 interface FileTree {
@@ -11,16 +11,19 @@ interface FileTree {
 export class MockFileSystem implements AbstractFileSystem {
   private rootUri: string;
 
-  constructor(private mockTheme: MockTheme, rootUri = 'file:///') {
+  constructor(
+    private mockApp: MockApp,
+    rootUri = 'file:///',
+  ) {
     this.rootUri = normalize(rootUri);
   }
 
   async readFile(uri: string): Promise<string> {
     const relativePath = this.rootRelative(uri);
-    if (this.mockTheme[relativePath] === undefined) {
+    if (this.mockApp[relativePath] === undefined) {
       throw new Error('File not found');
     } else {
-      return this.mockTheme[relativePath];
+      return this.mockApp[relativePath];
     }
   }
 
@@ -47,7 +50,7 @@ export class MockFileSystem implements AbstractFileSystem {
 
   async stat(uri: string): Promise<FileStat> {
     const relativePath = this.rootRelative(uri);
-    const source = this.mockTheme[relativePath];
+    const source = this.mockApp[relativePath];
     if (source) {
       return {
         type: FileType.File,
@@ -68,7 +71,7 @@ export class MockFileSystem implements AbstractFileSystem {
 
   private get fileTree(): FileTree {
     const result: FileTree = {};
-    for (const [relativePath, source] of Object.entries(this.mockTheme)) {
+    for (const [relativePath, source] of Object.entries(this.mockApp)) {
       const segments = relativePath.split('/');
       let current = result;
       for (let i = 0; i < segments.length - 1; i++) {

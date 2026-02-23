@@ -6,13 +6,13 @@ import { URI, Utils } from 'vscode-uri';
 
 import { visit, Visitor } from '@platformos/platformos-check-common';
 import { DocumentManager } from '../documents';
-import { FindThemeRootURI } from '../internal-types';
+import { FindAppRootURI } from '../internal-types';
 import { DocumentsLocator, TranslationProvider } from '@platformos/platformos-common';
 
 export class DocumentLinksProvider {
   constructor(
     private documentManager: DocumentManager,
-    private findThemeRootURI: FindThemeRootURI,
+    private findAppRootURI: FindAppRootURI,
     private documentsLocator: DocumentsLocator,
     private translationProvider: TranslationProvider,
   ) {}
@@ -27,7 +27,7 @@ export class DocumentLinksProvider {
       return [];
     }
 
-    const rootUri = await this.findThemeRootURI(uriString);
+    const rootUri = await this.findAppRootURI(uriString);
     if (!rootUri) {
       return [];
     }

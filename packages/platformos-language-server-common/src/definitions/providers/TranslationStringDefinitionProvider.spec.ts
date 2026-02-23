@@ -33,11 +33,7 @@ describe('Module: TranslationStringDefinitionProvider', () => {
       };
     };
 
-    provider = new DefinitionProvider(
-      documentManager,
-      mockGetDefaultLocaleSourceCode,
-      async () => null,
-    );
+    provider = new DefinitionProvider(documentManager, mockGetDefaultLocaleSourceCode);
   });
 
   it('finds the definition of existing translation keys', async () => {

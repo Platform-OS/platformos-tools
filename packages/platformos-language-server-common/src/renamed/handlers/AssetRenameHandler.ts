@@ -12,7 +12,7 @@ import { ClientCapabilities } from '../../ClientCapabilities';
 import { DocumentManager, isLiquidSourceCode } from '../../documents';
 import { assetName, isAsset } from '../../utils/uri';
 import { BaseRenameHandler } from '../BaseRenameHandler';
-import { FindThemeRootURI } from '../../internal-types';
+import { FindAppRootURI } from '../../internal-types';
 
 /**
  * The AssetRenameHandler will handle asset renames.
@@ -31,7 +31,7 @@ export class AssetRenameHandler implements BaseRenameHandler {
     private documentManager: DocumentManager,
     private connection: Connection,
     private capabilities: ClientCapabilities,
-    private findThemeRootURI: FindThemeRootURI,
+    private findAppRootURI: FindAppRootURI,
   ) {}
 
   async onDidRenameFiles(params: RenameFilesParams): Promise<void> {
@@ -44,11 +44,11 @@ export class AssetRenameHandler implements BaseRenameHandler {
     // Only preload if you have something to do (folder renames are not supported)
     if (relevantRenames.length !== 1) return;
     const rename = relevantRenames[0];
-    const rootUri = await this.findThemeRootURI(path.dirname(params.files[0].oldUri));
+    const rootUri = await this.findAppRootURI(path.dirname(params.files[0].oldUri));
     if (!rootUri) return;
     await this.documentManager.preload(rootUri);
-    const theme = this.documentManager.theme(rootUri, true);
-    const liquidSourceCodes = theme.filter(isLiquidSourceCode);
+    const app = this.documentManager.app(rootUri, true);
+    const liquidSourceCodes = app.filter(isLiquidSourceCode);
 
     const oldAssetName = assetName(rename.oldUri);
     const newAssetName = assetName(rename.newUri);

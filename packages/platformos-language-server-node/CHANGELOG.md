@@ -1,5 +1,35 @@
 # @platformos/theme-language-server-node
 
+## 0.0.7
+
+### Patch Changes
+
+- Update dependencies
+- Updated dependencies
+  - @platformos/platformos-check-docs-updater@0.0.7
+  - @platformos/platformos-check-node@0.0.7
+  - @platformos/platformos-language-server-common@0.0.7
+
+## 0.0.6
+
+### Patch Changes
+
+- Beta release
+- Updated dependencies
+  - @platformos/platformos-check-docs-updater@0.0.6
+  - @platformos/platformos-check-node@0.0.6
+  - @platformos/platformos-language-server-common@0.0.6
+
+## 0.0.5
+
+### Patch Changes
+
+- Beta release
+- Updated dependencies
+  - @platformos/platformos-check-docs-updater@0.0.5
+  - @platformos/platformos-check-node@0.0.5
+  - @platformos/platformos-language-server-common@0.0.5
+
 ## 0.0.4
 
 ### Patch Changes

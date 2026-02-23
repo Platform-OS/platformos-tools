@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-check-docs-updater",
-  "version": "0.0.4",
+  "version": "0.0.7",
   "description": "Scripts to initialize theme-check data with assets from the theme-liquid-docs repo.",
   "main": "dist/index.js",
   "author": "platformOS",
@@ -30,13 +30,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/platformos-check-common": "0.0.4",
+    "@platformos/platformos-check-common": "0.0.7",
     "env-paths": "^2.2.1",
-    "he": "^1.2.0",
-    "node-fetch": "^2.6.11"
+    "he": "^1.2.0"
   },
   "devDependencies": {
-    "@types/he": "^1.2.3",
-    "@types/node-fetch": "^2.6.4"
+    "@types/he": "^1.2.3"
   }
 }

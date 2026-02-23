@@ -1,3 +1,3 @@
 export * from './MockFileSystem';
-export * from './MockTheme';
+export * from './MockApp';
 export * from './test-helper';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applySuggestions, MockTheme, runLiquidCheck } from '../../test';
+import { applySuggestions, MockApp, runLiquidCheck } from '../../test';
 import { UnrecognizedRenderPartialArguments } from '.';
 
 function check(partial: string, source: string) {
@@ -113,14 +113,14 @@ describe('Module: UnrecognizedRenderPartialParams', () => {
     });
 
     it('should report when "with/for" alias syntax is used', async () => {
-      const mockTheme = {
+      const mockApp = {
         'app/views/partials/card.liquid': `
           {% doc %}
             @param {string} title - The title of the card
           {% enddoc %}
           <div>{{ title }}</div>
         `,
-      } as MockTheme;
+      } as MockApp;
 
       let sourceCode = `{% render 'card' with 'my-card' as unknown_param %}`;
       let offenses = await runLiquidCheck(
@@ -128,7 +128,7 @@ describe('Module: UnrecognizedRenderPartialParams', () => {
         sourceCode,
         undefined,
         {},
-        mockTheme,
+        mockApp,
       );
 
       expect(offenses).toHaveLength(1);
@@ -146,7 +146,7 @@ describe('Module: UnrecognizedRenderPartialParams', () => {
         sourceCode,
         undefined,
         {},
-        mockTheme,
+        mockApp,
       );
 
       expect(offenses).toHaveLength(1);

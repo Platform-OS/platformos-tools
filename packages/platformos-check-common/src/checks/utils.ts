@@ -104,7 +104,7 @@ export function isLoopLiquidTag(tag: LiquidTag): tag is LiquidTagFor | LiquidTag
   return LoopNamedTags.includes(tag.name as any);
 }
 
-const RawTagsThatDoNotParseTheirContents = ['raw', 'stylesheet', 'javascript', 'schema'];
+const RawTagsThatDoNotParseTheirContents = ['raw'];
 
 function isRawTagThatDoesNotParseItsContent(node: LiquidHtmlNode) {
   return (

@@ -5,13 +5,11 @@ type FileExists = (uri: string) => Promise<boolean>;
 
 async function isRoot(dir: UriString, fileExists: FileExists) {
   return or(
-    // .pos config file and app directory exists
-    and(
-      fileExists(path.join(dir, '.pos')),
-      fileExists(path.join(dir, 'app')),
-      fileExists(path.join(dir, 'modules')),
-      fileExists(path.join(dir, '.git')),
-    ),
+    fileExists(path.join(dir, '.pos')),
+    fileExists(path.join(dir, '.platformos-check.yml')),
+    fileExists(path.join(dir, 'app')),
+    // modules/ is a root indicator only when not inside app/ (app/modules/ is a valid subdirectory)
+    and(fileExists(path.join(dir, 'modules')), Promise.resolve(path.basename(dir) !== 'app')),
   );
 }
 
@@ -25,24 +23,16 @@ async function or(...promises: Promise<boolean>[]) {
   return bools.reduce((a, b) => a || b, false);
 }
 
-async function not(ap: Promise<boolean>) {
-  const a = await ap;
-  return !a;
-}
-
 /**
- * Returns the "root" of a theme or theme app extension. The root is the
- * directory that contains a `.theme-check.yml` file, a `.git` directory, or a
- * `shopify.extension.toml` file.
+ * Returns the root of a platformOS app. The root is the directory that contains
+ * a `.pos` sentinel file, a `.platformos-check.yml` config file, an `app/` directory,
+ * or a `modules/` directory (when not inside `app/`).
  *
- * There are cases where .theme-check.yml is not defined and we have to infer the root.
- * We'll assume that the root is the directory that contains a `snippets` directory.
+ * Note: `modules/` inside `app/` (i.e. `app/modules/`) is a valid subdirectory and
+ * should not be treated as a root indicator.
  *
- * So you can think of this function as the function that infers where a .theme-check.yml
- * should be.
- *
- * Note: that this is not the theme root. The config file might have a `root` entry in it
- * that points to somewhere else.
+ * Note: this is not the app root itself. The config file might have a `root` entry that
+ * points to somewhere else.
  */
 export async function findRoot(curr: UriString, fileExists: FileExists): Promise<UriString | null> {
   const currIsRoot = await isRoot(curr, fileExists);

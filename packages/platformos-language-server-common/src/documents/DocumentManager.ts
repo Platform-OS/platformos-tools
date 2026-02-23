@@ -4,13 +4,11 @@ import {
   path,
   recursiveReadDirectory,
   SourceCodeType,
-  Theme,
+  App,
   toSourceCode,
-  toSchema,
   UriString,
   IsValidSchema,
   memo,
-  Mode,
   isError,
 } from '@platformos/platformos-check-common';
 
@@ -40,7 +38,6 @@ export class DocumentManager {
     private readonly fs?: AbstractFileSystem,
     private readonly connection?: Connection,
     private readonly clientCapabilities?: ClientCapabilities,
-    private readonly getModeForUri?: (uri: UriString) => Promise<Mode>,
     private readonly isValidSchema?: IsValidSchema,
   ) {
     this.sourceCodes = new Map();
@@ -78,12 +75,12 @@ export class DocumentManager {
     this.set(newUri, sourceCode.source, sourceCode.version);
   }
 
-  public theme(root: UriString, includeFilesFromDisk = false): AugmentedSourceCode[] {
+  public app(root: UriString, includeFilesFromDisk = false): AugmentedSourceCode[] {
     return [...this.sourceCodes.values()]
       .filter((sourceCode) => sourceCode.uri.startsWith(root))
       .filter(
         (sourceCode) => includeFilesFromDisk || sourceCode.version !== undefined,
-      ) satisfies Theme;
+      ) satisfies App;
   }
 
   public get openDocuments(): AugmentedSourceCode[] {
@@ -109,8 +106,8 @@ export class DocumentManager {
 
   private set(uri: UriString, source: string, version: number | undefined) {
     uri = path.normalize(uri);
-    // We only support json and liquid files.
-    if (!/\.(json|liquid|graphql)$/.test(uri) || /\.(s?css|js).liquid$/.test(uri)) {
+    // We only support json, liquid, graphql, and yaml files.
+    if (!/\.(json|liquid|graphql|ya?ml)$/.test(uri) || /\.(s?css|js).liquid$/.test(uri)) {
       return;
     }
 
@@ -119,7 +116,7 @@ export class DocumentManager {
 
   /**
    * The preload method is used to pre-load and pre-parse all the files in the
-   * theme. It is smart and only will load files that are not already in the
+   * app. It is smart and only will load files that are not already in the
    * DocumentManager.
    *
    * Files that are loaded from the AbstractFileSystem will have a version of `undefined`.
@@ -137,7 +134,7 @@ export class DocumentManager {
       const filesToLoad = await recursiveReadDirectory(
         this.fs,
         rootUri,
-        ([uri]) => /\.(liquid|json|graphql)$/.test(uri) && !this.sourceCodes.has(uri),
+        ([uri]) => /\.(liquid|json|graphql|ya?ml)$/.test(uri) && !this.sourceCodes.has(uri),
       );
 
       progress.report(10, 'Preloading files');
@@ -189,16 +186,18 @@ export class DocumentManager {
           ...sourceCode,
           textDocument,
         };
+      case SourceCodeType.YAML:
+        return {
+          ...sourceCode,
+          textDocument,
+        };
       case SourceCodeType.LiquidHtml:
         return {
           ...sourceCode,
           textDocument,
           /** Lazy and only computed once per file version */
           getSchema: memo(async () => {
-            if (!this.getModeForUri || !this.isValidSchema) return undefined;
-
-            const mode = await this.getModeForUri!(uri);
-            return toSchema(mode, uri, sourceCode, this.isValidSchema, false);
+            return undefined;
           }),
           /** Lazy and only computed once per file version */
           getLiquidDoc: memo(async () => {

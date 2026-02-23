@@ -18,6 +18,10 @@ export function createCorrector<S extends SourceCodeType>(
     }
     case SourceCodeType.GraphQL:
       return new GraphQLCorrector(source) as Corrector<typeof sourceCodeType>;
+    case SourceCodeType.YAML: {
+      // YAML autofix is not yet supported; this case should not be reached
+      throw new Error('YAML autofix is not supported');
+    }
     default: {
       return assertNever(sourceCodeType);
     }

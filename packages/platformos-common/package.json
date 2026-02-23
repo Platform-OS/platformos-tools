@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-common",
-  "version": "0.0.4",
+  "version": "0.0.7",
   "description": "Common library for platfromOS related theme check components",
   "homepage": "https://github.com/Platform-OS/platformos-tools#readme",
   "bugs": {
@@ -25,9 +25,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "js-yaml": "^3.14.1",
-    "vscode-json-languageservice": "^5.3.10",
-    "vscode-uri": "^3.0.7"
+    "js-yaml": "^4.1.1",
+    "vscode-json-languageservice": "^5.7.1",
+    "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9"

@@ -67,7 +67,6 @@ import {
   ConcreteLiquidTagOpenNamed,
   ConcreteLiquidTagOpen,
   ConcreteLiquidArgument,
-  ConcretePaginateMarkup,
   ConcreteLiquidCondition,
   ConcreteLiquidComparison,
   ConcreteLiquidTagForMarkup,
@@ -125,7 +124,6 @@ export type LiquidHtmlNode =
   | FunctionMarkup
   | GraphQLMarkup
   | GraphQLInlineMarkup
-  | PaginateMarkup
   | RawMarkup
   | RenderVariableExpression
   | RenderAliasExpression
@@ -243,12 +241,9 @@ export type LiquidTagNamed =
   | LiquidTagIncrement
   | LiquidTagLayout
   | LiquidTagLiquid
-  | LiquidTagPaginate
   | LiquidTagRender
   | LiquidTagFunction
   | LiquidTagGraphQL
-  | LiquidTagSection
-  | LiquidTagSections
   | LiquidTagTablerow
   | LiquidTagUnless
   // platformos tags
@@ -331,8 +326,10 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
   value: LiquidVariable;
 }
 
-export interface LiquidTagHashAssign
-  extends LiquidTagNode<NamedTags.hash_assign, HashAssignMarkup> {}
+export interface LiquidTagHashAssign extends LiquidTagNode<
+  NamedTags.hash_assign,
+  HashAssignMarkup
+> {}
 
 /** {% hash_assign target['key'] = value | parse_json %} */
 export interface HashAssignMarkup extends ASTNode<NodeTypes.HashAssignMarkup> {
@@ -343,12 +340,16 @@ export interface HashAssignMarkup extends ASTNode<NodeTypes.HashAssignMarkup> {
 }
 
 /** https://shopify.dev/docs/api/liquid/tags#increment */
-export interface LiquidTagIncrement
-  extends LiquidTagNode<NamedTags.increment, LiquidVariableLookup> {}
+export interface LiquidTagIncrement extends LiquidTagNode<
+  NamedTags.increment,
+  LiquidVariableLookup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#decrement */
-export interface LiquidTagDecrement
-  extends LiquidTagNode<NamedTags.decrement, LiquidVariableLookup> {}
+export interface LiquidTagDecrement extends LiquidTagNode<
+  NamedTags.decrement,
+  LiquidVariableLookup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#capture */
 export interface LiquidTagCapture extends LiquidTagNode<NamedTags.capture, LiquidVariableLookup> {}
@@ -404,12 +405,16 @@ export interface LiquidTagIf extends LiquidTagConditional<NamedTags.if> {}
 export interface LiquidTagUnless extends LiquidTagConditional<NamedTags.unless> {}
 
 /** {% elsif cond %} */
-export interface LiquidBranchElsif
-  extends LiquidBranchNode<NamedTags.elsif, LiquidConditionalExpression> {}
+export interface LiquidBranchElsif extends LiquidBranchNode<
+  NamedTags.elsif,
+  LiquidConditionalExpression
+> {}
 
 // Helper for creating the types of if and unless
-export interface LiquidTagConditional<Name>
-  extends LiquidTagNode<Name, LiquidConditionalExpression> {}
+export interface LiquidTagConditional<Name> extends LiquidTagNode<
+  Name,
+  LiquidConditionalExpression
+> {}
 
 /** The union type of all conditional expression nodes */
 export type LiquidConditionalExpression =
@@ -431,39 +436,28 @@ export interface LiquidComparison extends ASTNode<NodeTypes.Comparison> {
   right: LiquidExpression;
 }
 
-/** https://shopify.dev/docs/api/liquid/tags#paginate */
-export interface LiquidTagPaginate extends LiquidTagNode<NamedTags.paginate, PaginateMarkup> {}
-
-/** {% paginate collection by pageSize [...namedArgs] %} */
-export interface PaginateMarkup extends ASTNode<NodeTypes.PaginateMarkup> {
-  /** {% paginate collection by pageSize %} */
-  collection: LiquidExpression;
-  /** {% paginate collection by pageSize %} */
-  pageSize: LiquidExpression;
-  /** optional named arguments such as `window_size: 10` */
-  args: LiquidNamedArgument[];
-}
-
-/** https://shopify.dev/docs/api/liquid/tags#content_for */
-export interface LiquidTagContentFor
-  extends LiquidTagNode<NamedTags.content_for, ContentForMarkup> {}
+/**
+ * In platformOS, content_for defines a named block of content in a page/partial.
+ * Use {% yield 'name' %} in a layout to render it.
+ * @example {% content_for 'pagetitle' %}<title>Hello</title>{% endcontent_for %}
+ */
+export interface LiquidTagContentFor extends LiquidTagNode<
+  NamedTags.content_for,
+  ContentForMarkup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#render */
 export interface LiquidTagRender extends LiquidTagNode<NamedTags.render, RenderMarkup> {}
 
 export interface LiquidTagFunction extends LiquidTagNode<NamedTags.function, FunctionMarkup> {}
 
-export interface LiquidTagGraphQL
-  extends LiquidTagNode<NamedTags.graphql, GraphQLMarkup | GraphQLInlineMarkup> {}
+export interface LiquidTagGraphQL extends LiquidTagNode<
+  NamedTags.graphql,
+  GraphQLMarkup | GraphQLInlineMarkup
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#include */
 export interface LiquidTagInclude extends LiquidTagNode<NamedTags.include, RenderMarkup> {}
-
-/** https://shopify.dev/docs/api/liquid/tags#section */
-export interface LiquidTagSection extends LiquidTagNode<NamedTags.section, LiquidString> {}
-
-/** https://shopify.dev/docs/api/liquid/tags#sections */
-export interface LiquidTagSections extends LiquidTagNode<NamedTags.sections, LiquidString> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#layout */
 export interface LiquidTagLayout extends LiquidTagNode<NamedTags.layout, LiquidExpression> {}
@@ -471,18 +465,9 @@ export interface LiquidTagLayout extends LiquidTagNode<NamedTags.layout, LiquidE
 /** https://shopify.dev/docs/api/liquid/tags#liquid */
 export interface LiquidTagLiquid extends LiquidTagNode<NamedTags.liquid, LiquidStatement[]> {}
 
-/** {% content_for 'contentForType' [...namedArguments] %} */
+/** {% content_for 'name' %}...{% endcontent_for %} */
 export interface ContentForMarkup extends ASTNode<NodeTypes.ContentForMarkup> {
-  /** {% content_for 'contentForType' %} */
   contentForType: LiquidString;
-  /**
-   * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
-   * because the NamedArgument isn't fully typed out.
-   * E.g. {% content_for 'contentForType', arg1: value1, arg2█ %}
-   *
-   * @example {% content_for 'contentForType', arg1: value1, arg2: value2 %}
-   */
-  args: LiquidNamedArgument[];
 }
 
 /** {% render 'partial' [(with|for) variable [as alias]], [...namedArguments] %} */
@@ -548,39 +533,59 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
 }
 
 // platformos tag interfaces
-export interface LiquidTagBackground
-  extends LiquidTagNode<NamedTags.background, BackgroundMarkup | BackgroundInlineMarkup> {}
+export interface LiquidTagBackground extends LiquidTagNode<
+  NamedTags.background,
+  BackgroundMarkup | BackgroundInlineMarkup
+> {}
 export interface LiquidTagCache extends LiquidTagNode<NamedTags.cache, CacheMarkup> {}
 export interface LiquidTagContext extends LiquidTagNode<NamedTags.context, LiquidNamedArgument[]> {}
 export interface LiquidTagExport extends LiquidTagNode<NamedTags.export, ExportMarkup> {}
-export interface LiquidTagIncludeForm
-  extends LiquidTagNode<NamedTags.include_form, IncludeFormMarkup> {}
+export interface LiquidTagIncludeForm extends LiquidTagNode<
+  NamedTags.include_form,
+  IncludeFormMarkup
+> {}
 export interface LiquidTagLog extends LiquidTagNode<NamedTags.log, LogMarkup> {}
-export interface LiquidTagParseJson
-  extends LiquidTagNode<NamedTags.parse_json, LiquidVariableLookup> {}
+export interface LiquidTagParseJson extends LiquidTagNode<
+  NamedTags.parse_json,
+  LiquidVariableLookup
+> {}
 export interface LiquidTagPrint extends LiquidTagNode<NamedTags.print, LiquidVariable> {}
-export interface LiquidTagRedirectTo
-  extends LiquidTagNode<NamedTags.redirect_to, RedirectToMarkup> {}
-export interface LiquidTagResponseHeaders
-  extends LiquidTagNode<NamedTags.response_headers, LiquidExpression> {}
-export interface LiquidTagResponseStatus
-  extends LiquidTagNode<NamedTags.response_status, LiquidNumber> {}
+export interface LiquidTagRedirectTo extends LiquidTagNode<
+  NamedTags.redirect_to,
+  RedirectToMarkup
+> {}
+export interface LiquidTagResponseHeaders extends LiquidTagNode<
+  NamedTags.response_headers,
+  LiquidExpression
+> {}
+export interface LiquidTagResponseStatus extends LiquidTagNode<
+  NamedTags.response_status,
+  LiquidNumber
+> {}
 export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable> {}
 export interface LiquidTagRollback extends LiquidTagNode<NamedTags.rollback, string> {}
 export interface LiquidTagSession extends LiquidTagNode<NamedTags.session, SessionMarkup> {}
 export interface LiquidTagSignIn extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
-export interface LiquidTagSpamProtection
-  extends LiquidTagNode<NamedTags.spam_protection, SpamProtectionMarkup> {}
-export interface LiquidTagThemeRenderRc
-  extends LiquidTagNode<NamedTags.theme_render_rc, RenderMarkup> {}
-export interface LiquidTagTransaction
-  extends LiquidTagNode<NamedTags.transaction, LiquidNamedArgument[]> {}
+export interface LiquidTagSpamProtection extends LiquidTagNode<
+  NamedTags.spam_protection,
+  SpamProtectionMarkup
+> {}
+export interface LiquidTagThemeRenderRc extends LiquidTagNode<
+  NamedTags.theme_render_rc,
+  RenderMarkup
+> {}
+export interface LiquidTagTransaction extends LiquidTagNode<
+  NamedTags.transaction,
+  LiquidNamedArgument[]
+> {}
 export interface LiquidTagTry extends LiquidTagNode<NamedTags.try, string> {}
 export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, LiquidExpression> {}
 
 // platformos branch interface
-export interface LiquidBranchCatch
-  extends LiquidBranchNode<NamedTags.catch, LiquidVariableLookup> {}
+export interface LiquidBranchCatch extends LiquidBranchNode<
+  NamedTags.catch,
+  LiquidVariableLookup
+> {}
 
 // platformos markup interfaces
 /** {% background job_id = 'partial', [...namedArguments] %} (file-based) */
@@ -1795,6 +1800,7 @@ function toNamedLiquidTag(
         ...liquidTagBaseAttributes(node),
         name: node.name,
         markup: toContentForMarkup(node.markup),
+        children: [],
       };
     }
 
@@ -1832,15 +1838,7 @@ function toNamedLiquidTag(
       };
     }
 
-    case NamedTags.layout:
-    case NamedTags.section: {
-      return {
-        ...liquidTagBaseAttributes(node),
-        name: node.name,
-        markup: toExpression(node.markup) as LiquidString,
-      };
-    }
-    case NamedTags.sections: {
+    case NamedTags.layout: {
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
@@ -1863,15 +1861,6 @@ function toNamedLiquidTag(
         ...liquidTagBaseAttributes(node),
         name: node.name,
         markup: toForMarkup(node.markup),
-        children: [],
-      };
-    }
-
-    case NamedTags.paginate: {
-      return {
-        ...liquidTagBaseAttributes(node),
-        name: node.name,
-        markup: toPaginateMarkup(node.markup),
         children: [],
       };
     }
@@ -2169,17 +2158,6 @@ function toForMarkup(node: ConcreteLiquidTagForMarkup): ForMarkup {
   };
 }
 
-function toPaginateMarkup(node: ConcretePaginateMarkup): PaginateMarkup {
-  return {
-    type: NodeTypes.PaginateMarkup,
-    collection: toExpression(node.collection),
-    pageSize: toExpression(node.pageSize),
-    position: position(node),
-    args: node.args ? node.args.map(toNamedArgument) : [],
-    source: node.source,
-  };
-}
-
 function toRawMarkup(
   node: ConcreteHtmlRawTag | ConcreteLiquidRawTag,
   options: ASTBuildOptions,
@@ -2263,36 +2241,14 @@ function toRawMarkupKindFromHtmlNode(node: ConcreteHtmlRawTag): RawMarkupKinds {
   }
 }
 
-function toRawMarkupKindFromLiquidNode(node: ConcreteLiquidRawTag): RawMarkupKinds {
-  switch (node.name) {
-    case 'javascript':
-      return RawMarkupKinds.javascript;
-    case 'stylesheet':
-    case 'style':
-      if (liquidToken.test(node.body)) {
-        return RawMarkupKinds.text;
-      }
-      return RawMarkupKinds.css;
-    case 'schema':
-      return RawMarkupKinds.json;
-    default:
-      return RawMarkupKinds.text;
-  }
+function toRawMarkupKindFromLiquidNode(_node: ConcreteLiquidRawTag): RawMarkupKinds {
+  return RawMarkupKinds.text;
 }
 
 function toContentForMarkup(node: ConcreteLiquidTagContentForMarkup): ContentForMarkup {
   return {
     type: NodeTypes.ContentForMarkup,
     contentForType: toExpression(node.contentForType) as LiquidString,
-    /**
-     * When we're in completion mode we won't necessarily have valid named
-     * arguments so we need to call toLiquidArgument instead of toNamedArgument.
-     * We cast using `as` so that this doesn't affect the type system used in
-     * other areas (like theme check) for a scenario that only occurs in
-     * completion mode. This means that our types are *wrong* in completion mode
-     * but this is the compromise we're making to get completions to work.
-     */
-    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,
   };

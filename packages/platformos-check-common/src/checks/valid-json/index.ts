@@ -9,7 +9,7 @@ export const ValidJSON: JSONCheckDefinition = {
       description:
         'This check exists to prevent invalid JSON files in themes. Will check against schema if available.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/json-syntax-error',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/json-syntax-error',
     },
     type: SourceCodeType.JSON,
     severity: Severity.ERROR,

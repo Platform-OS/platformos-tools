@@ -3,7 +3,6 @@ import { DefinitionLink, DefinitionParams } from 'vscode-languageserver';
 
 import { AugmentedJsonSourceCode, DocumentManager } from '../documents';
 import { BaseDefinitionProvider } from './BaseDefinitionProvider';
-import { SchemaTranslationStringDefinitionProvider } from './providers/SchemaTranslationStringDefinitionProvider';
 import { TranslationStringDefinitionProvider } from './providers/TranslationStringDefinitionProvider';
 
 export class DefinitionProvider {
@@ -12,14 +11,9 @@ export class DefinitionProvider {
   constructor(
     private documentManager: DocumentManager,
     getDefaultLocaleSourceCode: (uri: string) => Promise<AugmentedJsonSourceCode | null>,
-    getDefaultSchemaLocaleSourceCode: (uri: string) => Promise<AugmentedJsonSourceCode | null>,
   ) {
     this.providers = [
       new TranslationStringDefinitionProvider(documentManager, getDefaultLocaleSourceCode),
-      new SchemaTranslationStringDefinitionProvider(
-        documentManager,
-        getDefaultSchemaLocaleSourceCode,
-      ),
     ];
   }
 

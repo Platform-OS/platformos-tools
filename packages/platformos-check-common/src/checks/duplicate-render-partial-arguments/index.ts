@@ -11,7 +11,7 @@ export const DuplicateRenderPartialArguments: LiquidCheckDefinition = {
       description:
         'This check ensures that no duplicate argument names are provided when rendering a partial.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/duplicate-render-partial-arguments',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/duplicate-render-partial-arguments',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,

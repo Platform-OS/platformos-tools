@@ -1,4 +1,4 @@
-import { FixApplicator, Offense, SourceCodeType, Theme } from '../types';
+import { FixApplicator, Offense, SourceCodeType, App } from '../types';
 import { WithRequired } from '../utils/types';
 import { createCorrector } from './correctors';
 import { flattenFixes } from './utils';
@@ -8,13 +8,13 @@ type FixableOffense<S extends SourceCodeType> = S extends SourceCodeType
   : never;
 
 /**
- * Takes a theme, list of offenses and a fixApplicator and runs all the
- * safe ones on the theme.
+ * Takes an app, list of offenses and a fixApplicator and runs all the
+ * safe ones on the app.
  *
  * Note that offense.fix is assumed to be safe, unlike offense.suggest
  * options.
  */
-export async function autofix(sourceCodes: Theme, offenses: Offense[], applyFixes: FixApplicator) {
+export async function autofix(sourceCodes: App, offenses: Offense[], applyFixes: FixApplicator) {
   const fixableOffenses = offenses.filter(
     (offense): offense is FixableOffense<SourceCodeType> => 'fix' in offense && !!offense.fix,
   );

@@ -1,13 +1,10 @@
-import { AugmentedThemeDocset } from './AugmentedThemeDocset';
+import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
 import { JSONValidator } from './JSONValidator';
 import {
   makeFileExists,
   makeFileSize,
   makeGetDefaultLocale,
-  makeGetDefaultSchemaLocale,
-  makeGetDefaultSchemaTranslations,
   makeGetDefaultTranslations,
-  makeGetMetafieldDefinitions,
 } from './context-utils';
 import { createDisabledChecksModule } from './disabled-checks';
 import { isIgnored } from './ignore';
@@ -35,13 +32,16 @@ import {
   Settings,
   SourceCode,
   SourceCodeType,
-  Theme,
+  App,
   ValidateJSON,
+  YAMLCheck,
+  YAMLSourceCode,
 } from './types';
 import { getPosition } from './utils';
 import { visitJSON, visitLiquid } from './visitors';
 
-export * from './AugmentedThemeDocset';
+export * from './AugmentedPlatformOSDocset';
+export * from './types/platformos-liquid-docs';
 export * from './checks';
 export * from './context-utils';
 export * from './find-root';
@@ -50,7 +50,6 @@ export * from './ignore';
 export * from './json';
 export * from './JSONValidator';
 export * as path from './path';
-export * from './to-schema';
 export * from './to-source-code';
 export * from './types';
 export * from './utils/error';
@@ -60,7 +59,6 @@ export * from './utils/types';
 export * from './utils/object';
 export * from './visitor';
 export * from './liquid-doc/liquidDoc';
-export { getBlockName } from './liquid-doc/arguments';
 export * from './liquid-doc/utils';
 
 const defaultErrorHandler = (_error: Error): void => {
@@ -68,7 +66,7 @@ const defaultErrorHandler = (_error: Error): void => {
 };
 
 export async function check(
-  theme: Theme,
+  app: App,
   config: Config,
   injectedDependencies: Dependencies,
 ): Promise<Offense[]> {
@@ -78,15 +76,10 @@ export async function check(
   const { rootUri } = config;
   const dependencies: AugmentedDependencies = {
     ...injectedDependencies,
-    mode: config.context,
     fileExists: makeFileExists(fs),
     fileSize: makeFileSize(fs),
     getDefaultLocale: makeGetDefaultLocale(fs, rootUri),
-    getDefaultTranslations: makeGetDefaultTranslations(fs, theme, rootUri),
-    getDefaultSchemaLocale: makeGetDefaultSchemaLocale(fs, rootUri),
-    getDefaultSchemaTranslations: makeGetDefaultSchemaTranslations(fs, theme, rootUri),
-    getMetafieldDefinitions:
-      injectedDependencies.getMetafieldDefinitions ?? makeGetMetafieldDefinitions(fs),
+    getDefaultTranslations: makeGetDefaultTranslations(fs, app, rootUri),
   };
 
   const { DisabledChecksVisitor, isDisabled } = createDisabledChecksModule();
@@ -94,14 +87,14 @@ export async function check(
   const validateJSON = jsonValidator?.validate;
 
   // We're memozing those deps here because they shouldn't change within a run.
-  if (dependencies.themeDocset && !dependencies.themeDocset.isAugmented) {
-    dependencies.themeDocset = new AugmentedThemeDocset(dependencies.themeDocset);
+  if (dependencies.platformosDocset && !dependencies.platformosDocset.isAugmented) {
+    dependencies.platformosDocset = new AugmentedPlatformOSDocset(dependencies.platformosDocset);
   }
 
   for (const type of Object.values(SourceCodeType)) {
     switch (type) {
       case SourceCodeType.JSON: {
-        const files = filesOfType(type, theme);
+        const files = filesOfType(type, app);
         const checkDefs = checksOfType(type, config.checks);
         for (const file of files) {
           for (const checkDef of checkDefs) {
@@ -113,7 +106,7 @@ export async function check(
         break;
       }
       case SourceCodeType.GraphQL: {
-        const files = filesOfType(type, theme);
+        const files = filesOfType(type, app);
         const checkDefs = checksOfType(type, config.checks);
         for (const file of files) {
           for (const checkDef of checkDefs) {
@@ -125,13 +118,25 @@ export async function check(
         break;
       }
       case SourceCodeType.LiquidHtml: {
-        const files = filesOfType(type, theme);
+        const files = filesOfType(type, app);
         const checkDefs = [DisabledChecksVisitor, ...checksOfType(type, config.checks)];
         for (const file of files) {
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
             const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
             pipelines.push(checkLiquidFile(check, file));
+          }
+        }
+        break;
+      }
+      case SourceCodeType.YAML: {
+        const files = filesOfType(type, app);
+        const checkDefs = checksOfType(type, config.checks);
+        for (const file of files) {
+          for (const checkDef of checkDefs) {
+            if (isIgnored(file.uri, config, checkDef)) continue;
+            const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
+            pipelines.push(checkYAMLFile(check, file));
           }
         }
         break;
@@ -210,7 +215,7 @@ function createCheck<S extends SourceCodeType>(
   return check.create(context as any) as Check<S>;
 }
 
-function filesOfType<S extends SourceCodeType>(type: S, sourceCodes: Theme): SourceCode<S>[] {
+function filesOfType<S extends SourceCodeType>(type: S, sourceCodes: App): SourceCode<S>[] {
   return sourceCodes.filter((file): file is SourceCode<S> => file.type === type);
 }
 
@@ -231,4 +236,11 @@ async function checkLiquidFile(check: LiquidCheck, file: LiquidSourceCode): Prom
   if (file.ast instanceof Error) return;
   if (Object.keys(check).length > 0) await visitLiquid(file.ast, check);
   if (check.onCodePathEnd) await check.onCodePathEnd(file as typeof file & { ast: LiquidHtmlNode });
+}
+
+async function checkYAMLFile(check: YAMLCheck, file: YAMLSourceCode): Promise<void> {
+  if (check.onCodePathStart) await check.onCodePathStart(file);
+  if (file.ast instanceof Error) return;
+  if (Object.keys(check).length > 0) await visitJSON(file.ast, check as any);
+  if (check.onCodePathEnd) await check.onCodePathEnd(file as typeof file & { ast: JSONNode });
 }

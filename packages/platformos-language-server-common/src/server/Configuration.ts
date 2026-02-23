@@ -7,11 +7,11 @@ import {
 } from 'vscode-languageserver';
 import { ClientCapabilities } from '../ClientCapabilities';
 
-export const CHECK_ON_OPEN = 'themeCheck.checkOnOpen' as const;
-export const CHECK_ON_SAVE = 'themeCheck.checkOnSave' as const;
-export const CHECK_ON_CHANGE = 'themeCheck.checkOnChange' as const;
-export const PRELOAD_ON_BOOT = 'themeCheck.preloadOnBoot' as const;
-export const INCLUDE_FILES_FROM_DISK = 'themeCheck.includeFilesFromDisk' as const;
+export const CHECK_ON_OPEN = 'platformosCheck.checkOnOpen' as const;
+export const CHECK_ON_SAVE = 'platformosCheck.checkOnSave' as const;
+export const CHECK_ON_CHANGE = 'platformosCheck.checkOnChange' as const;
+export const PRELOAD_ON_BOOT = 'platformosCheck.preloadOnBoot' as const;
+export const INCLUDE_FILES_FROM_DISK = 'platformosCheck.includeFilesFromDisk' as const;
 export const ConfigurationKeys = [
   CHECK_ON_OPEN,
   CHECK_ON_SAVE,
@@ -26,7 +26,10 @@ export class Configuration {
   [PRELOAD_ON_BOOT]: boolean = true;
   [INCLUDE_FILES_FROM_DISK]: boolean = false;
 
-  constructor(private connection: Connection, private capabilities: ClientCapabilities) {
+  constructor(
+    private connection: Connection,
+    private capabilities: ClientCapabilities,
+  ) {
     this.connection = connection;
     this.capabilities = capabilities;
   }

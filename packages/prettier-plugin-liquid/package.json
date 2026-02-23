@@ -1,6 +1,6 @@
 {
   "name": "@platformos/prettier-plugin-liquid",
-  "version": "0.0.4",
+  "version": "0.0.7",
   "description": "Prettier Liquid/HTML plugin for platformOS",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/prettier-plugin-liquid#readme",
@@ -51,15 +51,16 @@
   },
   "devDependencies": {
     "@types/prettier": "^2.4.2",
-    "cross-env": "^7.0.3",
-    "module-alias": "^2.2.3",
+    "prettier": "npm:prettier@^2.6.1",
+    "cross-env": "^10.1.0",
+    "module-alias": "^2.3.4",
     "prettier2": "npm:prettier@^2.6.1",
     "prettier3": "npm:prettier@^3.0.0",
     "source-map-support": "^0.5.21",
-    "tsconfig-paths": "^3.14.1"
+    "tsconfig-paths": "^4.2.0"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^0.0.4",
+    "@platformos/liquid-html-parser": "^0.0.7",
     "html-styles": "^1.0.0"
   }
 }

@@ -15,14 +15,12 @@ declare global {
   export const WEBPACK_TAGS: any[];
   export const WEBPACK_FILTERS: any[];
   export const WEBPACK_OBJECTS: any[];
-  export const WEBPACK_SYSTEM_TRANSLATIONS: any;
   export const WEBPACK_SCHEMAS: any;
 }
 
 const tags = WEBPACK_TAGS;
 const filters = WEBPACK_FILTERS;
 const objects = WEBPACK_OBJECTS;
-const systemTranslations = WEBPACK_SYSTEM_TRANSLATIONS;
 const schemas = WEBPACK_SCHEMAS;
 
 const worker = self as any as Worker;
@@ -35,23 +33,21 @@ const dependencies: Dependencies = {
     const fileExists = makeFileExists(fs);
     const rootUri = await findRoot(uri, fileExists);
     if (!rootUri) {
-      throw new Error(`Could not find theme root for ${uri}`);
+      throw new Error(`Could not find app root for ${uri}`);
     }
 
     return {
-      context: 'theme',
       settings: {},
       checks: recommendedChecks,
       rootUri,
     };
   },
-  themeDocset: {
+  platformosDocset: {
     graphQL: async () => null,
     filters: async () => filters,
     objects: async () => objects,
     liquidDrops: async () => objects,
     tags: async () => tags,
-    systemTranslations: async () => systemTranslations,
   },
   jsonValidationSet: {
     schemas: async () => schemas,

@@ -17,7 +17,7 @@ import {
   setupContext,
   watchReferencesTreeViewConfig,
 } from '../common/ReferencesProvider';
-import { makeDeadCode, openLocation } from '../common/commands';
+import { openLocation } from '../common/commands';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -43,7 +43,6 @@ export async function activate(context: ExtensionContext) {
   if (client) {
     setupContext();
     context.subscriptions.push(
-      commands.registerCommand('platformosLiquid.deadCode', makeDeadCode(client)),
       createReferencesTreeView('platformos.graph.references', context, client, 'references'),
       createReferencesTreeView('platformos.graph.dependencies', context, client, 'dependencies'),
       watchReferencesTreeViewConfig(),
@@ -71,7 +70,7 @@ async function startServer(context: ExtensionContext) {
 
   client = new LanguageClient(
     'platformosLiquid',
-    'Theme Check Language Server',
+    'App Check Language Server',
     serverOptions,
     clientOptions,
   );

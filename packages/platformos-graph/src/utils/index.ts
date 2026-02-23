@@ -1,6 +1,5 @@
 import { UriString } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
-import { AugmentedDependencies } from '../types';
 
 export function unique<T>(array: T[]): T[] {
   return [...new Set(array)];
@@ -8,10 +7,6 @@ export function unique<T>(array: T[]): T[] {
 
 export function assertNever(module: never) {
   throw new Error(`Unknown module type ${module}`);
-}
-
-export function unexpected(): Error {
-  return new Error('Unexpected code path encountered');
 }
 
 export const identity = <T>(x: T): T => x;
@@ -29,23 +24,4 @@ export async function exists(fs: AbstractFileSystem, uri: UriString): Promise<bo
     .stat(uri)
     .then(() => true)
     .catch(() => false);
-}
-
-export async function acceptsLocalBlocks(
-  sectionType: string,
-  deps: AugmentedDependencies,
-): Promise<boolean | Error> {
-  const sectionSchema = await deps.getSectionSchema(sectionType).catch((_) => undefined);
-  if (!sectionSchema) {
-    return new Error('Section does not exist');
-  }
-
-  const validSchema = sectionSchema.validSchema;
-  if (validSchema instanceof Error) {
-    return validSchema;
-  }
-
-  return (validSchema.blocks ?? []).some((block) => {
-    return block.type && 'name' in block && block.name;
-  });
 }

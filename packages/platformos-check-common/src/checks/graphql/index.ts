@@ -35,7 +35,7 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
 
   create(context) {
     const validateContent = async (content: string) => {
-      const graphQLSchemaString = await context.themeDocset?.graphQL();
+      const graphQLSchemaString = await context.platformosDocset?.graphQL();
       if (!graphQLSchemaString) {
         return;
       }

@@ -1,12 +1,18 @@
-import {
-  SourceCodeType,
-  SourceCode,
-  SectionSchema,
-  ThemeBlockSchema,
-  AppBlockSchema,
-} from '@platformos/platformos-check-common';
+import { SourceCodeType, SourceCode } from '@platformos/platformos-check-common';
+import { JSONNode } from '@platformos/platformos-check-common';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DocDefinition } from '@platformos/platformos-check-common';
+
+/**
+ * Reserved for future use. platformOS does not use `{% schema %}` blocks,
+ * so `getSchema()` always returns `undefined`.
+ */
+export interface SchemaObject {
+  parsed: any;
+  validSchema?: unknown;
+  ast: JSONNode | Error;
+  offset: number;
+}
 
 /** Util type to add the common `textDocument` property to the SourceCode. */
 type _AugmentedSourceCode<SCT extends SourceCodeType = SourceCodeType> = SourceCode<SCT> & {
@@ -25,7 +31,7 @@ export type AugmentedGraphQLSourceCode = _AugmentedSourceCode<SourceCodeType.Gra
  * about cache invalidation and will mean we'll parse the schema at most once.
  */
 export type AugmentedLiquidSourceCode = _AugmentedSourceCode<SourceCodeType.LiquidHtml> & {
-  getSchema: () => Promise<SectionSchema | ThemeBlockSchema | AppBlockSchema | undefined>;
+  getSchema: () => Promise<SchemaObject | undefined>;
   getLiquidDoc: () => Promise<DocDefinition | undefined>;
 };
 
@@ -39,10 +45,13 @@ export type AugmentedLiquidSourceCode = _AugmentedSourceCode<SourceCodeType.Liqu
  * AugmentedSourceCode<SourceCodeType.JSON> -> AugmentedJsonSourceCode
  * AugmentedSourceCode<SourceCodeType.LiquidHtml> -> AugmentedLiquidSourceCode
  */
+export type AugmentedYAMLSourceCode = _AugmentedSourceCode<SourceCodeType.YAML>;
+
 export type AugmentedSourceCode<SCT extends SourceCodeType = SourceCodeType> = {
   [SourceCodeType.JSON]: AugmentedJsonSourceCode;
   [SourceCodeType.LiquidHtml]: AugmentedLiquidSourceCode;
   [SourceCodeType.GraphQL]: AugmentedGraphQLSourceCode;
+  [SourceCodeType.YAML]: AugmentedYAMLSourceCode;
 }[SCT];
 
 export const isLiquidSourceCode = (file: AugmentedSourceCode): file is AugmentedLiquidSourceCode =>
@@ -51,5 +60,5 @@ export const isLiquidSourceCode = (file: AugmentedSourceCode): file is Augmented
 export const isJsonSourceCode = (file: AugmentedSourceCode): file is AugmentedJsonSourceCode =>
   file.type === SourceCodeType.JSON;
 
-export const isGraphQLSourceceCode = (file: AugmentedSourceCode): file is AugmentedJsonSourceCode =>
+export const isGraphQLSourceCode = (file: AugmentedSourceCode): file is AugmentedJsonSourceCode =>
   file.type === SourceCodeType.GraphQL;

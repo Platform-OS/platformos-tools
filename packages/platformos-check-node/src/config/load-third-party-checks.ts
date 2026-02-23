@@ -1,9 +1,6 @@
 import { CheckDefinition, SourceCodeType } from '@platformos/platformos-check-common';
-import glob from 'glob';
-import { promisify } from 'node:util';
+import { glob } from 'glob';
 import { AbsolutePath } from '../temp';
-
-const asyncGlob = promisify(glob);
 
 type ModulePath = string;
 
@@ -12,7 +9,7 @@ export function loadThirdPartyChecks(
    * An array of require()-able paths.
    * @example
    * [
-   *   '@acme/theme-check-extension',
+   *   '@acme/platformos-check-extension',
    *   '/absolute/path/to/checks.js',
    *   './lib/checks.js',
    * ]
@@ -46,16 +43,16 @@ export function loadThirdPartyChecks(
 
 export async function findThirdPartyChecks(nodeModuleRoot: AbsolutePath): Promise<ModulePath[]> {
   const paths = [
-    globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/theme-check-*/'),
-    globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/@*/theme-check-*/'),
+    globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/platformos-check-*/'),
+    globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/@*/platformos-check-*/'),
   ];
-  const results = await Promise.all(paths.map((path) => asyncGlob(path)));
+  const results = await Promise.all(paths.map((path) => glob(path)));
   return results
     .flat()
     .filter(
       (x) =>
-        !/\@shopify\/theme-check-(node|common|browser|docs-updater)/.test(x) &&
-        !/theme-check-vscode/.test(x),
+        !/\@platformos\/platformos-check-(node|common|browser|docs-updater)/.test(x) &&
+        !/platformos-check-vscode/.test(x),
     );
 }
 

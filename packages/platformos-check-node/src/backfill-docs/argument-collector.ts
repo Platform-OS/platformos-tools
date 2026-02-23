@@ -5,7 +5,7 @@ import {
   LiquidNamedArgument,
 } from '@platformos/liquid-html-parser';
 import {
-  Theme,
+  App,
   SourceCodeType,
   visit,
   BasicParamTypes,
@@ -82,7 +82,7 @@ function parseUsageKey(key: string): { partialPath: string; tagType: TagType } {
  * Collect all partial usages from a theme by visiting function, render, and include tags.
  */
 export async function collectPartialUsages(
-  theme: Theme,
+  theme: App,
   verbose: boolean = false,
   log: (message: string) => void = console.log,
 ): Promise<Map<string, PartialUsage>> {

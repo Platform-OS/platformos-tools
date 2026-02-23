@@ -12,53 +12,48 @@ import { MarkedString, MarkupContent } from 'vscode-languageserver-protocol';
 
 const md = new MarkdownIt();
 
-const exampleTemplate = `{% # sections/title.liquid %}
+const exampleTemplate = `{% # app/views/partials/header.liquid %}
 {% # mod-alt-v for vim mode %}
-<section>
-  <h2>{{ section.settings.title }}</h2>
-  {% echo 'hi' | upcase %}
-</section>
-
-{% schema %}
-{
-  "name": "t:sections.title.name",
-  "limit": 1,
-  "settings": [
-    {
-      "type": "text",
-      "id": "title",
-      "label": "t:sections.title.settings.title.label"
-    }
-  ]
-}
-{% endschema %}
+{% doc %}
+  @param {string} title - The page title
+  @param {boolean} [show_nav] - Whether to show the navigation
+{% enddoc %}
+<header>
+  <h1>{{ title }}</h1>
+  <p>{{ 'header.welcome' | t }}</p>
+  {% if context.current_user %}
+    <span>{{ 'header.greeting' | t: name: context.current_user.name }}</span>
+    <a href="/logout">{{ 'header.logout' | t }}</a>
+  {% endif %}
+  {% if show_nav %}
+    {% render 'nav' %}
+  {% endif %}
+</header>
 `;
 
 const exampleTranslations = {
-  product: {
-    price_html: '<b>{{ price }}$</b>',
-    size: 'Size',
-    count: {
-      one: '{{ count }} item',
-      other: '{{ count }} items',
-    },
+  header: {
+    welcome: 'Welcome to our platform',
+    greeting: 'Hello, {{ name }}!',
+    logout: 'Log out',
   },
-  footer: {
-    subscribe: 'Subscribe to our newsletter',
+  navigation: {
+    home: 'Home',
+    about: 'About',
   },
 };
 
-const exampleSchemaTranslations = {
-  sections: {
-    title: {
-      name: 'Title section name',
-      settings: { title: { label: 'Title section title setting' } },
-    },
-    other: {
-      name: 'Other section name',
-    },
-  },
-};
+const exampleNavPartial = `{% # app/views/partials/nav.liquid %}
+<nav>
+  <ul>
+    <li><a href="/">{{ 'navigation.home' | t }}</a></li>
+    <li><a href="/about">{{ 'navigation.about' | t }}</a></li>
+    {% for item in context.models %}
+      <li><a href="{{ item.url }}">{{ item.title }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+`;
 
 function asMarkdown(content: MarkupContent | MarkedString[] | MarkedString): string {
   if (Array.isArray(content)) {
@@ -90,7 +85,7 @@ async function main() {
     worker,
     {
       initializationOptions: {
-        'themeCheck.preloadOnBoot': false,
+        'platformosCheck.preloadOnBoot': false,
       },
     },
     {
@@ -123,16 +118,12 @@ async function main() {
 
   client.client.onRequest('fs/readFile' as any, ([uri]: string) => {
     switch (uri) {
-      case 'browser:/sections/section.liquid':
+      case 'browser:/app/views/partials/header.liquid':
         return exampleTemplate;
-      case 'browser:/locales/en.default.json':
+      case 'browser:/app/views/partials/nav.liquid':
+        return exampleNavPartial;
+      case 'browser:/app/translations/en.default.json':
         return JSON.stringify(exampleTranslations, null, 2);
-      case 'browser:/locales/en.default.schema.json':
-        return JSON.stringify(exampleSchemaTranslations, null, 2);
-      case 'browser:/snippets/article-card.liquid':
-      case 'browser:/snippets/product-card.liquid':
-      case 'browser:/snippets/product.liquid':
-        return '';
       default:
         throw new Error(`File does not exist ${uri}`);
     }
@@ -140,13 +131,10 @@ async function main() {
 
   client.client.onRequest('fs/stat' as any, ([uri]: string) => {
     switch (uri) {
-      case 'browser:/.theme-check.yml':
-      case 'browser:/locales/en.default.json':
-      case 'browser:/locales/en.schema.default.json':
-      case 'browser:/sections/section.liquid':
-      case 'browser:/snippets/article-card.liquid':
-      case 'browser:/snippets/product-card.liquid':
-      case 'browser:/snippets/product.liquid':
+      case 'browser:/.platformos-check.yml':
+      case 'browser:/app/translations/en.default.json':
+      case 'browser:/app/views/partials/header.liquid':
+      case 'browser:/app/views/partials/nav.liquid':
         return { fileType: 1, size: 1 };
       default:
         throw new Error(`File does not exist: ${uri}`);
@@ -157,26 +145,26 @@ async function main() {
     switch (uri) {
       case 'browser:/': {
         return [
-          ['browser:/sections', 2],
-          ['browser:/snippets', 2],
-          ['browser:/locales', 2],
-          ['browser:/.theme-check.yml', 1],
+          ['browser:/app', 2],
+          ['browser:/.platformos-check.yml', 1],
         ];
       }
-      case 'browser:/sections': {
-        return [['browser:/sections/section.liquid', 1]];
-      }
-      case 'browser:/snippets': {
+      case 'browser:/app': {
         return [
-          ['browser:/snippets/article-card.liquid', 1],
-          ['browser:/snippets/product-card.liquid', 1],
-          ['browser:/snippets/product.liquid', 1],
+          ['browser:/app/views', 2],
+          ['browser:/app/translations', 2],
         ];
       }
-      case 'browser:/locales': {
+      case 'browser:/app/translations': {
+        return [['browser:/app/translations/en.default.json', 1]];
+      }
+      case 'browser:/app/views': {
+        return [['browser:/app/views/partials', 2]];
+      }
+      case 'browser:/app/views/partials': {
         return [
-          ['browser:/locales/en.default.json', 1],
-          ['browser:/locales/en.default.schema.json', 1],
+          ['browser:/app/views/partials/header.liquid', 1],
+          ['browser:/app/views/partials/nav.liquid', 1],
         ];
       }
       default: {
@@ -191,7 +179,7 @@ async function main() {
       {
         key: 'Mod-Alt-v',
         run: () => {
-          [liquidEditor, themeTranslationsEditor, schemaTranslationEditor].forEach((view) => {
+          [liquidEditor, translationsEditor, navPartialEditor].forEach((view) => {
             view.dispatch({
               effects: vimCompartment.reconfigure([vimEnabled ? [] : vim({ status: true })]),
             });
@@ -212,13 +200,13 @@ async function main() {
         // liquid(),
         // liquidHighLightStyle,
         // oneDark,
-        client.extension('browser:/sections/section.liquid'),
+        client.extension('browser:/app/views/partials/header.liquid'),
       ],
     }),
     parent: document.getElementById('liquid-editor')!,
   });
 
-  const themeTranslationsEditor = new EditorView({
+  const translationsEditor = new EditorView({
     state: EditorState.create({
       doc: JSON.stringify(exampleTranslations, null, 2),
       extensions: [
@@ -226,25 +214,25 @@ async function main() {
         basicSetup,
         jsonc(),
         // oneDark,
-        client.extension('browser:/locales/en.default.json'),
+        client.extension('browser:/app/translations/en.default.json'),
       ],
     }),
-    parent: document.getElementById('theme-translations-editor')!,
+    parent: document.getElementById('translations-editor')!,
   });
 
-  const schemaTranslationEditor = new EditorView({
+  const navPartialEditor = new EditorView({
     state: EditorState.create({
-      doc: JSON.stringify(exampleSchemaTranslations, null, 2),
+      doc: exampleNavPartial,
       extensions: [
         vimConfig,
         basicSetup,
         jsonc(),
         // liquidHighLightStyle,
         // oneDark,
-        client.extension('browser:/locales/en.default.schema.json'),
+        client.extension('browser:/app/views/partials/nav.liquid'),
       ],
     }),
-    parent: document.getElementById('schema-translations-editor')!,
+    parent: document.getElementById('nav-partial-editor')!,
   });
 }
 

@@ -12,4 +12,5 @@ export const documentSelectors: DocumentSelector = [
   { language: 'graphql', pattern: '**/*.graphql' },
   { language: 'json', pattern: '**/{config,locales,sections,templates}/**/*.json' },
   { language: 'jsonc', pattern: '**/{config,locales,sections,templates}/**/*.json' },
+  { language: 'css', pattern: '**/assets/**/*.css' },
 ];

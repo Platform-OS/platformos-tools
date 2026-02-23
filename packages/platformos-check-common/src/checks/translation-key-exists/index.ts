@@ -25,7 +25,7 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
     docs: {
       description: 'Reports missing translation keys',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/translation-key-exists',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/translation-key-exists',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

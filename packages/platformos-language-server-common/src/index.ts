@@ -11,13 +11,10 @@ export * from './types';
 export { visit } from '@platformos/platformos-check-common';
 export {
   Reference,
-  ThemeGraph,
+  AppGraph,
   SerializableEdge,
   SerializableNode,
-  ThemeModule,
-  CssModule,
-  JsonModule,
-  JavaScriptModule,
+  AppModule,
   LiquidModule,
 } from '@platformos/platformos-graph';
 export { debounce, memo, parseJSON, ArgumentTypes } from './utils';

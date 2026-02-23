@@ -1,4 +1,3 @@
-import * as mktemp from 'mktemp';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,7 +16,7 @@ export async function removeTmpFolder(tempDir: string) {
 export async function createMockConfigFile(
   tempDir: string,
   contents: string = 'dummy content',
-  relativePath: string = '.theme-check.yml',
+  relativePath: string = '.platformos-check.yml',
 ): Promise<string> {
   const filePath = path.join(tempDir, relativePath);
   await fs.writeFile(filePath, contents, 'utf8');
@@ -75,7 +74,7 @@ export interface Workspace {
 }
 
 export async function makeTempWorkspace(structure: Tree): Promise<Workspace> {
-  const root = await mktemp.createDir(path.join(__dirname, '..', '.XXXXX'));
+  const root = await fs.mkdtemp(path.join(__dirname, '..', '.'));
   if (!root) throw new Error('Could not create temp dir for temp workspace');
 
   await createFiles(structure, [root]);

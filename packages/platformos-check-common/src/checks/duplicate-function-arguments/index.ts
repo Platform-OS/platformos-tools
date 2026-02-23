@@ -11,7 +11,7 @@ export const DuplicateFunctionArguments: LiquidCheckDefinition = {
       description:
         'This check ensures that no duplicate argument names are provided when invoking partial as a function.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/duplicate-function-arguments',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/duplicate-function-arguments',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,

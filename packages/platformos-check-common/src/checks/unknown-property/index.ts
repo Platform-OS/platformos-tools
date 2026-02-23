@@ -56,7 +56,7 @@ export const UnknownProperty: LiquidCheckDefinition = {
     let graphqlSchema: string | undefined;
     const getGraphQLSchema = async (): Promise<string | undefined> => {
       if (graphqlSchema === undefined) {
-        graphqlSchema = (await context.themeDocset?.graphQL()) ?? undefined;
+        graphqlSchema = (await context.platformosDocset?.graphQL()) ?? undefined;
       }
       return graphqlSchema;
     };

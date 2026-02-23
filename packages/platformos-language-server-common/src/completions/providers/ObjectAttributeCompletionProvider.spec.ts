@@ -2,12 +2,10 @@ import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { CompletionItemKind } from 'vscode-languageserver';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
-import { SettingsSchemaJSONFile } from '../../settings';
-import { MetafieldDefinitionMap, ObjectEntry } from '@platformos/platformos-check-common';
+import { ObjectEntry } from '@platformos/platformos-check-common';
 
 describe('Module: ObjectAttributeCompletionProvider', async () => {
   let provider: CompletionsProvider;
-  let settingsProvider: any;
 
   beforeEach(async () => {
     const _objects: ObjectEntry[] = [
@@ -62,10 +60,9 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       },
     ];
 
-    settingsProvider = vi.fn().mockResolvedValue([]);
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [
           { name: 'split', return_type: [{ type: 'array', array_value: 'string' }] },
@@ -75,10 +72,7 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         objects: async () => _objects,
         liquidDrops: async () => _objects,
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
-      getThemeSettingsSchemaForURI: settingsProvider,
-      getMetafieldDefinitions: async (_rootUri: string) => ({} as MetafieldDefinitionMap),
     });
   });
 
@@ -496,29 +490,6 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         {% assign b = a.nested.█ %}
       `;
       await expect(provider).to.complete(source, ['deep']);
-    });
-  });
-
-  describe('Case: global settings', () => {
-    it('should complete basic settings by id as expected', async () => {
-      const settings: SettingsSchemaJSONFile = [
-        {
-          name: 'Category',
-          settings: [
-            {
-              type: 'product',
-              id: 'my_product_setting',
-              label: 'Product',
-            },
-          ],
-        },
-      ];
-      settingsProvider.mockResolvedValue(settings);
-
-      const source = `
-        {{ settings.█ }}
-      `;
-      await expect(provider).to.complete(source, ['my_product_setting']);
     });
   });
 });

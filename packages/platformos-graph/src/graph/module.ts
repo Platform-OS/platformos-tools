@@ -1,17 +1,12 @@
 import { path, UriString } from '@platformos/platformos-check-common';
 import {
-  CssModule,
-  ImageModule,
-  JavaScriptModule,
-  JsonModule,
-  JsonModuleKind,
+  AssetModule,
+  AppGraph,
+  AppModule,
   LiquidModule,
   LiquidModuleKind,
   ModuleType,
   SUPPORTED_ASSET_IMAGE_EXTENSIONS,
-  SvgModule,
-  ThemeGraph,
-  ThemeModule,
 } from '../types';
 import { extname } from '../utils';
 
@@ -23,155 +18,76 @@ import { extname } from '../utils';
  * graphs' modules record), we want to avoid creating two different module objects
  * that represent the same file.
  *
- * We're using a WeakMap<ThemeGraph> to cache modules so that if the theme graph
+ * We're using a WeakMap<AppGraph> to cache modules so that if the app graph
  * gets garbage collected, the module cache will also be garbage collected.
  *
  * This allows us to have a module cache without changing the API of the
- * ThemeGraph (no need for a `visited` property on modules, etc.)
+ * AppGraph (no need for a `visited` property on modules, etc.)
  */
-const ModuleCache: WeakMap<ThemeGraph, Map<string, ThemeModule>> = new WeakMap();
+const ModuleCache: WeakMap<AppGraph, Map<string, AppModule>> = new WeakMap();
 
-export function getModule(themeGraph: ThemeGraph, uri: UriString): ThemeModule | undefined {
-  const cache = getCache(themeGraph);
+export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undefined {
+  const cache = getCache(appGraph);
   if (cache.has(uri)) {
     return cache.get(uri)!;
   }
 
-  const relativePath = path.relative(uri, themeGraph.rootUri);
+  const relativePath = path.relative(uri, appGraph.rootUri);
 
   switch (true) {
-    case relativePath.startsWith('assets'): {
-      return getAssetModule(themeGraph, path.basename(uri));
+    case relativePath.startsWith('assets') || relativePath.startsWith('modules'): {
+      return getAssetModule(appGraph, path.basename(uri));
     }
 
-    case relativePath.startsWith('blocks'): {
-      return getThemeBlockModule(themeGraph, path.basename(uri, '.liquid'));
+    case relativePath.includes('views/layouts'): {
+      return getLayoutModule(appGraph, uri);
     }
 
-    case relativePath.startsWith('layout'): {
-      return getLayoutModule(themeGraph, path.basename(uri, '.liquid'));
+    case relativePath.includes('views/pages'): {
+      return getPageModule(appGraph, uri);
     }
 
-    case relativePath.startsWith('sections'): {
-      if (relativePath.endsWith('.json')) {
-        return getSectionGroupModule(themeGraph, path.basename(uri, '.json'));
-      }
-      return getSectionModule(themeGraph, path.basename(uri, '.liquid'));
-    }
-
-    case relativePath.includes('/views/partials') || relativePath.includes('/lib/'): {
-      return getPartialModule(themeGraph, path.basename(uri, '.liquid'));
+    case relativePath.includes('views/partials') || relativePath.includes('/lib/'): {
+      return getPartialModule(appGraph, path.basename(uri, '.liquid'));
     }
 
     case relativePath.startsWith('snippets'): {
-      return getPartialModule(themeGraph, path.basename(uri, '.liquid'));
-    }
-
-    case relativePath.startsWith('templates'): {
-      return getTemplateModule(themeGraph, uri);
+      return getPartialModule(appGraph, path.basename(uri, '.liquid'));
     }
   }
 }
 
-export function getTemplateModule(themeGraph: ThemeGraph, uri: UriString): ThemeModule {
-  const extension = extname(uri);
-  switch (extension) {
-    case 'json': {
-      return module(themeGraph, {
-        type: ModuleType.Json,
-        kind: JsonModuleKind.Template,
-        dependencies: [],
-        references: [],
-        uri: uri,
-      });
-    }
-
-    case 'liquid': {
-      return module(themeGraph, {
-        type: ModuleType.Liquid,
-        kind: LiquidModuleKind.Template,
-        dependencies: [],
-        references: [],
-        uri: uri,
-      });
-    }
-
-    default: {
-      throw new Error(`Unknown template type for ${uri}`);
-    }
-  }
-}
-
-export function getThemeBlockModule(themeGraph: ThemeGraph, blockType: string): LiquidModule {
-  const uri = path.join(themeGraph.rootUri, 'blocks', `${blockType}.liquid`);
-  return module(themeGraph, {
-    type: ModuleType.Liquid,
-    kind: LiquidModuleKind.Block,
-    dependencies: [],
-    references: [],
-    uri,
-  });
-}
-
-export function getSectionModule(themeGraph: ThemeGraph, sectionType: string): LiquidModule {
-  const uri = path.join(themeGraph.rootUri, 'sections', `${sectionType}.liquid`);
-  return module(themeGraph, {
-    type: ModuleType.Liquid,
-    kind: LiquidModuleKind.Section,
-    dependencies: [],
-    references: [],
-    uri,
-  });
-}
-
-export function getSectionGroupModule(
-  themeGraph: ThemeGraph,
-  sectionGroupType: string,
-): JsonModule {
-  const uri = path.join(themeGraph.rootUri, 'sections', `${sectionGroupType}.json`);
-  return module(themeGraph, {
-    type: ModuleType.Json,
-    kind: JsonModuleKind.SectionGroup,
-    dependencies: [],
-    references: [],
-    uri,
-  });
-}
-
-export function getAssetModule(
-  themeGraph: ThemeGraph,
-  asset: string,
-): JavaScriptModule | CssModule | SvgModule | ImageModule | undefined {
+export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule | undefined {
   const extension = extname(asset);
 
-  let type: ModuleType | undefined = undefined;
+  const SUPPORTED_ASSET_EXTENSIONS = [
+    ...SUPPORTED_ASSET_IMAGE_EXTENSIONS,
+    'js',
+    'css',
+    'svg',
+    'pdf',
+    'woff',
+    'woff2',
+    'ttf',
+    'eot',
+  ];
 
-  if (SUPPORTED_ASSET_IMAGE_EXTENSIONS.includes(extension)) {
-    type = ModuleType.Image;
-  } else if (extension === 'js') {
-    type = ModuleType.JavaScript;
-  } else if (extension === 'css') {
-    type = ModuleType.Css;
-  } else if (extension === 'svg') {
-    type = ModuleType.Svg;
-  }
-
-  if (!type) {
+  if (!SUPPORTED_ASSET_EXTENSIONS.includes(extension)) {
     return undefined;
   }
 
-  return module(themeGraph, {
-    type,
+  return module(appGraph, {
+    type: ModuleType.Asset,
     kind: 'unused',
     dependencies: [],
     references: [],
-    uri: path.join(themeGraph.rootUri, 'assets', asset),
+    uri: path.join(appGraph.rootUri, 'assets', asset),
   });
 }
 
-export function getPartialModule(themeGraph: ThemeGraph, partial: string): LiquidModule {
-  const uri = path.join(themeGraph.rootUri, 'app/views/partials', `${partial}.liquid`);
-  return module(themeGraph, {
+export function getPartialModule(appGraph: AppGraph, partial: string): LiquidModule {
+  const uri = path.join(appGraph.rootUri, 'app/views/partials', `${partial}.liquid`);
+  return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Partial,
     uri: uri,
@@ -181,30 +97,38 @@ export function getPartialModule(themeGraph: ThemeGraph, partial: string): Liqui
 }
 
 export function getLayoutModule(
-  themeGraph: ThemeGraph,
-  layoutName: string | false | undefined = 'theme',
+  appGraph: AppGraph,
+  layoutUri: string | false | undefined,
 ): LiquidModule | undefined {
-  if (layoutName === false) return undefined;
-  if (layoutName === undefined) layoutName = 'theme';
-  const uri = path.join(themeGraph.rootUri, 'layout', `${layoutName}.liquid`);
-  return module(themeGraph, {
+  if (!layoutUri) return undefined;
+  return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Layout,
-    uri: uri,
+    uri: layoutUri,
     dependencies: [],
     references: [],
   });
 }
 
-function getCache(themeGraph: ThemeGraph): Map<string, ThemeModule> {
-  if (!ModuleCache.has(themeGraph)) {
-    ModuleCache.set(themeGraph, new Map());
-  }
-  return ModuleCache.get(themeGraph)!;
+export function getPageModule(appGraph: AppGraph, pageUri: string): LiquidModule {
+  return module(appGraph, {
+    type: ModuleType.Liquid,
+    kind: LiquidModuleKind.Page,
+    uri: pageUri,
+    dependencies: [],
+    references: [],
+  });
 }
 
-function module<T extends ThemeModule>(themeGraph: ThemeGraph, mod: T): T {
-  const cache = getCache(themeGraph);
+function getCache(appGraph: AppGraph): Map<string, AppModule> {
+  if (!ModuleCache.has(appGraph)) {
+    ModuleCache.set(appGraph, new Map());
+  }
+  return ModuleCache.get(appGraph)!;
+}
+
+function module<T extends AppModule>(appGraph: AppGraph, mod: T): T {
+  const cache = getCache(appGraph);
   if (!cache.has(mod.uri)) {
     cache.set(mod.uri, mod);
   }

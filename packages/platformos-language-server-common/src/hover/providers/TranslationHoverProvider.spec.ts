@@ -1,7 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
+
 import { TranslationProvider } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 
@@ -17,7 +17,6 @@ describe('Module: TranslationHoverProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       new TranslationProvider(
         new MockFileSystem({
@@ -32,8 +31,6 @@ describe('Module: TranslationHoverProvider', async () => {
       `,
         }),
       ),
-      async (_rootUri: string) => ({} as MetafieldDefinitionMap),
-      undefined,
       undefined,
       undefined,
       async () => '.',

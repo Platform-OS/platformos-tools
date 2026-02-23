@@ -35,7 +35,6 @@ SomeCheck:
       extends: [],
       ignore: ['assets', 'config'],
       require: [],
-      context: 'theme',
       checkSettings: {
         SomeCheck: {
           enabled: false,
@@ -48,7 +47,7 @@ SomeCheck:
 
   it('resolves a config with extends', async () => {
     const baseConfigPath = path.join(__dirname, '..', 'fixtures', 'base.yml');
-    const mockNodeModulePath = path.join(tempDir, 'node_modules', '@acme', 'theme-check-base');
+    const mockNodeModulePath = path.join(tempDir, 'node_modules', '@acme', 'platformos-check-base');
 
     // mock config-relative node_modules
     await fs.mkdir(mockNodeModulePath, { recursive: true });
@@ -56,7 +55,7 @@ SomeCheck:
     // mock node_module package.json
     await fs.writeFile(
       path.join(mockNodeModulePath, 'package.json'),
-      JSON.stringify({ name: '@acme/theme-check-base', main: 'index.js', version: '0.0.1' }),
+      JSON.stringify({ name: '@acme/platformos-check-base', main: 'index.js', version: '0.0.1' }),
       'utf8',
     );
 
@@ -74,7 +73,7 @@ ignore:
   - config
 extends:
   - '${baseConfigPath}'
-  - '@acme/theme-check-base/recommended.yml'
+  - '@acme/platformos-check-base/recommended.yml'
 SomeCheck:
   enabled: false
   ignore: [snippets]
@@ -88,7 +87,6 @@ SomeCheck:
       extends: [],
       ignore: ['base_assets', 'base_config', 'assets', 'config'],
       require: [],
-      context: 'theme',
       checkSettings: {
         BaseCheck: {
           enabled: true,

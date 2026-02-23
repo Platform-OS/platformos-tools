@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { findThirdPartyChecks, loadThirdPartyChecks } from './load-third-party-checks';
 import {
   makeTmpFolder,
@@ -22,13 +22,13 @@ describe('Module: ThirdPartyChecks', () => {
 
   describe('Unit: findThirdPartyChecks', () => {
     it('finds third-party checks in node_modules', async () => {
-      await createMockNodeModule(tempDir, 'theme-check-react', mockNodeModuleCheck);
+      await createMockNodeModule(tempDir, 'platformos-check-react', mockNodeModuleCheck);
       const modulePaths = await findThirdPartyChecks(tempDir);
       expect(modulePaths.length).to.be.greaterThan(0);
     });
 
     it('finds third-party checks in node_modules (scoped module)', async () => {
-      await createMockNodeModule(tempDir, '@acme/theme-check-extension', mockNodeModuleCheck);
+      await createMockNodeModule(tempDir, '@acme/platformos-check-extension', mockNodeModuleCheck);
       const modulePaths = await findThirdPartyChecks(tempDir);
       expect(modulePaths.length).to.be.greaterThan(0);
     });
@@ -54,7 +54,7 @@ describe('Module: ThirdPartyChecks', () => {
     });
 
     it('loads third-party checks from node_modules', async () => {
-      await createMockNodeModule(tempDir, 'theme-check-react', mockNodeModuleCheck);
+      await createMockNodeModule(tempDir, 'platformos-check-react', mockNodeModuleCheck);
       const modulePaths = await findThirdPartyChecks(tempDir);
       const checks = loadThirdPartyChecks(modulePaths);
       expect(checks.length).to.be.greaterThan(0);
@@ -62,7 +62,7 @@ describe('Module: ThirdPartyChecks', () => {
     });
 
     it('loads third-party checks from node_modules (scoped)', async () => {
-      await createMockNodeModule(tempDir, '@acme/theme-check-extension', mockNodeModuleCheck);
+      await createMockNodeModule(tempDir, '@acme/platformos-check-extension', mockNodeModuleCheck);
       const modulePaths = await findThirdPartyChecks(tempDir);
       const checks = loadThirdPartyChecks(modulePaths);
       expect(checks.length).to.be.greaterThan(0);
@@ -70,6 +70,7 @@ describe('Module: ThirdPartyChecks', () => {
     });
 
     it('handles errors when loading third-party checks', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       await createMockNodeModule(
         tempDir,
         'theme-check-error',
@@ -78,14 +79,17 @@ describe('Module: ThirdPartyChecks', () => {
       const modulePaths = await findThirdPartyChecks(tempDir);
       const checks = loadThirdPartyChecks(modulePaths);
       expect(checks.length).to.equal(0);
+      consoleError.mockRestore();
     });
 
     it('throws an error if you are requiring a path that does not exist', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       // this path does not exist
       const pathToFileThatDoesNotExist = path.join(tempDir, 'lib', 'index.js');
       const modulePaths = [pathToFileThatDoesNotExist];
       const checks = loadThirdPartyChecks(modulePaths);
       expect(checks.length).to.equal(0);
+      consoleError.mockRestore();
     });
   });
 });

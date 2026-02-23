@@ -19,7 +19,7 @@ import {
   LiquidTagBackground,
   BackgroundInlineMarkup,
 } from '@platformos/liquid-html-parser';
-import { LiquidCheckDefinition, Severity, SourceCodeType, ThemeDocset } from '../../types';
+import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 
@@ -32,7 +32,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
     docs: {
       description: 'This check exists to identify references to undefined Liquid objects.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/undefined-object',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/undefined-object',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,
@@ -49,11 +49,11 @@ export const UndefinedObject: LiquidCheckDefinition = {
     /**
      * Skip this check when definitions for global objects are unavailable.
      */
-    if (!context.themeDocset) {
+    if (!context.platformosDocset) {
       return {};
     }
 
-    const themeDocset = context.themeDocset;
+    const platformosDocset = context.platformosDocset;
     const scopedVariables: Map<string, Scope[]> = new Map();
     const fileScopedVariables: Set<string> = new Set();
     const variables: LiquidVariableLookup[] = [];
@@ -99,7 +99,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
          *   {{ form }}
          * {% endform %}
          */
-        if (['form', 'paginate'].includes(node.name)) {
+        if (node.name === 'form') {
           indexVariableScope(node.name, {
             start: node.blockStartPosition.end,
             end: node.blockEndPosition?.start,
@@ -166,7 +166,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-        const objects = await globalObjects(themeDocset, relativePath);
+        const objects = await globalObjects(platformosDocset, relativePath);
 
         objects.forEach((obj) => fileScopedVariables.add(obj.name));
 
@@ -192,8 +192,8 @@ export const UndefinedObject: LiquidCheckDefinition = {
   },
 };
 
-async function globalObjects(themeDocset: ThemeDocset, relativePath: string) {
-  const objects = await themeDocset.objects();
+async function globalObjects(platformosDocset: PlatformOSDocset, relativePath: string) {
+  const objects = await platformosDocset.objects();
   const contextualObjects = getContextualObjects(relativePath);
 
   const globalObjects = objects.filter(({ access, name }) => {
@@ -209,31 +209,6 @@ async function globalObjects(themeDocset: ThemeDocset, relativePath: string) {
 }
 
 function getContextualObjects(relativePath: string): string[] {
-  if (relativePath.startsWith('layout/checkout.liquid')) {
-    return [
-      'locale',
-      'direction',
-      'skip_to_content_link',
-      'checkout_html_classes',
-      'checkout_stylesheets',
-      'checkout_scripts',
-      'content_for_logo',
-      'breadcrumb',
-      'order_summary_toggle',
-      'content_for_order_summary',
-      'alternative_payment_methods',
-      'content_for_footer',
-      'tracking_code',
-    ];
-  }
-  if (relativePath.startsWith('sections/')) {
-    return ['section', 'predictive_search', 'recommendations', 'comment'];
-  }
-
-  if (relativePath.startsWith('blocks/')) {
-    return ['app', 'section', 'recommendations', 'block'];
-  }
-
   if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
     return ['app'];
   }

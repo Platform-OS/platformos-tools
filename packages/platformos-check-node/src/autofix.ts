@@ -1,7 +1,7 @@
 import { writeFile } from 'fs/promises';
 import {
   Offense,
-  Theme,
+  App,
   autofix as coreAutofix,
   FixApplicator,
   applyFixToString,
@@ -14,8 +14,8 @@ export const saveToDiskFixApplicator: FixApplicator = async (sourceCode, fix) =>
 };
 
 /**
- * Apply and save to disk the safe fixes for a set of offenses on a theme.
+ * Apply and save to disk the safe fixes for a set of offenses on an app.
  */
-export async function autofix(sourceCodes: Theme, offenses: Offense[]) {
+export async function autofix(sourceCodes: App, offenses: Offense[]) {
   await coreAutofix(sourceCodes, offenses, saveToDiskFixApplicator);
 }

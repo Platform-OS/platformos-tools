@@ -360,21 +360,8 @@ function findCurrentNode(
         break;
       }
 
-      case NodeTypes.PaginateMarkup: {
-        if (isNotEmpty(current.args)) {
-          finder.current = last(current.args);
-        } else if (isCovered(cursor, current.collection.position)) {
-          finder.current = current.collection;
-        } else if (isCovered(cursor, current.pageSize.position)) {
-          finder.current = current.pageSize;
-        }
-        break;
-      }
-
       case NodeTypes.ContentForMarkup: {
-        if (isNotEmpty(current.args)) {
-          finder.current = last(current.args);
-        } else if (isCovered(cursor, current.contentForType.position)) {
+        if (isCovered(cursor, current.contentForType.position)) {
           finder.current = current.contentForType;
         }
 

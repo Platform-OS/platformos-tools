@@ -16,7 +16,7 @@ export const UnrecognizedRenderPartialArguments: LiquidCheckDefinition = {
       description:
         'This check ensures that no unknown arguments are used when rendering a partial.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/unrecognized-render-partial-arguments',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/unrecognized-render-partial-arguments',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,
@@ -60,10 +60,7 @@ export const UnrecognizedRenderPartialArguments: LiquidCheckDefinition = {
 
         if (!partialName) return;
 
-        const liquidDocParameters = await getLiquidDocParams(
-          context,
-          `app/views/partials/${partialName}.liquid`,
-        );
+        const liquidDocParameters = await getLiquidDocParams(context, partialName);
 
         if (!liquidDocParameters) return;
 

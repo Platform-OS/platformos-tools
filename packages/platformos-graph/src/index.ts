@@ -1,5 +1,5 @@
-export { buildThemeGraph } from './graph/build';
-export { serializeThemeGraph } from './graph/serialize';
+export { buildAppGraph } from './graph/build';
+export { serializeAppGraph } from './graph/serialize';
 export { getWebComponentMap, findWebComponentReferences } from './getWebComponentMap';
-export { toCssSourceCode, toJsSourceCode, toSourceCode, toSvgSourceCode } from './toSourceCode';
+export { parseJs, toSourceCode } from './toSourceCode';
 export * from './types';

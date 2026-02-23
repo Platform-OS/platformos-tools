@@ -7,7 +7,7 @@ export const DeprecatedTag: LiquidCheckDefinition = {
     name: 'Deprecated Tag',
     docs: {
       description: 'This check is aimed at eliminating the use of deprecated tags.',
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/deprecated-tag',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/deprecated-tag',
       recommended: true,
     },
     type: SourceCodeType.LiquidHtml,
@@ -17,29 +17,34 @@ export const DeprecatedTag: LiquidCheckDefinition = {
   },
 
   create(context) {
+    if (!context.platformosDocset) {
+      return {};
+    }
+
     return {
       async LiquidTag(node) {
-        // commenting this out to stop include from getting flagged
-        // if (node.name === 'include') {
-        //   const start = node.source.substring(node.position.start);
-        //   const includeStartIndex = start.indexOf('include');
-        //   const includeEndIndex = includeStartIndex + 'include'.length;
-        //   const includeStart = node.position.start + includeStartIndex;
-        //   const includeEnd = node.position.start + includeEndIndex;
-        //   context.report({
-        //     message: `Use the 'render' tag instead of 'include'`,
-        //     startIndex: includeStart,
-        //     endIndex: includeEnd,
-        //     suggest: [
-        //       {
-        //         message: `Replace 'include' with 'render'`,
-        //         fix: (corrector) => {
-        //           corrector.replace(includeStart, includeEnd, 'render');
-        //         },
-        //       },
-        //     ],
-        //   });
-        // }
+        const tags = await context.platformosDocset!.tags();
+
+        const deprecatedTag = tags.find((t) => t.deprecated && t.name === node.name);
+
+        if (!deprecatedTag) {
+          return;
+        }
+
+        const source = node.source.substring(node.position.start);
+        const tagNameIndex = source.indexOf(node.name);
+        const startIndex = node.position.start + tagNameIndex;
+        const endIndex = startIndex + node.name.length;
+
+        const message = deprecatedTag.deprecation_reason
+          ? `Deprecated tag '${node.name}': ${deprecatedTag.deprecation_reason}`
+          : `Deprecated tag '${node.name}'.`;
+
+        context.report({
+          message,
+          startIndex,
+          endIndex,
+        });
       },
     };
   },

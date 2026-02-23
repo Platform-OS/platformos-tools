@@ -101,13 +101,13 @@ export function detectInvalidLoopArguments(
 }
 
 function isSupportedTagArgument(
-  tags: TagEntry[],
+  tags: TagEntry[] | undefined,
   tagName: string,
   key: string,
   positional: boolean,
 ) {
   return (
-    tags
+    (tags ?? [])
       .find((tag) => tag.name === tagName)
       ?.parameters?.some(
         (parameter) => parameter.name === key && parameter.positional === positional,

@@ -410,4 +410,31 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'job_id' used."]);
   });
+
+  it('should not report an offense when object is defined with a parse_json tag', async () => {
+    const sourceCode = `
+      {% parse_json groups_data %}
+        { "hello": "world" }
+      {% endparse_json %}
+      {{ groups_data }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should report an offense when parse_json variable is used before the tag', async () => {
+    const sourceCode = `
+      {{ groups_data }}
+      {% parse_json groups_data %}
+        { "hello": "world" }
+      {% endparse_json %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'groups_data' used.");
+  });
 });

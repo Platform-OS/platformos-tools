@@ -331,6 +331,11 @@ describe('Unit: Stage 1 (CST)', () => {
                     expectPath(cst, `0.markup.filters.${i}.args.${j}.value.type`).to.equal(
                       arg.valueType,
                     );
+                    if (arg.expressionType) {
+                      expectPath(cst, `0.markup.filters.${i}.args.${j}.value.expression.type`).to.equal(
+                        arg.expressionType,
+                      );
+                    }
                     break;
                   }
                 }
@@ -825,8 +830,8 @@ describe('Unit: Stage 1 (CST)', () => {
             expression: `variable, key1: val1, key2: "hi"`,
             snippetType: 'VariableLookup',
             namedArguments: [
-              { name: 'key1', valueType: 'VariableLookup' },
-              { name: 'key2', valueType: 'String' },
+              { name: 'key1', valueType: 'LiquidVariable', expressionType: 'VariableLookup' },
+              { name: 'key2', valueType: 'LiquidVariable', expressionType: 'String' },
             ],
           },
         ].forEach(({ expression, snippetType, namedArguments }) => {
@@ -837,10 +842,13 @@ describe('Unit: Stage 1 (CST)', () => {
             expectPath(cst, '0.markup.type').to.equal('GraphQLMarkup');
             expectPath(cst, '0.markup.graphql.type').to.equal(snippetType);
             expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
+            namedArguments.forEach(({ name, valueType, expressionType }, i) => {
               expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
               expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
               expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
+              if (expressionType) {
+                expectPath(cst, `0.markup.functionArguments.${i}.value.expression.type`).to.equal(expressionType);
+              }
             });
           }
         });
@@ -991,8 +999,8 @@ describe('Unit: Stage 1 (CST)', () => {
             expression: `res, key1: val1, key2: "hi"`,
             variableName: 'res',
             namedArguments: [
-              { name: 'key1', valueType: 'VariableLookup' },
-              { name: 'key2', valueType: 'String' },
+              { name: 'key1', valueType: 'LiquidVariable', expressionType: 'VariableLookup' },
+              { name: 'key2', valueType: 'LiquidVariable', expressionType: 'String' },
             ],
           },
         ].forEach(({ expression, variableName, namedArguments }) => {
@@ -1003,10 +1011,13 @@ describe('Unit: Stage 1 (CST)', () => {
             expectPath(cst, '0.markup.type').to.equal('GraphQLInlineMarkup');
             expectPath(cst, '0.markup.name').to.equal(variableName);
             expectPath(cst, '0.markup.args').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
+            namedArguments.forEach(({ name, valueType, expressionType }, i) => {
               expectPath(cst, `0.markup.args.${i}.type`).to.equal('NamedArgument');
               expectPath(cst, `0.markup.args.${i}.name`).to.equal(name);
               expectPath(cst, `0.markup.args.${i}.value.type`).to.equal(valueType);
+              if (expressionType) {
+                expectPath(cst, `0.markup.args.${i}.value.expression.type`).to.equal(expressionType);
+              }
             });
             expectPath(cst, '0.whitespaceEnd').to.equal('-');
           }

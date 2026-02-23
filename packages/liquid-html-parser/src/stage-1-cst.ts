@@ -652,7 +652,7 @@ export type ConcreteLiquidArgument = ConcreteLiquidExpression | ConcreteLiquidNa
 
 export interface ConcreteLiquidNamedArgument extends ConcreteBasicNode<ConcreteNodeTypes.NamedArgument> {
   name: string;
-  value: ConcreteLiquidExpression;
+  value: ConcreteLiquidExpression | ConcreteLiquidVariable;
 }
 
 export type ConcreteLiquidExpression =
@@ -1392,11 +1392,30 @@ function toCST<T>(
     },
     simpleArgument: 0,
     tagArguments: 0,
+    graphqlArguments: 0,
+    graphqlRenderArguments: 1,
     positionalArgument: 0,
     namedArgument: {
       type: ConcreteNodeTypes.NamedArgument,
       name: 0,
       value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    graphqlNamedArgument: {
+      type: ConcreteNodeTypes.NamedArgument,
+      name: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    graphqlNamedArgumentValue: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      rawSource: (tokens: Node[]) => source.slice(locStart(tokens), locEnd(tokens)),
       locStart,
       locEnd,
       source,

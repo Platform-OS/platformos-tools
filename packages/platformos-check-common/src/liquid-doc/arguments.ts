@@ -121,7 +121,13 @@ export function findTypeMismatchParams(
   const typeMismatchParams: LiquidNamedArgument[] = [];
 
   for (const arg of providedParams) {
-    if (arg.value.type === NodeTypes.VariableLookup) {
+    // Skip if the value is a variable lookup (can't determine type statically)
+    // or if it has filters (graphql args may have filters, output type is unknown)
+    if (arg.value.type === NodeTypes.LiquidVariable) {
+      if (arg.value.expression.type === NodeTypes.VariableLookup || arg.value.filters.length > 0) {
+        continue;
+      }
+    } else if (arg.value.type === NodeTypes.VariableLookup) {
       continue;
     }
 

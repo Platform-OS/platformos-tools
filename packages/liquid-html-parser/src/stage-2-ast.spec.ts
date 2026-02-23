@@ -684,8 +684,8 @@ describe('Unit: Stage 2 (AST)', () => {
             expression: `variable, key1: val1, key2: "hi"`,
             partialType: 'VariableLookup',
             namedArguments: [
-              { name: 'key1', valueType: 'VariableLookup' },
-              { name: 'key2', valueType: 'String' },
+              { name: 'key1', valueType: 'LiquidVariable' },
+              { name: 'key2', valueType: 'LiquidVariable' },
             ],
           },
         ].forEach(({ expression, partialType, namedArguments }) => {
@@ -720,8 +720,8 @@ describe('Unit: Stage 2 (AST)', () => {
             expression: `res, key1: val1, key2: "hi"`,
             variableName: 'res',
             namedArguments: [
-              { name: 'key1', valueType: 'VariableLookup' },
-              { name: 'key2', valueType: 'String' },
+              { name: 'key1', valueType: 'LiquidVariable' },
+              { name: 'key2', valueType: 'LiquidVariable' },
             ],
           },
         ].forEach(({ expression, variableName, namedArguments }) => {

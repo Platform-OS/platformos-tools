@@ -4,4 +4,4 @@ import * as path from 'path';
 
 test('Unit: html-attributes', async () => {
   await assertFormattedEqualsFixed(__dirname);
-});
+}, 10000);

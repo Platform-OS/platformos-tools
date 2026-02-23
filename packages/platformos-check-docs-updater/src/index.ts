@@ -1,8 +1,8 @@
-export { ThemeLiquidDocsManager } from './themeLiquidDocsManager';
+export { PlatformOSLiquidDocsManager } from './platformOSLiquidDocsManager';
 export {
   Resource,
   Resources,
   downloadResource,
-  downloadThemeLiquidDocs,
+  downloadPlatformOSLiquidDocs,
   root,
-} from './themeLiquidDocsDownloader';
+} from './platformOSLiquidDocsDownloader';

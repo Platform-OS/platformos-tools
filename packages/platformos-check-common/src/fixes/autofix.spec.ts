@@ -4,7 +4,7 @@ import { Offense, SourceCodeType } from '../types';
 
 describe('Module: autofix', () => {
   it('should apply a list of all safe changes', async () => {
-    const mockTheme = {
+    const mockApp = {
       'a.liquid': 'Banana world',
       'b.json': prettyJSON({ a: 'b' }),
     };
@@ -69,7 +69,7 @@ describe('Module: autofix', () => {
       },
     ];
 
-    const fixed = await autofix(mockTheme, offenses);
+    const fixed = await autofix(mockApp, offenses);
     expect(fixed['a.liquid']).to.eql('Bananananana world');
     expect(fixed['b.json']).to.eql(
       prettyJSON({

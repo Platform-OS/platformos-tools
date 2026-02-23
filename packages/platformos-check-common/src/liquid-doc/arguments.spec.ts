@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyFixToString, createCorrector } from '../fixes';
 import { makeAddArgumentCorrector, makeRemoveArgumentCorrector } from './arguments';
-import { ContentForMarkup, DocumentNode, LiquidTag } from '@platformos/liquid-html-parser';
+import { DocumentNode, LiquidTag, RenderMarkup } from '@platformos/liquid-html-parser';
 import { SourceCodeType, toLiquidHTMLAST } from '..';
 
 describe('Arguments', () => {
@@ -15,53 +15,45 @@ describe('Arguments', () => {
     };
 
     it('should suggest adding missing required arguments when none already exist', () => {
-      const node = makeContentForMarkup(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '' %}`,
-      );
+      const node = makeRenderMarkup(`{% render 'partial', some-arg: '' %}`);
 
       const fixer = createCorrector(SourceCodeType.LiquidHtml, node.source);
 
       makeAddArgumentCorrector(node, requiredParam)(fixer);
 
       expect(applyFixToString(node.source, fixer.fix)).toBe(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '', required_string: '' %}`,
+        `{% render 'partial', some-arg: '', required_string: '' %}`,
       );
     });
 
     it('should suggest adding missing required arguments and correcting trailing comma + whitespace', () => {
-      const node = makeContentForMarkup(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '',    %}`,
-      );
+      const node = makeRenderMarkup(`{% render 'partial', some-arg: '',    %}`);
 
       const fixer = createCorrector(SourceCodeType.LiquidHtml, node.source);
 
       makeAddArgumentCorrector(node, requiredParam)(fixer);
 
       expect(applyFixToString(node.source, fixer.fix)).toBe(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '', required_string: '' %}`,
+        `{% render 'partial', some-arg: '', required_string: '' %}`,
       );
     });
 
     it('should suggest adding missing required arguments and correcting trailing spaces + comma', () => {
-      const node = makeContentForMarkup(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: ''    ,    %}`,
-      );
+      const node = makeRenderMarkup(`{% render 'partial', some-arg: ''    ,    %}`);
 
       const fixer = createCorrector(SourceCodeType.LiquidHtml, node.source);
 
       makeAddArgumentCorrector(node, requiredParam)(fixer);
 
       expect(applyFixToString(node.source, fixer.fix)).toBe(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '', required_string: '' %}`,
+        `{% render 'partial', some-arg: '', required_string: '' %}`,
       );
     });
   });
 
   describe('makeRemoveArgumentCorrector', () => {
     it("should remove the last argument and it's leading comma", () => {
-      const node = makeContentForMarkup(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '' %}`,
-      );
+      const node = makeRenderMarkup(`{% render 'partial', id: 'fake', some-arg: '' %}`);
 
       const argToRemove = node.args.at(-1)!;
 
@@ -69,15 +61,11 @@ describe('Arguments', () => {
 
       makeRemoveArgumentCorrector(node, argToRemove)(fixer);
 
-      expect(applyFixToString(node.source, fixer.fix)).toBe(
-        `{% content_for 'block', type: 'swatches', id: 'fake' %}`,
-      );
+      expect(applyFixToString(node.source, fixer.fix)).toBe(`{% render 'partial', id: 'fake' %}`);
     });
 
     it('should remove an argument in the middle', () => {
-      const node = makeContentForMarkup(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '' %}`,
-      );
+      const node = makeRenderMarkup(`{% render 'partial', id: 'fake', some-arg: '' %}`);
 
       const argToRemove = node.args.at(-2)!;
 
@@ -85,15 +73,11 @@ describe('Arguments', () => {
 
       makeRemoveArgumentCorrector(node, argToRemove)(fixer);
 
-      expect(applyFixToString(node.source, fixer.fix)).toBe(
-        `{% content_for 'block', type: 'swatches', some-arg: '' %}`,
-      );
+      expect(applyFixToString(node.source, fixer.fix)).toBe(`{% render 'partial', some-arg: '' %}`);
     });
 
     it('should remove an argument with trailing comma', () => {
-      const node = makeContentForMarkup(
-        `{% content_for 'block', type: 'swatches', id: 'fake', some-arg: '', %}`,
-      );
+      const node = makeRenderMarkup(`{% render 'partial', id: 'fake', some-arg: '', %}`);
 
       const argToRemove = node.args.at(-1)!;
 
@@ -101,16 +85,12 @@ describe('Arguments', () => {
 
       makeRemoveArgumentCorrector(node, argToRemove)(fixer);
 
-      expect(applyFixToString(node.source, fixer.fix)).toBe(
-        `{% content_for 'block', type: 'swatches', id: 'fake' %}`,
-      );
+      expect(applyFixToString(node.source, fixer.fix)).toBe(`{% render 'partial', id: 'fake' %}`);
     });
   });
 
   it('should remove an argument with trailing space', () => {
-    const node = makeContentForMarkup(
-      `{% content_for 'block', type: 'swatches', id: 'fake'     , some-arg: '' %}`,
-    );
+    const node = makeRenderMarkup(`{% render 'partial', id: 'fake'     , some-arg: '' %}`);
 
     const argToRemove = node.args.at(-2)!;
 
@@ -118,15 +98,11 @@ describe('Arguments', () => {
 
     makeRemoveArgumentCorrector(node, argToRemove)(fixer);
 
-    expect(applyFixToString(node.source, fixer.fix)).toBe(
-      `{% content_for 'block', type: 'swatches', some-arg: '' %}`,
-    );
+    expect(applyFixToString(node.source, fixer.fix)).toBe(`{% render 'partial', some-arg: '' %}`);
   });
 
   it('should remove an argument with leading space', () => {
-    const node = makeContentForMarkup(
-      `{% content_for 'block', type: 'swatches', id: 'fake',    some-arg: '' %}`,
-    );
+    const node = makeRenderMarkup(`{% render 'partial', id: 'fake',    some-arg: '' %}`);
 
     const argToRemove = node.args.at(-1)!;
 
@@ -134,13 +110,11 @@ describe('Arguments', () => {
 
     makeRemoveArgumentCorrector(node, argToRemove)(fixer);
 
-    expect(applyFixToString(node.source, fixer.fix)).toBe(
-      `{% content_for 'block', type: 'swatches', id: 'fake' %}`,
-    );
+    expect(applyFixToString(node.source, fixer.fix)).toBe(`{% render 'partial', id: 'fake' %}`);
   });
 });
 
-function makeContentForMarkup(source: string): ContentForMarkup {
+function makeRenderMarkup(source: string): RenderMarkup {
   const ast = toLiquidHTMLAST(source) as DocumentNode;
-  return (ast.children[0] as LiquidTag).markup as ContentForMarkup;
+  return (ast.children[0] as LiquidTag).markup as RenderMarkup;
 }

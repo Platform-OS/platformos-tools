@@ -1,6 +1,7 @@
 import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 
 import { toJSONNode } from './jsonc/parse';
+import { toYAMLNode } from './yaml/parse';
 import * as path from './path';
 import {
   GraphQLDocumentNode,
@@ -9,6 +10,7 @@ import {
   JSONSourceCode,
   LiquidSourceCode,
   SourceCodeType,
+  YAMLSourceCode,
 } from './types';
 import { asError } from './utils/error';
 
@@ -23,6 +25,14 @@ export function toLiquidHTMLAST(source: string) {
 export function toJSONAST(source: string): JSONNode | Error {
   try {
     return toJSONNode(source);
+  } catch (error) {
+    return asError(error);
+  }
+}
+
+export function toYAMLAST(source: string): JSONNode | Error {
+  try {
+    return toYAMLNode(source);
   } catch (error) {
     return asError(error);
   }
@@ -43,9 +53,10 @@ export function toSourceCode(
   uri: string,
   source: string,
   version?: number,
-): LiquidSourceCode | JSONSourceCode | GraphQLSourceCode {
+): LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode {
   const isLiquid = uri.endsWith('.liquid');
   const isGraphQL = uri.endsWith('.graphql');
+  const isYAML = uri.endsWith('.yml') || uri.endsWith('.yaml');
 
   if (isLiquid) {
     return {
@@ -61,6 +72,14 @@ export function toSourceCode(
       source,
       type: SourceCodeType.GraphQL,
       ast: toGraphQLAST(source),
+      version,
+    };
+  } else if (isYAML) {
+    return {
+      uri: path.normalize(uri),
+      source,
+      type: SourceCodeType.YAML,
+      ast: toYAMLAST(source),
       version,
     };
   } else {

@@ -30,7 +30,7 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { ClientCapabilities } from '../../ClientCapabilities';
 import { AugmentedLiquidSourceCode, DocumentManager, isLiquidSourceCode } from '../../documents';
-import { FindThemeRootURI } from '../../internal-types';
+import { FindAppRootURI } from '../../internal-types';
 import { partialName } from '../../utils/uri';
 import { BaseRenameProvider } from '../BaseRenameProvider';
 
@@ -39,7 +39,7 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
     private connection: Connection,
     private clientCapabilities: ClientCapabilities,
     private documentManager: DocumentManager,
-    private findThemeRootURI: FindThemeRootURI,
+    private findAppRootURI: FindAppRootURI,
   ) {}
 
   async prepare(
@@ -74,7 +74,7 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
     params: RenameParams,
   ): Promise<null | WorkspaceEdit> {
     const document = this.documentManager.get(params.textDocument.uri);
-    const rootUri = await this.findThemeRootURI(params.textDocument.uri);
+    const rootUri = await this.findAppRootURI(params.textDocument.uri);
     const textDocument = document?.textDocument;
 
     if (!rootUri || !textDocument || !node || !ancestors) return null;
@@ -104,7 +104,7 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
     });
 
     if (this.clientCapabilities.hasApplyEditSupport && liquidDocParamUpdated) {
-      const themeFiles = this.documentManager.theme(rootUri, true);
+      const themeFiles = this.documentManager.app(rootUri, true);
       const liquidSourceCodes = themeFiles.filter(isLiquidSourceCode);
       const name = partialName(params.textDocument.uri);
 

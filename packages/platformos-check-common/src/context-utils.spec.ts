@@ -1,103 +1,75 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  makeGetDefaultLocale,
-  makeGetDefaultTranslations,
-  makeGetMetafieldDefinitions,
-} from './context-utils';
+import { makeGetDefaultLocale, makeGetDefaultTranslations } from './context-utils';
 import { MockFileSystem } from './test';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 
 describe('Unit: getDefaultLocale', () => {
-  let fs: AbstractFileSystem;
-  beforeEach(() => {
-    fs = new MockFileSystem(
+  it('should always return en (en.yml is the reference locale file)', async () => {
+    const fs: AbstractFileSystem = new MockFileSystem(
       {
-        'gitRootTheme/locales/en.default.json': JSON.stringify({ beverage: 'coffee' }),
-        'gitRootTheme/locales/fr.json': JSON.stringify({ beverage: 'coffee' }),
-        'gitRootTheme/snippet/foo.liquid': JSON.stringify({ beverage: 'coffee' }),
-        'frenchDefault/locales/fr.default.json': JSON.stringify({ beverage: 'café' }),
-        'frenchDefault/snippet/foo.liquid': JSON.stringify({ beverage: 'coffee' }),
-        '.shopify/metafields.json': JSON.stringify({
-          product: [
-            {
-              key: 'color',
-              name: 'color',
-              namespace: 'custom',
-              description: 'the color of the product',
-              type: {
-                category: 'COLOR',
-                name: 'color',
-              },
-            },
-          ],
-        }),
+        'app/translations/en.yml': 'en:\n  beverage: coffee\n',
+        'app/translations/fr.yml': 'fr:\n  beverage: café\n',
       },
-      'shopify-vfs:/',
+      'platformos-vfs:/',
     );
-  });
 
-  it('should return the correct translations depending on the root', async () => {
-    let getDefaultLocale = makeGetDefaultLocale(fs, 'shopify-vfs:/gitRootTheme');
+    const getDefaultLocale = makeGetDefaultLocale(fs, 'platformos-vfs:/');
     expect(await getDefaultLocale()).to.eql('en');
-
-    getDefaultLocale = makeGetDefaultLocale(fs, 'shopify-vfs:/frenchDefault');
-    expect(await getDefaultLocale()).to.eql('fr');
   });
 
-  describe('Unit: makeGetMetafieldDefinitions', () => {
-    it('should return metafield definitions in correct format', async () => {
-      const getMetafieldDefinitions = makeGetMetafieldDefinitions(fs);
-
-      let definitions = await getMetafieldDefinitions('shopify-vfs:/');
-
-      expect(definitions.product).toHaveLength(1);
-      expect(definitions.product[0]).deep.equals({
-        key: 'color',
-        name: 'color',
-        namespace: 'custom',
-        description: 'the color of the product',
-        type: {
-          category: 'COLOR',
-          name: 'color',
-        },
-      });
-    });
-
-    it("should return no metafield definitions if file isn't in correct format", async () => {
-      fs = new MockFileSystem(
-        {
-          '.shopify/metafields.json': JSON.stringify('uhoh'),
-        },
-        'shopify-vfs:/',
-      );
-      const getMetafieldDefinitions = makeGetMetafieldDefinitions(fs);
-
-      let definitions = await getMetafieldDefinitions('shopify-vfs:/');
-
-      expect(definitions).deep.equals({
-        article: [],
-        blog: [],
-        collection: [],
-        company: [],
-        company_location: [],
-        location: [],
-        market: [],
-        order: [],
-        page: [],
-        product: [],
-        variant: [],
-        shop: [],
-      });
-    });
+  it('should return en even when no translation files exist', async () => {
+    const fs: AbstractFileSystem = new MockFileSystem({}, 'platformos-vfs:/');
+    const getDefaultLocale = makeGetDefaultLocale(fs, 'platformos-vfs:/');
+    expect(await getDefaultLocale()).to.eql('en');
   });
 
   describe('Unit: getDefaultTranslationsFactory', () => {
-    it('should return the correct translations depending on the root', async () => {
-      let getDefaultTranslations = makeGetDefaultTranslations(fs, [], 'shopify-vfs:/gitRootTheme');
-      expect(await getDefaultTranslations()).to.eql({ beverage: 'coffee' });
+    it('should return translations from en.yml stripped of the locale prefix', async () => {
+      const fs: AbstractFileSystem = new MockFileSystem(
+        {
+          'app/translations/en.yml': 'en:\n  beverage: coffee\n',
+          'app/translations/fr.yml': 'fr:\n  beverage: café\n',
+        },
+        'platformos-vfs:/',
+      );
 
-      getDefaultTranslations = makeGetDefaultTranslations(fs, [], 'shopify-vfs:/frenchDefault');
-      expect(await getDefaultTranslations()).to.eql({ beverage: 'café' });
+      const getDefaultTranslations = makeGetDefaultTranslations(fs, [], 'platformos-vfs:/');
+      expect(await getDefaultTranslations()).to.eql({ beverage: 'coffee' });
+    });
+
+    it('should return empty object when no en.yml exists', async () => {
+      const fs: AbstractFileSystem = new MockFileSystem(
+        {
+          'app/translations/fr.yml': 'fr:\n  beverage: café\n',
+        },
+        'platformos-vfs:/',
+      );
+
+      const getDefaultTranslations = makeGetDefaultTranslations(fs, [], 'platformos-vfs:/');
+      expect(await getDefaultTranslations()).to.eql({});
+    });
+
+    it('should prefer translations from the in-memory app buffer over the filesystem', async () => {
+      const fs: AbstractFileSystem = new MockFileSystem(
+        {
+          'app/translations/en.yml': 'en:\n  beverage: coffee\n',
+        },
+        'platformos-vfs:/',
+      );
+
+      // Simulate an open buffer with different content
+      const { toSourceCode } = await import('./to-source-code');
+      const bufferedSourceCode = toSourceCode(
+        'platformos-vfs:/app/translations/en.yml',
+        'en:\n  beverage: tea\n',
+      );
+
+      const getDefaultTranslations = makeGetDefaultTranslations(
+        fs,
+        [bufferedSourceCode],
+        'platformos-vfs:/',
+      );
+      expect(await getDefaultTranslations()).to.eql({ beverage: 'tea' });
     });
   });
 });

@@ -1,15 +1,9 @@
-import { LiquidRawTag, NodeTypes } from '@platformos/liquid-html-parser';
 import {
   IsValidSchema,
   JsonValidationSet,
-  Mode,
-  Modes,
   SchemaDefinition,
   SourceCodeType,
-  findCurrentNode,
   isValid,
-  toJSONAST,
-  visit,
 } from '@platformos/platformos-check-common';
 import { JSONDocument, LanguageService, getLanguageService } from 'vscode-json-languageservice';
 import {
@@ -24,21 +18,12 @@ import {
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DocumentManager } from '../documents';
-import { GetTranslationsForURI } from '../translations';
-import { JSONContributions, GetThemeBlockNames, GetThemeBlockSchema } from './JSONContributions';
-import { createJSONDocumentLinksVisitor } from './documentLinks/DocumentLinksProvider';
-import { URI } from 'vscode-uri';
-import { FindThemeRootURI } from '../internal-types';
+import { JSONContributions } from './JSONContributions';
 
 export class JSONLanguageService {
-  // We index by Mode here because I don't want to reconfigure the service depending on the URI.
-  // This is because you may be in a "app" context in one folder, and in a "theme" context in another one.
-  // Because theme app extensions and themes do not share a common JSON schema for blocks/*.liquid files,
-  // we need to do this switch on mode here to figure out which language service we will use to power
-  // completions/hover. The mode comes from the theme check config.
-  private services: Record<Mode, LanguageService | null>;
+  private service: LanguageService | null = null;
 
-  // One record for all modes since collisions on URIs should point to the same schema
+  // One record for all schemas since collisions on URIs should point to the same schema
   private schemas: Record<string, SchemaDefinition>;
 
   // Setup state
@@ -48,13 +33,7 @@ export class JSONLanguageService {
   constructor(
     private documentManager: DocumentManager,
     private jsonValidationSet: JsonValidationSet,
-    private getDefaultSchemaTranslations: GetTranslationsForURI,
-    private getModeForURI: (uri: string) => Promise<Mode>,
-    private getThemeBlockNames: GetThemeBlockNames,
-    private getThemeBlockSchema: GetThemeBlockSchema,
-    private findThemeRootURI: FindThemeRootURI,
   ) {
-    this.services = Object.fromEntries(Modes.map((mode) => [mode, null])) as typeof this.services;
     this.schemas = {};
     this.initialized = new Promise((resolve) => {
       this.initialize = resolve;
@@ -62,14 +41,12 @@ export class JSONLanguageService {
   }
 
   async setup(clientCapabilities: LSPClientCapabilities) {
-    const promises = Modes.map(async (mode) => {
-      const schemas = await this.jsonValidationSet.schemas(mode);
-      for (const schema of schemas) {
-        this.schemas[schema.uri] = schema;
-      }
+    const schemas = await this.jsonValidationSet.schemas();
+    for (const schema of schemas) {
+      this.schemas[schema.uri] = schema;
+    }
 
-      if (!schemas.length) return;
-
+    if (schemas.length) {
       const service = getLanguageService({
         clientCapabilities,
 
@@ -86,14 +63,7 @@ export class JSONLanguageService {
           },
         },
 
-        contributions: [
-          new JSONContributions(
-            this.documentManager,
-            this.getDefaultSchemaTranslations,
-            this.getThemeBlockNames,
-            this.getThemeBlockSchema,
-          ),
-        ],
+        contributions: [new JSONContributions(this.documentManager)],
       });
 
       service.configure({
@@ -106,17 +76,15 @@ export class JSONLanguageService {
         })),
       });
 
-      this.services[mode] = service;
-    });
+      this.service = service;
+    }
 
-    await Promise.all(promises);
     this.initialize();
   }
 
   async completions(params: CompletionParams): Promise<null | CompletionList | CompletionItem[]> {
     await this.initialized;
-    const mode = await this.getModeForURI(params.textDocument.uri);
-    const service = this.services[mode];
+    const service = this.service;
     if (!service) return null;
     const documents = this.getDocuments(params, service);
     if (!documents) return null;
@@ -126,8 +94,7 @@ export class JSONLanguageService {
 
   async hover(params: HoverParams): Promise<Hover | null> {
     await this.initialized;
-    const mode = await this.getModeForURI(params.textDocument.uri);
-    const service = this.services[mode];
+    const service = this.service;
     if (!service) return null;
     const documents = this.getDocuments(params, service);
     if (!documents) return null;
@@ -135,52 +102,13 @@ export class JSONLanguageService {
     return service.doHover(jsonTextDocument, params.position, jsonDocument);
   }
 
-  async documentLinks(params: DocumentLinkParams): Promise<DocumentLink[]> {
-    await this.initialized;
-    const rootUri = await this.findThemeRootURI(params.textDocument.uri);
-    if (!rootUri) return [];
-
-    const document = this.documentManager.get(params.textDocument.uri);
-    if (!document) return [];
-
-    switch (document.type) {
-      case SourceCodeType.JSON: {
-        if (document.ast instanceof Error) return [];
-        const visitor = await createJSONDocumentLinksVisitor(
-          document.textDocument,
-          URI.parse(rootUri),
-        );
-        return visit(document.ast, visitor);
-      }
-
-      case SourceCodeType.LiquidHtml: {
-        if (document.ast instanceof Error) return [];
-        const textDocument = document.textDocument;
-        const links: DocumentLink[] = [];
-
-        const schema = await document.getSchema();
-        if (schema && !(schema.ast instanceof Error)) {
-          const visitor = await createJSONDocumentLinksVisitor(
-            textDocument,
-            URI.parse(rootUri),
-            schema.offset,
-          );
-          const schemaLinks = await visit(schema.ast, visitor);
-          links.push(...schemaLinks);
-        }
-
-        return links;
-      }
-
-      default:
-        return [];
-    }
+  async documentLinks(_params: DocumentLinkParams): Promise<DocumentLink[]> {
+    return [];
   }
 
   public isValidSchema = async (uri: string, jsonString: string) => {
     await this.initialized;
-    const mode = await this.getModeForURI(uri);
-    const service = this.services[mode];
+    const service = this.service;
     if (!service) return false;
     return isValid(service, uri, jsonString);
   };
@@ -194,37 +122,11 @@ export class JSONLanguageService {
 
     switch (document.type) {
       case SourceCodeType.GraphQL:
+      case SourceCodeType.LiquidHtml:
+      case SourceCodeType.YAML:
         return null;
       case SourceCodeType.JSON: {
         const jsonTextDocument = document.textDocument;
-        const jsonDocument = service.parseJSONDocument(jsonTextDocument);
-        return [jsonTextDocument, jsonDocument];
-      }
-
-      case SourceCodeType.LiquidHtml: {
-        if (document.ast instanceof Error) return null;
-        const textDocument = document.textDocument;
-        const offset = textDocument.offsetAt(params.position);
-        const [_, ancestors] = findCurrentNode(document.ast, offset);
-        const schema = ancestors.find(
-          (node): node is LiquidRawTag =>
-            node.type === NodeTypes.LiquidRawTag && node.name === 'schema',
-        );
-        if (!schema) return null;
-
-        const schemaLineNumber = textDocument.positionAt(schema.blockStartPosition.end).line;
-        // Hacking away "same line numbers" here by prefixing the file with newlines
-        // This way params.position will be at the same line number in this fake jsonTextDocument
-        // Which means that the completions will be at the same line number in the Liquid document
-        const jsonString =
-          Array(schemaLineNumber).fill('\n').join('') +
-          schema.source.slice(schema.blockStartPosition.end, schema.blockEndPosition.start);
-        const jsonTextDocument = TextDocument.create(
-          textDocument.uri,
-          'json',
-          textDocument.version,
-          jsonString,
-        );
         const jsonDocument = service.parseJSONDocument(jsonTextDocument);
         return [jsonTextDocument, jsonDocument];
       }

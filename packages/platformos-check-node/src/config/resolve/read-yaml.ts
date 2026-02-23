@@ -1,4 +1,4 @@
-import { CheckSettings, Modes, Severity } from '@platformos/platformos-check-common';
+import { CheckSettings, Severity } from '@platformos/platformos-check-common';
 import { realpathSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -93,13 +93,6 @@ export async function readYamlConfigDescription(
     config.extends = [resolveExtends(root, 'platformos-check:recommended')!];
   }
 
-  if (yamlFile.context) {
-    if (Modes.includes(yamlFile.context)) {
-      config.context = yamlFile.context;
-    }
-    delete yamlFile.context;
-  }
-
   // legacy settings that screw up assumptions
   if (yamlFile.include_categories) delete yamlFile.include_categories;
   if (yamlFile.exclude_categories) delete yamlFile.exclude_categories;
@@ -164,7 +157,9 @@ function resolvePath(
     return path.resolve(root, pathLike);
   }
 
-  return realpathSync(require.resolve(pathLike, { paths: getAncestorNodeModules(root)! }));
+  return realpathSync(
+    require.resolve(/* webpackIgnore: true */ pathLike, { paths: getAncestorNodeModules(root)! }),
+  );
 }
 
 /**

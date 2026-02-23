@@ -1,7 +1,6 @@
 import { LiquidExpression, NodeTypes } from '@platformos/liquid-html-parser';
 import { assertNever } from '../utils';
-import { isSnippet } from '../to-schema';
-import { isBlock } from '../to-schema';
+import { isPartial } from '../path';
 import { ObjectEntry, UriString } from '../types';
 
 /**
@@ -81,7 +80,7 @@ export function isTypeCompatible(expectedType: string, actualType: BasicParamTyp
  * Checks if the provided file path supports the LiquidDoc tag.
  */
 export function filePathSupportsLiquidDoc(uri: UriString) {
-  return isSnippet(uri) || isBlock(uri);
+  return isPartial(uri);
 }
 
 /**

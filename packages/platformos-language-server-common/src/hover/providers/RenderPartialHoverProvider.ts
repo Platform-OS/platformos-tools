@@ -22,11 +22,7 @@ export class RenderPartialHoverProvider implements BaseHoverProvider {
     }
 
     const partialName = currentNode.value;
-    const docDefinition = await this.getDocDefinitionForURI(
-      params.textDocument.uri,
-      'app/views/partials',
-      partialName,
-    );
+    const docDefinition = await this.getDocDefinitionForURI(params.textDocument.uri, partialName);
 
     return {
       contents: {

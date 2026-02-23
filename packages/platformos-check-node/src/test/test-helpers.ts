@@ -16,7 +16,7 @@ export async function removeTmpFolder(tempDir: string) {
 export async function createMockConfigFile(
   tempDir: string,
   contents: string = 'dummy content',
-  relativePath: string = '.theme-check.yml',
+  relativePath: string = '.platformos-check.yml',
 ): Promise<string> {
   const filePath = path.join(tempDir, relativePath);
   await fs.writeFile(filePath, contents, 'utf8');

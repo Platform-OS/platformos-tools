@@ -66,12 +66,9 @@ export const CSS_DISPLAY_LIQUID_TAGS: Record<string, string> = {
   form: 'block',
   layout: 'none',
   liquid: 'inline',
-  paginate: 'inline',
   raw: 'inline',
   render: 'inline',
   include: 'inline',
-  section: 'block',
-  style: 'none',
 
   // variable tags
   assign: 'none',

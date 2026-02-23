@@ -6,7 +6,7 @@ import { DocumentsLocator } from '@platformos/platformos-common';
 import { path as pathUtils, SourceCodeType, visit } from '@platformos/platformos-check-common';
 import { toLiquidHtmlAST, isLiquidHtmlNode } from '@platformos/liquid-html-parser';
 
-import { getTheme, loadConfig } from '../index';
+import { getApp, loadConfig } from '../index';
 import { NodeFileSystem } from '../NodeFileSystem';
 import { collectPartialUsages } from './argument-collector';
 import { generateParamLine } from './doc-generator';
@@ -63,12 +63,11 @@ export async function backfillDocs(
 
   log('Scanning for partial usages (function, render, include)...');
 
-  // Load theme configuration
   const config = await loadConfig(undefined, rootPath);
-  const theme = await getTheme(config);
+  const app = await getApp(config);
 
-  // Collect all partial usages from the theme
-  const usageMap = await collectPartialUsages(theme, verbose, log);
+  // Collect all partial usages from the app
+  const usageMap = await collectPartialUsages(app, verbose, log);
 
   const totalCalls = Array.from(usageMap.values()).reduce(
     (sum, usage) =>
@@ -245,7 +244,7 @@ export async function runBackfillDocsCLI(args: string[]): Promise<void> {
 
 function printHelp(): void {
   console.log(`
-Usage: theme-check backfill-docs [path] [options]
+Usage: platformos-check backfill-docs [path] [options]
 
 Scans a platformOS project for partial usages (function, render, include tags)
 and backfills or updates {% doc %} tags in the corresponding partial files.
@@ -260,8 +259,8 @@ Options:
   --help, -h        Show this help message
 
 Examples:
-  theme-check backfill-docs
-  theme-check backfill-docs ./my-project --dry-run
-  theme-check backfill-docs --verbose --required
+  platformos-check backfill-docs
+  platformos-check backfill-docs ./my-project --dry-run
+  platformos-check backfill-docs --verbose --required
 `);
 }

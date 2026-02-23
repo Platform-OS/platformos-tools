@@ -41,7 +41,7 @@ export const embed2: Printer2<LiquidHtmlNode>['embed'] = ((
             __embeddedInHtml: true,
           }),
         );
-        if (shouldIndentBody(node, options as any)) {
+        if (shouldIndentBody(node)) {
           return [indent([hardline, body]), hardline];
         } else {
           return [dedentToRoot([hardline, body]), hardline];
@@ -67,7 +67,7 @@ export const embed3: Printer3<LiquidHtmlNode>['embed'] = (path, options) => {
             __embeddedInHtml: true,
           }).then((document) => {
             const body = doc.utils.stripTrailingHardline(document as any);
-            if (shouldIndentBody(node, options as any)) {
+            if (shouldIndentBody(node)) {
               return [indent([hardline, body]), hardline];
             } else {
               return [dedentToRoot([hardline, body]), hardline];
@@ -81,12 +81,6 @@ export const embed3: Printer3<LiquidHtmlNode>['embed'] = (path, options) => {
   };
 };
 
-function shouldIndentBody(node: RawMarkup, options: { indentSchema?: boolean }): boolean {
-  const parentNode = node.parentNode;
-  const shouldNotIndentBody =
-    parentNode &&
-    parentNode.type === NodeTypes.LiquidRawTag &&
-    parentNode.name === 'schema' &&
-    !options.indentSchema;
-  return node.kind !== RawMarkupKinds.markdown && !shouldNotIndentBody;
+function shouldIndentBody(node: RawMarkup): boolean {
+  return node.kind !== RawMarkupKinds.markdown;
 }

@@ -1,5 +1,6 @@
 import { RelativePath, UriString } from './types';
 import { URI, Utils } from 'vscode-uri';
+export { isPartial, isLayout, isPage } from '@platformos/platformos-common';
 
 export { URI, Utils };
 

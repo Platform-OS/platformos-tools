@@ -12,11 +12,10 @@ const { ThemeLiquidDocsManager } = require('@platformos/platformos-check-docs-up
 /** @type {() => Promise<WebpackConfig>} */
 const config = async () => {
   const docsManager = new ThemeLiquidDocsManager();
-  const [tags, filters, objects, systemTranslations, schemas] = await Promise.all([
+  const [tags, filters, objects, schemas] = await Promise.all([
     docsManager.tags(),
     docsManager.filters(),
     docsManager.objects(),
-    docsManager.systemTranslations(),
     docsManager.schemas('theme'),
   ]);
 
@@ -45,7 +44,6 @@ const config = async () => {
         WEBPACK_TAGS: JSON.stringify(tags),
         WEBPACK_FILTERS: JSON.stringify(filters),
         WEBPACK_OBJECTS: JSON.stringify(objects),
-        WEBPACK_SYSTEM_TRANSLATIONS: JSON.stringify(systemTranslations),
         WEBPACK_SCHEMAS: JSON.stringify(schemas),
       }),
       new HtmlWebpackPlugin({

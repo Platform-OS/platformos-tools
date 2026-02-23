@@ -1,13 +1,5 @@
 import { LiquidFilter } from '@platformos/liquid-html-parser';
-import {
-  Severity,
-  SourceCodeType,
-  LiquidCheckDefinition,
-  LiquidHtmlSuggestion,
-  FilterEntry,
-  Fixer,
-} from '../../types';
-import { fixHexToRgba, suggestImageUrlFix, suggestImgTagFix, suggestImgUrlFix } from './fixes';
+import { Severity, SourceCodeType, LiquidCheckDefinition, FilterEntry } from '../../types';
 
 export const DeprecatedFilter: LiquidCheckDefinition = {
   meta: {
@@ -15,8 +7,8 @@ export const DeprecatedFilter: LiquidCheckDefinition = {
     aliases: ['DeprecatedFilters'],
     name: 'Deprecated Filter',
     docs: {
-      description: 'Discourages using deprecated filters in themes.',
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/deprecated-filter',
+      description: 'Discourages using deprecated filters.',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/deprecated-filter',
       recommended: true,
     },
     type: SourceCodeType.LiquidHtml,
@@ -26,13 +18,13 @@ export const DeprecatedFilter: LiquidCheckDefinition = {
   },
 
   create(context) {
-    if (!context.themeDocset) {
+    if (!context.platformosDocset) {
       return {};
     }
 
     return {
       LiquidFilter: async (node: LiquidFilter) => {
-        const filters = await context.themeDocset!.filters();
+        const filters = await context.platformosDocset!.filters();
 
         const deprecatedFilter = filters.find((f) => {
           return f.deprecated && f.name === node.name;
@@ -46,13 +38,9 @@ export const DeprecatedFilter: LiquidCheckDefinition = {
         const recommendedFilter = filters.find((f) => f.name === recommendedFilterName);
 
         const message = deprecatedFilterMessage(deprecatedFilter, recommendedFilter);
-        const suggest = deprecatedFilterSuggestion(node);
-        const fix = deprecatedFilterFix(node);
 
         context.report({
           message,
-          suggest,
-          fix,
           startIndex: node.position.start + 1,
           endIndex: node.position.end,
         });
@@ -60,42 +48,6 @@ export const DeprecatedFilter: LiquidCheckDefinition = {
     };
   },
 };
-
-function deprecatedFilterSuggestion(node: LiquidFilter): LiquidHtmlSuggestion[] | undefined {
-  const filter = node.name;
-
-  switch (filter) {
-    case 'img_tag':
-      return suggestImgTagFix(node);
-    case 'img_url':
-      return suggestImgUrlFix(node);
-    case 'article_img_url':
-    case 'collection_img_url':
-    case 'product_img_url':
-      /**
-       * These filters rely on the usage of the `image_url`
-       * filter as the fix.
-       */
-      return suggestImageUrlFix(filter, node);
-    case 'currency_selector':
-      /**
-       * Cannot be fixed.
-       *
-       * Deprecated without a direct replacement because the
-       * currency form has also been deprecated. The currency
-       * form was replaced by the localization form.
-       */
-      return;
-  }
-}
-
-function deprecatedFilterFix(node: LiquidFilter): Fixer<SourceCodeType.LiquidHtml> | undefined {
-  const filter = node.name;
-
-  if (filter === 'hex_to_rgba') {
-    return fixHexToRgba(node);
-  }
-}
 
 function deprecatedFilterMessage(deprecated: FilterEntry, recommended?: FilterEntry) {
   if (recommended) {

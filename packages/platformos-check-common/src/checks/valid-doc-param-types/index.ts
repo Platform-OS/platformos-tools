@@ -9,7 +9,7 @@ export const ValidDocParamTypes: LiquidCheckDefinition = {
       description:
         'This check exists to ensure any parameter types defined in the `doc` tag are valid.',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/valid-doc-param-types',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/valid-doc-param-types',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,
@@ -18,14 +18,14 @@ export const ValidDocParamTypes: LiquidCheckDefinition = {
   },
 
   create(context) {
-    if (!context.themeDocset) {
+    if (!context.platformosDocset) {
       return {};
     }
 
-    // To avoid recalculating valid param types during theme-check, constructing
+    // To avoid recalculating valid param types during platformos-check, constructing
     // the promise beforehand.
     const validParamTypesPromise = context
-      .themeDocset!.liquidDrops()
+      .platformosDocset!.liquidDrops()
       .then((entries) => new Set(getValidParamTypes(entries).keys()));
 
     return {

@@ -1,6 +1,6 @@
-import { SerializableEdge, SerializableGraph, SerializableNode, ThemeGraph } from '../types';
+import { SerializableEdge, SerializableGraph, SerializableNode, AppGraph } from '../types';
 
-export function serializeThemeGraph(graph: ThemeGraph): SerializableGraph {
+export function serializeAppGraph(graph: AppGraph): SerializableGraph {
   const nodes: SerializableNode[] = Object.values(graph.modules).map((module) => ({
     uri: module.uri,
     type: module.type,

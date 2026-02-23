@@ -6,11 +6,11 @@ import { filePathSupportsLiquidDoc } from '@platformos/platformos-check-common';
 import {
   getValidParamTypes,
   SupportedDocTagTypes,
-  ThemeDocset,
+  PlatformOSDocset,
 } from '@platformos/platformos-check-common';
 
 export class LiquidDocParamTypeCompletionProvider implements Provider {
-  constructor(private readonly themeDocset: ThemeDocset) {}
+  constructor(private readonly platformosDocset: PlatformOSDocset) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
@@ -44,7 +44,7 @@ export class LiquidDocParamTypeCompletionProvider implements Provider {
       return [];
     }
 
-    const liquidDrops = await this.themeDocset.liquidDrops();
+    const liquidDrops = await this.platformosDocset.liquidDrops();
 
     return Array.from(getValidParamTypes(liquidDrops)).map(([label, description]) => {
       const documentation = description

@@ -37,7 +37,6 @@ export class RenderPartialParameterCompletionProvider implements Provider {
 
     const partialDefinition = await this.getDocDefinitionForURI(
       params.textDocument.uri,
-      'app/views/partials',
       parentNode.snippet.value,
     );
 

@@ -24,7 +24,9 @@ export function createDisabledChecksModule() {
     node: LiquidTag | LiquidRawTag,
   ) {
     const [_, command, checksJoined] =
-      value.trim().match(/^(?:theme\-check\-(disable-next-line|disable|enable)) ?(.*)/) || [];
+      value
+        .trim()
+        .match(/^(?:(?:platformos|theme)\-check\-(disable-next-line|disable|enable)) ?(.*)/) || [];
 
     const checks = checksJoined ? checksJoined.split(/,[ ]*/) : [SPECIFIC_CHECK_NOT_DEFINED];
 
@@ -133,7 +135,7 @@ export function findNextLinePosition(
    * E.g. The following disables check for `elsif` tag
    *
    * {% if condition %}
-   *   {% #theme-check-disable-next-line %}
+   *   {% #platformos-check-disable-next-line %}
    * {% elsif other_condition %}
    *   {{ prouduct }}
    * {% endif %}

@@ -45,8 +45,8 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
 
   create(context) {
     const ast = context.file.ast;
-    const filtersPromise = context.themeDocset?.filters();
-    const tagsPromise = context.themeDocset?.tags();
+    const filtersPromise = context.platformosDocset?.filters();
+    const tagsPromise = context.platformosDocset?.tags();
 
     if (!isError(ast)) {
       return {

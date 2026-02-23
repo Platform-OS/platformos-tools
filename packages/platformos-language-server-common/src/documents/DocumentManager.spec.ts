@@ -1,10 +1,4 @@
-import {
-  path,
-  Section,
-  Setting,
-  ThemeBlock,
-  ThemeSchemaType,
-} from '@platformos/platformos-check-common';
+import { path } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,7 +17,7 @@ describe('Module: DocumentManager', () => {
     documentManager = new DocumentManager();
   });
 
-  it('should return a theme for a root', () => {
+  it('should return an app for a root', () => {
     // these will be different in windows vs unix
     const rootUri = URI.file(__dirname);
     const fileUri = Utils.joinPath(rootUri, 'test.liquid');
@@ -31,12 +25,12 @@ describe('Module: DocumentManager', () => {
     // We expect forward slash paths (windows path get normalized)
     expect(fileUri.path).not.to.include('\\');
     documentManager.open(fileUri.toString(), '{{ "hi" }}', 0);
-    const theme = documentManager.theme(path.normalize(rootUri));
-    expect(theme).to.have.lengthOf(1);
-    expect(theme[0].uri).not.to.include('\\');
+    const app = documentManager.app(path.normalize(rootUri));
+    expect(app).to.have.lengthOf(1);
+    expect(app[0].uri).not.to.include('\\');
     // `fileURI.toString()` lowercases c: in 'C:\dir\path'
     // Without the URI.parse().path, this test was failing for a dumb reason
-    expect(theme[0].uri).to.equal(path.normalize(fileUri));
+    expect(app[0].uri).to.equal(path.normalize(fileUri));
   });
 
   describe('when initialized with an abstract file system', () => {
@@ -70,15 +64,15 @@ describe('Module: DocumentManager', () => {
         expect(sc.version).to.equal(0);
       });
 
-      describe('Unit: theme(rootUri, includeFilesFromDisk)', () => {
+      describe('Unit: app(rootUri, includeFilesFromDisk)', () => {
         it('only returns the source codes of the opened files by default', () => {
-          const theme = documentManager.theme('mock-fs:/');
-          expect(theme).to.have.lengthOf(0);
+          const app = documentManager.app('mock-fs:/');
+          expect(app).to.have.lengthOf(0);
         });
 
         it('returns all the files when called with includeFilesFromDisk', async () => {
-          const theme = documentManager.theme('mock-fs:/', true);
-          expect(theme).to.have.lengthOf(2);
+          const app = documentManager.app('mock-fs:/', true);
+          expect(app).to.have.lengthOf(2);
         });
       });
 
@@ -110,7 +104,7 @@ describe('Module: DocumentManager', () => {
           await documentManager.preload('mock-fs:/');
           await documentManager.preload('mock-fs:/');
           expect(vi.mocked(fs.readFile)).toHaveBeenCalledTimes(
-            documentManager.theme('mock-fs:/', true).length,
+            documentManager.app('mock-fs:/', true).length,
           );
         });
       });
@@ -192,85 +186,6 @@ describe('Module: DocumentManager', () => {
           message: 'Completed',
         },
       );
-    });
-  });
-
-  describe('when initialized with a fs, getModeForURI, and isValidSchema', () => {
-    const mockFsRoot = path.normalize('mock-fs:/theme');
-    const sectionSchema: Section.Schema = {
-      name: 'hello',
-      settings: [{ type: 'number' as Setting.Type.Number, id: 'my_num' }],
-      default: { settings: { my_num: 1 } },
-    };
-    const blockSchema: ThemeBlock.Schema = {
-      name: 'world',
-      blocks: [{ type: '@theme' }],
-    };
-
-    beforeEach(async () => {
-      fs = new MockFileSystem(
-        {
-          'sections/foo.liquid': `
-             {% schema %}
-               ${JSON.stringify(sectionSchema, null, 2)}
-             {% endschema %}`,
-          'blocks/bar.liquid': `
-            {% schema %}
-              ${JSON.stringify(blockSchema, null, 2)}
-            {% endschema %}`,
-        },
-        mockFsRoot,
-      );
-      documentManager = new DocumentManager(
-        fs,
-        undefined,
-        undefined,
-        async () => 'theme',
-        async () => true, // let's assume they are valid for testing purposes...
-      );
-      await documentManager.preload(mockFsRoot);
-    });
-
-    it('should augment section files with a getSchema property that resolves to a type-safe schema', async () => {
-      const section = documentManager.get(path.join(mockFsRoot, 'sections/foo.liquid'));
-      assert(section);
-      assert(section.type === 'LiquidHtml');
-      const schema = await section.getSchema();
-      assert(schema);
-      assert(schema.type === ThemeSchemaType.Section);
-      expect(schema.parsed).to.eql(sectionSchema);
-      const validSchema = schema.validSchema;
-      assert(!(validSchema instanceof Error));
-
-      // Note below that validSchema.name is accessed in a type-safe manner
-      expect(validSchema.name).to.equal(sectionSchema.name);
-      assert(validSchema.settings);
-      for (const setting of validSchema.settings) {
-        assert(setting.type);
-        assert(setting.id);
-      }
-
-      // Default is a section-only property
-      assert(validSchema.default);
-    });
-
-    it('should augment block files with a getSchema property that resolves to a type-safe schema', async () => {
-      const block = documentManager.get(path.join(mockFsRoot, 'blocks/bar.liquid'));
-      assert(block);
-      assert(block.type === 'LiquidHtml');
-      const schema = await block.getSchema();
-      assert(schema);
-      assert(schema.type === ThemeSchemaType.Block);
-      expect(schema.parsed).to.eql(blockSchema);
-      const validSchema = schema.validSchema;
-      assert(!(validSchema instanceof Error));
-
-      // Note below that validSchema.name is accessed in a type-safe manner
-      expect(validSchema.name).to.equal(blockSchema.name);
-      assert(validSchema.blocks);
-      for (const block of validSchema.blocks) {
-        assert(block.type);
-      }
     });
   });
 });

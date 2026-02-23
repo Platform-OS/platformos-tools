@@ -1,7 +1,7 @@
 import {
-  JSONCheckDefinition,
+  YAMLCheckDefinition,
   JSONNode,
-  JSONSourceCode,
+  YAMLSourceCode,
   Severity,
   SourceCodeType,
   PropertyNode,
@@ -9,16 +9,16 @@ import {
 
 const PLURALIZATION_KEYS = new Set(['zero', 'one', 'two', 'few', 'many', 'other']);
 
-export const MatchingTranslations: JSONCheckDefinition = {
+export const MatchingTranslations: YAMLCheckDefinition = {
   meta: {
     code: 'MatchingTranslations',
     name: 'Translation files should have the same keys',
     docs: {
       description: 'TODO',
       recommended: true,
-      url: 'https://shopify.dev/docs/storefronts/themes/tools/theme-check/checks/matching-translations',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/matching-translations',
     },
-    type: SourceCodeType.JSON,
+    type: SourceCodeType.YAML,
     severity: Severity.ERROR,
     schema: {},
     targets: [],
@@ -29,18 +29,17 @@ export const MatchingTranslations: JSONCheckDefinition = {
     const defaultTranslations = new Set<string>();
     const missingTranslations = new Set<string>();
     const nodesByPath = new Map<string, PropertyNode>();
-    const file = context.file;
+    const file = context.file as YAMLSourceCode;
     const fileUri = file.uri;
     const relativePath = context.toRelativePath(fileUri);
     const ast = file.ast;
-    const isLocaleFile = relativePath.startsWith('locales/');
-    const isDefaultTranslationsFile =
-      fileUri.endsWith('.default.json') || fileUri.endsWith('.default.schema.json');
-    const isSchemaTranslationFile = fileUri.endsWith('.schema.json');
+    const isTranslationFile = relativePath.includes('/translations/');
+    // In platformOS, en.yml is the reference locale; skip running the check on it
+    const basename = fileUri.split('/').pop() ?? '';
+    const isDefaultTranslationsFile = basename.replace(/\.ya?ml$/, '') === 'en';
 
-    if (!isLocaleFile || isDefaultTranslationsFile || ast instanceof Error) {
-      // No need to lint a file that isn't a translation file, we return an
-      // empty object as the check for those.
+    if (!isTranslationFile || isDefaultTranslationsFile || ast instanceof Error) {
+      // No need to lint a file that isn't a non-default translation file
       return {};
     }
 
@@ -48,7 +47,6 @@ export const MatchingTranslations: JSONCheckDefinition = {
     const hasDefaultTranslations = () => defaultTranslations.size > 0;
     const isTerminalNode = ({ type }: JSONNode) => type === 'Literal';
     const isPluralizationNode = (node: PropertyNode) => PLURALIZATION_KEYS.has(node.key.value);
-    const isShopifyPath = (path: string) => path.startsWith('shopify.');
 
     const hasDefaultTranslation = (translationPath: string) =>
       defaultTranslations.has(translationPath) ?? false;
@@ -71,10 +69,15 @@ export const MatchingTranslations: JSONCheckDefinition = {
       }, []);
     };
 
+    // Strip the locale prefix (first Property in the ancestors chain).
+    // YAML files wrap content under a locale key: { en: { hello: 'Hello' } }
+    // We want paths like 'hello', not 'en.hello'.
     const objectPath = (nodes: JSONNode[]) => {
-      return nodes
-        .filter((node): node is PropertyNode => node.type === 'Property')
-        .reduce((acc: string[], val) => acc.concat(val.key.value), [])
+      const props = nodes.filter((n): n is PropertyNode => n.type === 'Property');
+      if (props.length <= 1) return ''; // locale key itself, or empty
+      return props
+        .slice(1)
+        .map((p) => p.key.value)
         .join('.');
     };
 
@@ -110,10 +113,7 @@ export const MatchingTranslations: JSONCheckDefinition = {
 
     return {
       async onCodePathStart() {
-        const getDefaultTranslations = isSchemaTranslationFile
-          ? context.getDefaultSchemaTranslations
-          : context.getDefaultTranslations;
-        const defaultTranslationPaths = await getDefaultTranslations().then(jsonPaths);
+        const defaultTranslationPaths = await context.getDefaultTranslations().then(jsonPaths);
         defaultTranslationPaths.forEach(Set.prototype.add, defaultTranslations);
 
         // At the `onCodePathStart`, we assume that all translations are missing,
@@ -124,12 +124,13 @@ export const MatchingTranslations: JSONCheckDefinition = {
       async Property(node, ancestors) {
         const path = objectPath(ancestors.concat(node));
 
+        if (!path) return; // skip the root locale key (e.g. 'pt-BR')
+
         nodesByPath.set(path, node);
 
         if (!hasDefaultTranslations()) return;
         if (isPluralizationNode(node)) return;
         if (!isTerminalNode(node.value)) return;
-        if (isShopifyPath(path)) return;
 
         if (hasDefaultTranslation(path)) {
           // As `path` is present, we remove it from the
@@ -142,14 +143,6 @@ export const MatchingTranslations: JSONCheckDefinition = {
           message: `A default translation for '${path}' does not exist`,
           startIndex: node.loc!.start.offset,
           endIndex: node.loc!.end.offset,
-          suggest: [
-            {
-              message: 'Delete unneeded translation key',
-              fix(corrector) {
-                corrector.remove(path);
-              },
-            },
-          ],
         });
       },
 
@@ -158,15 +151,11 @@ export const MatchingTranslations: JSONCheckDefinition = {
           const closest = closestTranslationKey(path);
 
           if (isPluralizationPath(path)) return;
-          if (isShopifyPath(path)) return;
 
           context.report({
             message: `The translation for '${path}' is missing`,
             startIndex: closest.loc!.start.offset,
             endIndex: closest.loc!.end.offset,
-            fix(corrector) {
-              corrector.add(path, 'TODO');
-            },
           });
         });
       },

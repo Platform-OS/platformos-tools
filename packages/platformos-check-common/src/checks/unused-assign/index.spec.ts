@@ -84,36 +84,6 @@ describe('Module: UnusedAssign', () => {
     expect(offenses).not.to.be.empty;
   });
 
-  it('should not report unused assigns for things used in a raw-like tag', async () => {
-    const tags = ['style'];
-    for (const tag of tags) {
-      const sourceCode = `
-        {% assign usedVar = 1 %}
-        {% ${tag} %}
-          {{ usedVar }}
-        {% end${tag} %}
-      `;
-
-      const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
-      expect(offenses).to.be.empty;
-    }
-  });
-
-  it('should report unused assigns for things used in raw code that gets stripped away (schema, etc)', async () => {
-    const tags = ['schema', 'javascript', 'stylesheet'];
-    for (const tag of tags) {
-      const sourceCode = `
-        {% assign usedVar = 1 %}
-        {% ${tag} %}
-          {{ usedVar }}
-        {% end${tag} %}
-      `;
-
-      const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
-      expect(offenses).to.not.be.empty;
-    }
-  });
-
   it('should not report unused assigns for things used in a HTML raw-like tag', async () => {
     const tags = ['style', 'script'];
     for (const tag of tags) {

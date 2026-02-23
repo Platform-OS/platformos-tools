@@ -3,12 +3,13 @@ import {
   JSONSourceCode,
   LiquidSourceCode,
   Offense,
-  Theme,
+  App,
   allChecks,
   check as coreCheck,
   toSourceCode,
   recommended,
   Dependencies,
+  YAMLSourceCode,
 } from '@platformos/platformos-check-common';
 
 import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
@@ -38,14 +39,14 @@ export {
  *   `,
  * }
  */
-export type ThemeData = {
+export type AppData = {
   [relativePath in string]: string;
 };
 
-export function getTheme(themeDesc: ThemeData): Theme {
+export function getApp(themeDesc: AppData): App {
   return Object.entries(themeDesc)
     .map(([relativePath, source]) => toSourceCode(toUri(relativePath), source))
-    .filter((x): x is LiquidSourceCode | JSONSourceCode => x !== undefined);
+    .filter((x): x is LiquidSourceCode | JSONSourceCode | YAMLSourceCode => x !== undefined);
 }
 
 /**
@@ -55,11 +56,11 @@ export function getTheme(themeDesc: ThemeData): Theme {
  * it might be preferable to call coreCheck directly.
  */
 export async function simpleCheck(
-  themeDesc: ThemeData,
+  themeDesc: AppData,
   config: Config,
   dependencies: Dependencies,
 ): Promise<Offense[]> {
-  const theme = getTheme(themeDesc);
+  const theme = getApp(themeDesc);
   return coreCheck(theme, config, dependencies);
 }
 

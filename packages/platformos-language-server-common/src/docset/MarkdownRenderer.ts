@@ -62,7 +62,7 @@ function sanitize(s: string | undefined) {
     ?.replace(/(^|\n+)&gt;/g, ' ')
     .replace(/&gt;/g, '>')
     .replace(/&lt;/g, '<')
-    .replace(/\]\(\//g, '](https://shopify.dev/')
+    .replace(/\]\(\//g, '](https://documentation.platformos.com/')
     .trim();
 }
 

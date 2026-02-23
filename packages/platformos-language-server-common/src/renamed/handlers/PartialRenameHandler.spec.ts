@@ -9,7 +9,7 @@ import { RenameHandler } from '../RenameHandler';
 
 describe('Module: PartialRenameHandler', () => {
   const mockRoot = 'mock-fs:';
-  const findThemeRootURI = async () => mockRoot;
+  const findAppRootURI = async () => mockRoot;
   let capabilities: ClientCapabilities;
   let documentManager: DocumentManager;
   let handler: RenameHandler;
@@ -29,7 +29,7 @@ describe('Module: PartialRenameHandler', () => {
       mockRoot,
     );
     documentManager = new DocumentManager(fs);
-    handler = new RenameHandler(connection, capabilities, documentManager, findThemeRootURI);
+    handler = new RenameHandler(connection, capabilities, documentManager, findAppRootURI);
   });
 
   describe('when the client does not support workspace/applyEdit', () => {

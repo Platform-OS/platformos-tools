@@ -6,13 +6,13 @@ import { renderTranslation } from '../../translations';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 import { TranslationProvider } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
-import { FindThemeRootURI } from '../../../src/internal-types';
+import { FindAppRootURI } from '../../../src/internal-types';
 
 export class TranslationHoverProvider implements BaseHoverProvider {
   constructor(
     public documentManager: DocumentManager,
     private translationProvider: TranslationProvider,
-    private findThemeRootURI: FindThemeRootURI,
+    private findAppRootURI: FindAppRootURI,
   ) {}
 
   async hover(
@@ -33,7 +33,7 @@ export class TranslationHoverProvider implements BaseHoverProvider {
       return null;
     }
 
-    const root = await this.findThemeRootURI(params.textDocument.uri);
+    const root = await this.findAppRootURI(params.textDocument.uri);
     if (!root) {
       return null;
     }

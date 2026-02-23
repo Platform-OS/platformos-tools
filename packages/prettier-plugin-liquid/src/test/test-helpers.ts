@@ -111,7 +111,6 @@ function getTestSetup(sourceParagraph: string, index: number, expectedParagraph:
     .replace(/\.$/, '');
   const prettierOptions: Partial<LiquidParserOptions> = {
     printWidth: 80, // We changed the default, but the tests were written with 80 in mind.
-    indentSchema: true, // We changed the default, but the tests were written with true in mind.
     trailingComma: 'es5', // prettier 3 changed the default from "es5" to "all", but our tests were written for prettier 2
   };
   const optionsParser = /(?<name>\w+): (?<value>[^\s]*)/g;

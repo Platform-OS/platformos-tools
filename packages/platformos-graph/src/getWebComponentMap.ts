@@ -46,7 +46,7 @@ export async function findWebComponentReferences(
   result: WebComponentMap,
 ): Promise<Void> {
   const sourceCode = await getSourceCode(uri);
-  if (sourceCode.type !== 'javascript') {
+  if (!uri.endsWith('.js')) {
     return;
   }
 

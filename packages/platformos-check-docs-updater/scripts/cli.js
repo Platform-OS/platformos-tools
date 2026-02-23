@@ -2,7 +2,7 @@
 
 const path = require('path');
 const fs = require('fs');
-const { downloadThemeLiquidDocs, root } = require(path.resolve(__dirname, '../dist'));
+const { downloadPlatformOSLiquidDocs, root } = require(path.resolve(__dirname, '../dist'));
 
 // Get the command line arguments
 const args = process.argv.slice(2);
@@ -29,7 +29,7 @@ switch (args[0]) {
     }
     console.log('Downloading docs...');
 
-    downloadThemeLiquidDocs(args[1], console.error.bind(console));
+    downloadPlatformOSLiquidDocs(args[1], console.error.bind(console));
 
     break;
 

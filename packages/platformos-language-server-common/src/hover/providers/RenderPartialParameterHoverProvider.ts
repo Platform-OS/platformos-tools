@@ -24,7 +24,6 @@ export class RenderPartialParameterHoverProvider implements BaseHoverProvider {
 
     const docDefinition = await this.getDocDefinitionForURI(
       params.textDocument.uri,
-      'app/views/partials',
       parentNode.snippet.value,
     );
 

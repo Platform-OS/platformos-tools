@@ -1,5 +1,5 @@
 import { allChecks, path } from '@platformos/platformos-check-common';
-import { MockFileSystem, MockTheme } from '@platformos/platformos-check-common/dist/test';
+import { MockFileSystem, MockApp } from '@platformos/platformos-check-common/dist/test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DidChangeConfigurationNotification,
@@ -25,7 +25,7 @@ describe('Module: server', () => {
   let checkOnOpen: boolean | null = null;
   let connection: MockConnection;
   let dependencies: ReturnType<typeof getDependencies>;
-  let fileTree: MockTheme;
+  let fileTree: MockApp;
   let logger: any;
 
   beforeEach(() => {
@@ -375,25 +375,23 @@ describe('Module: server', () => {
     return flushAsync();
   }
 
-  function getDependencies(logger: any, fileTree: MockTheme): Dependencies {
-    const MissingTemplate = allChecks.filter((c) => c.meta.code === 'MissingTemplate');
+  function getDependencies(logger: any, fileTree: MockApp): Dependencies {
+    const MissingTemplate = allChecks.filter((c) => c.meta.code === 'MissingPartial');
 
     return {
       fs: new MockFileSystem(fileTree, mockRoot),
       log: logger,
       loadConfig: async () => ({
-        context: 'theme',
         settings: {},
         checks: MissingTemplate,
         rootUri: mockRoot,
       }),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
       jsonValidationSet: {
         schemas: async () => [],
@@ -403,11 +401,11 @@ describe('Module: server', () => {
 
   function missingTemplateDiagnostic() {
     return {
-      code: 'MissingTemplate',
+      code: 'MissingPartial',
       codeDescription: { href: expect.any(String) },
       message: "'foo' does not exist",
       severity: 1,
-      source: 'theme-check',
+      source: 'platformos-check',
       range: {
         start: {
           character: 10,

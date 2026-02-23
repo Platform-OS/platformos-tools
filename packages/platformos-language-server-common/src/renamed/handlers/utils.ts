@@ -1,4 +1,4 @@
-import { Template } from '@platformos/platformos-check-common';
+import { Template } from '@platformos/platformos-check-common/dist/types/schemas';
 
 // this is very very optimistic...
 export function isValidTemplate(parsed: unknown): parsed is Template.Template {

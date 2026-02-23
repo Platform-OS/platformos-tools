@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
-import { MetafieldDefinitionMap } from '@platformos/platformos-check-common';
 
 describe('Module: LiquidDocTagCompletionProvider', async () => {
   let provider: CompletionsProvider;
@@ -9,15 +8,13 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 
@@ -32,13 +29,6 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
     );
   });
 
-  it('offers completions within liquid doc tag for blocks', async () => {
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://blocks/file.liquid' },
-      ['param', 'example', 'description'],
-    );
-  });
-
   it("does not offer completion if it doesn't start with @", async () => {
     await expect(provider).to.complete(
       { source: `{% doc %} █`, relativePath: 'file://app/views/partials/file.liquid' },
@@ -49,21 +39,6 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
   it('does not offer completion if it is not within a doc tag', async () => {
     await expect(provider).to.complete(
       { source: `{% notdoc %} @█`, relativePath: 'file://app/views/partials/file.liquid' },
-      [],
-    );
-  });
-
-  it('does not offer completion if it is not a snippet file or block', async () => {
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://sections/file.liquid' },
-      [],
-    );
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://templates/file.liquid' },
-      [],
-    );
-    await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://layout/file.liquid' },
       [],
     );
   });

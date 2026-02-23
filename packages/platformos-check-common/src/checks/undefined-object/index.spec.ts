@@ -205,20 +205,6 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'c' used."]);
   });
 
-  it('should contextually report on the undefined nature of the paginate object (defined in paginate tag, undefined outside)', async () => {
-    const sourceCode = `
-      {% assign col = 'string' | split: '' %}
-      {% paginate col by 5 %}
-        {{ paginate }}
-      {% endpaginate %}{{ paginate }}
-    `;
-
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
-
-    expect(offenses).toHaveLength(1);
-    expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'paginate' used."]);
-  });
-
   it('should contextually report on the undefined nature of the form object (defined in form tag, undefined outside)', async () => {
     const sourceCode = `
       {% form "cart" %}
@@ -313,42 +299,9 @@ describe('Module: UndefinedObject', () => {
     }
   });
 
-  it('should support contextual exceptions', async () => {
+  it('should support contextual exceptions for partials', async () => {
     let offenses: Offense[];
-    const contexts: [string, string][] = [
-      ['section', 'sections/section.liquid'],
-      ['predictive_search', 'sections/predictive-search.liquid'],
-      ['recommendations', 'sections/recommendations.liquid'],
-      ['comment', 'sections/main-article.liquid'],
-      ['block', 'blocks/theme-app-extension.liquid'],
-      ['app', 'blocks/theme-app-extension.liquid'],
-      ['app', 'app/views/partials/theme-app-extension.liquid'],
-    ];
-    for (const [object, goodPath] of contexts) {
-      offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, goodPath);
-      expect(offenses).toHaveLength(0);
-      offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, 'file.liquid');
-      expect(offenses).toHaveLength(1);
-    }
-  });
-
-  it('should support contextual exceptions for checkout.liquid', async () => {
-    let offenses: Offense[];
-    const contexts: [string, string][] = [
-      ['locale', 'layout/checkout.liquid'],
-      ['direction', 'layout/checkout.liquid'],
-      ['skip_to_content_link', 'layout/checkout.liquid'],
-      ['checkout_html_classes', 'layout/checkout.liquid'],
-      ['checkout_stylesheets', 'layout/checkout.liquid'],
-      ['checkout_scripts', 'layout/checkout.liquid'],
-      ['content_for_logo', 'layout/checkout.liquid'],
-      ['breadcrumb', 'layout/checkout.liquid'],
-      ['order_summary_toggle', 'layout/checkout.liquid'],
-      ['content_for_order_summary', 'layout/checkout.liquid'],
-      ['alternative_payment_methods', 'layout/checkout.liquid'],
-      ['content_for_footer', 'layout/checkout.liquid'],
-      ['tracking_code', 'layout/checkout.liquid'],
-    ];
+    const contexts: [string, string][] = [['app', 'app/views/partials/theme-app-extension.liquid']];
     for (const [object, goodPath] of contexts) {
       offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, goodPath);
       expect(offenses).toHaveLength(0);
@@ -374,42 +327,10 @@ describe('Module: UndefinedObject', () => {
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'file.liquid', {
-      themeDocset: undefined,
+      platformosDocset: undefined,
     });
 
     expect(offenses).toHaveLength(0);
-  });
-
-  it('should not report an offense when object is defined with @param in a block file', async () => {
-    const sourceCode = `
-      {% doc %}
-        @param {string} text
-      {% enddoc %}
-
-      {{ text }}
-    `;
-
-    const filePath = 'blocks/my-custom-block.liquid';
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, filePath);
-
-    expect(offenses).toHaveLength(0);
-  });
-
-  it('should report an offense when an undefined object is used alongside @param in a block file', async () => {
-    const sourceCode = `
-      {% doc %}
-        @param {string} text
-      {% enddoc %}
-
-      {{ text }}
-      {{ undefined_variable }}
-    `;
-
-    const filePath = 'blocks/my-custom-block.liquid';
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, filePath);
-
-    expect(offenses).toHaveLength(1);
-    expect(offenses[0].message).toBe("Unknown object 'undefined_variable' used.");
   });
 
   it('should not report an offense when a self defined variable is defined with a @param tag', async () => {
@@ -436,33 +357,6 @@ describe('Module: UndefinedObject', () => {
 
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
-  });
-
-  it('should not report an offense when using variables inside visible_if statements in a schema tag', async () => {
-    const sourceCode = `
-    {% schema %}
-    {
-      "settings": [
-        {
-          "type": "text",
-          "label": "foo",
-          "id": "foo",
-        }
-        {
-          "type": "text",
-          "label": "bar",
-          "id": "bar",
-          "visible_if": "{{ block.settings.foo }}",
-        }
-      ]
-    }
-    {% endschema %}
-    `;
-
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
-
-    assert(offenses.length == 0);
-    expect(offenses).to.be.empty;
   });
 
   it('should report an offense when job_id is used inside background block', async () => {

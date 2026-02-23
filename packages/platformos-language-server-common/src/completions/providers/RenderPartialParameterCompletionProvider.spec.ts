@@ -1,7 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
-import { MetafieldDefinitionMap, DocDefinition } from '@platformos/platformos-check-common';
+import { DocDefinition } from '@platformos/platformos-check-common';
 
 const uri = 'file:///snippets/product-card.liquid';
 
@@ -54,16 +54,14 @@ describe('Module: RenderSnippetParameterCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
-      getDocDefinitionForURI: async (_uri, _type, snippetName) => {
+      getDocDefinitionForURI: async (_uri, snippetName) => {
         if (mockSnippetName === snippetName) {
           return mockSnippetDefinition;
         }

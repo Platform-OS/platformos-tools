@@ -2,10 +2,10 @@ import { path } from '@platformos/platformos-check-common';
 import {
   AugmentedLocation,
   AugmentedReference,
-  ThemeGraphDependenciesRequest,
-  ThemeGraphDidUpdateNotification,
-  ThemeGraphReferenceRequest,
-  ThemeGraphRootRequest,
+  AppGraphDependenciesRequest,
+  AppGraphDidUpdateNotification,
+  AppGraphReferenceRequest,
+  AppGraphRootRequest,
 } from '@platformos/platformos-language-server-common';
 import {
   commands,
@@ -92,7 +92,7 @@ export class ReferencesProvider implements TreeDataProvider<TreeItem> {
     private mode: 'references' | 'dependencies' = 'references',
   ) {
     window.onDidChangeActiveTextEditor(() => this.onActiveEditorChanged());
-    client.onNotification(ThemeGraphDidUpdateNotification.type, () => this.refresh());
+    client.onNotification(AppGraphDidUpdateNotification.type, () => this.refresh());
   }
 
   getTreeItem(element: ReferenceItem): TreeItem {
@@ -120,11 +120,11 @@ export class ReferencesProvider implements TreeDataProvider<TreeItem> {
 
     const command =
       this.mode === 'references'
-        ? ThemeGraphReferenceRequest.method
-        : ThemeGraphDependenciesRequest.method;
+        ? AppGraphReferenceRequest.method
+        : AppGraphDependenciesRequest.method;
     const destination = this.mode === 'references' ? 'source' : 'target';
     const [rootUri, references] = await Promise.all([
-      this.client.sendRequest(ThemeGraphRootRequest.type, { uri }),
+      this.client.sendRequest(AppGraphRootRequest.type, { uri }),
       this.client.sendRequest<AugmentedReference[]>(command, { uri }),
     ]);
     this.references = references
@@ -212,12 +212,10 @@ class ReferenceItem extends TreeItem {
     switch (ref.type) {
       case 'indirect':
         return new ThemeIcon('symbol-misc', new ThemeColor('button.secondaryForeground'));
-      case 'preset':
-        return new ThemeIcon('symbol-method', new ThemeColor(''));
       default:
         return undefined;
     }
   }
 }
 
-const refTypes = ['direct', 'preset', 'indirect'] as const;
+const refTypes = ['direct', 'indirect'] as const;

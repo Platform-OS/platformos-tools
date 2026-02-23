@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { InvalidHashAssignTarget } from './index';
-import { check, MockTheme } from '../../test';
+import { check, MockApp } from '../../test';
 
 describe('Module: InvalidHashAssignTarget', () => {
   it('should report an error when hash_assign is used on a number', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% assign x = 10 %}
         {% hash_assign x['key'] = 'value' %}
@@ -18,7 +18,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should report an error when hash_assign is used on a string', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% assign x = 'hello' %}
         {% hash_assign x['key'] = 'value' %}
@@ -31,7 +31,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should report an error when hash_assign is used on a boolean', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% assign x = true %}
         {% hash_assign x['key'] = 'value' %}
@@ -44,7 +44,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should report an error when hash_assign is used on an array (range)', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% assign x = (1..5) %}
         {% hash_assign x['key'] = 'value' %}
@@ -57,7 +57,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should not report an error when hash_assign is used on an object from parse_json', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% assign x = '{}' | parse_json %}
         {% hash_assign x['key'] = 'value' %}
@@ -69,7 +69,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should not report an error when hash_assign is used on an object from parse_json tag', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% parse_json x %}
           {}
@@ -83,7 +83,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should not report an error when hash_assign is used on an object from graphql', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% graphql result %}
           query { user { id } }
@@ -97,7 +97,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should not report an error when hash_assign is used on an untyped variable', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% hash_assign unknown_var['key'] = 'value' %}
       `,
@@ -108,7 +108,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should not report an error when hash_assign is used on a function return', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% function data = 'lib/get_data' %}
         {% hash_assign data['extra'] = 'value' %}
@@ -120,7 +120,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should track reassignment and report error on new type', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% assign x = '{}' | parse_json %}
         {% hash_assign x['key1'] = 'value1' %}
@@ -135,7 +135,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should handle increment/decrement as numbers', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% increment counter %}
         {% hash_assign counter['key'] = 'value' %}
@@ -148,7 +148,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should handle capture as string', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% capture x %}hello{% endcapture %}
         {% hash_assign x['key'] = 'value' %}
@@ -161,7 +161,7 @@ describe('Module: InvalidHashAssignTarget', () => {
   });
 
   it('should allow multiple hash_assign on same object', async () => {
-    const theme: MockTheme = {
+    const theme: MockApp = {
       'file.liquid': `
         {% assign x = '{}' | parse_json %}
         {% hash_assign x['key1'] = 'value1' %}

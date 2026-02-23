@@ -85,7 +85,6 @@ export enum ConcreteNodeTypes {
   FunctionMarkup = 'FunctionMarkup',
   GraphQLMarkup = 'GraphQLMarkup',
   GraphQLInlineMarkup = 'GraphQLInlineMarkup',
-  PaginateMarkup = 'PaginateMarkup',
   RenderVariableExpression = 'RenderVariableExpression',
   RenderAliasExpression = 'RenderAliasExpression',
   ContentForNamedArgument = 'ContentForNamedArgument',
@@ -245,11 +244,11 @@ export type ConcreteLiquidTagOpenNamed =
   | ConcreteLiquidTagOpenUnless
   | ConcreteLiquidTagOpenForm
   | ConcreteLiquidTagOpenFor
-  | ConcreteLiquidTagOpenPaginate
   | ConcreteLiquidTagOpenTablerow
   // platformos block tags
   | ConcreteLiquidTagOpenBackground
   | ConcreteLiquidTagOpenCache
+  | ConcreteLiquidTagOpenContentFor
   | ConcreteLiquidTagOpenParseJson
   | ConcreteLiquidTagOpenTransaction
   | ConcreteLiquidTagOpenTry;
@@ -327,17 +326,6 @@ export interface ConcreteLiquidTagOpenTablerow extends ConcreteLiquidTagOpenNode
   ConcreteLiquidTagForMarkup
 > {}
 
-export interface ConcreteLiquidTagOpenPaginate extends ConcreteLiquidTagOpenNode<
-  NamedTags.paginate,
-  ConcretePaginateMarkup
-> {}
-
-export interface ConcretePaginateMarkup extends ConcreteBasicNode<ConcreteNodeTypes.PaginateMarkup> {
-  collection: ConcreteLiquidExpression;
-  pageSize: ConcreteLiquidExpression;
-  args: ConcreteLiquidNamedArgument[] | null;
-}
-
 export interface ConcreteLiquidTagClose extends ConcreteBasicLiquidNode<ConcreteNodeTypes.LiquidTagClose> {
   name: string;
 }
@@ -347,7 +335,6 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagAssign
   | ConcreteLiquidTagHashAssign
   | ConcreteLiquidTagCycle
-  | ConcreteLiquidTagContentFor
   | ConcreteLiquidTagEcho
   | ConcreteLiquidTagIncrement
   | ConcreteLiquidTagDecrement
@@ -358,8 +345,6 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagRender
   | ConcreteLiquidTagFunction
   | ConcreteLiquidTagGraphQL
-  | ConcreteLiquidTagSection
-  | ConcreteLiquidTagSections
   | ConcreteLiquidTagWhen
   // platformos tags
   | ConcreteLiquidTagBackground
@@ -400,14 +385,6 @@ export interface ConcreteLiquidTagIncrement extends ConcreteLiquidTagNode<
 export interface ConcreteLiquidTagDecrement extends ConcreteLiquidTagNode<
   NamedTags.decrement,
   ConcreteLiquidVariableLookup
-> {}
-export interface ConcreteLiquidTagSection extends ConcreteLiquidTagNode<
-  NamedTags.section,
-  ConcreteStringLiteral
-> {}
-export interface ConcreteLiquidTagSections extends ConcreteLiquidTagNode<
-  NamedTags.sections,
-  ConcreteStringLiteral
 > {}
 export interface ConcreteLiquidTagLayout extends ConcreteLiquidTagNode<
   NamedTags.layout,
@@ -451,7 +428,7 @@ export interface ConcreteLiquidTagCycleMarkup extends ConcreteBasicNode<Concrete
   args: ConcreteLiquidExpression[];
 }
 
-export interface ConcreteLiquidTagContentFor extends ConcreteLiquidTagNode<
+export interface ConcreteLiquidTagOpenContentFor extends ConcreteLiquidTagOpenNode<
   NamedTags.content_for,
   ConcreteLiquidTagContentForMarkup
 > {}
@@ -567,7 +544,6 @@ export interface ConcreteLiquidTagOpenTry extends ConcreteLiquidTagOpenNode<
 
 export interface ConcreteLiquidTagContentForMarkup extends ConcreteBasicNode<ConcreteNodeTypes.ContentForMarkup> {
   contentForType: ConcreteStringLiteral;
-  args: ConcreteLiquidNamedArgument[];
 }
 
 export interface ConcreteLiquidTagRenderMarkup extends ConcreteBasicNode<ConcreteNodeTypes.RenderMarkup> {
@@ -859,38 +835,16 @@ function toCST<T>(
       name: 3,
       body: 9,
       children: (tokens: Node[]) => {
-        const nameNode = tokens[3];
+        // {% raw %} accepts syntax errors, we shouldn't try to parse that
         const rawMarkupStringNode = tokens[9];
-        switch (nameNode.sourceString) {
-          // {% schema %} parses its content as a string and should not be visited
-          case 'schema':
-          // {% raw %} accepts syntax errors, we shouldn't try to parse that
-          case 'raw': {
-            return toCST(
-              source,
-              grammars,
-              TextNodeGrammar,
-              ['HelperMappings'],
-              rawMarkupStringNode.sourceString,
-              offset + rawMarkupStringNode.source.startIdx,
-            );
-          }
-
-          // {% style %} actually parses its child nodes, so they are part of the AST
-          // {% javascript %}, {% stylesheet %} don't, but we want to flag folks that
-          // those are not supported in StaticStylesheetAndJavascriptTags, so we put
-          // them in the AST
-          default: {
-            return toCST(
-              source,
-              grammars,
-              grammars.Liquid,
-              ['HelperMappings', 'LiquidMappings'],
-              rawMarkupStringNode.sourceString,
-              offset + rawMarkupStringNode.source.startIdx,
-            );
-          }
-        }
+        return toCST(
+          source,
+          grammars,
+          TextNodeGrammar,
+          ['HelperMappings'],
+          rawMarkupStringNode.sourceString,
+          offset + rawMarkupStringNode.source.startIdx,
+        );
       },
       markup: 6,
       whitespaceStart: 1,
@@ -1005,16 +959,6 @@ function toCST<T>(
     liquidTagBreak: 0,
     liquidTagContinue: 0,
     liquidTagOpenTablerow: 0,
-    liquidTagOpenPaginate: 0,
-    liquidTagOpenPaginateMarkup: {
-      type: ConcreteNodeTypes.PaginateMarkup,
-      collection: 0,
-      pageSize: 4,
-      args: 6,
-      locStart,
-      locEnd,
-      source,
-    },
     liquidTagOpenCase: 0,
     liquidTagOpenCaseMarkup: 0,
     liquidTagWhen: 0,
@@ -1066,8 +1010,6 @@ function toCST<T>(
     liquidTagFunction: 0,
     liquidTagGraphQL: 0,
     liquidTagInclude: 0,
-    liquidTagSection: 0,
-    liquidTagSections: 0,
     liquidTagLayout: 0,
     liquidTagRule: {
       type: ConcreteNodeTypes.LiquidTag,
@@ -1100,8 +1042,6 @@ function toCST<T>(
     },
 
     liquidTagEchoMarkup: 0,
-    liquidTagSectionMarkup: 0,
-    liquidTagSectionsMarkup: 0,
     liquidTagLayoutMarkup: 0,
     liquidTagAssignMarkup: {
       type: ConcreteNodeTypes.AssignMarkup,
@@ -1129,10 +1069,10 @@ function toCST<T>(
       source,
     },
 
+    liquidTagOpenContentFor: 0,
     liquidTagContentForMarkup: {
       type: ConcreteNodeTypes.ContentForMarkup,
       contentForType: 0,
-      args: 2,
       locStart,
       locEnd,
       source,
@@ -1371,28 +1311,11 @@ function toCST<T>(
     },
     simpleArgument: 0,
     tagArguments: 0,
-    contentForTagArgument: 0,
-    completionModeContentForTagArgument: function (namedArguments, _separator, variableLookup) {
-      const self = this as any;
-
-      return namedArguments
-        .toAST(self.args.mapping)
-        .concat(variableLookup.sourceString === '' ? [] : variableLookup.toAST(self.args.mapping));
-    },
     positionalArgument: 0,
     namedArgument: {
       type: ConcreteNodeTypes.NamedArgument,
       name: 0,
       value: 4,
-      locStart,
-      locEnd,
-      source,
-    },
-
-    contentForNamedArgument: {
-      type: ConcreteNodeTypes.NamedArgument,
-      name: (node) => node[0].sourceString + node[1].sourceString,
-      value: 6,
       locStart,
       locEnd,
       source,

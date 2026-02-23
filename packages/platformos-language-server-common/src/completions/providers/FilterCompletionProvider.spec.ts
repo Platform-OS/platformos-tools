@@ -1,8 +1,4 @@
-import {
-  FilterEntry,
-  MetafieldDefinitionMap,
-  ObjectEntry,
-} from '@platformos/platformos-check-common';
+import { FilterEntry, ObjectEntry } from '@platformos/platformos-check-common';
 import { InsertTextFormat, type TextEdit } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { describe, beforeEach, it, expect } from 'vitest';
@@ -129,15 +125,13 @@ describe('Module: FilterCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      themeDocset: {
+      platformosDocset: {
         graphQL: async () => null,
         filters: async () => filters,
         objects: async () => objects,
         liquidDrops: async () => [],
         tags: async () => [],
-        systemTranslations: async () => ({}),
       },
-      getMetafieldDefinitions: async (_rootUri: string) => ({}) as MetafieldDefinitionMap,
     });
   });
 

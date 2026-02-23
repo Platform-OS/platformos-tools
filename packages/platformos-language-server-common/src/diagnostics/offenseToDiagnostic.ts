@@ -20,7 +20,7 @@ export function offenseToDiagnostic(offense: Offense): Diagnostic {
     offense.message,
     diagnosticSeverity(offense),
     offense.check,
-    'theme-check',
+    'platformos-check',
   );
 
   const url = checkToDocsUrl[offense.check];

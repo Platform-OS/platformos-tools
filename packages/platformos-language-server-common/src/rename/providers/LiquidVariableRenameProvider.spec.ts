@@ -10,7 +10,7 @@ const mockRoot = 'file:';
 
 describe('LiquidVariableRenameProvider', () => {
   const textDocumentUri = `${mockRoot}///app/views/partials/example-partial.liquid`;
-  const findThemeRootURI = async () => mockRoot;
+  const findAppRootURI = async () => mockRoot;
 
   let capabilities: ClientCapabilities;
   let connection: MockConnection;
@@ -39,7 +39,7 @@ describe('LiquidVariableRenameProvider', () => {
 
     beforeEach(() => {
       documentManager = new DocumentManager();
-      provider = new RenameProvider(connection, capabilities, documentManager, findThemeRootURI);
+      provider = new RenameProvider(connection, capabilities, documentManager, findAppRootURI);
 
       textDocument = TextDocument.create(textDocumentUri, 'liquid', 1, documentSource);
       documentManager.open(textDocument.uri, documentSource, 1);
@@ -198,7 +198,7 @@ describe('LiquidVariableRenameProvider', () => {
 
     beforeEach(() => {
       documentManager = new DocumentManager();
-      provider = new RenameProvider(connection, capabilities, documentManager, findThemeRootURI);
+      provider = new RenameProvider(connection, capabilities, documentManager, findAppRootURI);
     });
 
     ['for', 'tablerow'].forEach((tag) => {
@@ -371,7 +371,7 @@ describe('LiquidVariableRenameProvider', () => {
       );
 
       documentManager = new DocumentManager();
-      provider = new RenameProvider(connection, capabilities, documentManager, findThemeRootURI);
+      provider = new RenameProvider(connection, capabilities, documentManager, findAppRootURI);
 
       documentManager.open(textDocumentUri, textDocument.getText(), 1);
     });

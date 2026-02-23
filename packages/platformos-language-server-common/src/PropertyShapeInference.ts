@@ -380,7 +380,7 @@ export function shapeToTypeString(shape: PropertyShape): string {
     return 'array';
   }
   if (shape.kind === 'object') {
-    return 'hash';
+    return 'object';
   }
   return 'any';
 }

@@ -72,7 +72,10 @@ describe('Unit: findRoot', () => {
     });
 
     it('finds the root by top-level modules/', async () => {
-      const root = await findRoot(workspace.uri('modules/my-module/public/views/pages'), fileExists);
+      const root = await findRoot(
+        workspace.uri('modules/my-module/public/views/pages'),
+        fileExists,
+      );
       expect(root).toBe(workspace.uri('.'));
     });
   });
@@ -109,7 +112,10 @@ describe('Unit: findRoot', () => {
     });
 
     it('does not treat app/ as root when it contains modules/', async () => {
-      const root = await findRoot(workspace.uri('app/modules/my-module/public/views/pages'), fileExists);
+      const root = await findRoot(
+        workspace.uri('app/modules/my-module/public/views/pages'),
+        fileExists,
+      );
       expect(root).toBe(workspace.uri('.'));
     });
 

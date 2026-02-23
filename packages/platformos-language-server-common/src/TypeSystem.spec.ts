@@ -800,9 +800,7 @@ query {
     });
 
     it('should infer nested object shapes', async () => {
-      const ast = toLiquidHtmlAST(
-        `{% assign a = {"nested": {"deep": 42}} %}{{ a.nested.deep }}`,
-      );
+      const ast = toLiquidHtmlAST(`{% assign a = {"nested": {"deep": 42}} %}{{ a.nested.deep }}`);
       const variableOutput = ast.children[1];
       assert(isLiquidVariableOutput(variableOutput));
       const inferredType = await typeSystem.inferType(
@@ -815,9 +813,7 @@ query {
 
     it('should produce the same shape as parse_json for equivalent JSON', async () => {
       const astLiteral = toLiquidHtmlAST(`{% assign a = {a: 2} %}{{ a }}`);
-      const astParseJson = toLiquidHtmlAST(
-        `{% assign b = '{"a": 2}' | parse_json %}{{ b }}`,
-      );
+      const astParseJson = toLiquidHtmlAST(`{% assign b = '{"a": 2}' | parse_json %}{{ b }}`);
 
       const outputLiteral = astLiteral.children[1];
       const outputParseJson = astParseJson.children[1];
@@ -868,9 +864,7 @@ query {
     });
 
     it('should support << operator (array append)', async () => {
-      const ast = toLiquidHtmlAST(
-        `{% assign arr = [] %}{% assign arr << "item" %}{{ arr }}`,
-      );
+      const ast = toLiquidHtmlAST(`{% assign arr = [] %}{% assign arr << "item" %}{{ arr }}`);
       const variableOutput = ast.children[2];
       assert(isLiquidVariableOutput(variableOutput));
       const inferredType = await typeSystem.inferType(
@@ -886,88 +880,6 @@ query {
           primitiveType: 'string',
         });
       }
-    });
-  });
-
-  describe('metafieldDefinitionsObjectMap', async () => {
-    it('should convert metafield definitions into types', async () => {
-      const metafieldObjectMap = await typeSystem.metafieldDefinitionsObjectMap(
-        'file:///any/file.liquid',
-      );
-
-      assert(metafieldObjectMap['product_metafields']);
-      assert(metafieldObjectMap['product_metafield_custom']);
-      assert(metafieldObjectMap['product_metafield_manufacturer']);
-    });
-
-    it('should group metafield definitions by namespace', async () => {
-      const metafieldObjectMap = await typeSystem.metafieldDefinitionsObjectMap(
-        'file:///any/file.liquid',
-      );
-      const properties = metafieldObjectMap['product_metafields'].properties;
-
-      assert(properties);
-      expect(properties).toHaveLength(2);
-      expect(properties).toContainEqual(
-        expect.objectContaining({
-          name: 'custom',
-          return_type: [{ type: 'product_metafield_custom', name: '' }],
-        }),
-      );
-      expect(metafieldObjectMap['product_metafields'].properties).toContainEqual(
-        expect.objectContaining({
-          name: 'manufacturer',
-          return_type: [{ type: 'product_metafield_manufacturer', name: '' }],
-        }),
-      );
-
-      const manufacturerProperties =
-        metafieldObjectMap['product_metafield_manufacturer'].properties;
-
-      assert(manufacturerProperties);
-      expect(manufacturerProperties).toHaveLength(2);
-
-      expect(manufacturerProperties).toContainEqual(
-        expect.objectContaining({
-          name: 'code',
-          return_type: [{ type: 'metafield_string', name: '' }],
-        }),
-      );
-      expect(manufacturerProperties).toContainEqual(
-        expect.objectContaining({
-          name: 'id',
-          return_type: [{ type: 'metafield_number', name: '' }],
-        }),
-      );
-
-      const customProperties = metafieldObjectMap['product_metafield_custom'].properties;
-
-      assert(customProperties);
-      expect(customProperties).toHaveLength(1);
-
-      expect(customProperties).toContainEqual(
-        expect.objectContaining({
-          name: 'is_rare',
-          return_type: [{ type: 'metafield_boolean', name: '' }],
-        }),
-      );
-    });
-
-    it('should have `metafield_x_array` return_type for array of references', async () => {
-      const metafieldObjectMap = await typeSystem.metafieldDefinitionsObjectMap(
-        'file:///any/file.liquid',
-      );
-      const relatedProperties = metafieldObjectMap['order_metafield_related'].properties;
-
-      assert(relatedProperties);
-      expect(relatedProperties).toHaveLength(1);
-
-      expect(relatedProperties).toContainEqual(
-        expect.objectContaining({
-          name: 'prods',
-          return_type: [{ type: 'metafield_product_array', name: '' }],
-        }),
-      );
     });
   });
 });

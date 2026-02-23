@@ -22,10 +22,7 @@ export function makeRunChecks(
     jsonValidationSet,
     appGraphManager,
     includeFilesFromDisk,
-  }: Pick<
-    Dependencies,
-    'fs' | 'loadConfig' | 'platformosDocset' | 'jsonValidationSet'
-  > & {
+  }: Pick<Dependencies, 'fs' | 'loadConfig' | 'platformosDocset' | 'jsonValidationSet'> & {
     appGraphManager?: AppGraphManager;
     includeFilesFromDisk?: () => boolean;
   },

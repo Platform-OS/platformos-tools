@@ -696,19 +696,16 @@ export interface ConcreteLiquidVariableLookup extends ConcreteBasicNode<Concrete
   lookups: ConcreteLiquidExpression[];
 }
 
-export interface ConcreteJsonHashLiteral
-  extends ConcreteBasicNode<ConcreteNodeTypes.JsonHashLiteral> {
+export interface ConcreteJsonHashLiteral extends ConcreteBasicNode<ConcreteNodeTypes.JsonHashLiteral> {
   entries: ConcreteJsonKeyValuePair[];
 }
 
-export interface ConcreteJsonKeyValuePair
-  extends ConcreteBasicNode<ConcreteNodeTypes.JsonKeyValuePair> {
+export interface ConcreteJsonKeyValuePair extends ConcreteBasicNode<ConcreteNodeTypes.JsonKeyValuePair> {
   key: ConcreteLiquidExpression;
   value: ConcreteJsonValue;
 }
 
-export interface ConcreteJsonArrayLiteral
-  extends ConcreteBasicNode<ConcreteNodeTypes.JsonArrayLiteral> {
+export interface ConcreteJsonArrayLiteral extends ConcreteBasicNode<ConcreteNodeTypes.JsonArrayLiteral> {
   elements: ConcreteJsonValue[];
 }
 

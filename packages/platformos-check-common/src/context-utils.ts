@@ -1,7 +1,48 @@
 import { load } from 'js-yaml';
-import { AbstractFileSystem, FileTuple, FileType, UriString } from '@platformos/platformos-common';
+import {
+  AbstractFileSystem,
+  FileTuple,
+  FileType,
+  TranslationProvider,
+  UriString,
+} from '@platformos/platformos-common';
+import { URI } from 'vscode-uri';
 import { join } from './path';
 import { SourceCodeType, App, Translations } from './types';
+
+/**
+ * Returns a function that loads and merges ALL translation files for a given
+ * locale within a specific translations base directory URI
+ * (e.g. `file:///app/translations` or
+ * `file:///modules/common-styling/public/translations`).
+ *
+ * Covers both the single-file layout (`{base}/{locale}.yml`) and the split-file
+ * layout (`{base}/{locale}/*.yml`).
+ *
+ * Only files whose first YAML key matches `locale` are included — this mirrors
+ * how platformOS determines a file's locale from its content, not its path.
+ *
+ * In-memory editor buffers take precedence over the filesystem so that unsaved
+ * changes are reflected immediately.
+ */
+export const makeGetTranslationsForBase = (fs: AbstractFileSystem, app: App) => {
+  const provider = new TranslationProvider(fs);
+  const cache = new Map<string, Promise<Translations>>();
+
+  return (translationBaseUri: string, locale: string): Promise<Translations> => {
+    const key = `${translationBaseUri}::${locale}`;
+    if (!cache.has(key)) {
+      const contentOverride = (uri: string): string | undefined =>
+        app.find((sc) => sc.type === SourceCodeType.YAML && sc.uri === uri)?.source;
+
+      cache.set(
+        key,
+        provider.loadAllTranslationsForBase(URI.parse(translationBaseUri), locale, contentOverride),
+      );
+    }
+    return cache.get(key)!;
+  };
+};
 
 export type FileExists = (uri: string) => Promise<boolean>;
 

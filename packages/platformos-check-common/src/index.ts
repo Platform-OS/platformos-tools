@@ -5,6 +5,7 @@ import {
   makeFileSize,
   makeGetDefaultLocale,
   makeGetDefaultTranslations,
+  makeGetTranslationsForBase,
 } from './context-utils';
 import { createDisabledChecksModule } from './disabled-checks';
 import { isIgnored } from './ignore';
@@ -80,6 +81,7 @@ export async function check(
     fileSize: makeFileSize(fs),
     getDefaultLocale: makeGetDefaultLocale(fs, rootUri),
     getDefaultTranslations: makeGetDefaultTranslations(fs, app, rootUri),
+    getTranslationsForBase: makeGetTranslationsForBase(fs, app),
   };
 
   const { DisabledChecksVisitor, isDisabled } = createDisabledChecksModule();

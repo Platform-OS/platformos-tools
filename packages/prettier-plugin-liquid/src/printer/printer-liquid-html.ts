@@ -319,7 +319,26 @@ function printNode(
     }
 
     case NodeTypes.AssignMarkup: {
-      return [node.name, ' = ', path.call((p: any) => print(p), 'value')];
+      const doc: Doc[] = [node.name];
+      if (node.lookups.length > 0) {
+        const lookups: Doc[] = (path as any).map((lookupPath: any) => {
+          const lookup = lookupPath.getValue() as LiquidExpression;
+          if (
+            lookup.type === NodeTypes.String &&
+            /^\D/.test(lookup.value) &&
+            /^[a-z0-9_]+\??$/i.test(lookup.value)
+          ) {
+            return ['.', print(lookupPath)];
+          }
+          return ['[', print(lookupPath), ']'];
+        }, 'lookups');
+        doc.push(...lookups);
+      }
+      doc.push(
+        ` ${node.operator} `,
+        path.call((p: any) => print(p), 'value'),
+      );
+      return doc;
     }
 
     case NodeTypes.HashAssignMarkup: {
@@ -726,6 +745,46 @@ function printNode(
 
     case NodeTypes.LiquidDocPromptNode: {
       return printLiquidDocPrompt(path as AstPath<LiquidDocPromptNode>, options, print, args);
+    }
+
+    case NodeTypes.JsonHashLiteral: {
+      if (node.entries.length === 0) return '{}';
+      return group([
+        '{',
+        indent([
+          line,
+          join(
+            [',', line],
+            path.map((p: any) => print(p), 'entries'),
+          ),
+        ]),
+        line,
+        '}',
+      ]);
+    }
+
+    case NodeTypes.JsonKeyValuePair: {
+      return [
+        path.call((p: any) => print(p), 'key'),
+        ': ',
+        path.call((p: any) => print(p), 'value'),
+      ];
+    }
+
+    case NodeTypes.JsonArrayLiteral: {
+      if (node.elements.length === 0) return '[]';
+      return group([
+        '[',
+        indent([
+          line,
+          join(
+            [',', line],
+            path.map((p: any) => print(p), 'elements'),
+          ),
+        ]),
+        line,
+        ']',
+      ]);
     }
 
     default: {

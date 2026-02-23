@@ -54,6 +54,8 @@ export function inferArgumentType(arg: LiquidExpression): BasicParamTypes {
       return BasicParamTypes.Boolean;
     case NodeTypes.Range:
     case NodeTypes.VariableLookup:
+    case NodeTypes.JsonHashLiteral:
+    case NodeTypes.JsonArrayLiteral:
       return BasicParamTypes.Object;
     default:
       // This ensures that we have a case for every possible type for arg.value

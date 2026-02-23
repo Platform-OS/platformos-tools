@@ -504,6 +504,116 @@ describe('Unit: Stage 1 (CST)', () => {
         });
       });
 
+      it('should parse the assign tag with bracket/dot notation and operators', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // bracket notation LHS
+          cst = toCST(`{% assign x["foo"] = 'bar' %}`);
+          expectPath(cst, '0.markup.type').to.equal('AssignMarkup');
+          expectPath(cst, '0.markup.name').to.equal('x');
+          expectPath(cst, '0.markup.target.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.target.name').to.equal('x');
+          expectPath(cst, '0.markup.target.lookups').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.operator').to.equal('=');
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.value').to.equal('bar');
+
+          // dot notation LHS
+          cst = toCST(`{% assign x.foo = 'bar' %}`);
+          expectPath(cst, '0.markup.target.name').to.equal('x');
+          expectPath(cst, '0.markup.target.lookups').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.operator').to.equal('=');
+
+          // mixed notation LHS
+          cst = toCST(`{% assign x.foo["bar"] = 'baz' %}`);
+          expectPath(cst, '0.markup.target.name').to.equal('x');
+          expectPath(cst, '0.markup.target.lookups').to.have.lengthOf(2);
+
+          // array append operator
+          cst = toCST(`{% assign x << 'foo' %}`);
+          expectPath(cst, '0.markup.operator').to.equal('<<');
+          expectPath(cst, '0.markup.name').to.equal('x');
+
+          // append with filters
+          cst = toCST(`{% assign x << 'foo' | upcase %}`);
+          expectPath(cst, '0.markup.operator').to.equal('<<');
+          expectPath(cst, '0.markup.value.filters').to.have.lengthOf(1);
+        }
+      });
+
+      it('should parse the assign tag with JSON hash literals', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // empty hash
+          cst = toCST(`{% assign x = {} %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.expression.entries').to.have.lengthOf(0);
+
+          // hash with entries
+          cst = toCST(`{% assign x = { "key": "value" } %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.expression.entries').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.value.expression.entries.0.type').to.equal('JsonKeyValuePair');
+          expectPath(cst, '0.markup.value.expression.entries.0.key.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.entries.0.key.value').to.equal('key');
+          expectPath(cst, '0.markup.value.expression.entries.0.value.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.entries.0.value.value').to.equal('value');
+
+          // bare key
+          cst = toCST(`{% assign x = { foo: "bar" } %}`);
+          expectPath(cst, '0.markup.value.expression.entries.0.key.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(cst, '0.markup.value.expression.entries.0.key.name').to.equal('foo');
+
+          // variable reference as value
+          cst = toCST(`{% assign x = { "a": foo } %}`);
+          expectPath(cst, '0.markup.value.expression.entries.0.value.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(cst, '0.markup.value.expression.entries.0.value.name').to.equal('foo');
+        }
+      });
+
+      it('should parse the assign tag with JSON array literals', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // empty array
+          cst = toCST(`{% assign x = [] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.expression.elements').to.have.lengthOf(0);
+
+          // array with elements
+          cst = toCST(`{% assign x = ["a", "b"] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.expression.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.expression.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.elements.0.value').to.equal('a');
+        }
+      });
+
+      it('should parse the assign tag with nested JSON', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = { "nested": { "deep": true }, "arr": [1, 2] } %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.expression.entries').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.expression.entries.0.value.type').to.equal(
+            'JsonHashLiteral',
+          );
+          expectPath(cst, '0.markup.value.expression.entries.1.value.type').to.equal(
+            'JsonArrayLiteral',
+          );
+        }
+      });
+
+      it('should parse simple assign with backward compatible name field', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = 'hi' %}`);
+          expectPath(cst, '0.markup.name').to.equal('x');
+          expectPath(cst, '0.markup.target.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.target.name').to.equal('x');
+          expectPath(cst, '0.markup.target.lookups').to.have.lengthOf(0);
+          expectPath(cst, '0.markup.operator').to.equal('=');
+        }
+      });
+
       it('should parse the hash_assign tag as hash_assign markup + liquid variable', () => {
         [
           {

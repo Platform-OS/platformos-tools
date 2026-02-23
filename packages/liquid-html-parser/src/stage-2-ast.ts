@@ -78,6 +78,9 @@ import {
   ConcreteLiquidTagContentForMarkup,
   ConcreteComplexLiquidExpression,
   ConcreteLiquidTagHashAssignMarkup,
+  ConcreteJsonHashLiteral,
+  ConcreteJsonArrayLiteral,
+  ConcreteJsonKeyValuePair,
   // platformos concrete types
   ConcreteLiquidTagBackgroundMarkup,
   ConcreteLiquidTagBackgroundInlineMarkup,
@@ -131,6 +134,9 @@ export type LiquidHtmlNode =
   | LiquidDocExampleNode
   | LiquidDocPromptNode
   | LiquidDocDescriptionNode
+  | JsonHashLiteral
+  | JsonArrayLiteral
+  | JsonKeyValuePair
   // platformos markup types
   | BackgroundMarkup
   | BackgroundInlineMarkup
@@ -307,8 +313,14 @@ export interface LiquidTagAssign extends LiquidTagNode<NamedTags.assign, AssignM
 
 /** {% assign name = value %} */
 export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
-  /** the name of the variable that is being assigned */
+  /** the base variable name (backward compatible) */
   name: string;
+
+  /** bracket/dot lookups on the target (empty for simple assignment) */
+  lookups: LiquidExpression[];
+
+  /** '=' for assignment, '<<' for array append */
+  operator: '=' | '<<';
 
   /** the value of the variable that is being assigned */
   value: LiquidVariable;
@@ -732,7 +744,9 @@ export type LiquidExpression =
   | LiquidNumber
   | LiquidLiteral
   | LiquidRange
-  | LiquidVariableLookup;
+  | LiquidVariableLookup
+  | JsonHashLiteral
+  | JsonArrayLiteral;
 
 export type ComplexLiquidExpression = LiquidBooleanExpression | LiquidExpression;
 
@@ -803,6 +817,22 @@ export interface LiquidVariableLookup extends ASTNode<NodeTypes.VariableLookup> 
 
   /** name.lookup1[lookup2] */
   lookups: LiquidExpression[];
+}
+
+/** Represents a JSON hash literal { key: value, ... } */
+export interface JsonHashLiteral extends ASTNode<NodeTypes.JsonHashLiteral> {
+  entries: JsonKeyValuePair[];
+}
+
+/** Represents a key-value pair in a JSON hash literal */
+export interface JsonKeyValuePair extends ASTNode<NodeTypes.JsonKeyValuePair> {
+  key: LiquidExpression;
+  value: LiquidExpression;
+}
+
+/** Represents a JSON array literal [el1, el2, ...] */
+export interface JsonArrayLiteral extends ASTNode<NodeTypes.JsonArrayLiteral> {
+  elements: LiquidExpression[];
 }
 
 /** The union type of all HTML nodes */
@@ -2088,6 +2118,8 @@ function toAssignMarkup(node: ConcreteLiquidTagAssignMarkup): AssignMarkup {
   return {
     type: NodeTypes.AssignMarkup,
     name: node.name,
+    lookups: node.target.lookups.map(toExpression),
+    operator: node.operator as '=' | '<<',
     value: toLiquidVariable(node.value),
     position: position(node),
     source: node.source,
@@ -2544,10 +2576,36 @@ function toExpression(node: ConcreteLiquidExpression): LiquidExpression {
         source: node.source,
       };
     }
+    case ConcreteNodeTypes.JsonHashLiteral: {
+      return {
+        type: NodeTypes.JsonHashLiteral,
+        entries: node.entries.map(toJsonKeyValuePair),
+        position: position(node),
+        source: node.source,
+      };
+    }
+    case ConcreteNodeTypes.JsonArrayLiteral: {
+      return {
+        type: NodeTypes.JsonArrayLiteral,
+        elements: node.elements.map(toExpression),
+        position: position(node),
+        source: node.source,
+      };
+    }
     default: {
       return assertNever(node);
     }
   }
+}
+
+function toJsonKeyValuePair(node: ConcreteJsonKeyValuePair): JsonKeyValuePair {
+  return {
+    type: NodeTypes.JsonKeyValuePair,
+    key: toExpression(node.key),
+    value: toExpression(node.value as ConcreteLiquidExpression),
+    position: position(node),
+    source: node.source,
+  };
 }
 
 function toFilter(node: ConcreteLiquidFilter): LiquidFilter {

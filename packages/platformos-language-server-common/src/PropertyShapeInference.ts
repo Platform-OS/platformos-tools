@@ -10,6 +10,12 @@ import {
   GraphQLOutputType,
 } from 'graphql';
 import { parseJSON, isError } from '@platformos/platformos-check-common';
+import {
+  JsonHashLiteral,
+  JsonArrayLiteral,
+  LiquidExpression,
+  NodeTypes,
+} from '@platformos/liquid-html-parser';
 
 export interface PropertyShape {
   kind: 'object' | 'array' | 'primitive';
@@ -30,7 +36,7 @@ export interface LookupResult {
 /**
  * Merge two shapes together, combining their properties
  */
-function mergeShapes(a: PropertyShape, b: PropertyShape): PropertyShape {
+export function mergeShapes(a: PropertyShape, b: PropertyShape): PropertyShape {
   // If same kind, merge appropriately
   if (a.kind === 'object' && b.kind === 'object') {
     const properties = new Map(a.properties);
@@ -107,6 +113,75 @@ export function inferShapeFromJSONString(jsonString: string): PropertyShape | un
     return undefined;
   }
   return inferShapeFromJSON(parsed);
+}
+
+/**
+ * Optional callback to resolve expressions the shape inferrer can't handle
+ * (e.g. variable lookups that require the type system).
+ */
+export type ExpressionShapeResolver = (expr: LiquidExpression) => PropertyShape | undefined;
+
+/**
+ * Infer shape from a JSON literal AST node (JsonHashLiteral or JsonArrayLiteral).
+ * This mirrors inferShapeFromJSON but walks AST nodes instead of parsed JS values.
+ *
+ * @param resolveExpression - Optional callback to resolve variable references and
+ *   other expressions that require type system context.
+ */
+export function inferShapeFromJsonLiteral(
+  node: JsonHashLiteral | JsonArrayLiteral,
+  resolveExpression?: ExpressionShapeResolver,
+): PropertyShape {
+  if (node.type === NodeTypes.JsonHashLiteral) {
+    const properties = new Map<string, PropertyShape>();
+    for (const entry of node.entries) {
+      const key = getJsonKeyName(entry.key);
+      if (key !== undefined) {
+        properties.set(key, inferShapeFromExpression(entry.value, resolveExpression));
+      }
+    }
+    return { kind: 'object', properties };
+  }
+
+  // JsonArrayLiteral
+  let itemShape: PropertyShape | undefined;
+  for (const element of node.elements) {
+    const shape = inferShapeFromExpression(element, resolveExpression);
+    itemShape = itemShape ? mergeShapes(itemShape, shape) : shape;
+  }
+  return { kind: 'array', itemShape };
+}
+
+function getJsonKeyName(key: LiquidExpression): string | undefined {
+  switch (key.type) {
+    case NodeTypes.String:
+      return key.value;
+    case NodeTypes.VariableLookup:
+      return key.name ?? undefined;
+    default:
+      return undefined;
+  }
+}
+
+function inferShapeFromExpression(
+  expr: LiquidExpression,
+  resolveExpression?: ExpressionShapeResolver,
+): PropertyShape {
+  switch (expr.type) {
+    case NodeTypes.JsonHashLiteral:
+    case NodeTypes.JsonArrayLiteral:
+      return inferShapeFromJsonLiteral(expr, resolveExpression);
+    case NodeTypes.String:
+      return { kind: 'primitive', primitiveType: 'string' };
+    case NodeTypes.Number:
+      return { kind: 'primitive', primitiveType: 'number' };
+    case NodeTypes.LiquidLiteral:
+      if (expr.value === null) return { kind: 'primitive', primitiveType: 'null' };
+      if (typeof expr.value === 'boolean') return { kind: 'primitive', primitiveType: 'boolean' };
+      return { kind: 'primitive' };
+    default:
+      return resolveExpression?.(expr) ?? { kind: 'primitive' };
+  }
 }
 
 /**

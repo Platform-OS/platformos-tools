@@ -740,5 +740,146 @@ query {
     });
   });
 
-  // metafieldDefinitionsObjectMap tests removed (Shopify-specific feature)
+  describe('JSON literal type inference', () => {
+    it('should infer shape from a JSON hash literal', async () => {
+      const ast = toLiquidHtmlAST(`{% assign a = {x: 1, y: "hello"} %}{{ a }}`);
+      const variableOutput = ast.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+      const inferredType = await typeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        'file:///file.liquid',
+      );
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.kind).to.equal('object');
+        expect(inferredType.shape.properties?.get('x')).to.deep.equal({
+          kind: 'primitive',
+          primitiveType: 'number',
+        });
+        expect(inferredType.shape.properties?.get('y')).to.deep.equal({
+          kind: 'primitive',
+          primitiveType: 'string',
+        });
+      }
+    });
+
+    it('should infer an empty object shape from {}', async () => {
+      const ast = toLiquidHtmlAST(`{% assign a = {} %}{{ a }}`);
+      const variableOutput = ast.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+      const inferredType = await typeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        'file:///file.liquid',
+      );
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.kind).to.equal('object');
+        expect(inferredType.shape.properties?.size).to.equal(0);
+      }
+    });
+
+    it('should infer array shape from a JSON array literal', async () => {
+      const ast = toLiquidHtmlAST(`{% assign a = [1, 2, 3] %}{{ a }}`);
+      const variableOutput = ast.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+      const inferredType = await typeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        'file:///file.liquid',
+      );
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.kind).to.equal('array');
+        expect(inferredType.shape.itemShape).to.deep.equal({
+          kind: 'primitive',
+          primitiveType: 'number',
+        });
+      }
+    });
+
+    it('should infer nested object shapes', async () => {
+      const ast = toLiquidHtmlAST(`{% assign a = {"nested": {"deep": 42}} %}{{ a.nested.deep }}`);
+      const variableOutput = ast.children[1];
+      assert(isLiquidVariableOutput(variableOutput));
+      const inferredType = await typeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        'file:///file.liquid',
+      );
+      expect(inferredType).to.equal('number');
+    });
+
+    it('should produce the same shape as parse_json for equivalent JSON', async () => {
+      const astLiteral = toLiquidHtmlAST(`{% assign a = {a: 2} %}{{ a }}`);
+      const astParseJson = toLiquidHtmlAST(`{% assign b = '{"a": 2}' | parse_json %}{{ b }}`);
+
+      const outputLiteral = astLiteral.children[1];
+      const outputParseJson = astParseJson.children[1];
+      assert(isLiquidVariableOutput(outputLiteral));
+      assert(isLiquidVariableOutput(outputParseJson));
+
+      const typeLiteral = await typeSystem.inferType(
+        outputLiteral.markup,
+        astLiteral,
+        'file:///file.liquid',
+      );
+      const typeParseJson = await typeSystem.inferType(
+        outputParseJson.markup,
+        astParseJson,
+        'file:///file.liquid',
+      );
+
+      expect(typeLiteral).to.have.property('kind', 'shape');
+      expect(typeParseJson).to.have.property('kind', 'shape');
+      if (
+        typeof typeLiteral !== 'string' &&
+        typeLiteral.kind === 'shape' &&
+        typeof typeParseJson !== 'string' &&
+        typeParseJson.kind === 'shape'
+      ) {
+        // Both should have an 'a' property with number type
+        expect(typeLiteral.shape.properties?.get('a')).to.deep.equal(
+          typeParseJson.shape.properties?.get('a'),
+        );
+      }
+    });
+
+    it('should support LHS lookups with assign (assign x["key"] = value)', async () => {
+      const ast = toLiquidHtmlAST(
+        `{% assign config = {} %}{% assign config["key"] = "value" %}{{ config }}`,
+      );
+      const variableOutput = ast.children[2];
+      assert(isLiquidVariableOutput(variableOutput));
+      const inferredType = await typeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        'file:///file.liquid',
+      );
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.properties?.get('key')).to.exist;
+      }
+    });
+
+    it('should support << operator (array append)', async () => {
+      const ast = toLiquidHtmlAST(`{% assign arr = [] %}{% assign arr << "item" %}{{ arr }}`);
+      const variableOutput = ast.children[2];
+      assert(isLiquidVariableOutput(variableOutput));
+      const inferredType = await typeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        'file:///file.liquid',
+      );
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.kind).to.equal('array');
+        expect(inferredType.shape.itemShape).to.deep.equal({
+          kind: 'primitive',
+          primitiveType: 'string',
+        });
+      }
+    });
+  });
 });

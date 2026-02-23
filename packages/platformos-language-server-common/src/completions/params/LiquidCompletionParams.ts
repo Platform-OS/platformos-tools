@@ -431,6 +431,9 @@ function findCurrentNode(
       case NodeTypes.LiquidDocDescriptionNode:
       case NodeTypes.LiquidDocPromptNode:
       case NodeTypes.RenderAliasExpression:
+      case NodeTypes.JsonHashLiteral:
+      case NodeTypes.JsonArrayLiteral:
+      case NodeTypes.JsonKeyValuePair:
       case NodeTypes.BackgroundMarkup:
       case NodeTypes.BackgroundInlineMarkup:
       case NodeTypes.CacheMarkup:

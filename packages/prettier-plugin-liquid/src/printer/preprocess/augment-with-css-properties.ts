@@ -130,6 +130,9 @@ function getCssDisplay(node: AugmentedNode<WithSiblings>, options: LiquidParserO
     case NodeTypes.FunctionMarkup:
     case NodeTypes.GraphQLMarkup:
     case NodeTypes.GraphQLInlineMarkup:
+    case NodeTypes.JsonHashLiteral:
+    case NodeTypes.JsonArrayLiteral:
+    case NodeTypes.JsonKeyValuePair:
     case NodeTypes.BackgroundMarkup:
     case NodeTypes.BackgroundInlineMarkup:
     case NodeTypes.CacheMarkup:
@@ -254,6 +257,9 @@ function getNodeCssStyleWhiteSpace(
     case NodeTypes.FunctionMarkup:
     case NodeTypes.GraphQLMarkup:
     case NodeTypes.GraphQLInlineMarkup:
+    case NodeTypes.JsonHashLiteral:
+    case NodeTypes.JsonArrayLiteral:
+    case NodeTypes.JsonKeyValuePair:
     case NodeTypes.BackgroundMarkup:
     case NodeTypes.BackgroundInlineMarkup:
     case NodeTypes.CacheMarkup:

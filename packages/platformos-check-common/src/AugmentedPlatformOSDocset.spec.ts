@@ -164,6 +164,31 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
 
       expect(officialNames).toHaveLength(2);
     });
+
+    it('should normalize filters with deprecated:false but deprecation_reason:"true" to deprecated:true', async () => {
+      const docset = new AugmentedPlatformOSDocset({
+        graphQL: async () => null,
+        filters: async () => [
+          { name: 'asset_path', deprecated: false, deprecation_reason: 'true' },
+          { name: 'sha1', deprecated: false, deprecation_reason: 'true' },
+          { name: 'active_filter', deprecated: false, deprecation_reason: 'false' },
+        ],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        tags: async () => [],
+      });
+
+      const filters = await docset.filters();
+      const assetPath = filters.find((f) => f.name === 'asset_path');
+      const sha1 = filters.find((f) => f.name === 'sha1');
+      const active = filters.find((f) => f.name === 'active_filter');
+
+      expect(assetPath?.deprecated).toBe(true);
+      expect(assetPath?.deprecation_reason).toBeUndefined();
+      expect(sha1?.deprecated).toBe(true);
+      expect(sha1?.deprecation_reason).toBeUndefined();
+      expect(active?.deprecated).toBeFalsy();
+    });
   });
 
   describe('objects', async () => {

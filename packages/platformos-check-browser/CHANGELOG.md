@@ -1,5 +1,13 @@
 # @platformos/theme-check-browser
 
+## 0.0.8
+
+### Patch Changes
+
+- Beta release
+- Updated dependencies
+  - @platformos/platformos-check-common@0.0.8
+
 ## 0.0.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-common",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Common library for platfromOS related theme check components",
   "homepage": "https://github.com/Platform-OS/platformos-tools#readme",
   "bugs": {

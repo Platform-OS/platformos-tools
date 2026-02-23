@@ -204,10 +204,7 @@ export function generateTypeMismatchSuggestions(
   return suggestions;
 }
 
-function isLastArg(
-  node: RenderMarkup | FunctionMarkup,
-  arg: LiquidNamedArgument,
-): boolean {
+function isLastArg(node: RenderMarkup | FunctionMarkup, arg: LiquidNamedArgument): boolean {
   return (
     node.args.length == 1 || arg.position.start == node.args[node.args.length - 1].position.start
   );

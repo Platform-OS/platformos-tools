@@ -52,9 +52,6 @@ OrphanedPartial:
 ParserBlockingScript:
   enabled: true
   severity: 0
-ReservedDocParamNames:
-  enabled: true
-  severity: 0
 TranslationKeyExists:
   enabled: true
   severity: 0
@@ -82,9 +79,6 @@ UnusedAssign:
 UnusedDocParam:
   enabled: true
   severity: 1
-ValidContentForArguments:
-  enabled: true
-  severity: 0
 ValidDocParamTypes:
   enabled: true
   severity: 0

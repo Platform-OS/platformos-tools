@@ -57,10 +57,7 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
   }
 }
 
-export function getAssetModule(
-  appGraph: AppGraph,
-  asset: string,
-): AssetModule | undefined {
+export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule | undefined {
   const extension = extname(asset);
 
   const SUPPORTED_ASSET_EXTENSIONS = [

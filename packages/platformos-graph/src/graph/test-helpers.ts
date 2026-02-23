@@ -1,7 +1,4 @@
-import {
-  memoize,
-  path as pathUtils,
-} from '@platformos/platformos-check-common';
+import { memoize, path as pathUtils } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
 import { vi } from 'vitest';

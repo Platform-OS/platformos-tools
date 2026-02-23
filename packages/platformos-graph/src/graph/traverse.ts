@@ -1,9 +1,5 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
-import {
-  SourceCodeType,
-  visit,
-  Visitor,
-} from '@platformos/platformos-check-common';
+import { SourceCodeType, visit, Visitor } from '@platformos/platformos-check-common';
 import {
   AugmentedDependencies,
   AppGraph,

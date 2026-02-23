@@ -1,10 +1,5 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
-import {
-  LiquidCheckDefinition,
-  SchemaProp,
-  Severity,
-  SourceCodeType,
-} from '../../types';
+import { LiquidCheckDefinition, SchemaProp, Severity, SourceCodeType } from '../../types';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 

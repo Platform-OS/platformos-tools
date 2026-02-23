@@ -1,7 +1,4 @@
-import {
-  FilterEntry,
-  ObjectEntry,
-} from '@platformos/platformos-check-common';
+import { FilterEntry, ObjectEntry } from '@platformos/platformos-check-common';
 import { InsertTextFormat, type TextEdit } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { describe, beforeEach, it, expect } from 'vitest';

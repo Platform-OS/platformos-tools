@@ -31,10 +31,7 @@ export function isCompletionList(
 }
 
 export function mockJSONLanguageService(_rootUri: string, documentManager: DocumentManager) {
-  return new JSONLanguageService(
-    documentManager,
-    {
-      schemas: async () => [],
-    },
-  );
+  return new JSONLanguageService(documentManager, {
+    schemas: async () => [],
+  });
 }

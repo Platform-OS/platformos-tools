@@ -10,12 +10,7 @@ export const PlatformOSLiquidDocsRoot = 'https://documentation.platformos.com/ap
 export const PlatformOSGraphQLSchema = 'https://documentation.platformos.com/api/graphql/schema';
 
 export type Resource = (typeof Resources)[number];
-export const Resources = [
-  'filters',
-  'objects',
-  'tags',
-  'platformos_system_translations',
-] as const;
+export const Resources = ['filters', 'objects', 'tags', 'platformos_system_translations'] as const;
 
 const PLATFORMOS_LIQUID_DOCS: Record<Resource | 'latest', string> = {
   filters: 'filters.json',

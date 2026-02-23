@@ -140,7 +140,6 @@ describe('Module: LiquidCompletionParams', async () => {
           `{% render '█' %}`,
           `{% render 'snip', var: '█' %}`,
           `{% content_for '█' %}`,
-          `{% content_for 'block', id: '█' %}`,
         ];
         for (const context of contexts) {
           const { completionContext } = createLiquidParamsFromContext(context);
@@ -191,7 +190,6 @@ describe('Module: LiquidCompletionParams', async () => {
           `{% cycle a█ %}`,
           `{% cycle 'foo', a█ %}`,
           `{% cycle 'foo': a█ %}`,
-          `{% content_for 'foo', v: █ %}`,
           `{% render 'snip', var: a█ %}`,
           `{% render 'snip' for col█ as item %}`,
           `{% render 'snip' with object█ as name %}`,
@@ -241,7 +239,6 @@ describe('Module: LiquidCompletionParams', async () => {
           `{% cycle █ %}`,
           `{% cycle 'foo', █ %}`,
           `{% cycle 'foo': █ %}`,
-          `{% content_for 'snip', var: █ %}`,
           `{% render 'snip', var: █ %}`,
           `{% render 'snip' for █ as item %}`,
           `{% render 'snip' with █ as name %}`,

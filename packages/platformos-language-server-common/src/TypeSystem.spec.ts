@@ -237,7 +237,6 @@ describe('Module: TypeSystem', () => {
     expect(inferredType).to.equal('model');
   });
 
-
   it('should support path-contextual variable types for partials', async () => {
     let inferredType: string | ArrayType | ShapeType | UnionType;
     const contexts: [string, string][] = [
@@ -742,5 +741,4 @@ query {
   });
 
   // metafieldDefinitionsObjectMap tests removed (Shopify-specific feature)
-
 });

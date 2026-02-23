@@ -361,9 +361,7 @@ function findCurrentNode(
       }
 
       case NodeTypes.ContentForMarkup: {
-        if (isNotEmpty(current.args)) {
-          finder.current = last(current.args);
-        } else if (isCovered(cursor, current.contentForType.position)) {
+        if (isCovered(cursor, current.contentForType.position)) {
           finder.current = current.contentForType;
         }
 

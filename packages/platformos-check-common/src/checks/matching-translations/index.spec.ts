@@ -122,7 +122,8 @@ describe('Module: MatchingTranslations', async () => {
   it('should not report offenses and ignore pluralization', async () => {
     const theme = {
       'app/translations/en.yml': 'en:\n  hello:\n    one: Hello, you\n    other: "Hello, y\'all"\n',
-      'app/translations/pt-BR.yml': 'pt-BR:\n  hello:\n    zero: Estou sozinho :(\n    few: "Olá, galerinha :)"\n',
+      'app/translations/pt-BR.yml':
+        'pt-BR:\n  hello:\n    zero: Estou sozinho :(\n    few: "Olá, galerinha :)"\n',
     };
 
     const offenses = await check(theme, [MatchingTranslations]);

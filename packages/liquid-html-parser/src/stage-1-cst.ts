@@ -248,6 +248,7 @@ export type ConcreteLiquidTagOpenNamed =
   // platformos block tags
   | ConcreteLiquidTagOpenBackground
   | ConcreteLiquidTagOpenCache
+  | ConcreteLiquidTagOpenContentFor
   | ConcreteLiquidTagOpenParseJson
   | ConcreteLiquidTagOpenTransaction
   | ConcreteLiquidTagOpenTry;
@@ -334,7 +335,6 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagAssign
   | ConcreteLiquidTagHashAssign
   | ConcreteLiquidTagCycle
-  | ConcreteLiquidTagContentFor
   | ConcreteLiquidTagEcho
   | ConcreteLiquidTagIncrement
   | ConcreteLiquidTagDecrement
@@ -428,7 +428,7 @@ export interface ConcreteLiquidTagCycleMarkup extends ConcreteBasicNode<Concrete
   args: ConcreteLiquidExpression[];
 }
 
-export interface ConcreteLiquidTagContentFor extends ConcreteLiquidTagNode<
+export interface ConcreteLiquidTagOpenContentFor extends ConcreteLiquidTagOpenNode<
   NamedTags.content_for,
   ConcreteLiquidTagContentForMarkup
 > {}
@@ -544,7 +544,6 @@ export interface ConcreteLiquidTagOpenTry extends ConcreteLiquidTagOpenNode<
 
 export interface ConcreteLiquidTagContentForMarkup extends ConcreteBasicNode<ConcreteNodeTypes.ContentForMarkup> {
   contentForType: ConcreteStringLiteral;
-  args: ConcreteLiquidNamedArgument[];
 }
 
 export interface ConcreteLiquidTagRenderMarkup extends ConcreteBasicNode<ConcreteNodeTypes.RenderMarkup> {
@@ -1070,10 +1069,10 @@ function toCST<T>(
       source,
     },
 
+    liquidTagOpenContentFor: 0,
     liquidTagContentForMarkup: {
       type: ConcreteNodeTypes.ContentForMarkup,
       contentForType: 0,
-      args: 2,
       locStart,
       locEnd,
       source,
@@ -1312,28 +1311,11 @@ function toCST<T>(
     },
     simpleArgument: 0,
     tagArguments: 0,
-    contentForTagArgument: 0,
-    completionModeContentForTagArgument: function (namedArguments, _separator, variableLookup) {
-      const self = this as any;
-
-      return namedArguments
-        .toAST(self.args.mapping)
-        .concat(variableLookup.sourceString === '' ? [] : variableLookup.toAST(self.args.mapping));
-    },
     positionalArgument: 0,
     namedArgument: {
       type: ConcreteNodeTypes.NamedArgument,
       name: 0,
       value: 4,
-      locStart,
-      locEnd,
-      source,
-    },
-
-    contentForNamedArgument: {
-      type: ConcreteNodeTypes.NamedArgument,
-      name: (node) => node[0].sourceString + node[1].sourceString,
-      value: 6,
       locStart,
       locEnd,
       source,

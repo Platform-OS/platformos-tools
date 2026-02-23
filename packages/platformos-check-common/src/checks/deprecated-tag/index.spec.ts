@@ -39,7 +39,12 @@ describe('Module: DeprecatedTag', () => {
   it('should report an offense when a deprecated tag is used', async () => {
     const sourceCode = `{% include 'templates/foo.liquid' %}`;
 
-    const offenses = await runLiquidCheck(DeprecatedTag, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedTag,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
 
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toEqual(`Deprecated tag 'include': Use the 'render' tag instead.`);
@@ -51,7 +56,12 @@ describe('Module: DeprecatedTag', () => {
   it('should not report an offense when a non-deprecated tag is used', async () => {
     const sourceCode = `{% render 'templates/foo.liquid' %}`;
 
-    const offenses = await runLiquidCheck(DeprecatedTag, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedTag,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
 
     expect(offenses).toHaveLength(0);
   });
@@ -59,7 +69,12 @@ describe('Module: DeprecatedTag', () => {
   it('should report a generic message when no deprecation_reason is provided', async () => {
     const sourceCode = `{% deprecated_no_reason %}`;
 
-    const offenses = await runLiquidCheck(DeprecatedTag, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedTag,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
 
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toEqual(`Deprecated tag 'deprecated_no_reason'.`);
@@ -72,7 +87,12 @@ describe('Module: DeprecatedTag', () => {
       {% include 'greeting.liquid' %}
     `;
 
-    const offenses = await runLiquidCheck(DeprecatedTag, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedTag,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
 
     expect(offenses).toHaveLength(2);
     expect(offenses[0].message).toEqual(`Deprecated tag 'include': Use the 'render' tag instead.`);
@@ -85,7 +105,12 @@ describe('Module: DeprecatedTag', () => {
   it('should highlight only the tag name', async () => {
     const sourceCode = `{% include 'foo.liquid' %}`;
 
-    const offenses = await runLiquidCheck(DeprecatedTag, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedTag,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
 
     expect(offenses).toHaveLength(1);
     const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);

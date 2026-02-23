@@ -45,6 +45,8 @@ describe('Unit: getAppFilesPathPattern', () => {
     const rootUri = pathToFileURL(__dirname);
     const normalizedGlob = getAppFilesPathPattern(rootUri.toString());
 
-    expect(normalizedGlob).to.equal(__dirname.replace(/\\/g, '/') + '/**/*.{liquid,json,graphql,yml,yaml}');
+    expect(normalizedGlob).to.equal(
+      __dirname.replace(/\\/g, '/') + '/**/*.{liquid,json,graphql,yml,yaml}',
+    );
   });
 });

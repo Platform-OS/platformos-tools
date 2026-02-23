@@ -13,14 +13,22 @@ describe('Module: ValidHTMLTranslation', () => {
       '  foo: bar',
     ].join('\n');
 
-    const offenses = await runYAMLCheck(ValidHTMLTranslation, sourceCode, 'app/translations/en.yml');
+    const offenses = await runYAMLCheck(
+      ValidHTMLTranslation,
+      sourceCode,
+      'app/translations/en.yml',
+    );
     expect(offenses).toHaveLength(0);
   });
 
   it('should report invalid HTML in translations', async () => {
     const sourceCode = 'en:\n  hello_html: "<h1>Hello, world"';
 
-    const offenses = await runYAMLCheck(ValidHTMLTranslation, sourceCode, 'app/translations/en.yml');
+    const offenses = await runYAMLCheck(
+      ValidHTMLTranslation,
+      sourceCode,
+      'app/translations/en.yml',
+    );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).to.equal(
       "LiquidHTMLParsingError: Attempting to end parsing before HtmlElement 'h1' was closed.",
@@ -41,7 +49,11 @@ describe('Module: ValidHTMLTranslation', () => {
       '          day_html: "<h1>Hello, world"',
     ].join('\n');
 
-    const offenses = await runYAMLCheck(ValidHTMLTranslation, sourceCode, 'app/translations/en.yml');
+    const offenses = await runYAMLCheck(
+      ValidHTMLTranslation,
+      sourceCode,
+      'app/translations/en.yml',
+    );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).to.equal(
       "LiquidHTMLParsingError: Attempting to end parsing before HtmlElement 'h1' was closed.",
@@ -55,7 +67,11 @@ describe('Module: ValidHTMLTranslation', () => {
   it('should report pluralized key with invalid HTML', async () => {
     const sourceCode = 'en:\n  hello_html:\n    one: "<h1>Hello, world"';
 
-    const offenses = await runYAMLCheck(ValidHTMLTranslation, sourceCode, 'app/translations/en.yml');
+    const offenses = await runYAMLCheck(
+      ValidHTMLTranslation,
+      sourceCode,
+      'app/translations/en.yml',
+    );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).to.equal(
       "LiquidHTMLParsingError: Attempting to end parsing before HtmlElement 'h1' was closed.",

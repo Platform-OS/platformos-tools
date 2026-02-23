@@ -11,7 +11,6 @@ import { FindAppRootURI } from '../internal-types';
 import { GetTranslationsForURI } from '../translations';
 import { createLiquidCompletionParams } from './params';
 import {
-  ContentForCompletionProvider,
   FilterCompletionProvider,
   FilterNamedParameterCompletionProvider,
   HtmlAttributeCompletionProvider,
@@ -66,15 +65,9 @@ export class CompletionsProvider {
     this.documentManager = documentManager;
     this.platformosDocset = platformosDocset;
     this.log = log;
-    const typeSystem = new TypeSystem(
-      platformosDocset,
-      fs,
-      documentsLocator,
-      findAppRootURI,
-    );
+    const typeSystem = new TypeSystem(platformosDocset, fs, documentsLocator, findAppRootURI);
 
     this.providers = [
-      new ContentForCompletionProvider(),
       new HtmlTagCompletionProvider(),
       new HtmlAttributeCompletionProvider(documentManager),
       new HtmlAttributeValueCompletionProvider(),

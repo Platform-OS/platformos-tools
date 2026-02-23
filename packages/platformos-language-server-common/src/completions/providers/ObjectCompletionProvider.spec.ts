@@ -36,10 +36,7 @@ describe('Module: ObjectCompletionProvider', async () => {
       {
         name: 'current_user',
         access: { global: false, parents: [], template: [] },
-        properties: [
-          { name: 'name' },
-          { name: 'email' },
-        ],
+        properties: [{ name: 'name' }, { name: 'email' }],
       },
     ];
 
@@ -143,5 +140,4 @@ describe('Module: ObjectCompletionProvider', async () => {
   it('should not complete anything if there is nothing to complete', async () => {
     await expect(provider).to.complete('{% assign x = "█" %}', []);
   });
-
 });

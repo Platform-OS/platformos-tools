@@ -157,7 +157,9 @@ function resolvePath(
     return path.resolve(root, pathLike);
   }
 
-  return realpathSync(require.resolve(/* webpackIgnore: true */ pathLike, { paths: getAncestorNodeModules(root)! }));
+  return realpathSync(
+    require.resolve(/* webpackIgnore: true */ pathLike, { paths: getAncestorNodeModules(root)! }),
+  );
 }
 
 /**

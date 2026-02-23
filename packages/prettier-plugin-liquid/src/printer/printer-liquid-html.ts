@@ -373,20 +373,7 @@ function printNode(
     }
 
     case NodeTypes.ContentForMarkup: {
-      const contentForType = path.call((p: any) => print(p), 'contentForType');
-      const doc: Doc = [contentForType];
-      if (node.args.length > 0) {
-        doc.push(
-          ',',
-          line,
-          join(
-            [',', line],
-            path.map((p) => print(p), 'args'),
-          ),
-        );
-      }
-
-      return doc;
+      return path.call((p: any) => print(p), 'contentForType');
     }
 
     case NodeTypes.RenderMarkup: {

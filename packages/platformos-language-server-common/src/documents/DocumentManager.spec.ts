@@ -188,5 +188,4 @@ describe('Module: DocumentManager', () => {
       );
     });
   });
-
 });

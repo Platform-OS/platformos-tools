@@ -19,8 +19,7 @@ export const ValidHTMLTranslation: YAMLCheckDefinition = {
   create(context) {
     // We ignore yaml files that aren't translation files.
     const relativePath = context.toRelativePath(context.file.uri);
-    if (!relativePath.includes('/translations/'))
-      return {};
+    if (!relativePath.includes('/translations/')) return {};
 
     return {
       async Literal(node: LiteralNode) {

@@ -424,7 +424,11 @@ export interface LiquidComparison extends ASTNode<NodeTypes.Comparison> {
   right: LiquidExpression;
 }
 
-/** https://shopify.dev/docs/api/liquid/tags#content_for */
+/**
+ * In platformOS, content_for defines a named block of content in a page/partial.
+ * Use {% yield 'name' %} in a layout to render it.
+ * @example {% content_for 'pagetitle' %}<title>Hello</title>{% endcontent_for %}
+ */
 export interface LiquidTagContentFor extends LiquidTagNode<
   NamedTags.content_for,
   ContentForMarkup
@@ -449,18 +453,9 @@ export interface LiquidTagLayout extends LiquidTagNode<NamedTags.layout, LiquidE
 /** https://shopify.dev/docs/api/liquid/tags#liquid */
 export interface LiquidTagLiquid extends LiquidTagNode<NamedTags.liquid, LiquidStatement[]> {}
 
-/** {% content_for 'contentForType' [...namedArguments] %} */
+/** {% content_for 'name' %}...{% endcontent_for %} */
 export interface ContentForMarkup extends ASTNode<NodeTypes.ContentForMarkup> {
-  /** {% content_for 'contentForType' %} */
   contentForType: LiquidString;
-  /**
-   * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
-   * because the NamedArgument isn't fully typed out.
-   * E.g. {% content_for 'contentForType', arg1: value1, arg2█ %}
-   *
-   * @example {% content_for 'contentForType', arg1: value1, arg2: value2 %}
-   */
-  args: LiquidNamedArgument[];
 }
 
 /** {% render 'partial' [(with|for) variable [as alias]], [...namedArguments] %} */
@@ -1775,6 +1770,7 @@ function toNamedLiquidTag(
         ...liquidTagBaseAttributes(node),
         name: node.name,
         markup: toContentForMarkup(node.markup),
+        children: [],
       };
     }
 
@@ -2221,15 +2217,6 @@ function toContentForMarkup(node: ConcreteLiquidTagContentForMarkup): ContentFor
   return {
     type: NodeTypes.ContentForMarkup,
     contentForType: toExpression(node.contentForType) as LiquidString,
-    /**
-     * When we're in completion mode we won't necessarily have valid named
-     * arguments so we need to call toLiquidArgument instead of toNamedArgument.
-     * We cast using `as` so that this doesn't affect the type system used in
-     * other areas (like theme check) for a scenario that only occurs in
-     * completion mode. This means that our types are *wrong* in completion mode
-     * but this is the compromise we're making to get completions to work.
-     */
-    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,
   };

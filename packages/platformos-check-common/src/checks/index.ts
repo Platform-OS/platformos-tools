@@ -17,7 +17,6 @@ import { MissingAsset } from './missing-asset';
 import { MissingPartial } from './missing-partial';
 import { OrphanedPartial } from './orphaned-partial';
 import { ParserBlockingScript } from './parser-blocking-script';
-import { ReservedDocParamNames } from './reserved-doc-param-names';
 import { TranslationKeyExists } from './translation-key-exists';
 import { UnclosedHTMLElement } from './unclosed-html-element';
 import { UndefinedObject } from './undefined-object';
@@ -26,7 +25,6 @@ import { UnknownFilter } from './unknown-filter';
 import { UnrecognizedRenderPartialArguments } from './unrecognized-render-partial-arguments';
 import { UnusedAssign } from './unused-assign';
 import { UnusedDocParam } from './unused-doc-param';
-import { ValidContentForArguments } from './valid-content-for-arguments';
 import { ValidHTMLTranslation } from './valid-html-translation';
 import { ValidJSON } from './valid-json';
 import { ValidDocParamTypes } from './valid-doc-param-types';
@@ -57,7 +55,6 @@ export const allChecks: (
   MissingPartial,
   OrphanedPartial,
   ParserBlockingScript,
-  ReservedDocParamNames,
   TranslationKeyExists,
   UnclosedHTMLElement,
   UndefinedObject,
@@ -66,7 +63,6 @@ export const allChecks: (
   UnrecognizedRenderPartialArguments,
   UnusedAssign,
   UnusedDocParam,
-  ValidContentForArguments,
   ValidHTMLTranslation,
   ValidJSON,
   ValidDocParamTypes,

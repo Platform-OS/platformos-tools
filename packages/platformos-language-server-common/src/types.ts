@@ -1,7 +1,4 @@
-import {
-  Config,
-  Dependencies as CheckDependencies,
-} from '@platformos/platformos-check-common';
+import { Config, Dependencies as CheckDependencies } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import { URI } from 'vscode-languageserver';
 import * as rpc from 'vscode-jsonrpc';
@@ -80,7 +77,6 @@ export interface RequiredDependencies {
    * The browser accepts a custom implementation.
    */
   fs: AbstractFileSystem;
-
 }
 
 export namespace AppGraphReferenceRequest {

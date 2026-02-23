@@ -1,9 +1,4 @@
-import {
-  FilterEntry,
-  ObjectEntry,
-  TagEntry,
-  PlatformOSDocset,
-} from './types';
+import { FilterEntry, ObjectEntry, TagEntry, PlatformOSDocset } from './types';
 import { memo } from './utils';
 
 const toFilterEntry = (name: string): FilterEntry => ({ name });
@@ -79,5 +74,4 @@ export class AugmentedPlatformOSDocset implements PlatformOSDocset {
   tags = memo(async (): Promise<TagEntry[]> => {
     return [...(await this.platformosDocset.tags()), ...undocumentedTags.map(toTagEntry)];
   });
-
 }

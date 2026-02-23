@@ -754,40 +754,15 @@ describe('Unit: Stage 2 (AST)', () => {
       });
 
       describe('Case: content_for', () => {
-        it('should parse content_for tags with no arguments', () => {
+        it('should parse content_for as a block tag with children', () => {
           for (const { toAST, expectPath, expectPosition } of testCases) {
-            ast = toAST(`{% content_for "blocks" %}`);
+            ast = toAST(`{% content_for "pagetitle" %}<title>Hello</title>{% endcontent_for %}`);
             expectPath(ast, 'children.0.type').to.equal('LiquidTag');
             expectPath(ast, 'children.0.name').to.equal('content_for');
             expectPath(ast, 'children.0.markup.type').to.equal('ContentForMarkup');
             expectPath(ast, 'children.0.markup.contentForType.type').to.equal('String');
-            expectPath(ast, 'children.0.markup.contentForType.value').to.equal('blocks');
-            expectPosition(ast, 'children.0');
-            expectPosition(ast, 'children.0.markup');
-          }
-        });
-
-        it('should parse content_for named expression arguments', () => {
-          for (const { toAST, expectPath, expectPosition } of testCases) {
-            ast = toAST(`{% content_for "snippet", s: 'string', n: 10, r: (1..2), v: variable %}`);
-            expectPath(ast, 'children.0.type').to.equal('LiquidTag');
-            expectPath(ast, 'children.0.name').to.equal('content_for');
-            expectPath(ast, 'children.0.markup.type').to.equal('ContentForMarkup');
-            expectPath(ast, 'children.0.markup.contentForType.type').to.equal('String');
-            expectPath(ast, 'children.0.markup.contentForType.value').to.equal('snippet');
-            expectPath(ast, 'children.0.markup.args').to.have.lengthOf(4);
-            expectPath(ast, 'children.0.markup.args.0.type').to.equal('NamedArgument');
-            expectPath(ast, 'children.0.markup.args.0.name').to.equal('s');
-            expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('String');
-            expectPath(ast, 'children.0.markup.args.1.type').to.equal('NamedArgument');
-            expectPath(ast, 'children.0.markup.args.1.name').to.equal('n');
-            expectPath(ast, 'children.0.markup.args.1.value.type').to.equal('Number');
-            expectPath(ast, 'children.0.markup.args.2.type').to.equal('NamedArgument');
-            expectPath(ast, 'children.0.markup.args.2.name').to.equal('r');
-            expectPath(ast, 'children.0.markup.args.2.value.type').to.equal('Range');
-            expectPath(ast, 'children.0.markup.args.3.type').to.equal('NamedArgument');
-            expectPath(ast, 'children.0.markup.args.3.name').to.equal('v');
-            expectPath(ast, 'children.0.markup.args.3.value.type').to.equal('VariableLookup');
+            expectPath(ast, 'children.0.markup.contentForType.value').to.equal('pagetitle');
+            expectPath(ast, 'children.0.children').to.exist;
             expectPosition(ast, 'children.0');
             expectPosition(ast, 'children.0.markup');
           }
@@ -2019,15 +1994,6 @@ describe('Unit: Stage 2 (AST)', () => {
       ast = toAST(`<h█>`);
       expectPath(ast, 'children.0.type').to.equal('HtmlElement');
       expectPath(ast, 'children.0.name.0.value').to.equal('h█');
-    });
-
-    it('should not freak out when parsing incomplete named arguments for content_for tags', () => {
-      ast = toAST(`{% content_for "blocks", id: 1, cl█ %}`);
-
-      expectPath(ast, 'children.0.type').to.equal('LiquidTag');
-      expectPath(ast, 'children.0.markup.args.0.type').to.equal('NamedArgument');
-      expectPath(ast, 'children.0.markup.args.1.type').to.equal('VariableLookup');
-      expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
     });
 
     it('should not freak out when parsing dangling liquid tags', () => {

@@ -68,10 +68,7 @@ describe('Module: index', () => {
         const deps = parentPartial.dependencies;
         assert(deps.map((x) => x.source.uri).every((x) => x === parentPartial.uri));
         expect(deps.map((x) => x.target.uri)).toEqual(
-          expect.arrayContaining([
-            p('app/views/partials/child.liquid'),
-            p('assets/theme.js'),
-          ]),
+          expect.arrayContaining([p('app/views/partials/child.liquid'), p('assets/theme.js')]),
         );
 
         // {% render 'child' %} dependency

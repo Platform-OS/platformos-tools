@@ -492,6 +492,4 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       await expect(provider).to.complete(source, ['deep']);
     });
   });
-
 });
-

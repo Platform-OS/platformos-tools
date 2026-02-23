@@ -52,7 +52,6 @@ Liquid <: Helpers {
     | liquidTagBreak
     | liquidTagContinue
     | liquidTagCycle
-    | liquidTagContentFor
     | liquidTagDecrement
     | liquidTagEcho
     | liquidTagElse
@@ -100,6 +99,7 @@ Liquid <: Helpers {
     // platformos block tags
     | liquidTagOpenBackground
     | liquidTagOpenCache
+    | liquidTagOpenContentFor
     | liquidTagOpenParseJson
     | liquidTagOpenTransaction
     | liquidTagOpenTry
@@ -153,15 +153,8 @@ Liquid <: Helpers {
   liquidTagLiquid = liquidTagRule<"liquid", liquidTagLiquidMarkup>
   liquidTagLiquidMarkup = tagMarkup
 
-  liquidTagContentFor = liquidTagRule<"content_for", liquidTagContentForMarkup>
-
-  liquidTagContentForMarkup =
-    contentForType (argumentSeparatorOptionalComma contentForTagArgument) (space* ",")? space*
-
-  contentForTagArgument = listOf<contentForNamedArgument<delimTag>, argumentSeparatorOptionalComma>
-  completionModeContentForTagArgument = listOf<contentForNamedArgument<delimTag>, argumentSeparatorOptionalComma> (argumentSeparator? (liquidVariableLookup<delimTag>))?
-  contentForNamedArgument<delim> = (variableSegment ("." variableSegment)*) space* ":" space* (liquidExpression<delim>)
-
+  liquidTagOpenContentFor = liquidTagOpenRule<"content_for", liquidTagContentForMarkup>
+  liquidTagContentForMarkup = contentForType space*
   contentForType = liquidString<delimTag>
 
   liquidTagInclude = liquidTagRule<"include", liquidTagRenderMarkup>
@@ -430,6 +423,7 @@ Liquid <: Helpers {
     // platformos blocks
     | "background"
     | "cache"
+    | "content_for"
     | "parse_json"
     | "transaction"
     | "try"
@@ -688,8 +682,6 @@ StrictLiquidHTML <: LiquidHTML {
 
 WithPlaceholderLiquid <: Liquid {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
-  liquidTagContentForMarkup :=
-    contentForType (argumentSeparatorOptionalComma completionModeContentForTagArgument) (space* ",")? space*
   liquidTagRenderMarkup :=
     snippetExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
@@ -702,8 +694,6 @@ WithPlaceholderLiquid <: Liquid {
 
 WithPlaceholderLiquidStatement <: LiquidStatement {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
-  liquidTagContentForMarkup :=
-    contentForType (argumentSeparatorOptionalComma completionModeContentForTagArgument) (space* ",")? space*
   liquidTagRenderMarkup :=
     snippetExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
@@ -716,8 +706,6 @@ WithPlaceholderLiquidStatement <: LiquidStatement {
 
 WithPlaceholderLiquidHTML <: LiquidHTML {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
-  liquidTagContentForMarkup :=
-    contentForType (argumentSeparatorOptionalComma completionModeContentForTagArgument) (space* ",")? space*
   liquidTagRenderMarkup :=
     snippetExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*

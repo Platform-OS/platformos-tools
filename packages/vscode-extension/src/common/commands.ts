@@ -1,5 +1,8 @@
 import { path } from '@platformos/platformos-check-common';
-import { AugmentedLocation, AppGraphRootRequest } from '@platformos/platformos-language-server-common';
+import {
+  AugmentedLocation,
+  AppGraphRootRequest,
+} from '@platformos/platformos-language-server-common';
 import { Position, Range, Uri, window, workspace } from 'vscode';
 import { BaseLanguageClient } from 'vscode-languageclient';
 

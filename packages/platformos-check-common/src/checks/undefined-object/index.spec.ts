@@ -301,9 +301,7 @@ describe('Module: UndefinedObject', () => {
 
   it('should support contextual exceptions for partials', async () => {
     let offenses: Offense[];
-    const contexts: [string, string][] = [
-      ['app', 'app/views/partials/theme-app-extension.liquid'],
-    ];
+    const contexts: [string, string][] = [['app', 'app/views/partials/theme-app-extension.liquid']];
     for (const [object, goodPath] of contexts) {
       offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, goodPath);
       expect(offenses).toHaveLength(0);

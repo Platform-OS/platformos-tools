@@ -45,7 +45,12 @@ describe('Module: DeprecatedFilter', () => {
       {{ value | old_filter: 'arg' }}
     `;
 
-    const offenses = await runLiquidCheck(DeprecatedFilter, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedFilter,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
     expect(offenses.map((e) => e.message)).toEqual([
       "Deprecated filter 'old_filter', consider using 'new_filter'.",
       "Deprecated filter 'old_filter', consider using 'new_filter'.",
@@ -61,14 +66,24 @@ describe('Module: DeprecatedFilter', () => {
       {{ value | new_filter }}
     `;
 
-    const offenses = await runLiquidCheck(DeprecatedFilter, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedFilter,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
     expect(offenses).toHaveLength(0);
   });
 
   it('should report a message without replacement when no alternative exists', async () => {
     const sourceCode = `{{ value | deprecated_no_replacement }}`;
 
-    const offenses = await runLiquidCheck(DeprecatedFilter, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedFilter,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toEqual("Deprecated filter 'deprecated_no_replacement'.");
   });
@@ -76,7 +91,12 @@ describe('Module: DeprecatedFilter', () => {
   it('should report multiple offenses for multiple deprecated filter usages', async () => {
     const sourceCode = `{{ a | old_filter }} {{ b | deprecated_no_replacement }}`;
 
-    const offenses = await runLiquidCheck(DeprecatedFilter, sourceCode, 'file.liquid', mockDependencies);
+    const offenses = await runLiquidCheck(
+      DeprecatedFilter,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
     expect(offenses).toHaveLength(2);
   });
 });

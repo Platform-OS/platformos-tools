@@ -49,5 +49,4 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
       );
     }
   });
-
 });

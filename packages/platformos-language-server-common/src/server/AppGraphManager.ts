@@ -44,11 +44,7 @@ export class AppGraphManager {
     return this.graphs.get(rootUri);
   }
 
-  async getReferences(
-    uri: string,
-    offset?: number,
-    { includeIndirect = true } = {},
-  ) {
+  async getReferences(uri: string, offset?: number, { includeIndirect = true } = {}) {
     const graph = await this.getAppGraphForURI(uri);
     if (!graph) return [];
 
@@ -77,11 +73,7 @@ export class AppGraphManager {
     );
   }
 
-  async getDependencies(
-    uri: string,
-    offset?: number,
-    { includeIndirect = true } = {},
-  ) {
+  async getDependencies(uri: string, offset?: number, { includeIndirect = true } = {}) {
     const graph = await this.getAppGraphForURI(uri);
     if (!graph) return [];
 

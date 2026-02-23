@@ -88,12 +88,7 @@ function createWorkerLanguageClient(
   const worker = new Worker(serverMain.toString(true));
 
   // create the language server client to communicate with the server running in the worker
-  return new LanguageClient(
-    'platformosLiquid',
-    'App Check Language Server',
-    clientOptions,
-    worker,
-  );
+  return new LanguageClient('platformosLiquid', 'App Check Language Server', clientOptions, worker);
 }
 
 async function stopServer() {

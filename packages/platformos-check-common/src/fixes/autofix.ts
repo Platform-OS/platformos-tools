@@ -1,4 +1,4 @@
-import { FixApplicator, Offense, SourceCodeType,  App } from '../types';
+import { FixApplicator, Offense, SourceCodeType, App } from '../types';
 import { WithRequired } from '../utils/types';
 import { createCorrector } from './correctors';
 import { flattenFixes } from './utils';

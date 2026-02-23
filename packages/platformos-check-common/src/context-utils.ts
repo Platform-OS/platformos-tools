@@ -1,11 +1,7 @@
 import { load } from 'js-yaml';
 import { AbstractFileSystem, FileTuple, FileType, UriString } from '@platformos/platformos-common';
 import { join } from './path';
-import {
-  SourceCodeType,
-  App,
-  Translations,
-} from './types';
+import { SourceCodeType, App, Translations } from './types';
 
 export type FileExists = (uri: string) => Promise<boolean>;
 
@@ -29,8 +25,8 @@ export const makeFileSize = (fs: AbstractFileSystem) =>
     }
   };
 
-export const makeGetDefaultLocaleFileUri = (fs: AbstractFileSystem) =>
-  (rootUri: string) => getDefaultLocaleFile(fs, rootUri);
+export const makeGetDefaultLocaleFileUri = (fs: AbstractFileSystem) => (rootUri: string) =>
+  getDefaultLocaleFile(fs, rootUri);
 
 export const makeGetDefaultLocale = (fs: AbstractFileSystem, rootUri: string) =>
   cached(() => getDefaultLocale(fs, rootUri));
@@ -51,10 +47,7 @@ async function getDefaultLocaleFile(
   }
 }
 
-async function getDefaultLocale(
-  _fs: AbstractFileSystem,
-  _rootUri: string,
-): Promise<string> {
+async function getDefaultLocale(_fs: AbstractFileSystem, _rootUri: string): Promise<string> {
   // In platformOS, en.yml is always the reference translation file
   return 'en';
 }
@@ -84,9 +77,7 @@ async function getDefaultTranslations(
 /** It might be that you have an open buffer, we prefer translations from there if available */
 function getDefaultTranslationsFromBuffer(app: App): Translations | undefined {
   const defaultTranslationsSourceCode = app.find(
-    (sourceCode) =>
-      sourceCode.type === SourceCodeType.YAML &&
-      sourceCode.uri.endsWith('/en.yml'),
+    (sourceCode) => sourceCode.type === SourceCodeType.YAML && sourceCode.uri.endsWith('/en.yml'),
   );
   if (!defaultTranslationsSourceCode) return undefined;
   try {
@@ -138,4 +129,3 @@ const ignoredFolders = ['.git', 'node_modules', 'dist', 'build', 'tmp', 'vendor'
 function isIgnored([uri, type]: FileTuple) {
   return type === FileType.Directory && ignoredFolders.some((folder) => uri.endsWith(folder));
 }
-

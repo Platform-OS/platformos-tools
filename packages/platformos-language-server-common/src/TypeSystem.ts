@@ -222,7 +222,6 @@ function getContextualEntries(uri: string): string[] {
   return [];
 }
 
-
 /** An indexed representation on objects.json (by name) */
 type ObjectMap = Record<ObjectEntryName, ObjectEntry>;
 
@@ -1530,5 +1529,3 @@ function findLastApplicableShape(
   }
   return result;
 }
-
-

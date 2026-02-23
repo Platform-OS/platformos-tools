@@ -1,10 +1,5 @@
 import { LiquidFilter } from '@platformos/liquid-html-parser';
-import {
-  Severity,
-  SourceCodeType,
-  LiquidCheckDefinition,
-  FilterEntry,
-} from '../../types';
+import { Severity, SourceCodeType, LiquidCheckDefinition, FilterEntry } from '../../types';
 
 export const DeprecatedFilter: LiquidCheckDefinition = {
   meta: {

@@ -104,12 +104,7 @@ export function startServer(
     clientCapabilities,
     isValidSchema,
   );
-  const appGraphManager = new AppGraphManager(
-    connection,
-    documentManager,
-    fs,
-    findAppRootURI,
-  );
+  const appGraphManager = new AppGraphManager(connection, documentManager, fs, findAppRootURI);
   const diagnosticsManager = new DiagnosticsManager(connection);
   const documentsLocator = new DocumentsLocator(fs);
   const translationProvider = new TranslationProvider(fs);
@@ -220,14 +215,8 @@ export function startServer(
     return (documentManager.get(defaultLocaleFileUri) as AugmentedJsonSourceCode) ?? null;
   }
 
-  const definitionsProvider = new DefinitionProvider(
-    documentManager,
-    getDefaultLocaleSourceCode,
-  );
-  const jsonLanguageService = new JSONLanguageService(
-    documentManager,
-    jsonValidationSet,
-  );
+  const definitionsProvider = new DefinitionProvider(documentManager, getDefaultLocaleSourceCode);
+  const jsonLanguageService = new JSONLanguageService(documentManager, jsonValidationSet);
   const cssLanguageService = new CSSLanguageService(documentManager);
   const completionsProvider = new CompletionsProvider({
     documentManager,
@@ -355,7 +344,6 @@ export function startServer(
         },
       ],
     });
-
   });
 
   connection.onDidChangeConfiguration((_params) => {

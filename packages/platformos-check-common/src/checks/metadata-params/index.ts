@@ -67,9 +67,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
         const relativePath = relative(locatedFile, context.config.rootUri);
         const docDef = await context.getDocDefinition(relativePath);
         if (!docDef?.liquidDoc?.parameters) return;
-        const liquidDocParameters = new Map(
-          docDef.liquidDoc.parameters.map((p) => [p.name, p]),
-        );
+        const liquidDocParameters = new Map(docDef.liquidDoc.parameters.map((p) => [p.name, p]));
 
         params = Array.from(liquidDocParameters.values())
           .filter((p) => p.required)

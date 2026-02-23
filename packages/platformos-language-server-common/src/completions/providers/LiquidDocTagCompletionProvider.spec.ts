@@ -43,7 +43,6 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
     );
   });
 
-
   describe('nodes that accept free-form text', () => {
     it('offers completions when @ is at the start of a new line following an implicit description', async () => {
       await expect(provider).to.complete(

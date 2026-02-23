@@ -2,7 +2,6 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { InsertTextFormat, type TextEdit } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
-
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { CURSOR } from '../params';

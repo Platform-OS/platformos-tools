@@ -44,4 +44,3 @@ export function fsPath(uri: UriString | URI): string {
 function asUri(uri: UriString | URI): URI {
   return URI.isUri(uri) ? uri : URI.parse(uri);
 }
-

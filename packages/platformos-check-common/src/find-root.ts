@@ -6,8 +6,10 @@ type FileExists = (uri: string) => Promise<boolean>;
 async function isRoot(dir: UriString, fileExists: FileExists) {
   return or(
     fileExists(path.join(dir, '.pos')),
+    fileExists(path.join(dir, '.platformos-check.yml')),
     fileExists(path.join(dir, 'app')),
-    fileExists(path.join(dir, 'modules')),
+    // modules/ is a root indicator only when not inside app/ (app/modules/ is a valid subdirectory)
+    and(fileExists(path.join(dir, 'modules')), Promise.resolve(path.basename(dir) !== 'app')),
   );
 }
 
@@ -23,11 +25,11 @@ async function or(...promises: Promise<boolean>[]) {
 
 /**
  * Returns the root of a platformOS app. The root is the directory that contains
- * a `.platformos-check.yml` file, a `.pos` sentinel file, an `app/` directory,
- * or a `modules/` directory.
+ * a `.pos` sentinel file, a `.platformos-check.yml` config file, an `app/` directory,
+ * or a `modules/` directory (when not inside `app/`).
  *
- * There are cases where `.platformos-check.yml` is not defined and we have to infer the root.
- * We assume the root is the nearest ancestor directory that contains `.pos`, `app/`, or `modules/`.
+ * Note: `modules/` inside `app/` (i.e. `app/modules/`) is a valid subdirectory and
+ * should not be treated as a root indicator.
  *
  * Note: this is not the app root itself. The config file might have a `root` entry that
  * points to somewhere else.

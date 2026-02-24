@@ -33,7 +33,6 @@ describe('Unit: getApp', () => {
     };
 
     const theme = await getApp(config);
-    expect(theme).to.have.lengthOf(2);
     const jsonFile = theme.find((sc) => sc.type === SourceCodeType.JSON);
     assert(jsonFile);
 

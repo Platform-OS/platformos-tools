@@ -17,7 +17,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('Module: server', () => {
   const mockRoot = path.normalize('browser:/theme');
-  const filePath = 'app/code.liquid';
+  const filePath = 'app/views/partials/code.liquid';
   const fileURI = path.join(mockRoot, filePath);
   const fileContents = `{% render 'foo' %}`;
   let checkOnChange: boolean | null = null;
@@ -60,7 +60,7 @@ describe('Module: server', () => {
 
     fileTree = {
       '.pos': '',
-      'app/code.liquid': fileContents,
+      'app/views/partials/code.liquid': fileContents,
       '.git/test': 'test',
       'modules/test': 'test',
     };

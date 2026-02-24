@@ -46,7 +46,7 @@ describe('Module: runChecks', () => {
   let runChecks: ReturnType<typeof makeRunChecks>;
   let fs: MockFileSystem;
   const rootUri = path.normalize('browser:///app');
-  const fileUri = path.join(rootUri, 'app', 'input.liquid');
+  const fileUri = path.join(rootUri, 'app', 'views', 'pages', 'input.liquid');
 
   beforeEach(() => {
     connection = {
@@ -58,7 +58,7 @@ describe('Module: runChecks', () => {
     fs = new MockFileSystem(
       {
         '.pos': '',
-        'app/input.liquid': `{{ 'any' | filter }}`,
+        'app/views/pages/input.liquid': `{{ 'any' | filter }}`,
         '.git/test': 'test',
         'modules/test': 'test',
       },
@@ -140,7 +140,7 @@ describe('Module: runChecks', () => {
   it('should send diagnostics per URI when there are errors', async () => {
     const files = [
       {
-        fileURI: path.join(rootUri, 'app', 'input1.liquid'),
+        fileURI: path.join(rootUri, 'app', 'views', 'pages', 'input1.liquid'),
         fileContents: `{{ 'any' | filter }}`,
         fileVersion: 0,
         diagnostics: [
@@ -163,7 +163,7 @@ describe('Module: runChecks', () => {
         ],
       },
       {
-        fileURI: path.join(rootUri, 'app', 'input2.liquid'),
+        fileURI: path.join(rootUri, 'app', 'views', 'pages', 'input2.liquid'),
         // same but on a new line
         fileContents: `\n{{ 'any' | filter }}`,
         fileVersion: 0,
@@ -192,7 +192,7 @@ describe('Module: runChecks', () => {
       documentManager.open(fileURI, fileContents, fileVersion);
     });
 
-    await runChecks([path.join(rootUri, 'app', 'input1.liquid')]);
+    await runChecks([path.join(rootUri, 'app', 'views', 'pages', 'input1.liquid')]);
 
     files.forEach(({ fileURI, fileVersion, diagnostics }) => {
       expect(connection.sendDiagnostics).toBeCalledWith({
@@ -250,7 +250,7 @@ describe('Module: runChecks', () => {
             source: 'platformos-check',
             code: 'MatchingTranslations',
             codeDescription: { href: expect.any(String) },
-            message: `A default translation for 'hi' does not exist`,
+            message: `A translation for 'hi' does not exist in the en locale`,
             severity: 1,
             range: {
               // 'fr:\n  hello: bonjour\n  hi: salut'

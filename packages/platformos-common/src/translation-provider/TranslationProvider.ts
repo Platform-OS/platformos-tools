@@ -106,6 +106,89 @@ export class TranslationProvider {
     return [undefined, undefined];
   }
 
+  /**
+   * Aggregates ALL translation files for `locale` within `translationBaseUri`.
+   *
+   * Covers two layouts:
+   *  - Single file:  `{base}/{locale}.yml`
+   *  - Split files:  `{base}/{locale}/*.yml`
+   *
+   * Only files whose first YAML key matches `locale` are included, so a file
+   * placed in the wrong directory (or accidentally containing a different
+   * locale) is silently ignored.
+   *
+   * @param contentOverride Optional function called before the filesystem is
+   *   consulted.  Return the file's source string to use it instead of the
+   *   on-disk content, or `undefined` to fall through to the filesystem.
+   *   Used by editor integrations to honour unsaved buffer changes.
+   */
+  async loadAllTranslationsForBase(
+    translationBaseUri: URI,
+    locale: string,
+    contentOverride?: (uri: string) => string | undefined,
+  ): Promise<Record<string, any>> {
+    const merged: Record<string, any> = {};
+
+    const read = async (uri: string): Promise<string | undefined> => {
+      if (contentOverride) {
+        const buffered = contentOverride(uri);
+        if (buffered !== undefined) return buffered;
+      }
+      return this.readFileIfExists(uri);
+    };
+
+    // Strategy A: single locale file ({base}/{locale}.yml)
+    const singleFileUri = Utils.joinPath(translationBaseUri, `${locale}.yml`).toString();
+    const singleContent = await read(singleFileUri);
+    if (singleContent) {
+      const parsed = this.parseTranslationFile(singleContent, locale);
+      if (parsed) this.deepMerge(merged, parsed);
+    }
+
+    // Strategy B: locale directory ({base}/{locale}/*.yml)
+    const localeDirUri = Utils.joinPath(translationBaseUri, locale).toString();
+    const ymlFiles = await this.listYmlFiles(localeDirUri);
+    for (const fileUri of ymlFiles) {
+      const content = await read(fileUri);
+      if (content) {
+        const parsed = this.parseTranslationFile(content, locale);
+        if (parsed) this.deepMerge(merged, parsed);
+      }
+    }
+
+    return merged;
+  }
+
+  /**
+   * Parses a YAML translation file and returns its contents under the locale
+   * key.  Returns `undefined` if the file cannot be parsed or if its first
+   * key does not match `expectedLocale` (guards against mis-placed files).
+   */
+  private parseTranslationFile(
+    content: string,
+    expectedLocale: string,
+  ): Record<string, any> | undefined {
+    try {
+      const data = yaml.load(content) as Record<string, any>;
+      if (!data || typeof data !== 'object') return undefined;
+      const firstKey = Object.keys(data)[0];
+      if (firstKey !== expectedLocale) return undefined;
+      return data[firstKey] ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private deepMerge(target: Record<string, any>, source: Record<string, any>): void {
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value === 'object' && value !== null && typeof target[key] === 'object') {
+        this.deepMerge(target[key], value);
+      } else {
+        target[key] = value;
+      }
+    }
+  }
+
   async translate(
     rootUri: URI,
     translationKey: string,

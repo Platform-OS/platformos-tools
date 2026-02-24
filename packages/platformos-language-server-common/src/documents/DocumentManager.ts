@@ -1,5 +1,6 @@
 import {
   assertNever,
+  isKnownLiquidFile,
   memoize,
   path,
   recursiveReadDirectory,
@@ -78,8 +79,12 @@ export class DocumentManager {
   public app(root: UriString, includeFilesFromDisk = false): AugmentedSourceCode[] {
     return [...this.sourceCodes.values()]
       .filter((sourceCode) => sourceCode.uri.startsWith(root))
+      .filter((sourceCode) => includeFilesFromDisk || sourceCode.version !== undefined)
       .filter(
-        (sourceCode) => includeFilesFromDisk || sourceCode.version !== undefined,
+        // Exclude .liquid files that aren't in a recognized platformOS directory
+        // (e.g. generator templates). Non-liquid files are always included.
+        (sourceCode) =>
+          sourceCode.type !== SourceCodeType.LiquidHtml || isKnownLiquidFile(sourceCode.uri),
       ) satisfies App;
   }
 

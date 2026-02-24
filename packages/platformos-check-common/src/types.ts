@@ -369,6 +369,14 @@ export interface AugmentedDependencies extends Dependencies {
   fileSize: (uri: UriString) => Promise<number>;
   getDefaultLocale: () => Promise<string>;
   getDefaultTranslations(): Promise<Translations>;
+  /**
+   * Aggregates ALL translation files for `locale` within the given translations
+   * base directory (e.g. `file:///app/translations` or
+   * `file:///modules/common-styling/public/translations`).
+   *
+   * Covers both `{base}/{locale}.yml` and `{base}/{locale}/*.yml`.
+   */
+  getTranslationsForBase(translationBaseUri: string, locale: string): Promise<Translations>;
 }
 
 type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeType

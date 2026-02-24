@@ -21,8 +21,8 @@ describe('Module: PartialRenameHandler', () => {
     capabilities = new ClientCapabilities();
     fs = new MockFileSystem(
       {
-        'sections/section.liquid': `<div>{% render 'oldName', foo: 'bar' %}oldName</div>`,
-        'blocks/block.liquid': `<div>{% render 'oldName', foo: 'baz' %}</div>`,
+        'app/views/partials/page.liquid': `<div>{% render 'oldName', foo: 'bar' %}oldName</div>`,
+        'app/lib/component.liquid': `<div>{% render 'oldName', foo: 'baz' %}</div>`,
         'app/views/partials/oldName.liquid': `<div>oldName{%</div>`,
         'app/views/partials/other.liquid': `<div>{% render 'oldName' %}{% render 'other' %}</div>`,
       },
@@ -90,15 +90,7 @@ describe('Module: PartialRenameHandler', () => {
           documentChanges: [
             {
               textDocument: {
-                uri: 'mock-fs:/sections/section.liquid',
-                version: null,
-              },
-              edits: [expectedTextEdit],
-              annotationId: 'renamePartial',
-            },
-            {
-              textDocument: {
-                uri: 'mock-fs:/blocks/block.liquid',
+                uri: 'mock-fs:/app/views/partials/page.liquid',
                 version: null,
               },
               edits: [expectedTextEdit],
@@ -107,6 +99,14 @@ describe('Module: PartialRenameHandler', () => {
             {
               textDocument: {
                 uri: 'mock-fs:/app/views/partials/other.liquid',
+                version: null,
+              },
+              edits: [expectedTextEdit],
+              annotationId: 'renamePartial',
+            },
+            {
+              textDocument: {
+                uri: 'mock-fs:/app/lib/component.liquid',
                 version: null,
               },
               edits: [expectedTextEdit],
@@ -130,8 +130,8 @@ describe('Module: PartialRenameHandler', () => {
       const params: ApplyWorkspaceEditParams = connection.spies.sendRequest.mock.calls[0][1];
       const expectedFs = new MockFileSystem(
         {
-          'sections/section.liquid': `<div>{% render 'newName', foo: 'bar' %}oldName</div>`,
-          'blocks/block.liquid': `<div>{% render 'newName', foo: 'baz' %}</div>`,
+          'app/views/partials/page.liquid': `<div>{% render 'newName', foo: 'bar' %}oldName</div>`,
+          'app/lib/component.liquid': `<div>{% render 'newName', foo: 'baz' %}</div>`,
           'app/views/partials/newName.liquid': `<div>oldName{%</div>`,
           'app/views/partials/other.liquid': `<div>{% render 'newName' %}{% render 'other' %}</div>`,
         },

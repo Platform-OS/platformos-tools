@@ -5,6 +5,7 @@ import {
   makeFileSize,
   makeGetDefaultLocale,
   makeGetDefaultTranslations,
+  makeGetTranslationsForBase,
 } from './context-utils';
 import { createDisabledChecksModule } from './disabled-checks';
 import { isIgnored } from './ignore';
@@ -47,6 +48,22 @@ export * from './context-utils';
 export * from './find-root';
 export * from './fixes';
 export * from './ignore';
+export {
+  FILE_TYPE_DIRS,
+  getAppPaths,
+  getFileType,
+  getModulePaths,
+  isApiCall,
+  isAuthorization,
+  isEmail,
+  isKnownLiquidFile,
+  isLayout,
+  isMigration,
+  isPage,
+  isPartial,
+  isSms,
+  PlatformOSFileType,
+} from '@platformos/platformos-common';
 export * from './json';
 export * from './JSONValidator';
 export * as path from './path';
@@ -80,6 +97,7 @@ export async function check(
     fileSize: makeFileSize(fs),
     getDefaultLocale: makeGetDefaultLocale(fs, rootUri),
     getDefaultTranslations: makeGetDefaultTranslations(fs, app, rootUri),
+    getTranslationsForBase: makeGetTranslationsForBase(fs, app),
   };
 
   const { DisabledChecksVisitor, isDisabled } = createDisabledChecksModule();

@@ -5,9 +5,38 @@ import {
   Severity,
   SourceCodeType,
   PropertyNode,
+  ObjectNode,
 } from '../../types';
 
 const PLURALIZATION_KEYS = new Set(['zero', 'one', 'two', 'few', 'many', 'other']);
+
+/**
+ * Returns the locale declared in a YAML translation file by reading its first
+ * top-level key (e.g. `en`, `pt-BR`, `fr`).  platformOS determines a file's
+ * locale from content, not from its path.
+ */
+function getLocaleFromAst(ast: JSONNode | Error): string | null {
+  if (ast instanceof Error) return null;
+  if (ast.type !== 'Object') return null;
+  const firstProp = (ast as ObjectNode).children[0];
+  if (!firstProp || firstProp.type !== 'Property') return null;
+  return firstProp.key.value || null;
+}
+
+/**
+ * Extracts the translations base directory from a relative file path.
+ *
+ * e.g. `app/translations/pt-BR.yml`           → `app/translations`
+ *      `app/translations/pt-BR/validation.yml` → `app/translations`
+ *      `modules/x/public/translations/en.yml`  → `modules/x/public/translations`
+ *
+ * Returns `null` if the path doesn't contain a `/translations/` segment.
+ */
+function getTranslationRelativeBase(relativePath: string): string | null {
+  const idx = relativePath.lastIndexOf('/translations/');
+  if (idx === -1) return null;
+  return relativePath.substring(0, idx + '/translations'.length);
+}
 
 export const MatchingTranslations: YAMLCheckDefinition = {
   meta: {
@@ -25,48 +54,63 @@ export const MatchingTranslations: YAMLCheckDefinition = {
   },
 
   create(context) {
-    // State
-    const defaultTranslations = new Set<string>();
-    const missingTranslations = new Set<string>();
+    // ── State ──────────────────────────────────────────────────────────────
+    const enTranslations = new Set<string>(); // keys present in the en scope
+    const missingFromLocale = new Set<string>(); // en keys absent from the entire locale scope
     const nodesByPath = new Map<string, PropertyNode>();
+
     const file = context.file as YAMLSourceCode;
     const fileUri = file.uri;
     const relativePath = context.toRelativePath(fileUri);
     const ast = file.ast;
-    const isTranslationFile = relativePath.includes('/translations/');
-    // In platformOS, en.yml is the reference locale; skip running the check on it
-    const basename = fileUri.split('/').pop() ?? '';
-    const isDefaultTranslationsFile = basename.replace(/\.ya?ml$/, '') === 'en';
 
-    if (!isTranslationFile || isDefaultTranslationsFile || ast instanceof Error) {
-      // No need to lint a file that isn't a non-default translation file
+    // ── Guard: only lint translation files ────────────────────────────────
+    const isTranslationFile = relativePath.includes('/translations/');
+
+    // The locale is always the first top-level key in the YAML file (e.g. `en`,
+    // `pt-BR`). platformOS resolves locale from content, not from the file path.
+    const locale = getLocaleFromAst(ast);
+
+    if (!isTranslationFile || !locale || locale === 'en' || ast instanceof Error) {
       return {};
     }
 
-    // Helpers
-    const hasDefaultTranslations = () => defaultTranslations.size > 0;
+    // ── Derive scope (translation base URI) ──────────────────────────────
+    const relativeBase = getTranslationRelativeBase(relativePath);
+    if (!relativeBase) return {};
+
+    const translationBaseUri = context.toUri(relativeBase);
+
+    // A "primary" locale file is the top-level `{locale}.yml` (not inside a
+    // locale sub-directory like `pt-BR/`).  Only the primary file reports
+    // missing translations to avoid duplicate offenses across split files.
+    const pathAfterBase = relativePath.substring(relativeBase.length + 1);
+    const isPrimaryLocaleFile = !pathAfterBase.includes('/');
+
+    // ── Helpers ───────────────────────────────────────────────────────────
     const isTerminalNode = ({ type }: JSONNode) => type === 'Literal';
     const isPluralizationNode = (node: PropertyNode) => PLURALIZATION_KEYS.has(node.key.value);
-
-    const hasDefaultTranslation = (translationPath: string) =>
-      defaultTranslations.has(translationPath) ?? false;
-
     const isPluralizationPath = (path: string) =>
       [...PLURALIZATION_KEYS].some((key) => path.endsWith(key));
 
-    const jsonPaths = (json: any): string[] => {
-      const keys = Object.keys(json);
+    const countCommonParts = (a: string[], b: string[]): number => {
+      const min = Math.min(a.length, b.length);
+      for (let i = 0; i < min; i++) if (a[i] !== b[i]) return i;
+      return min;
+    };
 
-      return keys.reduce((acc: string[], key: string) => {
-        if (typeof json[key] !== 'object') {
-          return acc.concat(key);
+    const closestTranslationKey = (key: string) => {
+      const keyParts = key.split('.');
+      let closest = '';
+      let max = 0;
+      for (const path of nodesByPath.keys()) {
+        const common = countCommonParts(path.split('.'), keyParts);
+        if (common > max) {
+          max = common;
+          closest = path;
         }
-
-        const childJson = json[key];
-        const childPaths = jsonPaths(childJson);
-
-        return acc.concat(childPaths.map((path) => `${key}.${path}`));
-      }, []);
+      }
+      return nodesByPath.get(closest) ?? ast;
     };
 
     // Strip the locale prefix (first Property in the ancestors chain).
@@ -74,90 +118,67 @@ export const MatchingTranslations: YAMLCheckDefinition = {
     // We want paths like 'hello', not 'en.hello'.
     const objectPath = (nodes: JSONNode[]) => {
       const props = nodes.filter((n): n is PropertyNode => n.type === 'Property');
-      if (props.length <= 1) return ''; // locale key itself, or empty
+      if (props.length <= 1) return '';
       return props
         .slice(1)
         .map((p) => p.key.value)
         .join('.');
     };
 
-    const countCommonParts = (arrayA: string[], arrayB: string[]): number => {
-      const minLength = Math.min(arrayA.length, arrayB.length);
-
-      for (let i = 0; i < minLength; i++) {
-        if (arrayA[i] !== arrayB[i]) {
-          return i;
-        }
-      }
-
-      return minLength;
-    };
-
-    const closestTranslationKey = (translationKey: string) => {
-      const translationKeyParts = translationKey.split('.');
-      let closestMatch = '';
-      let maxCommonParts = 0;
-
-      for (const path of nodesByPath.keys()) {
-        const pathParts = path.split('.');
-        const commonParts = countCommonParts(pathParts, translationKeyParts);
-
-        if (commonParts > maxCommonParts) {
-          maxCommonParts = commonParts;
-          closestMatch = path;
-        }
-      }
-
-      return nodesByPath.get(closestMatch) ?? ast;
-    };
+    const jsonPaths = (json: any): string[] =>
+      Object.keys(json).reduce((acc: string[], key: string) => {
+        if (typeof json[key] !== 'object') return acc.concat(key);
+        return acc.concat(jsonPaths(json[key]).map((p) => `${key}.${p}`));
+      }, []);
 
     return {
       async onCodePathStart() {
-        const defaultTranslationPaths = await context.getDefaultTranslations().then(jsonPaths);
-        defaultTranslationPaths.forEach(Set.prototype.add, defaultTranslations);
+        // Aggregate ALL en translations in this scope (en.yml + en/*.yml)
+        const en = await context.getTranslationsForBase(translationBaseUri, 'en');
+        jsonPaths(en).forEach(Set.prototype.add, enTranslations);
 
-        // At the `onCodePathStart`, we assume that all translations are missing,
-        // and remove translation paths while traversing through the file.
-        defaultTranslationPaths.forEach(Set.prototype.add, missingTranslations);
+        if (!isPrimaryLocaleFile) return;
+
+        // For the primary locale file: pre-compute which en keys are absent
+        // from the entire locale scope (locale.yml + locale/*.yml).
+        const localeAgg = await context.getTranslationsForBase(translationBaseUri, locale);
+        const localeKeys = new Set(jsonPaths(localeAgg));
+        for (const key of enTranslations) {
+          if (!localeKeys.has(key)) missingFromLocale.add(key);
+        }
       },
 
       async Property(node, ancestors) {
         const path = objectPath(ancestors.concat(node));
-
-        if (!path) return; // skip the root locale key (e.g. 'pt-BR')
+        if (!path) return;
 
         nodesByPath.set(path, node);
 
-        if (!hasDefaultTranslations()) return;
         if (isPluralizationNode(node)) return;
         if (!isTerminalNode(node.value)) return;
+        if (!enTranslations.size) return; // no en reference — skip
 
-        if (hasDefaultTranslation(path)) {
-          // As `path` is present, we remove it from the
-          // `missingTranslationsPerFile` bucket.
-          missingTranslations.delete(path);
-          return;
+        if (!enTranslations.has(path)) {
+          context.report({
+            message: `A translation for '${path}' does not exist in the en locale`,
+            startIndex: node.loc!.start.offset,
+            endIndex: node.loc!.end.offset,
+          });
         }
-
-        context.report({
-          message: `A default translation for '${path}' does not exist`,
-          startIndex: node.loc!.start.offset,
-          endIndex: node.loc!.end.offset,
-        });
       },
 
       async onCodePathEnd() {
-        missingTranslations.forEach((path) => {
-          const closest = closestTranslationKey(path);
+        if (!isPrimaryLocaleFile) return;
 
-          if (isPluralizationPath(path)) return;
-
+        for (const key of missingFromLocale) {
+          if (isPluralizationPath(key)) continue;
+          const closest = closestTranslationKey(key);
           context.report({
-            message: `The translation for '${path}' is missing`,
+            message: `The translation for '${key}' is missing`,
             startIndex: closest.loc!.start.offset,
             endIndex: closest.loc!.end.offset,
           });
-        });
+        }
       },
     };
   },

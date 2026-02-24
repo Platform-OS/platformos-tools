@@ -1,4 +1,4 @@
-import { LiquidExpression, NodeTypes } from '@platformos/liquid-html-parser';
+import { LiquidExpression, LiquidVariable, NodeTypes } from '@platformos/liquid-html-parser';
 import { assertNever } from '../utils';
 import { isPartial } from '../path';
 import { ObjectEntry, UriString } from '../types';
@@ -44,7 +44,15 @@ export function getDefaultValueForType(type: string | null) {
 /**
  * Casts the value of a LiquidNamedArgument to a string representing the type of the value.
  */
-export function inferArgumentType(arg: LiquidExpression): BasicParamTypes {
+export function inferArgumentType(arg: LiquidExpression | LiquidVariable): BasicParamTypes {
+  if (arg.type === NodeTypes.LiquidVariable) {
+    // A variable with filters — delegate to the base expression if there are no filters,
+    // otherwise we can't statically determine the filtered output type.
+    if (arg.filters.length > 0) return BasicParamTypes.Object;
+    const expr = arg.expression;
+    if (expr.type === NodeTypes.BooleanExpression) return BasicParamTypes.Object;
+    return inferArgumentType(expr);
+  }
   switch (arg.type) {
     case NodeTypes.String:
       return BasicParamTypes.String;

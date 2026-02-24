@@ -16,6 +16,7 @@ import {
   FunctionMarkup,
   LiquidTagHashAssign,
   LiquidTagGraphQL,
+  LiquidTagParseJson,
   LiquidTagBackground,
   BackgroundInlineMarkup,
 } from '@platformos/liquid-html-parser';
@@ -76,7 +77,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
-        if (isLiquidTagAssign(node) || isLiquidTagGraphQL(node)) {
+        if (isLiquidTagAssign(node) || isLiquidTagGraphQL(node) || isLiquidTagParseJson(node)) {
           indexVariableScope(node.markup.name, {
             start: node.blockStartPosition.end,
           });
@@ -158,6 +159,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
 
         const parent = last(ancestors);
         if (isLiquidTag(parent) && isLiquidTagCapture(parent)) return;
+        if (isLiquidTag(parent) && isLiquidTagParseJson(parent)) return;
 
         // Skip the jobId variable in background tag markup - it's being defined, not used
         if (isBackgroundInlineMarkup(parent) && parent.jobId === node) return;
@@ -273,6 +275,10 @@ function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTagHashAssign {
 
 function isLiquidTagGraphQL(node: LiquidTag): node is LiquidTagGraphQL {
   return node.name === NamedTags.graphql && typeof node.markup !== 'string';
+}
+
+function isLiquidTagParseJson(node: LiquidTag): node is LiquidTagParseJson {
+  return node.name === NamedTags.parse_json && typeof node.markup !== 'string';
 }
 
 function isLiquidForTag(node: LiquidTag): node is LiquidTagFor {

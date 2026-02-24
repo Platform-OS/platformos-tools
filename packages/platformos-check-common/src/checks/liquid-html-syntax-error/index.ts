@@ -9,6 +9,8 @@ import { detectInvalidLoopArguments } from './checks/InvalidLoopArguments';
 import { detectConditionalNodeUnsupportedParenthesis } from './checks/InvalidConditionalNodeParenthesis';
 import { detectInvalidFilterName } from './checks/InvalidFilterName';
 import { detectInvalidPipeSyntax } from './checks/InvalidPipeSyntax';
+import { detectUnknownTag } from './checks/UnknownTag';
+import { detectInvalidTagSyntax } from './checks/InvalidTagSyntax';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 
 type LineColPosition = {
@@ -64,11 +66,21 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
         async LiquidTag(node, ancestors) {
           if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
+          const tags = (await tagsPromise) ?? [];
+
+          // Unknown tags are fatal — no point in further syntax checks.
+          const unknownTagProblem = detectUnknownTag(node, tags);
+          if (unknownTagProblem) {
+            context.report(unknownTagProblem);
+            return;
+          }
+
+          // Run specific sub-checks first — they provide better error messages and autofixes.
           const problems = [
             detectMultipleAssignValues(node),
             detectInvalidEchoValue(node),
             detectInvalidLoopRange(node),
-            detectInvalidLoopArguments(node, await tagsPromise),
+            detectInvalidLoopArguments(node, tags),
           ].filter(Boolean) as Problem<SourceCodeType.LiquidHtml>[];
 
           // Fixers for `detectConditionalNodeUnsupportedParenthesis` and `detectInvalidConditionalNode` consume
@@ -80,9 +92,18 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
             problems.push(conditionalNodeProblem);
           }
 
+          // InvalidTagSyntax is a catch-all for known tags with unparseable markup.
+          // Only fire it if no more specific sub-check already reported on this tag.
+          if (problems.length === 0) {
+            const invalidSyntaxProblem = detectInvalidTagSyntax(node, tags);
+            if (invalidSyntaxProblem) {
+              problems.push(invalidSyntaxProblem);
+            }
+          }
+
           problems.forEach(context.report);
 
-          const filterProblems = await detectInvalidFilterName(node, await filtersPromise);
+          const filterProblems = await detectInvalidFilterName(node, (await filtersPromise) ?? []);
           if (filterProblems.length > 0) {
             filterProblems.forEach((filterProblem) => context.report(filterProblem));
           }
@@ -108,7 +129,7 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
         async LiquidVariableOutput(node, ancestors) {
           if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
-          const filterProblems = await detectInvalidFilterName(node, await filtersPromise);
+          const filterProblems = await detectInvalidFilterName(node, (await filtersPromise) ?? []);
           if (filterProblems.length > 0) {
             filterProblems.forEach((problem) => context.report(problem));
           }

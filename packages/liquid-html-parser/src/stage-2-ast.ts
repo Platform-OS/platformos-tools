@@ -761,13 +761,16 @@ export interface LiquidFilter extends ASTNode<NodeTypes.LiquidFilter> {
 /** Represents the union type of positional and named arguments */
 export type LiquidArgument = LiquidExpression | LiquidNamedArgument;
 
-/** Named arguments are the ones used in kwargs, such as `name: value` */
+/** Named arguments are the ones used in kwargs, such as `name: value` or `name: value | filter` */
 export interface LiquidNamedArgument extends ASTNode<NodeTypes.NamedArgument> {
   /** name: value */
   name: string;
 
-  /** name: value */
-  value: LiquidExpression;
+  /**
+   * For regular tags (render, function, for, etc.): a plain LiquidExpression (no filters).
+   * For graphql tags: a LiquidVariable which may include filters (e.g. `name: val | fetch: "key"`).
+   */
+  value: LiquidExpression | LiquidVariable;
 }
 
 export interface LiquidBooleanExpression extends ASTNode<NodeTypes.BooleanExpression> {
@@ -2633,7 +2636,10 @@ function toNamedArgument(node: ConcreteLiquidNamedArgument): LiquidNamedArgument
   return {
     type: NodeTypes.NamedArgument,
     name: node.name,
-    value: toExpression(node.value),
+    value:
+      node.value.type === ConcreteNodeTypes.LiquidVariable
+        ? toLiquidVariable(node.value as ConcreteLiquidVariable)
+        : toExpression(node.value as ConcreteLiquidExpression),
     position: position(node),
     source: node.source,
   };

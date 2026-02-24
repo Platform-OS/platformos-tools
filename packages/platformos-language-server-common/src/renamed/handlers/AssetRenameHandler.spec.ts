@@ -22,9 +22,9 @@ describe('Module: AssetRenameHandler', () => {
     capabilities = new ClientCapabilities();
     fs = new MockFileSystem(
       {
-        'assets/oldName.js': 'console.log("Hello, world!")',
-        'sections/section.liquid': `<script src="{{ 'oldName.js' | asset_url }}" defer></script>`,
-        'blocks/block.liquid': `{{ 'oldName.js' | asset_url | script_tag }} oldName.js`,
+        'app/assets/oldName.js': 'console.log("Hello, world!")',
+        'app/views/partials/section.liquid': `<script src="{{ 'oldName.js' | asset_url }}" defer></script>`,
+        'app/views/partials/block.liquid': `{{ 'oldName.js' | asset_url | script_tag }} oldName.js`,
       },
       mockRoot,
     );
@@ -45,8 +45,8 @@ describe('Module: AssetRenameHandler', () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/assets/oldName.js',
-            newUri: 'mock-fs:/assets/newName.js',
+            oldUri: 'mock-fs:/app/assets/oldName.js',
+            newUri: 'mock-fs:/app/assets/newName.js',
           },
         ],
       });
@@ -67,8 +67,8 @@ describe('Module: AssetRenameHandler', () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/assets/oldName.js',
-            newUri: 'mock-fs:/assets/newName.js',
+            oldUri: 'mock-fs:/app/assets/oldName.js',
+            newUri: 'mock-fs:/app/assets/newName.js',
           },
         ],
       });
@@ -90,7 +90,7 @@ describe('Module: AssetRenameHandler', () => {
           documentChanges: [
             {
               textDocument: {
-                uri: 'mock-fs:/sections/section.liquid',
+                uri: 'mock-fs:/app/views/partials/section.liquid',
                 version: null,
               },
               edits: [expectedTextEdit],
@@ -98,7 +98,7 @@ describe('Module: AssetRenameHandler', () => {
             },
             {
               textDocument: {
-                uri: 'mock-fs:/blocks/block.liquid',
+                uri: 'mock-fs:/app/views/partials/block.liquid',
                 version: null,
               },
               edits: [expectedTextEdit],
@@ -113,8 +113,8 @@ describe('Module: AssetRenameHandler', () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/assets/oldName.js',
-            newUri: 'mock-fs:/assets/newName.js',
+            oldUri: 'mock-fs:/app/assets/oldName.js',
+            newUri: 'mock-fs:/app/assets/newName.js',
           },
         ],
       });
@@ -122,9 +122,9 @@ describe('Module: AssetRenameHandler', () => {
       const params: ApplyWorkspaceEditParams = connection.spies.sendRequest.mock.calls[0][1];
       const expectedFs = new MockFileSystem(
         {
-          'assets/oldName.js': 'console.log("Hello, world!")',
-          'sections/section.liquid': `<script src="{{ 'newName.js' | asset_url }}" defer></script>`,
-          'blocks/block.liquid': `{{ 'newName.js' | asset_url | script_tag }} oldName.js`,
+          'app/assets/oldName.js': 'console.log("Hello, world!")',
+          'app/views/partials/section.liquid': `<script src="{{ 'newName.js' | asset_url }}" defer></script>`,
+          'app/views/partials/block.liquid': `{{ 'newName.js' | asset_url | script_tag }} oldName.js`,
         },
         'mock-fs:',
       );
@@ -145,8 +145,8 @@ describe('Module: AssetRenameHandler', () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/assets/oldName.js',
-            newUri: `mock-fs:/assets/newName.js.liquid`,
+            oldUri: 'mock-fs:/app/assets/oldName.js',
+            newUri: `mock-fs:/app/assets/newName.js.liquid`,
           },
         ],
       });
@@ -154,9 +154,9 @@ describe('Module: AssetRenameHandler', () => {
       const params: ApplyWorkspaceEditParams = connection.spies.sendRequest.mock.calls[0][1];
       const expectedFs = new MockFileSystem(
         {
-          'assets/oldName.js': 'console.log("Hello, world!")',
-          'sections/section.liquid': `<script src="{{ 'newName.js' | asset_url }}" defer></script>`,
-          'blocks/block.liquid': `{{ 'newName.js' | asset_url | script_tag }} oldName.js`,
+          'app/assets/oldName.js': 'console.log("Hello, world!")',
+          'app/views/partials/section.liquid': `<script src="{{ 'newName.js' | asset_url }}" defer></script>`,
+          'app/views/partials/block.liquid': `{{ 'newName.js' | asset_url | script_tag }} oldName.js`,
         },
         'mock-fs:',
       );
@@ -176,8 +176,8 @@ describe('Module: AssetRenameHandler', () => {
     it('handles .css.liquid files', async () => {
       fs = new MockFileSystem(
         {
-          'assets/oldName.css.liquid': 'body { color: red; }',
-          'sections/section.liquid': `{% echo 'oldName.css' | asset_url | stylesheet_tag %}`,
+          'app/assets/oldName.css.liquid': 'body { color: red; }',
+          'app/views/partials/section.liquid': `{% echo 'oldName.css' | asset_url | stylesheet_tag %}`,
         },
         'mock-fs:',
       );
@@ -187,8 +187,8 @@ describe('Module: AssetRenameHandler', () => {
       await handler.onDidRenameFiles({
         files: [
           {
-            oldUri: 'mock-fs:/assets/oldName.css.liquid',
-            newUri: `mock-fs:/assets/newName.css.liquid`,
+            oldUri: 'mock-fs:/app/assets/oldName.css.liquid',
+            newUri: `mock-fs:/app/assets/newName.css.liquid`,
           },
         ],
       });
@@ -196,8 +196,8 @@ describe('Module: AssetRenameHandler', () => {
       const params: ApplyWorkspaceEditParams = connection.spies.sendRequest.mock.calls[0][1];
       const expectedFs = new MockFileSystem(
         {
-          'assets/newName.css.liquid': 'body { color: red; }',
-          'sections/section.liquid': `{% echo 'newName.css' | asset_url | stylesheet_tag %}`,
+          'app/assets/newName.css.liquid': 'body { color: red; }',
+          'app/views/partials/section.liquid': `{% echo 'newName.css' | asset_url | stylesheet_tag %}`,
         },
         'mock-fs:',
       );

@@ -64,6 +64,10 @@ export const GraphQLVariablesCheck: LiquidCheckDefinition = {
       args: LiquidNamedArgument[],
       position: Position,
     ) => {
+      // `args` is a special parameter that splats a hash as all GraphQL variables
+      // at runtime — we can't know which keys will be provided statically.
+      if (args.some((arg) => arg.name === 'args')) return;
+
       const locatedFile = await locator.locate(
         URI.parse(context.config.rootUri),
         'graphql',

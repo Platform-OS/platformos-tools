@@ -1,4 +1,4 @@
-import { path, UriString } from '@platformos/platformos-check-common';
+import { isLayout, isPage, isPartial, path, UriString } from '@platformos/platformos-check-common';
 import {
   AssetModule,
   AppGraph,
@@ -35,25 +35,20 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
   const relativePath = path.relative(uri, appGraph.rootUri);
 
   switch (true) {
-    case relativePath.startsWith('assets') || relativePath.startsWith('modules'): {
-      return getAssetModule(appGraph, path.basename(uri));
-    }
-
-    case relativePath.includes('views/layouts'): {
+    case isLayout(uri):
       return getLayoutModule(appGraph, uri);
-    }
 
-    case relativePath.includes('views/pages'): {
+    case isPage(uri):
       return getPageModule(appGraph, uri);
-    }
 
-    case relativePath.includes('views/partials') || relativePath.includes('/lib/'): {
+    case isPartial(uri):
       return getPartialModule(appGraph, path.basename(uri, '.liquid'));
-    }
 
-    case relativePath.startsWith('snippets'): {
+    case relativePath.startsWith('assets') || relativePath.startsWith('modules'):
+      return getAssetModule(appGraph, path.basename(uri));
+
+    case relativePath.startsWith('snippets'):
       return getPartialModule(appGraph, path.basename(uri, '.liquid'));
-    }
   }
 }
 

@@ -74,7 +74,7 @@ export interface Workspace {
 }
 
 export async function makeTempWorkspace(structure: Tree): Promise<Workspace> {
-  const root = await fs.mkdtemp(path.join(__dirname, '..', '.'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'platformos-check-'));
   if (!root) throw new Error('Could not create temp dir for temp workspace');
 
   await createFiles(structure, [root]);

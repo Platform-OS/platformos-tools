@@ -12,6 +12,7 @@ import {
   extractDocDefinition,
   filePathSupportsLiquidDoc,
   isIgnored,
+  isKnownLiquidFile,
   memo,
   path as pathUtils,
   YAMLSourceCode,
@@ -126,8 +127,14 @@ export async function getApp(config: Config): Promise<App> {
   let normalizedGlob = getAppFilesPathPattern(config.rootUri);
 
   const paths = await glob(normalizedGlob, { absolute: true }).then((result) =>
-    // Global ignored paths should not be part of the app
-    result.filter((filePath) => !isIgnored(filePath, config)),
+    result.filter((filePath) => {
+      // Global ignored paths should not be part of the app
+      if (isIgnored(filePath, config)) return false;
+      // Only lint .liquid files that belong to a recognized platformOS directory.
+      // Generator templates, build artifacts, etc. are excluded.
+      if (filePath.endsWith('.liquid') && !isKnownLiquidFile(filePath)) return false;
+      return true;
+    }),
   );
   const sourceCodes = await Promise.all(paths.map(toSourceCode));
   return sourceCodes.filter(

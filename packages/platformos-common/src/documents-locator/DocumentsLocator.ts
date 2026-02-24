@@ -1,4 +1,5 @@
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
+import { getAppPaths, getModulePaths, PlatformOSFileType } from '../path-utils';
 import { URI, Utils } from 'vscode-uri';
 
 export type DocumentType = 'function' | 'render' | 'include' | 'graphql' | 'asset';
@@ -30,44 +31,13 @@ export class DocumentsLocator {
   }
 
   private getSearchPaths(type: 'partial' | 'graphql' | 'asset', moduleName?: string): string[] {
-    if (!moduleName) {
-      switch (type) {
-        case 'partial':
-          return ['app/views/partials', 'app/lib'];
-        case 'graphql':
-          return ['app/graphql'];
-        case 'asset':
-          return ['app/assets'];
-      }
-    }
+    const fileType: PlatformOSFileType = {
+      partial: PlatformOSFileType.Partial,
+      graphql: PlatformOSFileType.GraphQL,
+      asset: PlatformOSFileType.Asset,
+    }[type];
 
-    switch (type) {
-      case 'partial':
-        return [
-          `app/modules/${moduleName}/public/views/partials`,
-          `app/modules/${moduleName}/private/views/partials`,
-          `app/modules/${moduleName}/public/lib`,
-          `app/modules/${moduleName}/private/lib`,
-          `modules/${moduleName}/public/views/partials`,
-          `modules/${moduleName}/private/views/partials`,
-          `modules/${moduleName}/public/lib`,
-          `modules/${moduleName}/private/lib`,
-        ];
-      case 'graphql':
-        return [
-          `app/modules/${moduleName}/public/graphql`,
-          `app/modules/${moduleName}/private/graphql`,
-          `modules/${moduleName}/public/graphql`,
-          `modules/${moduleName}/private/graphql`,
-        ];
-      case 'asset':
-        return [
-          `app/modules/${moduleName}/public/assets`,
-          `app/modules/${moduleName}/private/assets`,
-          `modules/${moduleName}/public/assets`,
-          `modules/${moduleName}/private/assets`,
-        ];
-    }
+    return moduleName ? getModulePaths(fileType, moduleName) : getAppPaths(fileType);
   }
 
   private async locateFile(

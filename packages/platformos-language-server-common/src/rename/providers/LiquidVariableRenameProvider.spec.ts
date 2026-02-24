@@ -507,5 +507,5 @@ function createSectionWithSource(
 }
 
 function getSectionUri(sectionName: string) {
-  return `${mockRoot}///sections/${sectionName}.liquid`;
+  return `${mockRoot}///app/views/partials/${sectionName}.liquid`;
 }

@@ -20,7 +20,7 @@ describe('Module: DocumentManager', () => {
   it('should return an app for a root', () => {
     // these will be different in windows vs unix
     const rootUri = URI.file(__dirname);
-    const fileUri = Utils.joinPath(rootUri, 'test.liquid');
+    const fileUri = Utils.joinPath(rootUri, 'app', 'views', 'partials', 'test.liquid');
 
     // We expect forward slash paths (windows path get normalized)
     expect(fileUri.path).not.to.include('\\');
@@ -37,8 +37,8 @@ describe('Module: DocumentManager', () => {
     beforeEach(async () => {
       fs = new MockFileSystem(
         {
-          'snippet/foo.liquid': `hello {% render 'bar' %}`,
-          'snippet/bar.liquid': `world`,
+          'app/views/partials/foo.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/bar.liquid': `world`,
         },
         'mock-fs:',
       );
@@ -52,14 +52,14 @@ describe('Module: DocumentManager', () => {
       });
 
       it('preloads source codes with a version of undefined', async () => {
-        const sc = documentManager.get('mock-fs:/snippet/foo.liquid');
+        const sc = documentManager.get('mock-fs:/app/views/partials/foo.liquid');
         assert(sc);
         expect(sc.version).to.equal(undefined);
       });
 
       it('returns defined versions of opened files', () => {
-        documentManager.open('mock-fs:/snippet/foo.liquid', 'hello {% render "bar" %}', 0);
-        const sc = documentManager.get('mock-fs:/snippet/foo.liquid');
+        documentManager.open('mock-fs:/app/views/partials/foo.liquid', 'hello {% render "bar" %}', 0);
+        const sc = documentManager.get('mock-fs:/app/views/partials/foo.liquid');
         assert(sc);
         expect(sc.version).to.equal(0);
       });
@@ -78,9 +78,9 @@ describe('Module: DocumentManager', () => {
 
       describe('Unit: close(uri)', () => {
         it('sets the source version to undefined (value is on disk)', () => {
-          documentManager.open('mock-fs:/snippet/foo.liquid', 'hello {% render "bar" %}', 10);
-          documentManager.close('mock-fs:/snippet/foo.liquid');
-          const sc = documentManager.get('mock-fs:/snippet/foo.liquid');
+          documentManager.open('mock-fs:/app/views/partials/foo.liquid', 'hello {% render "bar" %}', 10);
+          documentManager.close('mock-fs:/app/views/partials/foo.liquid');
+          const sc = documentManager.get('mock-fs:/app/views/partials/foo.liquid');
           assert(sc);
           expect(sc.source).to.equal('hello {% render "bar" %}');
           expect(sc.version).to.equal(undefined);
@@ -90,9 +90,9 @@ describe('Module: DocumentManager', () => {
       describe('Unit: delete(uri)', () => {
         it('deletes the source code from the document manager', () => {
           // as though the file no longer exists
-          documentManager.open('mock-fs:/snippet/foo.liquid', 'hello {% render "bar" %}', 10);
-          documentManager.delete('mock-fs:/snippet/foo.liquid');
-          const sc = documentManager.get('mock-fs:/snippet/foo.liquid');
+          documentManager.open('mock-fs:/app/views/partials/foo.liquid', 'hello {% render "bar" %}', 10);
+          documentManager.delete('mock-fs:/app/views/partials/foo.liquid');
+          const sc = documentManager.get('mock-fs:/app/views/partials/foo.liquid');
           assert(!sc);
         });
       });

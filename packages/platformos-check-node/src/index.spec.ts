@@ -11,8 +11,12 @@ describe('Unit: getApp', () => {
       locales: {
         'en.default.json': '{}',
       },
-      snippets: {
-        'header.liquid': '',
+      app: {
+        views: {
+          partials: {
+            'header.liquid': '',
+          },
+        },
       },
     });
   });

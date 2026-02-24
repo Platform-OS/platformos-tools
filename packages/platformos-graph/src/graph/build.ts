@@ -1,5 +1,7 @@
 import {
   recursiveReadDirectory as findAllFiles,
+  isLayout,
+  isPage,
   path,
   UriString,
 } from '@platformos/platformos-check-common';
@@ -18,19 +20,10 @@ export async function buildAppGraph(
   entryPoints =
     entryPoints ??
     (await findAllFiles(deps.fs, rootUri, ([uri]) => {
+      if (!uri.endsWith('.liquid')) return false;
       // Layouts are entry points — they wrap all page content.
-      const isLayoutFile =
-        (uri.startsWith(path.join(rootUri, 'app/views/layouts')) ||
-          uri.startsWith(path.join(rootUri, 'views/layouts'))) &&
-        uri.endsWith('.liquid');
-
       // Pages are also entry points — they are directly requested.
-      const isPageFile =
-        (uri.startsWith(path.join(rootUri, 'app/views/pages')) ||
-          uri.startsWith(path.join(rootUri, 'views/pages'))) &&
-        uri.endsWith('.liquid');
-
-      return isLayoutFile || isPageFile;
+      return isLayout(uri) || isPage(uri);
     }));
 
   const graph: AppGraph = {

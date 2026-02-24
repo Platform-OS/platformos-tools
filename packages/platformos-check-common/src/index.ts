@@ -48,6 +48,22 @@ export * from './context-utils';
 export * from './find-root';
 export * from './fixes';
 export * from './ignore';
+export {
+  FILE_TYPE_DIRS,
+  getAppPaths,
+  getFileType,
+  getModulePaths,
+  isApiCall,
+  isAuthorization,
+  isEmail,
+  isKnownLiquidFile,
+  isLayout,
+  isMigration,
+  isPage,
+  isPartial,
+  isSms,
+  PlatformOSFileType,
+} from '@platformos/platformos-common';
 export * from './json';
 export * from './JSONValidator';
 export * as path from './path';

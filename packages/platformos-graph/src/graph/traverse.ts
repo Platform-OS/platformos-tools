@@ -63,7 +63,7 @@ async function traverseLiquidModule(
     SourceCodeType.LiquidHtml,
     { target: AppModule; sourceRange: Range; targetRange?: Range }
   > = {
-    // {{ 'theme.js' | asset_url }}
+    // {{ 'app.js' | asset_url }}
     // {{ 'image.png' | asset_img_url }}
     // {{ 'icon.svg' | inline_asset_content }}
     LiquidFilter: async (node, ancestors) => {

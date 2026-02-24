@@ -34,7 +34,11 @@ describe('Module: ThirdPartyChecks', () => {
     });
 
     it('does not find modules that do not match the naming convention', async () => {
-      await createMockNodeModule(tempDir, '@acme/not-platformos-check-extension', mockNodeModuleCheck);
+      await createMockNodeModule(
+        tempDir,
+        '@acme/not-platformos-check-extension',
+        mockNodeModuleCheck,
+      );
       await createMockNodeModule(tempDir, 'not-platformos-check-extension', mockNodeModuleCheck);
       await createMockNodeModule(tempDir, 'glob', mockNodeModuleCheck);
       const modulePaths = await findThirdPartyChecks(tempDir);

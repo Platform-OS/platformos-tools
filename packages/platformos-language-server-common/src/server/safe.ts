@@ -14,7 +14,7 @@
  * @param defaultReturnValue
  *
  * @example
- * const getThemeBlockNames = safe(async function () { ... }, []);
+ * const getPartialNames = safe(async function () { ... }, []);
  */
 export const safe = <T extends (...args: any[]) => Promise<any>>(
   fn: T,

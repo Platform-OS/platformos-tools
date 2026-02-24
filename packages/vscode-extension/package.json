@@ -132,28 +132,28 @@
           "type": [
             "boolean"
           ],
-          "description": "When true, theme check runs on file open.",
+          "description": "When true, platformOS check runs on file open.",
           "default": true
         },
         "platformosCheck.checkOnChange": {
           "type": [
             "boolean"
           ],
-          "description": "When true, theme check runs on file change.",
+          "description": "When true, platformOS check runs on file change.",
           "default": true
         },
         "platformosCheck.checkOnSave": {
           "type": [
             "boolean"
           ],
-          "description": "When true, theme check runs on file save.",
+          "description": "When true, platformOS check runs on file save.",
           "default": true
         },
         "platformosCheck.preloadOnBoot": {
           "type": [
             "boolean"
           ],
-          "description": "When true, theme check preloads all the files from your theme for fast rename handling and theme graph generation.",
+          "description": "When true, platformOS check preloads all the files from your app for fast rename handling and app graph generation.",
           "default": true
         }
       }

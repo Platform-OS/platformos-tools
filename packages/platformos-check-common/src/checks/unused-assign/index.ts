@@ -14,7 +14,7 @@ export const UnusedAssign: LiquidCheckDefinition = {
     name: 'Prevent unused assigns',
     docs: {
       description:
-        'This check exists to prevent bloat in themes by surfacing variable definitions that are not used.',
+        'This check exists to prevent bloat by surfacing variable definitions that are not used.',
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/unused-assign',
     },

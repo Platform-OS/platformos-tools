@@ -242,7 +242,7 @@ describe('Module: UndefinedObject', () => {
     }
   });
 
-  it('should report an offense when object is undefined in a "snippet" file with doc tags that are missing the associated param', async () => {
+  it('should report an offense when object is undefined in a "partial" file with doc tags that are missing the associated param', async () => {
     const sourceCode = `
     {% doc %}
     {% enddoc %}
@@ -259,7 +259,7 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_var' used."]);
   });
 
-  it('should not report an offense when object is defined with @param in a snippet file', async () => {
+  it('should not report an offense when object is defined with @param in a partial file', async () => {
     const sourceCode = `
       {% doc %}
         @param {string} text

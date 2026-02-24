@@ -7,16 +7,16 @@ const path = require('path');
 const { DefinePlugin } = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { default: TsconfigPathsPlugin } = require('tsconfig-paths-webpack-plugin');
-const { ThemeLiquidDocsManager } = require('@platformos/platformos-check-docs-updater');
+const { PlatformOSLiquidDocsManager } = require('@platformos/platformos-check-docs-updater');
 
 /** @type {() => Promise<WebpackConfig>} */
 const config = async () => {
-  const docsManager = new ThemeLiquidDocsManager();
+  const docsManager = new PlatformOSLiquidDocsManager();
   const [tags, filters, objects, schemas] = await Promise.all([
     docsManager.tags(),
     docsManager.filters(),
     docsManager.objects(),
-    docsManager.schemas('theme'),
+    docsManager.schemas(),
   ]);
 
   const devServerConfig = {

@@ -173,10 +173,7 @@ export async function autofix(appDesc: MockApp, offenses: Offense[]) {
   return fixed;
 }
 
-export function applyFix(
-  appDescOrSource: MockApp | string,
-  offense: Offense,
-): string | undefined {
+export function applyFix(appDescOrSource: MockApp | string, offense: Offense): string | undefined {
   const source =
     typeof appDescOrSource === 'string'
       ? appDescOrSource
@@ -202,8 +199,7 @@ export function applySuggestions(
 }
 
 export function highlightedOffenses(appOrSource: MockApp | string, offenses: Offense[]) {
-  const app =
-    typeof appOrSource === 'string' ? { 'file.liquid': appOrSource } : appOrSource;
+  const app = typeof appOrSource === 'string' ? { 'file.liquid': appOrSource } : appOrSource;
   return offenses.map((offense) => {
     const relativePath = path.relative(offense.uri, rootUri);
     const source = app[relativePath];

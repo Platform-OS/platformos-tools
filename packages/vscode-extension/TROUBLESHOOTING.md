@@ -8,11 +8,11 @@ First we need to make sure that you have a running version of the language serve
   "platformosLiquid.trace.server": "verbose",
   ```
 
-2. Restart the language server from the command palette (`cmd+p` > `Liquid Theme Check: Restart Server`):
+2. Restart the language server from the command palette (`cmd+p` > `Liquid Check: Restart Server`):
 
   ![](https://screenshot.click/09-56-qevq9-2pj6g.png)
 
-3. From the OUTPUT tab, select `Theme Check Language Server`:
+3. From the OUTPUT tab, select `platformOS Check Language Server`:
 
   ![](https://screenshot.click/09-59-2e99n-v1g30.png)
 

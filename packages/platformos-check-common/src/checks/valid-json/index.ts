@@ -7,7 +7,7 @@ export const ValidJSON: JSONCheckDefinition = {
     name: 'Enforce valid JSON',
     docs: {
       description:
-        'This check exists to prevent invalid JSON files in themes. Will check against schema if available.',
+        'This check exists to prevent invalid JSON files in apps. Will check against schema if available.',
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/json-syntax-error',
     },

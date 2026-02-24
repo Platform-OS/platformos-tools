@@ -51,8 +51,8 @@ describe('Module: index', () => {
         const deps = layout.dependencies;
         expect(deps.map((x) => x.target.uri)).toEqual(
           expect.arrayContaining([
-            p('assets/theme.js'),
-            p('assets/theme.css'),
+            p('assets/app.js'),
+            p('assets/app.css'),
             p('app/views/partials/header.liquid'),
           ]),
         );
@@ -68,7 +68,7 @@ describe('Module: index', () => {
         const deps = parentPartial.dependencies;
         assert(deps.map((x) => x.source.uri).every((x) => x === parentPartial.uri));
         expect(deps.map((x) => x.target.uri)).toEqual(
-          expect.arrayContaining([p('app/views/partials/child.liquid'), p('assets/theme.js')]),
+          expect.arrayContaining([p('app/views/partials/child.liquid'), p('assets/app.js')]),
         );
 
         // {% render 'child' %} dependency

@@ -13,7 +13,7 @@ export const JSONSyntaxError: JSONCheckDefinition = {
     code: 'JSONSyntaxError',
     name: 'Enforce valid JSON',
     docs: {
-      description: 'This check exists to prevent invalid JSON files in themes.',
+      description: 'This check exists to prevent invalid JSON files in apps.',
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/json-syntax-error',
     },

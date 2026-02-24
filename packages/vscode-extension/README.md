@@ -18,12 +18,10 @@ Official VS Code extension for [platformOS](https://documentation.platformos.com
 * 💡 Code completion and documentation on hover
   * 💧 Liquid tag, filter and object
   * 🏷️ HTML tag, attribute and value
-  * 🖌️ Theme, section and block settings
-  * 🌐 Theme translation
-  * 🖼️ Render tag snippet
+  * 🖼️ Render tag partial
 * 🔎 Code navigation
 * 🎎 Auto-closing pairs
-* ✅ Theme checks and fixes
+* ✅ platformOS checks and fixes
 
 ## User guide
 
@@ -35,9 +33,9 @@ This VS Code extensions comes with batteries included.
 
 ## Configuration
 
-- `"platformosCheck.checkOnOpen": boolean`, (default: `true`) makes it so theme check runs on file open.
-- `"platformosCheck.checkOnChange": boolean`, (default: `true`) makes it so theme check runs on file change.
-- `"platformosCheck.checkOnSave": boolean`, (default: `true`) makes it so theme check runs on file save.
+- `"platformosCheck.checkOnOpen": boolean`, (default: `true`) makes it so platformOS check runs on file open.
+- `"platformosCheck.checkOnChange": boolean`, (default: `true`) makes it so platformOS check runs on file change.
+- `"platformosCheck.checkOnSave": boolean`, (default: `true`) makes it so platformOS check runs on file save.
 - `"platformosCheck.preloadOnBoot": boolean`, (default: `true`) makes it so all files are preloaded on extension activation.
 
 ## License

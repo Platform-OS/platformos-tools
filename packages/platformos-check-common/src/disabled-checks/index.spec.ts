@@ -259,5 +259,4 @@ ${buildComment('platformos-check-enable')}
       });
     });
   });
-
 });

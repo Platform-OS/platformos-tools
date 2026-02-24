@@ -6,7 +6,7 @@ import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../.
 import { TranslationProvider } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 
-describe('Module: RenderSnippetParameterHoverProvider', async () => {
+describe('Module: RenderPartialParameterHoverProvider', async () => {
   let provider: HoverProvider;
 
   beforeEach(() => {

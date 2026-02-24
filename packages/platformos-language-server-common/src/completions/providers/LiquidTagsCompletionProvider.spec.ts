@@ -38,8 +38,8 @@ endcase`;
 export const tags: TagEntry[] = [
   {
     name: 'render',
-    syntax: "{% render 'snippet' %}",
-    syntax_keywords: [{ keyword: 'snippet', description: '...' }],
+    syntax: "{% render 'partial' %}",
+    syntax_keywords: [{ keyword: 'partial', description: '...' }],
   },
   {
     name: 'for',

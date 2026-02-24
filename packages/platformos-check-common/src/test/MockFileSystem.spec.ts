@@ -19,7 +19,9 @@ describe('MockFileSystem', () => {
 
   describe('readFile', () => {
     it('returns the content of existing files', async () => {
-      expect(await fs.readFile('file:/app/views/layouts/layout.liquid')).toBe('layout.liquid content');
+      expect(await fs.readFile('file:/app/views/layouts/layout.liquid')).toBe(
+        'layout.liquid content',
+      );
       expect(await fs.readFile('file:/assets/js/foo.js')).toBe('foo.js content');
     });
 

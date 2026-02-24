@@ -189,5 +189,3 @@ export function isSms(uri: UriString): boolean {
 export function isMigration(uri: UriString): boolean {
   return getFileType(uri) === PlatformOSFileType.Migration;
 }
-
-

@@ -46,7 +46,6 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
 
     case relativePath.startsWith('assets') || relativePath.startsWith('modules'):
       return getAssetModule(appGraph, path.basename(uri));
-
   }
 }
 

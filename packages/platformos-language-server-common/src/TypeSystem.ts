@@ -240,7 +240,7 @@ type FilterEntryName = FilterEntry['name'];
 export const Untyped = 'untyped' as const;
 export type Untyped = typeof Untyped;
 
-/** Unknown is for variables that don't exist, type would come from context (e.g. snippet var without LiquidDoc) */
+/** Unknown is for variables that don't exist, type would come from context (e.g. partial var without LiquidDoc) */
 export const Unknown = 'unknown' as const;
 export type Unknown = typeof Untyped;
 

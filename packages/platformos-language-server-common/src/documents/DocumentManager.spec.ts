@@ -58,7 +58,11 @@ describe('Module: DocumentManager', () => {
       });
 
       it('returns defined versions of opened files', () => {
-        documentManager.open('mock-fs:/app/views/partials/foo.liquid', 'hello {% render "bar" %}', 0);
+        documentManager.open(
+          'mock-fs:/app/views/partials/foo.liquid',
+          'hello {% render "bar" %}',
+          0,
+        );
         const sc = documentManager.get('mock-fs:/app/views/partials/foo.liquid');
         assert(sc);
         expect(sc.version).to.equal(0);
@@ -78,7 +82,11 @@ describe('Module: DocumentManager', () => {
 
       describe('Unit: close(uri)', () => {
         it('sets the source version to undefined (value is on disk)', () => {
-          documentManager.open('mock-fs:/app/views/partials/foo.liquid', 'hello {% render "bar" %}', 10);
+          documentManager.open(
+            'mock-fs:/app/views/partials/foo.liquid',
+            'hello {% render "bar" %}',
+            10,
+          );
           documentManager.close('mock-fs:/app/views/partials/foo.liquid');
           const sc = documentManager.get('mock-fs:/app/views/partials/foo.liquid');
           assert(sc);
@@ -90,7 +98,11 @@ describe('Module: DocumentManager', () => {
       describe('Unit: delete(uri)', () => {
         it('deletes the source code from the document manager', () => {
           // as though the file no longer exists
-          documentManager.open('mock-fs:/app/views/partials/foo.liquid', 'hello {% render "bar" %}', 10);
+          documentManager.open(
+            'mock-fs:/app/views/partials/foo.liquid',
+            'hello {% render "bar" %}',
+            10,
+          );
           documentManager.delete('mock-fs:/app/views/partials/foo.liquid');
           const sc = documentManager.get('mock-fs:/app/views/partials/foo.liquid');
           assert(!sc);

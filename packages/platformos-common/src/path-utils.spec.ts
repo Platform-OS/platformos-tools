@@ -164,9 +164,7 @@ describe('getFileType', () => {
   describe('unknown paths return undefined', () => {
     it('returns undefined for a generator template with /lib/ in path', () => {
       expect(
-        getFileType(
-          uri('modules/core/generators/command/templates/lib/commands/create.liquid'),
-        ),
+        getFileType(uri('modules/core/generators/command/templates/lib/commands/create.liquid')),
       ).toBeUndefined();
     });
 
@@ -293,9 +291,9 @@ describe('type predicate convenience functions', () => {
     });
 
     it('returns false for generator template with /lib/ in path', () => {
-      expect(
-        isPartial(uri('modules/core/generators/command/templates/lib/create.liquid')),
-      ).toBe(false);
+      expect(isPartial(uri('modules/core/generators/command/templates/lib/create.liquid'))).toBe(
+        false,
+      );
     });
   });
 

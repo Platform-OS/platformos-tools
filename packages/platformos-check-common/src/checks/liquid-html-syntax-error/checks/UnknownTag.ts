@@ -1,4 +1,10 @@
-import { LiquidTag, NamedTags, TAGS_WITHOUT_MARKUP, BLOCKS, RAW_TAGS } from '@platformos/liquid-html-parser';
+import {
+  LiquidTag,
+  NamedTags,
+  TAGS_WITHOUT_MARKUP,
+  BLOCKS,
+  RAW_TAGS,
+} from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType, TagEntry } from '../../..';
 
 /**

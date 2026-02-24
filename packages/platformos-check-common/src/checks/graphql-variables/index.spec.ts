@@ -32,7 +32,9 @@ describe('Module: GraphQLVariablesCheck', () => {
     const offenses = await check(files, [GraphQLVariablesCheck]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal('Required parameter content must be passed to GraphQL call');
+    expect(offenses[0].message).to.equal(
+      'Required parameter content must be passed to GraphQL call',
+    );
   });
 
   it('does not report when all required parameters are provided', async () => {

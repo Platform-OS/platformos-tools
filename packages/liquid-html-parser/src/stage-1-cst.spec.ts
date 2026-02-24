@@ -332,9 +332,10 @@ describe('Unit: Stage 1 (CST)', () => {
                       arg.valueType,
                     );
                     if (arg.expressionType) {
-                      expectPath(cst, `0.markup.filters.${i}.args.${j}.value.expression.type`).to.equal(
-                        arg.expressionType,
-                      );
+                      expectPath(
+                        cst,
+                        `0.markup.filters.${i}.args.${j}.value.expression.type`,
+                      ).to.equal(arg.expressionType);
                     }
                     break;
                   }
@@ -847,7 +848,9 @@ describe('Unit: Stage 1 (CST)', () => {
               expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
               expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
               if (expressionType) {
-                expectPath(cst, `0.markup.functionArguments.${i}.value.expression.type`).to.equal(expressionType);
+                expectPath(cst, `0.markup.functionArguments.${i}.value.expression.type`).to.equal(
+                  expressionType,
+                );
               }
             });
           }
@@ -1016,7 +1019,9 @@ describe('Unit: Stage 1 (CST)', () => {
               expectPath(cst, `0.markup.args.${i}.name`).to.equal(name);
               expectPath(cst, `0.markup.args.${i}.value.type`).to.equal(valueType);
               if (expressionType) {
-                expectPath(cst, `0.markup.args.${i}.value.expression.type`).to.equal(expressionType);
+                expectPath(cst, `0.markup.args.${i}.value.expression.type`).to.equal(
+                  expressionType,
+                );
               }
             });
             expectPath(cst, '0.whitespaceEnd').to.equal('-');

@@ -46,16 +46,16 @@ export enum PlatformOSFileType {
  * paths — but exact segment matching means dirs don't overlap in practice.
  */
 export const FILE_TYPE_DIRS: Readonly<Record<PlatformOSFileType, readonly string[]>> = {
-  [PlatformOSFileType.Page]:          ['views/pages'],
-  [PlatformOSFileType.Layout]:        ['views/layouts'],
-  [PlatformOSFileType.Partial]:       ['views/partials', 'lib'],
+  [PlatformOSFileType.Page]: ['views/pages'],
+  [PlatformOSFileType.Layout]: ['views/layouts'],
+  [PlatformOSFileType.Partial]: ['views/partials', 'lib'],
   [PlatformOSFileType.Authorization]: ['authorization_policies'],
-  [PlatformOSFileType.Email]:         ['emails'],
-  [PlatformOSFileType.ApiCall]:       ['api_calls'],
-  [PlatformOSFileType.Sms]:           ['smses'],
-  [PlatformOSFileType.Migration]:     ['migrations'],
-  [PlatformOSFileType.GraphQL]:       ['graphql'],
-  [PlatformOSFileType.Asset]:         ['assets'],
+  [PlatformOSFileType.Email]: ['emails'],
+  [PlatformOSFileType.ApiCall]: ['api_calls'],
+  [PlatformOSFileType.Sms]: ['smses'],
+  [PlatformOSFileType.Migration]: ['migrations'],
+  [PlatformOSFileType.GraphQL]: ['graphql'],
+  [PlatformOSFileType.Asset]: ['assets'],
 };
 
 /**

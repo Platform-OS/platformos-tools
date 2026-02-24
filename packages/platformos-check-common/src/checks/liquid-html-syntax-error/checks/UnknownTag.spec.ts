@@ -95,7 +95,10 @@ describe('Module: UnknownTag', () => {
       for (const sourceCode of validTags) {
         const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
         const unknownTagOffenses = offenses.filter((o) => o.message.includes('Unknown tag'));
-        expect(unknownTagOffenses, `Expected no unknown tag offense for: ${sourceCode}`).toHaveLength(0);
+        expect(
+          unknownTagOffenses,
+          `Expected no unknown tag offense for: ${sourceCode}`,
+        ).toHaveLength(0);
       }
     });
 
@@ -111,7 +114,10 @@ describe('Module: UnknownTag', () => {
       for (const sourceCode of validBlocks) {
         const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
         const unknownTagOffenses = offenses.filter((o) => o.message.includes('Unknown tag'));
-        expect(unknownTagOffenses, `Expected no unknown tag offense for: ${sourceCode}`).toHaveLength(0);
+        expect(
+          unknownTagOffenses,
+          `Expected no unknown tag offense for: ${sourceCode}`,
+        ).toHaveLength(0);
       }
     });
 
@@ -133,7 +139,10 @@ describe('Module: UnknownTag', () => {
       for (const sourceCode of validTags) {
         const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
         const unknownTagOffenses = offenses.filter((o) => o.message.includes('Unknown tag'));
-        expect(unknownTagOffenses, `Expected no unknown tag offense for: ${sourceCode}`).toHaveLength(0);
+        expect(
+          unknownTagOffenses,
+          `Expected no unknown tag offense for: ${sourceCode}`,
+        ).toHaveLength(0);
       }
     });
 
@@ -149,7 +158,10 @@ describe('Module: UnknownTag', () => {
       for (const sourceCode of validBlocks) {
         const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
         const unknownTagOffenses = offenses.filter((o) => o.message.includes('Unknown tag'));
-        expect(unknownTagOffenses, `Expected no unknown tag offense for: ${sourceCode}`).toHaveLength(0);
+        expect(
+          unknownTagOffenses,
+          `Expected no unknown tag offense for: ${sourceCode}`,
+        ).toHaveLength(0);
       }
     });
 
@@ -187,11 +199,21 @@ describe('Module: UnknownTag', () => {
       const sourceCode = `{% custom_docset_tag %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode, 'file.liquid', {
         platformosDocset: {
-          async filters() { return []; },
-          async objects() { return []; },
-          async liquidDrops() { return []; },
-          async tags() { return [{ name: 'custom_docset_tag' }]; },
-          async graphQL() { return null; },
+          async filters() {
+            return [];
+          },
+          async objects() {
+            return [];
+          },
+          async liquidDrops() {
+            return [];
+          },
+          async tags() {
+            return [{ name: 'custom_docset_tag' }];
+          },
+          async graphQL() {
+            return null;
+          },
         },
       });
       const unknownTagOffenses = offenses.filter((o) => o.message.includes('Unknown tag'));

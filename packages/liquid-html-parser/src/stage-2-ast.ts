@@ -472,8 +472,8 @@ export interface ContentForMarkup extends ASTNode<NodeTypes.ContentForMarkup> {
 
 /** {% render 'partial' [(with|for) variable [as alias]], [...namedArguments] %} */
 export interface RenderMarkup extends ASTNode<NodeTypes.RenderMarkup> {
-  /** {% render snippet %} */
-  snippet: LiquidString | LiquidVariableLookup;
+  /** {% render 'partial' %} */
+  partial: LiquidString | LiquidVariableLookup;
   /** {% render 'partial' with thing as alias %} */
   alias: RenderAliasExpression | null;
   /** {% render 'partial' [with variable] %} */
@@ -490,7 +490,7 @@ export interface RenderMarkup extends ASTNode<NodeTypes.RenderMarkup> {
 
 /** {% function res = 'partial', [...namedArguments] %} */
 export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
-  /** {% render res = snippet %} */
+  /** {% function res = 'partial' %} */
   name: string;
   partial: LiquidString | LiquidVariableLookup;
   /**
@@ -505,7 +505,7 @@ export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
 
 /** {% graphql res = 'path/to/graphql/file', [...namedArguments] %} (file-based) */
 export interface GraphQLMarkup extends ASTNode<NodeTypes.GraphQLMarkup> {
-  /** {% graphql res = snippet %} */
+  /** {% graphql res = 'path/to/graphql/file' %} */
   name: string;
   graphql: LiquidString | LiquidVariableLookup;
   /**
@@ -653,7 +653,7 @@ export interface RenderVariableExpression extends ASTNode<NodeTypes.RenderVariab
 
 /** Represents the `as name` expressions in render nodes */
 export interface RenderAliasExpression extends ASTNode<NodeTypes.RenderAliasExpression> {
-  /** {% render 'partial' for array as name %}` or `{% render 'snippet' with object as name %} */
+  /** {% render 'partial' for array as name %}` or `{% render 'partial' with object as name %} */
   value: string;
 }
 
@@ -2260,14 +2260,14 @@ function toContentForMarkup(node: ConcreteLiquidTagContentForMarkup): ContentFor
 function toRenderMarkup(node: ConcreteLiquidTagRenderMarkup): RenderMarkup {
   return {
     type: NodeTypes.RenderMarkup,
-    snippet: toExpression(node.snippet) as LiquidString | LiquidVariableLookup,
+    partial: toExpression(node.partial) as LiquidString | LiquidVariableLookup,
     alias: toRenderAliasExpression(node.alias),
     variable: toRenderVariableExpression(node.variable),
     /**
      * When we're in completion mode we won't necessarily have valid named
      * arguments so we need to call toLiquidArgument instead of toNamedArgument.
      * We cast using `as` so that this doesn't affect the type system used in
-     * other areas (like theme check) for a scenario that only occurs in
+     * other areas (like platformos-check) for a scenario that only occurs in
      * completion mode. This means that our types are *wrong* in completion mode
      * but this is the compromise we're making to get completions to work.
      */
@@ -2286,7 +2286,7 @@ function toFunctionMarkup(node: ConcreteLiquidTagFunctionMarkup): FunctionMarkup
      * When we're in completion mode we won't necessarily have valid named
      * arguments so we need to call toLiquidArgument instead of toNamedArgument.
      * We cast using `as` so that this doesn't affect the type system used in
-     * other areas (like theme check) for a scenario that only occurs in
+     * other areas (like platformos-check) for a scenario that only occurs in
      * completion mode. This means that our types are *wrong* in completion mode
      * but this is the compromise we're making to get completions to work.
      */
@@ -2305,7 +2305,7 @@ function toGraphQLMarkup(node: ConcreteLiquidTagGraphQLMarkup): GraphQLMarkup {
      * When we're in completion mode we won't necessarily have valid named
      * arguments so we need to call toLiquidArgument instead of toNamedArgument.
      * We cast using `as` so that this doesn't affect the type system used in
-     * other areas (like theme check) for a scenario that only occurs in
+     * other areas (like platformos-check) for a scenario that only occurs in
      * completion mode. This means that our types are *wrong* in completion mode
      * but this is the compromise we're making to get completions to work.
      */
@@ -2323,7 +2323,7 @@ function toGraphQLInlineMarkup(node: ConcreteLiquidTagGraphQLInlineMarkup): Grap
      * When we're in completion mode we won't necessarily have valid named
      * arguments so we need to call toLiquidArgument instead of toNamedArgument.
      * We cast using `as` so that this doesn't affect the type system used in
-     * other areas (like theme check) for a scenario that only occurs in
+     * other areas (like platformos-check) for a scenario that only occurs in
      * completion mode. This means that our types are *wrong* in completion mode
      * but this is the compromise we're making to get completions to work.
      */

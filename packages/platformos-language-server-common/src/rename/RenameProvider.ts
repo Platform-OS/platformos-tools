@@ -17,7 +17,7 @@ import { ClientCapabilities } from '../ClientCapabilities';
 import { FindAppRootURI } from '../internal-types';
 
 /**
- * RenameProvider is responsible for providing rename support for the theme language server.
+ * RenameProvider is responsible for providing rename support for the platformOS language server.
  *
  * Rename is a pretty abstract concept, it can be renaming a tag name, a variable, a class name, etc.
  */

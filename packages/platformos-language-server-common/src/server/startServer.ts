@@ -373,7 +373,7 @@ export function startServer(
     // figure out from the initialize request params.
     //
     // If we open a file that we know is liquid, then we can kind of guarantee
-    // we'll find a theme root and we'll preload that.
+    // we'll find an app root and we'll preload that.
     if (await configuration.shouldPreloadOnBoot()) {
       const rootUri = await findAppRootURI(uri);
       if (rootUri) {

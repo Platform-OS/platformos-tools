@@ -6,7 +6,7 @@ import { ObjectEntry, UriString } from '../types';
 /**
  * The base set of supported param types for LiquidDoc.
  *
- * This is used in conjunction with objects defined in [liquid docs](https://shopify.dev/docs/api/liquid/objects)
+ * This is used in conjunction with objects defined in [liquid docs](https://documentation.platformos.com/api-reference/liquid/objects)
  * to determine ALL supported param types for LiquidDoc.
  *
  * References `getValidParamTypes`
@@ -35,7 +35,7 @@ export function getDefaultValueForType(type: string | null) {
       return '0';
     case BasicParamTypes.Boolean:
       return 'false';
-    case BasicParamTypes.Object: // Objects don't have a sensible default value (maybe `theme`?)
+    case BasicParamTypes.Object: // Objects don't have a sensible default value
     default:
       return '';
   }
@@ -95,7 +95,7 @@ export function filePathSupportsLiquidDoc(uri: UriString) {
 
 /**
  * Dynamically generates a map of LiquidDoc param types using object entries from
- * [liquid docs](https://shopify.dev/docs/api/liquid/objects).
+ * [liquid docs](https://documentation.platformos.com/api-reference/liquid/objects).
  *
  * This is used in conjunction with the base set of supported param.
  *

@@ -6,12 +6,12 @@ import { GetDocDefinitionForURI, DocDefinition } from '@platformos/platformos-ch
 import { TranslationProvider } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 
-const uri = 'file:///snippets/product-card.liquid';
+const uri = 'file:///app/views/partials/product-card.liquid';
 
-describe('Module: RenderSnippetParameterHoverProvider', async () => {
+describe('Module: RenderPartialParameterHoverProvider', async () => {
   let provider: HoverProvider;
-  let getSnippetDefinition: GetDocDefinitionForURI;
-  const mockSnippetDefinition: DocDefinition = {
+  let getPartialDefinition: GetDocDefinitionForURI;
+  const mockPartialDefinition: DocDefinition = {
     uri,
     liquidDoc: {
       parameters: [
@@ -28,12 +28,12 @@ describe('Module: RenderSnippetParameterHoverProvider', async () => {
 
   describe('hover', () => {
     beforeEach(() => {
-      provider = createProvider(async () => mockSnippetDefinition);
+      provider = createProvider(async () => mockPartialDefinition);
     });
 
     it('should return null if doc definition not found', async () => {
-      getSnippetDefinition = async () => undefined;
-      provider = createProvider(getSnippetDefinition);
+      getPartialDefinition = async () => undefined;
+      provider = createProvider(getPartialDefinition);
       await expect(provider).to.hover(`{% render 'product-card' tit█le: 'value' %}`, null);
     });
 
@@ -50,7 +50,7 @@ describe('Module: RenderSnippetParameterHoverProvider', async () => {
   });
 });
 
-const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
+const createProvider = (getPartialDefinition: GetDocDefinitionForURI) => {
   return new HoverProvider(
     new DocumentManager(),
     {
@@ -62,6 +62,6 @@ const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
     },
     new TranslationProvider(new MockFileSystem({})),
     async () => ({}),
-    getSnippetDefinition,
+    getPartialDefinition,
   );
 };

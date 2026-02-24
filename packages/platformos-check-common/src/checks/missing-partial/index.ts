@@ -27,20 +27,20 @@ export const MissingPartial: LiquidCheckDefinition<typeof schema> = {
 
     return {
       async RenderMarkup(node) {
-        if (node.snippet.type === NodeTypes.VariableLookup) return;
+        if (node.partial.type === NodeTypes.VariableLookup) return;
 
-        const snippet = node.snippet;
+        const partial = node.partial;
         const location = await locator.locate(
           URI.parse(context.config.rootUri),
           'render',
-          snippet.value,
+          partial.value,
         );
 
         if (!location) {
           context.report({
-            message: `'${snippet.value}' does not exist`,
-            startIndex: node.snippet.position.start,
-            endIndex: node.snippet.position.end,
+            message: `'${partial.value}' does not exist`,
+            startIndex: node.partial.position.start,
+            endIndex: node.partial.position.end,
           });
         }
       },

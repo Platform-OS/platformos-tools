@@ -22,7 +22,7 @@ import { FindAppRootURI } from '../../internal-types';
  *
  * We'll do that for `.(css|js).liquid` files as well
  *
- * We'll do this by visiting all the liquid files in the theme and looking for
+ * We'll do this by visiting all the liquid files in the app and looking for
  * string | asset_url Variable nodes that reference the old asset. We'll then create a
  * WorkspaceEdit that changes the references to the new asset.
  */

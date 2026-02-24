@@ -12,20 +12,20 @@ A platformOS Graph is a data structure that spans Liquid, JSON, JavaScript and C
 It has the following interface:
 
 ```ts
-interface ThemeGraph {
-  rootUri: UriString; // e.g. 'file:/path/to/horizon'
-  entryPoints: ThemeModule[];
-  modules: Record<UriString, ThemeModule>
+interface AppGraph {
+  rootUri: UriString; // e.g. 'file:/path/to/my-app'
+  entryPoints: AppModule[];
+  modules: Record<UriString, AppModule>
 }
 ```
 
-A `ThemeModule` holds _dependencies_ and _references_ of a module. For instance,
+An `AppModule` holds _dependencies_ and _references_ of a module. For instance,
 
 ```ts
 interface LiquidModule {
   uri: UriString;
   type: 'liquid';
-  kind: 'block' | 'layout' | 'section' | 'snippet' | 'template';
+  kind: 'layout' | 'partial' | 'page';
   references: Reference[];
   dependencies: Reference[];
 }
@@ -44,9 +44,8 @@ interface Reference {
   target: { uri: string, range?: Range };
 
   type:
-    | 'direct'   // e.g. {% render 'child' %}, {{ 'theme.js' | asset_url }}, <custom-element>, etc.
-    | 'indirect' // e.g. Sections and blocks that accept theme blocks
-    | 'preset'   // e.g. Section and block presets
+    | 'direct'   // e.g. {% render 'child' %}, {{ 'app.js' | asset_url }}, <custom-element>, etc.
+    | 'indirect' // e.g. files that loosely depend on another
 }
 ```
 
@@ -62,13 +61,13 @@ npm install @platformos/platformos-graph
 
 ### Through the VS Code extension
 
-The theme graph is used by the VS Code extension to power the dependencies, references and dead code features.
+The app graph is used by the VS Code extension to power the dependencies, references and dead code features.
 
 ### From the CLI
 
 ```
 Usage:
-  platformos-graph <path-to-theme-directory>
+  platformos-graph <path-to-app-directory>
 
 Example:
   platformos-graph horizon > graph.json

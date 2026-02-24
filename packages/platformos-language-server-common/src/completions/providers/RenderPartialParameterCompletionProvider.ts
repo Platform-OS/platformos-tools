@@ -28,7 +28,7 @@ export class RenderPartialParameterCompletionProvider implements Provider {
       !parentNode ||
       node.type !== NodeTypes.VariableLookup ||
       parentNode.type !== NodeTypes.RenderMarkup ||
-      parentNode.snippet.type !== 'String'
+      parentNode.partial.type !== 'String'
     ) {
       return [];
     }
@@ -37,7 +37,7 @@ export class RenderPartialParameterCompletionProvider implements Provider {
 
     const partialDefinition = await this.getDocDefinitionForURI(
       params.textDocument.uri,
-      parentNode.snippet.value,
+      parentNode.partial.value,
     );
 
     const liquidDocParams = partialDefinition?.liquidDoc?.parameters;

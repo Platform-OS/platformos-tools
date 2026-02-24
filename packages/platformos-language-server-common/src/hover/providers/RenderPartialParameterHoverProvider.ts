@@ -17,14 +17,14 @@ export class RenderPartialParameterHoverProvider implements BaseHoverProvider {
       currentNode.type !== NodeTypes.NamedArgument ||
       !parentNode ||
       parentNode.type !== NodeTypes.RenderMarkup ||
-      parentNode.snippet.type !== NodeTypes.String
+      parentNode.partial.type !== NodeTypes.String
     ) {
       return null;
     }
 
     const docDefinition = await this.getDocDefinitionForURI(
       params.textDocument.uri,
-      parentNode.snippet.value,
+      parentNode.partial.value,
     );
 
     const paramName = currentNode.name;

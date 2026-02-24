@@ -73,7 +73,7 @@ describe('Unit: FixAllProvider', () => {
       isPreferred: false,
       command: {
         title: 'applyFixes',
-        command: 'themeCheck/applyFixes',
+        command: 'platformosCheck/applyFixes',
         arguments: [uri, version, [0, 1, 2]],
       },
     });

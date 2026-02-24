@@ -75,7 +75,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: true,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [1]],
         },
       });
@@ -87,7 +87,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: false,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [1, 2]],
         },
       });
@@ -99,7 +99,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: false,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [0, 1, 2]],
         },
       });
@@ -135,7 +135,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: true,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [1]],
         },
       });
@@ -147,7 +147,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: false,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [0, 1]],
         },
       });
@@ -183,7 +183,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: true,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [0]],
         },
       });
@@ -195,7 +195,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: false,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [0, 1]],
         },
       });
@@ -230,7 +230,7 @@ describe('Unit: FixProvider', () => {
         isPreferred: true,
         command: {
           title: 'applyFixes',
-          command: 'themeCheck/applyFixes',
+          command: 'platformosCheck/applyFixes',
           arguments: [uri, 1, [0]],
         },
       });
@@ -264,7 +264,7 @@ describe('Unit: FixProvider', () => {
       isPreferred: true,
       command: {
         title: 'applyFixes',
-        command: 'themeCheck/applyFixes',
+        command: 'platformosCheck/applyFixes',
         arguments: [uri, 1, [1]],
       },
     });
@@ -276,7 +276,7 @@ describe('Unit: FixProvider', () => {
       isPreferred: false,
       command: {
         title: 'applyFixes',
-        command: 'themeCheck/applyFixes',
+        command: 'platformosCheck/applyFixes',
         arguments: [uri, 1, [1, 2]],
       },
     });
@@ -288,7 +288,7 @@ describe('Unit: FixProvider', () => {
       isPreferred: false,
       command: {
         title: 'applyFixes',
-        command: 'themeCheck/applyFixes',
+        command: 'platformosCheck/applyFixes',
         arguments: [uri, 1, [0, 1, 2]],
       },
     });

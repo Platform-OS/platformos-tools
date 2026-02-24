@@ -184,9 +184,7 @@
         "fileMatch": [
           "assets/*.json",
           "config/*.json",
-          "locales/*.json",
-          "sections/*.json",
-          "templates/**/*.json"
+          "locales/*.json"
         ],
         "url": "./allowCommentsSchema.json"
       }
@@ -209,9 +207,7 @@
         "filenamePatterns": [
           "**/assets/*.json",
           "**/config/*.json",
-          "**/locales/*.json",
-          "**/sections/*.json",
-          "**/templates/**/*.json"
+          "**/locales/*.json"
         ]
       }
     ],

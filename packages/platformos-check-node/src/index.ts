@@ -151,5 +151,3 @@ export function getAppFilesPathPattern(rootUri: string) {
 
 /** @deprecated Use appCheckRun instead */
 export const runCheck = appCheckRun;
-/** @deprecated Use appCheckRun instead */
-export const themeCheckRun = appCheckRun;

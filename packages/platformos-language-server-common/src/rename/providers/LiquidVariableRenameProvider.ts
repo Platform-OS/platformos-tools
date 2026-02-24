@@ -242,7 +242,7 @@ async function updateRenderTags(
     const textDocument = sourceCode.textDocument;
     const edits: TextEdit[] = await visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
       async RenderMarkup(node: RenderMarkup) {
-        if (node.snippet.type !== NodeTypes.String || node.snippet.value !== partialName) {
+        if (node.partial.type !== NodeTypes.String || node.partial.value !== partialName) {
           return;
         }
 

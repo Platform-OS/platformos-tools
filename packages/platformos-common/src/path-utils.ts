@@ -190,5 +190,4 @@ export function isMigration(uri: UriString): boolean {
   return getFileType(uri) === PlatformOSFileType.Migration;
 }
 
-/** @deprecated Use isPartial instead */
-export const isSnippet = isPartial;
+

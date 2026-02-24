@@ -12,7 +12,7 @@ export default class LiquidFormatter {
       const textEdits = [await this.toTextEdit(textDocument)];
       return textEdits;
     } catch (err: any) {
-      // Log the errors but don't show them to the user, theme check will report the parsing errors.
+      // Log the errors but don't show them to the user, platformos-check will report the parsing errors.
       console.error(err);
       return null;
     }

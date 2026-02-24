@@ -29,12 +29,12 @@ export {
 /**
  * @example
  * {
- *   'theme/layout.liquid': `
+ *   'app/views/layouts/layout.liquid': `
  *     <html>
  *       {{ content_for_page }}
  *     </html>
  *   `,
- *   'snippets/snip.liquid': `
+ *   'app/views/partials/snip.liquid': `
  *     <b>'hello world'</b>
  *   `,
  * }
@@ -43,8 +43,8 @@ export type AppData = {
   [relativePath in string]: string;
 };
 
-export function getApp(themeDesc: AppData): App {
-  return Object.entries(themeDesc)
+export function getApp(appDesc: AppData): App {
+  return Object.entries(appDesc)
     .map(([relativePath, source]) => toSourceCode(toUri(relativePath), source))
     .filter((x): x is LiquidSourceCode | JSONSourceCode | YAMLSourceCode => x !== undefined);
 }
@@ -56,12 +56,12 @@ export function getApp(themeDesc: AppData): App {
  * it might be preferable to call coreCheck directly.
  */
 export async function simpleCheck(
-  themeDesc: AppData,
+  appDesc: AppData,
   config: Config,
   dependencies: Dependencies,
 ): Promise<Offense[]> {
-  const theme = getApp(themeDesc);
-  return coreCheck(theme, config, dependencies);
+  const app = getApp(appDesc);
+  return coreCheck(app, config, dependencies);
 }
 
 export { coreCheck };

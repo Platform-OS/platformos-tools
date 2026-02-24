@@ -1,12 +1,12 @@
 /**
  * @example
  * {
- *   'theme/layout.liquid': `
+ *   'app/views/layouts/layout.liquid': `
  *     <html>
  *       {{ content_for_page }}
  *     </html>
  *   `,
- *   'snippets/snip.liquid': `
+ *   'app/views/partials/snip.liquid': `
  *     <b>'hello world'</b>
  *   `,
  * }

@@ -8,7 +8,7 @@
 
 ## What it looks like
 
-A theme graph looks a bit like this:
+An app graph looks a bit like this:
 
 ![Graph](./graph.png)
 
@@ -18,15 +18,15 @@ It's a web of modules and links between them.
 
 A **Graph** is a set of Nodes and Edges.
 
-A **Theme Graph** is a set of *Modules* (nodes) and *References* (edges) defined by an array of *Entry Points*. It has these properties:
-- `rootUri` - root of the theme, e.g. `file:/path/to/theme`
-- `entryPoints` - array of modules that define the theme (all templates and sections)
-- `modules` - all the modules in the theme indexed by URI
+An **App Graph** is a set of *Modules* (nodes) and *References* (edges) defined by an array of *Entry Points*. It has these properties:
+- `rootUri` - root of the app, e.g. `file:/path/to/app`
+- `entryPoints` - array of modules that define the app (pages and layouts)
+- `modules` - all the modules in the app indexed by URI
 
-A **Module** is an object that represents a theme file. It has these properties:
-- `uri` - module identifier, e.g. `file:/path/to/theme/snippets/file.liquid`
+A **Module** is an object that represents an app file. It has these properties:
+- `uri` - module identifier, e.g. `file:/path/to/app/views/partials/file.liquid`
 - `type` - e.g. `liquid`, `json`, `javascript`, `css`.
-- `kind` - e.g. `block`, `section`, `snippet`, `template`, etc.
+- `kind` - e.g. `layout`, `partial`, `page`.
 - `references` - array of *References* that point to this module.
 - `dependencies` - array of *References* that this module depends on.
 
@@ -35,8 +35,7 @@ A **Reference** is an object that defines a link between two modules. It has the
 - `target` - a `uri` and `range` that defines which module is being dependended on and optionally what is being depended on in that file,
 - `type` - one of the following:
   - `direct` - the file can't exist without the other, e.g. `{% render 'child' %}`
-  - `preset` - the file has a preset that depends on an other file, e.g. a section that has a preset that includes `group` and `text` blocks.
-  - `indirect` - the file loosely depends on the other, but not explicilty. e.g. when a file accepts all public theme blocks (`"type": "@theme"`))
+  - `indirect` - the file loosely depends on the other, but not explicitly.
 
 
 ## Algorithm overview

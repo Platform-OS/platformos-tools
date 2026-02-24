@@ -48,7 +48,7 @@ export class ClientCapabilities {
     const direct = this.initializationOptions?.[key];
     if (direct !== undefined) return direct;
 
-    // { themeCheck: { checkOnSave: true } }
+    // { platformosCheck: { checkOnSave: true } }
     const nested = pathGet<T>(this.initializationOptions, key);
     if (nested !== undefined) return nested;
 

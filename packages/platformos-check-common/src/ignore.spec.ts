@@ -47,7 +47,7 @@ describe('Function: isIgnored', () => {
     const result = isIgnored(
       toUri('app/views/partials/foo.liquid'),
       config({
-        checkIgnore: ['!snippets/*'],
+        checkIgnore: ['!other-dir/*'],
         globalIgnore: [],
       }),
       checkDef,
@@ -73,7 +73,7 @@ describe('Function: isIgnored', () => {
     const result = isIgnored(
       toUri('app/views/partials/foo.liquid'),
       config({
-        checkIgnore: ['other-snippets/*.liquid'],
+        checkIgnore: ['other-dir/*.liquid'],
         globalIgnore: [],
       }),
       checkDef,
@@ -165,10 +165,10 @@ describe('Function: isIgnored', () => {
 
   it('should work with only global ignore as well', () => {
     const result = isIgnored(
-      toUri('layout/theme.liquid'),
+      toUri('app/views/layouts/layout.liquid'),
       config({
         checkIgnore: [],
-        globalIgnore: ['layout/theme.liquid'],
+        globalIgnore: ['app/views/layouts/layout.liquid'],
       }),
     );
 

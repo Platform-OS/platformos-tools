@@ -396,8 +396,8 @@ function printNode(
     }
 
     case NodeTypes.RenderMarkup: {
-      const snippet = path.call((p: any) => print(p), 'snippet');
-      const doc: Doc = [snippet];
+      const partial = path.call((p: any) => print(p), 'partial');
+      const doc: Doc = [partial];
       if (node.variable) {
         const whitespace = node.alias?.value ? line : ' ';
         doc.push(

@@ -16,7 +16,7 @@ import { startServer } from './startServer';
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('Module: server', () => {
-  const mockRoot = path.normalize('browser:/theme');
+  const mockRoot = path.normalize('browser:/app');
   const filePath = 'app/views/partials/code.liquid';
   const fileURI = path.join(mockRoot, filePath);
   const fileContents = `{% render 'foo' %}`;

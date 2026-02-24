@@ -20,8 +20,8 @@ import { PartialUsage, TagType, ArgumentInfo } from './types';
  */
 function getPartialName(node: RenderMarkup | FunctionMarkup): string | undefined {
   if (node.type === NodeTypes.RenderMarkup) {
-    if (node.snippet.type === NodeTypes.String) {
-      return node.snippet.value;
+    if (node.partial.type === NodeTypes.String) {
+      return node.partial.value;
     }
     return undefined;
   }
@@ -79,16 +79,16 @@ function parseUsageKey(key: string): { partialPath: string; tagType: TagType } {
 }
 
 /**
- * Collect all partial usages from a theme by visiting function, render, and include tags.
+ * Collect all partial usages from an app by visiting function, render, and include tags.
  */
 export async function collectPartialUsages(
-  theme: App,
+  app: App,
   verbose: boolean = false,
   log: (message: string) => void = console.log,
 ): Promise<Map<string, PartialUsage>> {
   const usageMap = new Map<string, PartialUsage>();
 
-  for (const sourceCode of theme) {
+  for (const sourceCode of app) {
     if (sourceCode.type !== SourceCodeType.LiquidHtml) continue;
     if (!isLiquidHtmlNode(sourceCode.ast)) continue;
 

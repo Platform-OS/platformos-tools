@@ -34,10 +34,10 @@ describe('Module: DisabledChecks', () => {
   describe(`Comment variant`, () => {
     it('should disable checks for the entire document if comment is placed on the first line', async () => {
       for (const buildComment of commentTypes) {
-        const file = `${buildComment('theme-check-disable LiquidFilter')}
+        const file = `${buildComment('platformos-check-disable LiquidFilter')}
 {% comment %}
   This is some comment about the file...
-  Adding a comment here should not mess with theme-check-disable
+  Adding a comment here should not mess with platformos-check-disable
 {% endcomment %}
 {{ 'asset' | random_filter }}
 {% render 'something' %}`;
@@ -50,7 +50,7 @@ describe('Module: DisabledChecks', () => {
 
     it('should disable all checks even if comment has additional spaces', async () => {
       for (const buildComment of commentTypes) {
-        const file = `${buildComment('  theme-check-disable     ')}
+        const file = `${buildComment('  platformos-check-disable     ')}
 {{ 'asset' | random_filter }}
 {% render 'something' %}`;
 
@@ -63,10 +63,10 @@ describe('Module: DisabledChecks', () => {
       for (const buildComment of commentTypes) {
         const file = `{{ 'asset-1' | random_filter }}
 {% render 'something-1' %}
-${buildComment('theme-check-disable')}
+${buildComment('platformos-check-disable')}
 {{ 'asset-2' | random_filter }}
 {% render 'something-2' %}
-${buildComment('theme-check-enable')}
+${buildComment('platformos-check-enable')}
 {{ 'asset-3' | random_filter }}`;
 
         const offenses = await check({ 'code.liquid': file }, checks);
@@ -79,10 +79,10 @@ ${buildComment('theme-check-enable')}
 
     it('should disable a specific check if check is included in the comment', async () => {
       for (const buildComment of commentTypes) {
-        const file = `${buildComment('theme-check-disable LiquidFilter')}
+        const file = `${buildComment('platformos-check-disable LiquidFilter')}
 {{ 'asset-1' | random_filter }}
 {% render 'something' %}
-${buildComment('theme-check-enable LiquidFilter')}
+${buildComment('platformos-check-enable LiquidFilter')}
 {{ 'asset-2' | random_filter }}`;
 
         const offenses = await check({ 'code.liquid': file }, checks);
@@ -94,10 +94,10 @@ ${buildComment('theme-check-enable LiquidFilter')}
 
     it('should disable multiple checks if checks are separated by a comma (and maybe some spaces)', async () => {
       for (const buildComment of commentTypes) {
-        const file = `${buildComment('theme-check-disable LiquidFilter, RenderMarkup')}
+        const file = `${buildComment('platformos-check-disable LiquidFilter, RenderMarkup')}
 {{ 'asset-1' | random_filter }}
 {% render 'something' %}
-${buildComment('theme-check-enable LiquidFilter,RenderMarkup')}
+${buildComment('platformos-check-enable LiquidFilter,RenderMarkup')}
 {{ 'asset-2' | random_filter }}`;
 
         const offenses = await check({ 'code.liquid': file }, checks);
@@ -108,13 +108,13 @@ ${buildComment('theme-check-enable LiquidFilter,RenderMarkup')}
 
     it('should enable specific checks individually', async () => {
       for (const buildComment of commentTypes) {
-        const file = `${buildComment('theme-check-disable LiquidFilter, RenderMarkup')}
+        const file = `${buildComment('platformos-check-disable LiquidFilter, RenderMarkup')}
 {{ 'asset-1' | random_filter }}
 {% render 'something-1' %}
-${buildComment('theme-check-enable RenderMarkup')}
+${buildComment('platformos-check-enable RenderMarkup')}
 {{ 'asset-2' | random_filter }}
 {% render 'something-2' %}
-${buildComment('theme-check-enable LiquidFilter')}
+${buildComment('platformos-check-enable LiquidFilter')}
 {{ 'asset-3' | random_filter }}
 {% render 'something-3' %}`;
 
@@ -129,10 +129,10 @@ ${buildComment('theme-check-enable LiquidFilter')}
     describe('Mix of general and specific commands', () => {
       it('should not reenable specific check when all checks have been disabled before', async () => {
         for (const buildComment of commentTypes) {
-          const file = `${buildComment('theme-check-disable')}
+          const file = `${buildComment('platformos-check-disable')}
 {{ 'asset-1' | random_filter }}
 {% render 'something-1' %}
-${buildComment('theme-check-enable RenderMarkup')}
+${buildComment('platformos-check-enable RenderMarkup')}
 {{ 'asset-2' | random_filter }}
 {% render 'something-2' %}`;
           const offenses = await check({ 'code.liquid': file }, checks);
@@ -142,10 +142,10 @@ ${buildComment('theme-check-enable RenderMarkup')}
 
       it('should reenable all checks when specific ones have been disabled before', async () => {
         for (const buildComment of commentTypes) {
-          const file = `${buildComment('theme-check-disable LiquidFilter, RenderMarkup')}
+          const file = `${buildComment('platformos-check-disable LiquidFilter, RenderMarkup')}
 {{ 'asset-3' | random_filter }}
 {% render 'something-3' %}
-${buildComment('theme-check-enable')}
+${buildComment('platformos-check-enable')}
 {{ 'asset-4' | random_filter }}
 {% render 'something-4' %}`;
 
@@ -159,7 +159,7 @@ ${buildComment('theme-check-enable')}
 
     describe('disable next line', () => {
       it('should disable the next line if there is one', async () => {
-        const file = `{% # theme-check-disable-next-line %}
+        const file = `{% # platformos-check-disable-next-line %}
 {% render 'something' %}
 {% render 'other-thing' %}`;
 
@@ -168,8 +168,8 @@ ${buildComment('theme-check-enable')}
         expectRenderMarkupOffense(offenses, 'other-thing.liquid');
       });
 
-      it("should not disable the liquid tag's children node if theme check is disabled", async () => {
-        const file = `{% # theme-check-disable-next-line %}
+      it("should not disable the liquid tag's children node if platformos-check is disabled", async () => {
+        const file = `{% # platformos-check-disable-next-line %}
 {% if condition %}
   {% render 'something' %}
 {% endif %}
@@ -183,7 +183,7 @@ ${buildComment('theme-check-enable')}
 
       it('should disable the next line inside a liquid tag if there is one', async () => {
         const file = `{% liquid
-  # theme-check-disable-next-line
+  # platformos-check-disable-next-line
   render 'something'
   render 'other-thing'
 %}`;
@@ -193,10 +193,10 @@ ${buildComment('theme-check-enable')}
         expectRenderMarkupOffense(offenses, 'other-thing.liquid');
       });
 
-      it("should disable the parent node's next node if theme check is disabled as the last child node", async () => {
+      it("should disable the parent node's next node if platformos-check is disabled as the last child node", async () => {
         const file = `{% liquid
   if condition
-    # theme-check-disable-next-line
+    # platformos-check-disable-next-line
   elsif other_condition
   endif
 %}`;
@@ -210,11 +210,11 @@ ${buildComment('theme-check-enable')}
         );
       });
 
-      it('should not disable any checks if theme-check is disabled at the end', async () => {
+      it('should not disable any checks if platformos-check is disabled at the end', async () => {
         const file = `{% liquid
   echo hello
   echo everyone
-  # theme-check-disable-next-line
+  # platformos-check-disable-next-line
 %}`;
 
         const offenses = await check({ 'code.liquid': file }, [UndefinedObject]);
@@ -232,7 +232,7 @@ ${buildComment('theme-check-enable')}
       });
 
       it('should disable the next line if the content is an HTML tag with liquid', async () => {
-        const file = `{% # theme-check-disable-next-line %}
+        const file = `{% # platformos-check-disable-next-line %}
 <div class="{{ foo }}"></div>
 <div class="{{ bar }}"></div>`;
 
@@ -246,7 +246,7 @@ ${buildComment('theme-check-enable')}
       });
 
       it('should not disable the next line if the specified rule does not exist', async () => {
-        const file = `{% # theme-check-disable-next-line FAKE_RULE %}
+        const file = `{% # platformos-check-disable-next-line FAKE_RULE %}
 <div class="{{ foo }}"></div>`;
 
         const offenses = await check({ 'code.liquid': file }, [UndefinedObject]);
@@ -260,38 +260,4 @@ ${buildComment('theme-check-enable')}
     });
   });
 
-  describe('platformos-check prefix', () => {
-    it('should disable checks using platformos-check-disable prefix', async () => {
-      for (const buildComment of commentTypes) {
-        const file = `${buildComment('platformos-check-disable LiquidFilter')}
-{{ 'asset' | random_filter }}
-{% render 'something' %}`;
-
-        const offenses = await check({ 'code.liquid': file }, checks);
-        expect(offenses).to.have.length(1);
-        expectRenderMarkupOffense(offenses, 'something.liquid');
-      }
-    });
-
-    it('should disable all checks using platformos-check-disable prefix', async () => {
-      for (const buildComment of commentTypes) {
-        const file = `${buildComment('platformos-check-disable')}
-{{ 'asset' | random_filter }}
-{% render 'something' %}`;
-
-        const offenses = await check({ 'code.liquid': file }, checks);
-        expect(offenses).to.have.length(0);
-      }
-    });
-
-    it('should disable next line using platformos-check-disable-next-line prefix', async () => {
-      const file = `{% # platformos-check-disable-next-line %}
-{% render 'something' %}
-{% render 'other-thing' %}`;
-
-      const offenses = await check({ 'code.liquid': file }, checks);
-      expect(offenses).to.have.length(1);
-      expectRenderMarkupOffense(offenses, 'other-thing.liquid');
-    });
-  });
 });

@@ -186,17 +186,17 @@ Liquid <: Helpers {
   liquidTagInclude = liquidTagRule<"include", liquidTagRenderMarkup>
   liquidTagRender = liquidTagRule<"render", liquidTagRenderMarkup>
   liquidTagRenderMarkup =
-    snippetExpression renderVariableExpression? renderAliasExpression? renderArguments
+    partialExpression renderVariableExpression? renderAliasExpression? renderArguments
 
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
-  liquidTagFunctionMarkup = variableSegment space* "=" space* snippetExpression renderArguments
+  liquidTagFunctionMarkup = variableSegment space* "=" space* partialExpression renderArguments
 
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
-  liquidTagGraphQLMarkup = variableSegment space* "=" space* snippetExpression graphqlRenderArguments
+  liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments
 
   // platformos simple tags
   liquidTagBackground = liquidTagRule<"background", liquidTagBackgroundMarkup>
-  liquidTagBackgroundMarkup = variableSegment space* "=" space* snippetExpression renderArguments
+  liquidTagBackgroundMarkup = variableSegment space* "=" space* partialExpression renderArguments
 
   liquidTagOpenBackground = liquidTagOpenRule<"background", liquidTagBackgroundInlineMarkup>
   // Use negative lookahead to exclude file-based syntax (with "=")
@@ -243,7 +243,7 @@ Liquid <: Helpers {
   liquidTagRedirectToMarkup = liquidExpression<delimTag> renderArguments
 
   liquidTagIncludeForm = liquidTagRule<"include_form", liquidTagIncludeFormMarkup>
-  liquidTagIncludeFormMarkup = snippetExpression renderArguments
+  liquidTagIncludeFormMarkup = partialExpression renderArguments
 
   liquidTagSpamProtection = liquidTagRule<"spam_protection", liquidTagSpamProtectionMarkup>
   liquidTagSpamProtectionMarkup = liquidExpression<delimTag> renderArguments
@@ -260,7 +260,6 @@ Liquid <: Helpers {
 
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?
-  snippetExpression = liquidString<delimTag> | variableSegmentAsLookup
   partialExpression = liquidString<delimTag> | variableSegmentAsLookup
   renderVariableExpression = space+ ("for" | "with") space+ liquidExpression<delimTag>
   renderAliasExpression = space+ "as" space+ variableSegment
@@ -713,7 +712,7 @@ StrictLiquidHTML <: LiquidHTML {
 WithPlaceholderLiquid <: Liquid {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
   liquidTagRenderMarkup :=
-    snippetExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
+    partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
   liquidDoc :=
@@ -725,7 +724,7 @@ WithPlaceholderLiquid <: Liquid {
 WithPlaceholderLiquidStatement <: LiquidStatement {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
   liquidTagRenderMarkup :=
-    snippetExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
+    partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
   liquidDoc :=
@@ -737,7 +736,7 @@ WithPlaceholderLiquidStatement <: LiquidStatement {
 WithPlaceholderLiquidHTML <: LiquidHTML {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
   liquidTagRenderMarkup :=
-    snippetExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
+    partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
   leadingTagNameTextNode := (letter | "█") (alnum | "-" | ":" | "█")*

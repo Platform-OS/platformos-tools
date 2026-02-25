@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-check-node",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "platformOS",
@@ -33,8 +33,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/platformos-check-common": "0.0.9",
-    "@platformos/platformos-check-docs-updater": "0.0.9",
+    "@platformos/platformos-check-common": "0.0.10",
+    "@platformos/platformos-check-docs-updater": "0.0.10",
     "glob": "^13.0.0",
     "vscode-uri": "^3.1.0",
     "yaml": "^2.8.2"

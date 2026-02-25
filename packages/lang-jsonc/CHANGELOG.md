@@ -1,5 +1,11 @@
 # @platformos/lang-jsonc
 
+## 0.0.10
+
+### Patch Changes
+
+- Beta release
+
 ## 0.0.9
 
 ### Patch Changes

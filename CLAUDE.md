@@ -97,6 +97,35 @@ The parser uses a two-stage approach:
 - Setup files are in `packages/platformos-check-common/src/test/test-setup.ts` and `packages/platformos-language-server-common/src/test/test-setup.ts`
 - Prettier plugin has separate test runs for v2.x and v3.x compatibility
 
+## Cross-Platform Compatibility
+
+### Path Handling
+
+On Windows, filesystem paths use backslashes (`\`), but glob patterns, regex matchers, minimatch, and URI-based APIs all expect forward slashes (`/`). Always normalize paths before pattern matching or filtering
+
+**Use `normalize-path`** (already a dependency of `platformos-check-node`) for consistent forward-slash conversion:
+
+```typescript
+import normalize from 'normalize-path';
+
+// Normalize glob results before filtering
+const paths = await glob(pattern, { absolute: true });
+const normalized = paths.map(normalize);
+
+// Normalize before constructing glob patterns
+const globPattern = normalize(path.join(root, '**/*.liquid'));
+```
+
+**Do NOT** use manual `.replace(/\\/g, '/')` — use `normalize-path` instead for readability and consistency with pos-cli.
+
+**Key rule**: Any path coming from the filesystem (`glob()`, `path.join()`, `__dirname`, etc.) must be normalized before being passed to:
+- Regex pattern matching (e.g., `isKnownLiquidFile()`, `getFileType()`)
+- minimatch / ignore patterns (e.g., `isIgnored()`)
+- Glob pattern strings
+- URI comparison or construction
+
+**Important: `normalize-path` is for filesystem paths only, NOT URIs.** It collapses multiple slashes (e.g., `file:///` becomes `file:/`), which breaks URI semantics. For URI strings (`file://...`), use the `normalize()` function from `platformos-check-common/src/path.ts` which works with `vscode-uri`. For raw backslash replacement in URIs where you can't use the common normalize, use `.replace(/\\/g, '/')`.
+
 ## Development Workflows
 
 ### Online Store Web Integration

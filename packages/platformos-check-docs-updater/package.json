@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-check-docs-updater",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Scripts to initialize platformOS check data with assets from the platformOS Liquid docs.",
   "main": "dist/index.js",
   "author": "platformOS",
@@ -30,7 +30,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/platformos-check-common": "0.0.8",
+    "@platformos/platformos-check-common": "0.0.9",
     "env-paths": "^2.2.1",
     "he": "^1.2.0"
   },

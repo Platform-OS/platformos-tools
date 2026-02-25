@@ -528,6 +528,43 @@ describe('Unit: Stage 2 (AST)', () => {
             'VariableLookup',
           );
           expectPath(ast, 'children.0.markup.value.expression.entries.0.key.name').to.eql('foo');
+
+          // hash value with filter
+          ast = toAST(`{% assign x = { "page": params.page | to_positive_integer: 1 } %}`);
+          expectPath(ast, 'children.0.markup.value.expression.type').to.eql('JsonHashLiteral');
+          expectPath(ast, 'children.0.markup.value.expression.entries').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.value.expression.entries.0.value.type').to.eql(
+            'LiquidVariable',
+          );
+          expectPath(
+            ast,
+            'children.0.markup.value.expression.entries.0.value.expression.type',
+          ).to.eql('VariableLookup');
+          expectPath(
+            ast,
+            'children.0.markup.value.expression.entries.0.value.filters',
+          ).to.have.lengthOf(1);
+          expectPath(
+            ast,
+            'children.0.markup.value.expression.entries.0.value.filters.0.name',
+          ).to.eql('to_positive_integer');
+
+          // array element with filter (filter element last to avoid comma ambiguity with filter args)
+          ast = toAST(`{% assign x = ["hello", params.page | to_positive_integer: 1] %}`);
+          expectPath(ast, 'children.0.markup.value.expression.type').to.eql('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.value.expression.elements').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.value.expression.elements.0.type').to.eql('String');
+          expectPath(ast, 'children.0.markup.value.expression.elements.1.type').to.eql(
+            'LiquidVariable',
+          );
+          expectPath(
+            ast,
+            'children.0.markup.value.expression.elements.1.filters',
+          ).to.have.lengthOf(1);
+          expectPath(
+            ast,
+            'children.0.markup.value.expression.elements.1.filters.0.name',
+          ).to.eql('to_positive_integer');
         }
       });
 

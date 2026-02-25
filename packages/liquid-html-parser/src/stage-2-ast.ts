@@ -81,6 +81,7 @@ import {
   ConcreteJsonHashLiteral,
   ConcreteJsonArrayLiteral,
   ConcreteJsonKeyValuePair,
+  ConcreteJsonValue,
   // platformos concrete types
   ConcreteLiquidTagBackgroundMarkup,
   ConcreteLiquidTagBackgroundInlineMarkup,
@@ -830,12 +831,12 @@ export interface JsonHashLiteral extends ASTNode<NodeTypes.JsonHashLiteral> {
 /** Represents a key-value pair in a JSON hash literal */
 export interface JsonKeyValuePair extends ASTNode<NodeTypes.JsonKeyValuePair> {
   key: LiquidExpression;
-  value: LiquidExpression;
+  value: LiquidExpression | LiquidVariable;
 }
 
 /** Represents a JSON array literal [el1, el2, ...] */
 export interface JsonArrayLiteral extends ASTNode<NodeTypes.JsonArrayLiteral> {
-  elements: LiquidExpression[];
+  elements: (LiquidExpression | LiquidVariable)[];
 }
 
 /** The union type of all HTML nodes */
@@ -2590,7 +2591,7 @@ function toExpression(node: ConcreteLiquidExpression): LiquidExpression {
     case ConcreteNodeTypes.JsonArrayLiteral: {
       return {
         type: NodeTypes.JsonArrayLiteral,
-        elements: node.elements.map(toExpression),
+        elements: node.elements.map(toJsonValue),
         position: position(node),
         source: node.source,
       };
@@ -2601,11 +2602,18 @@ function toExpression(node: ConcreteLiquidExpression): LiquidExpression {
   }
 }
 
+function toJsonValue(node: ConcreteJsonValue): LiquidExpression | LiquidVariable {
+  if (node.type === ConcreteNodeTypes.LiquidVariable) {
+    return toLiquidVariable(node);
+  }
+  return toExpression(node as ConcreteLiquidExpression);
+}
+
 function toJsonKeyValuePair(node: ConcreteJsonKeyValuePair): JsonKeyValuePair {
   return {
     type: NodeTypes.JsonKeyValuePair,
     key: toExpression(node.key),
-    value: toExpression(node.value as ConcreteLiquidExpression),
+    value: toJsonValue(node.value),
     position: position(node),
     source: node.source,
   };

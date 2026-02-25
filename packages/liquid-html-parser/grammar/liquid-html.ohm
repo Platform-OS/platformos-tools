@@ -151,7 +151,11 @@ Liquid <: Helpers {
   liquidJsonValue<delim> =
     | liquidJsonHashLiteral<delim>
     | liquidJsonArrayLiteral<delim>
+    | liquidJsonItemVariable<delim>
     | liquidExpression<delim>
+  // Like liquidVariable but without &delim lookahead, so it works inside JSON structures.
+  // Requires at least one filter (liquidFilter+) so plain expressions fall through to liquidExpression.
+  liquidJsonItemVariable<delim> = liquidComplexExpression<delim> liquidFilter<delim>+ space*
   liquidJsonSep = space* "," space*
 
   liquidTagHashAssign = liquidTagRule<"hash_assign", liquidTagHashAssignMarkup>

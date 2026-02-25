@@ -712,6 +712,7 @@ export interface ConcreteJsonArrayLiteral extends ConcreteBasicNode<ConcreteNode
 export type ConcreteJsonValue =
   | ConcreteJsonHashLiteral
   | ConcreteJsonArrayLiteral
+  | ConcreteLiquidVariable
   | ConcreteLiquidExpression;
 
 export type ConcreteHtmlNode =
@@ -1131,6 +1132,17 @@ function toCST<T>(
       source,
     },
     liquidJsonValue: 0,
+    liquidJsonItemVariable: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      // No &delim lookahead at end (unlike liquidVariable), so last token is space*
+      rawSource: (tokens: Node[]) =>
+        source.slice(locStart(tokens), tokens[tokens.length - 1].source.endIdx).trimEnd(),
+      locStart,
+      locEnd,
+      source,
+    },
     liquidJsonSep: 1,
     liquidTagHashAssignMarkup: {
       type: ConcreteNodeTypes.HashAssignMarkup,

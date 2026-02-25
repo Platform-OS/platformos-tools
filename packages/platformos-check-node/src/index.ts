@@ -23,6 +23,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URI } from 'vscode-uri';
 import { glob } from 'glob';
+import normalize from 'normalize-path';
 
 import { autofix } from './autofix';
 import { findConfigPath, loadConfig as resolveConfig } from './config';
@@ -127,14 +128,18 @@ export async function getApp(config: Config): Promise<App> {
   let normalizedGlob = getAppFilesPathPattern(config.rootUri);
 
   const paths = await glob(normalizedGlob, { absolute: true }).then((result) =>
-    result.filter((filePath) => {
-      // Global ignored paths should not be part of the app
-      if (isIgnored(filePath, config)) return false;
-      // Only lint .liquid files that belong to a recognized platformOS directory.
-      // Generator templates, build artifacts, etc. are excluded.
-      if (filePath.endsWith('.liquid') && !isKnownLiquidFile(filePath)) return false;
-      return true;
-    }),
+    result
+      // Normalize backslashes to forward slashes so that isKnownLiquidFile() and
+      // isIgnored() regex/minimatch patterns (which use forward slashes) work on Windows.
+      .map(normalize)
+      .filter((filePath) => {
+        // Global ignored paths should not be part of the app
+        if (isIgnored(filePath, config)) return false;
+        // Only lint .liquid files that belong to a recognized platformOS directory.
+        // Generator templates, build artifacts, etc. are excluded.
+        if (filePath.endsWith('.liquid') && !isKnownLiquidFile(filePath)) return false;
+        return true;
+      }),
   );
   const sourceCodes = await Promise.all(paths.map(toSourceCode));
   return sourceCodes.filter(
@@ -144,9 +149,7 @@ export async function getApp(config: Config): Promise<App> {
 }
 
 export function getAppFilesPathPattern(rootUri: string) {
-  return path
-    .normalize(path.join(fileURLToPath(rootUri), '**/*.{liquid,json,graphql,yml,yaml}'))
-    .replace(/\\/g, '/');
+  return normalize(path.join(fileURLToPath(rootUri), '**/*.{liquid,json,graphql,yml,yaml}'));
 }
 
 /** @deprecated Use appCheckRun instead */

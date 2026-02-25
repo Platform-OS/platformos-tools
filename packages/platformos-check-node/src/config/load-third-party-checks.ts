@@ -1,5 +1,6 @@
 import { CheckDefinition, SourceCodeType } from '@platformos/platformos-check-common';
 import { glob } from 'glob';
+import normalize from 'normalize-path';
 import { AbsolutePath } from '../temp';
 
 type ModulePath = string;
@@ -43,8 +44,8 @@ export function loadThirdPartyChecks(
 
 export async function findThirdPartyChecks(nodeModuleRoot: AbsolutePath): Promise<ModulePath[]> {
   const paths = [
-    globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/platformos-check-*/'),
-    globJoin(nodeModuleRoot.replace(/\\/g, '/'), '/node_modules/@*/platformos-check-*/'),
+    globJoin(normalize(nodeModuleRoot), '/node_modules/platformos-check-*/'),
+    globJoin(normalize(nodeModuleRoot), '/node_modules/@*/platformos-check-*/'),
   ];
   const results = await Promise.all(paths.map((path) => glob(path)));
   return results
@@ -57,7 +58,7 @@ export async function findThirdPartyChecks(nodeModuleRoot: AbsolutePath): Promis
 }
 
 function globJoin(...parts: string[]): string {
-  return parts.flatMap((x) => x.replace(/\\/g, '/').replace(/\/+$/, '')).join('/');
+  return parts.flatMap((x) => normalize(x).replace(/\/+$/, '')).join('/');
 }
 
 function isObjLiteral(thing: unknown): thing is Record<PropertyKey, any> {

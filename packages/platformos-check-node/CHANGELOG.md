@@ -1,5 +1,13 @@
 # @platformos/theme-check-node
 
+## 0.0.11
+
+### Patch Changes
+
+- normalize windows path
+  - @platformos/platformos-check-common@0.0.11
+  - @platformos/platformos-check-docs-updater@0.0.11
+
 ## 0.0.10
 
 ### Patch Changes

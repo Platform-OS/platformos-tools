@@ -38,6 +38,7 @@ export enum NodeTypes {
   LogicalExpression = 'LogicalExpression',
 
   AssignMarkup = 'AssignMarkup',
+  AssignPushRhs = 'AssignPushRhs',
   HashAssignMarkup = 'HashAssignMarkup',
   ContentForMarkup = 'ContentForMarkup',
   CycleMarkup = 'CycleMarkup',

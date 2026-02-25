@@ -14,6 +14,7 @@ import {
   JsonHashLiteral,
   JsonArrayLiteral,
   LiquidExpression,
+  LiquidVariable,
   NodeTypes,
 } from '@platformos/liquid-html-parser';
 
@@ -164,9 +165,13 @@ function getJsonKeyName(key: LiquidExpression): string | undefined {
 }
 
 function inferShapeFromExpression(
-  expr: LiquidExpression,
+  expr: LiquidExpression | LiquidVariable,
   resolveExpression?: ExpressionShapeResolver,
 ): PropertyShape {
+  if (expr.type === NodeTypes.LiquidVariable) {
+    // A filtered expression's output type can't be statically inferred
+    return { kind: 'primitive' };
+  }
   switch (expr.type) {
     case NodeTypes.JsonHashLiteral:
     case NodeTypes.JsonArrayLiteral:

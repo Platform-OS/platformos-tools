@@ -150,6 +150,7 @@ function getCssDisplay(node: AugmentedNode<WithSiblings>, options: LiquidParserO
     case NodeTypes.LiquidDocExampleNode:
     case NodeTypes.LiquidDocDescriptionNode:
     case NodeTypes.LiquidDocPromptNode:
+    case NodeTypes.AssignPushRhs:
       return 'should not be relevant';
 
     default:
@@ -277,6 +278,7 @@ function getNodeCssStyleWhiteSpace(
     case NodeTypes.LiquidDocExampleNode:
     case NodeTypes.LiquidDocDescriptionNode:
     case NodeTypes.LiquidDocPromptNode:
+    case NodeTypes.AssignPushRhs:
       return 'should not be relevant';
 
     default:

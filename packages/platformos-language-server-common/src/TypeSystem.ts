@@ -1,5 +1,6 @@
 import {
   AssignMarkup,
+  AssignPushRhs,
   ComplexLiquidExpression,
   FunctionMarkup,
   LiquidDocParamNode,
@@ -383,8 +384,15 @@ async function buildSymbolsTable(
     // {% assign x = {a: 1, b: "hello"} %}
     // {% assign x["key"] = value %}
     // {% assign arr << item %}
+    // {% assign arr = source << item %}
     async AssignMarkup(node) {
-      const expression = node.value.expression;
+      // For explicit push form (assign a = source << value), treat as array append
+      const isPushRhs = node.value.type === NodeTypes.AssignPushRhs;
+      const effectiveValue = isPushRhs
+        ? (node.value as AssignPushRhs).pushValue
+        : (node.value as LiquidVariable);
+      const effectiveOperator = isPushRhs ? '<<' : node.operator;
+      const expression = effectiveValue.expression;
       let valueShape: PropertyShape | undefined;
 
       // Resolver for variable references inside JSON literals
@@ -451,7 +459,7 @@ async function buildSymbolsTable(
 
       // Case 2: parse_json / to_hash filter on a string
       if (!valueShape) {
-        const hasParseJsonFilter = node.value.filters?.some(
+        const hasParseJsonFilter = effectiveValue.filters?.some(
           (f: { name: string }) => f.name === 'parse_json' || f.name === 'to_hash',
         );
         if (hasParseJsonFilter) {
@@ -459,8 +467,8 @@ async function buildSymbolsTable(
           if (expression.type === NodeTypes.String) {
             jsonString = expression.value;
           }
-          if (!jsonString && node.value.filters) {
-            const defaultFilter = node.value.filters.find(
+          if (!jsonString && effectiveValue.filters) {
+            const defaultFilter = effectiveValue.filters.find(
               (f: { name: string }) => f.name === 'default',
             );
             if (
@@ -479,7 +487,10 @@ async function buildSymbolsTable(
       }
 
       // Case 3: Infer primitive shape for << and LHS lookup scenarios
-      if (!valueShape && ((node.lookups && node.lookups.length > 0) || node.operator === '<<')) {
+      if (
+        !valueShape &&
+        ((node.lookups && node.lookups.length > 0) || effectiveOperator === '<<')
+      ) {
         if (expression.type === NodeTypes.String) {
           valueShape = { kind: 'primitive', primitiveType: 'string' };
         } else if (expression.type === NodeTypes.Number) {
@@ -537,8 +548,8 @@ async function buildSymbolsTable(
         }
       }
 
-      // Handle << operator (array append)
-      if (node.operator === '<<') {
+      // Handle << operator (array append), including explicit form (assign a = source << value)
+      if (effectiveOperator === '<<') {
         const itemShape: PropertyShape = valueShape ?? { kind: 'primitive' };
         const existingShapes = variableShapes.get(node.name) || [];
         const existingShapeEntry = findLastApplicableShape(existingShapes, node.position.start);
@@ -578,7 +589,7 @@ async function buildSymbolsTable(
       // Default: lazy variable type
       return {
         identifier: node.name,
-        type: lazyVariable(node.value, node.position.start),
+        type: lazyVariable(effectiveValue, node.position.start),
         range: [node.position.end],
       };
     },
@@ -986,7 +997,9 @@ function inferType(
     // The type of the assign markup is the type of the right hand side.
     // {% assign x = y.property | filter1 | filter2 %}
     case NodeTypes.AssignMarkup: {
-      return inferType(thing.value, symbolsTable, objectMap, filtersMap);
+      const assignValue =
+        thing.value.type === NodeTypes.AssignPushRhs ? thing.value.pushValue : thing.value;
+      return inferType(assignValue, symbolsTable, objectMap, filtersMap);
     }
 
     // A variable lookup is expression[.lookup]*

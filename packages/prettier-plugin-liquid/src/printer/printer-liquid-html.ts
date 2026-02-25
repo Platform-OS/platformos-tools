@@ -787,6 +787,14 @@ function printNode(
       ]);
     }
 
+    case NodeTypes.AssignPushRhs: {
+      return [
+        path.call((p: any) => print(p), 'pushSource'),
+        ' << ',
+        path.call((p: any) => print(p), 'pushValue'),
+      ];
+    }
+
     default: {
       return assertNever(node);
     }

@@ -58,6 +58,7 @@ import {
   ConcreteLiquidTagNamed,
   ConcreteLiquidTag,
   ConcreteLiquidTagAssignMarkup,
+  ConcreteLiquidTagAssignPushRhs,
   ConcreteLiquidTagRenderMarkup,
   ConcreteLiquidTagFunctionMarkup,
   ConcreteLiquidTagGraphQLMarkup,
@@ -81,6 +82,7 @@ import {
   ConcreteJsonHashLiteral,
   ConcreteJsonArrayLiteral,
   ConcreteJsonKeyValuePair,
+  ConcreteJsonValue,
   // platformos concrete types
   ConcreteLiquidTagBackgroundMarkup,
   ConcreteLiquidTagBackgroundInlineMarkup,
@@ -116,6 +118,7 @@ export type LiquidHtmlNode =
   | LiquidFilter
   | LiquidNamedArgument
   | AssignMarkup
+  | AssignPushRhs
   | HashAssignMarkup
   | ContentForMarkup
   | CycleMarkup
@@ -322,8 +325,16 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
   /** '=' for assignment, '<<' for array append */
   operator: '=' | '<<';
 
-  /** the value of the variable that is being assigned */
-  value: LiquidVariable;
+  /** the value of the variable that is being assigned, or a push expression */
+  value: LiquidVariable | AssignPushRhs;
+}
+
+/** The RHS of an explicit push assign: `assign a = source << value` */
+export interface AssignPushRhs extends ASTNode<NodeTypes.AssignPushRhs> {
+  /** the source array to push into */
+  pushSource: LiquidVariable;
+  /** the value being pushed */
+  pushValue: LiquidVariable;
 }
 
 export interface LiquidTagHashAssign extends LiquidTagNode<
@@ -830,12 +841,12 @@ export interface JsonHashLiteral extends ASTNode<NodeTypes.JsonHashLiteral> {
 /** Represents a key-value pair in a JSON hash literal */
 export interface JsonKeyValuePair extends ASTNode<NodeTypes.JsonKeyValuePair> {
   key: LiquidExpression;
-  value: LiquidExpression;
+  value: LiquidExpression | LiquidVariable;
 }
 
 /** Represents a JSON array literal [el1, el2, ...] */
 export interface JsonArrayLiteral extends ASTNode<NodeTypes.JsonArrayLiteral> {
-  elements: LiquidExpression[];
+  elements: (LiquidExpression | LiquidVariable)[];
 }
 
 /** The union type of all HTML nodes */
@@ -2118,12 +2129,26 @@ function toUnnamedLiquidBranch(parentNode: LiquidHtmlNode): LiquidBranchUnnamed 
 }
 
 function toAssignMarkup(node: ConcreteLiquidTagAssignMarkup): AssignMarkup {
+  const value =
+    node.value.type === ConcreteNodeTypes.AssignPushRhs
+      ? toAssignPushRhs(node.value)
+      : toLiquidVariable(node.value);
   return {
     type: NodeTypes.AssignMarkup,
     name: node.name,
     lookups: node.target.lookups.map(toExpression),
     operator: node.operator as '=' | '<<',
-    value: toLiquidVariable(node.value),
+    value,
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toAssignPushRhs(node: ConcreteLiquidTagAssignPushRhs): AssignPushRhs {
+  return {
+    type: NodeTypes.AssignPushRhs,
+    pushSource: toLiquidVariable(node.pushSource),
+    pushValue: toLiquidVariable(node.pushValue),
     position: position(node),
     source: node.source,
   };
@@ -2590,7 +2615,7 @@ function toExpression(node: ConcreteLiquidExpression): LiquidExpression {
     case ConcreteNodeTypes.JsonArrayLiteral: {
       return {
         type: NodeTypes.JsonArrayLiteral,
-        elements: node.elements.map(toExpression),
+        elements: node.elements.map(toJsonValue),
         position: position(node),
         source: node.source,
       };
@@ -2601,11 +2626,18 @@ function toExpression(node: ConcreteLiquidExpression): LiquidExpression {
   }
 }
 
+function toJsonValue(node: ConcreteJsonValue): LiquidExpression | LiquidVariable {
+  if (node.type === ConcreteNodeTypes.LiquidVariable) {
+    return toLiquidVariable(node);
+  }
+  return toExpression(node as ConcreteLiquidExpression);
+}
+
 function toJsonKeyValuePair(node: ConcreteJsonKeyValuePair): JsonKeyValuePair {
   return {
     type: NodeTypes.JsonKeyValuePair,
     key: toExpression(node.key),
-    value: toExpression(node.value as ConcreteLiquidExpression),
+    value: toJsonValue(node.value),
     position: position(node),
     source: node.source,
   };

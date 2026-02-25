@@ -126,11 +126,20 @@ Liquid <: Helpers {
   liquidTagEchoMarkup = liquidVariable<delimTag>
 
   liquidTagAssign = liquidTagRule<"assign", liquidTagAssignMarkup>
-  liquidTagAssignMarkup = assignTarget<delimTag> space* assignOperator space* liquidAssignVariable<delimTag>
+  liquidTagAssignMarkup = assignTarget<delimTag> space* assignOperator space* liquidAssignValue<delimTag>
 
   // Assign-specific sub-rules
   assignTarget<delim> = variableSegment lookup<delim>*
   assignOperator = "<<" | "="
+
+  // The RHS of an assign: either an explicit push expression (source << value) or a regular value
+  liquidAssignValue<delim> = liquidAssignPushExpr<delim> | liquidAssignVariable<delim>
+
+  // Explicit push: assign a = source << value (equivalent to assign a << value when source is a)
+  liquidAssignPushExpr<delim> = liquidAssignPushSource<delim> space* "<<" space* liquidAssignVariable<delim>
+
+  // The source expression for a push (no &delim lookahead since "<<" follows)
+  liquidAssignPushSource<delim> = liquidAssignExpression<delim> liquidFilter<delim>* space*
 
   // Assign variable: like liquidVariable but expression allows JSON literals
   liquidAssignVariable<delim> = liquidAssignExpression<delim> liquidFilter<delim>* space* &delim
@@ -151,7 +160,16 @@ Liquid <: Helpers {
   liquidJsonValue<delim> =
     | liquidJsonHashLiteral<delim>
     | liquidJsonArrayLiteral<delim>
+    | liquidJsonItemVariable<delim>
     | liquidExpression<delim>
+  // Like liquidVariable but without &delim lookahead, so it works inside JSON structures.
+  // Requires at least one filter (liquidJsonFilter+) so plain expressions fall through to liquidExpression.
+  // Uses liquidJsonFilter (no trailing comma) instead of liquidFilter to avoid consuming the
+  // JSON entry separator comma (e.g. the "," in { "a": x | filter: arg, "b": y }).
+  liquidJsonItemVariable<delim> = liquidComplexExpression<delim> liquidJsonFilter<delim>+ space*
+  // Like liquidFilter but without the trailing (space* ",")? so commas between JSON entries
+  // are not consumed as trailing filter argument commas.
+  liquidJsonFilter<delim> = space* "|" space* identifier (space* ":" space* arguments<delim>)?
   liquidJsonSep = space* "," space*
 
   liquidTagHashAssign = liquidTagRule<"hash_assign", liquidTagHashAssignMarkup>
@@ -321,7 +339,7 @@ Liquid <: Helpers {
     | ">="
     | "<="
     | ">"
-    | "<")
+    | "<" ~"<")
     | ("contains" ~identifier)
 
   liquidDrop = "{{" "-"? space* liquidDropCases "-"? "}}"

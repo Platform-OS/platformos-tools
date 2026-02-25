@@ -881,5 +881,24 @@ query {
         });
       }
     });
+
+    it('should support explicit push form (assign a = source << value)', async () => {
+      const ast = toLiquidHtmlAST(`{% assign arr = [] %}{% assign arr = arr << "item" %}{{ arr }}`);
+      const variableOutput = ast.children[2];
+      assert(isLiquidVariableOutput(variableOutput));
+      const inferredType = await typeSystem.inferType(
+        variableOutput.markup,
+        ast,
+        'file:///file.liquid',
+      );
+      expect(inferredType).to.have.property('kind', 'shape');
+      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
+        expect(inferredType.shape.kind).to.equal('array');
+        expect(inferredType.shape.itemShape).to.deep.equal({
+          kind: 'primitive',
+          primitiveType: 'string',
+        });
+      }
+    });
   });
 });

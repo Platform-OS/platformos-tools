@@ -41,10 +41,10 @@ export class TranslationCompletionProvider implements Provider {
     const translations = await this.getTranslationsForURI(params.textDocument.uri);
     const partial = node.value;
 
-    // We only want to show standard translations to complete if the translation
-    // is prefixed by shopify. Otherwise it's too noisy.
+    // We only want to show platformos system translations if the user is already
+    // typing that namespace prefix. Otherwise it's too noisy.
     const options = translationOptions(translations).filter(
-      (option) => !option.path[0]?.startsWith('shopify') || partial.startsWith('shopify'),
+      (option) => !option.path[0]?.startsWith('platformos') || partial.startsWith('platformos'),
     );
 
     const [_currentNode, realAncestors] =

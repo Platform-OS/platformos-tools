@@ -3,12 +3,12 @@ import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
 import { DocDefinition } from '@platformos/platformos-check-common';
 
-const uri = 'file:///snippets/product-card.liquid';
+const uri = 'file:///app/views/partials/product-card.liquid';
 
-describe('Module: RenderSnippetParameterCompletionProvider', async () => {
+describe('Module: RenderPartialParameterCompletionProvider', async () => {
   let provider: CompletionsProvider;
-  const mockSnippetName = 'product-card';
-  const mockSnippetDefinition: DocDefinition = {
+  const mockPartialName = 'product-card';
+  const mockPartialDefinition: DocDefinition = {
     uri,
     liquidDoc: {
       parameters: [
@@ -61,16 +61,16 @@ describe('Module: RenderSnippetParameterCompletionProvider', async () => {
         liquidDrops: async () => [],
         tags: async () => [],
       },
-      getDocDefinitionForURI: async (_uri, snippetName) => {
-        if (mockSnippetName === snippetName) {
-          return mockSnippetDefinition;
+      getDocDefinitionForURI: async (_uri, partialName) => {
+        if (mockPartialName === partialName) {
+          return mockPartialDefinition;
         }
       },
     });
   });
 
   it("provide completion options that doesn't already exist in render tag", async () => {
-    await expect(provider).to.complete(`{% render '${mockSnippetName}', █ %}`, [
+    await expect(provider).to.complete(`{% render '${mockPartialName}', █ %}`, [
       'title',
       'border-radius',
       'no-type',
@@ -78,12 +78,12 @@ describe('Module: RenderSnippetParameterCompletionProvider', async () => {
       'no-type-or-description',
     ]);
     await expect(provider).to.complete(
-      `{% render '${mockSnippetName}', title: 'foo', border-radius: 5, █ %}`,
+      `{% render '${mockPartialName}', title: 'foo', border-radius: 5, █ %}`,
       ['no-type', 'no-description', 'no-type-or-description'],
     );
   });
 
-  it('does not provide completion options if the snippet does not exist', async () => {
-    await expect(provider).to.complete(`{% render 'fake-snippet', █ %}`, []);
+  it('does not provide completion options if the partial does not exist', async () => {
+    await expect(provider).to.complete(`{% render 'fake-partial', █ %}`, []);
   });
 });

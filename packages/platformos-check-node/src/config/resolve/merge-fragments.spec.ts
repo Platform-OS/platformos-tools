@@ -20,7 +20,7 @@ describe('Unit: mergeFragments', () => {
         checkSettings: {
           SomeCheck: {
             enabled: true,
-            ignore: ['snippets'],
+            ignore: ['app/views/partials'],
           },
         },
       },
@@ -28,7 +28,7 @@ describe('Unit: mergeFragments', () => {
         root: './dist2',
         extends: [],
         ignore: ['config'],
-        require: ['@acme/theme-check-extension'],
+        require: ['@acme/platformos-check-extension'],
         checkSettings: {
           AnotherCheck: {
             enabled: false,
@@ -40,7 +40,7 @@ describe('Unit: mergeFragments', () => {
 
     const config: ConfigFragment = {
       ignore: ['node_modules'],
-      extends: ['theme-check:recommended'],
+      extends: ['platformos-check:recommended'],
       require: [],
       checkSettings: {
         SomeCheck: {
@@ -55,11 +55,11 @@ describe('Unit: mergeFragments', () => {
       root: './dist2',
       extends: [],
       ignore: ['assets', 'config', 'node_modules'],
-      require: ['./lib/index.js', '@acme/theme-check-extension'],
+      require: ['./lib/index.js', '@acme/platformos-check-extension'],
       checkSettings: {
         SomeCheck: {
           enabled: false,
-          ignore: ['snippets'],
+          ignore: ['app/views/partials'],
         },
         AnotherCheck: {
           enabled: false,
@@ -142,7 +142,7 @@ describe('Unit: mergeFragments', () => {
         checkSettings: {
           SomeCheck: {
             enabled: true,
-            ignore: ['snippets'],
+            ignore: ['app/views/partials'],
             key1: 'value1',
             key2: 'value2',
           },

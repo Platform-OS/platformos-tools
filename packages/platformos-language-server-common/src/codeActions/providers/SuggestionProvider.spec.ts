@@ -88,7 +88,7 @@ describe('Unit: SuggestionProvider', () => {
         isPreferred: false,
         command: {
           title: 'applySuggestion',
-          command: 'themeCheck/applySuggestion',
+          command: 'platformosCheck/applySuggestion',
           arguments: [uri, version, anomalyId, 0],
         },
       });
@@ -100,7 +100,7 @@ describe('Unit: SuggestionProvider', () => {
         isPreferred: false,
         command: {
           title: 'applySuggestion',
-          command: 'themeCheck/applySuggestion',
+          command: 'platformosCheck/applySuggestion',
           arguments: [uri, version, anomalyId, 1],
         },
       });

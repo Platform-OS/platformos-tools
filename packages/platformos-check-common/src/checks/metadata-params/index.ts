@@ -97,7 +97,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
 
     return {
       async RenderMarkup(node) {
-        const targetFile = 'value' in node.snippet ? node.snippet.value : node.snippet.name;
+        const targetFile = 'value' in node.partial ? node.partial.value : node.partial.name;
         if (!targetFile) {
           return;
         }

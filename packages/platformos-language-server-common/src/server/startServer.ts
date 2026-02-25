@@ -362,18 +362,17 @@ export function startServer(
       runChecks([uri]);
     }
 
-    // The objective at the time of writing this is to make {Asset,Snippet}Rename
+    // The objective at the time of writing this is to make {Asset,Partial}Rename
     // fast when you eventually need it.
     //
     // I'm choosing the textDocument/didOpen notification as a hook because
     // I'm not sure we have a better solution than this. Yes we have the
     // initialize request with the workspace folders, but you might have opened
-    // an app folder. The root of a theme app extension would probably be
-    // at ${workspaceRoot}/extensions/${appExtensionName}. It'd be hard to
-    // figure out from the initialize request params.
+    // an app folder. It'd be hard to figure out the root from the
+    // initialize request params alone.
     //
     // If we open a file that we know is liquid, then we can kind of guarantee
-    // we'll find a theme root and we'll preload that.
+    // we'll find an app root and we'll preload that.
     if (await configuration.shouldPreloadOnBoot()) {
       const rootUri = await findAppRootURI(uri);
       if (rootUri) {

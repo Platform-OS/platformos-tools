@@ -41,7 +41,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
 
     for (const test of typeTests) {
       describe(`${test.type} validation`, () => {
-        const makeSnippet = (type: string) => `
+        const makePartial = (type: string) => `
           {% doc %}
             @param {${type}} param - Description
           {% enddoc %}
@@ -57,7 +57,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
               undefined,
               {},
               {
-                'app/views/partials/card.liquid': makeSnippet(test.type),
+                'app/views/partials/card.liquid': makePartial(test.type),
               },
             );
             expect(offenses).toHaveLength(0);
@@ -73,7 +73,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
               undefined,
               {},
               {
-                'app/views/partials/card.liquid': makeSnippet(test.type),
+                'app/views/partials/card.liquid': makePartial(test.type),
               },
             );
             expect(offenses).toHaveLength(1);
@@ -226,7 +226,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
   });
 
   describe('suggestions', () => {
-    const makeSnippet = (type: string) => `
+    const makePartial = (type: string) => `
       {% doc %}
         @param {${type}} param - Description
       {% enddoc %}
@@ -241,7 +241,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 
@@ -291,7 +291,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 
@@ -338,7 +338,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 
@@ -356,7 +356,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 
@@ -376,7 +376,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 
@@ -396,7 +396,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 
@@ -414,7 +414,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('object'),
+          'app/views/partials/card.liquid': makePartial('object'),
         },
       );
 
@@ -431,7 +431,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 
@@ -452,7 +452,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         undefined,
         {},
         {
-          'app/views/partials/card.liquid': makeSnippet('string'),
+          'app/views/partials/card.liquid': makePartial('string'),
         },
       );
 

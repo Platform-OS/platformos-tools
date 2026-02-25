@@ -104,8 +104,8 @@ export class LiquidVariableRenameProvider implements BaseRenameProvider {
     });
 
     if (this.clientCapabilities.hasApplyEditSupport && liquidDocParamUpdated) {
-      const themeFiles = this.documentManager.app(rootUri, true);
-      const liquidSourceCodes = themeFiles.filter(isLiquidSourceCode);
+      const appFiles = this.documentManager.app(rootUri, true);
+      const liquidSourceCodes = appFiles.filter(isLiquidSourceCode);
       const name = partialName(params.textDocument.uri);
 
       await updateRenderTags(this.connection, liquidSourceCodes, name, oldName, params.newName);
@@ -242,7 +242,7 @@ async function updateRenderTags(
     const textDocument = sourceCode.textDocument;
     const edits: TextEdit[] = await visit<SourceCodeType.LiquidHtml, TextEdit>(sourceCode.ast, {
       async RenderMarkup(node: RenderMarkup) {
-        if (node.snippet.type !== NodeTypes.String || node.snippet.value !== partialName) {
+        if (node.partial.type !== NodeTypes.String || node.partial.value !== partialName) {
           return;
         }
 

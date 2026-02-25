@@ -238,7 +238,7 @@ describe('Unit: extractDocDefinition', () => {
     });
   });
 
-  it('should return snippetDefinition without liquidDoc property if doc header is not present', async () => {
+  it('should return partialDefinition without liquidDoc property if doc header is not present', async () => {
     const ast = toAST(`
       <div>No doc header here</div>
     `);

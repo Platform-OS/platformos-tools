@@ -19,7 +19,7 @@ ignore:
 extends: platformos-check:recommended
 SomeCheck:
   enabled: false
-  ignore: [snippets]
+  ignore: [app/views/partials]
   some_setting: value
 `;
 
@@ -46,7 +46,7 @@ describe('Unit: readYamlConfigDescription', () => {
       checkSettings: {
         SomeCheck: {
           enabled: false,
-          ignore: ['snippets'],
+          ignore: ['app/views/partials'],
           someSetting: 'value',
         },
       },
@@ -104,9 +104,14 @@ describe('Unit: readYamlConfigDescription', () => {
 
     it('translates a node_module into the resolved path of the node_module relative to the config file', async () => {
       const filePath = await createMockYamlFile(
-        `extends: '@acme/theme-check-base/recommended.yml'`,
+        `extends: '@acme/platformos-check-base/recommended.yml'`,
       );
-      const mockNodeModulePath = path.join(tempDir, 'node_modules', '@acme', 'theme-check-base');
+      const mockNodeModulePath = path.join(
+        tempDir,
+        'node_modules',
+        '@acme',
+        'platformos-check-base',
+      );
 
       // mock config-relative node_modules
       await fs.mkdir(mockNodeModulePath, { recursive: true });
@@ -114,7 +119,7 @@ describe('Unit: readYamlConfigDescription', () => {
       // mock node_module package.json
       await fs.writeFile(
         path.join(mockNodeModulePath, 'package.json'),
-        JSON.stringify({ name: '@acme/theme-check-base', main: 'index.js', version: '0.0.1' }),
+        JSON.stringify({ name: '@acme/platformos-check-base', main: 'index.js', version: '0.0.1' }),
         'utf8',
       );
 
@@ -150,8 +155,11 @@ describe('Unit: readYamlConfigDescription', () => {
     });
 
     it('translates a node_module into the resolved path of the node_module relative to the config file', async () => {
-      const filePath = await createMockYamlFile(`require: '@acme/theme-check-extension'`);
-      const nodeModuleRoot = await createMockNodeModule(tempDir, '@acme/theme-check-extension');
+      const filePath = await createMockYamlFile(`require: '@acme/platformos-check-extension'`);
+      const nodeModuleRoot = await createMockNodeModule(
+        tempDir,
+        '@acme/platformos-check-extension',
+      );
       const config = await readYamlConfigDescription(filePath);
       expect(config.require).toEqual([realpathSync(path.join(nodeModuleRoot, 'index.js'))]);
     });

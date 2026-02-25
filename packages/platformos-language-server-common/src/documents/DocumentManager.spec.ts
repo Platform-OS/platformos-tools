@@ -143,16 +143,16 @@ describe('Module: DocumentManager', () => {
 
       fs = new MockFileSystem(
         {
-          'snippet/1.liquid': `hello {% render 'bar' %}`,
-          'snippet/2.liquid': `hello {% render 'bar' %}`,
-          'snippet/3.liquid': `hello {% render 'bar' %}`,
-          'snippet/4.liquid': `hello {% render 'bar' %}`,
-          'snippet/5.liquid': `hello {% render 'bar' %}`,
-          'snippet/6.liquid': `hello {% render 'bar' %}`,
-          'snippet/7.liquid': `hello {% render 'bar' %}`,
-          'snippet/8.liquid': `hello {% render 'bar' %}`,
-          'snippet/9.liquid': `hello {% render 'bar' %}`,
-          'snippet/10.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/1.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/2.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/3.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/4.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/5.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/6.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/7.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/8.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/9.liquid': `hello {% render 'bar' %}`,
+          'app/views/partials/10.liquid': `hello {% render 'bar' %}`,
         },
         mockRoot,
       );

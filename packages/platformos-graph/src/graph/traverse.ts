@@ -63,7 +63,7 @@ async function traverseLiquidModule(
     SourceCodeType.LiquidHtml,
     { target: AppModule; sourceRange: Range; targetRange?: Range }
   > = {
-    // {{ 'theme.js' | asset_url }}
+    // {{ 'app.js' | asset_url }}
     // {{ 'image.png' | asset_img_url }}
     // {{ 'icon.svg' | inline_asset_content }}
     LiquidFilter: async (node, ancestors) => {
@@ -105,11 +105,11 @@ async function traverseLiquidModule(
 
     // {% render 'partial' %}
     RenderMarkup: async (node, ancestors) => {
-      const snippet = node.snippet;
+      const partial = node.partial;
       const tag = ancestors.at(-1)!;
-      if (!isString(snippet) && snippet.type === NodeTypes.String) {
+      if (!isString(partial) && partial.type === NodeTypes.String) {
         return {
-          target: getPartialModule(appGraph, snippet.value),
+          target: getPartialModule(appGraph, partial.value),
           sourceRange: [tag.position.start, tag.position.end],
         };
       }

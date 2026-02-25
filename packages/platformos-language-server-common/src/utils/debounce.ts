@@ -27,7 +27,7 @@ export interface DebouncedFunction<F extends Function> {
  * This is useful in cases where you have an "expensive" function that you only want
  * to execute after the user is idle for a little bit.
  *
- * e.g. Run theme check after the user has stopped typing for at least 100ms.
+ * e.g. Run platformos-check after the user has stopped typing for at least 100ms.
  *
  * The debounced function has the same type signature as its argument.
  *

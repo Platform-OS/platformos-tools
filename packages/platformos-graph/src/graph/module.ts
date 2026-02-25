@@ -46,9 +46,6 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
 
     case relativePath.startsWith('assets') || relativePath.startsWith('modules'):
       return getAssetModule(appGraph, path.basename(uri));
-
-    case relativePath.startsWith('snippets'):
-      return getPartialModule(appGraph, path.basename(uri, '.liquid'));
   }
 }
 

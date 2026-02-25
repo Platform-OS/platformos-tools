@@ -9,7 +9,7 @@
 
 platformOS Check helps you follow best practices by analyzing your platformOS files.
 
-Theme Check is available [to code editors that support the Language Server Protocol](https://github.com/Platform-OS/platformos-tools/wiki).
+platformOS Check is available [to code editors that support the Language Server Protocol](https://github.com/Platform-OS/platformos-tools/wiki).
 
 You may be interested by the sibling modules:
 
@@ -61,10 +61,10 @@ main();
 The browser version is a bit more complex, you need to provide your own implementation of all the dependency injections.
 
 ```ts
-import { simpleCheck, recommended, ThemeData, Config, Dependencies } from '@platformos/platformos-check-browser';
+import { simpleCheck, recommended, Config, Dependencies } from '@platformos/platformos-check-browser';
 
 async function main() {
-  const themeDesc = {
+  const appDesc = {
     'app/views/partials/product-card.liquid': '{{ product | image_url | image_tag }}',
     'app/views/partials/for-loop.liquid': '{% for variant in product.variants %}...{% endfor %}',
   };
@@ -79,7 +79,7 @@ async function main() {
     // ...
   };
 
-  const offenses = await simpleCheck(themeDesc, config, dependencies);
+  const offenses = await simpleCheck(appDesc, config, dependencies);
 
   console.log(offenses);
 }

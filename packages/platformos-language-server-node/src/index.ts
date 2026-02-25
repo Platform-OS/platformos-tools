@@ -14,13 +14,13 @@ export const getConnection = () => createConnection(stdin, stdout);
 export function startServer(connection = getConnection(), fs: AbstractFileSystem = NodeFileSystem) {
   // Using console.error to not interfere with messages sent on STDIN/OUT
   const log = (message: string) => console.error(message);
-  const themeLiquidDocsManager = new PlatformOSLiquidDocsManager(log);
+  const platformosLiquidDocsManager = new PlatformOSLiquidDocsManager(log);
 
   startCoreServer(connection, {
     fs,
     log,
     loadConfig,
-    platformosDocset: themeLiquidDocsManager,
-    jsonValidationSet: themeLiquidDocsManager,
+    platformosDocset: platformosLiquidDocsManager,
+    jsonValidationSet: platformosLiquidDocsManager,
   });
 }

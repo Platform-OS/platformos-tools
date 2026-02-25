@@ -25,15 +25,15 @@ describe('Unit: getApp', () => {
     await workspace.clean();
   });
 
-  it('should correctly get theme on all platforms', async () => {
+  it('should correctly get app on all platforms', async () => {
     const config: Config = {
       checks: [],
       rootUri: workspace.rootUri,
       settings: {},
     };
 
-    const theme = await getApp(config);
-    const jsonFile = theme.find((sc) => sc.type === SourceCodeType.JSON);
+    const app = await getApp(config);
+    const jsonFile = app.find((sc) => sc.type === SourceCodeType.JSON);
     assert(jsonFile);
 
     // internally we expect the path to be normalized

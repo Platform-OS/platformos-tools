@@ -1,5 +1,5 @@
 import {
-  Config as ThemeCheckConfig,
+  Config as PlatformOSCheckConfig,
   allChecks,
   recommended as recommendedChecks,
   SourceCodeType,
@@ -20,7 +20,7 @@ export {
 export { debounce, memo, parseJSON, ArgumentTypes } from './utils';
 export { startServer } from './server';
 export {
-  ThemeCheckConfig,
+  PlatformOSCheckConfig,
   recommendedChecks,
   allChecks,
   AbstractFileSystem,

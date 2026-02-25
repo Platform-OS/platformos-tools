@@ -6,11 +6,11 @@ import { GetDocDefinitionForURI, DocDefinition } from '@platformos/platformos-ch
 import { TranslationProvider } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 
-const uri = 'file:///snippets/product-card.liquid';
+const uri = 'file:///app/views/partials/product-card.liquid';
 
-describe('Module: RenderSnippetHoverProvider', async () => {
+describe('Module: RenderPartialHoverProvider', async () => {
   let provider: HoverProvider;
-  const mockSnippetDefinition: DocDefinition = {
+  const mockPartialDefinition: DocDefinition = {
     uri,
     liquidDoc: {
       parameters: [
@@ -36,10 +36,10 @@ describe('Module: RenderSnippetHoverProvider', async () => {
   };
 
   describe('hover', () => {
-    it('should return snippet definition with all parameters', async () => {
-      provider = createProvider(async () => mockSnippetDefinition);
+    it('should return partial definition with all parameters', async () => {
+      provider = createProvider(async () => mockPartialDefinition);
       // prettier-ignore
-      const expectedHoverContent = 
+      const expectedHoverContent =
 `### product-card
 
 **Description:**
@@ -59,13 +59,13 @@ This is a description
     });
 
     it('should return nothing if not in render tag', async () => {
-      await expect(provider).to.hover(`{% assign asdf = 'snip█pet' %}`, null);
-      await expect(provider).to.hover(`{{ 'snip█pet' }}`, null);
+      await expect(provider).to.hover(`{% assign asdf = 'any-str█ing' %}`, null);
+      await expect(provider).to.hover(`{{ 'any-str█ing' }}`, null);
     });
   });
 });
 
-const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
+const createProvider = (getPartialDefinition: GetDocDefinitionForURI) => {
   return new HoverProvider(
     new DocumentManager(),
     {
@@ -77,6 +77,6 @@ const createProvider = (getSnippetDefinition: GetDocDefinitionForURI) => {
     },
     new TranslationProvider(new MockFileSystem({})),
     async () => ({}),
-    getSnippetDefinition,
+    getPartialDefinition,
   );
 };

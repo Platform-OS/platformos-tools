@@ -1,7 +1,7 @@
 {
   "name": "@platformos/platformos-check-docs-updater",
   "version": "0.0.8",
-  "description": "Scripts to initialize theme-check data with assets from the theme-liquid-docs repo.",
+  "description": "Scripts to initialize platformOS check data with assets from the platformOS Liquid docs.",
   "main": "dist/index.js",
   "author": "platformOS",
   "license": "MIT",

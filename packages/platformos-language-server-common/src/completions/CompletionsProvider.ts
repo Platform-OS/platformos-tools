@@ -38,7 +38,7 @@ export interface CompletionProviderDependencies {
   fs?: AbstractFileSystem;
   /** Locator for finding documents by type */
   documentsLocator?: DocumentsLocator;
-  /** Function to find the theme root URI for a given file */
+  /** Function to find the app root URI for a given file */
   findAppRootURI?: FindAppRootURI;
   log?: (message: string) => void;
   /** Callback to notify when unable to infer properties for a variable */

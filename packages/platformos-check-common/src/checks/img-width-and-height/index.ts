@@ -7,7 +7,7 @@ export const ImgWidthAndHeight: LiquidCheckDefinition = {
     name: 'Width and height attributes on image tags',
     docs: {
       description:
-        'This check is aimed at eliminating content layout shift in themes by enforcing the use of the width and height attributes on img tags.',
+        'This check is aimed at eliminating content layout shift by enforcing the use of the width and height attributes on img tags.',
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/img-width-and-height',
     },

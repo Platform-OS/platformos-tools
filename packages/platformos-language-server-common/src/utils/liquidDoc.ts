@@ -29,7 +29,7 @@ export function formatLiquidDocTagHandle(label: string, description: string, exa
 export const SUPPORTED_LIQUID_DOC_TAG_HANDLES = {
   [SupportedDocTagTypes.Param]: {
     description:
-      'Provides information about a parameter for the snippet.\n' +
+      'Provides information about a parameter for the partial.\n' +
       `- The type of parameter is optional and can be ${Object.values(BasicParamTypes)
         .map((type) => `\`${type}\``)
         .join(', ')}\n` +
@@ -45,15 +45,15 @@ export const SUPPORTED_LIQUID_DOC_TAG_HANDLES = {
     template: `param {$2} $1$0`,
   },
   [SupportedDocTagTypes.Example]: {
-    description: 'Provides an example on how to use the snippet.',
+    description: 'Provides an example on how to use the partial.',
     example:
-      '{% doc %}\n' + '  @example {% render "snippet-name", arg1: "value" %}\n' + '{% enddoc %}\n',
+      '{% doc %}\n' + '  @example {% render "partial-name", arg1: "value" %}\n' + '{% enddoc %}\n',
     template: `example $0`,
   },
   [SupportedDocTagTypes.Description]: {
-    description: 'Provides information on what the snippet does.',
+    description: 'Provides information on what the partial does.',
     example:
-      '{% doc %}\n' + '  @description This snippet renders a product image.\n' + '{% enddoc %}\n',
+      '{% doc %}\n' + '  @description This partial renders a product image.\n' + '{% enddoc %}\n',
     template: `description $0`,
   },
 };

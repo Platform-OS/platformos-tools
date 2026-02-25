@@ -14,7 +14,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { BaseExecuteCommandProvider } from '../BaseExecuteCommandProvider';
 
 /**
- * The ApplyFixesProvider is responsible for handling the `themeCheck/applyFixes` command.
+ * The ApplyFixesProvider is responsible for handling the `platformosCheck/applyFixes` command.
  *
  * To create a command, use the `applyFixCommand` function.
  * The provider will execute the command with the given arguments.
@@ -23,7 +23,7 @@ import { BaseExecuteCommandProvider } from '../BaseExecuteCommandProvider';
  * applies them, and forwards the result to the client using the 'workspace/applyEdit' request.
  */
 export class ApplyFixesProvider extends BaseExecuteCommandProvider {
-  static command = 'themeCheck/applyFixes' as const;
+  static command = 'platformosCheck/applyFixes' as const;
 
   async execute(uri: string, version: number | undefined, ids: number[]) {
     if (!this.clientCapabilities.hasApplyEditSupport) return;

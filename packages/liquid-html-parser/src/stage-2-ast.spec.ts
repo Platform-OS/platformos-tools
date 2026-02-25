@@ -534,15 +534,15 @@ describe('Unit: Stage 2 (AST)', () => {
       it('should parse render tags', () => {
         [
           {
-            expression: `"snippet"`,
-            snippetType: 'String',
+            expression: `"partial"`,
+            partialType: 'String',
             alias: null,
             renderVariableExpression: null,
             namedArguments: [],
           },
           {
-            expression: `"snippet" as foo`,
-            snippetType: 'String',
+            expression: `"partial" as foo`,
+            partialType: 'String',
             alias: {
               value: 'foo',
             },
@@ -550,8 +550,8 @@ describe('Unit: Stage 2 (AST)', () => {
             namedArguments: [],
           },
           {
-            expression: `"snippet" with "string" as foo`,
-            snippetType: 'String',
+            expression: `"partial" with "string" as foo`,
+            partialType: 'String',
             alias: {
               value: 'foo',
             },
@@ -564,8 +564,8 @@ describe('Unit: Stage 2 (AST)', () => {
             namedArguments: [],
           },
           {
-            expression: `"snippet" for products as product`,
-            snippetType: 'String',
+            expression: `"partial" for products as product`,
+            partialType: 'String',
             alias: {
               value: 'product',
             },
@@ -579,7 +579,7 @@ describe('Unit: Stage 2 (AST)', () => {
           },
           {
             expression: `variable with "string" as foo, key1: val1, key2: "hi"`,
-            snippetType: 'VariableLookup',
+            partialType: 'VariableLookup',
             alias: {
               value: 'foo',
             },
@@ -595,13 +595,13 @@ describe('Unit: Stage 2 (AST)', () => {
             ],
           },
         ].forEach(
-          ({ expression, snippetType, renderVariableExpression, alias, namedArguments }) => {
+          ({ expression, partialType, renderVariableExpression, alias, namedArguments }) => {
             for (const { toAST, expectPath, expectPosition } of testCases) {
               ast = toAST(`{% render ${expression} -%}`);
               expectPath(ast, 'children.0.type').to.equal('LiquidTag');
               expectPath(ast, 'children.0.name').to.equal('render');
               expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
-              expectPath(ast, 'children.0.markup.snippet.type').to.equal(snippetType);
+              expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
               if (renderVariableExpression) {
                 expectPath(ast, 'children.0.markup.variable.type').to.equal(
                   'RenderVariableExpression',
@@ -1239,7 +1239,7 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.type').to.equal('LiquidTag');
           expectPath(ast, 'children.0.name').to.equal('theme_render_rc');
           expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
-          expectPath(ast, 'children.0.markup.snippet.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.partial.type').to.equal('String');
           expectPosition(ast, 'children.0');
           expectPosition(ast, 'children.0.markup');
         }

@@ -7,20 +7,21 @@ describe('MockFileSystem', () => {
 
   beforeEach(() => {
     fs = new MockFileSystem({
-      'layout/theme.liquid': 'theme.liquid content',
-      'layout/password.liquid': 'password.liquid content',
+      'app/views/layouts/layout.liquid': 'layout.liquid content',
+      'app/views/layouts/password.liquid': 'password.liquid content',
       'app/views/partials/product-card.liquid': 'product-card.liquid content',
       'app/views/partials/product-variant.liquid': 'product-variant.liquid content',
-      'sections/section.liquid': 'section.liquid content',
       'assets/js/foo.js': 'foo.js content',
       'assets/js/bar.js': 'bar.js content',
-      'assets/theme.js': 'theme.js content',
+      'assets/app.js': 'app.js content',
     });
   });
 
   describe('readFile', () => {
     it('returns the content of existing files', async () => {
-      expect(await fs.readFile('file:/layout/theme.liquid')).toBe('theme.liquid content');
+      expect(await fs.readFile('file:/app/views/layouts/layout.liquid')).toBe(
+        'layout.liquid content',
+      );
       expect(await fs.readFile('file:/assets/js/foo.js')).toBe('foo.js content');
     });
 
@@ -31,10 +32,10 @@ describe('MockFileSystem', () => {
 
   describe('readDirectory', () => {
     it('returns the list of files in a leaf', async () => {
-      const result = await fs.readDirectory('file:/layout');
+      const result = await fs.readDirectory('file:/app/views/layouts');
       expect(result).to.eql([
-        ['file:/layout/theme.liquid', FileType.File],
-        ['file:/layout/password.liquid', FileType.File],
+        ['file:/app/views/layouts/layout.liquid', FileType.File],
+        ['file:/app/views/layouts/password.liquid', FileType.File],
       ]);
     });
 
@@ -42,16 +43,14 @@ describe('MockFileSystem', () => {
       const result = await fs.readDirectory('file:/assets');
       expect(result).to.eql([
         ['file:/assets/js', FileType.Directory],
-        ['file:/assets/theme.js', FileType.File],
+        ['file:/assets/app.js', FileType.File],
       ]);
     });
 
     it('returns the list of files and directories at the root', async () => {
       const result = await fs.readDirectory('file:/');
       expect(result).to.eql([
-        ['file:/layout', FileType.Directory],
         ['file:/app', FileType.Directory],
-        ['file:/sections', FileType.Directory],
         ['file:/assets', FileType.Directory],
       ]);
     });

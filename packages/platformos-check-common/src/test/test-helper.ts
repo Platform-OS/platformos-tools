@@ -29,19 +29,19 @@ export { JSONCorrector, StringCorrector };
 
 const rootUri = path.normalize('file:/');
 
-export function getApp(themeDesc: MockApp): App {
-  return Object.entries(themeDesc)
+export function getApp(appDesc: MockApp): App {
+  return Object.entries(appDesc)
     .map(([relativePath, source]) => toSourceCode(toUri(relativePath), source))
     .filter((x): x is LiquidSourceCode | JSONSourceCode | YAMLSourceCode => x !== undefined);
 }
 
 export async function check(
-  themeDesc: MockApp,
+  appDesc: MockApp,
   checks: CheckDefinition[] = recommended,
   mockDependencies: Partial<Dependencies> = {},
   checkSettings: ChecksSettings = {},
 ): Promise<Offense[]> {
-  const theme = getApp(themeDesc);
+  const app = getApp(appDesc);
   const config: Config = {
     settings: { ...checkSettings },
     checks,
@@ -52,9 +52,9 @@ export async function check(
   };
 
   const defaultMockDependencies: Dependencies = {
-    fs: new MockFileSystem({ '.platformos-check.yml': '', ...themeDesc }),
+    fs: new MockFileSystem({ '.platformos-check.yml': '', ...appDesc }),
     async getDocDefinition(relativePath) {
-      const file = theme.find((file) => file.uri.endsWith(relativePath));
+      const file = app.find((file) => file.uri.endsWith(relativePath));
       if (!file || !isLiquidHtmlNode(file.ast)) {
         return undefined;
       }
@@ -122,7 +122,7 @@ export async function check(
     },
   };
 
-  return coreCheck(theme, config, { ...defaultMockDependencies, ...mockDependencies });
+  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies });
 }
 
 export async function runLiquidCheck(
@@ -130,10 +130,10 @@ export async function runLiquidCheck(
   sourceCode: string,
   fileName: string = 'file.liquid',
   mockDependencies: Partial<Dependencies> = {},
-  existingThemeFiles?: MockApp,
+  existingAppFiles?: MockApp,
 ): Promise<Offense[]> {
   const offenses = await check(
-    { ...existingThemeFiles, [fileName]: sourceCode },
+    { ...existingAppFiles, [fileName]: sourceCode },
     [checkDef],
     mockDependencies,
   );
@@ -160,40 +160,37 @@ export async function runYAMLCheck(
   return offenses.filter((offense) => offense.uri === path.join(rootUri, fileName));
 }
 
-export async function autofix(themeDesc: MockApp, offenses: Offense[]) {
-  const theme = getApp(themeDesc);
-  const fixed = { ...themeDesc };
+export async function autofix(appDesc: MockApp, offenses: Offense[]) {
+  const app = getApp(appDesc);
+  const fixed = { ...appDesc };
 
   const stringApplicator: FixApplicator = async (sourceCode, fixes) => {
     fixed[asRelative(sourceCode.uri)] = applyFixToString(sourceCode.source, fixes);
   };
 
-  await coreAutofix(theme, offenses, stringApplicator);
+  await coreAutofix(app, offenses, stringApplicator);
 
   return fixed;
 }
 
-export function applyFix(
-  themeDescOrSource: MockApp | string,
-  offense: Offense,
-): string | undefined {
+export function applyFix(appDescOrSource: MockApp | string, offense: Offense): string | undefined {
   const source =
-    typeof themeDescOrSource === 'string'
-      ? themeDescOrSource
-      : themeDescOrSource[asRelative(offense.uri)];
+    typeof appDescOrSource === 'string'
+      ? appDescOrSource
+      : appDescOrSource[asRelative(offense.uri)];
   const corrector = createCorrector(offense.type, source);
   offense.fix?.(corrector as any);
   return applyFixToString(source, corrector.fix);
 }
 
 export function applySuggestions(
-  themeDescOrSource: MockApp | string,
+  appDescOrSource: MockApp | string,
   offense: Offense,
 ): undefined | string[] {
   const source =
-    typeof themeDescOrSource === 'string'
-      ? themeDescOrSource
-      : themeDescOrSource[asRelative(offense.uri)];
+    typeof appDescOrSource === 'string'
+      ? appDescOrSource
+      : appDescOrSource[asRelative(offense.uri)];
   return offense.suggest?.map((suggestion) => {
     const corrector = createCorrector(offense.type, source);
     suggestion.fix(corrector as any);
@@ -201,12 +198,11 @@ export function applySuggestions(
   });
 }
 
-export function highlightedOffenses(themeOrSource: MockApp | string, offenses: Offense[]) {
-  const theme =
-    typeof themeOrSource === 'string' ? { 'file.liquid': themeOrSource } : themeOrSource;
+export function highlightedOffenses(appOrSource: MockApp | string, offenses: Offense[]) {
+  const app = typeof appOrSource === 'string' ? { 'file.liquid': appOrSource } : appOrSource;
   return offenses.map((offense) => {
     const relativePath = path.relative(offense.uri, rootUri);
-    const source = theme[relativePath];
+    const source = app[relativePath];
     const {
       start: { index: startIndex },
       end: { index: endIndex },

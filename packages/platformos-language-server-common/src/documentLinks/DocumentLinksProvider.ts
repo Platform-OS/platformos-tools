@@ -53,12 +53,12 @@ function documentLinksVisitor(
       if (
         (node.name === 'render' || node.name === 'include') &&
         typeof node.markup !== 'string' &&
-        isLiquidString(node.markup.snippet)
+        isLiquidString(node.markup.partial)
       ) {
-        const snippet = node.markup.snippet;
+        const partial = node.markup.partial;
         return DocumentLink.create(
-          range(textDocument, snippet),
-          await documentsLocator.locate(root, node.name, snippet.value),
+          range(textDocument, partial),
+          await documentsLocator.locate(root, node.name, partial.value),
         );
       }
 
@@ -67,10 +67,10 @@ function documentLinksVisitor(
         typeof node.markup !== 'string' &&
         isLiquidString(node.markup.partial)
       ) {
-        const snippet = node.markup.partial;
+        const partial = node.markup.partial;
         return DocumentLink.create(
-          range(textDocument, snippet),
-          await documentsLocator.locate(root, node.name, snippet.value),
+          range(textDocument, partial),
+          await documentsLocator.locate(root, node.name, partial.value),
         );
       }
 

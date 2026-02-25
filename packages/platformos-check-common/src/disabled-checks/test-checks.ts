@@ -45,14 +45,14 @@ export const RenderMarkup: LiquidCheckDefinition = {
   create(context) {
     return {
       async RenderMarkup(node) {
-        if (node.snippet.type === NodeTypes.VariableLookup) {
+        if (node.partial.type === NodeTypes.VariableLookup) {
           return;
         }
 
         context.report({
-          message: `'${node.snippet.value}.liquid' can not be rendered`,
-          startIndex: node.snippet.position.start,
-          endIndex: node.snippet.position.end,
+          message: `'${node.partial.value}.liquid' can not be rendered`,
+          startIndex: node.partial.position.start,
+          endIndex: node.partial.position.end,
         });
       },
     };

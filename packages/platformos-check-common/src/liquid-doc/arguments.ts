@@ -218,10 +218,10 @@ function isLastArg(node: RenderMarkup | FunctionMarkup, arg: LiquidNamedArgument
 
 export function getPartialName(node: RenderMarkup | FunctionMarkup): string | undefined {
   if (node.type === NodeTypes.RenderMarkup) {
-    if (!isLiquidString(node.snippet)) {
+    if (!isLiquidString(node.partial)) {
       return;
     }
-    return node.snippet.value;
+    return node.partial.value;
   }
 
   if (node.type === NodeTypes.FunctionMarkup) {

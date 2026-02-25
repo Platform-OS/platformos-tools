@@ -14,7 +14,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { BaseExecuteCommandProvider } from '../BaseExecuteCommandProvider';
 
 /**
- * The ApplySuggestionProvider is responsible for handling the `themeCheck/applySuggestion` command.
+ * The ApplySuggestionProvider is responsible for handling the `platformosCheck/applySuggestion` command.
  *
  * To create a command, use the `applySuggestionCommand` function.
  * The provider will execute the command with the given arguments.
@@ -23,7 +23,7 @@ import { BaseExecuteCommandProvider } from '../BaseExecuteCommandProvider';
  * applies them, and forwards the result to the client using the 'workspace/applyEdit' request.
  */
 export class ApplySuggestionProvider extends BaseExecuteCommandProvider {
-  static command = 'themeCheck/applySuggestion' as const;
+  static command = 'platformosCheck/applySuggestion' as const;
 
   async execute(
     uri: string,

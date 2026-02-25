@@ -553,7 +553,7 @@ export interface ConcreteLiquidTagContentForMarkup extends ConcreteBasicNode<Con
 }
 
 export interface ConcreteLiquidTagRenderMarkup extends ConcreteBasicNode<ConcreteNodeTypes.RenderMarkup> {
-  snippet: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
+  partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   variable: ConcreteRenderVariableExpression | null;
   alias: ConcreteRenderAliasExpression | null;
   renderArguments: ConcreteLiquidNamedArgument[];
@@ -1162,7 +1162,7 @@ function toCST<T>(
 
     liquidTagRenderMarkup: {
       type: ConcreteNodeTypes.RenderMarkup,
-      snippet: 0,
+      partial: 0,
       variable: 1,
       alias: 2,
       renderArguments: 3,
@@ -1319,7 +1319,7 @@ function toCST<T>(
         .toAST(self.args.mapping)
         .concat(variableLookup.sourceString === '' ? [] : variableLookup.toAST(self.args.mapping));
     },
-    snippetExpression: 0,
+    partialExpression: 0,
     renderVariableExpression: {
       type: ConcreteNodeTypes.RenderVariableExpression,
       kind: 1,

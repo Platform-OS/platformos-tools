@@ -6,7 +6,7 @@ import { DebouncedFunction } from '../../utils';
 import { BaseExecuteCommandProvider } from '../BaseExecuteCommandProvider';
 
 /**
- * The RunChecksProvider runs theme check on all open files.
+ * The RunChecksProvider runs platformos-check on all open files.
  *
  * It is triggered by the cmd+p command in the VS Code extension and is
  * otherwise not used internally, which is why there is no
@@ -16,7 +16,7 @@ import { BaseExecuteCommandProvider } from '../BaseExecuteCommandProvider';
  * `checkOnOpen` are all false.
  */
 export class RunChecksProvider extends BaseExecuteCommandProvider {
-  static command = 'themeCheck/runChecks' as const;
+  static command = 'platformosCheck/runChecks' as const;
 
   constructor(
     protected documentManager: DocumentManager,

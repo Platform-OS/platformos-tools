@@ -373,8 +373,8 @@ function findCurrentNode(
           finder.current = last(current.args);
         } else if (current.variable && isCovered(cursor, current.variable.position)) {
           finder.current = current.variable;
-        } else if (current.snippet && isCovered(cursor, current.snippet.position)) {
-          finder.current = current.snippet;
+        } else if (current.partial && isCovered(cursor, current.partial.position)) {
+          finder.current = current.partial;
         }
 
         break;

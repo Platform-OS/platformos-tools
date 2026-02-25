@@ -34,8 +34,12 @@ describe('Module: ThirdPartyChecks', () => {
     });
 
     it('does not find modules that do not match the naming convention', async () => {
-      await createMockNodeModule(tempDir, '@acme/not-theme-check-extension', mockNodeModuleCheck);
-      await createMockNodeModule(tempDir, 'not-theme-check-extension', mockNodeModuleCheck);
+      await createMockNodeModule(
+        tempDir,
+        '@acme/not-platformos-check-extension',
+        mockNodeModuleCheck,
+      );
+      await createMockNodeModule(tempDir, 'not-platformos-check-extension', mockNodeModuleCheck);
       await createMockNodeModule(tempDir, 'glob', mockNodeModuleCheck);
       const modulePaths = await findThirdPartyChecks(tempDir);
       expect(modulePaths).to.have.lengthOf(0);
@@ -73,7 +77,7 @@ describe('Module: ThirdPartyChecks', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       await createMockNodeModule(
         tempDir,
-        'theme-check-error',
+        'platformos-check-error',
         `throw new Error('This module loads with an error');`,
       );
       const modulePaths = await findThirdPartyChecks(tempDir);

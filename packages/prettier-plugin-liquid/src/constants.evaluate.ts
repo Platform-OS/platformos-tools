@@ -60,7 +60,7 @@ export const CSS_DISPLAY_LIQUID_TAGS: Record<string, string> = {
   break: 'none',
   continue: 'none',
 
-  // theme tags
+  // general tags
   comment: 'none',
   echo: 'inline',
   form: 'block',

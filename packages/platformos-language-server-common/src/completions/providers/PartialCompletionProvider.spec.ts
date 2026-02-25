@@ -2,7 +2,7 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 
-describe('Module: RenderSnippetCompletionProvider', async () => {
+describe('Module: RenderPartialCompletionProvider', async () => {
   let provider: CompletionsProvider;
 
   beforeEach(async () => {
@@ -20,7 +20,7 @@ describe('Module: RenderSnippetCompletionProvider', async () => {
     });
   });
 
-  it('should complete snippets correctly', async () => {
+  it('should complete partials correctly', async () => {
     await expect(provider).to.complete('{% render "', ['product-card', 'image']);
   });
 });

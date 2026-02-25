@@ -22,7 +22,7 @@ import { FindAppRootURI } from '../../internal-types';
  *
  *   {% render 'oldName' %} -> {% render 'newName' %}
  *
- * We'll do this by visiting all the liquid files in the theme and looking for
+ * We'll do this by visiting all the liquid files in the app and looking for
  * render and include tags that reference the old partial. We'll then create a
  * WorkspaceEdit that changes the references to the new partial.
  */
@@ -73,13 +73,13 @@ export class PartialRenameHandler implements BaseRenameHandler {
           if (typeof node.markup === 'string') {
             return;
           }
-          const snippet = node.markup.snippet;
-          if (snippet.type === NodeTypes.String && snippet.value === oldPartialName) {
+          const partial = node.markup.partial;
+          if (partial.type === NodeTypes.String && partial.value === oldPartialName) {
             return {
               newText: `${newPartialName}`,
               range: Range.create(
-                textDocument.positionAt(snippet.position.start + 1), // +1 to skip the opening quote
-                textDocument.positionAt(snippet.position.end - 1), // -1 to skip the closing quote
+                textDocument.positionAt(partial.position.start + 1), // +1 to skip the opening quote
+                textDocument.positionAt(partial.position.end - 1), // -1 to skip the closing quote
               ),
             };
           }

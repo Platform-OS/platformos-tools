@@ -24,7 +24,7 @@ ignore:
   - config
 SomeCheck:
   enabled: false
-  ignore: [snippets]
+  ignore: [app/views/partials]
   some_setting: value
 `);
 
@@ -38,7 +38,7 @@ SomeCheck:
       checkSettings: {
         SomeCheck: {
           enabled: false,
-          ignore: ['snippets'],
+          ignore: ['app/views/partials'],
           someSetting: 'value',
         },
       },
@@ -76,7 +76,7 @@ extends:
   - '@acme/platformos-check-base/recommended.yml'
 SomeCheck:
   enabled: false
-  ignore: [snippets]
+  ignore: [app/views/partials]
   some_setting: value
 `);
 
@@ -90,12 +90,12 @@ SomeCheck:
       checkSettings: {
         BaseCheck: {
           enabled: true,
-          ignore: ['base_snippets'],
+          ignore: ['base_partials'],
           baseSetting: 'base_value',
         },
         SomeCheck: {
           enabled: false,
-          ignore: ['snippets'],
+          ignore: ['app/views/partials'],
           someSetting: 'value',
         },
         NodeModuleCheck: {

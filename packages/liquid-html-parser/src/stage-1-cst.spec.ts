@@ -695,15 +695,15 @@ describe('Unit: Stage 1 (CST)', () => {
       it('should parse the render tag', () => {
         [
           {
-            expression: `"snippet"`,
-            snippetType: 'String',
+            expression: `"partial"`,
+            partialType: 'String',
             alias: null,
             renderVariableExpression: null,
             namedArguments: [],
           },
           {
-            expression: `"snippet" as foo`,
-            snippetType: 'String',
+            expression: `"partial" as foo`,
+            partialType: 'String',
             alias: {
               value: 'foo',
             },
@@ -711,8 +711,8 @@ describe('Unit: Stage 1 (CST)', () => {
             namedArguments: [],
           },
           {
-            expression: `"snippet" with "string" as foo`,
-            snippetType: 'String',
+            expression: `"partial" with "string" as foo`,
+            partialType: 'String',
             alias: {
               value: 'foo',
             },
@@ -725,8 +725,8 @@ describe('Unit: Stage 1 (CST)', () => {
             namedArguments: [],
           },
           {
-            expression: `"snippet" for products as product`,
-            snippetType: 'String',
+            expression: `"partial" for products as product`,
+            partialType: 'String',
             alias: {
               value: 'product',
             },
@@ -740,7 +740,7 @@ describe('Unit: Stage 1 (CST)', () => {
           },
           {
             expression: `variable with "string" as foo, key1: val1, key2: "hi"`,
-            snippetType: 'VariableLookup',
+            partialType: 'VariableLookup',
             alias: {
               value: 'foo',
             },
@@ -756,13 +756,13 @@ describe('Unit: Stage 1 (CST)', () => {
             ],
           },
         ].forEach(
-          ({ expression, snippetType, renderVariableExpression, alias, namedArguments }) => {
+          ({ expression, partialType, renderVariableExpression, alias, namedArguments }) => {
             for (const { toCST, expectPath } of testCases) {
               cst = toCST(`{% render ${expression} -%}`);
               expectPath(cst, '0.type').to.equal('LiquidTag');
               expectPath(cst, '0.name').to.equal('render');
               expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
-              expectPath(cst, '0.markup.snippet.type').to.equal(snippetType);
+              expectPath(cst, '0.markup.partial.type').to.equal(partialType);
               if (renderVariableExpression) {
                 expectPath(cst, '0.markup.variable.type').to.equal('RenderVariableExpression');
                 expectPath(cst, '0.markup.variable.kind').to.equal(renderVariableExpression.kind);
@@ -789,25 +789,25 @@ describe('Unit: Stage 1 (CST)', () => {
       it('should parse the function tag', () => {
         [
           {
-            expression: `"snippet"`,
-            snippetType: 'String',
+            expression: `"partial"`,
+            partialType: 'String',
             namedArguments: [],
           },
           {
             expression: `variable, key1: val1, key2: "hi"`,
-            snippetType: 'VariableLookup',
+            partialType: 'VariableLookup',
             namedArguments: [
               { name: 'key1', valueType: 'VariableLookup' },
               { name: 'key2', valueType: 'String' },
             ],
           },
-        ].forEach(({ expression, snippetType, namedArguments }) => {
+        ].forEach(({ expression, partialType, namedArguments }) => {
           for (const { toCST, expectPath } of testCases) {
             cst = toCST(`{% function res = ${expression} -%}`);
             expectPath(cst, '0.type').to.equal('LiquidTag');
             expectPath(cst, '0.name').to.equal('function');
             expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
-            expectPath(cst, '0.markup.partial.type').to.equal(snippetType);
+            expectPath(cst, '0.markup.partial.type').to.equal(partialType);
             expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
             namedArguments.forEach(({ name, valueType }, i) => {
               expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
@@ -823,25 +823,25 @@ describe('Unit: Stage 1 (CST)', () => {
       it('should parse the graphql tag', () => {
         [
           {
-            expression: `"snippet"`,
-            snippetType: 'String',
+            expression: `"partial"`,
+            partialType: 'String',
             namedArguments: [],
           },
           {
             expression: `variable, key1: val1, key2: "hi"`,
-            snippetType: 'VariableLookup',
+            partialType: 'VariableLookup',
             namedArguments: [
               { name: 'key1', valueType: 'LiquidVariable', expressionType: 'VariableLookup' },
               { name: 'key2', valueType: 'LiquidVariable', expressionType: 'String' },
             ],
           },
-        ].forEach(({ expression, snippetType, namedArguments }) => {
+        ].forEach(({ expression, partialType, namedArguments }) => {
           for (const { toCST, expectPath } of testCases) {
             cst = toCST(`{% graphql res = ${expression} %}`);
             expectPath(cst, '0.type').to.equal('LiquidTag');
             expectPath(cst, '0.name').to.equal('graphql');
             expectPath(cst, '0.markup.type').to.equal('GraphQLMarkup');
-            expectPath(cst, '0.markup.graphql.type').to.equal(snippetType);
+            expectPath(cst, '0.markup.graphql.type').to.equal(partialType);
             expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
             namedArguments.forEach(({ name, valueType, expressionType }, i) => {
               expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
@@ -1919,7 +1919,7 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.type').to.equal('LiquidTag');
           expectPath(cst, '0.name').to.equal('theme_render_rc');
           expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
-          expectPath(cst, '0.markup.snippet.type').to.equal('String');
+          expectPath(cst, '0.markup.partial.type').to.equal('String');
         }
       });
 
@@ -2361,7 +2361,7 @@ describe('Unit: Stage 1 (CST)', () => {
     it('should parse incomplete parameters for render tags', () => {
       const toCST = (source: string) => toLiquidHtmlCST(source, { mode: 'completion' });
 
-      cst = toCST(`{% render "example-snippet", id: 2, foo█ %}`);
+      cst = toCST(`{% render "example-partial", id: 2, foo█ %}`);
 
       expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
       expectPath(cst, '0.markup.renderArguments.0.type').to.equal('NamedArgument');

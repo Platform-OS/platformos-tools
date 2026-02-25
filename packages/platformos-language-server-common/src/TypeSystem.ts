@@ -487,7 +487,10 @@ async function buildSymbolsTable(
       }
 
       // Case 3: Infer primitive shape for << and LHS lookup scenarios
-      if (!valueShape && ((node.lookups && node.lookups.length > 0) || effectiveOperator === '<<')) {
+      if (
+        !valueShape &&
+        ((node.lookups && node.lookups.length > 0) || effectiveOperator === '<<')
+      ) {
         if (expression.type === NodeTypes.String) {
           valueShape = { kind: 'primitive', primitiveType: 'string' };
         } else if (expression.type === NodeTypes.Number) {
@@ -995,9 +998,7 @@ function inferType(
     // {% assign x = y.property | filter1 | filter2 %}
     case NodeTypes.AssignMarkup: {
       const assignValue =
-        thing.value.type === NodeTypes.AssignPushRhs
-          ? thing.value.pushValue
-          : thing.value;
+        thing.value.type === NodeTypes.AssignPushRhs ? thing.value.pushValue : thing.value;
       return inferType(assignValue, symbolsTable, objectMap, filtersMap);
     }
 

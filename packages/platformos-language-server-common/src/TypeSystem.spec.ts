@@ -883,9 +883,7 @@ query {
     });
 
     it('should support explicit push form (assign a = source << value)', async () => {
-      const ast = toLiquidHtmlAST(
-        `{% assign arr = [] %}{% assign arr = arr << "item" %}{{ arr }}`,
-      );
+      const ast = toLiquidHtmlAST(`{% assign arr = [] %}{% assign arr = arr << "item" %}{{ arr }}`);
       const variableOutput = ast.children[2];
       assert(isLiquidVariableOutput(variableOutput));
       const inferredType = await typeSystem.inferType(

@@ -572,14 +572,12 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.markup.value.expression.elements.1.type').to.eql(
             'LiquidVariable',
           );
-          expectPath(
-            ast,
-            'children.0.markup.value.expression.elements.1.filters',
-          ).to.have.lengthOf(1);
-          expectPath(
-            ast,
-            'children.0.markup.value.expression.elements.1.filters.0.name',
-          ).to.eql('to_positive_integer');
+          expectPath(ast, 'children.0.markup.value.expression.elements.1.filters').to.have.lengthOf(
+            1,
+          );
+          expectPath(ast, 'children.0.markup.value.expression.elements.1.filters.0.name').to.eql(
+            'to_positive_integer',
+          );
         }
       });
 

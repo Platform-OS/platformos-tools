@@ -58,6 +58,7 @@ import {
   ConcreteLiquidTagNamed,
   ConcreteLiquidTag,
   ConcreteLiquidTagAssignMarkup,
+  ConcreteLiquidTagAssignPushRhs,
   ConcreteLiquidTagRenderMarkup,
   ConcreteLiquidTagFunctionMarkup,
   ConcreteLiquidTagGraphQLMarkup,
@@ -117,6 +118,7 @@ export type LiquidHtmlNode =
   | LiquidFilter
   | LiquidNamedArgument
   | AssignMarkup
+  | AssignPushRhs
   | HashAssignMarkup
   | ContentForMarkup
   | CycleMarkup
@@ -323,8 +325,16 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
   /** '=' for assignment, '<<' for array append */
   operator: '=' | '<<';
 
-  /** the value of the variable that is being assigned */
-  value: LiquidVariable;
+  /** the value of the variable that is being assigned, or a push expression */
+  value: LiquidVariable | AssignPushRhs;
+}
+
+/** The RHS of an explicit push assign: `assign a = source << value` */
+export interface AssignPushRhs extends ASTNode<NodeTypes.AssignPushRhs> {
+  /** the source array to push into */
+  pushSource: LiquidVariable;
+  /** the value being pushed */
+  pushValue: LiquidVariable;
 }
 
 export interface LiquidTagHashAssign extends LiquidTagNode<
@@ -2119,12 +2129,26 @@ function toUnnamedLiquidBranch(parentNode: LiquidHtmlNode): LiquidBranchUnnamed 
 }
 
 function toAssignMarkup(node: ConcreteLiquidTagAssignMarkup): AssignMarkup {
+  const value =
+    node.value.type === ConcreteNodeTypes.AssignPushRhs
+      ? toAssignPushRhs(node.value)
+      : toLiquidVariable(node.value);
   return {
     type: NodeTypes.AssignMarkup,
     name: node.name,
     lookups: node.target.lookups.map(toExpression),
     operator: node.operator as '=' | '<<',
-    value: toLiquidVariable(node.value),
+    value,
+    position: position(node),
+    source: node.source,
+  };
+}
+
+function toAssignPushRhs(node: ConcreteLiquidTagAssignPushRhs): AssignPushRhs {
+  return {
+    type: NodeTypes.AssignPushRhs,
+    pushSource: toLiquidVariable(node.pushSource),
+    pushValue: toLiquidVariable(node.pushValue),
     position: position(node),
     source: node.source,
   };

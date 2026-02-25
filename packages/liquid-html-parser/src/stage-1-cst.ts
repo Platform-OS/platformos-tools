@@ -77,6 +77,7 @@ export enum ConcreteNodeTypes {
   Condition = 'Condition',
 
   AssignMarkup = 'AssignMarkup',
+  AssignPushRhs = 'AssignPushRhs',
   HashAssignMarkup = 'HashAssignMarkup',
   ContentForMarkup = 'ContentForMarkup',
   CycleMarkup = 'CycleMarkup',
@@ -409,11 +410,16 @@ export interface ConcreteLiquidTagAssign extends ConcreteLiquidTagNode<
   NamedTags.assign,
   ConcreteLiquidTagAssignMarkup
 > {}
+export interface ConcreteLiquidTagAssignPushRhs extends ConcreteBasicNode<ConcreteNodeTypes.AssignPushRhs> {
+  pushSource: ConcreteLiquidVariable;
+  pushValue: ConcreteLiquidVariable;
+}
+
 export interface ConcreteLiquidTagAssignMarkup extends ConcreteBasicNode<ConcreteNodeTypes.AssignMarkup> {
   name: string;
   target: ConcreteLiquidVariableLookup;
   operator: string;
-  value: ConcreteLiquidVariable;
+  value: ConcreteLiquidVariable | ConcreteLiquidTagAssignPushRhs;
 }
 
 export interface ConcreteLiquidTagHashAssign extends ConcreteLiquidTagNode<
@@ -1089,6 +1095,27 @@ function toCST<T>(
       source,
     },
     assignOperator: (node: Node) => node.sourceString,
+    liquidAssignValue: 0,
+    liquidAssignPushExpr: {
+      type: ConcreteNodeTypes.AssignPushRhs,
+      // tokens: [pushSource, space*, "<<", space*, pushValue]
+      pushSource: 0,
+      pushValue: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidAssignPushSource: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      // No &delim lookahead at end (unlike liquidAssignVariable), so last token is space*
+      rawSource: (tokens: Node[]) =>
+        source.slice(locStart(tokens), tokens[tokens.length - 1].source.endIdx).trimEnd(),
+      locStart,
+      locEnd,
+      source,
+    },
     liquidAssignVariable: {
       type: ConcreteNodeTypes.LiquidVariable,
       expression: 0,
@@ -1384,6 +1411,22 @@ function toCST<T>(
       args(nodes: Node[]) {
         // Traditinally, this would get transformed into null or array. But
         // it's better if we have an empty array instead of null here.
+        if (nodes[7].sourceString === '') {
+          return [];
+        } else {
+          return nodes[7].toAST((this as any).args.mapping);
+        }
+      },
+    },
+    // Same as liquidFilter but without trailing comma — used inside JSON values to avoid
+    // consuming JSON entry separator commas as trailing filter argument commas.
+    liquidJsonFilter: {
+      type: ConcreteNodeTypes.LiquidFilter,
+      name: 3,
+      locStart,
+      locEnd,
+      source,
+      args(nodes: Node[]) {
         if (nodes[7].sourceString === '') {
           return [];
         } else {

@@ -158,7 +158,11 @@ function printNamedLiquidBlockStart(
     }
 
     case NamedTags.assign: {
-      const trailingWhitespace = node.markup.value.filters.length > 0 ? line : ' ';
+      const valueFilters =
+        node.markup.value.type === NodeTypes.AssignPushRhs
+          ? node.markup.value.pushValue.filters
+          : node.markup.value.filters;
+      const trailingWhitespace = valueFilters.length > 0 ? line : ' ';
       return tag(trailingWhitespace);
     }
 

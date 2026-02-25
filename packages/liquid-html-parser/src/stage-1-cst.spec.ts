@@ -543,6 +543,20 @@ describe('Unit: Stage 1 (CST)', () => {
           cst = toCST(`{% assign x << 'foo' | upcase %}`);
           expectPath(cst, '0.markup.operator').to.equal('<<');
           expectPath(cst, '0.markup.value.filters').to.have.lengthOf(1);
+
+          // explicit push form: assign a = source << value
+          cst = toCST(`{% assign x = roles << 'admin' %}`);
+          expectPath(cst, '0.markup.operator').to.equal('=');
+          expectPath(cst, '0.markup.name').to.equal('x');
+          expectPath(cst, '0.markup.value.type').to.equal('AssignPushRhs');
+          expectPath(cst, '0.markup.value.pushSource.expression.name').to.equal('roles');
+          expectPath(cst, '0.markup.value.pushValue.expression.value').to.equal('admin');
+
+          // explicit push with dot notation source
+          cst = toCST(`{% assign x = current_profile.roles << 'authenticated' %}`);
+          expectPath(cst, '0.markup.operator').to.equal('=');
+          expectPath(cst, '0.markup.value.type').to.equal('AssignPushRhs');
+          expectPath(cst, '0.markup.value.pushSource.expression.name').to.equal('current_profile');
         }
       });
 

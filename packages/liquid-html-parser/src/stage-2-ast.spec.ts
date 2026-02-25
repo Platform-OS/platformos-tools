@@ -474,6 +474,21 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.markup.name').to.eql('x');
           expectPath(ast, 'children.0.markup.lookups').to.have.lengthOf(0);
 
+          // explicit push form: assign a = source << value
+          ast = toAST(`{% assign x = roles << 'admin' %}`);
+          expectPath(ast, 'children.0.markup.operator').to.eql('=');
+          expectPath(ast, 'children.0.markup.name').to.eql('x');
+          expectPath(ast, 'children.0.markup.value.type').to.eql('AssignPushRhs');
+          expectPath(ast, 'children.0.markup.value.pushSource.expression.name').to.eql('roles');
+          expectPath(ast, 'children.0.markup.value.pushValue.expression.value').to.eql('admin');
+
+          // explicit push with dot notation source (e.g. assign x = current_profile.roles << 'auth')
+          ast = toAST(`{% assign x = current_profile.roles << 'authenticated' %}`);
+          expectPath(ast, 'children.0.markup.value.type').to.eql('AssignPushRhs');
+          expectPath(ast, 'children.0.markup.value.pushSource.expression.name').to.eql(
+            'current_profile',
+          );
+
           // simple assign backward compatibility
           ast = toAST(`{% assign x = 'hi' %}`);
           expectPath(ast, 'children.0.markup.name').to.eql('x');

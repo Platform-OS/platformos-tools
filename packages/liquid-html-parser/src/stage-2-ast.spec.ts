@@ -749,43 +749,45 @@ describe('Unit: Stage 2 (AST)', () => {
             renderVariableExpression: { kind: 'for', name: { type: 'VariableLookup' } },
             namedArguments: [],
           },
-        ].forEach(({ expression, partialType, alias, renderVariableExpression, namedArguments }) => {
-          for (const { toAST, expectPath, expectPosition } of testCases) {
-            ast = toAST(`{% include ${expression} -%}`);
-            expectPath(ast, 'children.0.type').to.equal('LiquidTag');
-            expectPath(ast, 'children.0.name').to.equal('include');
-            expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
-            expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
-            if (renderVariableExpression) {
-              expectPath(ast, 'children.0.markup.variable.type').to.equal(
-                'RenderVariableExpression',
-              );
-              expectPath(ast, 'children.0.markup.variable.kind').to.equal(
-                renderVariableExpression.kind,
-              );
-              expectPath(ast, 'children.0.markup.variable.name.type').to.equal(
-                renderVariableExpression.name.type,
-              );
-              expectPosition(ast, 'children.0.markup.variable');
-              expectPosition(ast, 'children.0.markup.variable.name');
-            } else {
-              expectPath(ast, 'children.0.markup.variable').to.equal(null);
+        ].forEach(
+          ({ expression, partialType, alias, renderVariableExpression, namedArguments }) => {
+            for (const { toAST, expectPath, expectPosition } of testCases) {
+              ast = toAST(`{% include ${expression} -%}`);
+              expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+              expectPath(ast, 'children.0.name').to.equal('include');
+              expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
+              expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
+              if (renderVariableExpression) {
+                expectPath(ast, 'children.0.markup.variable.type').to.equal(
+                  'RenderVariableExpression',
+                );
+                expectPath(ast, 'children.0.markup.variable.kind').to.equal(
+                  renderVariableExpression.kind,
+                );
+                expectPath(ast, 'children.0.markup.variable.name.type').to.equal(
+                  renderVariableExpression.name.type,
+                );
+                expectPosition(ast, 'children.0.markup.variable');
+                expectPosition(ast, 'children.0.markup.variable.name');
+              } else {
+                expectPath(ast, 'children.0.markup.variable').to.equal(null);
+              }
+              expectPath(ast, 'children.0.markup.alias.value').to.equal(alias?.value);
+              expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
+                expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
+                expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
+                expectPosition(ast, `children.0.markup.args.${i}`);
+                expectPosition(ast, `children.0.markup.args.${i}.value`);
+              });
+              expectPath(ast, 'children.0.whitespaceStart').to.equal('');
+              expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
+              expectPosition(ast, 'children.0');
+              expectPosition(ast, 'children.0.markup');
             }
-            expectPath(ast, 'children.0.markup.alias.value').to.equal(alias?.value);
-            expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
-              expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
-              expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
-              expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
-              expectPosition(ast, `children.0.markup.args.${i}`);
-              expectPosition(ast, `children.0.markup.args.${i}.value`);
-            });
-            expectPath(ast, 'children.0.whitespaceStart').to.equal('');
-            expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
-            expectPosition(ast, 'children.0');
-            expectPosition(ast, 'children.0.markup');
-          }
-        });
+          },
+        );
       });
 
       it('should parse function tags', () => {
@@ -833,36 +835,49 @@ describe('Unit: Stage 2 (AST)', () => {
             partialType: 'String',
             namedArguments: [],
           },
-        ].forEach(({ resultVar, resultVarName, resultVarNameLookups, expression, partialType, namedArguments }) => {
-          for (const { toAST, expectPath, expectPosition } of testCases) {
-            ast = toAST(`{% function ${resultVar} = ${expression} -%}`);
-            expectPath(ast, 'children.0.type').to.equal('LiquidTag');
-            expectPath(ast, 'children.0.name').to.equal('function');
-            expectPath(ast, 'children.0.markup.type').to.equal('FunctionMarkup');
-            expectPath(ast, 'children.0.markup.name.type').to.equal('VariableLookup');
-            expectPath(ast, 'children.0.markup.name.name').to.equal(resultVarName);
-            expectPath(ast, 'children.0.markup.name.lookups').to.have.lengthOf(resultVarNameLookups);
-            expectPosition(ast, 'children.0.markup.name');
-            expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
-            expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
-              expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
-              expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
-              expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
-              expectPosition(ast, `children.0.markup.args.${i}`);
-              expectPosition(ast, `children.0.markup.args.${i}.value`);
-            });
-            expectPath(ast, 'children.0.whitespaceStart').to.equal('');
-            expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
-            expectPosition(ast, 'children.0');
-            expectPosition(ast, 'children.0.markup');
-          }
-        });
+        ].forEach(
+          ({
+            resultVar,
+            resultVarName,
+            resultVarNameLookups,
+            expression,
+            partialType,
+            namedArguments,
+          }) => {
+            for (const { toAST, expectPath, expectPosition } of testCases) {
+              ast = toAST(`{% function ${resultVar} = ${expression} -%}`);
+              expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+              expectPath(ast, 'children.0.name').to.equal('function');
+              expectPath(ast, 'children.0.markup.type').to.equal('FunctionMarkup');
+              expectPath(ast, 'children.0.markup.name.type').to.equal('VariableLookup');
+              expectPath(ast, 'children.0.markup.name.name').to.equal(resultVarName);
+              expectPath(ast, 'children.0.markup.name.lookups').to.have.lengthOf(
+                resultVarNameLookups,
+              );
+              expectPosition(ast, 'children.0.markup.name');
+              expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
+              expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
+                expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
+                expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
+                expectPosition(ast, `children.0.markup.args.${i}`);
+                expectPosition(ast, `children.0.markup.args.${i}.value`);
+              });
+              expectPath(ast, 'children.0.whitespaceStart').to.equal('');
+              expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
+              expectPosition(ast, 'children.0');
+              expectPosition(ast, 'children.0.markup');
+            }
+          },
+        );
       });
 
       it('should parse hash pair values in named arguments', () => {
         for (const { toAST, expectPath } of testCases) {
-          ast = toAST(`{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`);
+          ast = toAST(
+            `{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`,
+          );
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
           expectPath(ast, 'children.0.markup.args.0.name').to.equal('message_minimum');
           expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('NamedArgument');

@@ -44,12 +44,7 @@ describe('Module: VariableName', () => {
   });
 
   it('should not report an error for variables starting with underscore', async () => {
-    const varNames = [
-      `_`,
-      `_errors`,
-      `_temp_var`,
-      `_myPrivateVar`,
-    ];
+    const varNames = [`_`, `_errors`, `_temp_var`, `_myPrivateVar`];
     for (const varName of varNames) {
       const sourceCode = `{% assign ${varName} = "value" %}`;
       const offenses = await runLiquidCheck(VariableName, sourceCode);

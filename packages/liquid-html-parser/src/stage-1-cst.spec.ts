@@ -864,33 +864,35 @@ describe('Unit: Stage 1 (CST)', () => {
             renderVariableExpression: { kind: 'for', name: { type: 'VariableLookup' } },
             namedArguments: [],
           },
-        ].forEach(({ expression, partialType, alias, renderVariableExpression, namedArguments }) => {
-          for (const { toCST, expectPath } of testCases) {
-            cst = toCST(`{% include ${expression} -%}`);
-            expectPath(cst, '0.type').to.equal('LiquidTag');
-            expectPath(cst, '0.name').to.equal('include');
-            expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
-            expectPath(cst, '0.markup.partial.type').to.equal(partialType);
-            if (renderVariableExpression) {
-              expectPath(cst, '0.markup.variable.type').to.equal('RenderVariableExpression');
-              expectPath(cst, '0.markup.variable.kind').to.equal(renderVariableExpression.kind);
-              expectPath(cst, '0.markup.variable.name.type').to.equal(
-                renderVariableExpression.name.type,
-              );
-            } else {
-              expectPath(cst, '0.markup.variable').to.equal(null);
+        ].forEach(
+          ({ expression, partialType, alias, renderVariableExpression, namedArguments }) => {
+            for (const { toCST, expectPath } of testCases) {
+              cst = toCST(`{% include ${expression} -%}`);
+              expectPath(cst, '0.type').to.equal('LiquidTag');
+              expectPath(cst, '0.name').to.equal('include');
+              expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
+              expectPath(cst, '0.markup.partial.type').to.equal(partialType);
+              if (renderVariableExpression) {
+                expectPath(cst, '0.markup.variable.type').to.equal('RenderVariableExpression');
+                expectPath(cst, '0.markup.variable.kind').to.equal(renderVariableExpression.kind);
+                expectPath(cst, '0.markup.variable.name.type').to.equal(
+                  renderVariableExpression.name.type,
+                );
+              } else {
+                expectPath(cst, '0.markup.variable').to.equal(null);
+              }
+              expectPath(cst, '0.markup.alias.value').to.equal(alias?.value);
+              expectPath(cst, '0.markup.renderArguments').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(cst, `0.markup.renderArguments.${i}.type`).to.equal('NamedArgument');
+                expectPath(cst, `0.markup.renderArguments.${i}.name`).to.equal(name);
+                expectPath(cst, `0.markup.renderArguments.${i}.value.type`).to.equal(valueType);
+              });
+              expectPath(cst, '0.whitespaceStart').to.equal(null);
+              expectPath(cst, '0.whitespaceEnd').to.equal('-');
             }
-            expectPath(cst, '0.markup.alias.value').to.equal(alias?.value);
-            expectPath(cst, '0.markup.renderArguments').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
-              expectPath(cst, `0.markup.renderArguments.${i}.type`).to.equal('NamedArgument');
-              expectPath(cst, `0.markup.renderArguments.${i}.name`).to.equal(name);
-              expectPath(cst, `0.markup.renderArguments.${i}.value.type`).to.equal(valueType);
-            });
-            expectPath(cst, '0.whitespaceStart').to.equal(null);
-            expectPath(cst, '0.whitespaceEnd').to.equal('-');
-          }
-        });
+          },
+        );
       });
 
       it('should parse the function tag', () => {
@@ -933,31 +935,35 @@ describe('Unit: Stage 1 (CST)', () => {
             partialType: 'String',
             namedArguments: [],
           },
-        ].forEach(({ resultVar, resultVarNameLookups, expression, partialType, namedArguments }) => {
-          for (const { toCST, expectPath } of testCases) {
-            cst = toCST(`{% function ${resultVar} = ${expression} -%}`);
-            expectPath(cst, '0.type').to.equal('LiquidTag');
-            expectPath(cst, '0.name').to.equal('function');
-            expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
-            expectPath(cst, '0.markup.name.type').to.equal('VariableLookup');
-            expectPath(cst, '0.markup.name.lookups').to.have.lengthOf(resultVarNameLookups);
-            expectPath(cst, '0.markup.partial.type').to.equal(partialType);
-            expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
-              expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
-              expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
-              expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
-            });
-            expectPath(cst, '0.whitespaceStart').to.equal(null);
-            expectPath(cst, '0.whitespaceEnd').to.equal('-');
-          }
-        });
+        ].forEach(
+          ({ resultVar, resultVarNameLookups, expression, partialType, namedArguments }) => {
+            for (const { toCST, expectPath } of testCases) {
+              cst = toCST(`{% function ${resultVar} = ${expression} -%}`);
+              expectPath(cst, '0.type').to.equal('LiquidTag');
+              expectPath(cst, '0.name').to.equal('function');
+              expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
+              expectPath(cst, '0.markup.name.type').to.equal('VariableLookup');
+              expectPath(cst, '0.markup.name.lookups').to.have.lengthOf(resultVarNameLookups);
+              expectPath(cst, '0.markup.partial.type').to.equal(partialType);
+              expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
+                expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
+                expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
+              });
+              expectPath(cst, '0.whitespaceStart').to.equal(null);
+              expectPath(cst, '0.whitespaceEnd').to.equal('-');
+            }
+          },
+        );
       });
 
       it('should parse hash pair values in named arguments', () => {
         for (const { toCST, expectPath } of testCases) {
           // message_minimum: key: 'translation.key' — hash pair as named arg value
-          cst = toCST(`{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`);
+          cst = toCST(
+            `{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`,
+          );
           expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(1);
           expectPath(cst, '0.markup.functionArguments.0.name').to.equal('message_minimum');
           expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('NamedArgument');

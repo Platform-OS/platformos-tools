@@ -71,9 +71,7 @@ describe('Module: GraphQLCheck', () => {
 
     const offenses = await check(files, [GraphQLCheck], mockDependencies);
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal(
-      'Cannot query field "unknownField" on type "Query".',
-    );
+    expect(offenses[0].message).to.equal('Cannot query field "unknownField" on type "Query".');
   });
 
   it('offense for unknown field spans only the affected line, not the entire file', async () => {

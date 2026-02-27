@@ -17,13 +17,7 @@ import { PlatformOSFileType } from '@platformos/platformos-common';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type FrontmatterFieldType =
-  | 'string'
-  | 'boolean'
-  | 'integer'
-  | 'number'
-  | 'array'
-  | 'object';
+export type FrontmatterFieldType = 'string' | 'boolean' | 'integer' | 'number' | 'array' | 'object';
 
 export interface FrontmatterFieldSchema {
   /** The expected YAML type(s) for this field's value. */
@@ -256,8 +250,7 @@ export const FRONTMATTER_SCHEMAS: Partial<Record<PlatformOSFileType, Frontmatter
       },
       trigger_condition: {
         type: ['boolean', 'string'],
-        description:
-          'Liquid expression or boolean; call is only made when this evaluates to true.',
+        description: 'Liquid expression or boolean; call is only made when this evaluates to true.',
       },
       format: {
         type: 'string',
@@ -286,8 +279,7 @@ export const FRONTMATTER_SCHEMAS: Partial<Record<PlatformOSFileType, Frontmatter
       },
       trigger_condition: {
         type: ['boolean', 'string'],
-        description:
-          'Liquid expression or boolean; SMS is only sent when this evaluates to true.',
+        description: 'Liquid expression or boolean; SMS is only sent when this evaluates to true.',
       },
     },
     allowAdditionalFields: true,

@@ -220,7 +220,10 @@ export function inferShapeFromGraphQL(
         // GraphQL responses always include an 'errors' field (GraphQL spec)
         const properties = new Map(selectionShape.properties);
         if (!properties.has('errors')) {
-          properties.set('errors', { kind: 'array', itemShape: { kind: 'object', properties: new Map() } });
+          properties.set('errors', {
+            kind: 'array',
+            itemShape: { kind: 'object', properties: new Map() },
+          });
         }
         return { kind: 'object', properties };
       }

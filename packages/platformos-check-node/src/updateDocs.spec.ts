@@ -15,9 +15,8 @@ describe('Unit: updateDocs', () => {
   });
 
   it('calls downloadPlatformOSLiquidDocs with the cache root and provided log function', async () => {
-    const { downloadPlatformOSLiquidDocs, root } = await import(
-      '@platformos/platformos-check-docs-updater'
-    );
+    const { downloadPlatformOSLiquidDocs, root } =
+      await import('@platformos/platformos-check-docs-updater');
     const log = vi.fn();
 
     await updateDocs(log);
@@ -27,9 +26,8 @@ describe('Unit: updateDocs', () => {
   });
 
   it('uses a no-op log by default', async () => {
-    const { downloadPlatformOSLiquidDocs } = await import(
-      '@platformos/platformos-check-docs-updater'
-    );
+    const { downloadPlatformOSLiquidDocs } =
+      await import('@platformos/platformos-check-docs-updater');
 
     await updateDocs();
 

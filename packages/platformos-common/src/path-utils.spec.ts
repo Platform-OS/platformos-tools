@@ -55,9 +55,9 @@ describe('getFileType', () => {
 
     it('identifies api_calls (api_calls and notifications/api_call_notifications aliases)', () => {
       expect(getFileType(uri('app/api_calls/create_user.liquid'))).toBe(PlatformOSFileType.ApiCall);
-      expect(
-        getFileType(uri('app/notifications/api_call_notifications/create_user.liquid')),
-      ).toBe(PlatformOSFileType.ApiCall);
+      expect(getFileType(uri('app/notifications/api_call_notifications/create_user.liquid'))).toBe(
+        PlatformOSFileType.ApiCall,
+      );
     });
 
     it('identifies smses (smses and notifications/sms_notifications aliases)', () => {

@@ -175,8 +175,7 @@ export interface ConcreteHtmlComment extends ConcreteBasicNode<ConcreteNodeTypes
   body: string;
 }
 
-export interface ConcreteHtmlProcessingInstruction
-  extends ConcreteBasicNode<ConcreteNodeTypes.HtmlProcessingInstruction> {
+export interface ConcreteHtmlProcessingInstruction extends ConcreteBasicNode<ConcreteNodeTypes.HtmlProcessingInstruction> {
   body: string;
 }
 

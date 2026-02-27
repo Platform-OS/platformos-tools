@@ -180,4 +180,3 @@ async function fallbackGraphQL(log: Logger): Promise<string> {
     .readFile(sourcePath, 'utf8')
     .then(tap(() => log(`Loaded fallback graphQL from\n\t${sourcePath}`)));
 }
-

@@ -147,4 +147,58 @@ describe('Module: UnusedAssign', () => {
     const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
     expect(offenses).to.have.lengthOf(0);
   });
+
+  it('should not report when a reference alias is mutated via subscript', async () => {
+    // assign errors = contract.errors creates a reference; mutations on errors
+    // have side effects on the original, so they count as "using" errors.
+    const sourceCode = `
+      {% assign errors = contract.errors %}
+      {% assign errors[field_name] = field_errors %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
+
+  it('should not report when a reference alias is mutated via dot notation', async () => {
+    const sourceCode = `
+      {% assign data = response.data %}
+      {% assign data.status = 'ok' %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
+
+  it('should not report when a reference alias is mutated via array push', async () => {
+    const sourceCode = `
+      {% assign items = cart.items %}
+      {% assign items << new_item %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
+
+  it('should still report when a fresh literal hash is mutated but never used', async () => {
+    const sourceCode = `
+      {% assign x = {} %}
+      {% assign x['key'] = 'value' %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(1);
+    expect(offenses[0].message).to.equal("The variable 'x' is assigned but not used");
+  });
+
+  it('should still report when a fresh literal array is pushed to but never used', async () => {
+    const sourceCode = `
+      {% assign arr = [] %}
+      {% assign arr << item %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(1);
+    expect(offenses[0].message).to.equal("The variable 'arr' is assigned but not used");
+  });
 });

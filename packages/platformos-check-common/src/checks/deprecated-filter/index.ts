@@ -41,7 +41,8 @@ export const DeprecatedFilter: LiquidCheckDefinition = {
 
         const filterText = node.source.slice(node.position.start, node.position.end);
         const afterPipeIdx = filterText.indexOf('|') + 1;
-        const nameIdx = afterPipeIdx + filterText.slice(afterPipeIdx).indexOf(deprecatedFilter.name);
+        const nameIdx =
+          afterPipeIdx + filterText.slice(afterPipeIdx).indexOf(deprecatedFilter.name);
         const filterNameStart = node.position.start + nameIdx;
         const filterNameEnd = filterNameStart + deprecatedFilter.name.length;
 

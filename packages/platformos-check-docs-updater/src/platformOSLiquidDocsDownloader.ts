@@ -10,14 +10,13 @@ export const PlatformOSLiquidDocsRoot = 'https://documentation.platformos.com/ap
 export const PlatformOSGraphQLSchema = 'https://documentation.platformos.com/api/graphql/schema';
 
 export type Resource = (typeof Resources)[number];
-export const Resources = ['filters', 'objects', 'tags', 'platformos_system_translations'] as const;
+export const Resources = ['filters', 'objects', 'tags'] as const;
 
 const PLATFORMOS_LIQUID_DOCS: Record<Resource | 'latest', string> = {
   filters: 'filters.json',
   objects: 'objects.json',
   tags: 'tags.json',
   latest: 'latest.json',
-  platformos_system_translations: 'data/platformos_system_translations.json',
 };
 
 export async function downloadResource(
@@ -110,9 +109,6 @@ export async function downloadPlatformOSLiquidDocs(destination: string, log: Log
         });
     }),
   );
-
-  // platformOS does not use JSON schemas for sections/blocks/settings, so
-  // there are no additional schemas to download.
 
   await downloadGraphQLSchema(destination, log);
 }

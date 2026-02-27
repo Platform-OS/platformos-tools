@@ -868,12 +868,16 @@ async function buildSymbolsTable(
           }
         }
 
+        // For hash/array targets like function hash['key'] = 'partial', skip type tracking
+        const fnVarName = markup.name.name;
+        if (!fnVarName || markup.name.lookups.length > 0) return;
+
         // Track shape for potential hash_assign merging
         if (returnType && isShapeType(returnType)) {
-          if (!variableShapes.has(markup.name)) {
-            variableShapes.set(markup.name, []);
+          if (!variableShapes.has(fnVarName)) {
+            variableShapes.set(fnVarName, []);
           }
-          variableShapes.get(markup.name)!.push({
+          variableShapes.get(fnVarName)!.push({
             shape: returnType.shape,
             rangeEnd: node.position.end,
           });
@@ -881,7 +885,7 @@ async function buildSymbolsTable(
 
         // Always add function variable to symbolsTable, using Untyped as fallback
         return {
-          identifier: markup.name,
+          identifier: fnVarName,
           type: returnType ?? Untyped,
           range: [node.position.end],
         };

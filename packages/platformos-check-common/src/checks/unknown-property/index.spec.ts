@@ -212,6 +212,28 @@ query {
       // This is expected behavior without schema - we can't know users is an array
       expect(offenses).toHaveLength(1);
     });
+
+    it('should not report an offense for result.errors (GraphQL responses always have errors)', async () => {
+      const sourceCode = `{% graphql r %}
+query {
+  user {
+    id
+  }
+}
+{% endgraphql %}
+{% if r.errors %}
+  {{ r.errors }}
+{% endif %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should not report file-based graphql result.errors', async () => {
+      const sourceCode = `{% graphql r = 'my_query' %}
+{% if r.errors %}{{ r.errors }}{% endif %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
   });
 
   describe('error message formatting', () => {

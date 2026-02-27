@@ -1,20 +1,17 @@
 import { GraphQLCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { parse } from 'graphql/language';
-import { buildSchema, validate } from 'graphql';
+import { buildSchema, GraphQLError, validate } from 'graphql';
 
-function lineToRange(text: string, line: number): [number, number] {
+export function lineToRange(text: string, line: number): [number, number] {
   const lines = text.split(/\r?\n/);
-
-  if (line < 1 || line > lines.length) {
-    return [0, text.length];
-  }
+  const clampedLine = Math.max(1, Math.min(line, lines.length));
 
   let start = 0;
-  for (let i = 0; i < line - 1; i++) {
+  for (let i = 0; i < clampedLine - 1; i++) {
     start += lines[i].length + 1;
   }
 
-  const end = start + lines[line - 1].length;
+  const end = start + lines[clampedLine - 1].length;
   return [start, end];
 }
 
@@ -42,11 +39,25 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
 
       const graphQLSchema = buildSchema(graphQLSchemaString);
 
-      const document = parse(content);
+      let document;
+      try {
+        document = parse(content);
+      } catch (e) {
+        if (e instanceof GraphQLError) {
+          const [start, end] = lineToRange(content, e.locations?.[0]?.line ?? 1);
+          context.report({
+            message: e.message,
+            startIndex: start,
+            endIndex: end,
+          });
+        }
+        return;
+      }
+
       const errors = validate(graphQLSchema, document);
 
       errors.forEach((error) => {
-        const [start, end] = lineToRange(content, error.locations?.[0].line ?? 0);
+        const [start, end] = lineToRange(content, error.locations?.[0]?.line ?? 0);
         context.report({
           message: error.message,
           startIndex: start,

@@ -17,7 +17,7 @@ import {
   AstPath,
   LiquidParserOptions,
   LiquidPrinter,
-  HtmlNode,
+  HtmlTag,
   LiquidPrinterArgs,
   HtmlRawNode,
 } from '../../types';
@@ -54,7 +54,7 @@ export function printRawElement(
 }
 
 export function printElement(
-  path: AstPath<HtmlNode>,
+  path: AstPath<HtmlTag>,
   options: LiquidParserOptions,
   print: LiquidPrinter,
   args: LiquidPrinterArgs,

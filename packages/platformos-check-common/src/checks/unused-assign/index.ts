@@ -26,6 +26,10 @@ export const UnusedAssign: LiquidCheckDefinition = {
 
   create(context) {
     const assignedVariables: Map<string, LiquidTagAssign | LiquidTagCapture> = new Map();
+    // Variables assigned from a pure variable lookup (no filters, no literals).
+    // e.g. `assign errors = contract.errors` — mutations on `errors` have side
+    // effects on the original, so they count as "using" the variable.
+    const referenceAssignedVariables: Set<string> = new Set();
     const usedVariables: Set<string> = new Set();
 
     function checkVariableUsage(node: any) {
@@ -38,7 +42,28 @@ export const UnusedAssign: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
         if (isLiquidTagAssign(node)) {
-          assignedVariables.set(node.markup.name, node);
+          if (node.markup.lookups.length === 0 && node.markup.operator === '=') {
+            // Simple assignment: register as a new variable
+            assignedVariables.set(node.markup.name, node);
+            // Track pure reference assignments (VariableLookup with no filters)
+            if (
+              node.markup.value.type === NodeTypes.LiquidVariable &&
+              node.markup.value.expression.type === NodeTypes.VariableLookup &&
+              node.markup.value.filters.length === 0
+            ) {
+              referenceAssignedVariables.add(node.markup.name);
+            }
+          } else {
+            // Hash/array mutation: assign x[key]=val, assign x.key=val, assign x<<val
+            // Counts as "using" x only when x is external (not locally assigned here)
+            // or was assigned as a reference alias to another variable.
+            if (
+              !assignedVariables.has(node.markup.name) ||
+              referenceAssignedVariables.has(node.markup.name)
+            ) {
+              usedVariables.add(node.markup.name);
+            }
+          }
         } else if (isLiquidTagCapture(node) && node.markup.name) {
           assignedVariables.set(node.markup.name, node);
         }

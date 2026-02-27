@@ -1,0 +1,11 @@
+It should preserve XML declarations verbatim
+<?xml version="1.0" encoding="UTF-8"?>
+
+It should preserve other processing instructions verbatim
+<?xml-stylesheet type="text/xsl" href="style.xsl"?>
+
+It should preserve processing instructions mixed with other elements
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <child />
+</root>

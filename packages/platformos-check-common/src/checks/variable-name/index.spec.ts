@@ -43,6 +43,15 @@ describe('Module: VariableName', () => {
     expect(suggestions).to.include(expectedFixedCode);
   });
 
+  it('should not report an error for variables starting with underscore', async () => {
+    const varNames = [`_`, `_errors`, `_temp_var`, `_myPrivateVar`];
+    for (const varName of varNames) {
+      const sourceCode = `{% assign ${varName} = "value" %}`;
+      const offenses = await runLiquidCheck(VariableName, sourceCode);
+      expect(offenses).to.be.empty;
+    }
+  });
+
   // It's impossible to make an idempotent rule that works for all cases. We
   // have to accept whatever spacing the user has input as valid.
   it('should not complain about numbers inside variable names', async () => {

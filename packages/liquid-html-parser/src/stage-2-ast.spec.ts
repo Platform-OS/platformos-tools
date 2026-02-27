@@ -628,17 +628,10 @@ describe('Unit: Stage 2 (AST)', () => {
             namedArguments: [],
           },
           {
-            expression: `variable with "string" as foo, key1: val1, key2: "hi"`,
-            partialType: 'VariableLookup',
-            alias: {
-              value: 'foo',
-            },
-            renderVariableExpression: {
-              kind: 'with',
-              name: {
-                type: 'String',
-              },
-            },
+            expression: `"partial", key1: val1, key2: "hi"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
             namedArguments: [
               { name: 'key1', valueType: 'VariableLookup' },
               { name: 'key2', valueType: 'String' },
@@ -685,14 +678,140 @@ describe('Unit: Stage 2 (AST)', () => {
         );
       });
 
+      it('should parse include tags', () => {
+        [
+          {
+            expression: `"partial"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `variable`,
+            partialType: 'VariableLookup',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `obj.path`,
+            partialType: 'VariableLookup',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `hash['key']`,
+            partialType: 'VariableLookup',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `"partial" as foo`,
+            partialType: 'String',
+            alias: { value: 'foo' },
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `variable as foo`,
+            partialType: 'VariableLookup',
+            alias: { value: 'foo' },
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `"partial", key1: val1, key2: "hi"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+          {
+            expression: `variable with "string" as foo, key1: val1, key2: "hi"`,
+            partialType: 'VariableLookup',
+            alias: { value: 'foo' },
+            renderVariableExpression: { kind: 'with', name: { type: 'String' } },
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+          {
+            expression: `"partial" for products as product`,
+            partialType: 'String',
+            alias: { value: 'product' },
+            renderVariableExpression: { kind: 'for', name: { type: 'VariableLookup' } },
+            namedArguments: [],
+          },
+        ].forEach(
+          ({ expression, partialType, alias, renderVariableExpression, namedArguments }) => {
+            for (const { toAST, expectPath, expectPosition } of testCases) {
+              ast = toAST(`{% include ${expression} -%}`);
+              expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+              expectPath(ast, 'children.0.name').to.equal('include');
+              expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
+              expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
+              if (renderVariableExpression) {
+                expectPath(ast, 'children.0.markup.variable.type').to.equal(
+                  'RenderVariableExpression',
+                );
+                expectPath(ast, 'children.0.markup.variable.kind').to.equal(
+                  renderVariableExpression.kind,
+                );
+                expectPath(ast, 'children.0.markup.variable.name.type').to.equal(
+                  renderVariableExpression.name.type,
+                );
+                expectPosition(ast, 'children.0.markup.variable');
+                expectPosition(ast, 'children.0.markup.variable.name');
+              } else {
+                expectPath(ast, 'children.0.markup.variable').to.equal(null);
+              }
+              expectPath(ast, 'children.0.markup.alias.value').to.equal(alias?.value);
+              expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
+                expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
+                expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
+                expectPosition(ast, `children.0.markup.args.${i}`);
+                expectPosition(ast, `children.0.markup.args.${i}.value`);
+              });
+              expectPath(ast, 'children.0.whitespaceStart').to.equal('');
+              expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
+              expectPosition(ast, 'children.0');
+              expectPosition(ast, 'children.0.markup');
+            }
+          },
+        );
+      });
+
       it('should parse function tags', () => {
         [
           {
+            resultVar: '_res',
+            resultVarName: '_res',
+            resultVarNameLookups: 0,
             expression: `"partial"`,
             partialType: 'String',
             namedArguments: [],
           },
           {
+            resultVar: '_res',
+            resultVarName: '_res',
+            resultVarNameLookups: 0,
+            expression: `variable`,
+            partialType: 'VariableLookup',
+            namedArguments: [],
+          },
+          {
+            resultVar: '_res',
+            resultVarName: '_res',
+            resultVarNameLookups: 0,
             expression: `variable, key1: val1, key2: "hi"`,
             partialType: 'VariableLookup',
             namedArguments: [
@@ -700,27 +819,71 @@ describe('Unit: Stage 2 (AST)', () => {
               { name: 'key2', valueType: 'String' },
             ],
           },
-        ].forEach(({ expression, partialType, namedArguments }) => {
-          for (const { toAST, expectPath, expectPosition } of testCases) {
-            ast = toAST(`{% function _res = ${expression} -%}`);
-            expectPath(ast, 'children.0.type').to.equal('LiquidTag');
-            expectPath(ast, 'children.0.name').to.equal('function');
-            expectPath(ast, 'children.0.markup.type').to.equal('FunctionMarkup');
-            expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
-            expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
-              expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
-              expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
-              expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
-              expectPosition(ast, `children.0.markup.args.${i}`);
-              expectPosition(ast, `children.0.markup.args.${i}.value`);
-            });
-            expectPath(ast, 'children.0.whitespaceStart').to.equal('');
-            expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
-            expectPosition(ast, 'children.0');
-            expectPosition(ast, 'children.0.markup');
-          }
-        });
+          {
+            resultVar: `hash['key']`,
+            resultVarName: 'hash',
+            resultVarNameLookups: 1,
+            expression: `"partial"`,
+            partialType: 'String',
+            namedArguments: [],
+          },
+          {
+            resultVar: `obj.prop`,
+            resultVarName: 'obj',
+            resultVarNameLookups: 1,
+            expression: `"partial"`,
+            partialType: 'String',
+            namedArguments: [],
+          },
+        ].forEach(
+          ({
+            resultVar,
+            resultVarName,
+            resultVarNameLookups,
+            expression,
+            partialType,
+            namedArguments,
+          }) => {
+            for (const { toAST, expectPath, expectPosition } of testCases) {
+              ast = toAST(`{% function ${resultVar} = ${expression} -%}`);
+              expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+              expectPath(ast, 'children.0.name').to.equal('function');
+              expectPath(ast, 'children.0.markup.type').to.equal('FunctionMarkup');
+              expectPath(ast, 'children.0.markup.name.type').to.equal('VariableLookup');
+              expectPath(ast, 'children.0.markup.name.name').to.equal(resultVarName);
+              expectPath(ast, 'children.0.markup.name.lookups').to.have.lengthOf(
+                resultVarNameLookups,
+              );
+              expectPosition(ast, 'children.0.markup.name');
+              expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
+              expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
+                expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
+                expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
+                expectPosition(ast, `children.0.markup.args.${i}`);
+                expectPosition(ast, `children.0.markup.args.${i}.value`);
+              });
+              expectPath(ast, 'children.0.whitespaceStart').to.equal('');
+              expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
+              expectPosition(ast, 'children.0');
+              expectPosition(ast, 'children.0.markup');
+            }
+          },
+        );
+      });
+
+      it('should parse hash pair values in named arguments', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(
+            `{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`,
+          );
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('message_minimum');
+          expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.markup.args.0.value.name').to.equal('key');
+          expectPath(ast, 'children.0.markup.args.0.value.value.type').to.equal('String');
+        }
       });
 
       it('should parse graphql tags', () => {
@@ -1080,30 +1243,42 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
-      it('should parse the inline background tag with variable name only', () => {
+      it('should parse the block background tag with no args', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
-          ast = toAST(`{% background job_id %}{% log data %}{% endbackground %}`);
+          ast = toAST(`{% background %}{% log data %}{% endbackground %}`);
           expectPath(ast, 'children.0.type').to.equal('LiquidTag');
           expectPath(ast, 'children.0.name').to.equal('background');
           expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(ast, 'children.0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(ast, 'children.0.markup.jobId.name').to.equal('job_id');
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(0);
           expectPath(ast, 'children.0.children').to.have.lengthOf(1);
           expectPosition(ast, 'children.0');
         }
       });
 
-      it('should parse the inline background tag with variable name and args', () => {
+      it('should parse the block background tag with a single named arg', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
-          ast = toAST(`{% background job_id, priority: 'low' %}{% log data %}{% endbackground %}`);
+          ast = toAST(`{% background source_type: 'some form' %}{% log data %}{% endbackground %}`);
           expectPath(ast, 'children.0.type').to.equal('LiquidTag');
           expectPath(ast, 'children.0.name').to.equal('background');
           expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(ast, 'children.0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(ast, 'children.0.markup.jobId.name').to.equal('job_id');
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
-          expectPath(ast, 'children.0.markup.args.0.name').to.equal('priority');
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('source_type');
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the block background tag with multiple named args', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(
+            `{% background source_name: "liquid_tests", test_name: test_name %}{% log data %}{% endbackground %}`,
+          );
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('background');
+          expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('source_name');
+          expectPath(ast, 'children.0.markup.args.1.name').to.equal('test_name');
           expectPath(ast, 'children.0.children').to.have.lengthOf(1);
           expectPosition(ast, 'children.0');
         }
@@ -1163,6 +1338,12 @@ describe('Unit: Stage 2 (AST)', () => {
           ast = toAST(`{% log params, type: 'error' %}`);
           expectPath(ast, 'children.0.markup.value.type').to.equal('VariableLookup');
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+
+          // positional string argument
+          ast = toAST(`{% log object, 'showme STATUS-INVALID' %}`);
+          expectPath(ast, 'children.0.markup.value.type').to.equal('VariableLookup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.type').to.equal('String');
         }
       });
 
@@ -1666,6 +1847,13 @@ describe('Unit: Stage 2 (AST)', () => {
       ast = toLiquidHtmlAST(`<!--\n  hello {{ product.name }}\n-->`);
       expectPath(ast, 'children.0.type').to.eql('HtmlComment');
       expectPath(ast, 'children.0.body').to.eql('hello {{ product.name }}');
+      expectPosition(ast, 'children.0');
+    });
+
+    it('should parse XML declarations as HtmlProcessingInstruction', () => {
+      ast = toLiquidHtmlAST(`<?xml version="1.0" encoding="UTF-8"?>\n<root />`);
+      expectPath(ast, 'children.0.type').to.eql('HtmlProcessingInstruction');
+      expectPath(ast, 'children.0.body').to.eql(`xml version="1.0" encoding="UTF-8"`);
       expectPosition(ast, 'children.0');
     });
 

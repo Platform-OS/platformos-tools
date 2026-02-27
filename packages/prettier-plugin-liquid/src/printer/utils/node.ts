@@ -12,6 +12,7 @@ import {
   HtmlNode,
   HtmlVoidElement,
   HtmlComment,
+  HtmlProcessingInstruction,
   HtmlElement,
   LiquidTag,
   AttributeNode,
@@ -41,13 +42,25 @@ export function hasNoCloseMarker(
   return hasNoChildren(node) || isHtmlDanglingMarkerOpen(node);
 }
 
+export function isHtmlProcessingInstruction(
+  node: LiquidHtmlNode,
+): node is HtmlProcessingInstruction {
+  return node.type === NodeTypes.HtmlProcessingInstruction;
+}
+
 export function hasNoChildren(
   node: LiquidHtmlNode,
-): node is HtmlComment | HtmlVoidElement | HtmlSelfClosingElement | HtmlDanglingMarkerClose {
+): node is
+  | HtmlComment
+  | HtmlProcessingInstruction
+  | HtmlVoidElement
+  | HtmlSelfClosingElement
+  | HtmlDanglingMarkerClose {
   return (
     isSelfClosing(node) ||
     isVoidElement(node) ||
     isHtmlComment(node) ||
+    isHtmlProcessingInstruction(node) ||
     isHtmlDanglingMarkerClose(node)
   );
 }

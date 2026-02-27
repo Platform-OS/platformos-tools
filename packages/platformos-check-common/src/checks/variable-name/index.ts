@@ -65,6 +65,11 @@ export const VariableName: LiquidCheckDefinition<typeof schema> = {
         };
       }
 
+      // Variables starting with _ are valid (used as throwaway/private variables)
+      if (node.markup.name.startsWith('_')) {
+        return { valid: true };
+      }
+
       const formatter = formatTypes[context.settings.format as FormatTypes];
       const suggestion = formatter(node.markup.name);
 

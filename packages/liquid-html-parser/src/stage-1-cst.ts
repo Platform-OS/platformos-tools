@@ -47,6 +47,7 @@ import { Comparators, NamedTags } from './types';
 export enum ConcreteNodeTypes {
   HtmlDoctype = 'HtmlDoctype',
   HtmlComment = 'HtmlComment',
+  HtmlProcessingInstruction = 'HtmlProcessingInstruction',
   HtmlRawTag = 'HtmlRawTag',
   HtmlVoidElement = 'HtmlVoidElement',
   HtmlSelfClosingElement = 'HtmlSelfClosingElement',
@@ -171,6 +172,10 @@ export interface ConcreteHtmlDoctype extends ConcreteBasicNode<ConcreteNodeTypes
 }
 
 export interface ConcreteHtmlComment extends ConcreteBasicNode<ConcreteNodeTypes.HtmlComment> {
+  body: string;
+}
+
+export interface ConcreteHtmlProcessingInstruction extends ConcreteBasicNode<ConcreteNodeTypes.HtmlProcessingInstruction> {
   body: string;
 }
 
@@ -566,7 +571,7 @@ export interface ConcreteLiquidTagRenderMarkup extends ConcreteBasicNode<Concret
 }
 
 export interface ConcreteLiquidTagFunctionMarkup extends ConcreteBasicNode<ConcreteNodeTypes.FunctionMarkup> {
-  name: string;
+  name: ConcreteLiquidVariableLookup;
   partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
 }
@@ -590,7 +595,6 @@ export interface ConcreteLiquidTagBackgroundMarkup extends ConcreteBasicNode<Con
 }
 
 export interface ConcreteLiquidTagBackgroundInlineMarkup extends ConcreteBasicNode<ConcreteNodeTypes.BackgroundInlineMarkup> {
-  jobId: ConcreteLiquidVariableLookup;
   args: ConcreteLiquidNamedArgument[];
 }
 
@@ -601,7 +605,7 @@ export interface ConcreteLiquidTagCacheMarkup extends ConcreteBasicNode<Concrete
 
 export interface ConcreteLiquidTagLogMarkup extends ConcreteBasicNode<ConcreteNodeTypes.LogMarkup> {
   value: ConcreteLiquidExpression;
-  args: ConcreteLiquidNamedArgument[];
+  args: ConcreteLiquidArgument[];
 }
 
 export interface ConcreteLiquidTagSessionMarkup extends ConcreteBasicNode<ConcreteNodeTypes.SessionMarkup> {
@@ -658,7 +662,7 @@ export type ConcreteLiquidArgument = ConcreteLiquidExpression | ConcreteLiquidNa
 
 export interface ConcreteLiquidNamedArgument extends ConcreteBasicNode<ConcreteNodeTypes.NamedArgument> {
   name: string;
-  value: ConcreteLiquidExpression | ConcreteLiquidVariable;
+  value: ConcreteLiquidExpression | ConcreteLiquidVariable | ConcreteLiquidNamedArgument;
 }
 
 export type ConcreteLiquidExpression =
@@ -724,6 +728,7 @@ export type ConcreteJsonValue =
 export type ConcreteHtmlNode =
   | ConcreteHtmlDoctype
   | ConcreteHtmlComment
+  | ConcreteHtmlProcessingInstruction
   | ConcreteHtmlRawTag
   | ConcreteHtmlVoidElement
   | ConcreteHtmlSelfClosingElement
@@ -1209,6 +1214,16 @@ function toCST<T>(
       locEnd,
       source,
     },
+    liquidTagIncludeMarkup: {
+      type: ConcreteNodeTypes.RenderMarkup,
+      partial: 0,
+      variable: 1,
+      alias: 2,
+      renderArguments: 3,
+      locStart,
+      locEnd,
+      source,
+    },
     liquidTagFunctionMarkup: {
       type: ConcreteNodeTypes.FunctionMarkup,
       name: 0,
@@ -1250,8 +1265,7 @@ function toCST<T>(
     liquidTagOpenBackground: 0,
     liquidTagBackgroundInlineMarkup: {
       type: ConcreteNodeTypes.BackgroundInlineMarkup,
-      jobId: 0,
-      args: 2,
+      args: 0,
       locStart,
       locEnd,
       source,
@@ -1279,6 +1293,9 @@ function toCST<T>(
       locEnd,
       source,
     },
+    liquidTagLogArguments: 1,
+    logArguments: 0,
+    logArgument: 0,
     liquidTagPrint: 0,
     liquidTagReturn: 0,
     liquidTagYield: 0,
@@ -1451,6 +1468,15 @@ function toCST<T>(
     graphqlRenderArguments: 1,
     positionalArgument: 0,
     namedArgument: {
+      type: ConcreteNodeTypes.NamedArgument,
+      name: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    namedArgumentValue: 0,
+    hashPairValue: {
       type: ConcreteNodeTypes.NamedArgument,
       name: 0,
       value: 4,
@@ -1748,6 +1774,14 @@ function toCST<T>(
 
     HtmlComment: {
       type: ConcreteNodeTypes.HtmlComment,
+      body: markup(1),
+      locStart,
+      locEnd,
+      source,
+    },
+
+    HtmlProcessingInstruction: {
+      type: ConcreteNodeTypes.HtmlProcessingInstruction,
       body: markup(1),
       locStart,
       locEnd,

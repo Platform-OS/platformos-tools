@@ -201,10 +201,6 @@ export class DocumentManager {
           ...sourceCode,
           textDocument,
           /** Lazy and only computed once per file version */
-          getSchema: memo(async () => {
-            return undefined;
-          }),
-          /** Lazy and only computed once per file version */
           getLiquidDoc: memo(async () => {
             const ast = sourceCode.ast;
             if (isError(ast)) return undefined;

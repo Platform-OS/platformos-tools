@@ -18,7 +18,7 @@ import {
   LiquidTagGraphQL,
   LiquidTagParseJson,
   LiquidTagBackground,
-  BackgroundInlineMarkup,
+  BackgroundMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
@@ -148,8 +148,8 @@ export const UndefinedObject: LiquidCheckDefinition = {
         }
 
         if (isLiquidTagBackground(node)) {
-          indexVariableScope(node.markup.jobId.name, {
-            start: node.blockEndPosition?.end,
+          indexVariableScope(node.markup.jobId, {
+            start: node.position.end,
           });
         }
       },
@@ -160,9 +160,6 @@ export const UndefinedObject: LiquidCheckDefinition = {
         const parent = last(ancestors);
         if (isLiquidTag(parent) && isLiquidTagCapture(parent)) return;
         if (isLiquidTag(parent) && isLiquidTagParseJson(parent)) return;
-
-        // Skip the jobId variable in background tag markup - it's being defined, not used
-        if (isBackgroundInlineMarkup(parent) && parent.jobId === node) return;
 
         variables.push(node);
       },
@@ -299,19 +296,10 @@ function isLiquidTagDecrement(node: LiquidTag): node is LiquidTagDecrement {
 
 function isLiquidTagBackground(
   node: LiquidTag,
-): node is LiquidTagBackground & { markup: BackgroundInlineMarkup } {
+): node is LiquidTagBackground & { markup: BackgroundMarkup } {
   return (
     node.name === NamedTags.background &&
     typeof node.markup !== 'string' &&
-    node.markup.type === NodeTypes.BackgroundInlineMarkup
-  );
-}
-
-function isBackgroundInlineMarkup(node: unknown): node is BackgroundInlineMarkup {
-  return (
-    typeof node === 'object' &&
-    node !== null &&
-    'type' in node &&
-    node.type === NodeTypes.BackgroundInlineMarkup
+    node.markup.type === NodeTypes.BackgroundMarkup
   );
 }

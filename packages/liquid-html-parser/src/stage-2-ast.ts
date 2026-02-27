@@ -606,9 +606,8 @@ export interface BackgroundMarkup extends ASTNode<NodeTypes.BackgroundMarkup> {
   args: LiquidNamedArgument[];
 }
 
-/** {% background jobId[, ...namedArguments] %}...{% endbackground %} (inline) */
+/** {% background [...namedArguments] %}...{% endbackground %} (inline/block form) */
 export interface BackgroundInlineMarkup extends ASTNode<NodeTypes.BackgroundInlineMarkup> {
-  jobId: LiquidVariableLookup;
   args: LiquidNamedArgument[];
 }
 
@@ -2375,7 +2374,6 @@ function toBackgroundInlineMarkup(
 ): BackgroundInlineMarkup {
   return {
     type: NodeTypes.BackgroundInlineMarkup,
-    jobId: toExpression(node.jobId) as LiquidVariableLookup,
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,

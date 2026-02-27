@@ -1725,28 +1725,36 @@ describe('Unit: Stage 1 (CST)', () => {
         }
       });
 
-      it('should parse the inline background tag with variable name only', () => {
+      it('should parse the block background tag with no args', () => {
         for (const { toCST, expectPath } of testCases) {
-          cst = toCST(`{% background job_id %}`);
+          cst = toCST(`{% background %}`);
           expectPath(cst, '0.type').to.equal('LiquidTagOpen');
           expectPath(cst, '0.name').to.equal('background');
           expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(cst, '0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.jobId.name').to.equal('job_id');
           expectPath(cst, '0.markup.args').to.have.lengthOf(0);
         }
       });
 
-      it('should parse the inline background tag with variable name and args', () => {
+      it('should parse the block background tag with a single named arg', () => {
         for (const { toCST, expectPath } of testCases) {
-          cst = toCST(`{% background job_id, priority: 'low' %}`);
+          cst = toCST(`{% background source_type: 'some form' %}`);
           expectPath(cst, '0.type').to.equal('LiquidTagOpen');
           expectPath(cst, '0.name').to.equal('background');
           expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(cst, '0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.jobId.name').to.equal('job_id');
           expectPath(cst, '0.markup.args').to.have.lengthOf(1);
-          expectPath(cst, '0.markup.args.0.name').to.equal('priority');
+          expectPath(cst, '0.markup.args.0.name').to.equal('source_type');
+        }
+      });
+
+      it('should parse the block background tag with multiple named args', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% background source_name: "liquid_tests", test_name: test_name %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('background');
+          expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.args.0.name').to.equal('source_name');
+          expectPath(cst, '0.markup.args.1.name').to.equal('test_name');
         }
       });
 

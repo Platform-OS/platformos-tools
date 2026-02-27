@@ -9,6 +9,7 @@ import {
   ConvenienceSeverities,
   ConvenienceSeverity,
   ModernIdentifier,
+  ModernIdentifiers,
 } from '../types';
 
 class UnresolvedAliasError extends Error {
@@ -129,6 +130,12 @@ function resolveExtends(
 ): ModernIdentifier | string | undefined {
   if (pathLike.startsWith('platformos-check:')) {
     return pathLike;
+  }
+
+  // Support legacy shorthand YAML-symbol style: ':nothing', ':recommended', ':all'
+  const expanded = `platformos-check${pathLike}`;
+  if (pathLike.startsWith(':') && ModernIdentifiers.includes(expanded as any)) {
+    return expanded as ModernIdentifier;
   }
 
   return resolvePath(root, pathLike);

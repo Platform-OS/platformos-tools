@@ -1,5 +1,0 @@
-{
-  "$schema": "manifest_schema.json",
-  "$comment": "JSON schema declarations for platformOS apps. Currently empty — platformOS does not use Shopify-style section/block/settings schemas.",
-  "schemas": []
-}

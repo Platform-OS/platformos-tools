@@ -1080,30 +1080,42 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
-      it('should parse the inline background tag with variable name only', () => {
+      it('should parse the block background tag with no args', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
-          ast = toAST(`{% background job_id %}{% log data %}{% endbackground %}`);
+          ast = toAST(`{% background %}{% log data %}{% endbackground %}`);
           expectPath(ast, 'children.0.type').to.equal('LiquidTag');
           expectPath(ast, 'children.0.name').to.equal('background');
           expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(ast, 'children.0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(ast, 'children.0.markup.jobId.name').to.equal('job_id');
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(0);
           expectPath(ast, 'children.0.children').to.have.lengthOf(1);
           expectPosition(ast, 'children.0');
         }
       });
 
-      it('should parse the inline background tag with variable name and args', () => {
+      it('should parse the block background tag with a single named arg', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
-          ast = toAST(`{% background job_id, priority: 'low' %}{% log data %}{% endbackground %}`);
+          ast = toAST(`{% background source_type: 'some form' %}{% log data %}{% endbackground %}`);
           expectPath(ast, 'children.0.type').to.equal('LiquidTag');
           expectPath(ast, 'children.0.name').to.equal('background');
           expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(ast, 'children.0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(ast, 'children.0.markup.jobId.name').to.equal('job_id');
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
-          expectPath(ast, 'children.0.markup.args.0.name').to.equal('priority');
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('source_type');
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the block background tag with multiple named args', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(
+            `{% background source_name: "liquid_tests", test_name: test_name %}{% log data %}{% endbackground %}`,
+          );
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('background');
+          expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('source_name');
+          expectPath(ast, 'children.0.markup.args.1.name').to.equal('test_name');
           expectPath(ast, 'children.0.children').to.have.lengthOf(1);
           expectPosition(ast, 'children.0');
         }

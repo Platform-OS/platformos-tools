@@ -67,6 +67,14 @@ describe('Unit: readYamlConfigDescription', () => {
       });
     });
 
+    it('supports legacy YAML-symbol shorthand (:nothing, :recommended, :all)', async () => {
+      for (const shorthand of [':nothing', ':recommended', ':all']) {
+        const filePath = await createMockYamlFile(`extends: ${shorthand}`);
+        const config = await readYamlConfigDescription(filePath);
+        expect(config.extends).toEqual([`platformos-check${shorthand}`]);
+      }
+    });
+
     it('uses an absolute path as is', async () => {
       const baseConfigPath = await createMockYamlFile(`extends: platformos-check:nothing`);
       const filePath = await createMockYamlFile(`extends: '${baseConfigPath}'`);

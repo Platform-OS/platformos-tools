@@ -359,10 +359,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
   });
 
-  it('should report an offense when job_id is used inside background block', async () => {
+  it('should report an offense when undefined variable is used inside background block', async () => {
     const sourceCode = `
-      {% background job_id %}
-        {{ job_id }}
+      {% background source_type: 'some form' %}
+        {{ undefined_var }}
       {% endbackground %}
     `;
 
@@ -371,12 +371,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(1);
   });
 
-  it('should not report an offense when job_id is used after background block', async () => {
+  it('should not report an offense when job_id is used after background file-based tag', async () => {
     const sourceCode = `
-      {% background job_id %}
-        {% assign a = 5 %}
-      {% endbackground %}
-      {{ job_id }}
+      {% background my_job = 'some_partial' %}
+      {{ my_job }}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
@@ -384,12 +382,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should not report an offense when job_id is used after background block with args', async () => {
+  it('should not report an offense when job_id is used after background file-based tag with named args', async () => {
     const sourceCode = `
-      {% background job_id, priority: 'low' %}
-        {% assign a = 5 %}
-      {% endbackground %}
-      {{ job_id }}
+      {% background my_job = 'some_partial', source_type: 'some form' %}
+      {{ my_job }}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
@@ -397,18 +393,16 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when job_id is used before background block', async () => {
+  it('should report an offense when job_id is used before background file-based tag', async () => {
     const sourceCode = `
-      {{ job_id }}
-      {% background job_id %}
-        {% assign a = 5 %}
-      {% endbackground %}
+      {{ my_job }}
+      {% background my_job = 'some_partial' %}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
 
     expect(offenses).toHaveLength(1);
-    expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'job_id' used."]);
+    expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_job' used."]);
   });
 
   it('should not report an offense when object is defined with a parse_json tag', async () => {

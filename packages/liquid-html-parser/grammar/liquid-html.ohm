@@ -217,9 +217,9 @@ Liquid <: Helpers {
   liquidTagBackgroundMarkup = variableSegment space* "=" space* partialExpression renderArguments
 
   liquidTagOpenBackground = liquidTagOpenRule<"background", liquidTagBackgroundInlineMarkup>
+  // Block form: only named arguments (no positional job_id)
   // Use negative lookahead to exclude file-based syntax (with "=")
-  // jobId is required before any arguments
-  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") variableSegmentAsLookup argumentSeparatorOptionalComma tagArguments space*
+  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") tagArguments space*
 
   liquidTagOpenCache = liquidTagOpenRule<"cache", liquidTagCacheMarkup>
   liquidTagCacheMarkup = liquidExpression<delimTag> renderArguments

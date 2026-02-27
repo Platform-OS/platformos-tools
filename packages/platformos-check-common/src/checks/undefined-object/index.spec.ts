@@ -145,6 +145,116 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
+  it('should report an offense when function result variable is used before its definition', async () => {
+    const sourceCode = `
+      {{ a }}
+      {% function a = 'test' %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'a' used.");
+  });
+
+  it('should not report an offense for multiple function result variables', async () => {
+    const sourceCode = `
+      {% function result1 = 'partial_one' %}
+      {% function result2 = 'partial_two' %}
+      {{ result1 }}
+      {{ result2 }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should not register a scope variable when function target is a hash/array access', async () => {
+    const sourceCode = `
+      {% parse_json my_hash %}{"key": "value"}{% endparse_json %}
+      {% function my_hash['result'] = 'test' %}
+      {{ my_hash }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    // my_hash is defined via parse_json; function hash-access target does not shadow it
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should report an offense when a variable partial in include is undefined', async () => {
+    const sourceCode = `
+      {% include undefined_partial %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'undefined_partial' used.");
+  });
+
+  it('should not report an offense when a variable partial in include is defined', async () => {
+    const sourceCode = `
+      {% assign partial_name = 'some/partial' %}
+      {% include partial_name %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should report an offense when a variable partial in function is undefined', async () => {
+    const sourceCode = `
+      {% function result = undefined_partial %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'undefined_partial' used.");
+  });
+
+  it('should not report an offense for the result variable itself in function tag', async () => {
+    const sourceCode = `
+      {% function result = undefined_partial %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    // only 'undefined_partial' should be reported, not 'result'
+    expect(offenses.every((o) => o.message !== "Unknown object 'result' used.")).toBe(true);
+  });
+
+  it('should report offenses for lookup key variables in function result target and partial', async () => {
+    const sourceCode = `
+      {% parse_json my_hash %}{}{% endparse_json %}
+      {% function my_hash[lookup_key] = my_hash[path_var] %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    const messages = offenses.map((o) => o.message);
+    // lookup_key and path_var are undefined; my_hash is defined
+    expect(messages).toContain("Unknown object 'lookup_key' used.");
+    expect(messages).toContain("Unknown object 'path_var' used.");
+    expect(messages).not.toContain("Unknown object 'my_hash' used.");
+  });
+
+  it('should check the partial variable in function but not the hash-access result target base', async () => {
+    const sourceCode = `
+      {% parse_json my_hash %}{}{% endparse_json %}
+      {% function my_hash['key'] = undefined_partial %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    const messages = offenses.map((o) => o.message);
+    expect(messages).toContain("Unknown object 'undefined_partial' used.");
+    expect(messages).not.toContain("Unknown object 'my_hash' used.");
+  });
+
   it('should report an offense when object is defined in a for loop but used outside of the scope (in scenarios where the same variable has multiple scopes in the file)', async () => {
     const sourceCode = `
       {% for c in collections %}

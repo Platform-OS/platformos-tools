@@ -1,0 +1,37 @@
+It should format a string partial
+{%- include 'partial' -%}
+
+It should format a variable partial
+{% include partial_name %}
+
+It should format a dot-access variable partial
+{% include obj.path %}
+
+It should format a bracket-access variable partial
+{% include hash.key %}
+
+It should format alias-only
+{% include 'partial' as foo %}
+
+It should format variable with alias
+{% include partial_name as foo %}
+
+It should break on named args
+printWidth: 1
+{% include 'partial',
+  key1: val1,
+  key2: (0..1)
+%}
+
+It should format variable partial with named args
+{% include partial_name, key1: val1, key2: 'hi' %}
+
+It should format variable with expression and alias
+{% include partial_name with 'value' as foo %}
+
+It should not require commas (as per syntax) but add them when pretty printed
+{% include 'partial', key1: val1, key2: (0..1) %}
+
+It should strip trailing commas by default
+{% include 'partial' %}
+{% include 'partial', product: product %}

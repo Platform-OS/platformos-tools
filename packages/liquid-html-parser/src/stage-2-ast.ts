@@ -501,8 +501,8 @@ export interface RenderMarkup extends ASTNode<NodeTypes.RenderMarkup> {
 
 /** {% function res = 'partial', [...namedArguments] %} */
 export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
-  /** {% function res = 'partial' %} */
-  name: string;
+  /** {% function res = 'partial' %} or {% function hash['key'] = 'partial' %} */
+  name: LiquidVariableLookup;
   partial: LiquidString | LiquidVariableLookup;
   /**
    * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
@@ -2303,7 +2303,7 @@ function toRenderMarkup(node: ConcreteLiquidTagRenderMarkup): RenderMarkup {
 
 function toFunctionMarkup(node: ConcreteLiquidTagFunctionMarkup): FunctionMarkup {
   return {
-    name: node.name,
+    name: toExpression(node.name) as LiquidVariableLookup,
     type: NodeTypes.FunctionMarkup,
     partial: toExpression(node.partial) as LiquidString | LiquidVariableLookup,
     /**

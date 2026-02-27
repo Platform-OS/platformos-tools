@@ -7,6 +7,7 @@ import {
   HashAssignMarkup,
   GraphQLMarkup,
   GraphQLInlineMarkup,
+  FunctionMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isError } from '../../utils';
@@ -229,12 +230,13 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
 
         // {% function result = 'path' %}
         if (node.name === NamedTags.function && typeof node.markup !== 'string') {
-          const markup = node.markup as { name: string };
-          if (markup.name) {
-            closeTypeRange(markup.name, node.position.start);
+          const markup = node.markup as FunctionMarkup;
+          const varName = markup.name.name;
+          if (varName) {
+            closeTypeRange(varName, node.position.start);
             // Function returns are untyped unless we can infer them
             variableTypes.push({
-              name: markup.name,
+              name: varName,
               type: 'untyped',
               range: [node.position.end],
             });

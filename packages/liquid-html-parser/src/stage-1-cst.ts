@@ -566,7 +566,7 @@ export interface ConcreteLiquidTagRenderMarkup extends ConcreteBasicNode<Concret
 }
 
 export interface ConcreteLiquidTagFunctionMarkup extends ConcreteBasicNode<ConcreteNodeTypes.FunctionMarkup> {
-  name: string;
+  name: ConcreteLiquidVariableLookup;
   partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
 }
@@ -1199,6 +1199,16 @@ function toCST<T>(
     contentForType: 0,
 
     liquidTagRenderMarkup: {
+      type: ConcreteNodeTypes.RenderMarkup,
+      partial: 0,
+      variable: 1,
+      alias: 2,
+      renderArguments: 3,
+      locStart,
+      locEnd,
+      source,
+    },
+    liquidTagIncludeMarkup: {
       type: ConcreteNodeTypes.RenderMarkup,
       partial: 0,
       variable: 1,

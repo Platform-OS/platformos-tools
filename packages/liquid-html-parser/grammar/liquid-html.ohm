@@ -201,13 +201,16 @@ Liquid <: Helpers {
   liquidTagContentForMarkup = contentForType space*
   contentForType = liquidString<delimTag>
 
-  liquidTagInclude = liquidTagRule<"include", liquidTagRenderMarkup>
-  liquidTagRender = liquidTagRule<"render", liquidTagRenderMarkup>
-  liquidTagRenderMarkup =
+  liquidTagInclude = liquidTagRule<"include", liquidTagIncludeMarkup>
+  liquidTagIncludeMarkup =
     partialExpression renderVariableExpression? renderAliasExpression? renderArguments
 
+  liquidTagRender = liquidTagRule<"render", liquidTagRenderMarkup>
+  liquidTagRenderMarkup =
+    liquidString<delimTag> renderVariableExpression? renderAliasExpression? renderArguments
+
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
-  liquidTagFunctionMarkup = variableSegment space* "=" space* partialExpression renderArguments
+  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression renderArguments
 
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
   liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments
@@ -278,7 +281,7 @@ Liquid <: Helpers {
 
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?
-  partialExpression = liquidString<delimTag> | variableSegmentAsLookup
+  partialExpression = liquidString<delimTag> | liquidVariableLookup<delimTag>
   renderVariableExpression = space+ ("for" | "with") space+ liquidExpression<delimTag>
   renderAliasExpression = space+ "as" space+ variableSegment
 
@@ -730,6 +733,8 @@ StrictLiquidHTML <: LiquidHTML {
 WithPlaceholderLiquid <: Liquid {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
   liquidTagRenderMarkup :=
+    liquidString<delimTag> renderVariableExpression? renderAliasExpression? completionModeRenderArguments
+  liquidTagIncludeMarkup :=
     partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
@@ -742,6 +747,8 @@ WithPlaceholderLiquid <: Liquid {
 WithPlaceholderLiquidStatement <: LiquidStatement {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
   liquidTagRenderMarkup :=
+    liquidString<delimTag> renderVariableExpression? renderAliasExpression? completionModeRenderArguments
+  liquidTagIncludeMarkup :=
     partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
@@ -754,6 +761,8 @@ WithPlaceholderLiquidStatement <: LiquidStatement {
 WithPlaceholderLiquidHTML <: LiquidHTML {
   liquidFilter<delim> := space* "|" space* identifier (space* ":" space* filterArguments<delim> (space* ",")?)?
   liquidTagRenderMarkup :=
+    liquidString<delimTag> renderVariableExpression? renderAliasExpression? completionModeRenderArguments
+  liquidTagIncludeMarkup :=
     partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*

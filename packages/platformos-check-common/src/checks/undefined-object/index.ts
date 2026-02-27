@@ -108,9 +108,13 @@ export const UndefinedObject: LiquidCheckDefinition = {
         }
 
         if (node.name === 'function') {
-          indexVariableScope((node.markup as FunctionMarkup).name, {
-            start: node.position.end,
-          });
+          const fnName = (node.markup as FunctionMarkup).name;
+          // Only register simple variable names (not hash/array mutations like hash['key'])
+          if (fnName.lookups.length === 0 && fnName.name !== null) {
+            indexVariableScope(fnName.name, {
+              start: node.position.end,
+            });
+          }
         }
 
         if (node.name === 'layout') {
@@ -160,6 +164,8 @@ export const UndefinedObject: LiquidCheckDefinition = {
         const parent = last(ancestors);
         if (isLiquidTag(parent) && isLiquidTagCapture(parent)) return;
         if (isLiquidTag(parent) && isLiquidTagParseJson(parent)) return;
+        // Skip the result variable of function tags (it's a definition, not a usage)
+        if (isFunctionMarkup(parent) && parent.name === node) return;
 
         variables.push(node);
       },
@@ -302,4 +308,8 @@ function isLiquidTagBackground(
     typeof node.markup !== 'string' &&
     node.markup.type === NodeTypes.BackgroundMarkup
   );
+}
+
+function isFunctionMarkup(node?: LiquidHtmlNode): node is FunctionMarkup {
+  return node?.type === NodeTypes.FunctionMarkup;
 }

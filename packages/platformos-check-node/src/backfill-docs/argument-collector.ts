@@ -41,6 +41,7 @@ function getPartialName(node: RenderMarkup | FunctionMarkup): string | undefined
  * When the same argument has different types across calls, use 'object'.
  */
 function mergeArgument(existingArgs: Map<string, ArgumentInfo>, arg: LiquidNamedArgument): void {
+  if (arg.value.type === NodeTypes.NamedArgument) return;
   const inferredType = inferArgumentType(arg.value);
   const existing = existingArgs.get(arg.name);
 

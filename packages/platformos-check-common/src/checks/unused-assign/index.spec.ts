@@ -127,4 +127,24 @@ describe('Module: UnusedAssign', () => {
     const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
     expect(offenses).to.have.lengthOf(1);
   });
+
+  it('should not report an offense for hash mutation via assign with lookup target', async () => {
+    const sourceCode = `
+      {% assign errors = {} %}
+      {% assign errors[field] = 'value' %}
+      {{ errors }}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
+
+  it('should not track assign with lookup as a new variable definition', async () => {
+    const sourceCode = `
+      {% assign errors[field_name] = field_errors %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
 });

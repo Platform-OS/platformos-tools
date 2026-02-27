@@ -617,10 +617,10 @@ export interface CacheMarkup extends ASTNode<NodeTypes.CacheMarkup> {
   args: LiquidNamedArgument[];
 }
 
-/** {% log value, [...namedArguments] %} */
+/** {% log value, [...arguments] %} */
 export interface LogMarkup extends ASTNode<NodeTypes.LogMarkup> {
   value: LiquidExpression;
-  args: LiquidNamedArgument[];
+  args: LiquidArgument[];
 }
 
 /** {% session name = value %} */
@@ -779,8 +779,9 @@ export interface LiquidNamedArgument extends ASTNode<NodeTypes.NamedArgument> {
   /**
    * For regular tags (render, function, for, etc.): a plain LiquidExpression (no filters).
    * For graphql tags: a LiquidVariable which may include filters (e.g. `name: val | fetch: "key"`).
+   * For hash pair values (e.g. `key: 'val'`): a nested LiquidNamedArgument.
    */
-  value: LiquidExpression | LiquidVariable;
+  value: LiquidExpression | LiquidVariable | LiquidNamedArgument;
 }
 
 export interface LiquidBooleanExpression extends ASTNode<NodeTypes.BooleanExpression> {
@@ -851,6 +852,7 @@ export interface JsonArrayLiteral extends ASTNode<NodeTypes.JsonArrayLiteral> {
 /** The union type of all HTML nodes */
 export type HtmlNode =
   | HtmlComment
+  | HtmlProcessingInstruction
   | HtmlElement
   | HtmlDanglingMarkerClose
   | HtmlVoidElement
@@ -963,6 +965,11 @@ export interface HtmlDoctype extends ASTNode<NodeTypes.HtmlDoctype> {
 
 /** Represents `<!-- comments -->` */
 export interface HtmlComment extends ASTNode<NodeTypes.HtmlComment> {
+  body: string;
+}
+
+/** Represents XML declarations and processing instructions: `<?xml ... ?>`, `<?...?>` */
+export interface HtmlProcessingInstruction extends ASTNode<NodeTypes.HtmlProcessingInstruction> {
   body: string;
 }
 
@@ -1525,6 +1532,16 @@ function buildAst(
       case ConcreteNodeTypes.HtmlComment: {
         builder.push({
           type: NodeTypes.HtmlComment,
+          body: node.body,
+          position: position(node),
+          source: node.source,
+        });
+        break;
+      }
+
+      case ConcreteNodeTypes.HtmlProcessingInstruction: {
+        builder.push({
+          type: NodeTypes.HtmlProcessingInstruction,
           body: node.body,
           position: position(node),
           source: node.source,
@@ -2394,7 +2411,7 @@ function toLogMarkup(node: ConcreteLiquidTagLogMarkup): LogMarkup {
   return {
     type: NodeTypes.LogMarkup,
     value: toExpression(node.value),
-    args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    args: node.args.map(toLiquidArgument),
     position: position(node),
     source: node.source,
   };
@@ -2663,13 +2680,18 @@ function toLiquidArgument(node: ConcreteLiquidArgument): LiquidArgument {
 }
 
 function toNamedArgument(node: ConcreteLiquidNamedArgument): LiquidNamedArgument {
+  let value: LiquidExpression | LiquidVariable | LiquidNamedArgument;
+  if (node.value.type === ConcreteNodeTypes.LiquidVariable) {
+    value = toLiquidVariable(node.value as ConcreteLiquidVariable);
+  } else if (node.value.type === ConcreteNodeTypes.NamedArgument) {
+    value = toNamedArgument(node.value as ConcreteLiquidNamedArgument);
+  } else {
+    value = toExpression(node.value as ConcreteLiquidExpression);
+  }
   return {
     type: NodeTypes.NamedArgument,
     name: node.name,
-    value:
-      node.value.type === ConcreteNodeTypes.LiquidVariable
-        ? toLiquidVariable(node.value as ConcreteLiquidVariable)
-        : toExpression(node.value as ConcreteLiquidExpression),
+    value,
     position: position(node),
     source: node.source,
   };

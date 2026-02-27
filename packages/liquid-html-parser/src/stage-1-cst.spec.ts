@@ -954,6 +954,18 @@ describe('Unit: Stage 1 (CST)', () => {
         });
       });
 
+      it('should parse hash pair values in named arguments', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // message_minimum: key: 'translation.key' — hash pair as named arg value
+          cst = toCST(`{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`);
+          expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.functionArguments.0.name').to.equal('message_minimum');
+          expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('NamedArgument');
+          expectPath(cst, '0.markup.functionArguments.0.value.name').to.equal('key');
+          expectPath(cst, '0.markup.functionArguments.0.value.value.type').to.equal('String');
+        }
+      });
+
       it('should parse the graphql tag', () => {
         [
           {
@@ -1933,6 +1945,12 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
           expectPath(cst, '0.markup.args').to.have.lengthOf(1);
           expectPath(cst, '0.markup.args.0.name').to.equal('type');
+
+          // positional string argument (e.g. log label)
+          cst = toCST(`{% log object, 'showme STATUS-INVALID' %}`);
+          expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.args.0.type').to.equal('String');
         }
       });
 
@@ -2135,6 +2153,20 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.type').to.equal('HtmlComment');
           expectPath(cst, '0.body').to.equal('hello world');
         });
+      });
+    });
+
+    describe('Case: HtmlProcessingInstruction', () => {
+      it('should parse XML declarations', () => {
+        cst = toLiquidHtmlCST(`<?xml version="1.0" encoding="UTF-8"?>`);
+        expectPath(cst, '0.type').to.equal('HtmlProcessingInstruction');
+        expectPath(cst, '0.body').to.equal(`xml version="1.0" encoding="UTF-8"`);
+      });
+
+      it('should parse generic processing instructions', () => {
+        cst = toLiquidHtmlCST('<?php echo "hello"; ?>');
+        expectPath(cst, '0.type').to.equal('HtmlProcessingInstruction');
+        expectPath(cst, '0.body').to.equal('php echo "hello";');
       });
     });
 

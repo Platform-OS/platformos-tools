@@ -860,6 +860,17 @@ describe('Unit: Stage 2 (AST)', () => {
         });
       });
 
+      it('should parse hash pair values in named arguments', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`);
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('message_minimum');
+          expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.markup.args.0.value.name').to.equal('key');
+          expectPath(ast, 'children.0.markup.args.0.value.value.type').to.equal('String');
+        }
+      });
+
       it('should parse graphql tags', () => {
         [
           {
@@ -1312,6 +1323,12 @@ describe('Unit: Stage 2 (AST)', () => {
           ast = toAST(`{% log params, type: 'error' %}`);
           expectPath(ast, 'children.0.markup.value.type').to.equal('VariableLookup');
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+
+          // positional string argument
+          ast = toAST(`{% log object, 'showme STATUS-INVALID' %}`);
+          expectPath(ast, 'children.0.markup.value.type').to.equal('VariableLookup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.type').to.equal('String');
         }
       });
 
@@ -1815,6 +1832,13 @@ describe('Unit: Stage 2 (AST)', () => {
       ast = toLiquidHtmlAST(`<!--\n  hello {{ product.name }}\n-->`);
       expectPath(ast, 'children.0.type').to.eql('HtmlComment');
       expectPath(ast, 'children.0.body').to.eql('hello {{ product.name }}');
+      expectPosition(ast, 'children.0');
+    });
+
+    it('should parse XML declarations as HtmlProcessingInstruction', () => {
+      ast = toLiquidHtmlAST(`<?xml version="1.0" encoding="UTF-8"?>\n<root />`);
+      expectPath(ast, 'children.0.type').to.eql('HtmlProcessingInstruction');
+      expectPath(ast, 'children.0.body').to.eql(`xml version="1.0" encoding="UTF-8"`);
       expectPosition(ast, 'children.0');
     });
 

@@ -237,7 +237,10 @@ Liquid <: Helpers {
   liquidTagCatch = liquidTagRule<"catch", variableSegmentAsLookupMarkup>
 
   liquidTagLog = liquidTagRule<"log", liquidTagLogMarkup>
-  liquidTagLogMarkup = liquidExpression<delimTag> renderArguments
+  liquidTagLogMarkup = liquidExpression<delimTag> liquidTagLogArguments
+  liquidTagLogArguments = (argumentSeparatorOptionalComma logArguments) (space* ",")? space*
+  logArguments = listOf<logArgument<delimTag>, argumentSeparatorOptionalComma>
+  logArgument<delim> = namedArgument<delim> | positionalArgument<delim>
 
   liquidTagPrint = liquidTagRule<"print", liquidTagEchoMarkup>
 
@@ -438,7 +441,9 @@ Liquid <: Helpers {
   argumentSeparator = space* "," space*
   argumentSeparatorOptionalComma = space* ","? space*
   positionalArgument<delim> = liquidExpression<delim> ~(space* ":")
-  namedArgument<delim> = variableSegment space* ":" space* liquidExpression<delim>
+  namedArgument<delim> = variableSegment space* ":" space* namedArgumentValue<delim>
+  namedArgumentValue<delim> = hashPairValue<delim> | liquidExpression<delim>
+  hashPairValue<delim> = variableSegment space* ":" space* liquidExpression<delim>
   tagArguments = listOf<namedArgument<delimTag>, argumentSeparatorOptionalComma>
   graphqlArguments = listOf<graphqlNamedArgument, argumentSeparatorOptionalComma>
   graphqlNamedArgument = variableSegment space* ":" space* graphqlNamedArgumentValue
@@ -614,6 +619,7 @@ LiquidHTML <: Liquid {
   HtmlNode =
     | HtmlDoctype
     | HtmlComment
+    | HtmlProcessingInstruction
     | HtmlRawTag
     | HtmlVoidElement
     | HtmlSelfClosingElement
@@ -627,6 +633,9 @@ LiquidHTML <: Liquid {
     = anyExceptPlus<">">
 
   HtmlComment = "<!--" #(anyExceptStar<"-->"> "-->")
+
+  // Handles XML declarations (<?xml ...?>) and other processing instructions (<?...?>)
+  HtmlProcessingInstruction = "<?" #(anyExceptStar<"?>"> "?>")
 
   // These are black holes, we'll ignore what's in them
   HtmlRawTag =

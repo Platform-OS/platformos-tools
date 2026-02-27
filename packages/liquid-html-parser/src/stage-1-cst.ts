@@ -47,6 +47,7 @@ import { Comparators, NamedTags } from './types';
 export enum ConcreteNodeTypes {
   HtmlDoctype = 'HtmlDoctype',
   HtmlComment = 'HtmlComment',
+  HtmlProcessingInstruction = 'HtmlProcessingInstruction',
   HtmlRawTag = 'HtmlRawTag',
   HtmlVoidElement = 'HtmlVoidElement',
   HtmlSelfClosingElement = 'HtmlSelfClosingElement',
@@ -171,6 +172,11 @@ export interface ConcreteHtmlDoctype extends ConcreteBasicNode<ConcreteNodeTypes
 }
 
 export interface ConcreteHtmlComment extends ConcreteBasicNode<ConcreteNodeTypes.HtmlComment> {
+  body: string;
+}
+
+export interface ConcreteHtmlProcessingInstruction
+  extends ConcreteBasicNode<ConcreteNodeTypes.HtmlProcessingInstruction> {
   body: string;
 }
 
@@ -600,7 +606,7 @@ export interface ConcreteLiquidTagCacheMarkup extends ConcreteBasicNode<Concrete
 
 export interface ConcreteLiquidTagLogMarkup extends ConcreteBasicNode<ConcreteNodeTypes.LogMarkup> {
   value: ConcreteLiquidExpression;
-  args: ConcreteLiquidNamedArgument[];
+  args: ConcreteLiquidArgument[];
 }
 
 export interface ConcreteLiquidTagSessionMarkup extends ConcreteBasicNode<ConcreteNodeTypes.SessionMarkup> {
@@ -657,7 +663,7 @@ export type ConcreteLiquidArgument = ConcreteLiquidExpression | ConcreteLiquidNa
 
 export interface ConcreteLiquidNamedArgument extends ConcreteBasicNode<ConcreteNodeTypes.NamedArgument> {
   name: string;
-  value: ConcreteLiquidExpression | ConcreteLiquidVariable;
+  value: ConcreteLiquidExpression | ConcreteLiquidVariable | ConcreteLiquidNamedArgument;
 }
 
 export type ConcreteLiquidExpression =
@@ -723,6 +729,7 @@ export type ConcreteJsonValue =
 export type ConcreteHtmlNode =
   | ConcreteHtmlDoctype
   | ConcreteHtmlComment
+  | ConcreteHtmlProcessingInstruction
   | ConcreteHtmlRawTag
   | ConcreteHtmlVoidElement
   | ConcreteHtmlSelfClosingElement
@@ -1287,6 +1294,9 @@ function toCST<T>(
       locEnd,
       source,
     },
+    liquidTagLogArguments: 1,
+    logArguments: 0,
+    logArgument: 0,
     liquidTagPrint: 0,
     liquidTagReturn: 0,
     liquidTagYield: 0,
@@ -1459,6 +1469,15 @@ function toCST<T>(
     graphqlRenderArguments: 1,
     positionalArgument: 0,
     namedArgument: {
+      type: ConcreteNodeTypes.NamedArgument,
+      name: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    namedArgumentValue: 0,
+    hashPairValue: {
       type: ConcreteNodeTypes.NamedArgument,
       name: 0,
       value: 4,
@@ -1756,6 +1775,14 @@ function toCST<T>(
 
     HtmlComment: {
       type: ConcreteNodeTypes.HtmlComment,
+      body: markup(1),
+      locStart,
+      locEnd,
+      source,
+    },
+
+    HtmlProcessingInstruction: {
+      type: ConcreteNodeTypes.HtmlProcessingInstruction,
       body: markup(1),
       locStart,
       locEnd,

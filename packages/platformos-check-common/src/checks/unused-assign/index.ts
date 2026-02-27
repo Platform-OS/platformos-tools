@@ -38,7 +38,10 @@ export const UnusedAssign: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
         if (isLiquidTagAssign(node)) {
-          assignedVariables.set(node.markup.name, node);
+          // Skip hash mutations (assign x[key] = value) - the target already exists
+          if (node.markup.lookups.length === 0) {
+            assignedVariables.set(node.markup.name, node);
+          }
         } else if (isLiquidTagCapture(node) && node.markup.name) {
           assignedVariables.set(node.markup.name, node);
         }

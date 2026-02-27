@@ -292,6 +292,10 @@ function printNode(
       return node.source.slice(node.position.start, node.position.end);
     }
 
+    case NodeTypes.HtmlProcessingInstruction: {
+      return node.source.slice(node.position.start, node.position.end);
+    }
+
     case NodeTypes.HtmlComment: {
       const conditionalComment = getConditionalComment(
         node.source.slice(node.position.start, node.position.end),

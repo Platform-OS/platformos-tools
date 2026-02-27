@@ -15,6 +15,7 @@ export enum NodeTypes {
   HtmlVoidElement = 'HtmlVoidElement',
   HtmlDoctype = 'HtmlDoctype',
   HtmlComment = 'HtmlComment',
+  HtmlProcessingInstruction = 'HtmlProcessingInstruction',
   HtmlElement = 'HtmlElement',
   HtmlDanglingMarkerClose = 'HtmlDanglingMarkerClose',
   HtmlRawNode = 'HtmlRawNode',

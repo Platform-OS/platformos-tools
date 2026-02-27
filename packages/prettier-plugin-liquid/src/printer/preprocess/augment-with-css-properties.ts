@@ -103,6 +103,7 @@ function getCssDisplay(node: AugmentedNode<WithSiblings>, options: LiquidParserO
 
     case NodeTypes.HtmlDoctype:
     case NodeTypes.HtmlComment:
+    case NodeTypes.HtmlProcessingInstruction:
       return 'block';
 
     case NodeTypes.Document:
@@ -234,6 +235,7 @@ function getNodeCssStyleWhiteSpace(
 
     case NodeTypes.HtmlDoctype:
     case NodeTypes.HtmlComment:
+    case NodeTypes.HtmlProcessingInstruction:
       return CSS_WHITE_SPACE_DEFAULT;
 
     case NodeTypes.Document:

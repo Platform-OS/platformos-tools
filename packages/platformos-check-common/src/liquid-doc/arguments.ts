@@ -129,6 +129,8 @@ export function findTypeMismatchParams(
       }
     } else if (arg.value.type === NodeTypes.VariableLookup) {
       continue;
+    } else if (arg.value.type === NodeTypes.NamedArgument) {
+      continue;
     }
 
     const liquidDocParamDef = liquidDocParameters.get(arg.name);
@@ -159,6 +161,7 @@ export function reportTypeMismatches(
   for (const arg of typeMismatchArgs) {
     const paramDef = liquidDocParameters.get(arg.name);
     if (!paramDef || !paramDef.type) continue;
+    if (arg.value.type === NodeTypes.NamedArgument) continue;
 
     const expectedType = paramDef.type.toLowerCase();
     const actualType = inferArgumentType(arg.value);

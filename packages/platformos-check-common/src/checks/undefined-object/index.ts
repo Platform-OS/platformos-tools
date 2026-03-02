@@ -147,7 +147,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
           });
         }
 
-        if (isLiquidTagBackground(node)) {
+        if (isLiquidTagBackground(node) && node.markup.jobId) {
           indexVariableScope(node.markup.jobId.name, {
             start: node.blockEndPosition?.end,
           });

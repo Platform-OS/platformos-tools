@@ -174,6 +174,7 @@ describe('Unit: Stage 1 (CST)', () => {
           { expression: `x["y"].z`, name: 'x', lookups: ['y', 'z'] },
           { expression: `["product"]`, name: null, lookups: ['product'] },
           { expression: `page.about-us`, name: 'page', lookups: ['about-us'] },
+          { expression: `context.params.2fa`, name: 'context', lookups: ['params', '2fa'] },
           { expression: `["x"].y`, name: null, lookups: ['x', 'y'] },
           { expression: `["x"]["y"]`, name: null, lookups: ['x', 'y'] },
           { expression: `x[y]`, name: 'x', lookups: [v('y')] },
@@ -415,6 +416,56 @@ describe('Unit: Stage 1 (CST)', () => {
             expectPath(cst, '0.whitespaceEnd').to.equal('-');
           }
         });
+      });
+
+      it('should allow trailing semicolons in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  echo "hi";\n  echo "bye";\n%}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('liquid');
+          expectPath(cst, '0.markup.0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.markup.0.name').to.equal('echo');
+          expectPath(cst, '0.markup.1.type').to.equal('LiquidTag');
+          expectPath(cst, '0.markup.1.name').to.equal('echo');
+        }
+      });
+
+      it('should allow inline # comments after statements in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  echo "hi" # comment here\n  echo "bye"\n%}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('liquid');
+          expectPath(cst, '0.markup.0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.markup.0.name').to.equal('echo');
+          expectPath(cst, '0.markup.1.type').to.equal('LiquidTag');
+          expectPath(cst, '0.markup.1.name').to.equal('echo');
+        }
+      });
+
+      it('should allow semicolons followed by # comments in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  echo "hi"; # TODO\n  echo "bye"\n%}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('liquid');
+          expectPath(cst, '0.markup.0.name').to.equal('echo');
+          expectPath(cst, '0.markup.1.name').to.equal('echo');
+        }
+      });
+
+      it('should allow try/catch/endtry in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  try\n    echo "hi"\n  catch err\n  endtry\n%}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('liquid');
+          expectPath(cst, '0.markup.0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.markup.0.name').to.equal('try');
+          expectPath(cst, '0.markup.1.type').to.equal('LiquidTag');
+          expectPath(cst, '0.markup.1.name').to.equal('echo');
+          expectPath(cst, '0.markup.2.type').to.equal('LiquidTag');
+          expectPath(cst, '0.markup.2.name').to.equal('catch');
+          expectPath(cst, '0.markup.3.type').to.equal('LiquidTagClose');
+          expectPath(cst, '0.markup.3.name').to.equal('try');
+        }
       });
 
       it('should support nested comments', () => {
@@ -814,6 +865,11 @@ describe('Unit: Stage 1 (CST)', () => {
               { name: 'key1', valueType: 'VariableLookup' },
               { name: 'key2', valueType: 'String' },
             ],
+          },
+          {
+            expression: `implementation.path, key1: val1`,
+            partialType: 'VariableLookup',
+            namedArguments: [{ name: 'key1', valueType: 'VariableLookup' }],
           },
         ].forEach(({ expression, partialType, namedArguments }) => {
           for (const { toCST, expectPath } of testCases) {
@@ -1789,6 +1845,10 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.name').to.equal('catch');
           expectPath(cst, '0.markup.type').to.equal('VariableLookup');
           expectPath(cst, '0.markup.name').to.equal('err');
+
+          cst = toCST(`{% catch %}`);
+          expectPath(cst, '0.name').to.equal('catch');
+          expectPath(cst, '0.markup').to.equal(null);
         }
       });
 
@@ -1799,12 +1859,20 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.name').to.equal('log');
           expectPath(cst, '0.markup.type').to.equal('LogMarkup');
           expectPath(cst, '0.markup.value.type').to.equal('String');
+          expectPath(cst, '0.markup.logType').to.equal(null);
           expectPath(cst, '0.markup.args').to.have.lengthOf(0);
 
           cst = toCST(`{% log params, type: 'request-params' %}`);
           expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.logType').to.equal(null);
           expectPath(cst, '0.markup.args').to.have.lengthOf(1);
           expectPath(cst, '0.markup.args.0.name').to.equal('type');
+
+          cst = toCST(`{% log params, 'info' %}`);
+          expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.logType.type').to.equal('String');
+          expectPath(cst, '0.markup.logType.value').to.equal('info');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(0);
         }
       });
 
@@ -1825,6 +1893,34 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.name').to.equal('return');
           expectPath(cst, '0.markup.type').to.equal('LiquidVariable');
           expectPath(cst, '0.markup.expression.type').to.equal('VariableLookup');
+
+          cst = toCST(`{% return %}`);
+          expectPath(cst, '0.name').to.equal('return');
+          expectPath(cst, '0.markup').to.equal(null);
+        }
+      });
+
+      it('should parse the return tag with a JSON hash literal', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% return {"payload": payload, "type": 'POST'} %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('return');
+          expectPath(cst, '0.markup.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.expression.entries').to.have.lengthOf(2);
+        }
+      });
+
+      it('should parse the inline background tag without a job ID (all named args)', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% background delay: 10, message_id: event.message_id %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('background');
+          expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(cst, '0.markup.jobId').to.equal(null);
+          expectPath(cst, '0.markup.args').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.args.0.name').to.equal('delay');
+          expectPath(cst, '0.markup.args.1.name').to.equal('message_id');
         }
       });
 
@@ -1844,13 +1940,22 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.name').to.equal('session');
           expectPath(cst, '0.markup.type').to.equal('SessionMarkup');
           expectPath(cst, '0.markup.name').to.equal('foo');
-          expectPath(cst, '0.markup.value.type').to.equal('String');
+          expectPath(cst, '0.markup.value.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
 
           cst = toCST(`{% session foo = variable %}`);
-          expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.value.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.value.expression.type').to.equal('VariableLookup');
 
           cst = toCST(`{% session foo = null %}`);
-          expectPath(cst, '0.markup.value.type').to.equal('LiquidLiteral');
+          expectPath(cst, '0.markup.value.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.value.expression.type').to.equal('LiquidLiteral');
+
+          cst = toCST(`{% session foo = bar | upcase %}`);
+          expectPath(cst, '0.markup.value.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.value.expression.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.value.filters').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.value.filters.0.name').to.equal('upcase');
         }
       });
 
@@ -1863,6 +1968,10 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.variables').to.have.lengthOf(2);
           expectPath(cst, '0.markup.namespace.type').to.equal('NamedArgument');
           expectPath(cst, '0.markup.namespace.name').to.equal('namespace');
+
+          cst = toCST(`{% export a, b %}`);
+          expectPath(cst, '0.markup.variables').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.namespace').to.equal(null);
         }
       });
 
@@ -1943,6 +2052,10 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.type').to.equal('LiquidTag');
           expectPath(cst, '0.name').to.equal('response_status');
           expectPath(cst, '0.markup.type').to.equal('Number');
+
+          cst = toCST(`{% response_status status_code %}`);
+          expectPath(cst, '0.markup.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.name').to.equal('status_code');
         }
       });
 

@@ -35,6 +35,7 @@ const undocumentedFilters = [
   'handle_from',
   'pad_spaces',
   'paragraphize',
+  'push',
   'sentence',
   'unit',
   'weight',

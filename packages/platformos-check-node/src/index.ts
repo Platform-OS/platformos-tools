@@ -13,11 +13,16 @@ import {
   filePathSupportsLiquidDoc,
   isIgnored,
   isKnownLiquidFile,
+  isKnownGraphQLFile,
   memo,
   path as pathUtils,
   YAMLSourceCode,
 } from '@platformos/platformos-check-common';
-import { PlatformOSLiquidDocsManager } from '@platformos/platformos-check-docs-updater';
+import {
+  PlatformOSLiquidDocsManager,
+  downloadPlatformOSLiquidDocs,
+  root as platformOSLiquidDocsRoot,
+} from '@platformos/platformos-check-docs-updater';
 import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -34,6 +39,9 @@ export * from '@platformos/platformos-check-common';
 export * from './config/types';
 export { NodeFileSystem };
 export { runBackfillDocsCLI } from './backfill-docs';
+export async function updateDocs(log: (msg: string) => void = () => {}): Promise<void> {
+  await downloadPlatformOSLiquidDocs(platformOSLiquidDocsRoot, log);
+}
 
 export const loadConfig: typeof resolveConfig = async (configPath, root) => {
   configPath ??= await findConfigPath(root);
@@ -138,6 +146,9 @@ export async function getApp(config: Config): Promise<App> {
         // Only lint .liquid files that belong to a recognized platformOS directory.
         // Generator templates, build artifacts, etc. are excluded.
         if (filePath.endsWith('.liquid') && !isKnownLiquidFile(filePath)) return false;
+        // Only lint .graphql files that belong to a recognized platformOS GraphQL directory.
+        // Schema files, generator templates (e.g. ERB .graphql), etc. are excluded.
+        if (filePath.endsWith('.graphql') && !isKnownGraphQLFile(filePath)) return false;
         return true;
       }),
   );

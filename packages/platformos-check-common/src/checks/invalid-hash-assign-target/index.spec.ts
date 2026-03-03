@@ -119,6 +119,32 @@ describe('Module: InvalidHashAssignTarget', () => {
     expect(offenses).toHaveLength(0);
   });
 
+  it('should not report an error when hash_assign is used on a function return with variable partial', async () => {
+    const app: MockApp = {
+      'file.liquid': `
+        {% assign partial_name = 'lib/get_data' %}
+        {% function data = partial_name %}
+        {% hash_assign data['extra'] = 'value' %}
+      `,
+    };
+
+    const offenses = await check(app, [InvalidHashAssignTarget]);
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should not report an error when function uses hash-access result target and hash_assign follows', async () => {
+    const app: MockApp = {
+      'file.liquid': `
+        {% parse_json my_hash %}{}{% endparse_json %}
+        {% function my_hash['result'] = 'lib/get_data' %}
+        {% hash_assign my_hash['extra'] = 'value' %}
+      `,
+    };
+
+    const offenses = await check(app, [InvalidHashAssignTarget]);
+    expect(offenses).toHaveLength(0);
+  });
+
   it('should track reassignment and report error on new type', async () => {
     const app: MockApp = {
       'file.liquid': `

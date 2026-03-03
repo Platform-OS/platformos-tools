@@ -1,5 +1,5 @@
 import { expect, describe, it } from 'vitest';
-import { highlightedOffenses, runLiquidCheck } from '../../test';
+import { applySuggestions, highlightedOffenses, runLiquidCheck } from '../../test';
 import { DeprecatedFilter } from './index';
 
 const mockDependencies = {
@@ -98,5 +98,45 @@ describe('Module: DeprecatedFilter', () => {
       mockDependencies,
     );
     expect(offenses).toHaveLength(2);
+  });
+
+  it('should provide a suggestion to replace deprecated filter with recommended alternative', async () => {
+    const sourceCode = `{{ value | old_filter }}`;
+
+    const offenses = await runLiquidCheck(
+      DeprecatedFilter,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].suggest).toHaveLength(1);
+    expect(offenses[0].suggest![0].message).toEqual("Replace 'old_filter' with 'new_filter'");
+  });
+
+  it('should apply the suggestion to replace the filter name', async () => {
+    const sourceCode = `{{ value | old_filter }}`;
+
+    const offenses = await runLiquidCheck(
+      DeprecatedFilter,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
+    const suggestions = applySuggestions(sourceCode, offenses[0]);
+    expect(suggestions).toContain('{{ value | new_filter }}');
+  });
+
+  it('should not provide a suggestion when no replacement exists', async () => {
+    const sourceCode = `{{ value | deprecated_no_replacement }}`;
+
+    const offenses = await runLiquidCheck(
+      DeprecatedFilter,
+      sourceCode,
+      'file.liquid',
+      mockDependencies,
+    );
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].suggest).toBeUndefined();
   });
 });

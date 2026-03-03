@@ -292,6 +292,10 @@ function printNode(
       return node.source.slice(node.position.start, node.position.end);
     }
 
+    case NodeTypes.HtmlProcessingInstruction: {
+      return node.source.slice(node.position.start, node.position.end);
+    }
+
     case NodeTypes.HtmlComment: {
       const conditionalComment = getConditionalComment(
         node.source.slice(node.position.start, node.position.end),
@@ -422,8 +426,9 @@ function printNode(
     }
 
     case NodeTypes.FunctionMarkup: {
+      const name = path.call((p: any) => print(p), 'name');
       const partial = path.call((p: any) => print(p), 'partial');
-      const doc: Doc = [node.name, ' = ', partial];
+      const doc: Doc = [name, ' = ', partial];
       if (node.args.length > 0) {
         doc.push(
           ',',

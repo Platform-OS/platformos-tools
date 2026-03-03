@@ -39,10 +39,27 @@ export const DeprecatedFilter: LiquidCheckDefinition = {
 
         const message = deprecatedFilterMessage(deprecatedFilter, recommendedFilter);
 
+        const filterText = node.source.slice(node.position.start, node.position.end);
+        const afterPipeIdx = filterText.indexOf('|') + 1;
+        const nameIdx =
+          afterPipeIdx + filterText.slice(afterPipeIdx).indexOf(deprecatedFilter.name);
+        const filterNameStart = node.position.start + nameIdx;
+        const filterNameEnd = filterNameStart + deprecatedFilter.name.length;
+
         context.report({
           message,
           startIndex: node.position.start + 1,
           endIndex: node.position.end,
+          suggest: recommendedFilter
+            ? [
+                {
+                  message: `Replace '${deprecatedFilter.name}' with '${recommendedFilter.name}'`,
+                  fix: (corrector) => {
+                    corrector.replace(filterNameStart, filterNameEnd, recommendedFilter.name);
+                  },
+                },
+              ]
+            : undefined,
         });
       },
     };

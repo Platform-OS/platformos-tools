@@ -280,6 +280,7 @@ function findCurrentNode(
       case NodeTypes.YAMLFrontmatter:
       case NodeTypes.HtmlDoctype:
       case NodeTypes.HtmlComment:
+      case NodeTypes.HtmlProcessingInstruction:
       case NodeTypes.RawMarkup: {
         break;
       }

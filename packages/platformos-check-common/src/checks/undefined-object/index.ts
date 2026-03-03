@@ -18,6 +18,7 @@ import {
   LiquidTagGraphQL,
   LiquidTagParseJson,
   LiquidTagBackground,
+  BackgroundMarkup,
   BackgroundInlineMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
@@ -108,9 +109,13 @@ export const UndefinedObject: LiquidCheckDefinition = {
         }
 
         if (node.name === 'function') {
-          indexVariableScope((node.markup as FunctionMarkup).name, {
-            start: node.position.end,
-          });
+          const fnName = (node.markup as FunctionMarkup).name;
+          // Only register simple variable names (not hash/array mutations like hash['key'])
+          if (fnName.lookups.length === 0 && fnName.name !== null) {
+            indexVariableScope(fnName.name, {
+              start: node.position.end,
+            });
+          }
         }
 
         if (node.name === 'layout') {
@@ -147,7 +152,13 @@ export const UndefinedObject: LiquidCheckDefinition = {
           });
         }
 
-        if (isLiquidTagBackground(node) && node.markup.jobId) {
+        if (isLiquidTagBackground(node)) {
+          indexVariableScope(node.markup.jobId, {
+            start: node.position.end,
+          });
+        }
+
+        if (isLiquidTagBackgroundInline(node) && node.markup.jobId) {
           indexVariableScope(node.markup.jobId.name, {
             start: node.blockEndPosition?.end,
           });
@@ -160,9 +171,8 @@ export const UndefinedObject: LiquidCheckDefinition = {
         const parent = last(ancestors);
         if (isLiquidTag(parent) && isLiquidTagCapture(parent)) return;
         if (isLiquidTag(parent) && isLiquidTagParseJson(parent)) return;
-
-        // Skip the jobId variable in background tag markup - it's being defined, not used
-        if (isBackgroundInlineMarkup(parent) && parent.jobId === node) return;
+        // Skip the result variable of function tags (it's a definition, not a usage)
+        if (isFunctionMarkup(parent) && parent.name === node) return;
 
         variables.push(node);
       },
@@ -299,6 +309,16 @@ function isLiquidTagDecrement(node: LiquidTag): node is LiquidTagDecrement {
 
 function isLiquidTagBackground(
   node: LiquidTag,
+): node is LiquidTagBackground & { markup: BackgroundMarkup } {
+  return (
+    node.name === NamedTags.background &&
+    typeof node.markup !== 'string' &&
+    node.markup.type === NodeTypes.BackgroundMarkup
+  );
+}
+
+function isLiquidTagBackgroundInline(
+  node: LiquidTag,
 ): node is LiquidTagBackground & { markup: BackgroundInlineMarkup } {
   return (
     node.name === NamedTags.background &&
@@ -307,11 +327,6 @@ function isLiquidTagBackground(
   );
 }
 
-function isBackgroundInlineMarkup(node: unknown): node is BackgroundInlineMarkup {
-  return (
-    typeof node === 'object' &&
-    node !== null &&
-    'type' in node &&
-    node.type === NodeTypes.BackgroundInlineMarkup
-  );
+function isFunctionMarkup(node?: LiquidHtmlNode): node is FunctionMarkup {
+  return node?.type === NodeTypes.FunctionMarkup;
 }

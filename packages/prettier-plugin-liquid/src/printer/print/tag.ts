@@ -29,6 +29,7 @@ import {
   HtmlElement,
   HtmlNode,
   HtmlSelfClosingElement,
+  HtmlTag,
   LiquidHtmlNode,
   LiquidParserOptions,
   LiquidPrinter,
@@ -140,7 +141,7 @@ export function needsToBorrowParentOpeningTagEndMarker(node: LiquidHtmlNode) {
  * This is so complicated :')
  */
 function printAttributes(
-  path: AstPath<HtmlNode>,
+  path: AstPath<HtmlTag>,
   options: LiquidParserOptions,
   print: LiquidPrinter,
   attrGroupId: symbol,
@@ -247,7 +248,7 @@ function printAttributes(
 }
 
 export function printOpeningTag(
-  path: AstPath<HtmlNode>,
+  path: AstPath<HtmlTag>,
   options: LiquidParserOptions,
   print: LiquidPrinter,
   attrGroupId: symbol,

@@ -56,6 +56,8 @@ export {
   isApiCall,
   isAuthorization,
   isEmail,
+  isFormConfiguration,
+  isKnownGraphQLFile,
   isKnownLiquidFile,
   isLayout,
   isMigration,
@@ -64,6 +66,7 @@ export {
   isSms,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
+export * from './frontmatter';
 export * from './json';
 export * from './JSONValidator';
 export * as path from './path';

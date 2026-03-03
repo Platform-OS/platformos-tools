@@ -804,17 +804,10 @@ describe('Unit: Stage 1 (CST)', () => {
             namedArguments: [],
           },
           {
-            expression: `variable with "string" as foo, key1: val1, key2: "hi"`,
-            partialType: 'VariableLookup',
-            alias: {
-              value: 'foo',
-            },
-            renderVariableExpression: {
-              kind: 'with',
-              name: {
-                type: 'String',
-              },
-            },
+            expression: `"partial", key1: val1, key2: "hi"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
             namedArguments: [
               { name: 'key1', valueType: 'VariableLookup' },
               { name: 'key2', valueType: 'String' },
@@ -851,14 +844,127 @@ describe('Unit: Stage 1 (CST)', () => {
         );
       });
 
+      it('should parse the include tag', () => {
+        [
+          {
+            expression: `"partial"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `variable`,
+            partialType: 'VariableLookup',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `obj.path`,
+            partialType: 'VariableLookup',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `hash['key']`,
+            partialType: 'VariableLookup',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `"partial" as foo`,
+            partialType: 'String',
+            alias: { value: 'foo' },
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `variable as foo`,
+            partialType: 'VariableLookup',
+            alias: { value: 'foo' },
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `"partial", key1: val1, key2: "hi"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+          {
+            expression: `variable with "string" as foo, key1: val1, key2: "hi"`,
+            partialType: 'VariableLookup',
+            alias: { value: 'foo' },
+            renderVariableExpression: { kind: 'with', name: { type: 'String' } },
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+          {
+            expression: `"partial" for products as product`,
+            partialType: 'String',
+            alias: { value: 'product' },
+            renderVariableExpression: { kind: 'for', name: { type: 'VariableLookup' } },
+            namedArguments: [],
+          },
+        ].forEach(
+          ({ expression, partialType, alias, renderVariableExpression, namedArguments }) => {
+            for (const { toCST, expectPath } of testCases) {
+              cst = toCST(`{% include ${expression} -%}`);
+              expectPath(cst, '0.type').to.equal('LiquidTag');
+              expectPath(cst, '0.name').to.equal('include');
+              expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
+              expectPath(cst, '0.markup.partial.type').to.equal(partialType);
+              if (renderVariableExpression) {
+                expectPath(cst, '0.markup.variable.type').to.equal('RenderVariableExpression');
+                expectPath(cst, '0.markup.variable.kind').to.equal(renderVariableExpression.kind);
+                expectPath(cst, '0.markup.variable.name.type').to.equal(
+                  renderVariableExpression.name.type,
+                );
+              } else {
+                expectPath(cst, '0.markup.variable').to.equal(null);
+              }
+              expectPath(cst, '0.markup.alias.value').to.equal(alias?.value);
+              expectPath(cst, '0.markup.renderArguments').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(cst, `0.markup.renderArguments.${i}.type`).to.equal('NamedArgument');
+                expectPath(cst, `0.markup.renderArguments.${i}.name`).to.equal(name);
+                expectPath(cst, `0.markup.renderArguments.${i}.value.type`).to.equal(valueType);
+              });
+              expectPath(cst, '0.whitespaceStart').to.equal(null);
+              expectPath(cst, '0.whitespaceEnd').to.equal('-');
+            }
+          },
+        );
+      });
+
       it('should parse the function tag', () => {
         [
           {
+            resultVar: 'res',
+            resultVarNameLookups: 0,
             expression: `"partial"`,
             partialType: 'String',
             namedArguments: [],
           },
           {
+            resultVar: 'res',
+            resultVarNameLookups: 0,
+            expression: `variable`,
+            partialType: 'VariableLookup',
+            namedArguments: [],
+          },
+          {
+            resultVar: 'res',
+            resultVarNameLookups: 0,
             expression: `variable, key1: val1, key2: "hi"`,
             partialType: 'VariableLookup',
             namedArguments: [
@@ -867,27 +973,61 @@ describe('Unit: Stage 1 (CST)', () => {
             ],
           },
           {
+            resultVar: 'res',
+            resultVarNameLookups: 0,
             expression: `implementation.path, key1: val1`,
             partialType: 'VariableLookup',
             namedArguments: [{ name: 'key1', valueType: 'VariableLookup' }],
           },
-        ].forEach(({ expression, partialType, namedArguments }) => {
-          for (const { toCST, expectPath } of testCases) {
-            cst = toCST(`{% function res = ${expression} -%}`);
-            expectPath(cst, '0.type').to.equal('LiquidTag');
-            expectPath(cst, '0.name').to.equal('function');
-            expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
-            expectPath(cst, '0.markup.partial.type').to.equal(partialType);
-            expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
-            namedArguments.forEach(({ name, valueType }, i) => {
-              expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
-              expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
-              expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
-            });
-            expectPath(cst, '0.whitespaceStart').to.equal(null);
-            expectPath(cst, '0.whitespaceEnd').to.equal('-');
-          }
-        });
+          {
+            resultVar: `hash['key']`,
+            resultVarNameLookups: 1,
+            expression: `"partial"`,
+            partialType: 'String',
+            namedArguments: [],
+          },
+          {
+            resultVar: `obj.prop`,
+            resultVarNameLookups: 1,
+            expression: `"partial"`,
+            partialType: 'String',
+            namedArguments: [],
+          },
+        ].forEach(
+          ({ resultVar, resultVarNameLookups, expression, partialType, namedArguments }) => {
+            for (const { toCST, expectPath } of testCases) {
+              cst = toCST(`{% function ${resultVar} = ${expression} -%}`);
+              expectPath(cst, '0.type').to.equal('LiquidTag');
+              expectPath(cst, '0.name').to.equal('function');
+              expectPath(cst, '0.markup.type').to.equal('FunctionMarkup');
+              expectPath(cst, '0.markup.name.type').to.equal('VariableLookup');
+              expectPath(cst, '0.markup.name.lookups').to.have.lengthOf(resultVarNameLookups);
+              expectPath(cst, '0.markup.partial.type').to.equal(partialType);
+              expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(cst, `0.markup.functionArguments.${i}.type`).to.equal('NamedArgument');
+                expectPath(cst, `0.markup.functionArguments.${i}.name`).to.equal(name);
+                expectPath(cst, `0.markup.functionArguments.${i}.value.type`).to.equal(valueType);
+              });
+              expectPath(cst, '0.whitespaceStart').to.equal(null);
+              expectPath(cst, '0.whitespaceEnd').to.equal('-');
+            }
+          },
+        );
+      });
+
+      it('should parse hash pair values in named arguments', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // message_minimum: key: 'translation.key' — hash pair as named arg value
+          cst = toCST(
+            `{% function res = 'path', message_minimum: key: 'modules/core/validation.too_short' %}`,
+          );
+          expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.functionArguments.0.name').to.equal('message_minimum');
+          expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('NamedArgument');
+          expectPath(cst, '0.markup.functionArguments.0.value.name').to.equal('key');
+          expectPath(cst, '0.markup.functionArguments.0.value.value.type').to.equal('String');
+        }
       });
 
       it('should parse the graphql tag', () => {
@@ -1781,28 +1921,36 @@ describe('Unit: Stage 1 (CST)', () => {
         }
       });
 
-      it('should parse the inline background tag with variable name only', () => {
+      it('should parse the block background tag with no args', () => {
         for (const { toCST, expectPath } of testCases) {
-          cst = toCST(`{% background job_id %}`);
+          cst = toCST(`{% background %}`);
           expectPath(cst, '0.type').to.equal('LiquidTagOpen');
           expectPath(cst, '0.name').to.equal('background');
           expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(cst, '0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.jobId.name').to.equal('job_id');
           expectPath(cst, '0.markup.args').to.have.lengthOf(0);
         }
       });
 
-      it('should parse the inline background tag with variable name and args', () => {
+      it('should parse the block background tag with a single named arg', () => {
         for (const { toCST, expectPath } of testCases) {
-          cst = toCST(`{% background job_id, priority: 'low' %}`);
+          cst = toCST(`{% background source_type: 'some form' %}`);
           expectPath(cst, '0.type').to.equal('LiquidTagOpen');
           expectPath(cst, '0.name').to.equal('background');
           expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(cst, '0.markup.jobId.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.jobId.name').to.equal('job_id');
           expectPath(cst, '0.markup.args').to.have.lengthOf(1);
-          expectPath(cst, '0.markup.args.0.name').to.equal('priority');
+          expectPath(cst, '0.markup.args.0.name').to.equal('source_type');
+        }
+      });
+
+      it('should parse the block background tag with multiple named args', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% background source_name: "liquid_tests", test_name: test_name %}`);
+          expectPath(cst, '0.type').to.equal('LiquidTagOpen');
+          expectPath(cst, '0.name').to.equal('background');
+          expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(cst, '0.markup.args').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.args.0.name').to.equal('source_name');
+          expectPath(cst, '0.markup.args.1.name').to.equal('test_name');
         }
       });
 
@@ -1859,20 +2007,18 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.name').to.equal('log');
           expectPath(cst, '0.markup.type').to.equal('LogMarkup');
           expectPath(cst, '0.markup.value.type').to.equal('String');
-          expectPath(cst, '0.markup.logType').to.equal(null);
           expectPath(cst, '0.markup.args').to.have.lengthOf(0);
 
           cst = toCST(`{% log params, type: 'request-params' %}`);
           expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.logType').to.equal(null);
           expectPath(cst, '0.markup.args').to.have.lengthOf(1);
           expectPath(cst, '0.markup.args.0.name').to.equal('type');
 
-          cst = toCST(`{% log params, 'info' %}`);
+          // positional string argument (e.g. log label)
+          cst = toCST(`{% log object, 'showme STATUS-INVALID' %}`);
           expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.logType.type').to.equal('String');
-          expectPath(cst, '0.markup.logType.value').to.equal('info');
-          expectPath(cst, '0.markup.args').to.have.lengthOf(0);
+          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.args.0.type').to.equal('String');
         }
       });
 
@@ -2120,6 +2266,20 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.type').to.equal('HtmlComment');
           expectPath(cst, '0.body').to.equal('hello world');
         });
+      });
+    });
+
+    describe('Case: HtmlProcessingInstruction', () => {
+      it('should parse XML declarations', () => {
+        cst = toLiquidHtmlCST(`<?xml version="1.0" encoding="UTF-8"?>`);
+        expectPath(cst, '0.type').to.equal('HtmlProcessingInstruction');
+        expectPath(cst, '0.body').to.equal(`xml version="1.0" encoding="UTF-8"`);
+      });
+
+      it('should parse generic processing instructions', () => {
+        cst = toLiquidHtmlCST('<?php echo "hello"; ?>');
+        expectPath(cst, '0.type').to.equal('HtmlProcessingInstruction');
+        expectPath(cst, '0.body').to.equal('php echo "hello";');
       });
     });
 

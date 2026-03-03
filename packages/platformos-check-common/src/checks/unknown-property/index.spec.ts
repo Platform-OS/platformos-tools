@@ -214,6 +214,87 @@ query {
     });
   });
 
+  describe('graphql errors field', () => {
+    it('should not report r.errors on graphql results (protocol-level field)', async () => {
+      const sourceCode = `{% graphql r %}
+query {
+  user {
+    id
+  }
+}
+{% endgraphql %}
+{% if r.errors %}error{% endif %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should not report errors on mutation results without errors in selection set', async () => {
+      const sourceCode = `{% graphql r %}
+mutation ($id: ID!) {
+  user: user_delete(id: $id) {
+    id
+    email
+  }
+}
+{% endgraphql %}
+{% unless r.errors %}ok{% endunless %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should still report genuinely unknown properties on graphql results', async () => {
+      const sourceCode = `{% graphql r %}
+query {
+  user {
+    id
+  }
+}
+{% endgraphql %}
+{{ r.user.bogus }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toContain("Unknown property 'bogus'");
+    });
+  });
+
+  describe('dig filter shape tracking', () => {
+    it('should infer shape after dig on a parse_json variable', async () => {
+      const sourceCode = `{% assign data = '{"user": {"name": "John", "age": 30}}' | parse_json %}
+{% assign user = data | dig: "user" %}
+{{ user.name }}
+{{ user.missing }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toContain("Unknown property 'missing'");
+    });
+
+    it('should infer array shape after dig and allow .size', async () => {
+      const sourceCode = `{% assign data = '{"results": [{"id": 1}, {"id": 2}]}' | parse_json %}
+{% assign items = data | dig: "results" %}
+{{ items.size }}
+{{ items.first.id }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should infer shape after multiple dig filters', async () => {
+      const sourceCode = `{% assign data = '{"a": {"b": {"c": 1}}}' | parse_json %}
+{% assign val = data | dig: "a" | dig: "b" %}
+{{ val.c }}
+{{ val.missing }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toContain("Unknown property 'missing'");
+    });
+
+    it('should not track dig when source has no known shape', async () => {
+      const sourceCode = `{% assign val = dynamic_var | dig: "key" %}
+{{ val.anything }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+  });
+
   describe('error message formatting', () => {
     it('should include variable name in error message', async () => {
       const sourceCode = `{% assign myVar = '{"a": 1}' | parse_json %}

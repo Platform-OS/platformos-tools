@@ -216,7 +216,21 @@ export function inferShapeFromGraphQL(
           }
         }
 
-        return selectionSetToShape(definition.selectionSet, rootType);
+        const shape = selectionSetToShape(definition.selectionSet, rootType);
+
+        // platformOS always exposes a top-level 'errors' array on graphql results
+        // (GraphQL protocol-level errors), regardless of what's in the selection set.
+        const properties = new Map(shape.properties);
+        if (!properties.has('errors')) {
+          properties.set('errors', {
+            kind: 'array',
+            itemShape: {
+              kind: 'object',
+              properties: new Map([['message', { kind: 'primitive', primitiveType: 'string' }]]),
+            },
+          });
+        }
+        return { kind: 'object', properties };
       }
     }
     return undefined;

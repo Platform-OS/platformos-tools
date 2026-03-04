@@ -886,6 +886,17 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
+      it('should parse result-level filters on function tags', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% function res = 'path', arg1: 2, arg2: 3 | dig: 'results' %}`);
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.args.1.name').to.equal('arg2');
+          expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.filters.0.name').to.equal('dig');
+          expectPath(ast, 'children.0.markup.filters.0.args.0.value').to.equal('results');
+        }
+      });
+
       it('should parse graphql tags', () => {
         [
           {
@@ -920,6 +931,18 @@ describe('Unit: Stage 2 (AST)', () => {
             expectPosition(ast, 'children.0.markup');
           }
         });
+      });
+
+      it('should parse result-level filters on graphql file-based tags', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% graphql res = 'query', arg1: someVar | dig: 'data' %}`);
+          expectPath(ast, 'children.0.markup.type').to.equal('GraphQLMarkup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('arg1');
+          expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.filters.0.name').to.equal('dig');
+          expectPath(ast, 'children.0.markup.filters.0.args.0.value').to.equal('data');
+        }
       });
 
       it('should parse inline graphql tags', () => {
@@ -962,6 +985,17 @@ describe('Unit: Stage 2 (AST)', () => {
             expectPosition(ast, 'children.0.markup');
           }
         });
+      });
+
+      it('should parse result-level filters on inline graphql tags', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% graphql res | dig: 'results' %}query { test }{% endgraphql %}`);
+          expectPath(ast, 'children.0.markup.type').to.equal('GraphQLInlineMarkup');
+          expectPath(ast, 'children.0.markup.name').to.equal('res');
+          expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.filters.0.name').to.equal('dig');
+          expectPath(ast, 'children.0.markup.filters.0.args.0.value').to.equal('results');
+        }
       });
 
       it('should parse conditional tags into conditional expressions', () => {
@@ -1255,6 +1289,22 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
+      it('should parse the inline background tag without a job ID (all named args)', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(
+            `{% background delay: 10, message_id: event.message_id %}{% log data %}{% endbackground %}`,
+          );
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('background');
+          expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('delay');
+          expectPath(ast, 'children.0.markup.args.1.name').to.equal('message_id');
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+        }
+      });
+
       it('should parse the block background tag with a single named arg', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
           ast = toAST(`{% background source_type: 'some form' %}{% log data %}{% endbackground %}`);
@@ -1322,6 +1372,10 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.children.1.name').to.equal('catch');
           expectPath(ast, 'children.0.children.1.markup.type').to.equal('VariableLookup');
           expectPosition(ast, 'children.0');
+
+          ast = toAST(`{% try %}content{% catch %}{% endtry %}`);
+          expectPath(ast, 'children.0.children.1.name').to.equal('catch');
+          expectPath(ast, 'children.0.children.1.markup').to.equal(null);
         }
       });
 
@@ -1364,6 +1418,21 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.name').to.equal('return');
           expectPath(ast, 'children.0.markup.type').to.equal('LiquidVariable');
           expectPosition(ast, 'children.0');
+
+          ast = toAST(`{% return %}`);
+          expectPath(ast, 'children.0.name').to.equal('return');
+          expectPath(ast, 'children.0.markup').to.equal(null);
+        }
+      });
+
+      it('should parse the return tag with a JSON hash literal', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% return {"payload": payload, "type": 'POST'} %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('return');
+          expectPath(ast, 'children.0.markup.type').to.equal('LiquidVariable');
+          expectPath(ast, 'children.0.markup.expression.type').to.equal('JsonHashLiteral');
+          expectPosition(ast, 'children.0');
         }
       });
 
@@ -1384,9 +1453,14 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.name').to.equal('session');
           expectPath(ast, 'children.0.markup.type').to.equal('SessionMarkup');
           expectPath(ast, 'children.0.markup.name').to.equal('foo');
-          expectPath(ast, 'children.0.markup.value.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.value.type').to.equal('LiquidVariable');
+          expectPath(ast, 'children.0.markup.value.expression.type').to.equal('String');
           expectPosition(ast, 'children.0');
           expectPosition(ast, 'children.0.markup');
+
+          ast = toAST(`{% session foo = bar | upcase %}`);
+          expectPath(ast, 'children.0.markup.value.type').to.equal('LiquidVariable');
+          expectPath(ast, 'children.0.markup.value.filters').to.have.lengthOf(1);
         }
       });
 
@@ -1400,6 +1474,10 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.markup.namespace.type').to.equal('NamedArgument');
           expectPosition(ast, 'children.0');
           expectPosition(ast, 'children.0.markup');
+
+          ast = toAST(`{% export a, b %}`);
+          expectPath(ast, 'children.0.markup.variables').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.namespace').to.equal(null);
         }
       });
 
@@ -1483,6 +1561,10 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.name').to.equal('response_status');
           expectPath(ast, 'children.0.markup.type').to.equal('Number');
           expectPosition(ast, 'children.0');
+
+          ast = toAST(`{% response_status status_code %}`);
+          expectPath(ast, 'children.0.markup.type').to.equal('VariableLookup');
+          expectPath(ast, 'children.0.markup.name').to.equal('status_code');
         }
       });
 

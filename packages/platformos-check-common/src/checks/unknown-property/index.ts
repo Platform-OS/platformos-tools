@@ -4,6 +4,7 @@ import {
   LiquidVariableLookup,
   LiquidVariable,
   LiquidExpression,
+  LiquidFilter,
   LiquidString,
   NodeTypes,
   NamedTags,
@@ -125,6 +126,50 @@ export const UnknownProperty: LiquidCheckDefinition = {
               }
             }
           }
+
+          // {% assign x = y | dig: "key1" | dig: "key2" %}
+          // Follow the dig path through the source variable's known shape.
+          const digFilters =
+            markup.value.filters?.filter((f: { name: string }) => f.name === 'dig') ?? [];
+          if (digFilters.length > 0 && markup.value.expression.type === NodeTypes.VariableLookup) {
+            const expr = markup.value.expression as LiquidVariableLookup;
+            if (expr.name) {
+              const digPath: string[] = [];
+              let validDigPath = true;
+              for (const digFilter of digFilters) {
+                const arg = digFilter.args?.[0];
+                if (arg?.type === NodeTypes.String) {
+                  digPath.push(arg.value);
+                } else {
+                  validDigPath = false;
+                  break;
+                }
+              }
+
+              if (validDigPath && digPath.length > 0) {
+                // Combine any lookups on the source expression (e.g. y.a | dig: "b")
+                // with the dig path to get the full navigation path.
+                const sourceLookupPath = buildLookupPath(expr.lookups);
+                const fullPath = sourceLookupPath ? [...sourceLookupPath, ...digPath] : digPath;
+
+                const sourceIdx = findLastApplicableShapeIndex(
+                  expr.name,
+                  node.position.start,
+                  variableShapes,
+                );
+                if (sourceIdx !== -1) {
+                  const result = lookupPropertyPath(variableShapes[sourceIdx].shape, fullPath);
+                  if (result.shape && !result.error) {
+                    variableShapes.push({
+                      name: markup.name,
+                      shape: result.shape,
+                      range: [node.position.end],
+                    });
+                  }
+                }
+              }
+            }
+          }
         }
 
         // {% parse_json x %}{"a": 5}{% endparse_json %}
@@ -162,11 +207,14 @@ export const UnknownProperty: LiquidCheckDefinition = {
                 const schema = await getGraphQLSchema();
                 const shape = inferShapeFromGraphQL(content, schema);
                 if (shape) {
-                  variableShapes.push({
-                    name: markup.name,
-                    shape,
-                    range: [node.position.end],
-                  });
+                  const resultShape = applyDigFilters(shape, markup.filters);
+                  if (resultShape) {
+                    variableShapes.push({
+                      name: markup.name,
+                      shape: resultShape,
+                      range: [node.position.end],
+                    });
+                  }
                 }
               } catch {
                 // File read error - skip
@@ -186,11 +234,14 @@ export const UnknownProperty: LiquidCheckDefinition = {
             const schema = await getGraphQLSchema();
             const shape = inferShapeFromGraphQL(textContent, schema);
             if (shape) {
-              variableShapes.push({
-                name: markup.name,
-                shape,
-                range: [node.blockEndPosition?.end ?? node.position.end],
-              });
+              const resultShape = applyDigFilters(shape, markup.filters);
+              if (resultShape) {
+                variableShapes.push({
+                  name: markup.name,
+                  shape: resultShape,
+                  range: [node.blockEndPosition?.end ?? node.position.end],
+                });
+              }
             }
           }
         }
@@ -359,6 +410,29 @@ function buildLookupPath(lookups: LiquidExpression[]): string[] | undefined {
   }
 
   return path;
+}
+
+/**
+ * Navigate a shape using the `dig` filters from a tag's result filters.
+ * Returns the navigated shape, or the original shape if no dig filters are present.
+ * Returns null if the dig path is dynamic or navigates to an unknown property.
+ */
+function applyDigFilters(shape: PropertyShape, filters: LiquidFilter[]): PropertyShape | null {
+  const digFilters = filters.filter((f) => f.name === 'dig');
+  if (digFilters.length === 0) return shape;
+
+  const digPath: string[] = [];
+  for (const filter of digFilters) {
+    const arg = filter.args?.[0];
+    if (arg?.type === NodeTypes.String) {
+      digPath.push(arg.value);
+    } else {
+      return null;
+    }
+  }
+
+  const result = lookupPropertyPath(shape, digPath);
+  return result.error || !result.shape ? null : result.shape;
 }
 
 /**

@@ -47,4 +47,4 @@ export const VOID_ELEMENTS = (
   strictGrammars.LiquidHTML.rules as any
 ).voidElementName.body.factors[0].terms.map((x: any) => x.args[0].obj) as string[];
 
-export const TAGS_WITHOUT_MARKUP = ['else', 'break', 'continue', 'comment', 'raw', 'doc'];
+export const TAGS_WITHOUT_MARKUP = ['else', 'break', 'continue', 'comment', 'raw', 'doc', 'try'];

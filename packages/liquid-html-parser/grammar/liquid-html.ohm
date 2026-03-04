@@ -106,7 +106,7 @@ Liquid <: Helpers {
 
   liquidTagOpenGraphQL = liquidTagOpenRule<"graphql", liquidTagGraphQLInlineMarkup>
   // Use negative lookahead to exclude file-based syntax (with "=")
-  liquidTagGraphQLInlineMarkup = variableSegment ~(space* "=") graphqlRenderArguments
+  liquidTagGraphQLInlineMarkup = variableSegment ~(space* "=") graphqlRenderArguments liquidFilter<delimTag>* space*
 
   liquidTagOpen =
     | liquidTagOpenStrict
@@ -210,19 +210,19 @@ Liquid <: Helpers {
     liquidString<delimTag> renderVariableExpression? renderAliasExpression? renderArguments
 
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
-  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression renderArguments
+  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression renderArguments liquidFilter<delimTag>* space*
 
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
-  liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments
+  liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments liquidFilter<delimTag>* space*
 
   // platformos simple tags
   liquidTagBackground = liquidTagRule<"background", liquidTagBackgroundMarkup>
   liquidTagBackgroundMarkup = variableSegment space* "=" space* partialExpression renderArguments
 
   liquidTagOpenBackground = liquidTagOpenRule<"background", liquidTagBackgroundInlineMarkup>
-  // Block form: only named arguments (no positional job_id)
+  // Block form: only named arguments, no result variable (matches Ruby inline syntax)
   // Use negative lookahead to exclude file-based syntax (with "=")
-  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") tagArguments space*
+  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") argumentSeparatorOptionalComma tagArguments space*
 
   liquidTagOpenCache = liquidTagOpenRule<"cache", liquidTagCacheMarkup>
   liquidTagCacheMarkup = liquidExpression<delimTag> renderArguments
@@ -234,7 +234,8 @@ Liquid <: Helpers {
 
   liquidTagOpenTry = liquidTagOpenRule<"try", empty>
 
-  liquidTagCatch = liquidTagRule<"catch", variableSegmentAsLookupMarkup>
+  liquidTagCatch = liquidTagRule<"catch", liquidTagCatchMarkup>
+  liquidTagCatchMarkup = variableSegmentAsLookup? space*
 
   liquidTagLog = liquidTagRule<"log", liquidTagLogMarkup>
   liquidTagLogMarkup = liquidExpression<delimTag> liquidTagLogArguments
@@ -244,16 +245,23 @@ Liquid <: Helpers {
 
   liquidTagPrint = liquidTagRule<"print", liquidTagEchoMarkup>
 
-  liquidTagReturn = liquidTagRule<"return", liquidTagEchoMarkup>
+  liquidTagReturn = liquidTagRule<"return", liquidTagReturnMarkup>
+  liquidTagReturnMarkup = liquidReturnVariable<delimTag>? space*
+  liquidReturnVariable<delim> = liquidReturnExpression<delim> liquidFilter<delim>* space* &delim
+  liquidReturnExpression<delim> =
+    | liquidJsonHashLiteral<delim>
+    | liquidJsonArrayLiteral<delim>
+    | liquidComplexExpression<delim>
 
   liquidTagYield = liquidTagRule<"yield", liquidTagYieldMarkup>
   liquidTagYieldMarkup = liquidExpression<delimTag> space*
 
   liquidTagSession = liquidTagRule<"session", liquidTagSessionMarkup>
-  liquidTagSessionMarkup = variableSegment space* "=" space* liquidExpression<delimTag> space*
+  liquidTagSessionMarkup = variableSegment space* "=" space* liquidVariable<delimTag> space*
 
   liquidTagExport = liquidTagRule<"export", liquidTagExportMarkup>
-  liquidTagExportMarkup = nonemptyListOf<exportVariable, argumentSeparator> argumentSeparatorOptionalComma namedArgument<delimTag> space*
+  liquidTagExportMarkup = nonemptyListOf<exportVariable, argumentSeparator> liquidTagExportNamespace? space*
+  liquidTagExportNamespace = argumentSeparatorOptionalComma namedArgument<delimTag>
   // Variable lookup that is NOT followed by ":" (to distinguish from named arguments)
   exportVariable = variableSegmentAsLookup ~(space* ":")
 
@@ -275,7 +283,7 @@ Liquid <: Helpers {
   liquidTagThemeRenderRc = liquidTagRule<"theme_render_rc", liquidTagRenderMarkup>
 
   liquidTagResponseStatus = liquidTagRule<"response_status", liquidTagResponseStatusMarkup>
-  liquidTagResponseStatusMarkup = liquidNumber space*
+  liquidTagResponseStatusMarkup = (liquidNumber | liquidVariableLookup<delimTag>) space*
 
   liquidTagResponseHeaders = liquidTagRule<"response_headers", liquidTagResponseHeadersMarkup>
   liquidTagResponseHeadersMarkup = liquidExpression<delimTag> space*
@@ -433,7 +441,8 @@ Liquid <: Helpers {
     | indexLookup<delim>
     | dotLookup
   indexLookup<delim> = space* "[" space* liquidExpression<delim> space* "]"
-  dotLookup = space* "." space* identifier
+  dotLookup = space* "." space* dotLookupName
+  dotLookupName = (alnum | "_") (~endOfTagName identifierCharacter)* "?"?
 
   liquidFilter<delim> = space* "|" space* identifier (space* ":" space* arguments<delim> (space* ",")?)?
 
@@ -447,7 +456,7 @@ Liquid <: Helpers {
   tagArguments = listOf<namedArgument<delimTag>, argumentSeparatorOptionalComma>
   graphqlArguments = listOf<graphqlNamedArgument, argumentSeparatorOptionalComma>
   graphqlNamedArgument = variableSegment space* ":" space* graphqlNamedArgumentValue
-  graphqlNamedArgumentValue = liquidExpression<delimTag> liquidFilter<delimTag>*
+  graphqlNamedArgumentValue = liquidExpression<delimTag>
   graphqlRenderArguments = (argumentSeparatorOptionalComma graphqlArguments) (space* ",")? space*
   filterArguments<delim> =
     | complexArguments<delim>
@@ -489,7 +498,10 @@ Liquid <: Helpers {
 }
 
 LiquidStatement <: Liquid {
-  Node := listOf<LiquidStatement, statementSep> (space | newline)*
+  // Trailing ";"? and "#..." comment are consumed by Node and statementSep; the `;?`/`#` in
+  // liquidStatementEnd make &delimTag succeed before them so expression rules terminate correctly.
+  // tagMarkup uses liquidLineEnd (newline|end only) so inline-comment text is never truncated.
+  Node := listOf<LiquidStatement, statementSep> ";"? ("#" (~newline any)*)? (space | newline)*
 
   // This is the big brains moment: we redefine space to exclude newlines.
   //
@@ -555,12 +567,23 @@ LiquidStatement <: Liquid {
   liquidInlineComment
     := "#" space? tagMarkup &liquidStatementEnd
 
-  tagMarkup := anyExceptStar<liquidStatementEnd>
+  // tagMarkup uses liquidLineEnd (newline|end) so that raw # text is never cut off
+  // (liquidInlineComment content, base-case tag markup, close-tag markup).
+  liquidLineEnd = newline | end
+  tagMarkup := anyExceptStar<liquidLineEnd>
 
-  // trailing whitespace, newline, + anything else before the next tag
-  statementSep = space* newline (space | newline)*
+  // Override string rules so that '#' inside string content is never mistaken for a
+  // delimTag inline-comment marker. In LiquidStatement, delimTag includes `# ...` which
+  // would otherwise cause anyExceptStar<delim> to stop inside strings like '##label##'.
+  // Strings in liquid blocks end at the matching quote or at a newline (no multi-line strings).
+  liquidSingleQuotedString<delim> := "'" anyExceptStar<("'" | newline | end)> "'"
+  liquidDoubleQuotedString<delim> := "\"" anyExceptStar<("\"" | newline | end)> "\""
 
-  liquidStatementEnd = newline | end
+  // trailing whitespace, newline, + optional leading `;` and `# comment` before the next tag
+  statementSep = space* ";"? space* ("#" (~newline any)*)? newline (space | newline)*
+
+  // delimTag is used as &delim lookahead in expression rules; it must succeed before `;` and `#`
+  liquidStatementEnd = ";"? space* ("#" (~newline any)*)? (newline | end)
   delimTag := liquidStatementEnd
 }
 
@@ -747,6 +770,7 @@ WithPlaceholderLiquid <: Liquid {
     partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
+  dotLookupName := (alnum | "_" | "█") (~endOfTagName (identifierCharacter | "█"))* "?"?
   liquidDoc :=
     liquidDocStart
       liquidDocBody
@@ -761,6 +785,7 @@ WithPlaceholderLiquidStatement <: LiquidStatement {
     partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
+  dotLookupName := (alnum | "_" | "█") (~endOfTagName (identifierCharacter | "█"))* "?"?
   liquidDoc :=
     liquidDocStart
       liquidDocBody
@@ -775,6 +800,7 @@ WithPlaceholderLiquidHTML <: LiquidHTML {
     partialExpression renderVariableExpression? renderAliasExpression? completionModeRenderArguments
   liquidTagName := (letter | "█") (alnum | "_")*
   variableSegment := (letter | "_" | "█") (identifierCharacter | "█")*
+  dotLookupName := (alnum | "_" | "█") (~endOfTagName (identifierCharacter | "█"))* "?"?
   leadingTagNameTextNode := (letter | "█") (alnum | "-" | ":" | "█")*
   trailingTagNameTextNode := (alnum | "-" | ":" | "█")+
   liquidDoc :=

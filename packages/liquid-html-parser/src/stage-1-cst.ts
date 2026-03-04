@@ -474,7 +474,7 @@ export interface ConcreteLiquidTagBackground extends ConcreteLiquidTagNode<
 > {}
 export interface ConcreteLiquidTagCatch extends ConcreteLiquidTagNode<
   NamedTags.catch,
-  ConcreteLiquidVariableLookup
+  ConcreteLiquidVariableLookup | null
 > {}
 export interface ConcreteLiquidTagContext extends ConcreteLiquidTagNode<
   NamedTags.context,
@@ -506,11 +506,11 @@ export interface ConcreteLiquidTagResponseHeaders extends ConcreteLiquidTagNode<
 > {}
 export interface ConcreteLiquidTagResponseStatus extends ConcreteLiquidTagNode<
   NamedTags.response_status,
-  ConcreteNumberLiteral
+  ConcreteNumberLiteral | ConcreteLiquidVariableLookup
 > {}
 export interface ConcreteLiquidTagReturn extends ConcreteLiquidTagNode<
   NamedTags.return,
-  ConcreteLiquidVariable
+  ConcreteLiquidVariable | null
 > {}
 export interface ConcreteLiquidTagRollback extends ConcreteLiquidTagNode<
   NamedTags.rollback,
@@ -574,17 +574,20 @@ export interface ConcreteLiquidTagFunctionMarkup extends ConcreteBasicNode<Concr
   name: ConcreteLiquidVariableLookup;
   partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
+  filters: ConcreteLiquidFilter[];
 }
 
 export interface ConcreteLiquidTagGraphQLMarkup extends ConcreteBasicNode<ConcreteNodeTypes.GraphQLMarkup> {
   name: string;
   graphql: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
+  filters: ConcreteLiquidFilter[];
 }
 
 export interface ConcreteLiquidTagGraphQLInlineMarkup extends ConcreteBasicNode<ConcreteNodeTypes.GraphQLInlineMarkup> {
   name: string;
   args: ConcreteLiquidNamedArgument[];
+  filters: ConcreteLiquidFilter[];
 }
 
 // platformos markup interfaces
@@ -610,12 +613,12 @@ export interface ConcreteLiquidTagLogMarkup extends ConcreteBasicNode<ConcreteNo
 
 export interface ConcreteLiquidTagSessionMarkup extends ConcreteBasicNode<ConcreteNodeTypes.SessionMarkup> {
   name: string;
-  value: ConcreteLiquidExpression;
+  value: ConcreteLiquidVariable;
 }
 
 export interface ConcreteLiquidTagExportMarkup extends ConcreteBasicNode<ConcreteNodeTypes.ExportMarkup> {
   variables: ConcreteLiquidVariableLookup[];
-  namespace: ConcreteLiquidNamedArgument;
+  namespace: ConcreteLiquidNamedArgument | null;
 }
 
 export interface ConcreteLiquidTagRedirectToMarkup extends ConcreteBasicNode<ConcreteNodeTypes.RedirectToMarkup> {
@@ -1229,6 +1232,7 @@ function toCST<T>(
       name: 0,
       partial: 4,
       functionArguments: 5,
+      filters: 6,
       locStart,
       locEnd,
       source,
@@ -1238,6 +1242,7 @@ function toCST<T>(
       name: 0,
       graphql: 4,
       functionArguments: 5,
+      filters: 6,
       locStart,
       locEnd,
       source,
@@ -1246,6 +1251,7 @@ function toCST<T>(
       type: ConcreteNodeTypes.GraphQLInlineMarkup,
       name: 0,
       args: 1,
+      filters: 2,
       locStart,
       locEnd,
       source,
@@ -1265,7 +1271,7 @@ function toCST<T>(
     liquidTagOpenBackground: 0,
     liquidTagBackgroundInlineMarkup: {
       type: ConcreteNodeTypes.BackgroundInlineMarkup,
-      args: 0,
+      args: 1,
       locStart,
       locEnd,
       source,
@@ -1284,6 +1290,7 @@ function toCST<T>(
     liquidTagOpenTransactionMarkup: 0,
     liquidTagOpenTry: 0,
     liquidTagCatch: 0,
+    liquidTagCatchMarkup: 0,
     liquidTagLog: 0,
     liquidTagLogMarkup: {
       type: ConcreteNodeTypes.LogMarkup,
@@ -1298,6 +1305,18 @@ function toCST<T>(
     logArgument: 0,
     liquidTagPrint: 0,
     liquidTagReturn: 0,
+    liquidTagReturnMarkup: 0,
+    liquidReturnVariable: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      rawSource: (tokens: Node[]) =>
+        source.slice(locStart(tokens), tokens[tokens.length - 2].source.endIdx).trimEnd(),
+      locStart,
+      locEnd: locEndSecondToLast,
+      source,
+    },
+    liquidReturnExpression: 0,
     liquidTagYield: 0,
     liquidTagYieldMarkup: 0,
     liquidTagSession: 0,
@@ -1313,11 +1332,12 @@ function toCST<T>(
     liquidTagExportMarkup: {
       type: ConcreteNodeTypes.ExportMarkup,
       variables: 0,
-      namespace: 2,
+      namespace: 1,
       locStart,
       locEnd,
       source,
     },
+    liquidTagExportNamespace: 1,
     exportVariable: 0,
     liquidTagContext: 0,
     liquidTagContextMarkup: 0,
@@ -1495,7 +1515,7 @@ function toCST<T>(
     graphqlNamedArgumentValue: {
       type: ConcreteNodeTypes.LiquidVariable,
       expression: 0,
-      filters: 1,
+      filters: () => [],
       rawSource: (tokens: Node[]) => source.slice(locStart(tokens), locEnd(tokens)),
       locStart,
       locEnd,

@@ -512,6 +512,8 @@ export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
    * @example {% function res = 'partial', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
+  /** Filters applied to the result variable, e.g. {% function res = 'path' | dig: 'key' %} */
+  filters: LiquidFilter[];
 }
 
 /** {% graphql res = 'path/to/graphql/file', [...namedArguments] %} (file-based) */
@@ -527,6 +529,8 @@ export interface GraphQLMarkup extends ASTNode<NodeTypes.GraphQLMarkup> {
    * @example {% graphql res = 'file', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
+  /** Filters applied to the result variable, e.g. {% graphql res = 'path' | dig: 'key' %} */
+  filters: LiquidFilter[];
 }
 
 /** {% graphql res, [...namedArguments] %}...{% endgraphql %} (inline) */
@@ -541,6 +545,8 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
    * @example {% graphql res, arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
+  /** Filters applied to the result variable, e.g. {% graphql res | dig: 'key' %} */
+  filters: LiquidFilter[];
 }
 
 // platformos tag interfaces
@@ -571,9 +577,10 @@ export interface LiquidTagResponseHeaders extends LiquidTagNode<
 > {}
 export interface LiquidTagResponseStatus extends LiquidTagNode<
   NamedTags.response_status,
-  LiquidNumber
+  LiquidNumber | LiquidVariableLookup
 > {}
-export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable> {}
+export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable | null> {}
+// Note: LiquidVariable.expression may be a JsonHashLiteral or JsonArrayLiteral (return { ... })
 export interface LiquidTagRollback extends LiquidTagNode<NamedTags.rollback, string> {}
 export interface LiquidTagSession extends LiquidTagNode<NamedTags.session, SessionMarkup> {}
 export interface LiquidTagSignIn extends LiquidTagNode<NamedTags.sign_in, LiquidNamedArgument[]> {}
@@ -595,7 +602,7 @@ export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, LiquidExp
 // platformos branch interface
 export interface LiquidBranchCatch extends LiquidBranchNode<
   NamedTags.catch,
-  LiquidVariableLookup
+  LiquidVariableLookup | null
 > {}
 
 // platformos markup interfaces
@@ -606,7 +613,7 @@ export interface BackgroundMarkup extends ASTNode<NodeTypes.BackgroundMarkup> {
   args: LiquidNamedArgument[];
 }
 
-/** {% background [...namedArguments] %}...{% endbackground %} (inline/block form) */
+/** {% background ...namedArguments %}...{% endbackground %} (inline) */
 export interface BackgroundInlineMarkup extends ASTNode<NodeTypes.BackgroundInlineMarkup> {
   args: LiquidNamedArgument[];
 }
@@ -623,16 +630,16 @@ export interface LogMarkup extends ASTNode<NodeTypes.LogMarkup> {
   args: LiquidArgument[];
 }
 
-/** {% session name = value %} */
+/** {% session name = value [| filter] %} */
 export interface SessionMarkup extends ASTNode<NodeTypes.SessionMarkup> {
   name: string;
-  value: LiquidExpression;
+  value: LiquidVariable;
 }
 
-/** {% export a, b, namespace: 'ns' %} */
+/** {% export a, b[, namespace: 'ns'] %} */
 export interface ExportMarkup extends ASTNode<NodeTypes.ExportMarkup> {
   variables: LiquidVariableLookup[];
-  namespace: LiquidNamedArgument;
+  namespace: LiquidNamedArgument | null;
 }
 
 /** {% redirect_to '/path', [...namedArguments] %} */
@@ -1998,7 +2005,7 @@ function toNamedLiquidTag(
       return {
         ...liquidBranchBaseAttributes(node),
         name: node.name,
-        markup: toExpression(node.markup) as LiquidVariableLookup,
+        markup: node.markup ? (toExpression(node.markup) as LiquidVariableLookup) : null,
       };
     }
 
@@ -2010,12 +2017,19 @@ function toNamedLiquidTag(
       };
     }
 
-    case NamedTags.print:
+    case NamedTags.print: {
+      return {
+        ...liquidTagBaseAttributes(node),
+        name: node.name,
+        markup: toLiquidVariable(node.markup as ConcreteLiquidVariable),
+      };
+    }
+
     case NamedTags.return: {
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: toLiquidVariable(node.markup),
+        markup: node.markup ? toLiquidVariable(node.markup) : null,
       };
     }
 
@@ -2088,7 +2102,7 @@ function toNamedLiquidTag(
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: toExpression(node.markup) as LiquidNumber,
+        markup: toExpression(node.markup) as LiquidNumber | LiquidVariableLookup,
       };
     }
 
@@ -2332,6 +2346,7 @@ function toFunctionMarkup(node: ConcreteLiquidTagFunctionMarkup): FunctionMarkup
      * but this is the compromise we're making to get completions to work.
      */
     args: node.functionArguments.map(toLiquidArgument) as LiquidNamedArgument[],
+    filters: node.filters.map(toFilter),
     position: position(node),
     source: node.source,
   };
@@ -2351,6 +2366,7 @@ function toGraphQLMarkup(node: ConcreteLiquidTagGraphQLMarkup): GraphQLMarkup {
      * but this is the compromise we're making to get completions to work.
      */
     args: node.functionArguments.map(toLiquidArgument) as LiquidNamedArgument[],
+    filters: node.filters.map(toFilter),
     position: position(node),
     source: node.source,
   };
@@ -2369,6 +2385,7 @@ function toGraphQLInlineMarkup(node: ConcreteLiquidTagGraphQLInlineMarkup): Grap
      * but this is the compromise we're making to get completions to work.
      */
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    filters: node.filters.map(toFilter),
     position: position(node),
     source: node.source,
   };
@@ -2421,7 +2438,7 @@ function toSessionMarkup(node: ConcreteLiquidTagSessionMarkup): SessionMarkup {
   return {
     type: NodeTypes.SessionMarkup,
     name: node.name,
-    value: toExpression(node.value),
+    value: toLiquidVariable(node.value),
     position: position(node),
     source: node.source,
   };
@@ -2431,7 +2448,7 @@ function toExportMarkup(node: ConcreteLiquidTagExportMarkup): ExportMarkup {
   return {
     type: NodeTypes.ExportMarkup,
     variables: node.variables.map((v) => toExpression(v) as LiquidVariableLookup),
-    namespace: toNamedArgument(node.namespace),
+    namespace: node.namespace ? toNamedArgument(node.namespace) : null,
     position: position(node),
     source: node.source,
   };

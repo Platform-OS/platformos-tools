@@ -216,13 +216,18 @@ export function inferShapeFromGraphQL(
           }
         }
 
-        const selectionShape = selectionSetToShape(definition.selectionSet, rootType);
-        // GraphQL responses always include an 'errors' field (GraphQL spec)
-        const properties = new Map(selectionShape.properties);
+        const shape = selectionSetToShape(definition.selectionSet, rootType);
+
+        // platformOS always exposes a top-level 'errors' array on graphql results
+        // (GraphQL protocol-level errors), regardless of what's in the selection set.
+        const properties = new Map(shape.properties);
         if (!properties.has('errors')) {
           properties.set('errors', {
             kind: 'array',
-            itemShape: { kind: 'object', properties: new Map() },
+            itemShape: {
+              kind: 'object',
+              properties: new Map([['message', { kind: 'primitive', primitiveType: 'string' }]]),
+            },
           });
         }
         return { kind: 'object', properties };

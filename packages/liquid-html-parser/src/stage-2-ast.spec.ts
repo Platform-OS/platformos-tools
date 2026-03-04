@@ -886,6 +886,17 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
+      it('should parse result-level filters on function tags', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% function res = 'path', arg1: 2, arg2: 3 | dig: 'results' %}`);
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.args.1.name').to.equal('arg2');
+          expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.filters.0.name').to.equal('dig');
+          expectPath(ast, 'children.0.markup.filters.0.args.0.value').to.equal('results');
+        }
+      });
+
       it('should parse graphql tags', () => {
         [
           {
@@ -920,6 +931,18 @@ describe('Unit: Stage 2 (AST)', () => {
             expectPosition(ast, 'children.0.markup');
           }
         });
+      });
+
+      it('should parse result-level filters on graphql file-based tags', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% graphql res = 'query', arg1: someVar | dig: 'data' %}`);
+          expectPath(ast, 'children.0.markup.type').to.equal('GraphQLMarkup');
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('arg1');
+          expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.filters.0.name').to.equal('dig');
+          expectPath(ast, 'children.0.markup.filters.0.args.0.value').to.equal('data');
+        }
       });
 
       it('should parse inline graphql tags', () => {
@@ -962,6 +985,17 @@ describe('Unit: Stage 2 (AST)', () => {
             expectPosition(ast, 'children.0.markup');
           }
         });
+      });
+
+      it('should parse result-level filters on inline graphql tags', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% graphql res | dig: 'results' %}query { test }{% endgraphql %}`);
+          expectPath(ast, 'children.0.markup.type').to.equal('GraphQLInlineMarkup');
+          expectPath(ast, 'children.0.markup.name').to.equal('res');
+          expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.filters.0.name').to.equal('dig');
+          expectPath(ast, 'children.0.markup.filters.0.args.0.value').to.equal('results');
+        }
       });
 
       it('should parse conditional tags into conditional expressions', () => {

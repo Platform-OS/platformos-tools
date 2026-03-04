@@ -512,6 +512,8 @@ export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
    * @example {% function res = 'partial', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
+  /** Filters applied to the result variable, e.g. {% function res = 'path' | dig: 'key' %} */
+  filters: LiquidFilter[];
 }
 
 /** {% graphql res = 'path/to/graphql/file', [...namedArguments] %} (file-based) */
@@ -527,6 +529,8 @@ export interface GraphQLMarkup extends ASTNode<NodeTypes.GraphQLMarkup> {
    * @example {% graphql res = 'file', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
+  /** Filters applied to the result variable, e.g. {% graphql res = 'path' | dig: 'key' %} */
+  filters: LiquidFilter[];
 }
 
 /** {% graphql res, [...namedArguments] %}...{% endgraphql %} (inline) */
@@ -541,6 +545,8 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
    * @example {% graphql res, arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
+  /** Filters applied to the result variable, e.g. {% graphql res | dig: 'key' %} */
+  filters: LiquidFilter[];
 }
 
 // platformos tag interfaces
@@ -2341,6 +2347,7 @@ function toFunctionMarkup(node: ConcreteLiquidTagFunctionMarkup): FunctionMarkup
      * but this is the compromise we're making to get completions to work.
      */
     args: node.functionArguments.map(toLiquidArgument) as LiquidNamedArgument[],
+    filters: node.filters.map(toFilter),
     position: position(node),
     source: node.source,
   };
@@ -2360,6 +2367,7 @@ function toGraphQLMarkup(node: ConcreteLiquidTagGraphQLMarkup): GraphQLMarkup {
      * but this is the compromise we're making to get completions to work.
      */
     args: node.functionArguments.map(toLiquidArgument) as LiquidNamedArgument[],
+    filters: node.filters.map(toFilter),
     position: position(node),
     source: node.source,
   };
@@ -2378,6 +2386,7 @@ function toGraphQLInlineMarkup(node: ConcreteLiquidTagGraphQLInlineMarkup): Grap
      * but this is the compromise we're making to get completions to work.
      */
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    filters: node.filters.map(toFilter),
     position: position(node),
     source: node.source,
   };

@@ -315,6 +315,36 @@ query {
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
       expect(offenses).toHaveLength(0);
     });
+
+    it('should infer shape after dig on inline graphql result', async () => {
+      const sourceCode = `{% graphql result | dig: 'user' %}
+query {
+  user {
+    id
+    email
+  }
+}
+{% endgraphql %}
+{{ result.id }}
+{{ result.email }}
+{{ result.missing }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toContain("Unknown property 'missing'");
+    });
+
+    it('should allow full shape when no dig filter on inline graphql', async () => {
+      const sourceCode = `{% graphql result %}
+query {
+  user {
+    id
+  }
+}
+{% endgraphql %}
+{{ result.user.id }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
   });
 
   describe('error message formatting', () => {

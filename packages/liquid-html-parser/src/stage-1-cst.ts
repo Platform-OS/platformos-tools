@@ -574,17 +574,20 @@ export interface ConcreteLiquidTagFunctionMarkup extends ConcreteBasicNode<Concr
   name: ConcreteLiquidVariableLookup;
   partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
+  filters: ConcreteLiquidFilter[];
 }
 
 export interface ConcreteLiquidTagGraphQLMarkup extends ConcreteBasicNode<ConcreteNodeTypes.GraphQLMarkup> {
   name: string;
   graphql: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
+  filters: ConcreteLiquidFilter[];
 }
 
 export interface ConcreteLiquidTagGraphQLInlineMarkup extends ConcreteBasicNode<ConcreteNodeTypes.GraphQLInlineMarkup> {
   name: string;
   args: ConcreteLiquidNamedArgument[];
+  filters: ConcreteLiquidFilter[];
 }
 
 // platformos markup interfaces
@@ -1230,6 +1233,7 @@ function toCST<T>(
       name: 0,
       partial: 4,
       functionArguments: 5,
+      filters: 6,
       locStart,
       locEnd,
       source,
@@ -1239,6 +1243,7 @@ function toCST<T>(
       name: 0,
       graphql: 4,
       functionArguments: 5,
+      filters: 6,
       locStart,
       locEnd,
       source,
@@ -1247,6 +1252,7 @@ function toCST<T>(
       type: ConcreteNodeTypes.GraphQLInlineMarkup,
       name: 0,
       args: 1,
+      filters: 2,
       locStart,
       locEnd,
       source,
@@ -1512,7 +1518,7 @@ function toCST<T>(
     graphqlNamedArgumentValue: {
       type: ConcreteNodeTypes.LiquidVariable,
       expression: 0,
-      filters: 1,
+      filters: () => [],
       rawSource: (tokens: Node[]) => source.slice(locStart(tokens), locEnd(tokens)),
       locStart,
       locEnd,

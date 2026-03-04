@@ -4,6 +4,7 @@ import {
   LiquidVariableLookup,
   LiquidVariable,
   LiquidExpression,
+  LiquidFilter,
   LiquidString,
   NodeTypes,
   NamedTags,
@@ -206,11 +207,14 @@ export const UnknownProperty: LiquidCheckDefinition = {
                 const schema = await getGraphQLSchema();
                 const shape = inferShapeFromGraphQL(content, schema);
                 if (shape) {
-                  variableShapes.push({
-                    name: markup.name,
-                    shape,
-                    range: [node.position.end],
-                  });
+                  const resultShape = applyDigFilters(shape, markup.filters);
+                  if (resultShape) {
+                    variableShapes.push({
+                      name: markup.name,
+                      shape: resultShape,
+                      range: [node.position.end],
+                    });
+                  }
                 }
               } catch {
                 // File read error - skip
@@ -230,11 +234,14 @@ export const UnknownProperty: LiquidCheckDefinition = {
             const schema = await getGraphQLSchema();
             const shape = inferShapeFromGraphQL(textContent, schema);
             if (shape) {
-              variableShapes.push({
-                name: markup.name,
-                shape,
-                range: [node.blockEndPosition?.end ?? node.position.end],
-              });
+              const resultShape = applyDigFilters(shape, markup.filters);
+              if (resultShape) {
+                variableShapes.push({
+                  name: markup.name,
+                  shape: resultShape,
+                  range: [node.blockEndPosition?.end ?? node.position.end],
+                });
+              }
             }
           }
         }
@@ -403,6 +410,29 @@ function buildLookupPath(lookups: LiquidExpression[]): string[] | undefined {
   }
 
   return path;
+}
+
+/**
+ * Navigate a shape using the `dig` filters from a tag's result filters.
+ * Returns the navigated shape, or the original shape if no dig filters are present.
+ * Returns null if the dig path is dynamic or navigates to an unknown property.
+ */
+function applyDigFilters(shape: PropertyShape, filters: LiquidFilter[]): PropertyShape | null {
+  const digFilters = filters.filter((f) => f.name === 'dig');
+  if (digFilters.length === 0) return shape;
+
+  const digPath: string[] = [];
+  for (const filter of digFilters) {
+    const arg = filter.args?.[0];
+    if (arg?.type === NodeTypes.String) {
+      digPath.push(arg.value);
+    } else {
+      return null;
+    }
+  }
+
+  const result = lookupPropertyPath(shape, digPath);
+  return result.error || !result.shape ? null : result.shape;
 }
 
 /**

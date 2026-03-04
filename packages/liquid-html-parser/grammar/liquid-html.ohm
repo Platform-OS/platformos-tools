@@ -106,7 +106,7 @@ Liquid <: Helpers {
 
   liquidTagOpenGraphQL = liquidTagOpenRule<"graphql", liquidTagGraphQLInlineMarkup>
   // Use negative lookahead to exclude file-based syntax (with "=")
-  liquidTagGraphQLInlineMarkup = variableSegment ~(space* "=") graphqlRenderArguments
+  liquidTagGraphQLInlineMarkup = variableSegment ~(space* "=") graphqlRenderArguments liquidFilter<delimTag>* space*
 
   liquidTagOpen =
     | liquidTagOpenStrict
@@ -210,10 +210,10 @@ Liquid <: Helpers {
     liquidString<delimTag> renderVariableExpression? renderAliasExpression? renderArguments
 
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
-  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression renderArguments
+  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression renderArguments liquidFilter<delimTag>* space*
 
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
-  liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments
+  liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments liquidFilter<delimTag>* space*
 
   // platformos simple tags
   liquidTagBackground = liquidTagRule<"background", liquidTagBackgroundMarkup>
@@ -459,7 +459,7 @@ Liquid <: Helpers {
   tagArguments = listOf<namedArgument<delimTag>, argumentSeparatorOptionalComma>
   graphqlArguments = listOf<graphqlNamedArgument, argumentSeparatorOptionalComma>
   graphqlNamedArgument = variableSegment space* ":" space* graphqlNamedArgumentValue
-  graphqlNamedArgumentValue = liquidExpression<delimTag> liquidFilter<delimTag>*
+  graphqlNamedArgumentValue = liquidExpression<delimTag>
   graphqlRenderArguments = (argumentSeparatorOptionalComma graphqlArguments) (space* ",")? space*
   filterArguments<delim> =
     | complexArguments<delim>

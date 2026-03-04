@@ -1297,7 +1297,6 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.type').to.equal('LiquidTag');
           expectPath(ast, 'children.0.name').to.equal('background');
           expectPath(ast, 'children.0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(ast, 'children.0.markup.jobId').to.equal(null);
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
           expectPath(ast, 'children.0.markup.args.0.name').to.equal('delay');
           expectPath(ast, 'children.0.markup.args.1.name').to.equal('message_id');

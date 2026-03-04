@@ -2063,7 +2063,6 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.type').to.equal('LiquidTagOpen');
           expectPath(cst, '0.name').to.equal('background');
           expectPath(cst, '0.markup.type').to.equal('BackgroundInlineMarkup');
-          expectPath(cst, '0.markup.jobId').to.equal(null);
           expectPath(cst, '0.markup.args').to.have.lengthOf(2);
           expectPath(cst, '0.markup.args.0.name').to.equal('delay');
           expectPath(cst, '0.markup.args.1.name').to.equal('message_id');

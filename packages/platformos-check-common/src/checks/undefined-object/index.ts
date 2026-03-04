@@ -19,7 +19,6 @@ import {
   LiquidTagParseJson,
   LiquidTagBackground,
   BackgroundMarkup,
-  BackgroundInlineMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
@@ -158,11 +157,6 @@ export const UndefinedObject: LiquidCheckDefinition = {
           });
         }
 
-        if (isLiquidTagBackgroundInline(node) && node.markup.jobId) {
-          indexVariableScope(node.markup.jobId.name, {
-            start: node.blockEndPosition?.end,
-          });
-        }
       },
 
       async VariableLookup(node, ancestors) {
@@ -317,15 +311,6 @@ function isLiquidTagBackground(
   );
 }
 
-function isLiquidTagBackgroundInline(
-  node: LiquidTag,
-): node is LiquidTagBackground & { markup: BackgroundInlineMarkup } {
-  return (
-    node.name === NamedTags.background &&
-    typeof node.markup !== 'string' &&
-    node.markup.type === NodeTypes.BackgroundInlineMarkup
-  );
-}
 
 function isFunctionMarkup(node?: LiquidHtmlNode): node is FunctionMarkup {
   return node?.type === NodeTypes.FunctionMarkup;

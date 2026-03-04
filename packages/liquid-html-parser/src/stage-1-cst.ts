@@ -598,7 +598,6 @@ export interface ConcreteLiquidTagBackgroundMarkup extends ConcreteBasicNode<Con
 }
 
 export interface ConcreteLiquidTagBackgroundInlineMarkup extends ConcreteBasicNode<ConcreteNodeTypes.BackgroundInlineMarkup> {
-  jobId: ConcreteLiquidVariableLookup | null;
   args: ConcreteLiquidNamedArgument[];
 }
 
@@ -1270,11 +1269,9 @@ function toCST<T>(
       source,
     },
     liquidTagOpenBackground: 0,
-    liquidTagBackgroundJobId: 0,
     liquidTagBackgroundInlineMarkup: {
       type: ConcreteNodeTypes.BackgroundInlineMarkup,
-      jobId: 0,
-      args: 2,
+      args: 1,
       locStart,
       locEnd,
       source,

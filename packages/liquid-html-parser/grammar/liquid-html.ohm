@@ -220,12 +220,9 @@ Liquid <: Helpers {
   liquidTagBackgroundMarkup = variableSegment space* "=" space* partialExpression renderArguments
 
   liquidTagOpenBackground = liquidTagOpenRule<"background", liquidTagBackgroundInlineMarkup>
-  // Block form: only named arguments (no positional job_id)
+  // Block form: only named arguments, no result variable (matches Ruby inline syntax)
   // Use negative lookahead to exclude file-based syntax (with "=")
-  // jobId is required before any arguments
-  // A positional job ID is a variable name NOT followed by ":" (to distinguish from named args)
-  liquidTagBackgroundJobId = variableSegmentAsLookup ~(space* ":")
-  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") liquidTagBackgroundJobId? argumentSeparatorOptionalComma tagArguments space*
+  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") argumentSeparatorOptionalComma tagArguments space*
 
   liquidTagOpenCache = liquidTagOpenRule<"cache", liquidTagCacheMarkup>
   liquidTagCacheMarkup = liquidExpression<delimTag> renderArguments

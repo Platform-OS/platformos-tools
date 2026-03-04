@@ -228,7 +228,9 @@ function findCurrentNode(
           (isInLiquidLiquidTagContext(finder) && isCovered(cursor, current.blockStartPosition))
         ) {
           if (hasNonNullProperty(current, 'markup') && typeof current.markup !== 'string') {
-            finder.current = Array.isArray(current.markup) ? current.markup.at(-1) : current.markup ?? undefined;
+            finder.current = Array.isArray(current.markup)
+              ? current.markup.at(-1)
+              : (current.markup ?? undefined);
           } else {
             // Exits the loop and the node is the thing to complete
             // (presumably name or something else)
@@ -244,7 +246,9 @@ function findCurrentNode(
 
       case NodeTypes.LiquidBranch:
         if (isCovered(cursor, current.blockStartPosition) && typeof current.markup !== 'string') {
-          finder.current = Array.isArray(current.markup) ? current.markup.at(-1) : current.markup ?? undefined;
+          finder.current = Array.isArray(current.markup)
+            ? current.markup.at(-1)
+            : (current.markup ?? undefined);
         } else if (hasNonEmptyArrayProperty(current, 'children')) {
           finder.current = last(current.children);
         } else {

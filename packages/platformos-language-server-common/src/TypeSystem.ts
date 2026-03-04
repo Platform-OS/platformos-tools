@@ -1572,7 +1572,11 @@ async function inferFunctionReturnType(
 
     await visit<SourceCodeType.LiquidHtml, void>(partialAst, {
       async LiquidTag(node) {
-        if (node.name === NamedTags.return && node.markup !== null && typeof node.markup !== 'string') {
+        if (
+          node.name === NamedTags.return &&
+          node.markup !== null &&
+          typeof node.markup !== 'string'
+        ) {
           // markup is LiquidVariable - infer its type
           const type = inferType(node.markup, partialSymbolsTable, objectMap, filtersMap);
           // Flatten union types into individual types

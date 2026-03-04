@@ -156,7 +156,6 @@ export const UndefinedObject: LiquidCheckDefinition = {
             start: node.position.end,
           });
         }
-
       },
 
       async VariableLookup(node, ancestors) {
@@ -310,7 +309,6 @@ function isLiquidTagBackground(
     node.markup.type === NodeTypes.BackgroundMarkup
   );
 }
-
 
 function isFunctionMarkup(node?: LiquidHtmlNode): node is FunctionMarkup {
   return node?.type === NodeTypes.FunctionMarkup;

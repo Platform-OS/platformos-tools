@@ -1,6 +1,6 @@
 <h1 align="center" style="position: relative;" >
   <br>
-    <img src="https://github.com/Platform-OS/platformos-tools/blob/master/packages/vscode-extension/images/pos.jpg?raw=true" alt="platformOS logo" width="150">
+    <img src="https://github.com/Platform-OS/platformos-tools/blob/master/packages/vscode-extension/images/pos.jpg?raw=true" alt="platformOS logo">
   <br>
   platformOS Liquid
 </h1>

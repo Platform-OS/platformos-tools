@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
-  "version": "0.0.12",
+  "version": "0.3.2",
   "publisher": "platformOS",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
@@ -22,13 +22,13 @@
     "Language Packs"
   ],
   "keywords": [
-    "liquid",
     "platformOS",
+    "liquid",
     "platformos-check",
     "graphql"
   ],
   "preview": false,
-  "icon": "images/platformos_logo.png",
+  "icon": "images/pos.jpg",
   "scripts": {
     "build": "yarn build:ci",
     "build:ci": "yarn build:extension && yarn build:language-config && yarn build:syntax",
@@ -45,12 +45,12 @@
     "format": "prettier --write 'src/**/*.{ts,js}'",
     "format:check": "prettier --check 'src/**/*.{js,ts}'",
     "lint": "eslint src --ext ts",
-    "package": "vsce package --no-dependencies 0.1.0",
+    "package": "vsce package --no-dependencies 0.3.2",
     "postinstall": "yarn --cwd ./syntaxes install",
     "prebuild": "rimraf dist language-configuration.json",
     "preinstall": "sh scripts/fetch-syntaxes.sh",
     "pretest": "yarn run test:build && yarn run dev:build && yarn run lint",
-    "publish:vsce": "vsce publish --no-dependencies $npm_package_version",
+    "publish:vsce": "vsce publish --no-dependencies 0.3.2",
     "publish:ovsx": "ovsx publish --yarn",
     "test": "vitest",
     "test:build": "tsc -p . --outDir out",
@@ -58,7 +58,7 @@
     "type-check": "tsc --noEmit"
   },
   "engines": {
-    "vscode": "^1.104.0"
+    "vscode": "^1.109.0"
   },
   "dependencies": {
     "@platformos/liquid-html-parser": "^0.0.11",

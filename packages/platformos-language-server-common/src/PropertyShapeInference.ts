@@ -472,3 +472,23 @@ export function mergePropertyIntoShape(
   newProperties.set(key, valueShape);
   return { kind: 'object', properties: newProperties };
 }
+
+/**
+ * Map a PropertyShape to a JSON literal placeholder string suitable for
+ * substituting a {{ expr | json }} expression during static analysis.
+ */
+export function shapeToJSONPlaceholder(shape: PropertyShape | undefined): string {
+  if (!shape) return 'null';
+  switch (shape.kind) {
+    case 'primitive':
+      switch (shape.primitiveType) {
+        case 'string': return '""';
+        case 'number': return '0';
+        case 'boolean': return 'true';
+        default: return 'null';
+      }
+    case 'array': return '[]';
+    case 'object': return '{}';
+    default: return 'null';
+  }
+}

@@ -107,8 +107,7 @@ export async function extractVariableShapes(
           closeShapeRange(variableName, node.position.end);
 
           const textContent = node.children
-            .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
-            .map((c) => c.value)
+            .map((c) => (c.type === NodeTypes.TextNode ? (c as TextNode).value : 'null'))
             .join('');
           const shape = inferShapeFromJSONString(textContent);
           if (shape) {
@@ -129,8 +128,7 @@ export async function extractVariableShapes(
 
         if (node.children) {
           const textContent = node.children
-            .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
-            .map((c) => c.value)
+            .map((c) => (c.type === NodeTypes.TextNode ? (c as TextNode).value : 'null'))
             .join('');
           const shape = inferShapeFromGraphQL(textContent, graphqlSchema);
           if (shape) {

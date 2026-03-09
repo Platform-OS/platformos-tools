@@ -901,4 +901,63 @@ query {
       }
     });
   });
+
+  describe('parse_json block with {{ expr | json }} children', () => {
+    it('infers object shape from static JSON in block form (baseline)', async () => {
+      // Existing behaviour: static JSON works fine
+      const ast = toLiquidHtmlAST(
+        `{% parse_json data %}{"id": 1, "name": "hello"}{% endparse_json %}{{ data }}`,
+      );
+      const output = ast.children[1];
+      assert(isLiquidVariableOutput(output));
+      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
+      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
+      expect(inferredType.shape.properties?.has('id')).toBe(true);
+      expect(inferredType.shape.properties?.has('name')).toBe(true);
+    });
+
+    it('infers object shape when values are {{ expr | json }} — unresolvable falls back to null', async () => {
+      // object.unknown_var is not in the docset, so shape is unresolvable → null placeholder
+      const ast = toLiquidHtmlAST(
+        `{% parse_json data %}\n{"id": {{ object.unknown_var | json }}, "name": {{ object.unknown_var2 | json }}}\n{% endparse_json %}{{ data }}`,
+      );
+      const output = ast.children[1];
+      assert(isLiquidVariableOutput(output));
+      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
+      // Keys must be discovered even when types are unknown
+      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
+      expect(inferredType.shape.properties?.has('id')).toBe(true);
+      expect(inferredType.shape.properties?.has('name')).toBe(true);
+    });
+
+    it('infers correct value types when the expression resolves via the type system', async () => {
+      // user is established as a ShapeType by the first parse_json block
+      const ast = toLiquidHtmlAST(
+        `{% parse_json user %}{"name": "John", "age": 30}{% endparse_json %}\n{% parse_json data %}\n{"username": {{ user.name | json }}, "years": {{ user.age | json }}}\n{% endparse_json %}{{ data }}`,
+      );
+      const output = ast.children[2];
+      assert(isLiquidVariableOutput(output));
+      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
+      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
+      const usernameShape = inferredType.shape.properties?.get('username');
+      expect(usernameShape?.kind).toBe('primitive');
+      expect(usernameShape?.primitiveType).toBe('string');
+      const yearsShape = inferredType.shape.properties?.get('years');
+      expect(yearsShape?.kind).toBe('primitive');
+      expect(yearsShape?.primitiveType).toBe('number');
+    });
+
+    it('falls back gracefully when no | json filter present on LiquidVariableOutput', async () => {
+      // Without | json, fall back to null for that key; key still discoverable via TextNode context
+      const ast = toLiquidHtmlAST(
+        `{% parse_json data %}\n{"title": "{{ object.title }}"}\n{% endparse_json %}{{ data }}`,
+      );
+      const output = ast.children[1];
+      assert(isLiquidVariableOutput(output));
+      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
+      // key must still be discovered (the TextNodes provide `"title": "` and `"`)
+      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
+      expect(inferredType.shape.properties?.has('title')).toBe(true);
+    });
+  });
 });

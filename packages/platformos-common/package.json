@@ -25,6 +25,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@platformos/liquid-html-parser": "0.0.11",
     "js-yaml": "^4.1.1",
     "vscode-json-languageservice": "^5.7.1",
     "vscode-uri": "^3.1.0"

@@ -3,6 +3,7 @@ import {
   AbstractFileSystem,
   FileTuple,
   FileType,
+  RouteTable,
   TranslationProvider,
   UriString,
 } from '@platformos/platformos-common';
@@ -129,6 +130,20 @@ function getDefaultTranslationsFromBuffer(app: App): Translations | undefined {
   } catch {
     return undefined;
   }
+}
+
+export function makeGetRouteTable(
+  fs: AbstractFileSystem,
+  rootUri: string,
+): () => Promise<RouteTable> {
+  let buildPromise: Promise<RouteTable> | null = null;
+  return () => {
+    if (!buildPromise) {
+      const table = new RouteTable(fs);
+      buildPromise = table.build(URI.parse(rootUri)).then(() => table);
+    }
+    return buildPromise;
+  };
 }
 
 function cached<T>(fn: () => Promise<T>): () => Promise<T>;

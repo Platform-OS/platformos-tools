@@ -10,7 +10,7 @@ import {
   SourceCodeType,
   UriString,
 } from '@platformos/platformos-check-common';
-import { TranslationProvider } from '@platformos/platformos-common';
+import { TranslationProvider, isPage } from '@platformos/platformos-common';
 import {
   Connection,
   FileChangeType,
@@ -215,7 +215,12 @@ export function startServer(
     return (documentManager.get(defaultLocaleFileUri) as AugmentedJsonSourceCode) ?? null;
   }
 
-  const definitionsProvider = new DefinitionProvider(documentManager, getDefaultLocaleSourceCode);
+  const definitionsProvider = new DefinitionProvider(
+    documentManager,
+    getDefaultLocaleSourceCode,
+    fs,
+    findAppRootURI,
+  );
   const jsonLanguageService = new JSONLanguageService(documentManager, jsonValidationSet);
   const cssLanguageService = new CSSLanguageService(documentManager);
   const completionsProvider = new CompletionsProvider({
@@ -388,7 +393,11 @@ export function startServer(
       cssLanguageService.change(uri, params.contentChanges[0].text, version);
       return;
     }
-    documentManager.change(uri, params.contentChanges[0].text, version);
+    const text = params.contentChanges[0].text;
+    documentManager.change(uri, text, version);
+    if (isPage(uri)) {
+      definitionsProvider.onPageFileChanged(uri, text);
+    }
     if (await configuration.shouldCheckOnChange()) {
       runChecks([uri]);
     } else {
@@ -556,7 +565,14 @@ export function startServer(
           fs.stat.invalidate(change.uri);
           appGraphManager.create(change.uri);
           // If a file is created under out feet, we update its contents.
-          updates.push(documentManager.changeFromDisk(change.uri));
+          updates.push(
+            documentManager.changeFromDisk(change.uri).then(() => {
+              if (isPage(change.uri)) {
+                const doc = documentManager.get(change.uri);
+                if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
+              }
+            }),
+          );
           break;
 
         case FileChangeType.Changed:
@@ -568,7 +584,20 @@ export function startServer(
           // If it is open, then we don't need to update it because the document manager
           // will have the version from the editor.
           if (documentManager.get(change.uri)?.version === undefined) {
-            updates.push(documentManager.changeFromDisk(change.uri));
+            updates.push(
+              documentManager.changeFromDisk(change.uri).then(() => {
+                if (isPage(change.uri)) {
+                  const doc = documentManager.get(change.uri);
+                  if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
+                }
+              }),
+            );
+          } else if (isPage(change.uri)) {
+            // File is open in editor but changed externally (e.g. git checkout).
+            // The doc manager already has the editor version, but the route table
+            // may be stale — update it from whatever the doc manager holds.
+            const doc = documentManager.get(change.uri);
+            if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
           }
           break;
 
@@ -578,6 +607,7 @@ export function startServer(
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
           appGraphManager.delete(change.uri);
+          if (isPage(change.uri)) definitionsProvider.onPageFileDeleted(change.uri);
           // If a file is deleted, it's removed from the document manager
           documentManager.delete(change.uri);
           break;

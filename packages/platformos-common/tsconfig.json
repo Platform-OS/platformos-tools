@@ -15,5 +15,6 @@
     }
   },
   "references": [
+    { "path": "../liquid-html-parser" }
   ]
 }

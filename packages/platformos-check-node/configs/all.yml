@@ -46,6 +46,9 @@ MissingPartial:
   enabled: true
   severity: 0
   ignoreMissing: []
+NestedGraphQLQuery:
+  enabled: true
+  severity: 1
 OrphanedPartial:
   enabled: true
   severity: 1

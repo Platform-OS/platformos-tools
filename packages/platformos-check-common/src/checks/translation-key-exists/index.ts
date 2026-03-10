@@ -1,6 +1,8 @@
 import { TranslationProvider } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { URI } from 'vscode-uri';
+import { StringCorrector } from '../../fixes';
+import { URI, Utils } from 'vscode-uri';
+import { flattenTranslationKeys, findNearestKeys } from '../../utils/levenshtein';
 
 function keyExists(key: string, pointer: any) {
   for (const token of key.split('.')) {
@@ -43,7 +45,15 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
           return;
         }
 
-        if (!node.filters.some(({ name }) => ['t', 'translate'].includes(name))) {
+        const tFilter = node.filters.find(({ name }) => ['t', 'translate'].includes(name));
+        if (!tFilter) {
+          return;
+        }
+
+        const hasDefault = tFilter.args.some(
+          (arg) => arg.type === 'NamedArgument' && arg.name === 'default',
+        );
+        if (hasDefault) {
           return;
         }
 
@@ -55,21 +65,41 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
+        let allDefinedKeys: string[] | null = null;
+
         for (const { translationKey, startIndex, endIndex } of nodes) {
           const translation = await translationProvider.translate(
             URI.parse(context.config.rootUri),
             translationKey,
           );
 
-          if (!!translation) {
-            return;
+          if (translation) {
+            continue;
           }
 
-          const message = `'${translationKey}' does not have a matching translation entry`;
+          // Skip suggestions for module keys — different translation base path
+          const isModuleKey = translationKey.startsWith('modules/');
+
+          // Lazy-load all keys once per file (only for non-module keys)
+          if (!isModuleKey && allDefinedKeys === null) {
+            const baseUri = Utils.joinPath(URI.parse(context.config.rootUri), 'app/translations');
+            const allTranslations = await translationProvider.loadAllTranslationsForBase(
+              baseUri,
+              'en',
+            );
+            allDefinedKeys = flattenTranslationKeys(allTranslations);
+          }
+
+          const nearest = isModuleKey ? [] : findNearestKeys(translationKey, allDefinedKeys ?? []);
+
           context.report({
-            message,
+            message: `'${translationKey}' does not have a matching translation entry`,
             startIndex,
             endIndex,
+            suggest: nearest.map((key) => ({
+              message: `Did you mean '${key}'?`,
+              fix: (fixer: StringCorrector) => fixer.replace(startIndex, endIndex, `'${key}'`),
+            })),
           });
         }
       },

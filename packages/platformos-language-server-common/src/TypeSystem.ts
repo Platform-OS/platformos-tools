@@ -1808,4 +1808,3 @@ function findLastApplicableShape(
   }
   return result;
 }
-

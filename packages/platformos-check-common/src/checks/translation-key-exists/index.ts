@@ -1,6 +1,7 @@
 import { TranslationProvider } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { URI } from 'vscode-uri';
+import { URI, Utils } from 'vscode-uri';
+import { flattenTranslationKeys, findNearestKeys } from '../../utils/levenshtein';
 
 function keyExists(key: string, pointer: any) {
   for (const token of key.split('.')) {
@@ -55,6 +56,8 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
+        let allDefinedKeys: string[] | null = null;
+
         for (const { translationKey, startIndex, endIndex } of nodes) {
           const translation = await translationProvider.translate(
             URI.parse(context.config.rootUri),
@@ -62,14 +65,39 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
           );
 
           if (!!translation) {
-            return;
+            continue;
           }
 
+          // Lazy-load all keys once per file
+          if (allDefinedKeys === null) {
+            const baseUri = Utils.joinPath(
+              URI.parse(context.config.rootUri),
+              'app/translations',
+            );
+            try {
+              const allTranslations = await translationProvider.loadAllTranslationsForBase(
+                baseUri,
+                'en',
+              );
+              allDefinedKeys = flattenTranslationKeys(allTranslations);
+            } catch {
+              allDefinedKeys = [];
+            }
+          }
+
+          const nearest = findNearestKeys(translationKey, allDefinedKeys);
           const message = `'${translationKey}' does not have a matching translation entry`;
+
           context.report({
             message,
             startIndex,
             endIndex,
+            suggest: nearest.length > 0
+              ? nearest.map((key) => ({
+                  message: `Did you mean '${key}'?`,
+                  fix: (fixer: any) => fixer.replace(startIndex, endIndex, `'${key}'`),
+                }))
+              : undefined,
           });
         }
       },

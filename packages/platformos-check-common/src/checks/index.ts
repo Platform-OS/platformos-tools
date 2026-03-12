@@ -36,7 +36,9 @@ import { GraphQLCheck } from './graphql';
 import { UnknownProperty } from './unknown-property';
 import { InvalidHashAssignTarget } from './invalid-hash-assign-target';
 import { DuplicateFunctionArguments } from './duplicate-function-arguments';
+import { MissingRenderPartialArguments } from './missing-render-partial-arguments';
 import { NestedGraphQLQuery } from './nested-graphql-query';
+import { UnusedTranslationKey } from './unused-translation-key';
 
 export const allChecks: (
   | LiquidCheckDefinition
@@ -74,7 +76,9 @@ export const allChecks: (
   GraphQLCheck,
   UnknownProperty,
   InvalidHashAssignTarget,
+  MissingRenderPartialArguments,
   NestedGraphQLQuery,
+  UnusedTranslationKey,
 ];
 
 /**

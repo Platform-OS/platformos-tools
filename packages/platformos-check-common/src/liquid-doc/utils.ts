@@ -72,6 +72,23 @@ export function inferArgumentType(arg: LiquidExpression | LiquidVariable): Basic
 }
 
 /**
+ * Checks if a LiquidExpression is a null/nil literal.
+ * null/nil is compatible with any type — it represents "no value".
+ */
+export function isNullLiteral(arg: LiquidExpression | LiquidVariable): boolean {
+  if (arg.type === NodeTypes.LiquidVariable) {
+    if (arg.filters.length > 0) return false;
+    const expr = arg.expression;
+    if (expr.type === NodeTypes.BooleanExpression) return false;
+    return isNullLiteral(expr);
+  }
+  if (arg.type === NodeTypes.LiquidLiteral) {
+    return arg.value === null;
+  }
+  return false;
+}
+
+/**
  * Checks if the provided argument type is compatible with the expected type.
  * Makes certain types more permissive:
  * - Boolean accepts any value, since everything is truthy / falsy in Liquid

@@ -142,6 +142,29 @@ describe('Module: ValidRenderPartialParamTypes', () => {
       expect(offenses).toHaveLength(0);
     });
 
+    it('should not report null/nil as type mismatch for any type', async () => {
+      for (const type of ['string', 'number', 'object', 'boolean']) {
+        for (const literal of ['nil', 'null']) {
+          const sourceCode = `{% render 'card', param: ${literal} %}`;
+          const offenses = await runLiquidCheck(
+            ValidRenderPartialArgumentTypes,
+            sourceCode,
+            undefined,
+            {},
+            {
+              'app/views/partials/card.liquid': `
+                {% doc %}
+                  @param {${type}} param - Description
+                {% enddoc %}
+                <div>{{ param }}</div>
+              `,
+            },
+          );
+          expect(offenses, `${literal} should be valid for ${type}`).toHaveLength(0);
+        }
+      }
+    });
+
     it('should not enforce unsupported types', async () => {
       const sourceCode = `{% render 'card', title: 123 %}`;
       const offenses = await runLiquidCheck(

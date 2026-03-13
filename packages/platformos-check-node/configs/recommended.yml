@@ -46,6 +46,9 @@ MissingPartial:
   enabled: true
   severity: 0
   ignoreMissing: []
+MissingRenderPartialArguments:
+  enabled: true
+  severity: 0
 NestedGraphQLQuery:
   enabled: true
   severity: 1
@@ -82,6 +85,9 @@ UnusedAssign:
 UnusedDocParam:
   enabled: true
   severity: 1
+UnusedTranslationKey:
+  enabled: true
+  severity: 2
 ValidDocParamTypes:
   enabled: true
   severity: 0

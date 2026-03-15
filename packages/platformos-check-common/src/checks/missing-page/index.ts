@@ -56,6 +56,11 @@ export const MissingPage: LiquidCheckDefinition = {
     }
 
     return {
+      async onCodePathStart() {
+        // Front-load the route table build so individual HtmlElement visits don't wait.
+        routeTable = await context.getRouteTable();
+      },
+
       async LiquidTag(node: LiquidTag) {
         if (node.name !== NamedTags.assign) return;
         const markup = (node as LiquidTagAssign).markup as AssignMarkup;
@@ -68,10 +73,6 @@ export const MissingPage: LiquidCheckDefinition = {
       },
 
       async HtmlElement(node) {
-        if (!routeTable) {
-          routeTable = await context.getRouteTable();
-        }
-
         if (isHtmlTag(node, 'a')) {
           const hrefAttr = node.attributes.find(
             (a) => isValuedAttrNode(a) && getAttrName(a) === 'href',

@@ -2182,13 +2182,90 @@ describe('Unit: Stage 1 (CST)', () => {
       });
 
       it('should parse the theme_render_rc tag', () => {
-        for (const { toCST, expectPath } of testCases) {
-          cst = toCST(`{% theme_render_rc 'partial' %}`);
-          expectPath(cst, '0.type').to.equal('LiquidTag');
-          expectPath(cst, '0.name').to.equal('theme_render_rc');
-          expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
-          expectPath(cst, '0.markup.partial.type').to.equal('String');
-        }
+        [
+          {
+            expression: `'partial'`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `'partial' as foo`,
+            partialType: 'String',
+            alias: {
+              value: 'foo',
+            },
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `'partial' with product as item`,
+            partialType: 'String',
+            alias: {
+              value: 'item',
+            },
+            renderVariableExpression: {
+              kind: 'with',
+              name: {
+                type: 'VariableLookup',
+              },
+            },
+            namedArguments: [],
+          },
+          {
+            expression: `'partial' for products as product`,
+            partialType: 'String',
+            alias: {
+              value: 'product',
+            },
+            renderVariableExpression: {
+              kind: 'for',
+              name: {
+                type: 'VariableLookup',
+              },
+            },
+            namedArguments: [],
+          },
+          {
+            expression: `'my/partial', key1: val1, key2: "hi"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+        ].forEach(
+          ({ expression, partialType, renderVariableExpression, alias, namedArguments }) => {
+            for (const { toCST, expectPath } of testCases) {
+              cst = toCST(`{% theme_render_rc ${expression} -%}`);
+              expectPath(cst, '0.type').to.equal('LiquidTag');
+              expectPath(cst, '0.name').to.equal('theme_render_rc');
+              expectPath(cst, '0.markup.type').to.equal('RenderMarkup');
+              expectPath(cst, '0.markup.partial.type').to.equal(partialType);
+              if (renderVariableExpression) {
+                expectPath(cst, '0.markup.variable.type').to.equal('RenderVariableExpression');
+                expectPath(cst, '0.markup.variable.kind').to.equal(renderVariableExpression.kind);
+                expectPath(cst, '0.markup.variable.name.type').to.equal(
+                  renderVariableExpression.name.type,
+                );
+              } else {
+                expectPath(cst, '0.markup.variable').to.equal(null);
+              }
+              expectPath(cst, '0.markup.alias.value').to.equal(alias?.value);
+              expectPath(cst, '0.markup.renderArguments').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(cst, `0.markup.renderArguments.${i}.type`).to.equal('NamedArgument');
+                expectPath(cst, `0.markup.renderArguments.${i}.name`).to.equal(name);
+                expectPath(cst, `0.markup.renderArguments.${i}.value.type`).to.equal(valueType);
+              });
+              expectPath(cst, '0.whitespaceStart').to.equal(null);
+              expectPath(cst, '0.whitespaceEnd').to.equal('-');
+            }
+          },
+        );
       });
 
       it('should parse the response_status tag', () => {

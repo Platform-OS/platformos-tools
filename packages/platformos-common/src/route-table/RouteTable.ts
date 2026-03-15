@@ -50,8 +50,10 @@ function extractFrontmatter(source: string): PageFrontmatter | null {
  */
 function extractRelativePagePath(uri: string): string | null {
   const patterns = [
+    // App-level pages: app/views/pages/ or marketplace_builder/pages/
     /\/(app|marketplace_builder)\/(views\/pages|pages)\//,
-    /\/(public|private)\/(views\/pages|pages)\//,
+    // Module pages: must be under modules/<name>/(public|private)/(views/pages|pages)/
+    /\/modules\/[^/]+\/(public|private)\/(views\/pages|pages)\//,
   ];
 
   for (const pattern of patterns) {
@@ -361,15 +363,17 @@ export class RouteTable {
       await this.walkDirectory(baseUri.toString(), uris);
     }
 
-    // Module pages — discover module names first
+    // Module pages — discover module names first, then walk all in parallel
     const moduleNames = await this.discoverModuleNames(rootUri);
+    const moduleWalks: Promise<void>[] = [];
     for (const moduleName of moduleNames) {
       const modulePaths = getModulePaths(PlatformOSFileType.Page, moduleName);
       for (const basePath of modulePaths) {
         const baseUri = Utils.joinPath(rootUri, basePath);
-        await this.walkDirectory(baseUri.toString(), uris);
+        moduleWalks.push(this.walkDirectory(baseUri.toString(), uris));
       }
     }
+    await Promise.all(moduleWalks);
 
     return uris;
   }

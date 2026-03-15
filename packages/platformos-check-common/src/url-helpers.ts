@@ -28,6 +28,24 @@ import {
  * remains in platformos-common.
  */
 
+/** Extract the `children` array from a node if it has one (block tags, elements). */
+function getTraversableChildren(node: LiquidHtmlNode): LiquidHtmlNode[] | null {
+  if ('children' in node) {
+    const children = (node as { children: unknown }).children;
+    if (Array.isArray(children)) return children as LiquidHtmlNode[];
+  }
+  return null;
+}
+
+/** Extract the `markup` array from a node if it is an array ({% liquid %} tags). */
+function getTraversableMarkup(node: LiquidHtmlNode): LiquidHtmlNode[] | null {
+  if ('markup' in node) {
+    const markup = (node as { markup: unknown }).markup;
+    if (Array.isArray(markup)) return markup as LiquidHtmlNode[];
+  }
+  return null;
+}
+
 const SKIP_PREFIXES = ['http://', 'https://', '//', 'mailto:', 'tel:', 'javascript:', 'data:', '#'];
 
 export function shouldSkipUrl(url: string): boolean {
@@ -311,14 +329,12 @@ export function buildVariableMap(
       }
 
       // Recurse into children (block tags like {% if %}, {% for %})
-      if ('children' in node && Array.isArray((node as any).children)) {
-        walk((node as any).children);
-      }
+      const children = getTraversableChildren(node);
+      if (children) walk(children);
 
       // Recurse into markup arrays ({% liquid %} block contains assigns in markup)
-      if ('markup' in node && Array.isArray((node as any).markup)) {
-        walk((node as any).markup);
-      }
+      const markupArray = getTraversableMarkup(node);
+      if (markupArray) walk(markupArray);
     }
   }
 

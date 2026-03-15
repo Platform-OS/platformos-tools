@@ -267,14 +267,64 @@ describe('RouteTable', () => {
   });
 
   describe('format matching', () => {
-    it('matches page with json format', async () => {
+    it('does not match json format page without explicit .json extension', async () => {
       const fs = createMockFileSystem(
         Object.fromEntries([page('app/views/pages/api/data.json.liquid')]),
       );
       const rt = new RouteTable(fs);
       await rt.build(ROOT);
 
-      expect(rt.hasMatch('/api/data')).toBe(true);
+      // /api/data without extension defaults to html — no html page exists
+      expect(rt.hasMatch('/api/data')).toBe(false);
+      // Explicit .json extension matches the json page
+      expect(rt.hasMatch('/api/data.json')).toBe(true);
+    });
+
+    it('matches format extension in URL against the correct format page', async () => {
+      const fs = createMockFileSystem(
+        Object.fromEntries([
+          page('app/views/pages/api/my-page.html.liquid'),
+          page('app/views/pages/api/my-page.json.liquid'),
+        ]),
+      );
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      // Without format suffix — defaults to html, only html page matches
+      const htmlDefaultMatches = rt.match('/api/my-page');
+      expect(htmlDefaultMatches.length).toBe(1);
+      expect(htmlDefaultMatches[0].format).toBe('html');
+
+      // With .json suffix — only the json page matches
+      const jsonMatches = rt.match('/api/my-page.json');
+      expect(jsonMatches.length).toBe(1);
+      expect(jsonMatches[0].format).toBe('json');
+      expect(jsonMatches[0].uri).toContain('my-page.json.liquid');
+
+      // With .html suffix — only the html page matches
+      const htmlMatches = rt.match('/api/my-page.html');
+      expect(htmlMatches.length).toBe(1);
+      expect(htmlMatches[0].format).toBe('html');
+
+      // hasMatch respects format too
+      expect(rt.hasMatch('/api/my-page.json')).toBe(true);
+      expect(rt.hasMatch('/api/my-page.xml')).toBe(false);
+    });
+
+    it('does not treat unknown extensions as format suffixes', async () => {
+      const fs = createMockFileSystem(
+        Object.fromEntries([
+          page(
+            'app/views/pages/files/report.html.liquid',
+            '---\nslug: files/report.unknown\n---\n',
+          ),
+        ]),
+      );
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      // .unknown is not a known format, so the whole segment is the slug component
+      expect(rt.hasMatch('/files/report.unknown')).toBe(true);
     });
   });
 
@@ -423,6 +473,108 @@ describe('RouteTable', () => {
       rt.updateFile('file:///project/modules/admin/public/views/pages/dashboard.html.liquid', '');
 
       expect(rt.hasMatch('/dashboard')).toBe(true);
+    });
+  });
+
+  describe('build clears previous state', () => {
+    it('rebuild after branch switch picks up new pages', async () => {
+      // Simulate initial branch with one page
+      const initialFiles = Object.fromEntries([page('app/views/pages/about.html.liquid')]);
+      const fs = createMockFileSystem(initialFiles);
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.hasMatch('/about')).toBe(true);
+      expect(rt.hasMatch('/contact')).toBe(false);
+
+      // Simulate branch switch: replace backing files and rebuild
+      const newFiles = Object.fromEntries([page('app/views/pages/contact.html.liquid')]);
+      const fs2 = createMockFileSystem(newFiles);
+      const rt2 = new RouteTable(fs2);
+      await rt2.build(ROOT);
+
+      expect(rt2.hasMatch('/about')).toBe(false);
+      expect(rt2.hasMatch('/contact')).toBe(true);
+    });
+
+    it('build clears stale routes from a previous build', async () => {
+      const files = Object.fromEntries([page('app/views/pages/old-page.html.liquid')]);
+      const fs = createMockFileSystem(files);
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.hasMatch('/old-page')).toBe(true);
+
+      // Simulate changed filesystem (branch switch) and rebuild
+      const newFiles = Object.fromEntries([page('app/views/pages/new-page.html.liquid')]);
+      const fs2 = createMockFileSystem(newFiles);
+      const rt2 = new RouteTable(fs2);
+      await rt2.build(ROOT);
+
+      expect(rt2.hasMatch('/old-page')).toBe(false);
+      expect(rt2.hasMatch('/new-page')).toBe(true);
+    });
+  });
+
+  describe('Windows-style URIs', () => {
+    it('handles Windows file URIs with drive letters', () => {
+      const rt = new RouteTable(createMockFileSystem({}));
+
+      // vscode-uri produces forward-slash URIs even on Windows
+      rt.updateFile('file:///C:/Users/dev/project/app/views/pages/about.html.liquid', '');
+
+      expect(rt.hasMatch('/about')).toBe(true);
+    });
+
+    it('handles Windows module page URIs', () => {
+      const rt = new RouteTable(createMockFileSystem({}));
+
+      rt.updateFile(
+        'file:///C:/Users/dev/project/modules/admin/public/views/pages/dashboard.html.liquid',
+        '',
+      );
+
+      expect(rt.hasMatch('/dashboard')).toBe(true);
+    });
+  });
+
+  describe('format defaults to html', () => {
+    it('plain URL without extension matches only html pages', async () => {
+      const fs = createMockFileSystem(
+        Object.fromEntries([
+          page('app/views/pages/about.html.liquid'),
+          page('app/views/pages/about.json.liquid'),
+          page('app/views/pages/about.xml.liquid'),
+        ]),
+      );
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      const matches = rt.match('/about');
+      expect(matches.length).toBe(1);
+      expect(matches[0].format).toBe('html');
+    });
+
+    it('page with only .liquid extension defaults to html format', async () => {
+      const fs = createMockFileSystem(Object.fromEntries([page('app/views/pages/simple.liquid')]));
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.hasMatch('/simple')).toBe(true);
+
+      const matches = rt.match('/simple');
+      expect(matches[0].format).toBe('html');
+    });
+
+    it('json-only page requires .json extension to match', async () => {
+      const fs = createMockFileSystem(
+        Object.fromEntries([page('app/views/pages/api/endpoint.json.liquid')]),
+      );
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.hasMatch('/api/endpoint')).toBe(false);
+      expect(rt.hasMatch('/api/endpoint.json')).toBe(true);
     });
   });
 });

@@ -3,7 +3,7 @@ import { URI, Utils } from 'vscode-uri';
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { getAppPaths, getModulePaths, PlatformOSFileType } from '../path-utils';
 import { RouteEntry, RouteSegment } from './types';
-import { slugFromFilePath, formatFromFilePath } from './slugFromFilePath';
+import { slugFromFilePath, formatFromFilePath, KNOWN_FORMATS } from './slugFromFilePath';
 import { parseSlug, calculatePrecedence } from './parseSlug';
 
 interface PageFrontmatter {
@@ -39,6 +39,10 @@ function extractFrontmatter(source: string): PageFrontmatter | null {
  * Module-level: matches `/(public|private)/(views/pages|pages)/`
  * (marketplace_builder module pages always go through public/private subdirs,
  * so the second pattern covers them.)
+ *
+ * Expects a `file://` URI with forward slashes (as produced by `vscode-uri`).
+ * On Windows, `vscode-uri` normalizes filesystem paths to forward-slash URIs
+ * (`file:///C:/...`), so the forward-slash regex patterns work cross-platform.
  *
  * Examples:
  *   file:///project/app/views/pages/about.html.liquid -> about.html.liquid
@@ -124,24 +128,62 @@ function matchSegments(
 
 type UrlSegment = { type: 'static'; value: string } | { type: 'dynamic' };
 
-function parseUrlPattern(pattern: string): UrlSegment[] {
+interface ParsedUrlPattern {
+  segments: UrlSegment[];
+  /** Format extracted from the last segment's extension (e.g., 'json' from 'my-page.json') */
+  format: string | null;
+}
+
+/**
+ * Parse a URL pattern into segments and an optional format suffix.
+ *
+ * Following Rails/platformOS convention, a known format extension on the last
+ * segment (e.g., `/api/data.json`) is stripped and returned separately so that
+ * matching can filter by format.
+ */
+function parseUrlPattern(pattern: string): ParsedUrlPattern {
   // Strip leading and trailing slashes
   let path = pattern.startsWith('/') ? pattern.slice(1) : pattern;
   if (path.endsWith('/')) path = path.slice(0, -1);
-  if (path === '') return [];
+  if (path === '') return { segments: [], format: null };
 
-  return path.split('/').map((seg) => {
+  const rawSegments = path.split('/');
+  let format: string | null = null;
+
+  // Check if the last segment has a known format extension (e.g., my-page.json)
+  const lastIdx = rawSegments.length - 1;
+  const lastSeg = rawSegments[lastIdx];
+  if (lastSeg !== ':_liquid_') {
+    const dotIdx = lastSeg.lastIndexOf('.');
+    if (dotIdx > 0) {
+      const ext = lastSeg.slice(dotIdx + 1);
+      if (KNOWN_FORMATS.has(ext)) {
+        format = ext;
+        rawSegments[lastIdx] = lastSeg.slice(0, dotIdx);
+      }
+    }
+  }
+
+  const segments = rawSegments.map((seg): UrlSegment => {
     if (seg === ':_liquid_') {
       return { type: 'dynamic' };
     }
     return { type: 'static', value: seg };
   });
+
+  return { segments, format };
 }
 
 export class RouteTable {
   private routes: Map<string, RouteEntry[]> = new Map(); // uri -> entries (a page can register multiple entries for index aliasing)
+  private _built = false;
 
   constructor(private fs: AbstractFileSystem) {}
+
+  /** Returns true if build() has completed at least once. */
+  isBuilt(): boolean {
+    return this._built;
+  }
 
   async build(rootUri: URI): Promise<void> {
     this.routes.clear();
@@ -155,6 +197,8 @@ export class RouteTable {
         // Skip files we can't read
       }
     }
+
+    this._built = true;
   }
 
   updateFile(uri: string, content: string): void {
@@ -170,15 +214,23 @@ export class RouteTable {
    * Find all routes matching a URL pattern and optional method.
    * The pattern can contain `:_liquid_` segments for Liquid interpolations.
    * Results are sorted by precedence (highest priority first = lowest number).
+   *
+   * A known format extension on the last segment (e.g., `/api/data.json`)
+   * is stripped and used to filter routes by format. When no format extension
+   * is present (e.g., `/about`), only `html` routes match — following the
+   * platformOS/Rails convention where HTML is the default format and non-HTML
+   * formats require an explicit extension or Accept header.
    */
   match(urlPattern: string, method?: string): RouteEntry[] {
-    const urlSegments = parseUrlPattern(urlPattern);
+    const { segments: urlSegments, format } = parseUrlPattern(urlPattern);
+    const effectiveFormat = format ?? 'html';
 
     const results: RouteEntry[] = [];
 
     for (const entries of this.routes.values()) {
       for (const entry of entries) {
         if (method && entry.method !== method) continue;
+        if (entry.format !== effectiveFormat) continue;
         if (this.matchEntry(urlSegments, entry)) {
           results.push(entry);
         }
@@ -190,11 +242,13 @@ export class RouteTable {
   }
 
   hasMatch(urlPattern: string, method?: string): boolean {
-    const urlSegments = parseUrlPattern(urlPattern);
+    const { segments: urlSegments, format } = parseUrlPattern(urlPattern);
+    const effectiveFormat = format ?? 'html';
 
     for (const entries of this.routes.values()) {
       for (const entry of entries) {
         if (method && entry.method !== method) continue;
+        if (entry.format !== effectiveFormat) continue;
         if (this.matchEntry(urlSegments, entry)) return true;
       }
     }
@@ -224,12 +278,20 @@ export class RouteTable {
     return false;
   }
 
+  /**
+   * Try optional groups left-to-right greedily — matching Rails' ActionDispatch::Journey
+   * semantics. Each group is tried in order; if it matches, its segments are consumed
+   * and the next group is attempted. If it doesn't match, it's skipped (optional).
+   *
+   * This greedy approach is correct because the platformOS backend converts slugs like
+   * `search(/:country)(/:city)` into Journey path strings and Journey matches
+   * left-to-right without backtracking.
+   */
   private matchOptionalGroups(
     urlSegments: UrlSegment[],
     groups: RouteSegment[][],
     startIdx: number,
   ): boolean {
-    // Try each optional group in sequence
     let current = startIdx;
 
     for (const group of groups) {
@@ -243,8 +305,6 @@ export class RouteTable {
         current = after;
         if (current === urlSegments.length) return true;
       }
-      // If this optional group doesn't match, that's OK — it's optional.
-      // But we stop trying further groups if it didn't advance.
     }
 
     return current === urlSegments.length;

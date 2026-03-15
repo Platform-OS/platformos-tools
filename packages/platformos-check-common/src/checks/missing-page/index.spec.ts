@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { RouteTable } from '@platformos/platformos-common';
 import { runLiquidCheck } from '../../test';
+import { MockFileSystem } from '../../test/MockFileSystem';
 import { MissingPage } from './index';
 
 describe('Module: MissingPage', () => {
@@ -113,8 +115,7 @@ describe('Module: MissingPage', () => {
     });
 
     it('reports when href uses variable assigned with a non-matching URL', async () => {
-      const sourceCode =
-        '{% assign url = "/nonexistent" %}\n<a href="{{ url }}">Link</a>';
+      const sourceCode = '{% assign url = "/nonexistent" %}\n<a href="{{ url }}">Link</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -157,8 +158,7 @@ describe('Module: MissingPage', () => {
 
     it('reports when variable assigned with non-URL filter chain is unresolvable', async () => {
       // downcase is not append/prepend — assign is not tracked, so {{ url }} is fully dynamic → skipped
-      const sourceCode =
-        '{% assign url = "/ABOUT" | downcase %}\n<a href="{{ url }}">Link</a>';
+      const sourceCode = '{% assign url = "/ABOUT" | downcase %}\n<a href="{{ url }}">Link</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -176,9 +176,7 @@ describe('Module: MissingPage', () => {
         sourceCode,
         'app/views/pages/home.html.liquid',
       );
-      expect(offenses.map((o) => o.message)).toEqual([
-        "No page found for route '/submit' (POST)",
-      ]);
+      expect(offenses.map((o) => o.message)).toEqual(["No page found for route '/submit' (POST)"]);
     });
 
     it('reports when variable is assigned inside {% liquid %} block with no matching route', async () => {
@@ -421,8 +419,7 @@ describe('Module: MissingPage', () => {
     });
 
     it('does not report when href uses variable assigned with a matching URL', async () => {
-      const sourceCode =
-        '{% assign url = "/about" %}\n<a href="{{ url }}">About</a>';
+      const sourceCode = '{% assign url = "/about" %}\n<a href="{{ url }}">About</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -468,8 +465,7 @@ describe('Module: MissingPage', () => {
     });
 
     it('does not report when variable is used with filters in href (unresolvable)', async () => {
-      const sourceCode =
-        '{% assign url = "/about" %}\n<a href="{{ url | escape }}">About</a>';
+      const sourceCode = '{% assign url = "/about" %}\n<a href="{{ url | escape }}">About</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -480,8 +476,7 @@ describe('Module: MissingPage', () => {
     });
 
     it('does not report when variable has lookups in href (unresolvable)', async () => {
-      const sourceCode =
-        '{% assign config = "test" %}\n<a href="{{ config.url }}">Link</a>';
+      const sourceCode = '{% assign config = "test" %}\n<a href="{{ config.url }}">Link</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -508,8 +503,7 @@ describe('Module: MissingPage', () => {
 
     it('does not report when assigned variable is used alongside static text', async () => {
       // "prefix{{ url }}" — mixed attr, variable map not used; normal extraction applies
-      const sourceCode =
-        '{% assign slug = "about" %}\n<a href="/pages/{{ slug }}">About</a>';
+      const sourceCode = '{% assign slug = "about" %}\n<a href="/pages/{{ slug }}">About</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -523,8 +517,7 @@ describe('Module: MissingPage', () => {
     });
 
     it('does not report when variable is assigned inside {% liquid %} block', async () => {
-      const sourceCode =
-        '{% liquid\n  assign url = "/about"\n%}\n<a href="{{ url }}">About</a>';
+      const sourceCode = '{% liquid\n  assign url = "/about"\n%}\n<a href="{{ url }}">About</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -565,8 +558,7 @@ describe('Module: MissingPage', () => {
     });
 
     it('does not report when variable is set via {% capture %} (not tracked, fully dynamic)', async () => {
-      const sourceCode =
-        '{% capture url %}/about{% endcapture %}\n<a href="{{ url }}">About</a>';
+      const sourceCode = '{% capture url %}/about{% endcapture %}\n<a href="{{ url }}">About</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
         sourceCode,
@@ -598,6 +590,166 @@ describe('Module: MissingPage', () => {
         },
       );
       expect(offenses.map((o) => o.message)).toEqual([]);
+    });
+  });
+
+  describe('format-aware matching', () => {
+    it('matches .json URL against json format page when both html and json pages exist', async () => {
+      const sourceCode = '<a href="/api/my-page.json">JSON</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/api/my-page.html.liquid': '<h1>HTML version</h1>',
+          'app/views/pages/api/my-page.json.liquid': '{ "data": "json version" }',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([]);
+    });
+
+    it('reports when .json URL has no json format page (only html exists)', async () => {
+      const sourceCode = '<a href="/api/my-page.json">JSON</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/api/my-page.html.liquid': '<h1>HTML only</h1>',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/api/my-page.json' (GET)",
+      ]);
+    });
+
+    it('reports when URL has no format suffix but only json page exists', async () => {
+      const sourceCode = '<a href="/api/my-page">Link</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/api/my-page.json.liquid': '{ "data": true }',
+        },
+      );
+      // Plain URL defaults to html format — only json page exists, so report
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/api/my-page' (GET)",
+      ]);
+    });
+
+    it('does not report for URL without format suffix when html page exists', async () => {
+      const sourceCode = '<a href="/api/my-page">Link</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/api/my-page.html.liquid': '<h1>HTML</h1>',
+          'app/views/pages/api/my-page.json.liquid': '{ "data": true }',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([]);
+    });
+  });
+
+  describe('assign variable scoping per position', () => {
+    it('resolves each link against the variable value at that point in the document', async () => {
+      const sourceCode =
+        '{% assign url = "/about" %}<a href="{{ url }}">About</a>{% assign url = "/contact" %}<a href="{{ url }}">Contact</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/about.html.liquid': '<h1>About</h1>',
+          'app/views/pages/contact.html.liquid': '<h1>Contact</h1>',
+        },
+      );
+      // Both /about and /contact exist — no offenses
+      expect(offenses.map((o) => o.message)).toEqual([]);
+    });
+
+    it('reports only for the link whose preceding assign points to a missing page', async () => {
+      const sourceCode =
+        '{% assign url = "/about" %}<a href="{{ url }}">About</a>{% assign url = "/nonexistent" %}<a href="{{ url }}">Missing</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/about.html.liquid': '<h1>About</h1>',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/nonexistent' (GET)",
+      ]);
+    });
+
+    it('reports for first link when only the second assign matches', async () => {
+      const sourceCode =
+        '{% assign url = "/nonexistent" %}<a href="{{ url }}">Missing</a>{% assign url = "/about" %}<a href="{{ url }}">About</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/about.html.liquid': '<h1>About</h1>',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/nonexistent' (GET)",
+      ]);
+    });
+  });
+
+  describe('route table build behavior', () => {
+    it('builds the route table on demand when an unbuilt table is provided', async () => {
+      const appFiles = {
+        'app/views/pages/about.html.liquid': '<h1>About</h1>',
+      };
+      const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appFiles });
+      const routeTable = new RouteTable(fs);
+      // Do NOT call routeTable.build() — simulates the LSP scenario where the
+      // definition provider passes its route table before it has been built.
+
+      const sourceCode = '<a href="/about">About</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        { routeTable },
+        appFiles,
+      );
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('uses routes from a pre-built table without rebuilding', async () => {
+      const appFiles = {
+        'app/views/pages/contact.html.liquid': '<h1>Contact</h1>',
+      };
+      const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appFiles });
+      const routeTable = new RouteTable(fs);
+      await routeTable.build((await import('vscode-uri')).URI.parse('file:///'));
+      expect(routeTable.isBuilt()).toBe(true);
+
+      const sourceCode = '<a href="/contact">Contact</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        { routeTable },
+        appFiles,
+      );
+      expect(offenses).toHaveLength(0);
     });
   });
 });

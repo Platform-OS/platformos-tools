@@ -39,9 +39,29 @@ export function slugFromFilePath(relativeToPages: string, format: string = 'html
 }
 
 /**
+ * Known response formats supported by the platformOS engine.
+ * Derived from the platform's FORMAT_ENUM.
+ */
+export const KNOWN_FORMATS = new Set([
+  'html',
+  'json',
+  'xml',
+  'rss',
+  'csv',
+  'pdf',
+  'css',
+  'text',
+  'js',
+  'txt',
+  'svg',
+  'ics',
+]);
+
+/**
  * Extracts the format from a page filename.
- * Returns the format if the file has a double extension like `.json.liquid` or `.xml.liquid`.
- * Returns 'html' as the default if only `.liquid` is present.
+ * Returns the format if the file has a double extension like `.json.liquid` or `.xml.liquid`
+ * and the extension is a known platformOS format.
+ * Returns 'html' as the default if only `.liquid` is present or the extension is unknown.
  */
 export function formatFromFilePath(relativeToPages: string): string {
   // Strip .liquid first
@@ -55,7 +75,7 @@ export function formatFromFilePath(relativeToPages: string): string {
   const lastSlash = name.lastIndexOf('/');
   if (lastDot > lastSlash && lastDot > 0) {
     const ext = name.slice(lastDot + 1);
-    if (ext.length > 0 && ext.length <= 10) {
+    if (KNOWN_FORMATS.has(ext)) {
       return ext;
     }
   }

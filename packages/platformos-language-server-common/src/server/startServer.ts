@@ -161,6 +161,7 @@ export function startServer(
       jsonValidationSet,
       appGraphManager,
       includeFilesFromDisk: () => configuration[INCLUDE_FILES_FROM_DISK],
+      getRouteTable: () => definitionsProvider.getRouteTable(),
     }),
     100,
   );
@@ -543,6 +544,16 @@ export function startServer(
     if (params.changes.length === 0) return;
 
     const triggerUris = params.changes.map((change) => change.uri);
+
+    // When many page files change at once (e.g., git checkout, branch switch, stash pop),
+    // incremental updates aren't reliable — files not open in the editor won't get
+    // individual onDidChangeTextDocument events. VS Code reports branch-switch changes
+    // as FileChangeType.Changed, so we count all change types.
+    const bulkPageChanges = params.changes.filter((c) => isPage(c.uri));
+    if (bulkPageChanges.length >= 3) {
+      definitionsProvider.invalidateRouteTable();
+    }
+
     const updates: Promise<any>[] = [];
     for (const change of params.changes) {
       // App Check config changes should clear the config cache

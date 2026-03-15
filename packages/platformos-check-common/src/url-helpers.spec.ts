@@ -30,7 +30,8 @@ function parseAssign(source: string): AssignMarkup {
 function parseHrefAttr(source: string): ValuedAttrNode {
   const ast = toLiquidHtmlAST(source);
   const aTag = ast.children.find(
-    (n: LiquidHtmlNode) => n.type === NodeTypes.HtmlElement && (n as HtmlElement).name[0].type === NodeTypes.TextNode,
+    (n: LiquidHtmlNode) =>
+      n.type === NodeTypes.HtmlElement && (n as HtmlElement).name[0].type === NodeTypes.TextNode,
   ) as HtmlElement | undefined;
   if (!aTag) throw new Error('No HTML element found in: ' + source);
   const href = (aTag.attributes as LiquidHtmlNode[]).find(
@@ -106,9 +107,7 @@ describe('resolveAssignToUrlPattern', () => {
 
   describe('mixed append and prepend', () => {
     it('handles append then prepend', () => {
-      const markup = parseAssign(
-        '{% assign url = "/" | append: "edit" | prepend: "/groups" %}',
-      );
+      const markup = parseAssign('{% assign url = "/" | append: "edit" | prepend: "/groups" %}');
       expect(resolveAssignToUrlPattern(markup)).toBe('/groups/edit');
     });
   });
@@ -144,9 +143,7 @@ describe('resolveAssignToUrlPattern', () => {
     });
 
     it('returns null for unknown filter in chain', () => {
-      const markup = parseAssign(
-        '{% assign url = "/groups" | append: "/edit" | strip %}',
-      );
+      const markup = parseAssign('{% assign url = "/groups" | append: "/edit" | strip %}');
       expect(resolveAssignToUrlPattern(markup)).toBe(null);
     });
 

@@ -5,15 +5,15 @@ import {
   LiquidTagAssign,
   AssignMarkup,
 } from '@platformos/liquid-html-parser';
+import { RouteTable } from '@platformos/platformos-common';
 import {
-  RouteTable,
   shouldSkipUrl,
   isValuedAttrNode,
   getAttrName,
   extractUrlPattern,
   getEffectiveMethod,
   resolveAssignToUrlPattern,
-} from '@platformos/platformos-common';
+} from '../../url-helpers';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isHtmlTag } from '../utils';
 
@@ -35,11 +35,9 @@ export const MissingPage: LiquidCheckDefinition = {
 
   create(context) {
     let routeTable: RouteTable;
-    // Flat map of variable names to resolved URL patterns from {% assign %} tags.
-    // Not scope-aware: assigns inside {% if %} / {% for %} blocks are tracked
-    // even though they may not be in scope when the href is evaluated.
-    // This is an acceptable trade-off — the alternative (full scope analysis)
-    // would add significant complexity for marginal accuracy gains.
+    // Tracks {% assign %} variable mappings incrementally in document order.
+    // This means each <a> / <form> sees only the assigns that precede it,
+    // and reassignments correctly shadow earlier values at their position.
     const variableMap = new Map<string, string>();
 
     function checkUrlAttribute(attr: Parameters<typeof extractUrlPattern>[0], method: string) {

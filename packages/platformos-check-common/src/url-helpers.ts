@@ -8,7 +8,10 @@ import {
   LiquidVariableLookup,
   LiquidString,
   LiquidFilter,
+  LiquidTag,
+  LiquidTagAssign,
   AssignMarkup,
+  NamedTags,
   AttrDoubleQuoted,
   AttrSingleQuoted,
   AttrUnquoted,
@@ -19,11 +22,10 @@ import {
  * Shared URL extraction and HTTP method detection helpers
  * for route-aware checks and LSP features.
  *
- * NOTE: These helpers depend on liquid-html-parser AST types, which makes
- * platformos-common depend on the parser. If this dependency becomes
- * problematic, consider moving the AST-aware functions (extractUrlPattern,
- * resolveAssignToUrlPattern, getEffectiveMethod, etc.) to
- * platformos-check-common, keeping only RouteTable/slug logic here.
+ * These helpers depend on liquid-html-parser AST types and live in
+ * platformos-check-common (not platformos-common) to keep the lower-level
+ * package free of parser dependencies. The pure RouteTable/slug logic
+ * remains in platformos-common.
  */
 
 const SKIP_PREFIXES = ['http://', 'https://', '//', 'mailto:', 'tel:', 'javascript:', 'data:', '#'];
@@ -206,6 +208,10 @@ export function extractUrlPattern(
   return normalizeUrlPattern(parts.join(''));
 }
 
+function isHtmlVoidElement(node: LiquidHtmlNode): node is HtmlVoidElement {
+  return node.type === NodeTypes.HtmlVoidElement;
+}
+
 /**
  * Recursively scan a form subtree for <input type="hidden" name="_method" value="...">
  * Returns the _method value if found, or null.
@@ -216,12 +222,8 @@ function findMethodOverride(formNode: HtmlElement): string | null {
   while (stack.length > 0) {
     const child = stack.pop()!;
 
-    if (
-      child.type === NodeTypes.HtmlVoidElement &&
-      (child as unknown as HtmlVoidElement).name === 'input'
-    ) {
-      const voidEl = child as unknown as HtmlVoidElement;
-      const attrs = (voidEl.attributes as LiquidHtmlNode[]).filter(isValuedAttrNode);
+    if (isHtmlVoidElement(child) && child.name === 'input') {
+      const attrs = (child.attributes as LiquidHtmlNode[]).filter(isValuedAttrNode);
       const typeAttr = attrs.find((a) => getAttrName(a) === 'type');
       const nameAttr = attrs.find((a) => getAttrName(a) === 'name');
       const valueAttr = attrs.find((a) => getAttrName(a) === 'value');
@@ -240,7 +242,7 @@ function findMethodOverride(formNode: HtmlElement): string | null {
     }
 
     // Recurse into elements that have children
-    if (child.type === NodeTypes.HtmlElement && 'children' in child) {
+    if (child.type === NodeTypes.HtmlElement) {
       const el = child as HtmlElement;
       for (const grandchild of el.children) {
         stack.push(grandchild);
@@ -275,4 +277,51 @@ export function getEffectiveMethod(formNode: HtmlElement): string | null {
   }
 
   return formMethod;
+}
+
+/**
+ * Walk an AST subtree and collect {% assign %} variable mappings that resolve to URL patterns.
+ * Not scope-aware: assigns inside {% if %} / {% for %} blocks are tracked even though they
+ * may not be in scope when the href is evaluated. This is an acceptable trade-off — the
+ * alternative (full scope analysis) would add significant complexity for marginal accuracy gains.
+ *
+ * Uses document-order traversal so that reassignments correctly overwrite earlier values.
+ *
+ * @param beforeOffset When provided, only assigns whose position.end is before this
+ *   offset are included. Used by the LSP definition provider so that each cursor
+ *   position sees only the assigns that precede it.
+ */
+export function buildVariableMap(
+  children: LiquidHtmlNode[],
+  beforeOffset?: number,
+): Map<string, string> {
+  const variableMap = new Map<string, string>();
+
+  function walk(nodes: LiquidHtmlNode[]): void {
+    for (const node of nodes) {
+      if (node.type === NodeTypes.LiquidTag && (node as LiquidTag).name === NamedTags.assign) {
+        if (beforeOffset !== undefined && node.position.end > beforeOffset) continue;
+        const markup = (node as LiquidTagAssign).markup as AssignMarkup;
+        if (markup.lookups.length === 0) {
+          const urlPattern = resolveAssignToUrlPattern(markup);
+          if (urlPattern !== null) {
+            variableMap.set(markup.name, urlPattern);
+          }
+        }
+      }
+
+      // Recurse into children (block tags like {% if %}, {% for %})
+      if ('children' in node && Array.isArray((node as any).children)) {
+        walk((node as any).children);
+      }
+
+      // Recurse into markup arrays ({% liquid %} block contains assigns in markup)
+      if ('markup' in node && Array.isArray((node as any).markup)) {
+        walk((node as any).markup);
+      }
+    }
+  }
+
+  walk(children);
+  return variableMap;
 }

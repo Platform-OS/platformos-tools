@@ -135,12 +135,17 @@ function getDefaultTranslationsFromBuffer(app: App): Translations | undefined {
 export function makeGetRouteTable(
   fs: AbstractFileSystem,
   rootUri: string,
+  existingTable?: RouteTable,
 ): () => Promise<RouteTable> {
+  const table = existingTable ?? new RouteTable(fs);
   let buildPromise: Promise<RouteTable> | null = null;
   return () => {
     if (!buildPromise) {
-      const table = new RouteTable(fs);
-      buildPromise = table.build(URI.parse(rootUri)).then(() => table);
+      if (table.isBuilt()) {
+        buildPromise = Promise.resolve(table);
+      } else {
+        buildPromise = table.build(URI.parse(rootUri)).then(() => table);
+      }
     }
     return buildPromise;
   };

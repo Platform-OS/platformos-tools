@@ -355,6 +355,12 @@ export interface Dependencies {
    * Returns an empty array if no files reference this file
    */
   getReferences?: (uri: string) => Promise<Reference[]>;
+
+  /**
+   * Optional pre-built RouteTable. When provided (e.g. by the LSP),
+   * the check pipeline reuses it instead of building a new one per run.
+   */
+  routeTable?: RouteTable;
 }
 
 export type ValidateJSON = (

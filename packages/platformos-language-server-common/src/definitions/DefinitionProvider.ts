@@ -37,6 +37,19 @@ export class DefinitionProvider {
     this.pageRouteProvider?.onPageFileDeleted(uri);
   }
 
+  /**
+   * Invalidate the route table so it will be fully rebuilt on next use.
+   * Call after bulk filesystem changes (e.g., git checkout, branch switch).
+   */
+  invalidateRouteTable(): void {
+    this.pageRouteProvider?.invalidate();
+  }
+
+  /** Returns the shared RouteTable, or undefined if route support is not configured. */
+  getRouteTable(): import('@platformos/platformos-common').RouteTable | undefined {
+    return this.pageRouteProvider?.getRouteTable();
+  }
+
   async definitions(params: DefinitionParams): Promise<DefinitionLink[] | null> {
     const sourceCode = this.documentManager.get(params.textDocument.uri);
     if (

@@ -288,7 +288,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
     expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
   });
 
-  it('navigates when cursor is on another attribute of <a>', async () => {
+  it('returns null when cursor is on a non-URL attribute of <a>', async () => {
     setup({
       'app/views/pages/about.html.liquid': '<h1>About</h1>',
     });
@@ -305,10 +305,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
     };
 
     const result = await provider.definitions(params);
-    assert(result);
-    expect(result).toHaveLength(1);
-    assert(LocationLink.is(result[0]));
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    assert(result === null);
   });
 
   it('navigates when cursor is on the tag name of <form>', async () => {
@@ -526,6 +523,208 @@ describe('Module: PageRouteDefinitionProvider', () => {
       assert(result);
       expect(result).toHaveLength(1);
       expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    });
+  });
+
+  describe('format-aware go-to-definition', () => {
+    it('navigates to the json page when URL has .json suffix', async () => {
+      setup({
+        'app/views/pages/api/my-page.html.liquid': '<h1>HTML</h1>',
+        'app/views/pages/api/my-page.json.liquid': '{ "data": true }',
+      });
+
+      documentManager.open(
+        'file:///project/app/views/pages/home.html.liquid',
+        '<a href="/api/my-page.json">JSON</a>',
+        1,
+      );
+
+      const params: DefinitionParams = {
+        textDocument: { uri: 'file:///project/app/views/pages/home.html.liquid' },
+        position: { line: 0, character: 15 }, // Inside href value
+      };
+
+      const result = await provider.definitions(params);
+      assert(result);
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toContain('my-page.json.liquid');
+    });
+
+    it('navigates to only html page when URL has no format suffix', async () => {
+      setup({
+        'app/views/pages/api/my-page.html.liquid': '<h1>HTML</h1>',
+        'app/views/pages/api/my-page.json.liquid': '{ "data": true }',
+      });
+
+      documentManager.open(
+        'file:///project/app/views/pages/home.html.liquid',
+        '<a href="/api/my-page">HTML only</a>',
+        1,
+      );
+
+      const params: DefinitionParams = {
+        textDocument: { uri: 'file:///project/app/views/pages/home.html.liquid' },
+        position: { line: 0, character: 15 }, // Inside href value
+      };
+
+      const result = await provider.definitions(params);
+      assert(result);
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toContain('my-page.html.liquid');
+    });
+  });
+
+  describe('assign override — position-aware variable resolution', () => {
+    it('first link goes to /about, second link goes to /contact', async () => {
+      setup({
+        'app/views/pages/about.html.liquid': '<h1>About</h1>',
+        'app/views/pages/contact.html.liquid': '<h1>Contact</h1>',
+      });
+
+      // {% assign url = "/about" %}<a href="{{ url }}">..</a>{% assign url = "/contact" %}<a href="{{ url }}">..</a>
+      const source =
+        '{% assign url = "/about" %}<a href="{{ url }}">About</a>{% assign url = "/contact" %}<a href="{{ url }}">Contact</a>';
+      documentManager.open('file:///project/app/views/pages/home.html.liquid', source, 1);
+
+      // First <a> — cursor inside the first href="{{ url }}"
+      // The first <a> starts at offset 27, href value "{{ url }}" is around offset 37
+      const firstHrefOffset = source.indexOf('{{ url }}');
+      const firstLine = source.slice(0, firstHrefOffset).split('\n').length - 1;
+      const firstChar = firstHrefOffset - source.lastIndexOf('\n', firstHrefOffset - 1) - 1;
+
+      const result1 = await provider.definitions({
+        textDocument: { uri: 'file:///project/app/views/pages/home.html.liquid' },
+        position: { line: firstLine, character: firstChar + 3 }, // Inside {{ url }}
+      });
+      assert(result1);
+      expect(result1).toHaveLength(1);
+      expect(result1[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+
+      // Second <a> — cursor inside the second href="{{ url }}"
+      const secondHrefOffset = source.indexOf('{{ url }}', firstHrefOffset + 1);
+      const secondLine = source.slice(0, secondHrefOffset).split('\n').length - 1;
+      const secondChar = secondHrefOffset - source.lastIndexOf('\n', secondHrefOffset - 1) - 1;
+
+      const result2 = await provider.definitions({
+        textDocument: { uri: 'file:///project/app/views/pages/home.html.liquid' },
+        position: { line: secondLine, character: secondChar + 3 }, // Inside {{ url }}
+      });
+      assert(result2);
+      expect(result2).toHaveLength(1);
+      expect(result2[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
+    });
+  });
+
+  describe('invalidateRouteTable', () => {
+    it('forces a full rebuild on next definition request', async () => {
+      // Initial setup with /about page
+      const files: Record<string, string> = {
+        '.pos': '',
+        'app/views/pages/about.html.liquid': '<h1>About</h1>',
+      };
+
+      const fileUris = new Map<string, string>();
+      const dirEntries = new Map<string, [string, FileType][]>();
+
+      function rebuildIndex() {
+        fileUris.clear();
+        dirEntries.clear();
+        for (const [path, content] of Object.entries(files)) {
+          const uri = `file:///project/${path}`;
+          fileUris.set(uri, content);
+          const parts = path.split('/');
+          for (let i = 0; i < parts.length; i++) {
+            const dirPath = parts.slice(0, i + 1).join('/');
+            const parentPath = parts.slice(0, i).join('/');
+            const parentUri = parentPath ? `file:///project/${parentPath}` : 'file:///project';
+            const childUri = `file:///project/${dirPath}`;
+            const isFile = i === parts.length - 1;
+            if (!dirEntries.has(parentUri)) dirEntries.set(parentUri, []);
+            const entries = dirEntries.get(parentUri)!;
+            if (!entries.some(([u]) => u === childUri)) {
+              entries.push([childUri, isFile ? FileType.File : FileType.Directory]);
+            }
+          }
+        }
+      }
+
+      rebuildIndex();
+
+      const fs: AbstractFileSystem = {
+        async stat(uri: string) {
+          if (fileUris.has(uri)) return { type: FileType.File, size: fileUris.get(uri)!.length };
+          if (dirEntries.has(uri)) return { type: FileType.Directory, size: 0 };
+          throw new Error(`ENOENT: ${uri}`);
+        },
+        async readFile(uri: string) {
+          if (fileUris.has(uri)) return fileUris.get(uri)!;
+          throw new Error(`ENOENT: ${uri}`);
+        },
+        async readDirectory(uri: string) {
+          if (dirEntries.has(uri)) return dirEntries.get(uri)!;
+          throw new Error(`ENOENT: ${uri}`);
+        },
+      };
+
+      documentManager = new DocumentManager();
+      provider = new DefinitionProvider(
+        documentManager,
+        async () => null,
+        fs,
+        async () => 'file:///project',
+      );
+
+      // Open a page that links to /about
+      documentManager.open(
+        'file:///project/app/views/pages/home.html.liquid',
+        '<a href="/about">About</a>',
+        1,
+      );
+
+      const params: DefinitionParams = {
+        textDocument: { uri: 'file:///project/app/views/pages/home.html.liquid' },
+        position: { line: 0, character: 12 },
+      };
+
+      // First request triggers build — /about is found
+      const result1 = await provider.definitions(params);
+      assert(result1);
+      expect(result1).toHaveLength(1);
+
+      // Simulate branch switch: remove /about, add /contact
+      delete files['app/views/pages/about.html.liquid'];
+      files['app/views/pages/contact.html.liquid'] = '<h1>Contact</h1>';
+      rebuildIndex();
+
+      // Without invalidation, the cached route table still finds /about
+      const result2 = await provider.definitions(params);
+      assert(result2);
+      expect(result2).toHaveLength(1); // Still finds old /about from cache
+
+      // Invalidate — forces a full rebuild on next request
+      provider.invalidateRouteTable();
+
+      // Now the route table is rebuilt from the new filesystem state
+      const result3 = await provider.definitions(params);
+      // /about no longer exists, so no definitions found
+      expect(result3).toEqual(null);
+
+      // Verify /contact is now discoverable
+      documentManager.open(
+        'file:///project/app/views/pages/home.html.liquid',
+        '<a href="/contact">Contact</a>',
+        2,
+      );
+
+      const contactParams: DefinitionParams = {
+        textDocument: { uri: 'file:///project/app/views/pages/home.html.liquid' },
+        position: { line: 0, character: 14 },
+      };
+
+      const result4 = await provider.definitions(contactParams);
+      assert(result4);
+      expect(result4).toHaveLength(1);
+      expect(result4[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
     });
   });
 });

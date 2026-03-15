@@ -5,6 +5,7 @@ import {
   makeFileSize,
   makeGetDefaultLocale,
   makeGetDefaultTranslations,
+  makeGetRouteTable,
   makeGetTranslationsForBase,
 } from './context-utils';
 import { createDisabledChecksModule } from './disabled-checks';
@@ -80,6 +81,7 @@ export * from './utils/object';
 export * from './visitor';
 export * from './liquid-doc/liquidDoc';
 export * from './liquid-doc/utils';
+export * from './url-helpers';
 
 const defaultErrorHandler = (_error: Error): void => {
   // Silently ignores errors by default.
@@ -101,6 +103,7 @@ export async function check(
     getDefaultLocale: makeGetDefaultLocale(fs, rootUri),
     getDefaultTranslations: makeGetDefaultTranslations(fs, app, rootUri),
     getTranslationsForBase: makeGetTranslationsForBase(fs, app),
+    getRouteTable: makeGetRouteTable(fs, rootUri, injectedDependencies.routeTable),
   };
 
   const { DisabledChecksVisitor, isDisabled } = createDisabledChecksModule();

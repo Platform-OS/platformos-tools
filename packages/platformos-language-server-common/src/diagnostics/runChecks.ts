@@ -6,6 +6,7 @@ import {
   Reference,
   SourceCodeType,
 } from '@platformos/platformos-check-common';
+import { RouteTable } from '@platformos/platformos-common';
 
 import { DocumentManager } from '../documents';
 import { Dependencies } from '../types';
@@ -22,9 +23,11 @@ export function makeRunChecks(
     jsonValidationSet,
     appGraphManager,
     includeFilesFromDisk,
+    getRouteTable,
   }: Pick<Dependencies, 'fs' | 'loadConfig' | 'platformosDocset' | 'jsonValidationSet'> & {
     appGraphManager?: AppGraphManager;
     includeFilesFromDisk?: () => boolean;
+    getRouteTable?: () => RouteTable | undefined;
   },
 ) {
   return async function runChecks(triggerURIs: string[]): Promise<void> {
@@ -52,6 +55,7 @@ export function makeRunChecks(
         fs,
         platformosDocset,
         jsonValidationSet,
+        routeTable: getRouteTable?.(),
 
         async getReferences(uri: string): Promise<Reference[]> {
           if (!appGraphManager) return [];

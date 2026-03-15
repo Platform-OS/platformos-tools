@@ -2,7 +2,7 @@ import { LiquidHtmlNode, NodeTypes as LiquidHtmlNodeTypes } from '@platformos/li
 
 import { Schema, Settings } from './types/schema-prop-factory';
 
-import { AbstractFileSystem, UriString } from '@platformos/platformos-common';
+import { AbstractFileSystem, RouteTable, UriString } from '@platformos/platformos-common';
 import { JSONCorrector, StringCorrector } from './fixes';
 
 import {
@@ -355,6 +355,12 @@ export interface Dependencies {
    * Returns an empty array if no files reference this file
    */
   getReferences?: (uri: string) => Promise<Reference[]>;
+
+  /**
+   * Optional pre-built RouteTable. When provided (e.g. by the LSP),
+   * the check pipeline reuses it instead of building a new one per run.
+   */
+  routeTable?: RouteTable;
 }
 
 export type ValidateJSON = (
@@ -377,6 +383,8 @@ export interface AugmentedDependencies extends Dependencies {
    * Covers both `{base}/{locale}.yml` and `{base}/{locale}/*.yml`.
    */
   getTranslationsForBase(translationBaseUri: string, locale: string): Promise<Translations>;
+  /** Lazily builds and returns a shared RouteTable for the current check run. */
+  getRouteTable(): Promise<RouteTable>;
 }
 
 type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeType

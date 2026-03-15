@@ -482,13 +482,20 @@ export function shapeToJSONPlaceholder(shape: PropertyShape | undefined): string
   switch (shape.kind) {
     case 'primitive':
       switch (shape.primitiveType) {
-        case 'string': return '""';
-        case 'number': return '0';
-        case 'boolean': return 'true';
-        default: return 'null';
+        case 'string':
+          return '""';
+        case 'number':
+          return '0';
+        case 'boolean':
+          return 'true';
+        default:
+          return 'null';
       }
-    case 'array': return '[]';
-    case 'object': return '{}';
-    default: return 'null';
+    case 'array':
+      return '[]';
+    case 'object':
+      return '{}';
+    default:
+      return 'null';
   }
 }

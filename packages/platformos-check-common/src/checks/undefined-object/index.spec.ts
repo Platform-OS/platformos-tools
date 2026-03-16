@@ -541,4 +541,39 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toBe("Unknown object 'groups_data' used.");
   });
+
+  it('should not report params as undefined when YAML frontmatter declares metadata.params', async () => {
+    const sourceCode = `---
+metadata:
+  params:
+    token:
+      type: string
+    email:
+      type: string
+---
+{{ params.token }}
+{{ params.email }}
+`;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should still report other undefined objects when frontmatter has metadata.params', async () => {
+    const sourceCode = `---
+metadata:
+  params:
+    token:
+      type: string
+---
+{{ params.token }}
+{{ undefined_var }}
+`;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'undefined_var' used.");
+  });
 });

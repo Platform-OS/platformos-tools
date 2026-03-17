@@ -26,18 +26,12 @@ describe('Module: MissingRenderPartialArguments', () => {
   });
 
   it('should not report when all required params are provided', async () => {
-    const offenses = await check(
-      partialWithRequiredParams,
-      `{% render 'card', title: 'Hello' %}`,
-    );
+    const offenses = await check(partialWithRequiredParams, `{% render 'card', title: 'Hello' %}`);
     expect(offenses).to.have.length(0);
   });
 
   it('should not report for missing optional params', async () => {
-    const offenses = await check(
-      partialWithRequiredParams,
-      `{% render 'card', title: 'Hello' %}`,
-    );
+    const offenses = await check(partialWithRequiredParams, `{% render 'card', title: 'Hello' %}`);
     expect(offenses).to.have.length(0);
   });
 

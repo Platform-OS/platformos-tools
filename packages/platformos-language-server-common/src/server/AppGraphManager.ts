@@ -10,7 +10,11 @@ import {
   WebComponentMap,
 } from '@platformos/platformos-graph';
 import { Range } from 'vscode-json-languageservice';
-import { Connection, DiagnosticSeverity, PublishDiagnosticsNotification } from 'vscode-languageserver';
+import {
+  Connection,
+  DiagnosticSeverity,
+  PublishDiagnosticsNotification,
+} from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DocumentManager } from '../documents';
 import {

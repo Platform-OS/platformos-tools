@@ -70,10 +70,7 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
 
           // Lazy-load all keys once per file
           if (allDefinedKeys === null) {
-            const baseUri = Utils.joinPath(
-              URI.parse(context.config.rootUri),
-              'app/translations',
-            );
+            const baseUri = Utils.joinPath(URI.parse(context.config.rootUri), 'app/translations');
             try {
               const allTranslations = await translationProvider.loadAllTranslationsForBase(
                 baseUri,
@@ -92,12 +89,13 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
             message,
             startIndex,
             endIndex,
-            suggest: nearest.length > 0
-              ? nearest.map((key) => ({
-                  message: `Did you mean '${key}'?`,
-                  fix: (fixer: any) => fixer.replace(startIndex, endIndex, `'${key}'`),
-                }))
-              : undefined,
+            suggest:
+              nearest.length > 0
+                ? nearest.map((key) => ({
+                    message: `Did you mean '${key}'?`,
+                    fix: (fixer: any) => fixer.replace(startIndex, endIndex, `'${key}'`),
+                  }))
+                : undefined,
           });
         }
       },

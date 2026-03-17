@@ -39,7 +39,10 @@ export class HoverProvider {
     readonly findAppRootURI: FindAppRootURI = async () => null,
   ) {
     const typeSystem = new TypeSystem(platformosDocset);
-    this.graphqlFieldHoverProvider = new GraphQLFieldHoverProvider(platformosDocset, documentManager);
+    this.graphqlFieldHoverProvider = new GraphQLFieldHoverProvider(
+      platformosDocset,
+      documentManager,
+    );
     this.providers = [
       new LiquidTagHoverProvider(platformosDocset),
       new LiquidFilterArgumentHoverProvider(platformosDocset),

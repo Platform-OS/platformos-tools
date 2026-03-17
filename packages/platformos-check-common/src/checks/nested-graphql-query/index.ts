@@ -23,9 +23,7 @@ export const NestedGraphQLQuery: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (node.name !== NamedTags.graphql) return;
 
-        const ancestorTags = ancestors.filter(
-          (a) => a.type === NodeTypes.LiquidTag,
-        );
+        const ancestorTags = ancestors.filter((a) => a.type === NodeTypes.LiquidTag);
 
         const loopAncestor = ancestorTags.find(isLoopLiquidTag);
 

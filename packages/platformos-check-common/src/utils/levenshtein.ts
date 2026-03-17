@@ -13,10 +13,7 @@ export function levenshtein(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
-export function flattenTranslationKeys(
-  obj: Record<string, any>,
-  prefix = '',
-): string[] {
+export function flattenTranslationKeys(obj: Record<string, any>, prefix = ''): string[] {
   const keys: string[] = [];
   for (const [k, v] of Object.entries(obj)) {
     const full = prefix ? `${prefix}.${k}` : k;

@@ -23,10 +23,12 @@ import {
 import { HtmlAttributeValueHoverProvider } from './providers/HtmlAttributeValueHoverProvider';
 import { findCurrentNode } from '@platformos/platformos-check-common';
 import { LiquidDocTagHoverProvider } from './providers/LiquidDocTagHoverProvider';
+import { GraphQLFieldHoverProvider } from './providers/GraphQLFieldHoverProvider';
 import { TranslationProvider } from '@platformos/platformos-common';
 import { FindAppRootURI } from '../../src/internal-types';
 export class HoverProvider {
   private providers: BaseHoverProvider[] = [];
+  private graphqlFieldHoverProvider: GraphQLFieldHoverProvider;
 
   constructor(
     readonly documentManager: DocumentManager,
@@ -37,6 +39,7 @@ export class HoverProvider {
     readonly findAppRootURI: FindAppRootURI = async () => null,
   ) {
     const typeSystem = new TypeSystem(platformosDocset);
+    this.graphqlFieldHoverProvider = new GraphQLFieldHoverProvider(platformosDocset, documentManager);
     this.providers = [
       new LiquidTagHoverProvider(platformosDocset),
       new LiquidFilterArgumentHoverProvider(platformosDocset),
@@ -56,6 +59,11 @@ export class HoverProvider {
   async hover(params: HoverParams): Promise<Hover | null> {
     const uri = params.textDocument.uri;
     const document = this.documentManager.get(uri);
+
+    // GraphQL files get dedicated hover support
+    if (document?.type === SourceCodeType.GraphQL) {
+      return this.graphqlFieldHoverProvider.hover(params);
+    }
 
     // Supports only Liquid resources
     if (document?.type !== SourceCodeType.LiquidHtml || document.ast instanceof Error) {

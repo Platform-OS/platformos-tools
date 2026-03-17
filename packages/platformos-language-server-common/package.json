@@ -31,6 +31,8 @@
     "@platformos/platformos-check-common": "0.0.12",
     "@platformos/platformos-graph": "0.0.12",
     "@vscode/web-custom-data": "^0.4.6",
+    "graphql": "^16.12.0",
+    "graphql-language-service": "^5.2.2",
     "vscode-json-languageservice": "^5.7.1",
     "vscode-languageserver": "^9.0.1",
     "vscode-css-languageservice": "^6.3.9",

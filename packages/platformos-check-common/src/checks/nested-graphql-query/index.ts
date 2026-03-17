@@ -50,7 +50,7 @@ export const NestedGraphQLQuery: LiquidCheckDefinition = {
 
         const graphqlStr = resultName ? `{% graphql${resultName} %}` : '{% graphql %}';
 
-        const message = `N+1 pattern: ${graphqlStr} is inside a {% ${loopAncestor.name} %} loop. This executes one database request per iteration. Move the query before the loop and pass data as a variable.`;
+        const message = `N+1 pattern: ${graphqlStr} is inside a {% ${loopAncestor.name} %} loop. This executes at least one database request per iteration. Move the query before the loop and pass data as a variable.`;
 
         context.report({
           message,

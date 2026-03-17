@@ -126,6 +126,13 @@ const globPattern = normalize(path.join(root, '**/*.liquid'));
 
 **Important: `normalize-path` is for filesystem paths only, NOT URIs.** It collapses multiple slashes (e.g., `file:///` becomes `file:/`), which breaks URI semantics. For URI strings (`file://...`), use the `normalize()` function from `platformos-check-common/src/path.ts` which works with `vscode-uri`. For raw backslash replacement in URIs where you can't use the common normalize, use `.replace(/\\/g, '/')`.
 
+## Test Assertion Guidelines
+
+- Always use `.to.equal()` for message assertions, never `.to.include()` — assert the entire expected string
+- Do not use regex for matching in tests unless absolutely necessary
+- For array assertions (e.g., `applySuggestions` results), use `.to.deep.equal([...])` instead of `.to.include(element)`
+- When multiple `.include()` calls check the same value, collapse them into a single `.to.equal()`
+
 ## Development Workflows
 
 ### Online Store Web Integration

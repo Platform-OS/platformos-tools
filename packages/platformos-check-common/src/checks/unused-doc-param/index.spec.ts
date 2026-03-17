@@ -51,14 +51,14 @@ describe('Module: UnusedDocParam', () => {
     const offenses = await runLiquidCheck(UnusedDocParam, sourceCode);
     const suggestions = applySuggestions(sourceCode, offenses[0]);
 
-    expect(suggestions).to.include(`
+    expect(suggestions).to.deep.equal([`
       {% doc %}
         @param param1 - Example param
         
       {% enddoc %}
 
       {{ param1 }}
-    `);
+    `]);
   });
 
   LoopNamedTags.forEach((tag) => {

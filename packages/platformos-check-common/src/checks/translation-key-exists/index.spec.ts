@@ -38,8 +38,9 @@ describe('Module: TranslationKeyExists', () => {
     );
 
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('missing.key');
-    expect(offenses[0].message).to.include('does not have a matching translation entry');
+    expect(offenses[0].message).to.equal(
+      "'missing.key' does not have a matching translation entry",
+    );
   });
 
   it('should suggest nearest key when the key is a typo', async () => {
@@ -53,7 +54,7 @@ describe('Module: TranslationKeyExists', () => {
 
     expect(offenses).to.have.length(1);
     expect(offenses[0].suggest).to.have.length(1);
-    expect(offenses[0].suggest![0].message).to.include('general.title');
+    expect(offenses[0].suggest![0].message).to.equal("Did you mean 'general.title'?");
   });
 
   it('should not add suggestions when there is no close key', async () => {

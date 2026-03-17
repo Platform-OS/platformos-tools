@@ -56,7 +56,7 @@ describe('Module: UnusedAssign', () => {
       {{ usedVar }}
     `;
 
-    expect(suggestions).to.include(expectedFixedCode);
+    expect(suggestions).to.deep.equal([expectedFixedCode]);
   });
 
   it('should not report unused assigns for things used in a capture tag', async () => {

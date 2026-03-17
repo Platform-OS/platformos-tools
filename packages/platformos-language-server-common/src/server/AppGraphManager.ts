@@ -1,7 +1,6 @@
 import { path, SourceCodeType } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import {
-  AppGraph,
   buildAppGraph,
   getWebComponentMap,
   IDependencies as GraphDependencies,
@@ -10,11 +9,7 @@ import {
   WebComponentMap,
 } from '@platformos/platformos-graph';
 import { Range } from 'vscode-json-languageservice';
-import {
-  Connection,
-  DiagnosticSeverity,
-  PublishDiagnosticsNotification,
-} from 'vscode-languageserver';
+import { Connection } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { DocumentManager } from '../documents';
 import {
@@ -28,8 +23,6 @@ import { FindAppRootURI } from '../internal-types';
 
 export class AppGraphManager {
   graphs: Map<string, ReturnType<typeof buildAppGraph>> = new Map();
-  private cycleAffectedUris: Set<string> = new Set();
-
   constructor(
     private connection: Connection,
     private documentManager: DocumentManager,
@@ -165,125 +158,12 @@ export class AppGraphManager {
     this.connection.sendNotification(AppGraphDidUpdateNotification.type, { uri: rootUri });
   }, 500);
 
-  /**
-   * Detect cycles in the dependency graph using iterative DFS.
-   * Returns arrays of URIs forming cycles.
-   */
-  private detectCycles(graph: AppGraph): string[][] {
-    const cycles: string[][] = [];
-    const visited = new Set<string>();
-    const inStack = new Set<string>();
-
-    // Build adjacency map: uri -> direct dependency uris
-    const adjacency = new Map<string, string[]>();
-    for (const [uri, module] of Object.entries(graph.modules)) {
-      const directDeps = module.dependencies
-        .filter((dep) => dep.type === 'direct')
-        .map((dep) => dep.target.uri);
-      adjacency.set(uri, directDeps);
-    }
-
-    const dfs = (uri: string, stack: string[]): void => {
-      if (inStack.has(uri)) {
-        // Found a cycle — extract the cycle portion
-        const cycleStart = stack.indexOf(uri);
-        cycles.push([...stack.slice(cycleStart), uri]);
-        return;
-      }
-      if (visited.has(uri)) return;
-
-      inStack.add(uri);
-      stack.push(uri);
-
-      const deps = adjacency.get(uri) ?? [];
-      for (const depUri of deps) {
-        dfs(depUri, stack);
-      }
-
-      stack.pop();
-      inStack.delete(uri);
-      visited.add(uri);
-    };
-
-    for (const uri of adjacency.keys()) {
-      if (!visited.has(uri)) {
-        dfs(uri, []);
-      }
-    }
-
-    return cycles;
-  }
-
-  /**
-   * Run cycle detection and publish diagnostics for all affected URIs.
-   * Clears diagnostics for previously affected URIs when cycles no longer exist.
-   */
-  private detectAndPublishCycles(graph: AppGraph): void {
-    const cycles = this.detectCycles(graph);
-    const newlyAffectedUris = new Set<string>();
-
-    if (cycles.length > 0) {
-      // Group cycles by which URIs are involved
-      const cyclesByUri = new Map<string, string[][]>();
-      for (const cycle of cycles) {
-        // All URIs in the cycle (excluding the trailing duplicate) are affected
-        const cycleUris = cycle.slice(0, -1);
-        for (const uri of cycleUris) {
-          newlyAffectedUris.add(uri);
-          if (!cyclesByUri.has(uri)) {
-            cyclesByUri.set(uri, []);
-          }
-          cyclesByUri.get(uri)!.push(cycle);
-        }
-      }
-
-      // Publish diagnostics for all affected URIs
-      for (const [uri, uriCycles] of cyclesByUri.entries()) {
-        const diagnostics = uriCycles.map((cycle) => {
-          const cycleDescription = cycle
-            .map((u) => {
-              const parts = u.split('/');
-              return parts.slice(-2).join('/');
-            })
-            .join(' → ');
-          return {
-            range: {
-              start: { line: 0, character: 0 },
-              end: { line: 0, character: 0 },
-            },
-            severity: DiagnosticSeverity.Error,
-            message: `Circular render detected: ${cycleDescription}\nThis will cause an infinite loop at runtime.`,
-            source: 'platformos-check',
-          };
-        });
-
-        this.connection.sendNotification(PublishDiagnosticsNotification.type, {
-          uri,
-          diagnostics,
-        });
-      }
-    }
-
-    // Clear diagnostics for URIs that are no longer affected
-    for (const uri of this.cycleAffectedUris) {
-      if (!newlyAffectedUris.has(uri)) {
-        this.connection.sendNotification(PublishDiagnosticsNotification.type, {
-          uri,
-          diagnostics: [],
-        });
-      }
-    }
-
-    this.cycleAffectedUris = newlyAffectedUris;
-  }
-
   private buildAppGraph = async (rootUri: string, entryPoints?: string[]) => {
     const { documentManager } = this;
     await documentManager.preload(rootUri);
 
     const dependencies = await this.graphDependencies(rootUri);
     const graph = await buildAppGraph(rootUri, dependencies, entryPoints);
-    this.detectAndPublishCycles(graph);
     return graph;
   };
 

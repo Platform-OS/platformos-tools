@@ -29,8 +29,6 @@ import {
   ReturnType,
   SourceCodeType,
   PlatformOSDocset,
-  isError,
-  parseJSON,
   path,
   BasicParamTypes,
   getValidParamTypes,
@@ -43,21 +41,16 @@ import {
   inferShapeFromJSONString,
   inferShapeFromJsonLiteral,
   inferShapeFromGraphQL,
-  lookupPropertyPath,
   mergeShapes,
   shapeToTypeString,
-  shapeToDetailString,
   shapeToJSONPlaceholder,
 } from './PropertyShapeInference';
 import { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
-import { buildSchema, GraphQLSchema } from 'graphql';
 
 export class TypeSystem {
   private graphqlSchemaCache: string | undefined;
   private graphqlSchemaLoaded = false;
-  private builtGraphqlSchemaCache: GraphQLSchema | undefined;
-  private builtGraphqlSchemaLoaded = false;
 
   constructor(
     private readonly platformosDocset: PlatformOSDocset,
@@ -74,20 +67,6 @@ export class TypeSystem {
     return this.graphqlSchemaCache;
   }
 
-  async getBuiltGraphQLSchema(): Promise<GraphQLSchema | undefined> {
-    if (!this.builtGraphqlSchemaLoaded) {
-      const sdl = await this.getGraphQLSchema();
-      if (sdl) {
-        try {
-          this.builtGraphqlSchemaCache = buildSchema(sdl);
-        } catch {
-          // Invalid schema SDL — continue without schema
-        }
-      }
-      this.builtGraphqlSchemaLoaded = true;
-    }
-    return this.builtGraphqlSchemaCache;
-  }
 
   async inferType(
     thing: Identifier | ComplexLiquidExpression | LiquidVariable | AssignMarkup,

@@ -2,6 +2,8 @@ import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isLoopLiquidTag } from '../utils';
 
+const SKIP_IF_ANCESTOR_TAGS = [NamedTags.cache.toString()];
+
 export const NestedGraphQLQuery: LiquidCheckDefinition = {
   meta: {
     code: 'NestedGraphQLQuery',
@@ -34,8 +36,8 @@ export const NestedGraphQLQuery: LiquidCheckDefinition = {
         if (inBackground) return;
 
         // Skip if inside a cache block (caching mitigates the N+1 problem)
-        const inCache = ancestorTags.some((a) => a.name === NamedTags.cache);
-        if (inCache) return;
+        const shouldSkip = ancestorTags.some((a) => SKIP_IF_ANCESTOR_TAGS.includes(a.name));
+        if (shouldSkip) return;
 
         let resultName = '';
         if (

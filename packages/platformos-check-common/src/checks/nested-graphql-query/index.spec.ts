@@ -17,8 +17,9 @@ describe('Module: NestedGraphQLQuery', () => {
       `{% for item in items %}{% graphql result = 'products/get' %}{% endfor %}`,
     );
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('N+1');
-    expect(offenses[0].message).to.include('for');
+    expect(offenses[0].message).to.equal(
+      "N+1 pattern: {% graphql result = 'result' %} is inside a {% for %} loop. This executes one database request per iteration. Move the query before the loop and pass data as a variable.",
+    );
   });
 
   it('should report graphql inside a tablerow loop', async () => {
@@ -27,7 +28,9 @@ describe('Module: NestedGraphQLQuery', () => {
       `{% tablerow item in items %}{% graphql result = 'products/get' %}{% endtablerow %}`,
     );
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('tablerow');
+    expect(offenses[0].message).to.equal(
+      "N+1 pattern: {% graphql result = 'result' %} is inside a {% tablerow %} loop. This executes one database request per iteration. Move the query before the loop and pass data as a variable.",
+    );
   });
 
   it('should report graphql inside nested loops', async () => {
@@ -60,7 +63,9 @@ describe('Module: NestedGraphQLQuery', () => {
       `{% for item in items %}{% graphql result %}query { records { results { id } } }{% endgraphql %}{% endfor %}`,
     );
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('result');
+    expect(offenses[0].message).to.equal(
+      "N+1 pattern: {% graphql result = 'result' %} is inside a {% for %} loop. This executes one database request per iteration. Move the query before the loop and pass data as a variable.",
+    );
   });
 
   it('should report multiple graphql tags inside one loop', async () => {

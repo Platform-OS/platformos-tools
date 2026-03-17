@@ -26,7 +26,9 @@ describe('Module: UnusedTranslationKey', () => {
       [UnusedTranslationKey],
     );
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('general.unused');
+    expect(offenses[0].message).to.equal(
+      "Translation key 'general.unused' is defined but never used in any template.",
+    );
   });
 
   it('should not report keys used with dynamic variable', async () => {
@@ -62,7 +64,9 @@ describe('Module: UnusedTranslationKey', () => {
       [UnusedTranslationKey],
     );
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('unused');
+    expect(offenses[0].message).to.equal(
+      "Translation key 'unused' is defined but never used in any template.",
+    );
   });
 
   it('should not report when no translation files exist', async () => {

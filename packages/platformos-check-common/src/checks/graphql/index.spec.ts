@@ -98,7 +98,7 @@ describe('Module: GraphQLCheck', () => {
 
     const offenses = await check(files, [GraphQLCheck], mockDependencies);
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('Syntax Error');
+    expect(offenses[0].message).to.equal('Syntax Error: Expected Name, found <EOF>.');
   });
 
   it('syntax error offense points to the actual error line, not the whole file', async () => {
@@ -113,7 +113,7 @@ describe('Module: GraphQLCheck', () => {
 
     const offenses = await check(files, [GraphQLCheck], mockDependencies);
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('Syntax Error');
+    expect(offenses[0].message).to.equal('Syntax Error: Expected Name, found <EOF>.');
     // Offense spans exactly one line (the error line), NOT the whole file
     expect(offenses[0].start.line).to.equal(offenses[0].end.line);
     // And that line is not the last line of the file (i.e. not spanning to the end)

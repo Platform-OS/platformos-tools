@@ -38,18 +38,19 @@ describe('Module: MissingRenderPartialArguments', () => {
   it('should report ERROR when a required param is missing', async () => {
     const offenses = await check(partialWithRequiredParams, `{% render 'card' %}`);
     expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.include('title');
-    expect(offenses[0].message).to.include('card');
+    expect(offenses[0].message).to.equal(
+      "Missing required argument 'title' in render tag for partial 'card'.",
+    );
   });
 
   it('should suggest adding the missing required param', async () => {
     const source = `{% render 'card' %}`;
     const offenses = await check(partialWithRequiredParams, source);
     expect(offenses[0].suggest).to.have.length(1);
-    expect(offenses[0].suggest![0].message).to.include('title');
+    expect(offenses[0].suggest![0].message).to.equal("Add required argument 'title'");
     const fixed = applySuggestions(source, offenses[0]);
     expect(fixed).to.not.be.undefined;
-    expect(fixed![0]).to.include('title');
+    expect(fixed![0]).to.equal("{% render 'card', title: '' %}");
   });
 
   it('should report one ERROR per missing required param', async () => {

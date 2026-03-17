@@ -6,6 +6,7 @@ import {
   YAMLCheckDefinition,
 } from '../types';
 
+import { CircularRender } from './circular-render';
 import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedTag } from './deprecated-tag';
 import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
@@ -46,6 +47,7 @@ export const allChecks: (
   | GraphQLCheckDefinition
   | YAMLCheckDefinition
 )[] = [
+  CircularRender,
   DeprecatedFilter,
   DeprecatedTag,
   DuplicateFunctionArguments,

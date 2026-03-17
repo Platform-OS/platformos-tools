@@ -69,7 +69,7 @@ describe('Module: ValidDocParamTypes', () => {
       expect(offenses).to.have.length(1);
       const suggestions = applySuggestions(source, offenses[0]);
 
-      expect(suggestions).to.include(`{% doc %} @param param1 - Example param {% enddoc %}`);
+      expect(suggestions).to.deep.equal([`{% doc %} @param param1 - Example param {% enddoc %}`]);
     }
   });
 });

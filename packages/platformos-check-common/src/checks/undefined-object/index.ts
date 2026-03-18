@@ -9,7 +9,6 @@ import {
   LiquidTagIncrement,
   LiquidTagTablerow,
   LiquidVariableLookup,
-  LiquidTagFunction,
   NamedTags,
   NodeTypes,
   Position,
@@ -19,7 +18,6 @@ import {
   LiquidTagParseJson,
   LiquidTagBackground,
   BackgroundMarkup,
-  YAMLFrontmatter,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
@@ -73,17 +71,6 @@ export const UndefinedObject: LiquidCheckDefinition = {
         const paramName = node.paramName?.value;
         if (paramName) {
           fileScopedVariables.add(paramName);
-        }
-      },
-
-      async YAMLFrontmatter(node: YAMLFrontmatter) {
-        try {
-          const parsed = yaml.load(node.body) as any;
-          if (parsed?.metadata?.params && typeof parsed.metadata.params === 'object') {
-            fileScopedVariables.add('params');
-          }
-        } catch {
-          // Invalid YAML frontmatter — skip
         }
       },
 

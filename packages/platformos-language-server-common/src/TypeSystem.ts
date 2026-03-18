@@ -67,7 +67,6 @@ export class TypeSystem {
     return this.graphqlSchemaCache;
   }
 
-
   async inferType(
     thing: Identifier | ComplexLiquidExpression | LiquidVariable | AssignMarkup,
     partialAst: LiquidHtmlNode,

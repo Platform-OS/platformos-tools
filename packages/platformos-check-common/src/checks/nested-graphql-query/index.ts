@@ -36,8 +36,8 @@ export const NestedGraphQLQuery: LiquidCheckDefinition = {
         if (inBackground) return;
 
         // Skip if inside a cache block (caching mitigates the N+1 problem)
-        const shouldSkip = ancestorTags.some(
-          (a) => SKIP_IF_ANCESTOR_TAGS.map(a => a.toString()).includes(a.name)
+        const shouldSkip = ancestorTags.some((a) =>
+          SKIP_IF_ANCESTOR_TAGS.map((a) => a.toString()).includes(a.name),
         );
         if (shouldSkip) return;
 

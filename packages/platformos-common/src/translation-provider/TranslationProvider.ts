@@ -76,7 +76,9 @@ export class TranslationProvider {
       return [undefined, undefined];
     }
 
-    const searchPaths = TranslationProvider.getSearchPaths(parsed.isModule ? parsed.moduleName : undefined);
+    const searchPaths = TranslationProvider.getSearchPaths(
+      parsed.isModule ? parsed.moduleName : undefined,
+    );
 
     for (const basePath of searchPaths) {
       // Strategy A: single locale file ({basePath}/{locale}.yml)

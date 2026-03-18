@@ -1,4 +1,8 @@
-import { NodeTypes, toLiquidHtmlAST, nonTraversableProperties } from '@platformos/liquid-html-parser';
+import {
+  NodeTypes,
+  toLiquidHtmlAST,
+  nonTraversableProperties,
+} from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
@@ -48,7 +52,8 @@ function extractPartialRefs(source: string): PartialRef[] {
       node.type === NodeTypes.LiquidTag &&
       node.markup &&
       typeof node.markup === 'object' &&
-      (node.markup.type === NodeTypes.RenderMarkup || node.markup.type === NodeTypes.FunctionMarkup) &&
+      (node.markup.type === NodeTypes.RenderMarkup ||
+        node.markup.type === NodeTypes.FunctionMarkup) &&
       node.markup.partial &&
       node.markup.partial.type !== NodeTypes.VariableLookup
     ) {

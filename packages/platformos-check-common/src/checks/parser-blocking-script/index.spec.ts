@@ -20,7 +20,9 @@ describe('Module: ParserBlockingScript', () => {
     expect(offenses).to.have.length(1);
     const { check, message, start, end } = offenses[0];
     expect(check).to.equal(ParserBlockingScript.meta.code);
-    expect(message).to.equal('Avoid parser blocking scripts by adding `defer` or `async` on this tag');
+    expect(message).to.equal(
+      'Avoid parser blocking scripts by adding `defer` or `async` on this tag',
+    );
     expect(start.index).to.equal(startIndex);
     expect(end.index).to.equal(endIndex);
   });

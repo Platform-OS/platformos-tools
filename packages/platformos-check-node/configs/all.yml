@@ -45,6 +45,9 @@ MetadataParamsCheck:
 MissingAsset:
   enabled: true
   severity: 0
+MissingPage:
+  enabled: true
+  severity: 1
 MissingPartial:
   enabled: true
   severity: 0

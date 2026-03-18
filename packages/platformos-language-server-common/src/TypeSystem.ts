@@ -376,90 +376,6 @@ async function buildSymbolsTable(
   // Track shapes for hash_assign merging
   const variableShapes: Map<string, { shape: PropertyShape; rangeEnd: number }[]> = new Map();
 
-  /**
-   * Resolve a LiquidExpression to a PropertyShape using accumulated variable shapes and
-   * the seedSymbolsTable.
-   */
-  const makeResolveExpr =
-    (atPosition: number) =>
-    (expr: LiquidExpression | ComplexLiquidExpression): PropertyShape | undefined => {
-      if (expr.type !== NodeTypes.VariableLookup || !expr.name) return undefined;
-
-      // Look up the variable's shape from already-processed assignments
-      const shapes = variableShapes.get(expr.name);
-      const shapeEntry = shapes ? findLastApplicableShape(shapes, atPosition) : undefined;
-      let shape: PropertyShape | undefined = shapeEntry?.shape;
-
-      // Track the current PseudoType (docset object name) for objectMap-based property resolution
-      let pseudoType: string | undefined;
-
-      // Fall back to seedSymbolsTable
-      if (!shape && !pseudoType && seedSymbolsTable[expr.name]) {
-        for (const tr of seedSymbolsTable[expr.name]) {
-          if (tr.range[0] < atPosition) {
-            if (typeof tr.type !== 'string' && tr.type.kind === 'shape') {
-              shape = tr.type.shape;
-            } else if (typeof tr.type === 'string') {
-              // Keep the PseudoType for objectMap-based property resolution
-              pseudoType = tr.type;
-              shape = resolvedTypeToShape(tr.type);
-            } else if (tr.type.kind === 'array') {
-              shape = resolvedTypeToShape(tr.type);
-            }
-          }
-        }
-      }
-
-      if (!shape && !pseudoType) return undefined;
-
-      // Resolve lookups (e.g. a.x or a["key"])
-      for (const lookup of expr.lookups) {
-        // PseudoType resolution via objectMap (e.g. context.current_user where context is a docset type)
-        if (pseudoType !== undefined && objectMap) {
-          if (lookup.type !== NodeTypes.String) return undefined;
-          const propType = inferPseudoTypePropertyType(pseudoType, lookup, objectMap);
-          if (typeof propType === 'string') {
-            pseudoType = propType;
-            shape = resolvedTypeToShape(propType);
-          } else if (isShapeType(propType as PseudoType | ArrayType | ShapeType | UnionType)) {
-            pseudoType = undefined;
-            shape = (propType as unknown as ShapeType).shape;
-          } else {
-            return undefined;
-          }
-          continue;
-        }
-
-        if (!shape) return undefined;
-
-        if (shape.kind === 'object' && lookup.type === NodeTypes.String && shape.properties) {
-          const prop = shape.properties.get(lookup.value);
-          if (prop) {
-            pseudoType = undefined;
-            shape = prop;
-          } else {
-            return undefined;
-          }
-        } else if (shape.kind === 'array') {
-          if (
-            lookup.type === NodeTypes.Number ||
-            (lookup.type === NodeTypes.String &&
-              (lookup.value === 'first' || lookup.value === 'last'))
-          ) {
-            pseudoType = undefined;
-            shape = shape.itemShape;
-            if (!shape) return undefined;
-          } else {
-            return undefined;
-          }
-        } else {
-          return undefined;
-        }
-      }
-
-      return shape;
-    };
-
   const typeRanges = await visit<SourceCodeType.LiquidHtml, TypeRange | TypeRange[]>(partialAst, {
     // {% assign x = foo.x | filter %}
     // {% assign x = '{"a": 1}' | parse_json %}
@@ -478,7 +394,12 @@ async function buildSymbolsTable(
       let valueShape: PropertyShape | undefined;
 
       // Resolver for variable references inside JSON literals
-      const resolveExpr = makeResolveExpr(node.position.start);
+      const resolveExpr = resolveExpressionShape(
+        node.position.start,
+        variableShapes,
+        seedSymbolsTable,
+        objectMap,
+      );
 
       // Case 1: JSON literal expression
       if (
@@ -680,7 +601,12 @@ async function buildSymbolsTable(
       else if (isLiquidTagParseJson(node)) {
         const variableName = node.markup.name;
         if (variableName && node.children) {
-          const resolveExprAtTag = makeResolveExpr(node.position.start);
+          const resolveExprAtTag = resolveExpressionShape(
+            node.position.start,
+            variableShapes,
+            seedSymbolsTable,
+            objectMap,
+          );
           const textContent = node.children
             .map((child) => {
               if (child.type === NodeTypes.TextNode) return (child as TextNode).value;
@@ -1787,6 +1713,97 @@ function mergeNestedPropertyIntoShape(
     newProperties.set(key, mergeNestedPropertyIntoShape(existingNested, rest, valueShape));
   }
   return { kind: 'object', properties: newProperties };
+}
+
+/**
+ * Resolve a LiquidExpression to a PropertyShape using accumulated variable shapes,
+ * the seed symbols table, and optionally the docset object map.
+ *
+ * Returns a resolver function that takes a LiquidExpression and returns a PropertyShape
+ * or undefined.
+ */
+function resolveExpressionShape(
+  atPosition: number,
+  variableShapes: Map<string, { shape: PropertyShape; rangeEnd: number }[]>,
+  seedSymbolsTable: Record<string, TypeRange[]>,
+  objectMap?: Record<string, ObjectEntry>,
+): (expr: LiquidExpression | ComplexLiquidExpression) => PropertyShape | undefined {
+  return (expr) => {
+    if (expr.type !== NodeTypes.VariableLookup || !expr.name) return undefined;
+
+    // Look up the variable's shape from already-processed assignments
+    const shapes = variableShapes.get(expr.name);
+    const shapeEntry = shapes ? findLastApplicableShape(shapes, atPosition) : undefined;
+    let shape: PropertyShape | undefined = shapeEntry?.shape;
+
+    // Track the current PseudoType (docset object name) for objectMap-based property resolution
+    let pseudoType: string | undefined;
+
+    // Fall back to seedSymbolsTable
+    if (!shape && !pseudoType && seedSymbolsTable[expr.name]) {
+      for (const tr of seedSymbolsTable[expr.name]) {
+        if (tr.range[0] < atPosition) {
+          if (typeof tr.type !== 'string' && tr.type.kind === 'shape') {
+            shape = tr.type.shape;
+          } else if (typeof tr.type === 'string') {
+            pseudoType = tr.type;
+            shape = resolvedTypeToShape(tr.type);
+          } else if (tr.type.kind === 'array') {
+            shape = resolvedTypeToShape(tr.type);
+          }
+        }
+      }
+    }
+
+    if (!shape && !pseudoType) return undefined;
+
+    // Resolve lookups (e.g. a.x or a["key"])
+    for (const lookup of expr.lookups) {
+      // PseudoType resolution via objectMap (e.g. context.current_user where context is a docset type)
+      if (pseudoType !== undefined && objectMap) {
+        if (lookup.type !== NodeTypes.String) return undefined;
+        const propType = inferPseudoTypePropertyType(pseudoType, lookup, objectMap);
+        if (typeof propType === 'string') {
+          pseudoType = propType;
+          shape = resolvedTypeToShape(propType);
+        } else if (isShapeType(propType as PseudoType | ArrayType | ShapeType | UnionType)) {
+          pseudoType = undefined;
+          shape = (propType as unknown as ShapeType).shape;
+        } else {
+          return undefined;
+        }
+        continue;
+      }
+
+      if (!shape) return undefined;
+
+      if (shape.kind === 'object' && lookup.type === NodeTypes.String && shape.properties) {
+        const prop = shape.properties.get(lookup.value);
+        if (prop) {
+          pseudoType = undefined;
+          shape = prop;
+        } else {
+          return undefined;
+        }
+      } else if (shape.kind === 'array') {
+        if (
+          lookup.type === NodeTypes.Number ||
+          (lookup.type === NodeTypes.String &&
+            (lookup.value === 'first' || lookup.value === 'last'))
+        ) {
+          pseudoType = undefined;
+          shape = shape.itemShape;
+          if (!shape) return undefined;
+        } else {
+          return undefined;
+        }
+      } else {
+        return undefined;
+      }
+    }
+
+    return shape;
+  };
 }
 
 /**

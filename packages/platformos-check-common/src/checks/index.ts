@@ -39,6 +39,7 @@ import { DuplicateFunctionArguments } from './duplicate-function-arguments';
 import { MissingRenderPartialArguments } from './missing-render-partial-arguments';
 import { NestedGraphQLQuery } from './nested-graphql-query';
 import { UnusedTranslationKey } from './unused-translation-key';
+import { MissingPage } from './missing-page';
 
 export const allChecks: (
   | LiquidCheckDefinition
@@ -79,6 +80,7 @@ export const allChecks: (
   MissingRenderPartialArguments,
   NestedGraphQLQuery,
   UnusedTranslationKey,
+  MissingPage,
 ];
 
 /**

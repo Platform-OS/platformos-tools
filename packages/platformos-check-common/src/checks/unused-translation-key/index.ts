@@ -1,45 +1,37 @@
-import { URI, Utils } from 'vscode-uri';
 import { FileType, TranslationProvider } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { flattenTranslationKeys } from '../../utils/levenshtein';
+import { recursiveReadDirectory } from '../../context-utils';
 
 /**
- * Recursively collects all .liquid file URIs under a directory.
+ * Discovers all module names by listing app/modules/ and modules/ directories.
+ * Returns a deduplicated set of module names.
  */
-async function collectLiquidFiles(
+async function discoverModules(
   fs: { readDirectory(uri: string): Promise<[string, FileType][]> },
-  dirUri: string,
-): Promise<string[]> {
-  const uris: string[] = [];
-  let entries: [string, FileType][];
-  try {
-    entries = await fs.readDirectory(dirUri);
-  } catch {
-    return uris;
-  }
-  for (const [entryUri, entryType] of entries) {
-    if (entryType === FileType.Directory) {
-      uris.push(...(await collectLiquidFiles(fs, entryUri)));
-    } else if (entryType === FileType.File && entryUri.endsWith('.liquid')) {
-      uris.push(entryUri);
+  ...moduleDirUris: string[]
+): Promise<Set<string>> {
+  const modules = new Set<string>();
+
+  for (const dirUri of moduleDirUris) {
+    try {
+      const entries = await fs.readDirectory(dirUri);
+      for (const [entryUri, entryType] of entries) {
+        if (entryType === FileType.Directory) {
+          const name = entryUri.split('/').pop()!;
+          modules.add(name);
+        }
+      }
+    } catch {
+      // Directory doesn't exist — skip
     }
   }
-  return uris;
+
+  return modules;
 }
 
-/**
- * Extracts translation keys from a liquid file source using regex.
- * Matches patterns like: "key" | t, 'key' | t, "key" | translate
- */
-const TRANSLATION_KEY_RE = /["']([^"']+)["']\s*\|\s*(?:t|translate)\b/g;
-
 function extractUsedKeys(source: string): string[] {
-  const keys: string[] = [];
-  let match;
-  while ((match = TRANSLATION_KEY_RE.exec(source)) !== null) {
-    keys.push(match[1]);
-  }
-  return keys;
+  return [...source.matchAll(/["']([^"']+)["']\s*\|\s*(?:t|translate)\b/g)].map((m) => m[1]);
 }
 
 // Track which roots have been reported during a check run.
@@ -57,7 +49,7 @@ export const UnusedTranslationKey: LiquidCheckDefinition = {
     name: 'Translation key defined but never used',
     docs: {
       description:
-        'Reports translation keys defined in app/translations/en.yml that are never referenced in any Liquid template.',
+        'Reports translation keys defined in app or module translation files that are never referenced in any Liquid template.',
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/unused-translation-key',
     },
@@ -74,36 +66,60 @@ export const UnusedTranslationKey: LiquidCheckDefinition = {
         if (reportedRoots.has(rootKey)) return;
         reportedRoots.add(rootKey);
 
-        const rootUri = URI.parse(context.config.rootUri);
-        const baseUri = Utils.joinPath(rootUri, 'app/translations');
-        const provider = new TranslationProvider(context.fs);
+        const definedKeys = new Set<string>();
 
-        let allTranslations: Record<string, any>;
-        try {
-          allTranslations = await provider.loadAllTranslationsForBase(baseUri, 'en');
-        } catch {
-          return;
-        }
-
-        const definedKeys = flattenTranslationKeys(allTranslations);
-        if (definedKeys.length === 0) return;
-
-        // Scan all liquid files for used translation keys
-        const usedKeys = new Set<string>();
-        const appUri = Utils.joinPath(rootUri, 'app').toString();
-        const liquidFiles = await collectLiquidFiles(context.fs, appUri);
-
-        for (const fileUri of liquidFiles) {
-          try {
-            const source = await context.fs.readFile(fileUri);
-            for (const key of extractUsedKeys(source)) {
-              usedKeys.add(key);
-            }
-          } catch {
-            // Skip unreadable files
+        // 1. Load app-level translations
+        for (const base of TranslationProvider.getSearchPaths()) {
+          const baseUri = context.toUri(base);
+          const translations = await context.getTranslationsForBase(baseUri, 'en');
+          for (const key of flattenTranslationKeys(translations)) {
+            definedKeys.add(key);
           }
         }
 
+        // 2. Discover modules and load their translations
+        const modules = await discoverModules(
+          context.fs,
+          context.toUri('app/modules'),
+          context.toUri('modules'),
+        );
+        for (const moduleName of modules) {
+          for (const base of TranslationProvider.getSearchPaths(moduleName)) {
+            const baseUri = context.toUri(base);
+            const translations = await context.getTranslationsForBase(baseUri, 'en');
+            for (const key of flattenTranslationKeys(translations)) {
+              definedKeys.add(`modules/${moduleName}/${key}`);
+            }
+          }
+        }
+
+        if (definedKeys.size === 0) return;
+
+        // 3. Scan all Liquid files for used translation keys
+        const usedKeys = new Set<string>();
+        const scanRoots = [context.toUri('app'), context.toUri('modules')];
+        const isLiquid = ([uri, type]: [string, FileType]) =>
+          type === FileType.File && uri.endsWith('.liquid');
+
+        for (const scanRoot of scanRoots) {
+          try {
+            const liquidFiles = await recursiveReadDirectory(context.fs, scanRoot, isLiquid);
+            for (const fileUri of liquidFiles) {
+              try {
+                const source = await context.fs.readFile(fileUri);
+                for (const key of extractUsedKeys(source)) {
+                  usedKeys.add(key);
+                }
+              } catch {
+                // Skip unreadable files
+              }
+            }
+          } catch {
+            // Root doesn't exist — skip
+          }
+        }
+
+        // 4. Report unused keys
         for (const key of definedKeys) {
           if (!usedKeys.has(key)) {
             context.report({

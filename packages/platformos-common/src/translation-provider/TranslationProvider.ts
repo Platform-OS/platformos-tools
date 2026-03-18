@@ -52,7 +52,7 @@ export class TranslationProvider {
     return key ? { isModule: true, moduleName, key } : { isModule: false, key: translationKey };
   }
 
-  private getSearchPaths(moduleName?: string): string[] {
+  static getSearchPaths(moduleName?: string): string[] {
     if (!moduleName) {
       return ['app/translations'];
     }
@@ -76,7 +76,7 @@ export class TranslationProvider {
       return [undefined, undefined];
     }
 
-    const searchPaths = this.getSearchPaths(parsed.isModule ? parsed.moduleName : undefined);
+    const searchPaths = TranslationProvider.getSearchPaths(parsed.isModule ? parsed.moduleName : undefined);
 
     for (const basePath of searchPaths) {
       // Strategy A: single locale file ({basePath}/{locale}.yml)

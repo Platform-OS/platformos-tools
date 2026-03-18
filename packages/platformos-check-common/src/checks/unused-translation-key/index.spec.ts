@@ -78,4 +78,93 @@ describe('Module: UnusedTranslationKey', () => {
     );
     expect(offenses).to.have.length(0);
   });
+
+  it('should report an unused module public translation key', async () => {
+    const offenses = await check(
+      {
+        'app/modules/user/public/translations/en.yml': 'en:\n  greeting: Hello',
+        'app/views/pages/home.liquid': '<h1>No translations used</h1>',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.equal(
+      "Translation key 'modules/user/greeting' is defined but never used in any template.",
+    );
+  });
+
+  it('should not report a module translation key used in an app template', async () => {
+    const offenses = await check(
+      {
+        'app/modules/user/public/translations/en.yml': 'en:\n  greeting: Hello',
+        'app/views/pages/home.liquid': '{{"modules/user/greeting" | t}}',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(0);
+  });
+
+  it('should not report a module private translation key when used', async () => {
+    const offenses = await check(
+      {
+        'app/modules/admin/private/translations/en.yml': 'en:\n  secret: TopSecret',
+        'app/modules/admin/private/views/partials/panel.liquid': '{{"modules/admin/secret" | t}}',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(0);
+  });
+
+  it('should handle mixed app and module translations', async () => {
+    const offenses = await check(
+      {
+        'app/translations/en.yml': 'en:\n  app_used: Yes\n  app_unused: No',
+        'app/modules/user/public/translations/en.yml': 'en:\n  mod_used: Yes\n  mod_unused: No',
+        'app/views/pages/home.liquid': '{{"app_used" | t}} {{"modules/user/mod_used" | t}}',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(2);
+    const messages = offenses.map((o) => o.message).sort();
+    expect(messages).to.deep.equal([
+      "Translation key 'app_unused' is defined but never used in any template.",
+      "Translation key 'modules/user/mod_unused' is defined but never used in any template.",
+    ]);
+  });
+
+  it('should discover translations in legacy modules/ path', async () => {
+    const offenses = await check(
+      {
+        'modules/core/public/translations/en.yml': 'en:\n  legacy_key: Value',
+        'app/views/pages/home.liquid': '{{"modules/core/legacy_key" | t}}',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(0);
+  });
+
+  it('should scan Liquid files inside module directories for usage', async () => {
+    const offenses = await check(
+      {
+        'app/modules/user/public/translations/en.yml': 'en:\n  greeting: Hello',
+        'modules/user/public/views/partials/header.liquid': '{{"modules/user/greeting" | t}}',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(0);
+  });
+
+  it('should discover split-file translations', async () => {
+    const offenses = await check(
+      {
+        'app/translations/en/buttons.yml': 'en:\n  save: Save\n  cancel: Cancel',
+        'app/views/pages/form.liquid': '{{"save" | t}}',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.equal(
+      "Translation key 'cancel' is defined but never used in any template.",
+    );
+  });
 });

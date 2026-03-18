@@ -18,7 +18,7 @@ describe('Module: NestedGraphQLQuery', () => {
     );
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
-      "N+1 pattern: {% graphql result = 'result' %} is inside a {% for %} loop. This executes one database request per iteration. Move the query before the loop and pass data as a variable.",
+      "N+1 pattern: {% graphql result = 'result' %} is inside a {% for %} loop. This executes at least one database request per iteration. Move the query before the loop and pass data as a variable.",
     );
   });
 
@@ -29,7 +29,7 @@ describe('Module: NestedGraphQLQuery', () => {
     );
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
-      "N+1 pattern: {% graphql result = 'result' %} is inside a {% tablerow %} loop. This executes one database request per iteration. Move the query before the loop and pass data as a variable.",
+      "N+1 pattern: {% graphql result = 'result' %} is inside a {% tablerow %} loop. This executes at least one database request per iteration. Move the query before the loop and pass data as a variable.",
     );
   });
 
@@ -64,7 +64,7 @@ describe('Module: NestedGraphQLQuery', () => {
     );
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
-      "N+1 pattern: {% graphql result = 'result' %} is inside a {% for %} loop. This executes one database request per iteration. Move the query before the loop and pass data as a variable.",
+      "N+1 pattern: {% graphql result = 'result' %} is inside a {% for %} loop. This executes at least one database request per iteration. Move the query before the loop and pass data as a variable.",
     );
   });
 

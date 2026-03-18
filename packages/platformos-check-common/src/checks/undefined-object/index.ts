@@ -158,6 +158,24 @@ export const UndefinedObject: LiquidCheckDefinition = {
         }
       },
 
+      async LiquidBranch(node, ancestors) {
+        if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
+
+        // {% try %} ... {% catch error %} registers the error variable
+        if (
+          node.name === NamedTags.catch &&
+          node.markup &&
+          typeof node.markup !== 'string' &&
+          'name' in node.markup &&
+          node.markup.name
+        ) {
+          indexVariableScope(node.markup.name, {
+            start: node.blockStartPosition.end,
+            end: node.blockEndPosition?.start,
+          });
+        }
+      },
+
       async VariableLookup(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
@@ -166,6 +184,8 @@ export const UndefinedObject: LiquidCheckDefinition = {
         if (isLiquidTag(parent) && isLiquidTagParseJson(parent)) return;
         // Skip the result variable of function tags (it's a definition, not a usage)
         if (isFunctionMarkup(parent) && parent.name === node) return;
+        // Skip the error variable definition in catch branches
+        if (isLiquidBranchCatch(parent) && parent.markup === node) return;
 
         variables.push(node);
       },
@@ -312,4 +332,10 @@ function isLiquidTagBackground(
 
 function isFunctionMarkup(node?: LiquidHtmlNode): node is FunctionMarkup {
   return node?.type === NodeTypes.FunctionMarkup;
+}
+
+function isLiquidBranchCatch(
+  node?: LiquidHtmlNode,
+): node is LiquidHtmlNode & { type: typeof NodeTypes.LiquidBranch; name: 'catch'; markup: any } {
+  return node?.type === NodeTypes.LiquidBranch && (node as any).name === NamedTags.catch;
 }

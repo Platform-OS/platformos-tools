@@ -541,4 +541,34 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toBe("Unknown object 'groups_data' used.");
   });
+
+  it('should not report an offense for catch variable inside catch block', async () => {
+    const sourceCode = `
+      {% try %}
+        {{ "something" }}
+      {% catch error %}
+        {{ error }}
+      {% endtry %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should report an offense for catch variable used outside catch block', async () => {
+    const sourceCode = `
+      {% try %}
+        {{ "something" }}
+      {% catch error %}
+        {{ error }}
+      {% endtry %}
+      {{ error }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'error' used.");
+  });
 });

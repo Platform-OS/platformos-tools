@@ -4,7 +4,13 @@ import { recursiveReadDirectory } from '../../context-utils';
 import { loadAllDefinedKeys } from '../translation-utils';
 
 function extractUsedKeys(source: string): string[] {
-  return [...source.matchAll(/["']([^"']+)["']\s*\|\s*(?:t|translate)\b/g)].map((m) => m[1]);
+  // Direct usage: "key" | t
+  const direct = [...source.matchAll(/["']([^"']+)["']\s*\|\s*(?:t|translate)\b/g)].map(
+    (m) => m[1],
+  );
+  // Indirect usage via default filter: | default: "key"
+  const defaults = [...source.matchAll(/\|\s*default:\s*["']([^"']+)["']/g)].map((m) => m[1]);
+  return [...direct, ...defaults];
 }
 
 // Track which roots have been reported during a check run.

@@ -167,4 +167,28 @@ describe('Module: UnusedTranslationKey', () => {
       "Translation key 'cancel' is defined but never used in any template.",
     );
   });
+
+  it('should not report a key used as a default filter value', async () => {
+    const offenses = await check(
+      {
+        'app/modules/core/public/translations/en.yml':
+          'en:\n  validation:\n    blank: cannot be blank',
+        'app/modules/core/public/views/partials/presence.liquid':
+          '{% assign key = key | default: "modules/core/validation.blank" %}',
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(0);
+  });
+
+  it('should not report a key used as a default filter value with single quotes', async () => {
+    const offenses = await check(
+      {
+        'app/translations/en.yml': 'en:\n  greeting: Hello',
+        'app/views/pages/home.liquid': "{% assign msg = msg | default: 'greeting' %}",
+      },
+      [UnusedTranslationKey],
+    );
+    expect(offenses).to.have.length(0);
+  });
 });

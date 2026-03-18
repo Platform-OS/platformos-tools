@@ -1,34 +1,7 @@
-import { FileType, TranslationProvider } from '@platformos/platformos-common';
+import { FileType } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { flattenTranslationKeys } from '../../utils/levenshtein';
 import { recursiveReadDirectory } from '../../context-utils';
-
-/**
- * Discovers all module names by listing app/modules/ and modules/ directories.
- * Returns a deduplicated set of module names.
- */
-async function discoverModules(
-  fs: { readDirectory(uri: string): Promise<[string, FileType][]> },
-  ...moduleDirUris: string[]
-): Promise<Set<string>> {
-  const modules = new Set<string>();
-
-  for (const dirUri of moduleDirUris) {
-    try {
-      const entries = await fs.readDirectory(dirUri);
-      for (const [entryUri, entryType] of entries) {
-        if (entryType === FileType.Directory) {
-          const name = entryUri.split('/').pop()!;
-          modules.add(name);
-        }
-      }
-    } catch {
-      // Directory doesn't exist — skip
-    }
-  }
-
-  return modules;
-}
+import { loadAllDefinedKeys } from '../translation-utils';
 
 function extractUsedKeys(source: string): string[] {
   return [...source.matchAll(/["']([^"']+)["']\s*\|\s*(?:t|translate)\b/g)].map((m) => m[1]);
@@ -66,34 +39,9 @@ export const UnusedTranslationKey: LiquidCheckDefinition = {
         if (reportedRoots.has(rootKey)) return;
         reportedRoots.add(rootKey);
 
-        const definedKeys = new Set<string>();
-
-        // 1. Load app-level translations
-        for (const base of TranslationProvider.getSearchPaths()) {
-          const baseUri = context.toUri(base);
-          const translations = await context.getTranslationsForBase(baseUri, 'en');
-          for (const key of flattenTranslationKeys(translations)) {
-            definedKeys.add(key);
-          }
-        }
-
-        // 2. Discover modules and load their translations
-        const modules = await discoverModules(
-          context.fs,
-          context.toUri('app/modules'),
-          context.toUri('modules'),
-        );
-        for (const moduleName of modules) {
-          for (const base of TranslationProvider.getSearchPaths(moduleName)) {
-            const baseUri = context.toUri(base);
-            const translations = await context.getTranslationsForBase(baseUri, 'en');
-            for (const key of flattenTranslationKeys(translations)) {
-              definedKeys.add(`modules/${moduleName}/${key}`);
-            }
-          }
-        }
-
-        if (definedKeys.size === 0) return;
+        const allDefinedKeys = await loadAllDefinedKeys(context);
+        if (allDefinedKeys.length === 0) return;
+        const definedKeys = new Set(allDefinedKeys);
 
         // 3. Scan all Liquid files for used translation keys
         const usedKeys = new Set<string>();
@@ -110,12 +58,12 @@ export const UnusedTranslationKey: LiquidCheckDefinition = {
                 for (const key of extractUsedKeys(source)) {
                   usedKeys.add(key);
                 }
-              } catch {
-                // Skip unreadable files
+              } catch (error) {
+                console.error(`[UnusedTranslationKey] Failed to read ${fileUri}:`, error);
               }
             }
-          } catch {
-            // Root doesn't exist — skip
+          } catch (error) {
+            console.error(`[UnusedTranslationKey] Failed to scan ${scanRoot}:`, error);
           }
         }
 

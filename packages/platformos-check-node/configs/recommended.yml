@@ -3,9 +3,6 @@
 # Do not modify manually. Your changes will be overwritten.
 ignore:
   - node_modules/**
-CircularRender:
-  enabled: true
-  severity: 0
 DeprecatedFilter:
   enabled: true
   severity: 1

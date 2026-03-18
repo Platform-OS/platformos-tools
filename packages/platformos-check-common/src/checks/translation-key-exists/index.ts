@@ -1,23 +1,6 @@
-import { TranslationProvider } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { URI, Utils } from 'vscode-uri';
-import { flattenTranslationKeys, findNearestKeys } from '../../utils/levenshtein';
-
-function keyExists(key: string, pointer: any) {
-  for (const token of key.split('.')) {
-    if (typeof pointer !== 'object') {
-      return false;
-    }
-
-    if (!pointer.hasOwnProperty(token)) {
-      return false;
-    }
-
-    pointer = pointer[token];
-  }
-
-  return true;
-}
+import { findNearestKeys } from '../../utils/levenshtein';
+import { loadAllDefinedKeys } from '../translation-utils';
 
 export const TranslationKeyExists: LiquidCheckDefinition = {
   meta: {
@@ -36,7 +19,6 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
 
   create(context) {
     const nodes: { translationKey: string; startIndex: number; endIndex: number }[] = [];
-    const translationProvider = new TranslationProvider(context.fs);
 
     return {
       async LiquidVariable(node) {
@@ -56,31 +38,14 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-        let allDefinedKeys: string[] | null = null;
+        if (nodes.length === 0) return;
+
+        // Load all defined keys (app + modules) once per file
+        const allDefinedKeys = await loadAllDefinedKeys(context);
+        const definedKeySet = new Set(allDefinedKeys);
 
         for (const { translationKey, startIndex, endIndex } of nodes) {
-          const translation = await translationProvider.translate(
-            URI.parse(context.config.rootUri),
-            translationKey,
-          );
-
-          if (!!translation) {
-            continue;
-          }
-
-          // Lazy-load all keys once per file
-          if (allDefinedKeys === null) {
-            const baseUri = Utils.joinPath(URI.parse(context.config.rootUri), 'app/translations');
-            try {
-              const allTranslations = await translationProvider.loadAllTranslationsForBase(
-                baseUri,
-                'en',
-              );
-              allDefinedKeys = flattenTranslationKeys(allTranslations);
-            } catch {
-              allDefinedKeys = [];
-            }
-          }
+          if (definedKeySet.has(translationKey)) continue;
 
           const nearest = findNearestKeys(translationKey, allDefinedKeys);
           const message = `'${translationKey}' does not have a matching translation entry`;

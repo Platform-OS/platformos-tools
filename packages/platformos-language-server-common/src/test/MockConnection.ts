@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { createConnection } from 'vscode-languageserver/lib/common/server';
 import {
+  CancellationToken,
   ClientCapabilities,
   DidChangeTextDocumentNotification,
   DidCloseTextDocumentNotification,
@@ -47,7 +48,11 @@ type MockConnectionMethods = {
  */
 export type MockConnection = ReturnType<typeof createConnection> & MockConnectionMethods;
 
-function protocolConnection(requests: EventEmitter, notifications: EventEmitter) {
+function protocolConnection(
+  requests: EventEmitter,
+  notifications: EventEmitter,
+  requestHandlers: Map<string, Function>,
+) {
   return {
     dispose: vi.fn(),
     end: vi.fn(),
@@ -61,12 +66,13 @@ function protocolConnection(requests: EventEmitter, notifications: EventEmitter)
       notifications.addListener(type.method, handler);
     }),
     onRequest: vi.fn().mockImplementation((type: MessageSignature, handler) => {
+      requestHandlers.set(type.method, handler);
       requests.addListener(type.method, handler);
     }),
     onUnhandledNotification: vi.fn(),
     sendNotification: vi.fn().mockReturnValue(Promise.resolve()),
     sendProgress: vi.fn(),
-    sendRequest: vi.fn(),
+    sendRequest: vi.fn().mockReturnValue(Promise.resolve()),
     trace: vi.fn().mockReturnValue(Promise.resolve()),
   } satisfies ProtocolConnection;
 }
@@ -80,7 +86,8 @@ export function mockConnection(rootUri: string): MockConnection {
 
   const requests = new EventEmitter();
   const notifications = new EventEmitter();
-  const spies = protocolConnection(requests, notifications);
+  const requestHandlers = new Map<string, Function>();
+  const spies = protocolConnection(requests, notifications, requestHandlers);
 
   // Create a real "connection" with the fake communication channel
   const connection = createConnection(() => spies, watchDog);
@@ -92,10 +99,15 @@ export function mockConnection(rootUri: string): MockConnection {
     notifications.emit(method, params);
   };
 
-  // Create a mock way to trigger requests in our tests
+  // Create a mock way to trigger requests in our tests and get the response back.
+  // Calls the registered handler directly so that the return value is available.
   const triggerRequest: MockConnection['triggerRequest'] = async (...args: any[]) => {
     const [type, params] = args;
     const method = typeof type === 'string' ? type : type.method;
+    const handler = requestHandlers.get(method);
+    if (handler) {
+      return handler(params, CancellationToken.None);
+    }
     requests.emit(method, params);
   };
 

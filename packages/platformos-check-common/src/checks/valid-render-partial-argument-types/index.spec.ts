@@ -34,7 +34,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
           { value: "'hello'", actualType: BasicParamTypes.String },
           { value: '123', actualType: BasicParamTypes.Number },
           { value: 'true', actualType: BasicParamTypes.Boolean },
-          { value: 'empty', actualType: BasicParamTypes.Boolean },
+          { value: 'empty', actualType: BasicParamTypes.String },
         ],
       },
     ];

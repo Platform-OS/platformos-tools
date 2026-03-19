@@ -16,6 +16,7 @@ export enum BasicParamTypes {
   Number = 'number',
   Boolean = 'boolean',
   Object = 'object',
+  Null = 'null',
 }
 
 export enum SupportedDocTagTypes {
@@ -59,6 +60,8 @@ export function inferArgumentType(arg: LiquidExpression | LiquidVariable): Basic
     case NodeTypes.Number:
       return BasicParamTypes.Number;
     case NodeTypes.LiquidLiteral:
+      if (arg.value === null) return BasicParamTypes.Null;
+      if (arg.value === '') return BasicParamTypes.String;
       return BasicParamTypes.Boolean;
     case NodeTypes.Range:
     case NodeTypes.VariableLookup:
@@ -119,6 +122,8 @@ export function filePathSupportsLiquidDoc(uri: UriString) {
  * References `BasicParamTypes`
  */
 export function getValidParamTypes(objectEntries: ObjectEntry[]): Map<string, string | undefined> {
+  // Note: Null is intentionally excluded — it is not a valid @param type annotation,
+  // it's only used internally by inferArgumentType for null/nil literal values.
   const paramTypes: Map<string, string | undefined> = new Map([
     [BasicParamTypes.String, undefined],
     [BasicParamTypes.Number, undefined],

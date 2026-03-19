@@ -1,8 +1,38 @@
+import yaml from 'js-yaml';
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { getAppPaths, getModulePaths, PlatformOSFileType } from '../path-utils';
 import { URI, Utils } from 'vscode-uri';
 
-export type DocumentType = 'function' | 'render' | 'include' | 'graphql' | 'asset';
+export type DocumentType =
+  | 'function'
+  | 'render'
+  | 'include'
+  | 'graphql'
+  | 'asset'
+  | 'theme_render_rc';
+
+/**
+ * Load theme_search_paths from app/config.yml.
+ * Returns null if the file doesn't exist, is malformed, or has no valid theme_search_paths.
+ * Results should be cached per root URI.
+ */
+export async function loadSearchPaths(
+  fs: { readFile(uri: string): Promise<string> },
+  rootUri: URI,
+): Promise<string[] | null> {
+  try {
+    const configUri = Utils.joinPath(rootUri, 'app/config.yml').toString();
+    const content = await fs.readFile(configUri);
+    const config = yaml.load(content) as Record<string, unknown> | null;
+    const paths = config?.theme_search_paths;
+    if (Array.isArray(paths) && paths.length > 0) {
+      return paths.map(String);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 type ModulePathInfo =
   | { isModule: false; key: string }
@@ -127,16 +157,128 @@ export class DocumentsLocator {
     return Array.from(results).sort((a, b) => a.localeCompare(b));
   }
 
+  private static readonly LIQUID_EXPRESSION_RE = /\{\{.*?\}\}/;
+
+  private async listSubdirectoryNames(dirUri: string): Promise<string[]> {
+    try {
+      const entries = await this.fs.readDirectory(dirUri);
+      return entries
+        .filter(([, type]) => type === FileType.Directory)
+        .map(([name]) => {
+          const lastSlash = name.lastIndexOf('/');
+          return lastSlash === -1 ? name : name.slice(lastSlash + 1);
+        })
+        .filter((name) => name.length > 0);
+    } catch {
+      return [];
+    }
+  }
+
+  private expandedPathsCache = new Map<string, Promise<string[]>>();
+
+  clearExpandedPathsCache(): void {
+    this.expandedPathsCache.clear();
+  }
+
+  /**
+   * Expand a search path that may contain {{ ... }} Liquid expressions into
+   * concrete directory prefixes by enumerating subdirectories at each dynamic
+   * segment. Static segments pass through unchanged.
+   *
+   * Results are cached per (rootUri, searchPath) and capped at 100 entries.
+   */
+  private async expandDynamicPath(rootUri: URI, searchPath: string): Promise<string[]> {
+    const segments = searchPath.split('/');
+    const basePaths = this.getSearchPaths('partial');
+    let prefixes = [''];
+
+    for (const segment of segments) {
+      if (!DocumentsLocator.LIQUID_EXPRESSION_RE.test(segment)) {
+        prefixes = prefixes.map((p) => (p ? `${p}/${segment}` : segment));
+        continue;
+      }
+
+      const nextPrefixes: string[] = [];
+      for (const prefix of prefixes) {
+        const subdirs = new Set<string>();
+        for (const base of basePaths) {
+          const dirUri = prefix
+            ? Utils.joinPath(rootUri, base, prefix).toString()
+            : Utils.joinPath(rootUri, base).toString();
+          for (const name of await this.listSubdirectoryNames(dirUri)) {
+            subdirs.add(name);
+          }
+        }
+        for (const sub of subdirs) {
+          nextPrefixes.push(prefix ? `${prefix}/${sub}` : sub);
+          if (nextPrefixes.length >= 100) break;
+        }
+        if (nextPrefixes.length >= 100) break;
+      }
+      prefixes = nextPrefixes;
+    }
+
+    return prefixes;
+  }
+
+  /**
+   * Resolve a search path (static, dynamic, or empty) into concrete prefix
+   * strings. Cached for dynamic paths.
+   */
+  private async resolveSearchPath(rootUri: URI, searchPath: string): Promise<string[]> {
+    if (searchPath === '') return [''];
+    if (!DocumentsLocator.LIQUID_EXPRESSION_RE.test(searchPath)) return [searchPath];
+
+    const cacheKey = `${rootUri.toString()}:${searchPath}`;
+    if (!this.expandedPathsCache.has(cacheKey)) {
+      this.expandedPathsCache.set(cacheKey, this.expandDynamicPath(rootUri, searchPath));
+    }
+    return this.expandedPathsCache.get(cacheKey)!;
+  }
+
+  /**
+   * Locate a partial using theme search paths (for theme_render_rc).
+   *
+   * Tries each search path prefix in priority order, then falls back to the
+   * unprefixed name (unless '' was already in the list, meaning the default
+   * position was explicitly placed).
+   */
+  async locateWithSearchPaths(
+    rootUri: URI,
+    fileName: string,
+    themeSearchPaths: string[],
+  ): Promise<string | undefined> {
+    for (const searchPath of themeSearchPaths) {
+      for (const prefix of await this.resolveSearchPath(rootUri, searchPath)) {
+        const candidate = prefix ? `${prefix}/${fileName}` : fileName;
+        const result = await this.locateFile(rootUri, candidate, 'partial');
+        if (result) return result;
+      }
+    }
+
+    if (!themeSearchPaths.includes('')) {
+      return this.locateFile(rootUri, fileName, 'partial');
+    }
+
+    return undefined;
+  }
+
   async locate(
     rootUri: URI,
     nodeName: DocumentType,
     fileName: string,
+    themeSearchPaths?: string[] | null,
   ): Promise<string | undefined> {
     switch (nodeName) {
       case 'render':
       case 'include':
       case 'function':
         return this.locateFile(rootUri, fileName, 'partial');
+
+      case 'theme_render_rc':
+        return themeSearchPaths
+          ? this.locateWithSearchPaths(rootUri, fileName, themeSearchPaths)
+          : this.locateFile(rootUri, fileName, 'partial');
 
       case 'graphql':
         return this.locateFile(rootUri, fileName, 'graphql');
@@ -154,6 +296,7 @@ export class DocumentsLocator {
       case 'function':
       case 'render':
       case 'include':
+      case 'theme_render_rc':
         return this.listFiles(rootUri, filePrefix, 'partial');
 
       case 'graphql':

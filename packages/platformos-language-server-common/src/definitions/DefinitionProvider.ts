@@ -1,10 +1,12 @@
 import { findCurrentNode, SourceCodeType } from '@platformos/platformos-check-common';
-import { AbstractFileSystem } from '@platformos/platformos-common';
+import { AbstractFileSystem, DocumentsLocator, RouteTable } from '@platformos/platformos-common';
 import { DefinitionLink, DefinitionParams } from 'vscode-languageserver';
 
 import { AugmentedJsonSourceCode, DocumentManager } from '../documents';
+import { SearchPathsLoader } from '../utils/searchPaths';
 import { BaseDefinitionProvider } from './BaseDefinitionProvider';
 import { PageRouteDefinitionProvider } from './providers/PageRouteDefinitionProvider';
+import { RenderPartialDefinitionProvider } from './providers/RenderPartialDefinitionProvider';
 import { TranslationStringDefinitionProvider } from './providers/TranslationStringDefinitionProvider';
 
 export class DefinitionProvider {
@@ -16,6 +18,8 @@ export class DefinitionProvider {
     getDefaultLocaleSourceCode: (uri: string) => Promise<AugmentedJsonSourceCode | null>,
     fs?: AbstractFileSystem,
     findAppRootURI?: (uri: string) => Promise<string | null>,
+    documentsLocator?: DocumentsLocator,
+    searchPathsCache?: SearchPathsLoader,
   ) {
     this.providers = [
       new TranslationStringDefinitionProvider(documentManager, getDefaultLocaleSourceCode),
@@ -24,6 +28,17 @@ export class DefinitionProvider {
     if (fs && findAppRootURI) {
       this.pageRouteProvider = new PageRouteDefinitionProvider(documentManager, fs, findAppRootURI);
       this.providers.push(this.pageRouteProvider);
+
+      if (documentsLocator && searchPathsCache) {
+        this.providers.push(
+          new RenderPartialDefinitionProvider(
+            documentManager,
+            documentsLocator,
+            searchPathsCache,
+            findAppRootURI,
+          ),
+        );
+      }
     }
   }
 
@@ -45,8 +60,12 @@ export class DefinitionProvider {
     this.pageRouteProvider?.invalidate();
   }
 
-  /** Returns the shared RouteTable, or undefined if route support is not configured. */
-  getRouteTable(): import('@platformos/platformos-common').RouteTable | undefined {
+  /**
+   * Returns the shared RouteTable, or undefined if route support is not configured.
+   * When undefined (no fs/findAppRootURI), the check pipeline will build a fresh
+   * RouteTable per run via makeGetRouteTable in context-utils.ts.
+   */
+  getRouteTable(): RouteTable | undefined {
     return this.pageRouteProvider?.getRouteTable();
   }
 

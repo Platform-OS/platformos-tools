@@ -1543,15 +1543,102 @@ describe('Unit: Stage 2 (AST)', () => {
       });
 
       it('should parse the theme_render_rc tag', () => {
-        for (const { toAST, expectPath, expectPosition } of testCases) {
-          ast = toAST(`{% theme_render_rc 'partial' %}`);
-          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
-          expectPath(ast, 'children.0.name').to.equal('theme_render_rc');
-          expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
-          expectPath(ast, 'children.0.markup.partial.type').to.equal('String');
-          expectPosition(ast, 'children.0');
-          expectPosition(ast, 'children.0.markup');
-        }
+        [
+          {
+            expression: `'partial'`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `'partial' as foo`,
+            partialType: 'String',
+            alias: {
+              value: 'foo',
+            },
+            renderVariableExpression: null,
+            namedArguments: [],
+          },
+          {
+            expression: `'partial' with product as item`,
+            partialType: 'String',
+            alias: {
+              value: 'item',
+            },
+            renderVariableExpression: {
+              kind: 'with',
+              name: {
+                type: 'VariableLookup',
+              },
+            },
+            namedArguments: [],
+          },
+          {
+            expression: `'partial' for products as product`,
+            partialType: 'String',
+            alias: {
+              value: 'product',
+            },
+            renderVariableExpression: {
+              kind: 'for',
+              name: {
+                type: 'VariableLookup',
+              },
+            },
+            namedArguments: [],
+          },
+          {
+            expression: `'my/partial', key1: val1, key2: "hi"`,
+            partialType: 'String',
+            alias: null,
+            renderVariableExpression: null,
+            namedArguments: [
+              { name: 'key1', valueType: 'VariableLookup' },
+              { name: 'key2', valueType: 'String' },
+            ],
+          },
+        ].forEach(
+          ({ expression, partialType, renderVariableExpression, alias, namedArguments }) => {
+            for (const { toAST, expectPath, expectPosition } of testCases) {
+              ast = toAST(`{% theme_render_rc ${expression} -%}`);
+              expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+              expectPath(ast, 'children.0.name').to.equal('theme_render_rc');
+              expectPath(ast, 'children.0.markup.type').to.equal('RenderMarkup');
+              expectPath(ast, 'children.0.markup.partial.type').to.equal(partialType);
+              if (renderVariableExpression) {
+                expectPath(ast, 'children.0.markup.variable.type').to.equal(
+                  'RenderVariableExpression',
+                );
+                expectPath(ast, 'children.0.markup.variable.kind').to.equal(
+                  renderVariableExpression.kind,
+                );
+                expectPath(ast, 'children.0.markup.variable.name.type').to.equal(
+                  renderVariableExpression.name.type,
+                );
+              } else {
+                expectPath(ast, 'children.0.markup.variable').to.equal(null);
+              }
+              if (alias) {
+                expectPath(ast, 'children.0.markup.alias.value').to.equal(alias.value);
+              } else {
+                expectPath(ast, 'children.0.markup.alias').to.equal(null);
+              }
+              expectPath(ast, 'children.0.markup.args').to.have.lengthOf(namedArguments.length);
+              namedArguments.forEach(({ name, valueType }, i) => {
+                expectPath(ast, `children.0.markup.args.${i}.type`).to.equal('NamedArgument');
+                expectPath(ast, `children.0.markup.args.${i}.name`).to.equal(name);
+                expectPath(ast, `children.0.markup.args.${i}.value.type`).to.equal(valueType);
+                expectPosition(ast, `children.0.markup.args.${i}`);
+                expectPosition(ast, `children.0.markup.args.${i}.value`);
+              });
+              expectPath(ast, 'children.0.whitespaceStart').to.equal('');
+              expectPath(ast, 'children.0.whitespaceEnd').to.equal('-');
+              expectPosition(ast, 'children.0');
+              expectPosition(ast, 'children.0.markup');
+            }
+          },
+        );
       });
 
       it('should parse the response_status tag', () => {

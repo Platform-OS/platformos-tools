@@ -1,10 +1,4 @@
-import {
-  HtmlElement,
-  LiquidTag,
-  NamedTags,
-  LiquidTagAssign,
-  AssignMarkup,
-} from '@platformos/liquid-html-parser';
+import { HtmlElement, LiquidTag } from '@platformos/liquid-html-parser';
 import { RouteTable } from '@platformos/platformos-common';
 import {
   shouldSkipUrl,
@@ -12,7 +6,7 @@ import {
   getAttrName,
   extractUrlPattern,
   getEffectiveMethod,
-  resolveAssignToUrlPattern,
+  tryExtractAssignUrl,
 } from '../../url-helpers';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isHtmlTag } from '../utils';
@@ -56,22 +50,19 @@ export const MissingPage: LiquidCheckDefinition = {
     }
 
     return {
-      async LiquidTag(node: LiquidTag) {
-        if (node.name !== NamedTags.assign) return;
-        const markup = (node as LiquidTagAssign).markup as AssignMarkup;
-        if (markup.lookups.length > 0) return;
+      async onCodePathStart() {
+        // Front-load the route table build so individual HtmlElement visits don't wait.
+        routeTable = await context.getRouteTable();
+      },
 
-        const urlPattern = resolveAssignToUrlPattern(markup);
-        if (urlPattern !== null) {
-          variableMap.set(markup.name, urlPattern);
+      async LiquidTag(node: LiquidTag) {
+        const extracted = tryExtractAssignUrl(node);
+        if (extracted) {
+          variableMap.set(extracted.name, extracted.urlPattern);
         }
       },
 
       async HtmlElement(node) {
-        if (!routeTable) {
-          routeTable = await context.getRouteTable();
-        }
-
         if (isHtmlTag(node, 'a')) {
           const hrefAttr = node.attributes.find(
             (a) => isValuedAttrNode(a) && getAttrName(a) === 'href',

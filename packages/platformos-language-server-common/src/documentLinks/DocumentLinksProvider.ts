@@ -1,13 +1,14 @@
-import { LiquidHtmlNode, LiquidString, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
+import { LiquidHtmlNode, LiquidString, NodeTypes } from '@platformos/liquid-html-parser';
 import { SourceCodeType } from '@platformos/platformos-check-common';
 import { DocumentLink, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { URI, Utils } from 'vscode-uri';
+import { URI } from 'vscode-uri';
 
 import { visit, Visitor } from '@platformos/platformos-check-common';
 import { DocumentManager } from '../documents';
 import { FindAppRootURI } from '../internal-types';
-import { DocumentsLocator, TranslationProvider } from '@platformos/platformos-common';
+import { DocumentsLocator, DocumentType, TranslationProvider } from '@platformos/platformos-common';
+import { SearchPathsLoader } from '../utils/searchPaths';
 
 export class DocumentLinksProvider {
   constructor(
@@ -15,6 +16,7 @@ export class DocumentLinksProvider {
     private findAppRootURI: FindAppRootURI,
     private documentsLocator: DocumentsLocator,
     private translationProvider: TranslationProvider,
+    private searchPathsCache: SearchPathsLoader,
   ) {}
 
   async documentLinks(uriString: string): Promise<DocumentLink[]> {
@@ -32,11 +34,15 @@ export class DocumentLinksProvider {
       return [];
     }
 
+    const root = URI.parse(rootUri);
+    const searchPaths = await this.searchPathsCache.get(root);
+
     const visitor = documentLinksVisitor(
       sourceCode.textDocument,
-      URI.parse(rootUri),
+      root,
       this.documentsLocator,
       this.translationProvider,
+      searchPaths,
     );
     return visit(sourceCode.ast, visitor);
   }
@@ -47,43 +53,28 @@ function documentLinksVisitor(
   root: URI,
   documentsLocator: DocumentsLocator,
   translationProvider: TranslationProvider,
+  searchPaths: string[] | null,
 ): Visitor<SourceCodeType.LiquidHtml, DocumentLink> {
   return {
     async LiquidTag(node) {
-      if (
-        (node.name === 'render' || node.name === 'include') &&
-        typeof node.markup !== 'string' &&
-        isLiquidString(node.markup.partial)
-      ) {
-        const partial = node.markup.partial;
+      const markup = node.markup;
+      if (typeof markup === 'string' || markup === null) return;
+
+      const name = node.name as DocumentType;
+
+      // render, include, function, theme_render_rc all have a .partial field
+      if ('partial' in markup && isLiquidString(markup.partial)) {
         return DocumentLink.create(
-          range(textDocument, partial),
-          await documentsLocator.locate(root, node.name, partial.value),
+          range(textDocument, markup.partial),
+          await documentsLocator.locate(root, name, markup.partial.value, searchPaths),
         );
       }
 
-      if (
-        node.name === 'function' &&
-        typeof node.markup !== 'string' &&
-        isLiquidString(node.markup.partial)
-      ) {
-        const partial = node.markup.partial;
+      // graphql has a .graphql field
+      if ('graphql' in markup && isLiquidString(markup.graphql)) {
         return DocumentLink.create(
-          range(textDocument, partial),
-          await documentsLocator.locate(root, node.name, partial.value),
-        );
-      }
-
-      if (
-        node.name === 'graphql' &&
-        typeof node.markup !== 'string' &&
-        'graphql' in node.markup &&
-        isLiquidString(node.markup.graphql)
-      ) {
-        const snippet = node.markup.graphql;
-        return DocumentLink.create(
-          range(textDocument, snippet),
-          await documentsLocator.locate(root, node.name, snippet.value),
+          range(textDocument, markup.graphql),
+          await documentsLocator.locate(root, name, markup.graphql.value),
         );
       }
     },

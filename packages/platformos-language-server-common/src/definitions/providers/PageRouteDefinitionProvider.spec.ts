@@ -547,6 +547,29 @@ describe('Module: PageRouteDefinitionProvider', () => {
       expect(result).toHaveLength(1);
       expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
     });
+
+    it('navigates when assign is inside a {% liquid %} block in the same container', async () => {
+      setup({
+        'app/views/pages/about.html.liquid': '<h1>About</h1>',
+      });
+
+      const source =
+        '{% if true %}{% liquid\n  assign url = "/about"\n%}<a href="{{ url }}">About</a>{% endif %}';
+      documentManager.open('file:///project/app/views/pages/home.html.liquid', source, 1);
+
+      const urlOffset = source.indexOf('{{ url }}');
+      const urlLine = source.slice(0, urlOffset).split('\n').length - 1;
+      const urlChar = urlOffset - source.lastIndexOf('\n', urlOffset - 1) - 1;
+      const params: DefinitionParams = {
+        textDocument: { uri: 'file:///project/app/views/pages/home.html.liquid' },
+        position: { line: urlLine, character: urlChar + 3 }, // Inside {{ url }}
+      };
+
+      const result = await provider.definitions(params);
+      assert(result);
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    });
   });
 
   describe('format-aware go-to-definition', () => {

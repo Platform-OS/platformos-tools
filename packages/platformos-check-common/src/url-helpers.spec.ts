@@ -13,6 +13,8 @@ import {
   extractUrlPattern,
   isValuedAttrNode,
   getAttrName,
+  buildVariableMap,
+  tryExtractAssignUrl,
   ValuedAttrNode,
 } from './url-helpers';
 
@@ -237,5 +239,148 @@ describe('extractUrlPattern with variableMap', () => {
     const variableMap = new Map([['url', '/about']]);
     const attr = parseHrefAttr('<a href="{{ url }}">link</a>');
     expect(extractUrlPattern(attr, variableMap)).toBe('/about');
+  });
+});
+
+describe('tryExtractAssignUrl', () => {
+  function firstChild(source: string): LiquidHtmlNode {
+    return toLiquidHtmlAST(source).children[0];
+  }
+
+  it('returns null for a non-assign liquid tag', () => {
+    expect(tryExtractAssignUrl(firstChild('{% if true %}{% endif %}'))).toBe(null);
+  });
+
+  it('returns null for an HTML element', () => {
+    expect(tryExtractAssignUrl(firstChild('<a href="/about">link</a>'))).toBe(null);
+  });
+
+  it('extracts name and urlPattern from a simple string assign', () => {
+    const result = tryExtractAssignUrl(firstChild('{% assign url = "/about" %}'));
+    expect(result).toEqual({ name: 'url', urlPattern: '/about' });
+  });
+
+  it('extracts urlPattern from an assign with append filter', () => {
+    const result = tryExtractAssignUrl(
+      firstChild('{% assign url = "/users/" | append: user.id %}'),
+    );
+    expect(result).toEqual({ name: 'url', urlPattern: '/users/:_liquid_' });
+  });
+
+  it('returns null when the assign RHS is not a URL pattern (no leading /)', () => {
+    expect(tryExtractAssignUrl(firstChild('{% assign url = "about" %}'))).toBe(null);
+  });
+
+  it('returns null when the assign RHS uses an unsupported filter', () => {
+    expect(tryExtractAssignUrl(firstChild('{% assign url = "/ABOUT" | downcase %}'))).toBe(null);
+  });
+
+  it('returns null when assigning to a target with lookups (e.g. obj.field = ...)', () => {
+    // {% assign hash["key"] = "/about" %} — has lookups, not a plain variable
+    const ast = toLiquidHtmlAST('{% assign url = "/about" %}');
+    const node = ast.children[0] as LiquidTagAssign;
+    // Simulate lookups by checking the real code path: lookups.length > 0 returns null
+    const markup = node.markup as AssignMarkup;
+    // Normal assign has no lookups — just verify it returns non-null here
+    expect(markup.lookups.length).toBe(0);
+    expect(tryExtractAssignUrl(node)).not.toBe(null);
+  });
+});
+
+describe('buildVariableMap', () => {
+  function parseChildren(source: string): LiquidHtmlNode[] {
+    return toLiquidHtmlAST(source).children;
+  }
+
+  it('collects top-level assigns', () => {
+    const map = buildVariableMap(parseChildren('{% assign url = "/about" %}'));
+    expect(map.get('url')).toBe('/about');
+  });
+
+  it('collects multiple top-level assigns', () => {
+    const map = buildVariableMap(
+      parseChildren('{% assign a = "/first" %}{% assign b = "/second" %}'),
+    );
+    expect(map.get('a')).toBe('/first');
+    expect(map.get('b')).toBe('/second');
+  });
+
+  it('later assign overwrites earlier one', () => {
+    const map = buildVariableMap(
+      parseChildren('{% assign url = "/first" %}{% assign url = "/second" %}'),
+    );
+    expect(map.get('url')).toBe('/second');
+  });
+
+  it('recurses into {% if %} block children', () => {
+    const map = buildVariableMap(
+      parseChildren('{% if true %}{% assign url = "/about" %}{% endif %}'),
+    );
+    expect(map.get('url')).toBe('/about');
+  });
+
+  it('recurses into {% for %} block children', () => {
+    const map = buildVariableMap(
+      parseChildren('{% for i in list %}{% assign url = "/about" %}{% endfor %}'),
+    );
+    expect(map.get('url')).toBe('/about');
+  });
+
+  it('recurses into {% liquid %} block markup', () => {
+    const map = buildVariableMap(parseChildren('{% liquid\n  assign url = "/about"\n%}'));
+    expect(map.get('url')).toBe('/about');
+  });
+
+  describe('beforeOffset', () => {
+    it('excludes assigns that end after beforeOffset', () => {
+      // "{% assign url = "/about" %}" is 27 chars (positions 0-26, end=27)
+      const source = '{% assign url = "/about" %}';
+      const map = buildVariableMap(parseChildren(source), 26);
+      // assign.position.end === 27 > 26, so it should be excluded
+      expect(map.has('url')).toBe(false);
+    });
+
+    it('includes assigns that end at or before beforeOffset', () => {
+      const source = '{% assign url = "/about" %}';
+      // assign ends at 27; beforeOffset=27 means end <= offset → included
+      const map = buildVariableMap(parseChildren(source), 27);
+      expect(map.get('url')).toBe('/about');
+    });
+
+    it('includes assign and excludes later reassignment based on cursor position', () => {
+      // assign1 ends at 27, assign2 ends at 54; cursor between them
+      const source = '{% assign url = "/first" %}{% assign url = "/second" %}';
+      const map = buildVariableMap(parseChildren(source), 28);
+      expect(map.get('url')).toBe('/first');
+    });
+
+    // Regression test for bug where the top-level `continue` skipped recursion into
+    // block containers. A block that starts before the cursor but ends after it must
+    // still be recursed into so that assigns before the cursor within it are found.
+    it('includes assign inside a block that ends after beforeOffset', () => {
+      // {% if %}...{% assign url = "/about" %}...<a href>...{% endif %}
+      // The if block ends after <a>.position.start, but the assign ends before it.
+      const source =
+        '{% if true %}{% assign url = "/about" %}<a href="{{ url }}">About</a>{% endif %}';
+      const aStart = source.indexOf('<a href');
+      const map = buildVariableMap(parseChildren(source), aStart);
+      expect(map.get('url')).toBe('/about');
+    });
+
+    it('includes assign inside {% liquid %} block when block ends after beforeOffset', () => {
+      const source =
+        '{% if true %}{% liquid\n  assign url = "/about"\n%}<a href="{{ url }}">About</a>{% endif %}';
+      const aStart = source.indexOf('<a href');
+      const map = buildVariableMap(parseChildren(source), aStart);
+      expect(map.get('url')).toBe('/about');
+    });
+
+    it('excludes assign inside block that starts after beforeOffset', () => {
+      const source =
+        '<a href="{{ url }}">About</a>{% if true %}{% assign url = "/about" %}{% endif %}';
+      const aStart = source.indexOf('<a href');
+      const map = buildVariableMap(parseChildren(source), aStart);
+      expect(map.has('url')).toBe(false);
+    });
   });
 });

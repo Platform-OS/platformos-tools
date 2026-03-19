@@ -7,11 +7,13 @@ import {
   DidRenameFilesNotification,
   FileChangeType,
   PublishDiagnosticsNotification,
+  DefinitionRequest,
 } from 'vscode-languageserver';
 import { MockConnection, mockConnection } from '../test/MockConnection';
 import { Dependencies } from '../types';
 import { CHECK_ON_CHANGE, CHECK_ON_OPEN, CHECK_ON_SAVE } from './Configuration';
 import { startServer } from './startServer';
+import { SearchPathsLoader } from '../utils/searchPaths';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -76,6 +78,7 @@ describe('Module: server', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("should log Let's roll! on successful setup", async () => {
@@ -313,6 +316,65 @@ describe('Module: server', () => {
         version: 0,
       },
     );
+  });
+
+  it('go-to-definition reflects updated search paths after saving app/config.yml', async () => {
+    // Setup file tree: config pointing to theme/dress, both dress and simple partials present
+    fileTree['app/config.yml'] = 'theme_search_paths:\n  - theme/dress';
+    fileTree['app/views/partials/theme/dress/card.liquid'] = 'dress card';
+    fileTree['app/views/partials/theme/simple/card.liquid'] = 'simple card';
+
+    connection.setup();
+    await flushAsync();
+
+    // Open a document referencing the partial
+    const source = "{% theme_render_rc 'card' %}";
+    connection.openDocument(filePath, source);
+    await flushAsync();
+
+    // Request definition — character 21 is inside 'card'
+    const params = {
+      textDocument: { uri: fileURI },
+      position: { line: 0, character: 21 },
+    };
+    const result1 = (await connection.triggerRequest(DefinitionRequest.method, params)) as any[];
+    expect(result1).toHaveLength(1);
+    expect(result1[0].targetUri).toContain('theme/dress/card.liquid');
+
+    // Mutate config to point to theme/simple, then save the config file
+    fileTree['app/config.yml'] = 'theme_search_paths:\n  - theme/simple';
+    connection.saveDocument('app/config.yml');
+    await flushAsync();
+
+    // Definition should now resolve to theme/simple
+    const result2 = (await connection.triggerRequest(DefinitionRequest.method, params)) as any[];
+    expect(result2).toHaveLength(1);
+    expect(result2[0].targetUri).toContain('theme/simple/card.liquid');
+  });
+
+  it('should invalidate search-paths cache immediately when app/config.yml is saved', async () => {
+    connection.setup();
+    await flushAsync();
+
+    const invalidateSpy = vi.spyOn(SearchPathsLoader.prototype, 'invalidate');
+
+    // Saving app/config.yml should immediately invalidate the cache
+    connection.saveDocument('app/config.yml');
+    await flushAsync();
+
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+  });
+
+  it('should NOT invalidate search-paths cache when an unrelated file is saved', async () => {
+    connection.setup();
+    await flushAsync();
+
+    const invalidateSpy = vi.spyOn(SearchPathsLoader.prototype, 'invalidate');
+
+    connection.saveDocument('app/views/partials/code.liquid');
+    await flushAsync();
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
   it('should trigger a re-check on did delete files notifications', async () => {

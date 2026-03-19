@@ -16,8 +16,12 @@ export enum BasicParamTypes {
   Number = 'number',
   Boolean = 'boolean',
   Object = 'object',
-  Null = 'null',
 }
+
+/** Inferred type for null/nil literals — not a valid @param type, only used in type mismatch messages. */
+export const InferredNull = 'null' as const;
+
+export type InferredParamType = BasicParamTypes | typeof InferredNull;
 
 export enum SupportedDocTagTypes {
   Param = 'param',
@@ -45,7 +49,7 @@ export function getDefaultValueForType(type: string | null) {
 /**
  * Casts the value of a LiquidNamedArgument to a string representing the type of the value.
  */
-export function inferArgumentType(arg: LiquidExpression | LiquidVariable): BasicParamTypes {
+export function inferArgumentType(arg: LiquidExpression | LiquidVariable): InferredParamType {
   if (arg.type === NodeTypes.LiquidVariable) {
     // A variable with filters — delegate to the base expression if there are no filters,
     // otherwise we can't statically determine the filtered output type.
@@ -60,7 +64,7 @@ export function inferArgumentType(arg: LiquidExpression | LiquidVariable): Basic
     case NodeTypes.Number:
       return BasicParamTypes.Number;
     case NodeTypes.LiquidLiteral:
-      if (arg.value === null) return BasicParamTypes.Null;
+      if (arg.value === null) return InferredNull;
       if (arg.value === '') return BasicParamTypes.String;
       return BasicParamTypes.Boolean;
     case NodeTypes.Range:
@@ -96,7 +100,7 @@ export function isNullLiteral(arg: LiquidExpression | LiquidVariable): boolean {
  * Makes certain types more permissive:
  * - Boolean accepts any value, since everything is truthy / falsy in Liquid
  */
-export function isTypeCompatible(expectedType: string, actualType: BasicParamTypes): boolean {
+export function isTypeCompatible(expectedType: string, actualType: InferredParamType): boolean {
   const normalizedExpectedType = expectedType.toLowerCase();
 
   if (normalizedExpectedType === BasicParamTypes.Boolean) {
@@ -122,8 +126,6 @@ export function filePathSupportsLiquidDoc(uri: UriString) {
  * References `BasicParamTypes`
  */
 export function getValidParamTypes(objectEntries: ObjectEntry[]): Map<string, string | undefined> {
-  // Note: Null is intentionally excluded — it is not a valid @param type annotation,
-  // it's only used internally by inferArgumentType for null/nil literal values.
   const paramTypes: Map<string, string | undefined> = new Map([
     [BasicParamTypes.String, undefined],
     [BasicParamTypes.Number, undefined],

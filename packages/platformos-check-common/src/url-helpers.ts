@@ -298,6 +298,26 @@ export function getEffectiveMethod(formNode: HtmlElement): string | null {
 }
 
 /**
+ * If the given node is a `{% assign %}` tag whose RHS resolves to a URL pattern,
+ * returns `{ name, urlPattern }`. Otherwise returns null.
+ *
+ * Shared by `buildVariableMap` (full AST walk) and `MissingPage` (incremental
+ * visitor), so the assign-to-URL resolution logic lives in one place.
+ */
+export function tryExtractAssignUrl(
+  node: LiquidHtmlNode,
+): { name: string; urlPattern: string } | null {
+  if (node.type !== NodeTypes.LiquidTag || (node as LiquidTag).name !== NamedTags.assign) {
+    return null;
+  }
+  const markup = (node as LiquidTagAssign).markup as AssignMarkup;
+  if (markup.lookups.length > 0) return null;
+  const urlPattern = resolveAssignToUrlPattern(markup);
+  if (urlPattern === null) return null;
+  return { name: markup.name, urlPattern };
+}
+
+/**
  * Walk an AST subtree and collect {% assign %} variable mappings that resolve to URL patterns.
  * Not scope-aware: assigns inside {% if %} / {% for %} blocks are tracked even though they
  * may not be in scope when the href is evaluated. This is an acceptable trade-off — the
@@ -317,14 +337,14 @@ export function buildVariableMap(
 
   function walk(nodes: LiquidHtmlNode[]): void {
     for (const node of nodes) {
-      if (node.type === NodeTypes.LiquidTag && (node as LiquidTag).name === NamedTags.assign) {
-        if (beforeOffset !== undefined && node.position.end > beforeOffset) continue;
-        const markup = (node as LiquidTagAssign).markup as AssignMarkup;
-        if (markup.lookups.length === 0) {
-          const urlPattern = resolveAssignToUrlPattern(markup);
-          if (urlPattern !== null) {
-            variableMap.set(markup.name, urlPattern);
-          }
+      // Apply the beforeOffset cutoff only to assign nodes themselves, not to block
+      // containers. A block tag ({% if %}, {% for %}, HTML element, etc.) may start
+      // before the cursor but end after it — we must still recurse into its children
+      // to find any assigns that precede the cursor within that block.
+      const extracted = tryExtractAssignUrl(node);
+      if (extracted) {
+        if (beforeOffset === undefined || node.position.end <= beforeOffset) {
+          variableMap.set(extracted.name, extracted.urlPattern);
         }
       }
 

@@ -57,6 +57,13 @@ import { URI } from 'vscode-uri';
 const defaultLogger = () => {};
 
 /**
+ * When a file-watcher batch contains this many page-file changes, we
+ * assume a bulk operation (git checkout, branch switch, stash pop) and
+ * fully rebuild the route table instead of applying incremental updates.
+ */
+const BULK_PAGE_CHANGE_THRESHOLD = 10;
+
+/**
  * The `git:` VFS does not support the `fs.readDirectory` call and makes most things break.
  * `git` URIs are the ones you'd encounter when doing a git diff in VS Code. They're not
  * real files, they're just a way to represent changes in a git repository. As such, I don't
@@ -418,6 +425,15 @@ export function startServer(
   connection.onDidSaveTextDocument(async (params) => {
     if (hasUnsupportedDocument(params)) return;
     const { uri } = params.textDocument;
+
+    // onDidChangeWatchedFiles also fires for in-editor saves, but it arrives after
+    // onDidSaveTextDocument. Invalidate the search-paths cache here immediately so
+    // that go-to-definition requests triggered by the same save don't see stale data
+    // while waiting for the file-watcher notification.
+    if (uri.endsWith('/app/config.yml')) {
+      searchPathsCache.invalidate();
+    }
+
     if (await configuration.shouldCheckOnSave()) {
       runChecks([uri]);
     }
@@ -558,7 +574,7 @@ export function startServer(
     // individual onDidChangeTextDocument events. VS Code reports branch-switch changes
     // as FileChangeType.Changed, so we count all change types.
     const bulkPageChanges = params.changes.filter((c) => isPage(c.uri));
-    if (bulkPageChanges.length >= 10) {
+    if (bulkPageChanges.length >= BULK_PAGE_CHANGE_THRESHOLD) {
       definitionsProvider.invalidateRouteTable();
     }
 
@@ -576,6 +592,7 @@ export function startServer(
       // so we don't need to invalidate it — reads are always fresh.
       if (change.uri.endsWith('/app/config.yml')) {
         documentsLocator.clearExpandedPathsCache();
+        searchPathsCache.invalidate();
 
         // Ensure open liquid files are re-checked with the new search paths
         for (const doc of documentManager.openDocuments) {

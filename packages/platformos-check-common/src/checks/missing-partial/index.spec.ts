@@ -225,7 +225,8 @@ describe('Module: MissingPartial', () => {
       // E.g. "{{ context.constants.BRAND }}/{{ context.constants.TIER }}" - both segments are wildcards
       const offenses = await check(
         {
-          'app/config.yml': 'theme_search_paths:\n  - "{{ context.constants.BRAND }}/{{ context.constants.TIER }}"',
+          'app/config.yml':
+            'theme_search_paths:\n  - "{{ context.constants.BRAND }}/{{ context.constants.TIER }}"',
           'app/views/partials/page.liquid': "{% theme_render_rc 'card' %}",
           'app/views/partials/acme/premium/card.liquid': 'acme premium card',
         },

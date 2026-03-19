@@ -257,6 +257,15 @@ export class RouteTable {
     return false;
   }
 
+  /** Returns the total number of route entries (including index aliases). */
+  routeCount(): number {
+    let count = 0;
+    for (const entries of this.routes.values()) {
+      count += entries.length;
+    }
+    return count;
+  }
+
   allRoutes(): RouteEntry[] {
     const all: RouteEntry[] = [];
     for (const entries of this.routes.values()) {

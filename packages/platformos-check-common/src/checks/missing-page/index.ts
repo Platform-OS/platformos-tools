@@ -1,10 +1,4 @@
-import {
-  HtmlElement,
-  LiquidTag,
-  NamedTags,
-  LiquidTagAssign,
-  AssignMarkup,
-} from '@platformos/liquid-html-parser';
+import { HtmlElement, LiquidTag } from '@platformos/liquid-html-parser';
 import { RouteTable } from '@platformos/platformos-common';
 import {
   shouldSkipUrl,
@@ -12,7 +6,7 @@ import {
   getAttrName,
   extractUrlPattern,
   getEffectiveMethod,
-  resolveAssignToUrlPattern,
+  tryExtractAssignUrl,
 } from '../../url-helpers';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isHtmlTag } from '../utils';
@@ -62,13 +56,9 @@ export const MissingPage: LiquidCheckDefinition = {
       },
 
       async LiquidTag(node: LiquidTag) {
-        if (node.name !== NamedTags.assign) return;
-        const markup = (node as LiquidTagAssign).markup as AssignMarkup;
-        if (markup.lookups.length > 0) return;
-
-        const urlPattern = resolveAssignToUrlPattern(markup);
-        if (urlPattern !== null) {
-          variableMap.set(markup.name, urlPattern);
+        const extracted = tryExtractAssignUrl(node);
+        if (extracted) {
+          variableMap.set(extracted.name, extracted.urlPattern);
         }
       },
 

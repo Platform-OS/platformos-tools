@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, assert } from 'vitest';
 import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 import { findCurrentNode } from '@platformos/platformos-check-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
@@ -135,6 +135,57 @@ describe('RenderPartialDefinitionProvider', () => {
       const result = await getDefinitions("{% assign x = 'hello' %}", 3, {});
 
       expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('search path cache invalidation', () => {
+    it('returns stale result when cache is not invalidated after config change', async () => {
+      // Regression test: SearchPathsLoader caches results across calls.
+      // Without explicit invalidate(), a config change is not picked up.
+      const files: Record<string, string> = {
+        'project/app/config.yml': 'theme_search_paths:\n  - theme/dress',
+        'project/app/views/partials/theme/dress/card.liquid': 'dress card',
+        'project/app/views/partials/theme/simple/card.liquid': 'simple card',
+      };
+      const mockFs = new MockFileSystem(files);
+      const searchPathsCache = new SearchPathsLoader(mockFs);
+      const documentManager = new DocumentManager();
+      const provider = new RenderPartialDefinitionProvider(
+        documentManager,
+        new DocumentsLocator(mockFs),
+        searchPathsCache,
+        async () => rootUri,
+      );
+
+      const source = "{% theme_render_rc 'card' %}";
+      const offset = source.indexOf("'card'") + 1;
+      documentManager.open(uriString, source, 1);
+
+      const ast = toLiquidHtmlAST(source);
+      const [node, ancestors] = findCurrentNode(ast, offset);
+      const params: DefinitionParams = {
+        textDocument: { uri: uriString },
+        position: Position.create(0, offset),
+      };
+
+      // First call: populates the cache with 'theme/dress'
+      const result1 = await provider.definitions(params, node, ancestors);
+      assert(result1.length === 1);
+      expect(result1[0].targetUri).toContain('theme/dress/card.liquid');
+
+      // Simulate config.yml change on disk (mutate mockApp in-place)
+      files['project/app/config.yml'] = 'theme_search_paths:\n  - theme/simple';
+
+      // Without invalidation: cache still returns 'theme/dress' result
+      const result2 = await provider.definitions(params, node, ancestors);
+      assert(result2.length === 1);
+      expect(result2[0].targetUri).toContain('theme/dress/card.liquid');
+
+      // After invalidation: re-reads config and returns 'theme/simple' result
+      searchPathsCache.invalidate();
+      const result3 = await provider.definitions(params, node, ancestors);
+      assert(result3.length === 1);
+      expect(result3[0].targetUri).toContain('theme/simple/card.liquid');
     });
   });
 });

@@ -1,10 +1,6 @@
 import { LiquidHtmlNode, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, SchemaProp, Severity, SourceCodeType } from '../../types';
-import {
-  DocumentsLocator,
-  DocumentType,
-  loadSearchPaths,
-} from '@platformos/platformos-common';
+import { DocumentsLocator, DocumentType, loadSearchPaths } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 
 function getTagName(ancestors: LiquidHtmlNode[]): DocumentType {

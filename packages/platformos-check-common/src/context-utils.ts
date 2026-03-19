@@ -144,7 +144,13 @@ export function makeGetRouteTable(
       if (table.isBuilt()) {
         buildPromise = Promise.resolve(table);
       } else {
-        buildPromise = table.build(URI.parse(rootUri)).then(() => table);
+        buildPromise = table
+          .build(URI.parse(rootUri))
+          .then(() => table)
+          .catch((err) => {
+            buildPromise = null;
+            throw err;
+          });
       }
     }
     return buildPromise;

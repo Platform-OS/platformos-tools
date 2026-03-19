@@ -188,7 +188,8 @@ function printNamedLiquidBlockStart(
     }
 
     case NamedTags.include:
-    case NamedTags.render: {
+    case NamedTags.render:
+    case NamedTags.theme_render_rc: {
       const markup = node.markup;
       const trailingWhitespace =
         markup.args.length > 0 || (markup.variable && markup.alias) ? line : ' ';
@@ -287,8 +288,7 @@ function printNamedLiquidBlockStart(
       return tag(trailingWhitespace);
     }
     case NamedTags.include_form:
-    case NamedTags.spam_protection:
-    case NamedTags.theme_render_rc: {
+    case NamedTags.spam_protection: {
       const trailingWhitespace = node.markup.args.length > 0 ? line : ' ';
       return tag(trailingWhitespace);
     }

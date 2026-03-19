@@ -28,6 +28,24 @@ import {
  * remains in platformos-common.
  */
 
+/** Extract the `children` array from a node if it has one (block tags, elements). */
+function getTraversableChildren(node: LiquidHtmlNode): LiquidHtmlNode[] | null {
+  if ('children' in node) {
+    const children = (node as { children: unknown }).children;
+    if (Array.isArray(children)) return children as LiquidHtmlNode[];
+  }
+  return null;
+}
+
+/** Extract the `markup` array from a node if it is an array ({% liquid %} tags). */
+function getTraversableMarkup(node: LiquidHtmlNode): LiquidHtmlNode[] | null {
+  if ('markup' in node) {
+    const markup = (node as { markup: unknown }).markup;
+    if (Array.isArray(markup)) return markup as LiquidHtmlNode[];
+  }
+  return null;
+}
+
 const SKIP_PREFIXES = ['http://', 'https://', '//', 'mailto:', 'tel:', 'javascript:', 'data:', '#'];
 
 export function shouldSkipUrl(url: string): boolean {
@@ -280,6 +298,26 @@ export function getEffectiveMethod(formNode: HtmlElement): string | null {
 }
 
 /**
+ * If the given node is a `{% assign %}` tag whose RHS resolves to a URL pattern,
+ * returns `{ name, urlPattern }`. Otherwise returns null.
+ *
+ * Shared by `buildVariableMap` (full AST walk) and `MissingPage` (incremental
+ * visitor), so the assign-to-URL resolution logic lives in one place.
+ */
+export function tryExtractAssignUrl(
+  node: LiquidHtmlNode,
+): { name: string; urlPattern: string } | null {
+  if (node.type !== NodeTypes.LiquidTag || (node as LiquidTag).name !== NamedTags.assign) {
+    return null;
+  }
+  const markup = (node as LiquidTagAssign).markup as AssignMarkup;
+  if (markup.lookups.length > 0) return null;
+  const urlPattern = resolveAssignToUrlPattern(markup);
+  if (urlPattern === null) return null;
+  return { name: markup.name, urlPattern };
+}
+
+/**
  * Walk an AST subtree and collect {% assign %} variable mappings that resolve to URL patterns.
  * Not scope-aware: assigns inside {% if %} / {% for %} blocks are tracked even though they
  * may not be in scope when the href is evaluated. This is an acceptable trade-off — the
@@ -299,26 +337,24 @@ export function buildVariableMap(
 
   function walk(nodes: LiquidHtmlNode[]): void {
     for (const node of nodes) {
-      if (node.type === NodeTypes.LiquidTag && (node as LiquidTag).name === NamedTags.assign) {
-        if (beforeOffset !== undefined && node.position.end > beforeOffset) continue;
-        const markup = (node as LiquidTagAssign).markup as AssignMarkup;
-        if (markup.lookups.length === 0) {
-          const urlPattern = resolveAssignToUrlPattern(markup);
-          if (urlPattern !== null) {
-            variableMap.set(markup.name, urlPattern);
-          }
+      // Apply the beforeOffset cutoff only to assign nodes themselves, not to block
+      // containers. A block tag ({% if %}, {% for %}, HTML element, etc.) may start
+      // before the cursor but end after it — we must still recurse into its children
+      // to find any assigns that precede the cursor within that block.
+      const extracted = tryExtractAssignUrl(node);
+      if (extracted) {
+        if (beforeOffset === undefined || node.position.end <= beforeOffset) {
+          variableMap.set(extracted.name, extracted.urlPattern);
         }
       }
 
       // Recurse into children (block tags like {% if %}, {% for %})
-      if ('children' in node && Array.isArray((node as any).children)) {
-        walk((node as any).children);
-      }
+      const children = getTraversableChildren(node);
+      if (children) walk(children);
 
       // Recurse into markup arrays ({% liquid %} block contains assigns in markup)
-      if ('markup' in node && Array.isArray((node as any).markup)) {
-        walk((node as any).markup);
-      }
+      const markupArray = getTraversableMarkup(node);
+      if (markupArray) walk(markupArray);
     }
   }
 

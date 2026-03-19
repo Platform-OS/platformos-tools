@@ -577,4 +577,132 @@ describe('RouteTable', () => {
       expect(rt.hasMatch('/api/endpoint.json')).toBe(true);
     });
   });
+
+  describe('routeCount', () => {
+    it('returns 0 for empty table', () => {
+      const rt = new RouteTable(createMockFileSystem({}));
+      expect(rt.routeCount()).toBe(0);
+    });
+
+    it('counts single route entry', async () => {
+      const fs = createMockFileSystem(
+        Object.fromEntries([page('app/views/pages/about.html.liquid')]),
+      );
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.routeCount()).toBe(1);
+    });
+
+    it('counts index alias as two entries', async () => {
+      const fs = createMockFileSystem(
+        Object.fromEntries([page('app/views/pages/products/index.html.liquid')]),
+      );
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      // products + products/index
+      expect(rt.routeCount()).toBe(2);
+    });
+
+    it('decrements after removeFile', async () => {
+      const fs = createMockFileSystem(
+        Object.fromEntries([
+          page('app/views/pages/a.html.liquid'),
+          page('app/views/pages/b.html.liquid'),
+        ]),
+      );
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.routeCount()).toBe(2);
+      rt.removeFile('file:///project/app/views/pages/a.html.liquid');
+      expect(rt.routeCount()).toBe(1);
+    });
+  });
+
+  describe('large route table', () => {
+    it('handles hundreds of routes and matches correctly', async () => {
+      const files: [string, string][] = [];
+      for (let i = 0; i < 200; i++) {
+        files.push(page(`app/views/pages/section-${i}/page.html.liquid`));
+      }
+      // Add some dynamic routes
+      for (let i = 0; i < 50; i++) {
+        files.push(
+          page(`app/views/pages/api-${i}.html.liquid`, `---\nslug: api/${i}/items/:id\n---\n`),
+        );
+      }
+      const fs = createMockFileSystem(Object.fromEntries(files));
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.routeCount()).toBe(250);
+
+      // Static matches
+      expect(rt.hasMatch('/section-0/page')).toBe(true);
+      expect(rt.hasMatch('/section-199/page')).toBe(true);
+      expect(rt.hasMatch('/section-200/page')).toBe(false);
+
+      // Dynamic matches
+      expect(rt.hasMatch('/api/0/items/42')).toBe(true);
+      expect(rt.hasMatch('/api/49/items/abc')).toBe(true);
+      expect(rt.hasMatch('/api/50/items/1')).toBe(false);
+
+      // Precedence: static more specific than dynamic
+      const matches = rt.match('/api/0/items/42');
+      expect(matches.length).toBe(1);
+      expect(matches[0].slug).toBe('api/0/items/:id');
+    });
+
+    it('updateFile on large table does not corrupt other routes', async () => {
+      const files: [string, string][] = [];
+      for (let i = 0; i < 100; i++) {
+        files.push(page(`app/views/pages/page-${i}.html.liquid`));
+      }
+      const fs = createMockFileSystem(Object.fromEntries(files));
+      const rt = new RouteTable(fs);
+      await rt.build(ROOT);
+
+      expect(rt.routeCount()).toBe(100);
+
+      // Update one page to change its slug
+      rt.updateFile(
+        'file:///project/app/views/pages/page-50.html.liquid',
+        '---\nslug: new-slug\n---\n',
+      );
+
+      expect(rt.routeCount()).toBe(100);
+      expect(rt.hasMatch('/page-50')).toBe(false);
+      expect(rt.hasMatch('/new-slug')).toBe(true);
+      // Other routes unaffected
+      expect(rt.hasMatch('/page-0')).toBe(true);
+      expect(rt.hasMatch('/page-99')).toBe(true);
+    });
+
+    it('build clears all routes before repopulating', async () => {
+      const files1: [string, string][] = [];
+      for (let i = 0; i < 50; i++) {
+        files1.push(page(`app/views/pages/old-${i}.html.liquid`));
+      }
+      const fs1 = createMockFileSystem(Object.fromEntries(files1));
+      const rt = new RouteTable(fs1);
+      await rt.build(ROOT);
+
+      expect(rt.routeCount()).toBe(50);
+
+      // Rebuild with different files
+      const files2: [string, string][] = [];
+      for (let i = 0; i < 30; i++) {
+        files2.push(page(`app/views/pages/new-${i}.html.liquid`));
+      }
+      const fs2 = createMockFileSystem(Object.fromEntries(files2));
+      const rt2 = new RouteTable(fs2);
+      await rt2.build(ROOT);
+
+      expect(rt2.routeCount()).toBe(30);
+      expect(rt2.hasMatch('/old-0')).toBe(false);
+      expect(rt2.hasMatch('/new-0')).toBe(true);
+    });
+  });
 });

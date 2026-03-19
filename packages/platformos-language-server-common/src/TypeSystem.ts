@@ -1763,12 +1763,13 @@ function resolveExpressionShape(
       if (pseudoType !== undefined && objectMap) {
         if (lookup.type !== NodeTypes.String) return undefined;
         const propType = inferPseudoTypePropertyType(pseudoType, lookup, objectMap);
+        // inferPseudoTypePropertyType returns PseudoType | ArrayType (string or { kind: 'array' })
         if (typeof propType === 'string') {
           pseudoType = propType;
           shape = resolvedTypeToShape(propType);
-        } else if (isShapeType(propType as PseudoType | ArrayType | ShapeType | UnionType)) {
+        } else if (isArrayType(propType)) {
           pseudoType = undefined;
-          shape = (propType as unknown as ShapeType).shape;
+          shape = resolvedTypeToShape(propType);
         } else {
           return undefined;
         }

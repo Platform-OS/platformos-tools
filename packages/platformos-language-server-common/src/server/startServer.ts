@@ -44,6 +44,7 @@ import {
   AppGraphRootRequest,
 } from '../types';
 import { debounce } from '../utils';
+import { SearchPathsLoader } from '../utils/searchPaths';
 import { VERSION } from '../version';
 import { CachedFileSystem } from './CachedFileSystem';
 import { Configuration, INCLUDE_FILES_FROM_DISK } from './Configuration';
@@ -54,6 +55,13 @@ import { relative } from '@platformos/platformos-check-common/src/path';
 import { URI } from 'vscode-uri';
 
 const defaultLogger = () => {};
+
+/**
+ * When a file-watcher batch contains this many page-file changes, we
+ * assume a bulk operation (git checkout, branch switch, stash pop) and
+ * fully rebuild the route table instead of applying incremental updates.
+ */
+const BULK_PAGE_CHANGE_THRESHOLD = 10;
 
 /**
  * The `git:` VFS does not support the `fs.readDirectory` call and makes most things break.
@@ -108,11 +116,13 @@ export function startServer(
   const diagnosticsManager = new DiagnosticsManager(connection);
   const documentsLocator = new DocumentsLocator(fs);
   const translationProvider = new TranslationProvider(fs);
+  const searchPathsCache = new SearchPathsLoader(fs);
   const documentLinksProvider = new DocumentLinksProvider(
     documentManager,
     findAppRootURI,
     documentsLocator,
     translationProvider,
+    searchPathsCache,
   );
   const codeActionsProvider = new CodeActionsProvider(documentManager, diagnosticsManager);
   const onTypeFormattingProvider = new OnTypeFormattingProvider(
@@ -221,6 +231,8 @@ export function startServer(
     getDefaultLocaleSourceCode,
     fs,
     findAppRootURI,
+    documentsLocator,
+    searchPathsCache,
   );
   const jsonLanguageService = new JSONLanguageService(documentManager, jsonValidationSet);
   const cssLanguageService = new CSSLanguageService(documentManager);
@@ -348,6 +360,9 @@ export function startServer(
         {
           globPattern: '**/*.css',
         },
+        {
+          globPattern: '**/app/config.yml',
+        },
       ],
     });
   });
@@ -410,6 +425,15 @@ export function startServer(
   connection.onDidSaveTextDocument(async (params) => {
     if (hasUnsupportedDocument(params)) return;
     const { uri } = params.textDocument;
+
+    // onDidChangeWatchedFiles also fires for in-editor saves, but it arrives after
+    // onDidSaveTextDocument. Invalidate the search-paths cache here immediately so
+    // that go-to-definition requests triggered by the same save don't see stale data
+    // while waiting for the file-watcher notification.
+    if (uri.endsWith('/app/config.yml')) {
+      searchPathsCache.invalidate();
+    }
+
     if (await configuration.shouldCheckOnSave()) {
       runChecks([uri]);
     }
@@ -550,7 +574,7 @@ export function startServer(
     // individual onDidChangeTextDocument events. VS Code reports branch-switch changes
     // as FileChangeType.Changed, so we count all change types.
     const bulkPageChanges = params.changes.filter((c) => isPage(c.uri));
-    if (bulkPageChanges.length >= 3) {
+    if (bulkPageChanges.length >= BULK_PAGE_CHANGE_THRESHOLD) {
       definitionsProvider.invalidateRouteTable();
     }
 
@@ -559,6 +583,21 @@ export function startServer(
       // App Check config changes should clear the config cache
       if (change.uri.endsWith('.platformos-check.yml')) {
         loadConfig.clearCache();
+        continue;
+      }
+
+      // app/config.yml changes should clear expanded search paths cache
+      // and force re-check of all open documents.
+      // Note: readFile for config.yml bypasses the CachedFileSystem cache,
+      // so we don't need to invalidate it — reads are always fresh.
+      if (change.uri.endsWith('/app/config.yml')) {
+        documentsLocator.clearExpandedPathsCache();
+        searchPathsCache.invalidate();
+
+        // Ensure open liquid files are re-checked with the new search paths
+        for (const doc of documentManager.openDocuments) {
+          triggerUris.push(doc.uri);
+        }
         continue;
       }
 

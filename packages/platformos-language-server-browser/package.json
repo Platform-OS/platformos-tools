@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-language-server-browser",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "platformOS",
@@ -27,7 +27,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/platformos-language-server-common": "0.0.12",
+    "@platformos/platformos-language-server-common": "0.0.13",
     "vscode-languageserver": "^9.0.1"
   }
 }

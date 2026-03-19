@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-common",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Common library for platformOS check components",
   "homepage": "https://github.com/Platform-OS/platformos-tools#readme",
   "bugs": {

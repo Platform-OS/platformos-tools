@@ -1,6 +1,6 @@
 {
   "name": "@platformos/codemirror-language-client",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "A Language Client for CodeMirror",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/codemirror-language-client#readme",
@@ -51,9 +51,9 @@
     "@codemirror/theme-one-dark": "^6.1.3",
     "@codemirror/view": "^6.39.15",
     "@replit/codemirror-vim": "^6.3.0",
-    "@platformos/platformos-check-docs-updater": "0.0.12",
-    "@platformos/platformos-language-server-browser": "0.0.12",
-    "@platformos/lang-jsonc": "^0.0.11",
+    "@platformos/platformos-check-docs-updater": "0.0.13",
+    "@platformos/platformos-language-server-browser": "0.0.13",
+    "@platformos/lang-jsonc": "^0.0.12",
     "@types/markdown-it": "^14.1.2",
     "codemirror": "^6.0.2",
     "markdown-it": "^14.1.1"

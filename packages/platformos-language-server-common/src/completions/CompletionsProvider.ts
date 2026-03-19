@@ -27,6 +27,7 @@ import {
   TranslationCompletionProvider,
 } from './providers';
 import { GetPartialNamesForURI } from './providers/PartialCompletionProvider';
+import { GraphQLFieldCompletionProvider } from './providers/GraphQLFieldCompletionProvider';
 
 export interface CompletionProviderDependencies {
   documentManager: DocumentManager;
@@ -47,6 +48,7 @@ export interface CompletionProviderDependencies {
 
 export class CompletionsProvider {
   private providers: Provider[] = [];
+  private graphqlFieldCompletionProvider: GraphQLFieldCompletionProvider;
   readonly documentManager: DocumentManager;
   readonly platformosDocset: PlatformOSDocset;
   readonly log: (message: string) => void;
@@ -66,6 +68,10 @@ export class CompletionsProvider {
     this.platformosDocset = platformosDocset;
     this.log = log;
     const typeSystem = new TypeSystem(platformosDocset, fs, documentsLocator, findAppRootURI);
+    this.graphqlFieldCompletionProvider = new GraphQLFieldCompletionProvider(
+      platformosDocset,
+      documentManager,
+    );
 
     this.providers = [
       new HtmlTagCompletionProvider(),
@@ -87,6 +93,11 @@ export class CompletionsProvider {
   async completions(params: CompletionParams): Promise<CompletionItem[]> {
     const uri = params.textDocument.uri;
     const document = this.documentManager.get(uri);
+
+    // GraphQL files get dedicated completion support
+    if (document?.type === SourceCodeType.GraphQL) {
+      return this.graphqlFieldCompletionProvider.completions(params);
+    }
 
     // Supports only Liquid resources
     if (document?.type !== SourceCodeType.LiquidHtml) {

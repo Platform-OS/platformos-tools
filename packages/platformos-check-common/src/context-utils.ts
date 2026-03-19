@@ -171,7 +171,13 @@ export async function recursiveReadDirectory(
   uri: string,
   filter: (fileTuple: FileTuple) => boolean,
 ): Promise<UriString[]> {
-  const allFiles = await fs.readDirectory(uri);
+  let allFiles: FileTuple[];
+  try {
+    allFiles = await fs.readDirectory(uri);
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') return [];
+    throw err;
+  }
   const files = allFiles.filter((ft) => !isIgnored(ft) && (isDirectory(ft) || filter(ft)));
 
   const results = await Promise.all(

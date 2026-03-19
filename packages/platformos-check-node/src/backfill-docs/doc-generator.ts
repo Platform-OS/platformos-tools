@@ -1,4 +1,4 @@
-import { BasicParamTypes } from '@platformos/platformos-check-common';
+import { InferredParamType } from '@platformos/platformos-check-common';
 
 /**
  * Generate a single @param line for a doc tag.
@@ -10,7 +10,7 @@ import { BasicParamTypes } from '@platformos/platformos-check-common';
  */
 export function generateParamLine(
   name: string,
-  type: BasicParamTypes,
+  type: InferredParamType,
   isOptional: boolean = true,
 ): string {
   const paramName = isOptional ? `[${name}]` : name;

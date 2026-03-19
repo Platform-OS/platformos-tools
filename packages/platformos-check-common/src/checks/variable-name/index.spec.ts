@@ -40,7 +40,7 @@ describe('Module: VariableName', () => {
 
     const expectedFixedCode = `{% assign variable_name = "value" %}`;
 
-    expect(suggestions).to.include(expectedFixedCode);
+    expect(suggestions).to.deep.equal([expectedFixedCode]);
   });
 
   it('should not report an error for variables starting with underscore', async () => {

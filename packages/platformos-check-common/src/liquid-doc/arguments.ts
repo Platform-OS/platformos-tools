@@ -13,6 +13,7 @@ import {
   BasicParamTypes,
   getDefaultValueForType,
   inferArgumentType,
+  isNullLiteral,
   isTypeCompatible,
 } from './utils';
 import { isLiquidString } from '../checks/utils';
@@ -130,6 +131,11 @@ export function findTypeMismatchParams(
     } else if (arg.value.type === NodeTypes.VariableLookup) {
       continue;
     } else if (arg.value.type === NodeTypes.NamedArgument) {
+      continue;
+    }
+
+    // null/nil is compatible with any type — skip type checking
+    if (isNullLiteral(arg.value)) {
       continue;
     }
 

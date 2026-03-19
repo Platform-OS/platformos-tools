@@ -23,7 +23,6 @@ import { FindAppRootURI } from '../internal-types';
 
 export class AppGraphManager {
   graphs: Map<string, ReturnType<typeof buildAppGraph>> = new Map();
-
   constructor(
     private connection: Connection,
     private documentManager: DocumentManager,
@@ -153,9 +152,7 @@ export class AppGraphManager {
     const rootUri = await this.findAppRootURI(anyUri);
     if (!rootUri) return;
 
-    const graph = await this.graphs.get(rootUri);
-    if (!graph) return;
-
+    // Delete existing graph to force rebuild
     this.graphs.delete(rootUri);
     await this.getAppGraphForURI(rootUri);
     this.connection.sendNotification(AppGraphDidUpdateNotification.type, { uri: rootUri });
@@ -166,7 +163,8 @@ export class AppGraphManager {
     await documentManager.preload(rootUri);
 
     const dependencies = await this.graphDependencies(rootUri);
-    return buildAppGraph(rootUri, dependencies, entryPoints);
+    const graph = await buildAppGraph(rootUri, dependencies, entryPoints);
+    return graph;
   };
 
   private getSourceCode = async (uri: string) => {

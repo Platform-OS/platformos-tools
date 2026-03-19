@@ -1,10 +1,10 @@
-import { BasicParamTypes } from '@platformos/platformos-check-common';
+import { InferredParamType } from '@platformos/platformos-check-common';
 
 export type TagType = 'function' | 'render' | 'include';
 
 export interface ArgumentInfo {
   name: string;
-  inferredType: BasicParamTypes;
+  inferredType: InferredParamType;
   usageCount: number;
 }
 

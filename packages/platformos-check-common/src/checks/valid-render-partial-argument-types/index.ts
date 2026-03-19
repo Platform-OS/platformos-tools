@@ -1,7 +1,7 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { NodeTypes, RenderMarkup } from '@platformos/liquid-html-parser';
 import { LiquidDocParameter } from '../../liquid-doc/liquidDoc';
-import { inferArgumentType, isTypeCompatible } from '../../liquid-doc/utils';
+import { inferArgumentType, isNullLiteral, isTypeCompatible } from '../../liquid-doc/utils';
 import {
   findTypeMismatchParams,
   generateTypeMismatchSuggestions,
@@ -41,7 +41,8 @@ export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
       if (
         node.alias &&
         node.variable?.name &&
-        node.variable.name.type !== NodeTypes.VariableLookup
+        node.variable.name.type !== NodeTypes.VariableLookup &&
+        !isNullLiteral(node.variable.name)
       ) {
         const paramIsDefinedWithType = liquidDocParameters
           .get(node.alias.value)

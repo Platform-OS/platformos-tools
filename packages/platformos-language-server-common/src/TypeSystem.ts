@@ -29,8 +29,6 @@ import {
   ReturnType,
   SourceCodeType,
   PlatformOSDocset,
-  isError,
-  parseJSON,
   path,
   BasicParamTypes,
   getValidParamTypes,
@@ -43,10 +41,8 @@ import {
   inferShapeFromJSONString,
   inferShapeFromJsonLiteral,
   inferShapeFromGraphQL,
-  lookupPropertyPath,
   mergeShapes,
   shapeToTypeString,
-  shapeToDetailString,
   shapeToJSONPlaceholder,
 } from './PropertyShapeInference';
 import { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';

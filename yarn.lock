@@ -3219,6 +3219,11 @@ data-urls@^7.0.0:
     whatwg-mimetype "^5.0.0"
     whatwg-url "^16.0.0"
 
+debounce-promise@^3.1.2:
+  version "3.1.2"
+  resolved "https://registry.yarnpkg.com/debounce-promise/-/debounce-promise-3.1.2.tgz#320fb8c7d15a344455cd33cee5ab63530b6dc7c5"
+  integrity sha512-rZHcgBkbYavBeD9ej6sP56XfG53d51CD4dnaw989YX/nZ/ZJfgRx/9ePKmTNiUiyQvh4mtrMoS3OAWW+yoYtpg==
+
 debug@2.6.9:
   version "2.6.9"
   resolved "https://registry.npmjs.org/debug/-/debug-2.6.9.tgz"
@@ -4239,6 +4244,15 @@ graphemer@^1.4.0:
   version "1.4.0"
   resolved "https://registry.npmjs.org/graphemer/-/graphemer-1.4.0.tgz"
   integrity sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==
+
+graphql-language-service@^5.2.2:
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/graphql-language-service/-/graphql-language-service-5.5.0.tgz#2e68b23bd5384f2fbf1e9391e907106e8246d025"
+  integrity sha512-9EvWrLLkF6Y5e29/2cmFoAO6hBPPAZlCyjznmpR11iFtRydfkss+9m6x+htA8h7YznGam+TtJwS6JuwoWWgb2Q==
+  dependencies:
+    debounce-promise "^3.1.2"
+    nullthrows "^1.0.0"
+    vscode-languageserver-types "^3.17.1"
 
 graphql@^16.12.0:
   version "16.12.0"
@@ -5498,6 +5512,11 @@ nth-check@^2.0.1:
   integrity sha512-lqjrjmaOoAnWfMmBPL+XNnynZh2+swxiX3WUE0s4yEHI6m+AwrK2UZOimIRl3X/4QctVqS8AiZjFqyOGrMXb/w==
   dependencies:
     boolbase "^1.0.0"
+
+nullthrows@^1.0.0:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/nullthrows/-/nullthrows-1.1.1.tgz#7818258843856ae971eae4208ad7d7eb19a431b1"
+  integrity sha512-2vPPEi+Z7WqML2jZYddDIfy5Dqb0r2fze2zTxNNknZaFpVHU3mFB3R+DWeJWGVx0ecvttSGlJTI+WG+8Z4cDWw==
 
 object-inspect@^1.13.3:
   version "1.13.4"
@@ -7413,7 +7432,7 @@ vscode-languageserver-textdocument@^1.0.12:
   resolved "https://registry.npmjs.org/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.12.tgz"
   integrity sha512-cxWNPesCnQCcMPeenjKKsOCKQZ/L6Tv19DTRIGuLWe32lyzWhihGVJ/rcckZXJxfdKCFvRLS3fpBIsV/ZGX4zA==
 
-vscode-languageserver-types@3.17.5, vscode-languageserver-types@^3.17.5:
+vscode-languageserver-types@3.17.5, vscode-languageserver-types@^3.17.1, vscode-languageserver-types@^3.17.5:
   version "3.17.5"
   resolved "https://registry.npmjs.org/vscode-languageserver-types/-/vscode-languageserver-types-3.17.5.tgz"
   integrity sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==

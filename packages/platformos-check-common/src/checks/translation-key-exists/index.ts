@@ -1,22 +1,6 @@
-import { TranslationProvider } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { URI } from 'vscode-uri';
-
-function keyExists(key: string, pointer: any) {
-  for (const token of key.split('.')) {
-    if (typeof pointer !== 'object') {
-      return false;
-    }
-
-    if (!pointer.hasOwnProperty(token)) {
-      return false;
-    }
-
-    pointer = pointer[token];
-  }
-
-  return true;
-}
+import { findNearestKeys } from '../../utils/levenshtein';
+import { loadAllDefinedKeys } from '../translation-utils';
 
 export const TranslationKeyExists: LiquidCheckDefinition = {
   meta: {
@@ -35,7 +19,6 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
 
   create(context) {
     const nodes: { translationKey: string; startIndex: number; endIndex: number }[] = [];
-    const translationProvider = new TranslationProvider(context.fs);
 
     return {
       async LiquidVariable(node) {
@@ -55,21 +38,29 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
+        if (nodes.length === 0) return;
+
+        // Load all defined keys (app + modules) once per file
+        const allDefinedKeys = await loadAllDefinedKeys(context);
+        const definedKeySet = new Set(allDefinedKeys);
+
         for (const { translationKey, startIndex, endIndex } of nodes) {
-          const translation = await translationProvider.translate(
-            URI.parse(context.config.rootUri),
-            translationKey,
-          );
+          if (definedKeySet.has(translationKey)) continue;
 
-          if (!!translation) {
-            return;
-          }
-
+          const nearest = findNearestKeys(translationKey, allDefinedKeys);
           const message = `'${translationKey}' does not have a matching translation entry`;
+
           context.report({
             message,
             startIndex,
             endIndex,
+            suggest:
+              nearest.length > 0
+                ? nearest.map((key) => ({
+                    message: `Did you mean '${key}'?`,
+                    fix: (fixer: any) => fixer.replace(startIndex, endIndex, `'${key}'`),
+                  }))
+                : undefined,
           });
         }
       },

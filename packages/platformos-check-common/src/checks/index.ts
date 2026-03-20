@@ -37,6 +37,7 @@ import { UnknownProperty } from './unknown-property';
 import { InvalidHashAssignTarget } from './invalid-hash-assign-target';
 import { DuplicateFunctionArguments } from './duplicate-function-arguments';
 import { MissingPage } from './missing-page';
+import { ValidFrontmatter } from './valid-frontmatter';
 
 export const allChecks: (
   | LiquidCheckDefinition
@@ -75,6 +76,7 @@ export const allChecks: (
   UnknownProperty,
   InvalidHashAssignTarget,
   MissingPage,
+  ValidFrontmatter,
 ];
 
 /**

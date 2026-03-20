@@ -5,6 +5,7 @@ import { DefinitionLink, DefinitionParams } from 'vscode-languageserver';
 import { AugmentedJsonSourceCode, DocumentManager } from '../documents';
 import { SearchPathsLoader } from '../utils/searchPaths';
 import { BaseDefinitionProvider } from './BaseDefinitionProvider';
+import { FrontmatterDefinitionProvider } from './providers/FrontmatterDefinitionProvider';
 import { PageRouteDefinitionProvider } from './providers/PageRouteDefinitionProvider';
 import { RenderPartialDefinitionProvider } from './providers/RenderPartialDefinitionProvider';
 import { TranslationStringDefinitionProvider } from './providers/TranslationStringDefinitionProvider';
@@ -28,6 +29,7 @@ export class DefinitionProvider {
     if (fs && findAppRootURI) {
       this.pageRouteProvider = new PageRouteDefinitionProvider(documentManager, fs, findAppRootURI);
       this.providers.push(this.pageRouteProvider);
+      this.providers.push(new FrontmatterDefinitionProvider(documentManager, fs, findAppRootURI));
 
       if (documentsLocator && searchPathsCache) {
         this.providers.push(

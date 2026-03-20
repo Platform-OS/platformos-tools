@@ -85,6 +85,9 @@ UnusedDocParam:
 ValidDocParamTypes:
   enabled: true
   severity: 0
+ValidFrontmatter:
+  enabled: true
+  severity: 1
 ValidHTMLTranslation:
   enabled: true
   severity: 1

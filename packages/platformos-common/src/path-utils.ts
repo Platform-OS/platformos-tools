@@ -221,6 +221,19 @@ export function isKnownLiquidFile(uri: UriString): boolean {
 }
 
 /**
+ * Returns true if the URI has a `.liquid` extension but does not match any
+ * recognized platformOS directory. Useful for detecting misplaced files that
+ * the server will silently ignore.
+ *
+ * @example
+ * isUnclassifiedLiquidFile('file:///project/scripts/helper.liquid') // → true
+ * isUnclassifiedLiquidFile('file:///project/app/views/pages/home.liquid') // → false (Page)
+ */
+export function isUnclassifiedLiquidFile(uri: UriString): boolean {
+  return uri.endsWith('.liquid') && getFileType(uri) === undefined;
+}
+
+/**
  * Returns true if the URI belongs to a recognized platformOS GraphQL directory
  * and should be linted. Files outside known directories (e.g. generator
  * templates, schema files, ERB templates) return false and are excluded.
@@ -263,4 +276,46 @@ export function isMigration(uri: UriString): boolean {
 
 export function isFormConfiguration(uri: UriString): boolean {
   return getFileType(uri) === PlatformOSFileType.FormConfiguration;
+}
+
+// ─── Module prefix utilities ──────────────────────────────────────────────────
+
+/**
+ * Result of parsing a `modules/{name}/...` prefix from a path or key.
+ * Used by DocumentsLocator and TranslationProvider to route lookups to the
+ * correct module directory.
+ */
+export type ModulePrefix =
+  | { isModule: false; key: string }
+  | { isModule: true; moduleName: string; key: string };
+
+/**
+ * Parse a `modules/{name}/{rest}` prefix from a path or translation key.
+ * Returns the module name and the remaining key, or marks it as non-module.
+ *
+ * @example
+ * parseModulePrefix('modules/community/components/card') // → { isModule: true, moduleName: 'community', key: 'components/card' }
+ * parseModulePrefix('modules/community/hello.world')     // → { isModule: true, moduleName: 'community', key: 'hello.world' }
+ * parseModulePrefix('app/views/partials/card')           // → { isModule: false, key: 'app/views/partials/card' }
+ * parseModulePrefix('modules/community')                 // → { isModule: false, key: 'modules/community' } (no key segment)
+ */
+export function parseModulePrefix(path: string): ModulePrefix {
+  if (!path.startsWith('modules/')) {
+    return { isModule: false, key: path };
+  }
+
+  const withoutPrefix = path.slice('modules/'.length);
+  const slashIdx = withoutPrefix.indexOf('/');
+
+  if (slashIdx === -1) {
+    // Just "modules/name" with no key segment
+    return { isModule: false, key: path };
+  }
+
+  const moduleName = withoutPrefix.slice(0, slashIdx);
+  const key = withoutPrefix.slice(slashIdx + 1);
+
+  // moduleName must be non-empty to be a valid module prefix.
+  // key may be empty (e.g. 'modules/users/') — that means "all files in the module".
+  return moduleName ? { isModule: true, moduleName, key } : { isModule: false, key: path };
 }

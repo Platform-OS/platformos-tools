@@ -16,7 +16,9 @@ function extractFrontmatter(source: string): PageFrontmatter | null {
   const trimmed = source.trimStart();
   if (!trimmed.startsWith('---')) return null;
 
-  const end = trimmed.indexOf('---', 3);
+  // Search for the closing delimiter as `\n---` so we don't accidentally match
+  // a `---` sequence that appears inside a YAML value (e.g. `slug: my---slug`).
+  const end = trimmed.indexOf('\n---', 3);
   if (end === -1) return null;
 
   const yamlBlock = trimmed.slice(3, end).trim();
@@ -48,7 +50,7 @@ function extractFrontmatter(source: string): PageFrontmatter | null {
  *   file:///project/app/views/pages/about.html.liquid -> about.html.liquid
  *   file:///project/modules/admin/public/views/pages/dashboard.html.liquid -> dashboard.html.liquid
  */
-function extractRelativePagePath(uri: string): string | null {
+export function extractRelativePagePath(uri: string): string | null {
   const patterns = [
     // App-level pages: app/views/pages/ or marketplace_builder/pages/
     /\/(app|marketplace_builder)\/(views\/pages|pages)\//,
@@ -185,6 +187,21 @@ export class RouteTable {
   /** Returns true if build() has completed at least once. */
   isBuilt(): boolean {
     return this._built;
+  }
+
+  /**
+   * Populate the route table from an in-memory collection of URI → content
+   * pairs, bypassing the filesystem entirely. Useful for warming the table
+   * from a DocumentManager without a full disk scan on startup.
+   *
+   * Only page URIs are registered; non-page URIs are silently skipped.
+   */
+  buildFromEntries(entries: Iterable<[uri: string, content: string]>): void {
+    this.routes.clear();
+    for (const [uri, content] of entries) {
+      this.addPageFromContent(uri, content);
+    }
+    this._built = true;
   }
 
   async build(rootUri: URI): Promise<void> {

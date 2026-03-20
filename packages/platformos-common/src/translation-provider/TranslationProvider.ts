@@ -1,13 +1,33 @@
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
+import { parseModulePrefix } from '../path-utils';
 import { URI, Utils } from 'vscode-uri';
 import yaml from 'js-yaml';
 
-type ModuleKeyInfo =
-  | { isModule: false; key: string }
-  | { isModule: true; moduleName: string; key: string };
-
 export class TranslationProvider {
   constructor(private readonly fs: AbstractFileSystem) {}
+
+  /** Cache for filesystem-only translation loads (bypassed when contentOverride is set). */
+  private translationsCache = new Map<string, Record<string, any>>();
+
+  /**
+   * Invalidate cached translations. Call after any translation file is written
+   * to disk so subsequent calls re-read from the filesystem.
+   *
+   * Omitting `uri` clears the entire cache.
+   * Passing a `uri` removes only the entries whose base directory contains that file.
+   */
+  clearTranslationsCache(uri?: string): void {
+    if (!uri) {
+      this.translationsCache.clear();
+      return;
+    }
+    for (const key of this.translationsCache.keys()) {
+      const baseUri = key.slice(0, key.lastIndexOf(':'));
+      if (uri.startsWith(baseUri)) {
+        this.translationsCache.delete(key);
+      }
+    }
+  }
 
   private async isFile(path: string): Promise<boolean> {
     try {
@@ -42,16 +62,6 @@ export class TranslationProvider {
     return true;
   }
 
-  private parseModuleKey(translationKey: string): ModuleKeyInfo {
-    if (!translationKey.startsWith('modules/')) {
-      return { isModule: false, key: translationKey };
-    }
-
-    const [, moduleName, key] = translationKey.split('/', 3);
-
-    return key ? { isModule: true, moduleName, key } : { isModule: false, key: translationKey };
-  }
-
   private getSearchPaths(moduleName?: string): string[] {
     if (!moduleName) {
       return ['app/translations'];
@@ -70,7 +80,7 @@ export class TranslationProvider {
     translationKey: string,
     defaultLocale: string,
   ): Promise<[string | undefined, string | undefined]> {
-    const parsed = this.parseModuleKey(translationKey);
+    const parsed = parseModulePrefix(translationKey);
 
     if (!parsed.key) {
       return [undefined, undefined];
@@ -127,6 +137,14 @@ export class TranslationProvider {
     locale: string,
     contentOverride?: (uri: string) => string | undefined,
   ): Promise<Record<string, any>> {
+    const cacheKey = `${translationBaseUri.toString()}:${locale}`;
+
+    // Return cached result when the caller has no editor overrides (e.g. linter/CI).
+    // Skip cache when contentOverride is set — unsaved buffer content may differ from disk.
+    if (!contentOverride && this.translationsCache.has(cacheKey)) {
+      return this.translationsCache.get(cacheKey)!;
+    }
+
     const merged: Record<string, any> = {};
 
     const read = async (uri: string): Promise<string | undefined> => {
@@ -154,6 +172,10 @@ export class TranslationProvider {
         const parsed = this.parseTranslationFile(content, locale);
         if (parsed) this.deepMerge(merged, parsed);
       }
+    }
+
+    if (!contentOverride) {
+      this.translationsCache.set(cacheKey, merged);
     }
 
     return merged;

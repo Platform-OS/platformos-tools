@@ -439,6 +439,7 @@ function printNode(
           ),
         );
       }
+      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print);
       return doc;
     }
 
@@ -455,6 +456,7 @@ function printNode(
           ),
         );
       }
+      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print);
       return doc;
     }
 
@@ -470,6 +472,7 @@ function printNode(
           ),
         );
       }
+      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print);
       return doc;
     }
 
@@ -837,6 +840,16 @@ export const printerLiquidHtml3: Printer3<LiquidHtmlNode> & {
     );
   },
 };
+
+function appendFilters(doc: Doc[], path: LiquidAstPath, print: (path: LiquidAstPath) => Doc) {
+  doc.push(
+    line,
+    join(
+      line,
+      path.map((p) => print(p as LiquidAstPath), 'filters'),
+    ),
+  );
+}
 
 function hasOrIsNode<N extends LiquidHtmlNode, K extends keyof N>(node: N, key: K) {
   const v = node[key];

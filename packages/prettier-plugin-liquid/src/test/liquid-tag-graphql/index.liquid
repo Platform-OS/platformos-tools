@@ -1,0 +1,18 @@
+It should format a basic graphql tag
+{% graphql response = 'modules/core/api_calls/send' %}
+
+It should format graphql tag with named args
+{% graphql response = 'modules/core/api_calls/send', data: object %}
+
+It should preserve filters on graphql tag result (file-based)
+{% graphql response = 'modules/core/api_calls/send', data: object, template: 'modules/openai/responses' | dig: 'api_call' %}
+
+It should preserve filters on graphql tag with no args
+{% graphql response = 'modules/core/api_calls/send' | dig: 'api_call' %}
+
+It should break on long lines with filters
+printWidth: 1
+{% graphql response = 'modules/core/api_calls/send', data: object | dig: 'api_call' %}
+
+It should format inline graphql tag with filter
+{% graphql response | dig: 'results' %}query { test }{% endgraphql %}

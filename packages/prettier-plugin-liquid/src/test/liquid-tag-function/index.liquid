@@ -25,3 +25,13 @@ It should format dot-access result variable
 
 It should format variable partial
 {% function res = partial_name %}
+
+It should preserve filters on function tag result (file-based)
+{% function res = 'modules/core/api_calls/send', data: object, template: 'modules/openai/responses' | dig: 'results' %}
+
+It should preserve filters on function tag with no args
+{% function res = 'modules/core/api_calls/send' | dig: 'results' %}
+
+It should break on long lines with filters
+printWidth: 1
+{% function res = 'modules/core/api_calls/send', data: object | dig: 'results' %}

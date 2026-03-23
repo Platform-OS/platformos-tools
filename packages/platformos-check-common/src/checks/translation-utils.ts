@@ -19,7 +19,7 @@ export async function discoverModules(
         }
       }
     } catch (error) {
-      console.error(`[translation-utils] Failed to read module directory ${dirUri}:`, error);
+      console.debug(`[translation-utils] Module directory ${dirUri} not detected, skipping.`);
     }
   }
   return modules;

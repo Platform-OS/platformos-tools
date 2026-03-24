@@ -1,5 +1,15 @@
 # @platformos/theme-language-server-node
 
+## 0.0.14
+
+### Patch Changes
+
+- better ctrl click, more checks
+- Updated dependencies
+  - @platformos/platformos-check-docs-updater@0.0.14
+  - @platformos/platformos-check-node@0.0.14
+  - @platformos/platformos-language-server-common@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes

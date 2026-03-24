@@ -1,5 +1,13 @@
 # @platformos/prettier-plugin-liquid
 
+## 0.0.13
+
+### Patch Changes
+
+- better ctrl click, more checks
+- Updated dependencies
+  - @platformos/liquid-html-parser@0.0.13
+
 ## 0.0.12
 
 ### Patch Changes

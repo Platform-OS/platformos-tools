@@ -1,5 +1,11 @@
 # @platformos/lang-jsonc
 
+## 0.0.13
+
+### Patch Changes
+
+- better ctrl click, more checks
+
 ## 0.0.12
 
 ### Patch Changes

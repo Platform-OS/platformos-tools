@@ -1,5 +1,14 @@
 # shopify/theme-graph
 
+## 0.0.14
+
+### Patch Changes
+
+- better ctrl click, more checks
+- Updated dependencies
+  - @platformos/liquid-html-parser@0.0.13
+  - @platformos/platformos-check-common@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes

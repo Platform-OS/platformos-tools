@@ -1,4 +1,4 @@
-import { FileType, TranslationProvider } from '@platformos/platformos-common';
+import { AbstractFileSystem, FileType, TranslationProvider } from '@platformos/platformos-common';
 import { flattenTranslationKeys } from '../utils/levenshtein';
 
 /**
@@ -6,27 +6,26 @@ import { flattenTranslationKeys } from '../utils/levenshtein';
  * Returns a deduplicated set of module names.
  */
 export async function discoverModules(
-  fs: { readDirectory(uri: string): Promise<[string, FileType][]> },
+  fs: AbstractFileSystem,
   ...moduleDirUris: string[]
 ): Promise<Set<string>> {
   const modules = new Set<string>();
   for (const dirUri of moduleDirUris) {
-    try {
-      const entries = await fs.readDirectory(dirUri);
-      for (const [entryUri, entryType] of entries) {
-        if (entryType === FileType.Directory) {
-          modules.add(entryUri.split('/').pop()!);
-        }
+    const stat = await fs.stat(dirUri).catch(() => undefined);
+    if (!stat || stat.type !== FileType.Directory) continue;
+
+    const entries = await fs.readDirectory(dirUri);
+    for (const [entryUri, entryType] of entries) {
+      if (entryType === FileType.Directory) {
+        modules.add(entryUri.split('/').pop()!);
       }
-    } catch (error) {
-      console.error(`[translation-utils] Failed to read module directory ${dirUri}:`, error);
     }
   }
   return modules;
 }
 
 export interface TranslationContext {
-  fs: { readDirectory(uri: string): Promise<[string, FileType][]> };
+  fs: AbstractFileSystem;
   toUri(relativePath: string): string;
   getTranslationsForBase(uri: string, locale: string): Promise<Record<string, any>>;
 }

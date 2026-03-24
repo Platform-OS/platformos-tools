@@ -4,9 +4,6 @@ import { configDefaults } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    deps: {
-      interopDefault: true,
-    },
     exclude: [...configDefaults.exclude],
     pool: 'forks',
     poolOptions: {

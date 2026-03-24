@@ -10,9 +10,6 @@ const ciExclude = ['./packages/prettier-plugin-liquid'];
 
 export default defineConfig({
   test: {
-    deps: {
-      interopDefault: true,
-    },
     exclude: CI
       ? [...configDefaults.exclude, '**/dist/**', ...ciExclude]
       : [...configDefaults.exclude, '**/dist/**'],

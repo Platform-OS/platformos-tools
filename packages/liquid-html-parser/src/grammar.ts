@@ -1,6 +1,11 @@
 import { grammars, Grammar } from 'ohm-js';
 
-export const liquidHtmlGrammars = grammars(require('../grammar/liquid-html.ohm.js'));
+const grammarSource: string = (() => {
+  const raw = require('../grammar/liquid-html.ohm.js');
+  return typeof raw === 'string' ? raw : raw.default;
+})();
+
+export const liquidHtmlGrammars = grammars(grammarSource);
 
 export const TextNodeGrammar = liquidHtmlGrammars['Helpers'];
 export const LiquidDocGrammar = liquidHtmlGrammars['LiquidDoc'];

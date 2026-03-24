@@ -55,6 +55,74 @@ function createMockFileSystem(files: Record<string, string>): AbstractFileSystem
 describe('DocumentsLocator', () => {
   const rootUri = URI.parse('file:///project');
 
+  describe('locateDefault', () => {
+    it('render → app/views/partials', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'render', 'my/partial')).toBe(
+        'file:///project/app/views/partials/my/partial.liquid',
+      );
+    });
+
+    it('include → app/views/partials', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'include', 'card')).toBe(
+        'file:///project/app/views/partials/card.liquid',
+      );
+    });
+
+    it('function → app/lib', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'function', 'commands/apply')).toBe(
+        'file:///project/app/lib/commands/apply.liquid',
+      );
+    });
+
+    it('graphql → app/graphql', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'graphql', 'users/search')).toBe(
+        'file:///project/app/graphql/users/search.graphql',
+      );
+    });
+
+    it('theme_render_rc → undefined', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'theme_render_rc', 'card')).toBeUndefined();
+    });
+
+    it('module render → modules/.../public/views/partials', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'render', 'modules/core/my/partial')).toBe(
+        'file:///project/modules/core/public/views/partials/my/partial.liquid',
+      );
+    });
+
+    it('module function → modules/.../public/lib', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'function', 'modules/core/commands/apply')).toBe(
+        'file:///project/modules/core/public/lib/commands/apply.liquid',
+      );
+    });
+
+    it('module graphql → modules/.../public/graphql', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'graphql', 'modules/core/users/search')).toBe(
+        'file:///project/modules/core/public/graphql/users/search.graphql',
+      );
+    });
+
+    it('deeply nested path — creates all missing intermediate dirs', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'render', 'a/b/c/d/partial')).toBe(
+        'file:///project/app/views/partials/a/b/c/d/partial.liquid',
+      );
+    });
+
+    it('asset → undefined (no canonical creation path)', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'asset', 'logo.png')).toBeUndefined();
+    });
+  });
+
   describe('locate', () => {
     it('should locate a partial file in app/lib', async () => {
       const fs = createMockFileSystem({

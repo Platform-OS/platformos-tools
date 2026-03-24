@@ -48,13 +48,17 @@ describe('RenderPartialDefinitionProvider', () => {
       expect(result[0].targetUri).toBe('file:///project/app/views/partials/card.liquid');
     });
 
-    it('should NOT use search paths for regular render tags', async () => {
+    it('should NOT use search paths for regular render tags — falls back to default creation path', async () => {
+      // The file only exists under a search path (theme/dress/card.liquid), not the standard path.
+      // render should NOT pick up search-path files; instead it falls back to the default
+      // app/views/partials/card.liquid creation path.
       const result = await getDefinitions("{% render 'card' %}", 12, {
         'project/app/config.yml': 'theme_search_paths:\n  - theme/dress',
         'project/app/views/partials/theme/dress/card.liquid': 'dress card',
       });
 
-      expect(result).toHaveLength(0);
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toBe('file:///project/app/views/partials/card.liquid');
     });
   });
 
@@ -127,6 +131,37 @@ describe('RenderPartialDefinitionProvider', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].targetUri).toBe('file:///project/app/graphql/users/search.graphql');
+    });
+  });
+
+  describe('missing files — fall back to default path', () => {
+    it('render: missing partial resolves to app/views/partials', async () => {
+      const result = await getDefinitions("{% render 'my/missing/partial' %}", 12, {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toBe(
+        'file:///project/app/views/partials/my/missing/partial.liquid',
+      );
+    });
+
+    it('function: missing partial resolves to app/lib', async () => {
+      const result = await getDefinitions("{% function result = 'commands/missing' %}", 24, {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toBe('file:///project/app/lib/commands/missing.liquid');
+    });
+
+    it('graphql: missing file resolves to app/graphql', async () => {
+      const result = await getDefinitions("{% graphql g = 'users/missing' %}", 18, {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toBe('file:///project/app/graphql/users/missing.graphql');
+    });
+
+    it('theme_render_rc: missing file returns empty (no default path)', async () => {
+      const result = await getDefinitions("{% theme_render_rc 'missing' %}", 20, {});
+
+      expect(result).toHaveLength(0);
     });
   });
 

@@ -2,6 +2,15 @@ import { grammars, Grammar } from 'ohm-js';
 
 const grammarSource: string = (() => {
   const raw = require('../grammar/liquid-html.ohm.js');
+  console.error('[grammar debug] typeof raw:', typeof raw);
+  console.error('[grammar debug] raw constructor:', raw?.constructor?.name);
+  if (typeof raw === 'object' && raw !== null) {
+    console.error('[grammar debug] raw keys:', Object.keys(raw).slice(0, 10));
+    console.error('[grammar debug] typeof raw.default:', typeof raw.default);
+    if (typeof raw.default === 'object' && raw.default !== null) {
+      console.error('[grammar debug] raw.default keys:', Object.keys(raw.default).slice(0, 10));
+    }
+  }
   return typeof raw === 'string' ? raw : raw.default;
 })();
 

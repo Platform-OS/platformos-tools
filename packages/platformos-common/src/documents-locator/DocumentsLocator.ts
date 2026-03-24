@@ -263,6 +263,39 @@ export class DocumentsLocator {
     return undefined;
   }
 
+  /**
+   * Returns the canonical default URI for a missing file so it can be created.
+   * Returns undefined for theme_render_rc (ambiguous search path) and asset.
+   */
+  locateDefault(rootUri: URI, nodeName: DocumentType, fileName: string): string | undefined {
+    const parsed = this.parseModulePath(fileName);
+
+    let basePath: string;
+    let ext: string;
+
+    switch (nodeName) {
+      case 'render':
+      case 'include':
+        basePath = parsed.isModule
+          ? `modules/${parsed.moduleName}/public/views/partials`
+          : 'app/views/partials';
+        ext = '.liquid';
+        break;
+      case 'function':
+        basePath = parsed.isModule ? `modules/${parsed.moduleName}/public/lib` : 'app/lib';
+        ext = '.liquid';
+        break;
+      case 'graphql':
+        basePath = parsed.isModule ? `modules/${parsed.moduleName}/public/graphql` : 'app/graphql';
+        ext = '.graphql';
+        break;
+      default:
+        return undefined;
+    }
+
+    return Utils.joinPath(rootUri, basePath, parsed.key + ext).toString();
+  }
+
   async locate(
     rootUri: URI,
     nodeName: DocumentType,

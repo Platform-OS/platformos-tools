@@ -13,6 +13,5 @@ export default defineConfig({
       },
     },
     globalSetup: ['./src/test/test-setup.js'],
-    setupFiles: ['../liquid-html-parser/build/shims.js'],
   },
 });

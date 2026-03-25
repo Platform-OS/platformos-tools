@@ -11,14 +11,15 @@ export async function discoverModules(
 ): Promise<Set<string>> {
   const modules = new Set<string>();
   for (const dirUri of moduleDirUris) {
-    const stat = await fs.stat(dirUri).catch(() => undefined);
-    if (!stat || stat.type !== FileType.Directory) continue;
-
-    const entries = await fs.readDirectory(dirUri);
-    for (const [entryUri, entryType] of entries) {
-      if (entryType === FileType.Directory) {
-        modules.add(entryUri.split('/').pop()!);
+    try {
+      const entries = await fs.readDirectory(dirUri);
+      for (const [entryUri, entryType] of entries) {
+        if (entryType === FileType.Directory) {
+          modules.add(entryUri.split('/').pop()!);
+        }
       }
+    } catch {
+      // Directory doesn't exist or isn't accessible — skip
     }
   }
   return modules;

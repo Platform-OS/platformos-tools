@@ -18,7 +18,7 @@ import {
   watchReferencesTreeViewConfig,
 } from '../common/ReferencesProvider';
 import { openLocation } from '../common/commands';
-import { buildMiddleware, openFileMissingCommand } from '../common/middleware';
+import { middleware } from '../common/middleware';
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -33,7 +33,6 @@ export async function activate(context: ExtensionContext) {
       client!.sendRequest('workspace/executeCommand', { command: runChecksCommand });
     }),
     commands.registerCommand('platformosLiquid.openLocation', openLocation),
-    commands.registerCommand('platformosLiquid.openFile', openFileMissingCommand),
     languages.registerDocumentFormattingEditProvider(
       [{ language: 'liquid' }],
       new LiquidFormatter(vscodePrettierFormat),
@@ -68,7 +67,7 @@ async function startServer(context: ExtensionContext) {
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: documentSelectors as DocumentSelector,
-    middleware: buildMiddleware(),
+    middleware,
   };
 
   client = new LanguageClient(

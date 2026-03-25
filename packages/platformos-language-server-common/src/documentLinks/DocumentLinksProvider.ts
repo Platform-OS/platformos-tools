@@ -64,17 +64,18 @@ function documentLinksVisitor(
 
       // render, include, function, theme_render_rc all have a .partial field
       if ('partial' in markup && isLiquidString(markup.partial)) {
-        const uri =
-          (await documentsLocator.locate(root, name, markup.partial.value, searchPaths)) ??
-          documentsLocator.locateDefault(root, name, markup.partial.value);
+        const uri = await documentsLocator.locateOrDefault(
+          root,
+          name,
+          markup.partial.value,
+          searchPaths,
+        );
         return DocumentLink.create(range(textDocument, markup.partial), uri);
       }
 
       // graphql has a .graphql field
       if ('graphql' in markup && isLiquidString(markup.graphql)) {
-        const uri =
-          (await documentsLocator.locate(root, name, markup.graphql.value)) ??
-          documentsLocator.locateDefault(root, name, markup.graphql.value);
+        const uri = await documentsLocator.locateOrDefault(root, name, markup.graphql.value);
         return DocumentLink.create(range(textDocument, markup.graphql), uri);
       }
     },

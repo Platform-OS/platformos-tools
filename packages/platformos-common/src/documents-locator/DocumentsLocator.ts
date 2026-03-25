@@ -264,7 +264,8 @@ export class DocumentsLocator {
   }
 
   /**
-   * Returns the canonical default URI for a missing file so it can be created.
+   * Returns the canonical URI where `fileName` would live — used as a
+   * go-to-definition fallback when the file doesn't exist yet.
    * Returns undefined for theme_render_rc (ambiguous search path) and asset.
    */
   locateDefault(rootUri: URI, nodeName: DocumentType, fileName: string): string | undefined {
@@ -289,11 +290,30 @@ export class DocumentsLocator {
         basePath = parsed.isModule ? `modules/${parsed.moduleName}/public/graphql` : 'app/graphql';
         ext = '.graphql';
         break;
+      case 'theme_render_rc': // ambiguous — multiple search paths, no single canonical location
+      case 'asset': // no canonical creation path
+        return undefined;
       default:
         return undefined;
     }
 
     return Utils.joinPath(rootUri, basePath, parsed.key + ext).toString();
+  }
+
+  /**
+   * Resolves `fileName` to a filesystem URI (if the file exists), or falls
+   * back to the canonical default URI from `locateDefault`.
+   */
+  async locateOrDefault(
+    rootUri: URI,
+    nodeName: DocumentType,
+    fileName: string,
+    themeSearchPaths?: string[] | null,
+  ): Promise<string | undefined> {
+    return (
+      (await this.locate(rootUri, nodeName, fileName, themeSearchPaths)) ??
+      this.locateDefault(rootUri, nodeName, fileName)
+    );
   }
 
   async locate(

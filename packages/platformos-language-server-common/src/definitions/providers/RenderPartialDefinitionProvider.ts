@@ -47,13 +47,12 @@ export class RenderPartialDefinitionProvider implements BaseDefinitionProvider {
     const root = URI.parse(rootUri);
     const searchPaths = await this.searchPathsCache.get(root);
     const docType = (tag as LiquidTag).name as DocumentType;
-    const fileUri =
-      (await this.documentsLocator.locate(
-        root,
-        docType,
-        (node as LiquidString).value,
-        searchPaths,
-      )) ?? this.documentsLocator.locateDefault(root, docType, (node as LiquidString).value);
+    const fileUri = await this.documentsLocator.locateOrDefault(
+      root,
+      docType,
+      (node as LiquidString).value,
+      searchPaths,
+    );
     if (!fileUri) return [];
 
     const sourceCode = this.documentManager.get(params.textDocument.uri);

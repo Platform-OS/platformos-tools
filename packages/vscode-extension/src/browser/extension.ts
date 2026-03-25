@@ -11,6 +11,7 @@ import LiquidFormatter from '../common/formatter';
 import { vscodePrettierFormat } from './formatter';
 import { documentSelectors } from '../common/constants';
 import { openLocation } from '../common/commands';
+import { buildMiddleware, openFileMissingCommand } from '../common/middleware';
 import {
   createReferencesTreeView,
   setupContext,
@@ -30,6 +31,7 @@ export async function activate(context: ExtensionContext) {
       client!.sendRequest('workspace/executeCommand', { command: runChecksCommand });
     }),
     commands.registerCommand('platformosLiquid.openLocation', openLocation),
+    commands.registerCommand('platformosLiquid.openFile', openFileMissingCommand),
     languages.registerDocumentFormattingEditProvider(
       [{ language: 'liquid' }],
       new LiquidFormatter(vscodePrettierFormat),
@@ -56,6 +58,7 @@ async function startServer(context: ExtensionContext) {
   console.log('Starting App Check Language Server');
   const clientOptions: LanguageClientOptions = {
     documentSelector: documentSelectors as DocumentSelector,
+    middleware: buildMiddleware(),
   };
 
   client = createWorkerLanguageClient(context, clientOptions);

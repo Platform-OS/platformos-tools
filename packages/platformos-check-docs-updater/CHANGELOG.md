@@ -1,5 +1,13 @@
 # @platformos/theme-check-docs-updater
 
+## 0.0.15
+
+### Patch Changes
+
+- ctrl+click fix
+- Updated dependencies
+  - @platformos/platformos-check-common@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes

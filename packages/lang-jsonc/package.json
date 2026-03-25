@@ -1,6 +1,6 @@
 {
   "name": "@platformos/lang-jsonc",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "JSONC language support for CodeMirror",
   "publishConfig": {
     "access": "public",

@@ -1,5 +1,13 @@
 # @platformos/theme-check-common
 
+## 0.0.15
+
+### Patch Changes
+
+- ctrl+click fix
+- Updated dependencies
+  - @platformos/liquid-html-parser@0.0.14
+
 ## 0.0.14
 
 ### Patch Changes

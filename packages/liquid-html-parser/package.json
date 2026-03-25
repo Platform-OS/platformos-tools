@@ -1,6 +1,6 @@
 {
   "name": "@platformos/liquid-html-parser",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Liquid HTML parser for platformOS",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/liquid-html-parser#readme",

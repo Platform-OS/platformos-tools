@@ -1,5 +1,11 @@
 # @platformos/platformos-common
 
+## 0.0.14
+
+### Patch Changes
+
+- ctrl+click fix
+
 ## 0.0.13
 
 ### Patch Changes

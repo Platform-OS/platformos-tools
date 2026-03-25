@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
-  "version": "0.3.4",
+  "version": "0.3.5",
   "publisher": "platformOS",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",

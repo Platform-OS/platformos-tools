@@ -1,5 +1,11 @@
 ## platformos-check-vscode
 
+## 0.3.5
+
+### Patch Changes
+
+- fix ctrl+click
+
 ## 0.3.4
 
 ### Patch Changes

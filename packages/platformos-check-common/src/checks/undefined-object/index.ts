@@ -58,6 +58,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
     const scopedVariables: Map<string, Scope[]> = new Map();
     const fileScopedVariables: Set<string> = new Set();
     const variables: LiquidVariableLookup[] = [];
+    let hasDocTag = false;
 
     function indexVariableScope(variableName: string | null, scope: Scope) {
       if (!variableName) return;
@@ -71,6 +72,12 @@ export const UndefinedObject: LiquidCheckDefinition = {
         const paramName = node.paramName?.value;
         if (paramName) {
           fileScopedVariables.add(paramName);
+        }
+      },
+
+      async LiquidRawTag(node) {
+        if (node.name === 'doc') {
+          hasDocTag = true;
         }
       },
 
@@ -191,6 +198,9 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
+        // If no @doc tag, assume undefined variables are params from caller
+        if (!hasDocTag) return;
+
         const objects = await globalObjects(platformosDocset, relativePath);
 
         objects.forEach((obj) => fileScopedVariables.add(obj.name));

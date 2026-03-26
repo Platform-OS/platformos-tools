@@ -194,7 +194,7 @@ ${buildComment('platformos-check-enable')}
       });
 
       it("should disable the parent node's next node if platformos-check is disabled as the last child node", async () => {
-        const file = `{% liquid
+        const file = `{% doc %}{% enddoc %}{% liquid
   if condition
     # platformos-check-disable-next-line
   elsif other_condition
@@ -211,7 +211,7 @@ ${buildComment('platformos-check-enable')}
       });
 
       it('should not disable any checks if platformos-check is disabled at the end', async () => {
-        const file = `{% liquid
+        const file = `{% doc %}{% enddoc %}{% liquid
   echo hello
   echo everyone
   # platformos-check-disable-next-line
@@ -232,7 +232,7 @@ ${buildComment('platformos-check-enable')}
       });
 
       it('should disable the next line if the content is an HTML tag with liquid', async () => {
-        const file = `{% # platformos-check-disable-next-line %}
+        const file = `{% doc %}{% enddoc %}{% # platformos-check-disable-next-line %}
 <div class="{{ foo }}"></div>
 <div class="{{ bar }}"></div>`;
 
@@ -246,7 +246,7 @@ ${buildComment('platformos-check-enable')}
       });
 
       it('should not disable the next line if the specified rule does not exist', async () => {
-        const file = `{% # platformos-check-disable-next-line FAKE_RULE %}
+        const file = `{% doc %}{% enddoc %}{% # platformos-check-disable-next-line FAKE_RULE %}
 <div class="{{ foo }}"></div>`;
 
         const offenses = await check({ 'code.liquid': file }, [UndefinedObject]);

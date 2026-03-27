@@ -602,6 +602,87 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
+  it('should report an offense for undefined variables in a page file even without doc tag', async () => {
+    const sourceCode = `
+      {{ my_var }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
+  });
+
+  it('should report an offense for undefined variables in a module page file even without doc tag', async () => {
+    const sourceCode = `
+      {{ my_var }}
+    `;
+
+    const modulePaths = [
+      'modules/my_module/public/views/pages/home.liquid',
+      'modules/my_module/private/views/pages/home.liquid',
+      'app/modules/my_module/public/views/pages/home.liquid',
+      'app/modules/my_module/private/views/pages/home.liquid',
+    ];
+
+    for (const pagePath of modulePaths) {
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode, pagePath);
+
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
+    }
+  });
+
+  it('should not report offenses for global objects in a page file without doc tag', async () => {
+    const sourceCode = `
+      {{ collections }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should not report offenses for assigned variables in a page file without doc tag', async () => {
+    const sourceCode = `
+      {% assign my_var = "hello" %}
+      {{ my_var }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should respect @param in a page file with doc tag', async () => {
+    const sourceCode = `
+      {% doc %}
+        @param {string} text
+      {% enddoc %}
+      {{ text }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(0);
+  });
+
   it('should report an offense for catch variable used outside catch block with doc tag', async () => {
     const sourceCode = `
       {% doc %}

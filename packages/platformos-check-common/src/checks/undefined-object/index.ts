@@ -22,6 +22,7 @@ import {
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
+import { isPage } from '../../path';
 import yaml from 'js-yaml';
 
 type Scope = { start?: number; end?: number };
@@ -198,8 +199,10 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-        // If no @doc tag, assume undefined variables are params from caller
-        if (!hasDocTag) return;
+        const fileIsPage = isPage(context.file.uri);
+
+        // If no @doc tag and not a page, assume undefined variables are params from caller
+        if (!hasDocTag && !fileIsPage) return;
 
         const objects = await globalObjects(platformosDocset, relativePath);
 

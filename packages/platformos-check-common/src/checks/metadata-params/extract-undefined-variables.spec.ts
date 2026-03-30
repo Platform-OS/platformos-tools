@@ -55,7 +55,14 @@ describe('extractUndefinedVariables', () => {
 
   it('should not include global objects', () => {
     const source = `{{ context.session }}`;
-    const result = extractUndefinedVariables(source, ['context', 'null', 'true', 'false', 'blank', 'empty']);
+    const result = extractUndefinedVariables(source, [
+      'context',
+      'null',
+      'true',
+      'false',
+      'blank',
+      'empty',
+    ]);
     expect(result).to.deep.equal([]);
   });
 

@@ -75,9 +75,7 @@ describe('Module: MetadataParamsCheck', () => {
     const offenses = await check(files, [MetadataParamsCheck]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses).to.containOffense(
-      'Unknown parameter extra passed to function call',
-    );
+    expect(offenses).to.containOffense('Unknown parameter extra passed to function call');
   });
 
   it('should allow doc-optional params without requiring them', async () => {
@@ -144,9 +142,7 @@ describe('Module: MetadataParamsCheck', () => {
     const offenses = await check(files, [MetadataParamsCheck]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses).to.containOffense(
-      'Required parameter unused must be passed to function call',
-    );
+    expect(offenses).to.containOffense('Required parameter unused must be passed to function call');
   });
 
   it('should infer required params from undefined variables when no doc', async () => {
@@ -185,9 +181,7 @@ describe('Module: MetadataParamsCheck', () => {
     const offenses = await check(files, [MetadataParamsCheck]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses).to.containOffense(
-      'Required parameter a must be passed to function call',
-    );
+    expect(offenses).to.containOffense('Required parameter a must be passed to function call');
   });
 
   it('should report unknown params when passing args not in inferred set', async () => {
@@ -207,9 +201,7 @@ describe('Module: MetadataParamsCheck', () => {
     const offenses = await check(files, [MetadataParamsCheck]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses).to.containOffense(
-      'Unknown parameter extra passed to function call',
-    );
+    expect(offenses).to.containOffense('Unknown parameter extra passed to function call');
   });
 
   it('should not include global objects like context in inferred params', async () => {
@@ -242,9 +234,7 @@ describe('Module: MetadataParamsCheck', () => {
     const offenses = await check(files, [MetadataParamsCheck]);
 
     expect(offenses).to.have.length(1);
-    expect(offenses).to.containOffense(
-      'Required parameter a must be passed to render call',
-    );
+    expect(offenses).to.containOffense('Required parameter a must be passed to render call');
   });
 
   it('should skip validation when no doc and no undefined vars', async () => {

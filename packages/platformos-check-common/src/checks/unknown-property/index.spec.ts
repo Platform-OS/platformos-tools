@@ -347,6 +347,68 @@ query {
     });
   });
 
+  describe('JSON literal validation', () => {
+    it('should report unknown property on hash literal', async () => {
+      const sourceCode = `{% assign a = {x: 5} %}{{ a.b }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'b' on 'a'.");
+    });
+
+    it('should not report for valid property on hash literal', async () => {
+      const sourceCode = `{% assign a = {x: 5, y: 10} %}{{ a.x }}{{ a.y }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should handle nested hash literals', async () => {
+      const sourceCode = `{% assign a = {x: {y: 1}} %}{{ a.x.y }}{{ a.x.z }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'z' on 'a.x'.");
+    });
+
+    it('should report unknown property access on array literal', async () => {
+      const sourceCode = `{% assign a = [2, 3] %}{{ a.asd }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'asd' on 'a'.");
+    });
+
+    it('should allow first/last/size on array literals', async () => {
+      const sourceCode = `{% assign a = [2, 3] %}{{ a.first }}{{ a.last }}{{ a.size }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should allow numeric index on array literals', async () => {
+      const sourceCode = `{% assign a = [2, 3] %}{{ a[0] }}{{ a[1] }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should report primitive access on array item from hash literal items', async () => {
+      const sourceCode = `{% assign a = [{x: 1}, {x: 2}] %}{{ a.first.x }}{{ a.first.y }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'y' on 'a.first'.");
+    });
+
+    it('should report unknown property when assigning from known-shape variable', async () => {
+      const sourceCode = `{% assign a = [2, 3] %}{% assign b = a.asd %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'asd' on 'a'.");
+    });
+
+    it('should report unknown property on hash literal assigned via another variable', async () => {
+      const sourceCode = `{% assign a = {a: 5} %}{% assign b = a.b %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'b' on 'a'.");
+    });
+  });
+
   describe('error message formatting', () => {
     it('should include variable name in error message', async () => {
       const sourceCode = `{% assign myVar = '{"a": 1}' | parse_json %}

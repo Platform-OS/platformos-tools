@@ -22,6 +22,7 @@ import {
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
+import { isPage } from '../../path';
 import yaml from 'js-yaml';
 
 type Scope = { start?: number; end?: number };
@@ -58,6 +59,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
     const scopedVariables: Map<string, Scope[]> = new Map();
     const fileScopedVariables: Set<string> = new Set();
     const variables: LiquidVariableLookup[] = [];
+    let hasDocTag = false;
 
     function indexVariableScope(variableName: string | null, scope: Scope) {
       if (!variableName) return;
@@ -71,6 +73,12 @@ export const UndefinedObject: LiquidCheckDefinition = {
         const paramName = node.paramName?.value;
         if (paramName) {
           fileScopedVariables.add(paramName);
+        }
+      },
+
+      async LiquidRawTag(node) {
+        if (node.name === 'doc') {
+          hasDocTag = true;
         }
       },
 
@@ -191,6 +199,11 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
+        const fileIsPage = isPage(context.file.uri);
+
+        // If no @doc tag and not a page, assume undefined variables are params from caller
+        if (!hasDocTag && !fileIsPage) return;
+
         const objects = await globalObjects(platformosDocset, relativePath);
 
         objects.forEach((obj) => fileScopedVariables.add(obj.name));

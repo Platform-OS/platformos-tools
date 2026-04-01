@@ -1,31 +1,9 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import yaml from 'js-yaml';
 import { DocumentsLocator, DocumentType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
 import { relative } from '../../path';
-
-type Metadata = {
-  metadata: {
-    params: Record<string, unknown>;
-  };
-};
-
-function extractMetadataParams(source: string): string[] | null {
-  source = source.trim();
-  if (!source.startsWith('---')) return null;
-
-  const end = source.indexOf('---', 3);
-  if (end === -1) return null;
-
-  const yamlBlock = source.slice(3, end).trim();
-  try {
-    const result = yaml.load(yamlBlock) as Metadata;
-    return Object.keys(result.metadata.params);
-  } catch (e) {
-    return null;
-  }
-}
+import { extractUndefinedVariables } from './extract-undefined-variables';
 
 export const MetadataParamsCheck: LiquidCheckDefinition = {
   meta: {
@@ -33,7 +11,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
     name: 'Metadata Params Check',
     docs: {
       description:
-        'Ensures that parameters referenced in the document exist in metadata.params or in the doc tag.',
+        'Ensures that parameters referenced in the document exist in the doc tag or are inferred from undefined variables.',
       recommended: true,
       url: undefined,
     },
@@ -61,21 +39,60 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
       if (!locatedFile) {
         return;
       }
-      let params = extractMetadataParams(await context.fs.readFile(locatedFile));
-      if (!params) {
-        if (!context.getDocDefinition) return;
-        const relativePath = relative(locatedFile, context.config.rootUri);
-        const docDef = await context.getDocDefinition(relativePath);
-        if (!docDef?.liquidDoc?.parameters) return;
-        const liquidDocParameters = new Map(docDef.liquidDoc.parameters.map((p) => [p.name, p]));
 
-        params = Array.from(liquidDocParameters.values())
+      const source = await context.fs.readFile(locatedFile);
+      const relativePath = relative(locatedFile, context.config.rootUri);
+
+      let requiredParams: string[];
+      let allowedParams: string[];
+
+      // Check for @doc tag first — if present, it's the complete param list
+      const docDef = context.getDocDefinition
+        ? await context.getDocDefinition(relativePath)
+        : undefined;
+
+      if (docDef?.liquidDoc?.parameters) {
+        const globalObjectNames: string[] = [];
+        if (context.platformosDocset) {
+          const objects = await context.platformosDocset.objects();
+          for (const obj of objects) {
+            if (!obj.access || obj.access.global === true || obj.access.template.length > 0) {
+              globalObjectNames.push(obj.name);
+            }
+          }
+        }
+        const undefinedVars = extractUndefinedVariables(source, globalObjectNames);
+        const docRequiredNames = docDef.liquidDoc.parameters
           .filter((p) => p.required)
           .map((p) => p.name);
+        requiredParams = docRequiredNames.filter((name) => undefinedVars.includes(name));
+        allowedParams = docDef.liquidDoc.parameters.map((p) => p.name);
+      } else {
+        // No @doc — scan for undefined variables, treat all as required
+        const globalObjectNames: string[] = [];
+        if (context.platformosDocset) {
+          const objects = await context.platformosDocset.objects();
+          for (const obj of objects) {
+            if (!obj.access || obj.access.global === true || obj.access.template.length > 0) {
+              globalObjectNames.push(obj.name);
+            }
+          }
+        }
+        if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
+          if (!globalObjectNames.includes('app')) {
+            globalObjectNames.push('app');
+          }
+        }
+
+        const undefinedVars = extractUndefinedVariables(source, globalObjectNames);
+        if (undefinedVars.length === 0) return;
+
+        requiredParams = undefinedVars;
+        allowedParams = undefinedVars;
       }
 
       args
-        .filter((arg) => !params.includes(arg.name))
+        .filter((arg) => !allowedParams.includes(arg.name))
         .forEach((arg) => {
           context.report({
             message: `Unknown parameter ${arg.name} passed to ${nodeType} call`,
@@ -84,7 +101,7 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
           });
         });
 
-      params
+      requiredParams
         .filter((param) => !args.find((arg) => arg.name === param))
         .forEach((param) => {
           context.report({

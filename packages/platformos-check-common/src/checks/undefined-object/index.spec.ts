@@ -4,8 +4,20 @@ import { runLiquidCheck, highlightedOffenses } from '../../test';
 import { Offense } from '../../types';
 
 describe('Module: UndefinedObject', () => {
-  it('should report an offense when object is undefined', async () => {
+  it('should not report offenses when no doc tag is present', async () => {
     const sourceCode = `
+      {{ my_var }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should report an offense when object is undefined and doc tag is present', async () => {
+    const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {{ my_var }}
     `;
 
@@ -18,8 +30,10 @@ describe('Module: UndefinedObject', () => {
     expect(highlights).toEqual(['my_var']);
   });
 
-  it('should report an offense when object with an attribute is undefined', async () => {
+  it('should report an offense when object with an attribute is undefined and doc tag is present', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {{ my_var.my_attr }}
     `;
 
@@ -29,8 +43,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_var' used."]);
   });
 
-  it('should report an offense when undefined object is used as an argument', async () => {
+  it('should report an offense when undefined object is used as an argument with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {{ product[my_object] }}
       {{ product[my_object] }}
 
@@ -47,12 +63,14 @@ describe('Module: UndefinedObject', () => {
     ]);
   });
 
-  it('should report an offense when object is undefined in a Liquid tag', async () => {
+  it('should report an offense when object is undefined in a Liquid tag with doc tag', async () => {
     const sourceCode = `
-    {% liquid
-      echo my_var
-    %}
-  `;
+      {% doc %}
+      {% enddoc %}
+      {% liquid
+        echo my_var
+      %}
+    `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
 
@@ -121,8 +139,11 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when object is defined in a for loop but used outside of the scope', async () => {
+  it('should report an offense when object is defined in a for loop but used outside of the scope with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+        @param {Array} collections
+      {% enddoc %}
       {% for c in collections %}
         {{ c }}
       {% endfor %}{{ c }}
@@ -145,8 +166,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when function result variable is used before its definition', async () => {
+  it('should report an offense when function result variable is used before its definition with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {{ a }}
       {% function a = 'test' %}
     `;
@@ -183,15 +206,14 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when a variable partial in include is undefined', async () => {
+  it('should not report offenses for undefined partials without doc tag', async () => {
     const sourceCode = `
       {% include undefined_partial %}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
 
-    expect(offenses).toHaveLength(1);
-    expect(offenses[0].message).toBe("Unknown object 'undefined_partial' used.");
+    expect(offenses).toHaveLength(0);
   });
 
   it('should not report an offense when a variable partial in include is defined', async () => {
@@ -205,19 +227,20 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when a variable partial in function is undefined', async () => {
+  it('should not report offenses for undefined function partials without doc tag', async () => {
     const sourceCode = `
       {% function result = undefined_partial %}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
 
-    expect(offenses).toHaveLength(1);
-    expect(offenses[0].message).toBe("Unknown object 'undefined_partial' used.");
+    expect(offenses).toHaveLength(0);
   });
 
   it('should not report an offense for the result variable itself in function tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% function result = undefined_partial %}
     `;
 
@@ -227,8 +250,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.every((o) => o.message !== "Unknown object 'result' used.")).toBe(true);
   });
 
-  it('should report offenses for lookup key variables in function result target and partial', async () => {
+  it('should report offenses for lookup key variables in function result target and partial with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% parse_json my_hash %}{}{% endparse_json %}
       {% function my_hash[lookup_key] = my_hash[path_var] %}
     `;
@@ -242,8 +267,10 @@ describe('Module: UndefinedObject', () => {
     expect(messages).not.toContain("Unknown object 'my_hash' used.");
   });
 
-  it('should check the partial variable in function but not the hash-access result target base', async () => {
+  it('should check the partial variable in function but not the hash-access result target base with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% parse_json my_hash %}{}{% endparse_json %}
       {% function my_hash['key'] = undefined_partial %}
     `;
@@ -255,8 +282,11 @@ describe('Module: UndefinedObject', () => {
     expect(messages).not.toContain("Unknown object 'my_hash' used.");
   });
 
-  it('should report an offense when object is defined in a for loop but used outside of the scope (in scenarios where the same variable has multiple scopes in the file)', async () => {
+  it('should report an offense when object is defined in a for loop but used outside of the scope (multiple scopes) with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+        @param {Array} collections
+      {% enddoc %}
       {% for c in collections %}
         {% comment %} -- Scope 1 -- {% endcomment %}
         {{ c }}
@@ -278,8 +308,10 @@ describe('Module: UndefinedObject', () => {
     ]);
   });
 
-  it('should report an offense when undefined object defines another object', async () => {
+  it('should report an offense when undefined object defines another object with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% assign my_object = my_var %}
       {{ my_object }}
     `;
@@ -302,8 +334,11 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when object is defined in a tablerow loop but used outside of the scope', async () => {
+  it('should report an offense when object is defined in a tablerow loop but used outside of the scope with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+        @param {Array} collections
+      {% enddoc %}
       {% tablerow c in collections %}
         {{ c }}
       {% endtablerow %}{{ c }}
@@ -315,8 +350,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'c' used."]);
   });
 
-  it('should contextually report on the undefined nature of the form object (defined in form tag, undefined outside)', async () => {
+  it('should contextually report on the undefined nature of the form object with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% form "cart" %}
         {{ form }}
       {% endform %}{{ form }}
@@ -328,8 +365,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'form' used."]);
   });
 
-  it('should support {% layout none %}', async () => {
+  it('should support {% layout none %} with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% layout none %}
       {{ none }}
     `;
@@ -352,7 +391,7 @@ describe('Module: UndefinedObject', () => {
     }
   });
 
-  it('should report an offense when object is undefined in a "partial" file with doc tags that are missing the associated param', async () => {
+  it('should report an offense when object is undefined in a partial file with empty doc tag', async () => {
     const sourceCode = `
     {% doc %}
     {% enddoc %}
@@ -384,8 +423,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when object is not global', async () => {
+  it('should report an offense when object is not global with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {{ image }}
     `;
 
@@ -409,19 +450,21 @@ describe('Module: UndefinedObject', () => {
     }
   });
 
-  it('should support contextual exceptions for partials', async () => {
+  it('should not report offenses for contextual objects without doc tag', async () => {
     let offenses: Offense[];
     const contexts: [string, string][] = [['app', 'app/views/partials/theme-app-extension.liquid']];
     for (const [object, goodPath] of contexts) {
       offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, goodPath);
       expect(offenses).toHaveLength(0);
       offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, 'file.liquid');
-      expect(offenses).toHaveLength(1);
+      expect(offenses).toHaveLength(0);
     }
   });
 
-  it('should report an offense for forloop/tablerowloop used outside of context', async () => {
+  it('should report an offense for forloop/tablerowloop used outside of context with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {{ forloop }}
       {{ tablerowloop }}
     `;
@@ -458,8 +501,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when assigning an undefined variable to itself', async () => {
+  it('should report an offense when assigning an undefined variable to itself with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% assign my_var = my_var | default: "fallback" %}
     `;
 
@@ -469,7 +514,7 @@ describe('Module: UndefinedObject', () => {
     expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
   });
 
-  it('should report an offense when undefined variable is used inside background block', async () => {
+  it('should not report offenses for undefined variables inside background block without doc tag', async () => {
     const sourceCode = `
       {% background source_type: 'some form' %}
         {{ undefined_var }}
@@ -478,7 +523,7 @@ describe('Module: UndefinedObject', () => {
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
 
-    expect(offenses).toHaveLength(1);
+    expect(offenses).toHaveLength(0);
   });
 
   it('should not report an offense when job_id is used after background file-based tag', async () => {
@@ -503,7 +548,7 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when job_id is used before background file-based tag', async () => {
+  it('should not report offenses for job_id used before background tag without doc tag', async () => {
     const sourceCode = `
       {{ my_job }}
       {% background my_job = 'some_partial' %}
@@ -511,8 +556,7 @@ describe('Module: UndefinedObject', () => {
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
 
-    expect(offenses).toHaveLength(1);
-    expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_job' used."]);
+    expect(offenses).toHaveLength(0);
   });
 
   it('should not report an offense when object is defined with a parse_json tag', async () => {
@@ -528,8 +572,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense when parse_json variable is used before the tag', async () => {
+  it('should report an offense when parse_json variable is used before the tag with doc tag', async () => {
     const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {{ groups_data }}
       {% parse_json groups_data %}
         { "hello": "world" }
@@ -556,8 +602,91 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
-  it('should report an offense for catch variable used outside catch block', async () => {
+  it('should report an offense for undefined variables in a page file even without doc tag', async () => {
     const sourceCode = `
+      {{ my_var }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
+  });
+
+  it('should report an offense for undefined variables in a module page file even without doc tag', async () => {
+    const sourceCode = `
+      {{ my_var }}
+    `;
+
+    const modulePaths = [
+      'modules/my_module/public/views/pages/home.liquid',
+      'modules/my_module/private/views/pages/home.liquid',
+      'app/modules/my_module/public/views/pages/home.liquid',
+      'app/modules/my_module/private/views/pages/home.liquid',
+    ];
+
+    for (const pagePath of modulePaths) {
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode, pagePath);
+
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toBe("Unknown object 'my_var' used.");
+    }
+  });
+
+  it('should not report offenses for global objects in a page file without doc tag', async () => {
+    const sourceCode = `
+      {{ collections }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should not report offenses for assigned variables in a page file without doc tag', async () => {
+    const sourceCode = `
+      {% assign my_var = "hello" %}
+      {{ my_var }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should respect @param in a page file with doc tag', async () => {
+    const sourceCode = `
+      {% doc %}
+        @param {string} text
+      {% enddoc %}
+      {{ text }}
+    `;
+
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/pages/home.liquid',
+    );
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should report an offense for catch variable used outside catch block with doc tag', async () => {
+    const sourceCode = `
+      {% doc %}
+      {% enddoc %}
       {% try %}
         {{ "something" }}
       {% catch error %}

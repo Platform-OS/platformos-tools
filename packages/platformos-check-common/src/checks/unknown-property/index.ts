@@ -87,8 +87,10 @@ export const UnknownProperty: LiquidCheckDefinition = {
         if (isLiquidTagAssign(node)) {
           const markup = node.markup;
 
-          // Close any previous shape for this variable (reassignment)
-          closeShapeRange(markup.name, node.position.start);
+          // Close any previous shape for this variable (reassignment).
+          // Use the value expression's end so the RHS can still see the old shape
+          // (e.g. {% assign c = c.d %} — c.d must resolve against the previous shape of c).
+          closeShapeRange(markup.name, markup.value.position.end);
 
           const hasParseJsonFilter =
             markup.value.filters &&

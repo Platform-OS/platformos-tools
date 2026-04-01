@@ -559,7 +559,9 @@ function isLiquidString(expr: LiquidString | LiquidVariableLookup): expr is Liqu
 /**
  * Infer a PropertyShape from a JsonHashLiteral or JsonArrayLiteral AST node.
  */
-function inferShapeFromLiteralNode(node: JsonHashLiteral | JsonArrayLiteral): PropertyShape | undefined {
+function inferShapeFromLiteralNode(
+  node: JsonHashLiteral | JsonArrayLiteral,
+): PropertyShape | undefined {
   if (node.type === NodeTypes.JsonArrayLiteral) {
     let itemShape: PropertyShape | undefined;
     for (const element of node.elements) {

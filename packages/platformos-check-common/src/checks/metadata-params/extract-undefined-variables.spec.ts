@@ -47,6 +47,12 @@ describe('extractUndefinedVariables', () => {
     expect(result).to.deep.equal([]);
   });
 
+  it('should handle inline graphql result variables', () => {
+    const source = `{% graphql res %}{ users { id } }{% endgraphql %}{{ res }}`;
+    const result = extractUndefinedVariables(source);
+    expect(result).to.deep.equal([]);
+  });
+
   it('should handle parse_json result variables', () => {
     const source = `{% parse_json data %}{"a":1}{% endparse_json %}{{ data }}`;
     const result = extractUndefinedVariables(source);
@@ -84,10 +90,16 @@ describe('extractUndefinedVariables', () => {
     expect(result).to.deep.equal([]);
   });
 
-  it('should handle hash_assign as definition', () => {
-    const source = `{% hash_assign h['key'] = 'val' %}{{ h }}`;
+  it('should handle background file-based result variables', () => {
+    const source = `{% background my_job = 'some_partial' %}{{ my_job }}`;
     const result = extractUndefinedVariables(source);
     expect(result).to.deep.equal([]);
+  });
+
+  it('should handle inline background tag without job_id', () => {
+    const source = `{% background source_name: 'my_task' %}echo "hello"{% endbackground %}{{ my_job }}`;
+    const result = extractUndefinedVariables(source);
+    expect(result).to.deep.equal(['my_job']);
   });
 
   it('should not include doc param names', () => {

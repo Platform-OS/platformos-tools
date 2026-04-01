@@ -122,7 +122,7 @@ describe('Module: MetadataParamsCheck', () => {
     expect(offenses).to.have.length(0);
   });
 
-  it('should require doc params even if not used in source', async () => {
+  it('should not require doc params that are not used in source', async () => {
     const file = `
       {% doc %}
         @param {String} a - required param
@@ -141,8 +141,7 @@ describe('Module: MetadataParamsCheck', () => {
 
     const offenses = await check(files, [MetadataParamsCheck]);
 
-    expect(offenses).to.have.length(1);
-    expect(offenses).to.containOffense('Required parameter unused must be passed to function call');
+    expect(offenses).to.have.length(0);
   });
 
   it('should infer required params from undefined variables when no doc', async () => {

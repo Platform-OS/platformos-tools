@@ -52,7 +52,20 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
         : undefined;
 
       if (docDef?.liquidDoc?.parameters) {
-        requiredParams = docDef.liquidDoc.parameters.filter((p) => p.required).map((p) => p.name);
+        const globalObjectNames: string[] = [];
+        if (context.platformosDocset) {
+          const objects = await context.platformosDocset.objects();
+          for (const obj of objects) {
+            if (!obj.access || obj.access.global === true || obj.access.template.length > 0) {
+              globalObjectNames.push(obj.name);
+            }
+          }
+        }
+        const undefinedVars = extractUndefinedVariables(source, globalObjectNames);
+        const docRequiredNames = docDef.liquidDoc.parameters
+          .filter((p) => p.required)
+          .map((p) => p.name);
+        requiredParams = docRequiredNames.filter((name) => undefinedVars.includes(name));
         allowedParams = docDef.liquidDoc.parameters.map((p) => p.name);
       } else {
         // No @doc — scan for undefined variables, treat all as required

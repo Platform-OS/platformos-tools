@@ -12,6 +12,8 @@ import {
   GraphQLMarkup,
   GraphQLInlineMarkup,
   HashAssignMarkup,
+  JsonHashLiteral,
+  JsonArrayLiteral,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isError } from '../../utils';
@@ -124,6 +126,19 @@ export const UnknownProperty: LiquidCheckDefinition = {
                   range: [node.position.end],
                 });
               }
+            }
+          }
+
+          // {% assign x = {a: 5, b: {c: 1}} %} or {% assign x = [1, 2, 3] %}
+          const exprType = markup.value.expression.type;
+          if (exprType === NodeTypes.JsonHashLiteral || exprType === NodeTypes.JsonArrayLiteral) {
+            const shape = inferShapeFromLiteralNode(markup.value.expression);
+            if (shape) {
+              variableShapes.push({
+                name: markup.name,
+                shape,
+                range: [node.position.end],
+              });
             }
           }
 
@@ -539,4 +554,56 @@ function isGraphQLInlineMarkup(
 
 function isLiquidString(expr: LiquidString | LiquidVariableLookup): expr is LiquidString {
   return expr.type === NodeTypes.String;
+}
+
+/**
+ * Infer a PropertyShape from a JsonHashLiteral or JsonArrayLiteral AST node.
+ */
+function inferShapeFromLiteralNode(node: JsonHashLiteral | JsonArrayLiteral): PropertyShape | undefined {
+  if (node.type === NodeTypes.JsonArrayLiteral) {
+    let itemShape: PropertyShape | undefined;
+    for (const element of node.elements) {
+      const elShape = inferShapeFromExpressionNode(element);
+      if (elShape) {
+        itemShape = itemShape ? itemShape : elShape;
+      }
+    }
+    return { kind: 'array', itemShape };
+  }
+
+  if (node.type === NodeTypes.JsonHashLiteral) {
+    const properties = new Map<string, PropertyShape>();
+    for (const entry of node.entries) {
+      // Keys are VariableLookup nodes where the name is the key string
+      if (entry.key.type === NodeTypes.VariableLookup && entry.key.name) {
+        const valueShape = inferShapeFromExpressionNode(entry.value);
+        properties.set(entry.key.name, valueShape ?? { kind: 'primitive' });
+      }
+    }
+    return { kind: 'object', properties };
+  }
+
+  return undefined;
+}
+
+/**
+ * Infer a PropertyShape from a Liquid expression or variable node.
+ */
+function inferShapeFromExpressionNode(node: LiquidExpression | LiquidVariable): PropertyShape {
+  if (node.type === NodeTypes.JsonHashLiteral) {
+    return inferShapeFromLiteralNode(node as JsonHashLiteral) ?? { kind: 'primitive' };
+  }
+  if (node.type === NodeTypes.JsonArrayLiteral) {
+    return inferShapeFromLiteralNode(node as JsonArrayLiteral) ?? { kind: 'primitive' };
+  }
+  if (node.type === NodeTypes.String) {
+    return { kind: 'primitive', primitiveType: 'string' };
+  }
+  if (node.type === NodeTypes.Number) {
+    return { kind: 'primitive', primitiveType: 'number' };
+  }
+  if (node.type === NodeTypes.LiquidLiteral) {
+    return { kind: 'primitive' };
+  }
+  return { kind: 'primitive' };
 }

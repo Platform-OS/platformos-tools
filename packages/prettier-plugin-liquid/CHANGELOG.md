@@ -1,5 +1,17 @@
 # @platformos/prettier-plugin-liquid
 
+## 0.0.15
+
+### Patch Changes
+
+- Improved Liquid Linting
+  - Better metadata params validation — Reworked detection of undefined variables in page/partial metadata parameters, reducing false positives
+  - Improved undefined object detection — More accurate identification of undefined objects in Liquid templates
+  - Fixed invalid property detection — The unknown-property check now correctly catches more cases of invalid property access on objects
+
+- Updated dependencies
+  - @platformos/liquid-html-parser@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes

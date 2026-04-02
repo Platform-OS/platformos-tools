@@ -1,5 +1,19 @@
 # @platformos/theme-language-server-node
 
+## 0.0.16
+
+### Patch Changes
+
+- Improved Liquid Linting
+  - Better metadata params validation — Reworked detection of undefined variables in page/partial metadata parameters, reducing false positives
+  - Improved undefined object detection — More accurate identification of undefined objects in Liquid templates
+  - Fixed invalid property detection — The unknown-property check now correctly catches more cases of invalid property access on objects
+
+- Updated dependencies
+  - @platformos/platformos-check-docs-updater@0.0.16
+  - @platformos/platformos-check-node@0.0.16
+  - @platformos/platformos-language-server-common@0.0.16
+
 ## 0.0.15
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@platformos/prettier-plugin-liquid",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "description": "Prettier Liquid/HTML plugin for platformOS",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/prettier-plugin-liquid#readme",
@@ -60,7 +60,7 @@
     "tsconfig-paths": "^4.2.0"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "^0.0.14",
+    "@platformos/liquid-html-parser": "^0.0.15",
     "html-styles": "^1.0.0"
   }
 }

@@ -1,5 +1,11 @@
 # @platformos/theme-language-server-browser
 
+## 0.0.17
+
+### Patch Changes
+
+- @platformos/platformos-language-server-common@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @platformos/theme-language-server-common
 
+## 0.0.17
+
+### Patch Changes
+
+- Updated dependencies
+  - @platformos/platformos-check-common@0.0.17
+  - @platformos/platformos-graph@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes

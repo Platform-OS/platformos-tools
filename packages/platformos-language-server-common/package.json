@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-language-server-common",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "platformOS",
@@ -28,8 +28,8 @@
   },
   "dependencies": {
     "@platformos/liquid-html-parser": "^0.0.15",
-    "@platformos/platformos-check-common": "0.0.16",
-    "@platformos/platformos-graph": "0.0.16",
+    "@platformos/platformos-check-common": "0.0.17",
+    "@platformos/platformos-graph": "0.0.17",
     "@vscode/web-custom-data": "^0.4.6",
     "graphql": "^16.12.0",
     "graphql-language-service": "^5.2.2",

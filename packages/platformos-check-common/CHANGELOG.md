@@ -1,5 +1,11 @@
 # @platformos/theme-check-common
 
+## 0.0.17
+
+### Patch Changes
+
+- Fixed validation on unknown objects
+
 ## 0.0.16
 
 ### Patch Changes

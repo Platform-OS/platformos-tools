@@ -30,7 +30,7 @@ import { ValidJSON } from './valid-json';
 import { ValidDocParamTypes } from './valid-doc-param-types';
 import { ValidRenderPartialArgumentTypes } from './valid-render-partial-argument-types';
 import { VariableName } from './variable-name';
-import { MetadataParamsCheck } from './metadata-params';
+import { PartialCallArguments } from './partial-call-arguments';
 import { GraphQLVariablesCheck } from './graphql-variables';
 import { GraphQLCheck } from './graphql';
 import { UnknownProperty } from './unknown-property';
@@ -71,7 +71,7 @@ export const allChecks: (
   ValidDocParamTypes,
   ValidRenderPartialArgumentTypes,
   VariableName,
-  MetadataParamsCheck,
+  PartialCallArguments,
   GraphQLVariablesCheck,
   GraphQLCheck,
   UnknownProperty,

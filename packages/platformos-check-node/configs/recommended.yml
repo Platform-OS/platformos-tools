@@ -36,9 +36,6 @@ LiquidHTMLSyntaxError:
 MatchingTranslations:
   enabled: true
   severity: 0
-MetadataParamsCheck:
-  enabled: true
-  severity: 0
 MissingAsset:
   enabled: true
   severity: 0
@@ -59,6 +56,9 @@ OrphanedPartial:
   enabled: true
   severity: 1
 ParserBlockingScript:
+  enabled: true
+  severity: 0
+PartialCallArguments:
   enabled: true
   severity: 0
 TranslationKeyExists:

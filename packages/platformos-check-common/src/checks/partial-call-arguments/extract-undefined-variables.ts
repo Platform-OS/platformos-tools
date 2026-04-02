@@ -8,6 +8,7 @@ import {
   LiquidTagIncrement,
   LiquidTagTablerow,
   LiquidVariableLookup,
+  LiquidVariable,
   NamedTags,
   NodeTypes,
   Position,
@@ -25,7 +26,10 @@ type Scope = { start?: number; end?: number };
 
 /**
  * Parses a Liquid source string and returns a deduplicated list of variable names
- * that are used but never defined. Returns [] on parse errors.
+ * that are used but never defined. Returns `{ required: [], optional: [] }` on parse errors.
+ *
+ * Variables used exclusively with `| default` filter (e.g. `assign x = x | default: val`)
+ * are returned in `optional` — the partial handles the missing-argument case itself.
  *
  * This mirrors the variable tracking logic from the UndefinedObject check but
  * packaged as a standalone synchronous function.
@@ -33,17 +37,18 @@ type Scope = { start?: number; end?: number };
 export function extractUndefinedVariables(
   source: string,
   globalObjectNames: string[] = [],
-): string[] {
+): { required: string[]; optional: string[] } {
   let ast;
   try {
     ast = toLiquidHtmlAST(source);
   } catch {
-    return [];
+    return { required: [], optional: [] };
   }
 
   const scopedVariables: Map<string, Scope[]> = new Map();
   const fileScopedVariables: Set<string> = new Set(globalObjectNames);
   const variables: LiquidVariableLookup[] = [];
+  const variablesWithDefault: Set<string> = new Set();
 
   function indexVariableScope(variableName: string | null, scope: Scope) {
     if (!variableName) return;
@@ -166,13 +171,25 @@ export function extractUndefinedVariables(
     if (isHashAssignMarkup(parent) && parent.target === node) return;
 
     variables.push(node);
+
+    // Detect `x | default: ...` — the variable is the expression of a LiquidVariable
+    // that has a `default` filter, meaning the partial handles the missing case itself.
+    if (
+      node.name &&
+      isLiquidVariable(parent) &&
+      parent.expression === node &&
+      parent.filters.some((f) => f.name === 'default')
+    ) {
+      variablesWithDefault.add(node.name);
+    }
   }
 
   walk(ast, []);
 
   // Determine undefined variables
   const seen = new Set<string>();
-  const result: string[] = [];
+  const required: string[] = [];
+  const optional: string[] = [];
 
   for (const variable of variables) {
     if (!variable.name) continue;
@@ -187,11 +204,15 @@ export function extractUndefinedVariables(
 
     if (!isVariableDefined) {
       seen.add(variable.name);
-      result.push(variable.name);
+      if (variablesWithDefault.has(variable.name)) {
+        optional.push(variable.name);
+      } else {
+        required.push(variable.name);
+      }
     }
   }
 
-  return result;
+  return { required, optional };
 }
 
 function isNode(x: any): x is LiquidHtmlNode {
@@ -283,4 +304,8 @@ function isLiquidBranchCatch(
   node?: LiquidHtmlNode,
 ): node is LiquidHtmlNode & { type: typeof NodeTypes.LiquidBranch; name: 'catch'; markup: any } {
   return node?.type === NodeTypes.LiquidBranch && (node as any).name === NamedTags.catch;
+}
+
+function isLiquidVariable(node?: LiquidHtmlNode): node is LiquidVariable {
+  return node?.type === NodeTypes.LiquidVariable;
 }

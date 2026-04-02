@@ -11,6 +11,7 @@ import {
   TextNode,
   GraphQLMarkup,
   GraphQLInlineMarkup,
+  FunctionMarkup,
   HashAssignMarkup,
   JsonHashLiteral,
   JsonArrayLiteral,
@@ -260,6 +261,17 @@ export const UnknownProperty: LiquidCheckDefinition = {
                 });
               }
             }
+          }
+        }
+
+        // {% function object = 'partial_name', arg: value %}
+        // The function tag reassigns the variable to the return value of the partial,
+        // which has an unknown shape. Close any tracked shape so we don't false-positive.
+        if (isLiquidTagFunction(node)) {
+          const markup = node.markup;
+          const variableName = markup.name.name;
+          if (variableName) {
+            closeShapeRange(variableName, node.position.start);
           }
         }
 
@@ -531,6 +543,10 @@ function isLiquidTagGraphQL(
   return node.name === NamedTags.graphql && typeof node.markup !== 'string';
 }
 
+function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
+  return node.name === NamedTags.function && typeof node.markup !== 'string';
+}
+
 function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {
   return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
 }
@@ -578,10 +594,16 @@ function inferShapeFromLiteralNode(
   if (node.type === NodeTypes.JsonHashLiteral) {
     const properties = new Map<string, PropertyShape>();
     for (const entry of node.entries) {
-      // Keys are VariableLookup nodes where the name is the key string
+      // Keys can be VariableLookup nodes (bare keys) or String nodes (quoted keys)
+      let keyName: string | undefined;
       if (entry.key.type === NodeTypes.VariableLookup && entry.key.name) {
+        keyName = entry.key.name;
+      } else if (entry.key.type === NodeTypes.String) {
+        keyName = entry.key.value;
+      }
+      if (keyName) {
         const valueShape = inferShapeFromExpressionNode(entry.value);
-        properties.set(entry.key.name, valueShape ?? { kind: 'primitive' });
+        properties.set(keyName, valueShape ?? { kind: 'primitive' });
       }
     }
     return { kind: 'object', properties };

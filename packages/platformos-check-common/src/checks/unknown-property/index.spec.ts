@@ -401,11 +401,53 @@ query {
       expect(offenses[0].message).toEqual("Unknown property 'asd' on 'a'.");
     });
 
+    it('should handle hash literals with quoted string keys', async () => {
+      const sourceCode = `{% assign c = { "errors": {}, "valid": true } %}{{ c.valid }}{{ c.errors }}{{ c.missing }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'missing' on 'c'.");
+    });
+
+    it('should handle hash literals with mixed bare and quoted keys', async () => {
+      const sourceCode = `{% assign a = {x: 5, "y": 10} %}{{ a.x }}{{ a.y }}{{ a.z }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'z' on 'a'.");
+    });
+
+    it('should handle nested hash literals with quoted keys', async () => {
+      const sourceCode = `{% assign a = { "outer": { "inner": 1 } } %}{{ a.outer.inner }}{{ a.outer.missing }}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'missing' on 'a.outer'.");
+    });
+
     it('should report unknown property on hash literal assigned via another variable', async () => {
       const sourceCode = `{% assign a = {a: 5} %}{% assign b = a.b %}`;
       const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
       expect(offenses).toHaveLength(1);
       expect(offenses[0].message).toEqual("Unknown property 'b' on 'a'.");
+    });
+  });
+
+  describe('function tag reassignment', () => {
+    it('should not report unknown property after function tag reassigns a variable', async () => {
+      const sourceCode = `{% assign object = { "valid": true, "id": id, "role": role } %}
+{% function object = 'modules/core/commands/execute', object: object, mutation_name: 'some_mutation' %}
+{% if object.errors == blank %}
+  {{ object.valid }}
+{% endif %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should still report unknown property before function tag reassignment', async () => {
+      const sourceCode = `{% assign object = { "valid": true, "id": "123" } %}
+{{ object.missing }}
+{% function object = 'modules/core/commands/execute', object: object %}`;
+      const offenses = await runLiquidCheck(UnknownProperty, sourceCode);
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toEqual("Unknown property 'missing' on 'object'.");
     });
   });
 

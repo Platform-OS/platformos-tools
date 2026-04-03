@@ -413,6 +413,11 @@ input ApiCallSendOptions {
   internal: Boolean
 
   """
+  If set to true, SSL certificate verification will be skipped for HTTPS requests
+  """
+  skip_ssl_verification: Boolean
+
+  """
   Read timeout of HTTP request in seconds. For calls triggered from backgroud
   jobs default is 8s and max 180s. For calls triggered from web request default
   is 5s and max 5s.
@@ -488,7 +493,7 @@ type Asset implements AdminSharedAttributesInterface {
   Url to the file
   """
   url: String!
-  virtual_deleted_at: JSONDate
+  virtual_deleted_at: JSONDate @deprecated(reason: "Use deleted_at instead")
 }
 
 type AssetCollection {

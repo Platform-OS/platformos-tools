@@ -5,15 +5,16 @@ import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
 import { relative } from '../../path';
 import { extractUndefinedVariables } from './extract-undefined-variables';
 
-export const MetadataParamsCheck: LiquidCheckDefinition = {
+export const PartialCallArguments: LiquidCheckDefinition = {
   meta: {
-    code: 'MetadataParamsCheck',
-    name: 'Metadata Params Check',
+    code: 'PartialCallArguments',
+    aliases: ['MetadataParamsCheck'],
+    name: 'Partial Call Arguments',
     docs: {
       description:
-        'Ensures that parameters referenced in the document exist in the doc tag or are inferred from undefined variables.',
+        'Ensures that all required arguments are passed at render/function call sites, and that no unknown arguments are passed. Required vs optional is determined from the {% doc %} block when present, or inferred from undefined variables in the partial source otherwise. Variables used with | default are treated as optional.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/partial-call-arguments',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,
@@ -61,14 +62,17 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
             }
           }
         }
-        const undefinedVars = extractUndefinedVariables(source, globalObjectNames);
+        const { required: undefinedRequiredVars, optional: undefinedOptionalVars } =
+          extractUndefinedVariables(source, globalObjectNames);
+        const undefinedVars = [...undefinedRequiredVars, ...undefinedOptionalVars];
         const docRequiredNames = docDef.liquidDoc.parameters
           .filter((p) => p.required)
           .map((p) => p.name);
         requiredParams = docRequiredNames.filter((name) => undefinedVars.includes(name));
         allowedParams = docDef.liquidDoc.parameters.map((p) => p.name);
       } else {
-        // No @doc — scan for undefined variables, treat all as required
+        // No @doc — infer required vs optional from undefined variables in the source.
+        // Variables used with `| default` are treated as optional.
         const globalObjectNames: string[] = [];
         if (context.platformosDocset) {
           const objects = await context.platformosDocset.objects();
@@ -84,11 +88,14 @@ export const MetadataParamsCheck: LiquidCheckDefinition = {
           }
         }
 
-        const undefinedVars = extractUndefinedVariables(source, globalObjectNames);
-        if (undefinedVars.length === 0) return;
+        const { required: requiredVars, optional: optionalVars } = extractUndefinedVariables(
+          source,
+          globalObjectNames,
+        );
+        if (requiredVars.length === 0 && optionalVars.length === 0) return;
 
-        requiredParams = undefinedVars;
-        allowedParams = undefinedVars;
+        requiredParams = requiredVars;
+        allowedParams = [...requiredVars, ...optionalVars];
       }
 
       args

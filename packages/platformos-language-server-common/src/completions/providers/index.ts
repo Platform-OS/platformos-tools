@@ -14,4 +14,9 @@ export {
 } from './RenderPartialParameterCompletionProvider';
 export { LiquidDocTagCompletionProvider } from './LiquidDocTagCompletionProvider';
 export { LiquidDocParamTypeCompletionProvider } from './LiquidDocParamTypeCompletionProvider';
+export {
+  FrontmatterKeyCompletionProvider,
+  GetLayoutNamesForURI,
+  GetAuthPolicyNamesForURI,
+} from './FrontmatterKeyCompletionProvider';
 export { Provider } from './common/Provider';

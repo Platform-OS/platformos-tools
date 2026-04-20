@@ -12,7 +12,7 @@ const TAGS_WITH_NO_EXPECTED_MARKUP = new Set<string>(TAGS_WITHOUT_MARKUP);
  * more specific error messages and autofixes. This check should NOT fire on these
  * to avoid double-reporting or overriding their nuanced decisions.
  *
- * - assign → MultipleAssignValues, InvalidFilterName, InvalidPipeSyntax
+ * - assign → MultipleAssignValues, InvalidAssignSyntax, InvalidFilterName, InvalidPipeSyntax
  * - echo → InvalidEchoValue, InvalidFilterName, InvalidPipeSyntax
  * - if/elsif/unless → InvalidConditionalNode, InvalidConditionalNodeParenthesis
  * - for/tablerow → InvalidLoopRange, InvalidLoopArguments

@@ -474,21 +474,6 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.markup.name').to.eql('x');
           expectPath(ast, 'children.0.markup.lookups').to.have.lengthOf(0);
 
-          // explicit push form: assign a = source << value
-          ast = toAST(`{% assign x = roles << 'admin' %}`);
-          expectPath(ast, 'children.0.markup.operator').to.eql('=');
-          expectPath(ast, 'children.0.markup.name').to.eql('x');
-          expectPath(ast, 'children.0.markup.value.type').to.eql('AssignPushRhs');
-          expectPath(ast, 'children.0.markup.value.pushSource.expression.name').to.eql('roles');
-          expectPath(ast, 'children.0.markup.value.pushValue.expression.value').to.eql('admin');
-
-          // explicit push with dot notation source (e.g. assign x = current_profile.roles << 'auth')
-          ast = toAST(`{% assign x = current_profile.roles << 'authenticated' %}`);
-          expectPath(ast, 'children.0.markup.value.type').to.eql('AssignPushRhs');
-          expectPath(ast, 'children.0.markup.value.pushSource.expression.name').to.eql(
-            'current_profile',
-          );
-
           // simple assign backward compatibility
           ast = toAST(`{% assign x = 'hi' %}`);
           expectPath(ast, 'children.0.markup.name').to.eql('x');
@@ -894,6 +879,40 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
           expectPath(ast, 'children.0.markup.filters.0.name').to.equal('dig');
           expectPath(ast, 'children.0.markup.filters.0.args.0.value').to.equal('results');
+        }
+      });
+
+      it('should parse function tags with JSON literals as named argument values', () => {
+        for (const { toAST, expectPath } of testCases) {
+          // empty array and empty hash as named argument values
+          ast = toAST(`{% function result = 'my/function', array: [], hash: {} %}`);
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.args.0.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('array');
+          expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.args.0.value.elements').to.have.lengthOf(0);
+          expectPath(ast, 'children.0.markup.args.1.name').to.equal('hash');
+          expectPath(ast, 'children.0.markup.args.1.value.type').to.equal('JsonHashLiteral');
+          expectPath(ast, 'children.0.markup.args.1.value.entries').to.have.lengthOf(0);
+
+          // populated array as named argument value
+          ast = toAST(`{% function result = 'my/function', items: ["a", "b"] %}`);
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('items');
+          expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.args.0.value.elements').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.args.0.value.elements.0.type').to.equal('String');
+
+          // populated hash as named argument value — bare key is a VariableLookup
+          ast = toAST(`{% function result = 'my/function', config: { key: "val" } %}`);
+          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.name').to.equal('config');
+          expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('JsonHashLiteral');
+          expectPath(ast, 'children.0.markup.args.0.value.entries').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.args.0.value.entries.0.key.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(ast, 'children.0.markup.args.0.value.entries.0.key.name').to.equal('key');
         }
       });
 
@@ -1432,6 +1451,43 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.name').to.equal('return');
           expectPath(ast, 'children.0.markup.type').to.equal('LiquidVariable');
           expectPath(ast, 'children.0.markup.expression.type').to.equal('JsonHashLiteral');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the return tag with a JSON array literal', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          // empty array
+          ast = toAST(`{% return [] %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('return');
+          expectPath(ast, 'children.0.markup.type').to.equal('LiquidVariable');
+          expectPath(ast, 'children.0.markup.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.expression.elements').to.have.lengthOf(0);
+          expectPosition(ast, 'children.0');
+
+          // populated array
+          ast = toAST(`{% return ["a", "b"] %}`);
+          expectPath(ast, 'children.0.markup.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.expression.elements').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.expression.elements.0.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.expression.elements.0.value').to.equal('a');
+        }
+      });
+
+      it('should parse return in {% liquid %} block with multi-line hash and correct position', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(
+            `{% liquid\n  return {\n    "payload": payload,\n    "type": 'POST'\n  }\n%}`,
+          );
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('liquid');
+          expectPath(ast, 'children.0.markup.0.name').to.equal('return');
+          expectPath(ast, 'children.0.markup.0.markup.expression.type').to.equal('JsonHashLiteral');
+          expectPath(ast, 'children.0.markup.0.markup.expression.entries').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.0.markup.expression.entries.0.key.value').to.equal(
+            'payload',
+          );
           expectPosition(ast, 'children.0');
         }
       });

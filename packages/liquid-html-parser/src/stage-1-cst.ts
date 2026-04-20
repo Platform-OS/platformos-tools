@@ -78,7 +78,6 @@ export enum ConcreteNodeTypes {
   Condition = 'Condition',
 
   AssignMarkup = 'AssignMarkup',
-  AssignPushRhs = 'AssignPushRhs',
   HashAssignMarkup = 'HashAssignMarkup',
   ContentForMarkup = 'ContentForMarkup',
   CycleMarkup = 'CycleMarkup',
@@ -415,16 +414,12 @@ export interface ConcreteLiquidTagAssign extends ConcreteLiquidTagNode<
   NamedTags.assign,
   ConcreteLiquidTagAssignMarkup
 > {}
-export interface ConcreteLiquidTagAssignPushRhs extends ConcreteBasicNode<ConcreteNodeTypes.AssignPushRhs> {
-  pushSource: ConcreteLiquidVariable;
-  pushValue: ConcreteLiquidVariable;
-}
 
 export interface ConcreteLiquidTagAssignMarkup extends ConcreteBasicNode<ConcreteNodeTypes.AssignMarkup> {
   name: string;
   target: ConcreteLiquidVariableLookup;
   operator: string;
-  value: ConcreteLiquidVariable | ConcreteLiquidTagAssignPushRhs;
+  value: ConcreteLiquidVariable;
 }
 
 export interface ConcreteLiquidTagHashAssign extends ConcreteLiquidTagNode<
@@ -1104,26 +1099,6 @@ function toCST<T>(
     },
     assignOperator: (node: Node) => node.sourceString,
     liquidAssignValue: 0,
-    liquidAssignPushExpr: {
-      type: ConcreteNodeTypes.AssignPushRhs,
-      // tokens: [pushSource, space*, "<<", space*, pushValue]
-      pushSource: 0,
-      pushValue: 4,
-      locStart,
-      locEnd,
-      source,
-    },
-    liquidAssignPushSource: {
-      type: ConcreteNodeTypes.LiquidVariable,
-      expression: 0,
-      filters: 1,
-      // No &delim lookahead at end (unlike liquidAssignVariable), so last token is space*
-      rawSource: (tokens: Node[]) =>
-        source.slice(locStart(tokens), tokens[tokens.length - 1].source.endIdx).trimEnd(),
-      locStart,
-      locEnd,
-      source,
-    },
     liquidAssignVariable: {
       type: ConcreteNodeTypes.LiquidVariable,
       expression: 0,
@@ -1378,6 +1353,8 @@ function toCST<T>(
     liquidTagRollback: 0,
 
     renderArguments: 1,
+    functionRenderArguments: 1,
+    functionTagArguments: 0,
     completionModeRenderArguments: function (
       _0,
       namedArguments,
@@ -1486,6 +1463,9 @@ function toCST<T>(
     tagArguments: 0,
     graphqlArguments: 0,
     graphqlRenderArguments: 1,
+    // Pass-through: delegates to whichever alternative matched (liquidJsonHashLiteral,
+    // liquidJsonArrayLiteral, or liquidExpression). Index 0 = first (and only) child.
+    liquidExpressionOrJsonLiteral: 0,
     positionalArgument: 0,
     namedArgument: {
       type: ConcreteNodeTypes.NamedArgument,
@@ -1496,6 +1476,9 @@ function toCST<T>(
       source,
     },
     namedArgumentValue: 0,
+    // Handles nested key:value pairs within a named argument value, e.g. `filter: type: "string"`.
+    // Only fires when the namedArgumentValue starts with `identifier:`.
+    // Produces a NamedArgument so linters can inspect the nested pair.
     hashPairValue: {
       type: ConcreteNodeTypes.NamedArgument,
       name: 0,
@@ -1570,7 +1553,9 @@ function toCST<T>(
     liquidDoubleQuotedString: {
       type: ConcreteNodeTypes.String,
       single: () => false,
-      value: 1,
+      // body is an iteration node (strings now support `\X` escape pairs); use
+      // `.sourceString` to get the raw text between quotes.
+      value: (tokens: Node[]) => tokens[1].sourceString,
       locStart,
       locEnd,
       source,
@@ -1578,7 +1563,7 @@ function toCST<T>(
     liquidSingleQuotedString: {
       type: ConcreteNodeTypes.String,
       single: () => true,
-      value: 1,
+      value: (tokens: Node[]) => tokens[1].sourceString,
       locStart,
       locEnd,
       source,

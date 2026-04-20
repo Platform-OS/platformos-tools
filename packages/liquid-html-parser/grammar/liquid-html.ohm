@@ -130,16 +130,14 @@ Liquid <: Helpers {
 
   // Assign-specific sub-rules
   assignTarget<delim> = variableSegment lookup<delim>*
+  // Only one operator per assign: either `=` (regular assignment) or `<<` (push).
+  // The two forms are mutually exclusive — `{% assign a << "item" %}` pushes onto `a`,
+  // and `{% assign a = value %}` assigns to `a`. A compound shape like
+  // `{% assign a = b << c %}` is INVALID per the platformOS runtime.
   assignOperator = "<<" | "="
 
-  // The RHS of an assign: either an explicit push expression (source << value) or a regular value
-  liquidAssignValue<delim> = liquidAssignPushExpr<delim> | liquidAssignVariable<delim>
-
-  // Explicit push: assign a = source << value (equivalent to assign a << value when source is a)
-  liquidAssignPushExpr<delim> = liquidAssignPushSource<delim> space* "<<" space* liquidAssignVariable<delim>
-
-  // The source expression for a push (no &delim lookahead since "<<" follows)
-  liquidAssignPushSource<delim> = liquidAssignExpression<delim> liquidFilter<delim>* space*
+  // The RHS of an assign: a regular value (expression + optional filters).
+  liquidAssignValue<delim> = liquidAssignVariable<delim>
 
   // Assign variable: like liquidVariable but expression allows JSON literals
   liquidAssignVariable<delim> = liquidAssignExpression<delim> liquidFilter<delim>* space* &delim
@@ -148,7 +146,7 @@ Liquid <: Helpers {
     | liquidJsonArrayLiteral<delim>
     | liquidComplexExpression<delim>
 
-  // JSON literal rules (assign-only, recursive)
+  // JSON literal rules (assign, return, and named argument values; recursive)
   liquidJsonHashLiteral<delim> =
     "{" space* listOf<liquidJsonKeyValue<delim>, liquidJsonSep> space* "}"
   liquidJsonKeyValue<delim> =
@@ -415,8 +413,17 @@ Liquid <: Helpers {
   booleanExpressionCondition<delim> = comparison<delim> | liquidExpression<delim>
 
   liquidString<delim> = liquidSingleQuotedString<delim> | liquidDoubleQuotedString<delim>
-  liquidSingleQuotedString<delim> = "'" anyExceptStar<("'"| delim)> "'"
-  liquidDoubleQuotedString<delim> = "\"" anyExceptStar<("\""| delim)> "\""
+  // Strings support backslash-X escape pairs (any character after a backslash is
+  // consumed as part of the string). This matches the platformOS runtime, which parses
+  // hash/array literal string values with Ruby's JSON library — so an escaped quote or
+  // an escaped backslash is valid inside a double-quoted string.
+  liquidSingleQuotedString<delim> = "'" liquidSingleQuotedStringBody<delim> "'"
+  liquidDoubleQuotedString<delim> = "\"" liquidDoubleQuotedStringBody<delim> "\""
+  liquidSingleQuotedStringBody<delim> = (liquidStringEscape | liquidSingleQuotedStringChar<delim>)*
+  liquidDoubleQuotedStringBody<delim> = (liquidStringEscape | liquidDoubleQuotedStringChar<delim>)*
+  liquidSingleQuotedStringChar<delim> = ~("'" | delim) any
+  liquidDoubleQuotedStringChar<delim> = ~("\"" | delim) any
+  liquidStringEscape = "\\" any
 
   liquidNumber = liquidFloat | liquidInteger
   liquidInteger = "-"? digit+
@@ -449,9 +456,18 @@ Liquid <: Helpers {
   arguments<delim> = nonemptyOrderedListOf<positionalArgument<delim>, namedArgument<delim>, argumentSeparator>
   argumentSeparator = space* "," space*
   argumentSeparatorOptionalComma = space* ","? space*
-  positionalArgument<delim> = liquidExpression<delim> ~(space* ":")
+  // liquidExpressionOrJsonLiteral: used in argument value positions where JSON hash/array
+  // literals are accepted (named args, filter positional args). Does NOT extend liquidExpression
+  // itself so that {{ ["x"] }} drop expressions are still parsed as VariableLookup (empty lookup).
+  liquidExpressionOrJsonLiteral<delim> = liquidJsonHashLiteral<delim> | liquidJsonArrayLiteral<delim> | liquidExpression<delim>
+  positionalArgument<delim> = liquidExpressionOrJsonLiteral<delim> ~(space* ":")
   namedArgument<delim> = variableSegment space* ":" space* namedArgumentValue<delim>
-  namedArgumentValue<delim> = hashPairValue<delim> | liquidExpression<delim>
+  namedArgumentValue<delim> = hashPairValue<delim> | liquidExpressionOrJsonLiteral<delim>
+  // hashPairValue handles nested key:value pairs within a named argument value, e.g.
+  //   {% function res = 'path', filter: type: "string" %}
+  // where `type: "string"` is the hashPairValue. Only fires when the value starts with
+  // `identifier:` — otherwise namedArgumentValue falls through to liquidExpressionOrJsonLiteral.
+  // Produces a NamedArgument node so linters can inspect nested argument pairs.
   hashPairValue<delim> = variableSegment space* ":" space* liquidExpression<delim>
   tagArguments = listOf<namedArgument<delimTag>, argumentSeparatorOptionalComma>
   graphqlArguments = listOf<graphqlNamedArgument, argumentSeparatorOptionalComma>
@@ -574,10 +590,11 @@ LiquidStatement <: Liquid {
 
   // Override string rules so that '#' inside string content is never mistaken for a
   // delimTag inline-comment marker. In LiquidStatement, delimTag includes `# ...` which
-  // would otherwise cause anyExceptStar<delim> to stop inside strings like '##label##'.
-  // Strings in liquid blocks end at the matching quote or at a newline (no multi-line strings).
-  liquidSingleQuotedString<delim> := "'" anyExceptStar<("'" | newline | end)> "'"
-  liquidDoubleQuotedString<delim> := "\"" anyExceptStar<("\"" | newline | end)> "\""
+  // would otherwise cause the body rule to stop inside strings like '##label##'.
+  // Strings in liquid blocks end at the matching quote or at a newline (no multi-line
+  // strings), but still support `\X` escape pairs.
+  liquidSingleQuotedStringChar<delim> := ~("'" | newline | end) any
+  liquidDoubleQuotedStringChar<delim> := ~("\"" | newline | end) any
 
   // trailing whitespace, newline, + optional leading `;` and `# comment` before the next tag
   statementSep = space* ";"? space* ("#" (~newline any)*)? newline (space | newline)*
@@ -585,6 +602,27 @@ LiquidStatement <: Liquid {
   // delimTag is used as &delim lookahead in expression rules; it must succeed before `;` and `#`
   liquidStatementEnd = ";"? space* ("#" (~newline any)*)? (newline | end)
   delimTag := liquidStatementEnd
+
+  // Allow newlines inside hash/array literals within {% liquid %} blocks.
+  // The base Liquid grammar restricts `space` to horizontal whitespace only, but hash/array
+  // literals written across multiple lines need to match newlines between `{`/`[` and entries,
+  // between entries (around commas), and between the last entry and the closing `}`/`]`.
+  liquidJsonSep := (space | newline)* "," (space | newline)*
+  liquidJsonHashLiteral<delim> := "{" (space | newline)* listOf<liquidJsonKeyValue<delim>, liquidJsonSep> (space | newline)* "}"
+  liquidJsonArrayLiteral<delim> := "[" (space | newline)* listOf<liquidJsonValue<delim>, liquidJsonSep> (space | newline)* "]"
+
+  // Only the function tag supports multi-line named arguments in {% liquid %} blocks.
+  // render, include, and other tags use the base argumentSeparatorOptionalComma (horizontal-
+  // only), which prevents their argument lists from spanning lines. Function uses a dedicated
+  // separator that allows newlines ONLY after a comma, preventing the next statement from
+  // being swallowed as an argument when no comma is present.
+  //
+  // Both alternatives have 3 components (space, comma, space) to match each other's arity,
+  // ensuring consistent visitor child indexing.
+  functionArgumentSeparatorOptionalComma = space* "," (space | newline)* | space* ","? space*
+  functionTagArguments = listOf<namedArgument<delimTag>, functionArgumentSeparatorOptionalComma>
+  functionRenderArguments = (functionArgumentSeparatorOptionalComma functionTagArguments) (space* ",")? space*
+  liquidTagFunctionMarkup := liquidVariableLookup<delimTag> space* "=" space* partialExpression functionRenderArguments liquidFilter<delimTag>* space*
 }
 
 LiquidDoc <: Helpers {

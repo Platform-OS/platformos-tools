@@ -57,6 +57,51 @@ describe('Module: InvalidTagSyntax', () => {
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
       expect(syntaxOffenses).toHaveLength(0);
     });
+
+    it('should not report valid function with JSON array argument', async () => {
+      const sourceCode = `{% function res = 'path/to/function', items: ["a", "b"] %}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
+
+    it('should not report valid function with JSON hash argument', async () => {
+      const sourceCode = `{% function res = 'path/to/function', config: { key: "val" } %}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
+
+    it('should not report valid multi-line function with JSON arguments inside liquid block', async () => {
+      const sourceCode = `{% liquid
+  function res = 'path/to/function',
+    array: [],
+    hash: {}
+%}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
+
+    it('should report function with missing partial after =', async () => {
+      const sourceCode = `{% function res = %}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(1);
+      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'function'");
+    });
+
+    it('should not report valid function with nested multi-line hash argument', async () => {
+      const sourceCode = `{% liquid
+  function res = 'path/to/function',
+    config: {
+      key: "val"
+    }
+%}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
   });
 
   describe('graphql tag', () => {
@@ -171,11 +216,50 @@ describe('Module: InvalidTagSyntax', () => {
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
       expect(syntaxOffenses).toHaveLength(0);
     });
+
+    it('should not report valid multi-line return with JSON hash in liquid block', async () => {
+      const sourceCode = `{% liquid
+  return {
+    "key": val
+  }
+%}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
+
+    it('should not report valid multi-line return with JSON array in liquid block', async () => {
+      const sourceCode = `{% liquid
+  return [
+    "a",
+    "b"
+  ]
+%}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
+
+    it('should not report valid multi-line assign with JSON array followed by render', async () => {
+      // assign is excluded from this check (has dedicated sub-checks), but parsing
+      // the multi-line liquid block must not corrupt subsequent tags
+      const sourceCode = `{% liquid
+  assign x = [
+    "a"
+  ]
+  render 'partial'
+%}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
   });
 
   describe('should NOT fire on tags with dedicated sub-checks', () => {
-    it('should not fire InvalidTagSyntax on assign (has MultipleAssignValues)', async () => {
-      const sourceCode = `{% assign x abc %}`;
+    it('should not fire InvalidTagSyntax on assign when MultipleAssignValues fires', async () => {
+      // MultipleAssignValues reports "Syntax is not supported"; InvalidTagSyntax is suppressed
+      // by the `problems.length === 0` guard in the parent pipeline.
+      const sourceCode = `{% assign foo = '123' 555 text %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
       expect(syntaxOffenses).toHaveLength(0);

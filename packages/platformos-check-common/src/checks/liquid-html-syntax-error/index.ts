@@ -1,6 +1,7 @@
 import { Severity, SourceCodeType, LiquidCheckDefinition, Problem } from '../../types';
 import { getOffset, isError } from '../../utils';
 import { detectMultipleAssignValues } from './checks/MultipleAssignValues';
+import { detectInvalidAssignSyntax } from './checks/InvalidAssignSyntax';
 import { detectInvalidBooleanExpressions } from './checks/InvalidBooleanExpressions';
 import { detectInvalidEchoValue } from './checks/InvalidEchoValue';
 import { detectInvalidConditionalNode } from './checks/InvalidConditionalNode';
@@ -11,6 +12,7 @@ import { detectInvalidFilterName } from './checks/InvalidFilterName';
 import { detectInvalidPipeSyntax } from './checks/InvalidPipeSyntax';
 import { detectUnknownTag } from './checks/UnknownTag';
 import { detectInvalidTagSyntax } from './checks/InvalidTagSyntax';
+import { detectInvalidOutputPush } from './checks/InvalidOutputPush';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 
 type LineColPosition = {
@@ -75,9 +77,18 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
             return;
           }
 
+          // Push-operator misuse in `{% echo … << … %}` — dedicated message.
+          // Short-circuit so InvalidEchoValue doesn't duplicate with a generic message.
+          const outputPushProblem = detectInvalidOutputPush(node);
+          if (outputPushProblem) {
+            context.report(outputPushProblem);
+            return;
+          }
+
           // Run specific sub-checks first — they provide better error messages and autofixes.
           const problems = [
             detectMultipleAssignValues(node),
+            detectInvalidAssignSyntax(node),
             detectInvalidEchoValue(node),
             detectInvalidLoopRange(node),
             detectInvalidLoopArguments(node, tags),
@@ -128,6 +139,14 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
 
         async LiquidVariableOutput(node, ancestors) {
           if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
+
+          // Push-operator misuse in `{{ … << … }}` — dedicated message.
+          // Short-circuit so InvalidEchoValue doesn't duplicate with a generic message.
+          const outputPushProblem = detectInvalidOutputPush(node);
+          if (outputPushProblem) {
+            context.report(outputPushProblem);
+            return;
+          }
 
           const filterProblems = await detectInvalidFilterName(node, (await filtersPromise) ?? []);
           if (filterProblems.length > 0) {

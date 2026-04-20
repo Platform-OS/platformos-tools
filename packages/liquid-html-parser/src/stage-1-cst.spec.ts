@@ -361,6 +361,35 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.expression.lookups').to.eql([]);
         }
       });
+
+      it('should NOT parse array syntax in output tag as JsonArrayLiteral', () => {
+        // liquidExpressionOrJsonLiteral is intentionally NOT used in output expressions;
+        // {{ ["x"] }} must remain a VariableLookup subscript, not a JsonArrayLiteral.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{{ ["x"] }}`);
+          expectPath(cst, '0.type').to.equal('LiquidVariableOutput');
+          expectPath(cst, '0.markup.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.expression.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.expression.name').to.equal(null);
+          // lookups[0] is a String node — the key of the subscript
+          expectPath(cst, '0.markup.expression.lookups').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.expression.lookups.0.type').to.equal('String');
+          expectPath(cst, '0.markup.expression.lookups.0.value').to.equal('x');
+        }
+      });
+
+      it('should NOT parse number-subscript output as JsonArrayLiteral', () => {
+        // Same invariant as the string-subscript regression; a Number subscript must
+        // still produce a VariableLookup with an empty name, not a JsonArrayLiteral.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{{ [0] }}`);
+          expectPath(cst, '0.markup.expression.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.expression.name').to.equal(null);
+          expectPath(cst, '0.markup.expression.lookups').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.expression.lookups.0.type').to.equal('Number');
+          expectPath(cst, '0.markup.expression.lookups.0.value').to.equal('0');
+        }
+      });
     });
 
     describe('Case: LiquidTag', () => {
@@ -594,20 +623,23 @@ describe('Unit: Stage 1 (CST)', () => {
           cst = toCST(`{% assign x << 'foo' | upcase %}`);
           expectPath(cst, '0.markup.operator').to.equal('<<');
           expectPath(cst, '0.markup.value.filters').to.have.lengthOf(1);
+        }
+      });
 
-          // explicit push form: assign a = source << value
-          cst = toCST(`{% assign x = roles << 'admin' %}`);
-          expectPath(cst, '0.markup.operator').to.equal('=');
-          expectPath(cst, '0.markup.name').to.equal('x');
-          expectPath(cst, '0.markup.value.type').to.equal('AssignPushRhs');
-          expectPath(cst, '0.markup.value.pushSource.expression.name').to.equal('roles');
-          expectPath(cst, '0.markup.value.pushValue.expression.value').to.equal('admin');
-
-          // explicit push with dot notation source
-          cst = toCST(`{% assign x = current_profile.roles << 'authenticated' %}`);
-          expectPath(cst, '0.markup.operator').to.equal('=');
-          expectPath(cst, '0.markup.value.type').to.equal('AssignPushRhs');
-          expectPath(cst, '0.markup.value.pushSource.expression.name').to.equal('current_profile');
+      it('should reject compound operator `= ... <<` in strict mode (only one operator allowed)', () => {
+        // `{% assign a = b << c %}` is NOT valid per the platformOS runtime — an
+        // assign uses exactly one of `=` (regular assignment) or `<<` (push), not both.
+        const invalidCases = [
+          `{% assign x = roles << 'admin' %}`,
+          `{% assign x = current_profile.roles << 'authenticated' %}`,
+        ];
+        for (const source of invalidCases) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+          }
         }
       });
 
@@ -671,6 +703,466 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.value.expression.entries.1.value.type').to.equal(
             'JsonArrayLiteral',
           );
+        }
+      });
+
+      it('should parse multi-line hash literals in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // multi-line hash with multiple entries
+          cst = toCST(
+            `{% liquid\n  assign data = {\n    "title": object.title,\n    "body": object.body\n  }\n%}`,
+          );
+          expectPath(cst, '0.markup.0.name').to.equal('assign');
+          expectPath(cst, '0.markup.0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.0.markup.value.expression.entries').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.0.key.value').to.equal(
+            'title',
+          );
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.1.key.value').to.equal(
+            'body',
+          );
+
+          // empty multi-line hash
+          cst = toCST(`{% liquid\n  assign data = {\n  }\n%}`);
+          expectPath(cst, '0.markup.0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.0.markup.value.expression.entries').to.have.lengthOf(0);
+
+          // statement following a multi-line hash is parsed correctly
+          cst = toCST(
+            `{% liquid\n  assign data = {\n    "title": object.title\n  }\n  assign other = 'hi'\n%}`,
+          );
+          expectPath(cst, '0.markup.0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+          expectPath(cst, '0.markup.1.markup.name').to.equal('other');
+
+          // hash that starts on the same line as assign, with subsequent entries on the next line
+          // the comma is mid-line; the continuation is inside the hash literal, not an arg separator
+          cst = toCST(`{% liquid\n  assign hash = { key: val,\n    "key2": "value2" }\n%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('assign');
+          expectPath(cst, '0.markup.0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.0.markup.value.expression.entries').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.0.key.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.0.key.name').to.equal('key');
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.1.key.type').to.equal(
+            'String',
+          );
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.1.key.value').to.equal(
+            'key2',
+          );
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.1.value.type').to.equal(
+            'String',
+          );
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.1.value.value').to.equal(
+            'value2',
+          );
+        }
+      });
+
+      it('should parse multi-line array literals in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  assign items = [\n    "a",\n    "b"\n  ]\n%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('assign');
+          expectPath(cst, '0.markup.0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.0.markup.value.expression.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.value.expression.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.0.markup.value.expression.elements.0.value').to.equal('a');
+          expectPath(cst, '0.markup.0.markup.value.expression.elements.1.type').to.equal('String');
+          expectPath(cst, '0.markup.0.markup.value.expression.elements.1.value').to.equal('b');
+        }
+      });
+
+      it('should parse multi-line nested hash with variable bare keys in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // release notes example: { outer_key: { inner_key: "Alice" } }
+          // Both outer_key and inner_key are bare keys (VariableLookup), evaluated at runtime
+          cst = toCST(
+            `{% liquid\n  assign hash = {\n    outer_key: {\n      inner_key: "Alice"\n    }\n  }\n%}`,
+          );
+          expectPath(cst, '0.markup.0.name').to.equal('assign');
+          expectPath(cst, '0.markup.0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.0.markup.value.expression.entries').to.have.lengthOf(1);
+          // outer_key is a bare key — parsed as VariableLookup so linters can detect undefined vars
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.0.key.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.0.key.name').to.equal(
+            'outer_key',
+          );
+          // value is a nested hash
+          expectPath(cst, '0.markup.0.markup.value.expression.entries.0.value.type').to.equal(
+            'JsonHashLiteral',
+          );
+          expectPath(
+            cst,
+            '0.markup.0.markup.value.expression.entries.0.value.entries',
+          ).to.have.lengthOf(1);
+          // inner_key is also a bare key — parsed as VariableLookup
+          expectPath(
+            cst,
+            '0.markup.0.markup.value.expression.entries.0.value.entries.0.key.type',
+          ).to.equal('VariableLookup');
+          expectPath(
+            cst,
+            '0.markup.0.markup.value.expression.entries.0.value.entries.0.key.name',
+          ).to.equal('inner_key');
+          expectPath(
+            cst,
+            '0.markup.0.markup.value.expression.entries.0.value.entries.0.value.type',
+          ).to.equal('String');
+          expectPath(
+            cst,
+            '0.markup.0.markup.value.expression.entries.0.value.entries.0.value.value',
+          ).to.equal('Alice');
+        }
+      });
+
+      it('should parse assign tag with JSON literals as filter arguments', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // empty array as positional filter argument: value | default: []
+          cst = toCST(`{% assign arr = value | default: [] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.value.filters').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.value.filters.0.name').to.equal('default');
+          expectPath(cst, '0.markup.value.filters.0.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.value.filters.0.args.0.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.filters.0.args.0.elements').to.have.lengthOf(0);
+
+          // empty hash as positional filter argument: value | default: {}
+          cst = toCST(`{% assign hash = value | default: {} %}`);
+          expectPath(cst, '0.markup.value.filters.0.name').to.equal('default');
+          expectPath(cst, '0.markup.value.filters.0.args.0.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.filters.0.args.0.entries').to.have.lengthOf(0);
+
+          // populated array as filter argument
+          cst = toCST(`{% assign arr = value | default: ["a", "b"] %}`);
+          expectPath(cst, '0.markup.value.filters.0.args.0.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.filters.0.args.0.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.filters.0.args.0.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.value.filters.0.args.0.elements.0.value').to.equal('a');
+        }
+      });
+
+      it('should parse assign tag with string interpolation inside hash string values', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // {{ ... }} inside a quoted string value is parsed as plain string content (runtime-evaluated)
+          cst = toCST(`{% assign x = { "email": "{{ email | downcase }}", "name": "Alice" } %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.expression.entries').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.expression.entries.0.key.value').to.equal('email');
+          expectPath(cst, '0.markup.value.expression.entries.0.value.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.entries.0.value.value').to.equal(
+            '{{ email | downcase }}',
+          );
+          expectPath(cst, '0.markup.value.expression.entries.1.key.value').to.equal('name');
+          expectPath(cst, '0.markup.value.expression.entries.1.value.value').to.equal('Alice');
+        }
+      });
+
+      it('should treat {{ ... }} inside a plain assign string RHS as literal content', () => {
+        // `{{ ... }}` inside a quoted string is preserved verbatim as the String value.
+        // The runtime (Liquify) may re-render the result, but at parse time it's a String.
+        for (const { toCST, expectPath } of testCases) {
+          // double-quoted with a single interpolation
+          cst = toCST(`{% assign x = "hello {{ name }}" %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.single').to.equal(false);
+          expectPath(cst, '0.markup.value.expression.value').to.equal('hello {{ name }}');
+
+          // single-quoted with an interpolation
+          cst = toCST(`{% assign x = 'hello {{ name }}' %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.single').to.equal(true);
+          expectPath(cst, '0.markup.value.expression.value').to.equal('hello {{ name }}');
+
+          // multiple interpolations with a filter chain inside one
+          cst = toCST(`{% assign x = "{{ a }}-{{ b | upcase }}" %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.value').to.equal('{{ a }}-{{ b | upcase }}');
+        }
+      });
+
+      it('should treat {{ ... }} inside an array-element string as literal content', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = ["{{ a }}", "{{ b }}"] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.expression.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.expression.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.elements.0.value').to.equal('{{ a }}');
+          expectPath(cst, '0.markup.value.expression.elements.1.value').to.equal('{{ b }}');
+        }
+      });
+
+      it('should treat {{ ... }} inside a filter-argument string as literal content', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = y | append: "{{ suffix }}" %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.value.filters').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.value.filters.0.name').to.equal('append');
+          expectPath(cst, '0.markup.value.filters.0.args.0.type').to.equal('String');
+          expectPath(cst, '0.markup.value.filters.0.args.0.value').to.equal('{{ suffix }}');
+        }
+      });
+
+      it('should truncate at the first `%}` inside an assign string literal', () => {
+        // KNOWN LIMITATION: the `delim` lookahead (= `"-%}" | "%}"`) fires on the first
+        // `%}` it sees, even inside a quoted string. `{% assign x = "{% echo 'hi' %}" %}`
+        // therefore parses as TWO top-level nodes: a truncated assign whose markup
+        // stops before the inner `%}`, plus orphan text (`" %}`) containing the unmatched
+        // closing quote and the real end of the tag. This is a pre-existing parser limit;
+        // the test locks in the current behavior so any intentional fix is visible.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = "{% echo 'hi' %}" %}`);
+          // Two top-level nodes, not one.
+          expectPath(cst, 'length').to.equal(2);
+
+          // [0] truncated assign: base-case fallback with string markup that ends
+          // before the inner `%}` — the open quote is still unmatched in the markup.
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('assign');
+          expectPath(cst, '0.markup').to.equal(`x = "{% echo 'hi'`);
+
+          // [1] orphan text: the unmatched closing quote and the real tag-close.
+          expectPath(cst, '1.type').to.equal('TextNode');
+          expectPath(cst, '1.value').to.equal(`" %}`);
+        }
+      });
+
+      it('should reject invalid assign syntax in strict mode', () => {
+        const testCases = [
+          // missing RHS entirely
+          `{% assign x = %}`,
+          // unclosed hash literal
+          `{% assign x = { "key": "value" %}`,
+          // unclosed array literal
+          `{% assign x = ["a" %}`,
+          // missing value in hash entry
+          `{% assign x = { "key": } %}`,
+          // missing colon in hash entry
+          `{% assign x = { "key" "value" } %}`,
+        ];
+        for (const source of testCases) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
+          }
+        }
+      });
+
+      it('should parse assign with array element types beyond strings', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // variable lookups inside an array
+          cst = toCST(`{% assign x = [item1, item2] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.expression.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.expression.elements.0.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.value.expression.elements.0.name').to.equal('item1');
+          expectPath(cst, '0.markup.value.expression.elements.1.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.value.expression.elements.1.name').to.equal('item2');
+
+          // number literals inside an array
+          cst = toCST(`{% assign x = [1, 2, 3] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.expression.elements').to.have.lengthOf(3);
+          expectPath(cst, '0.markup.value.expression.elements.0.type').to.equal('Number');
+          expectPath(cst, '0.markup.value.expression.elements.0.value').to.equal('1');
+
+          // liquid literals (true, false, nil) inside an array
+          cst = toCST(`{% assign x = [true, false, nil] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.expression.elements').to.have.lengthOf(3);
+          expectPath(cst, '0.markup.value.expression.elements.0.type').to.equal('LiquidLiteral');
+          expectPath(cst, '0.markup.value.expression.elements.0.value').to.equal(true);
+          expectPath(cst, '0.markup.value.expression.elements.1.value').to.equal(false);
+          expectPath(cst, '0.markup.value.expression.elements.2.value').to.equal(null);
+        }
+      });
+
+      it('should parse assign hash with mixed string and bare keys', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = { "str_key": 1, bare_key: 2 } %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.expression.entries').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.expression.entries.0.key.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.entries.0.key.value').to.equal('str_key');
+          expectPath(cst, '0.markup.value.expression.entries.1.key.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(cst, '0.markup.value.expression.entries.1.key.name').to.equal('bare_key');
+        }
+      });
+
+      it('should chain filters after a JSON-literal filter argument', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // | default: [] | join: "," — two filters; the empty array is the arg to the first
+          cst = toCST(`{% assign x = val | default: [] | join: "," %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('VariableLookup');
+          expectPath(cst, '0.markup.value.filters').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.value.filters.0.name').to.equal('default');
+          expectPath(cst, '0.markup.value.filters.0.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.value.filters.0.args.0.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.filters.1.name').to.equal('join');
+          expectPath(cst, '0.markup.value.filters.1.args.0.type').to.equal('String');
+          expectPath(cst, '0.markup.value.filters.1.args.0.value').to.equal(',');
+        }
+      });
+
+      it('should parse assign with whitespace-strip delimiters and a JSON value', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{%- assign x = { "key": "val" } -%}`);
+          expectPath(cst, '0.type').to.equal('LiquidTag');
+          expectPath(cst, '0.name').to.equal('assign');
+          expectPath(cst, '0.whitespaceStart').to.equal('-');
+          expectPath(cst, '0.whitespaceEnd').to.equal('-');
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.expression.entries').to.have.lengthOf(1);
+        }
+      });
+
+      it('should parse multi-line array in {% liquid %} block followed by another statement', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  assign items = [\n    "a"\n  ]\n  assign other = 'hi'\n%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('assign');
+          expectPath(cst, '0.markup.0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.0.markup.value.expression.elements').to.have.lengthOf(1);
+          // the closing ] must not swallow the next statement
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+          expectPath(cst, '0.markup.1.markup.name').to.equal('other');
+        }
+      });
+
+      it('should parse backslash-X escape sequences in string literals', () => {
+        // Escape support matches the platformOS runtime (Ruby JSON's parser accepts
+        // these inside hash/array string values). The CST preserves the raw escape
+        // sequence in `value` — consumers can decode as needed.
+        for (const { toCST, expectPath } of testCases) {
+          // escaped double-quote inside double-quoted string
+          cst = toCST(`{% assign x = "He said \\"hello\\"" %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.single').to.equal(false);
+          expectPath(cst, '0.markup.value.expression.value').to.equal('He said \\"hello\\"');
+
+          // escaped backslash inside double-quoted string
+          cst = toCST(`{% assign x = "a\\\\b" %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.value').to.equal('a\\\\b');
+
+          // escaped single-quote inside single-quoted string
+          cst = toCST(`{% assign x = 'can\\'t' %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.single').to.equal(true);
+          expectPath(cst, '0.markup.value.expression.value').to.equal("can\\'t");
+
+          // escaped double-quote inside a JSON hash literal value (the motivating case)
+          cst = toCST(`{% assign data = { "quote": "He said \\"hello\\"" } %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.value.expression.entries').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.value.expression.entries.0.key.value').to.equal('quote');
+          expectPath(cst, '0.markup.value.expression.entries.0.value.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.entries.0.value.value').to.equal(
+            'He said \\"hello\\"',
+          );
+        }
+      });
+
+      it('should preserve plain strings (no escape) unchanged', () => {
+        // Regression guard: the escape-aware body rule must not alter simple strings.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = "plain text" %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.value').to.equal('plain text');
+
+          cst = toCST(`{% assign x = 'no escapes here' %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.value').to.equal('no escapes here');
+        }
+      });
+
+      it('should reject trailing commas in assign JSON literals in strict mode', () => {
+        const trailingCommaTests = [
+          `{% assign x = { "key": "val", } %}`,
+          `{% assign x = ["a", ] %}`,
+        ];
+        for (const source of trailingCommaTests) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
+          }
+        }
+      });
+
+      it('should reject mismatched / nested-unclosed JSON in assign (strict mode)', () => {
+        const invalidCases = [
+          // mismatched closing bracket
+          `{% assign x = { "k": "v" ] %}`,
+          // nested unclosed array inside valid outer array
+          `{% assign x = [ "a", [1,2 ] %}`,
+          // nested unclosed hash inside hash
+          `{% assign x = { "a": { "b": "c" } %}`,
+        ];
+        for (const source of invalidCases) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
+          }
+        }
+      });
+
+      it('should parse primitive RHS types (strings, numbers, literals, ranges)', () => {
+        // Lock in that each primitive RHS type produces the expected expression AST node.
+        const primitives: Array<[string, string, any]> = [
+          [`{% assign x = 'str' %}`, 'String', 'str'],
+          [`{% assign x = "str" %}`, 'String', 'str'],
+          [`{% assign x = 42 %}`, 'Number', '42'],
+          [`{% assign x = -1.5 %}`, 'Number', '-1.5'],
+          [`{% assign x = true %}`, 'LiquidLiteral', true],
+          [`{% assign x = false %}`, 'LiquidLiteral', false],
+          [`{% assign x = nil %}`, 'LiquidLiteral', null],
+        ];
+        for (const [source, expectedType, expectedValue] of primitives) {
+          for (const { toCST, expectPath } of testCases) {
+            cst = toCST(source);
+            expectPath(cst, '0.markup.value.expression.type').to.equal(expectedType);
+            expectPath(cst, '0.markup.value.expression.value').to.equal(expectedValue);
+          }
+        }
+      });
+
+      it('should parse valid identifier variants as assign target', () => {
+        // Underscore prefix, snake_case, hyphen, trailing digit — all accepted by the grammar.
+        const validIdentifiers = [
+          [`{% assign _private = 1 %}`, '_private'],
+          [`{% assign snake_case = 1 %}`, 'snake_case'],
+          [`{% assign with-dash = 1 %}`, 'with-dash'],
+          [`{% assign x1 = 1 %}`, 'x1'],
+        ];
+        for (const [source, expectedName] of validIdentifiers) {
+          for (const { toCST, expectPath } of testCases) {
+            cst = toCST(source);
+            expectPath(cst, '0.markup.target.name').to.equal(expectedName);
+          }
+        }
+      });
+
+      it('should parse bare push syntax (`a << b`) in assign', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign my_val << "item" %}`);
+          expectPath(cst, '0.markup.target.name').to.equal('my_val');
+          expectPath(cst, '0.markup.operator').to.equal('<<');
+
+          cst = toCST(`{% assign my_val << "item" | upcase %}`);
+          expectPath(cst, '0.markup.operator').to.equal('<<');
+          expectPath(cst, '0.markup.value.filters').to.have.lengthOf(1);
         }
       });
 
@@ -842,6 +1334,25 @@ describe('Unit: Stage 1 (CST)', () => {
             }
           },
         );
+      });
+
+      it('should reject multi-line arguments for render in {% liquid %} blocks (strict mode)', () => {
+        // render does not support multi-line argument lists; only function does.
+        // A newline after the comma in render arguments must be treated as a statement separator,
+        // not an argument continuation.
+        const invalidCases = [
+          `{% liquid\n  render 'partial',\n    arg1: "val"\n%}`,
+          `{% liquid\n  render 'partial',\n    arg1: "val",\n    arg2: "val2"\n%}`,
+        ];
+        for (const source of invalidCases) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
+          }
+        }
       });
 
       it('should parse the include tag', () => {
@@ -1027,6 +1538,180 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('NamedArgument');
           expectPath(cst, '0.markup.functionArguments.0.value.name').to.equal('key');
           expectPath(cst, '0.markup.functionArguments.0.value.value.type').to.equal('String');
+        }
+      });
+
+      it('should parse multi-line function arguments in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // arguments on separate lines with commas
+          cst = toCST(
+            `{% liquid\n  function result = 'partial/path',\n    arg1: val1,\n    arg2: val2\n%}`,
+          );
+          expectPath(cst, '0.markup.0.name').to.equal('function');
+          expectPath(cst, '0.markup.0.markup.functionArguments').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.functionArguments.0.name').to.equal('arg1');
+          expectPath(cst, '0.markup.0.markup.functionArguments.1.name').to.equal('arg2');
+
+          // statement following multi-line function is parsed correctly
+          cst = toCST(
+            `{% liquid\n  function result = 'partial/path',\n    arg1: val1\n  assign x = 'hi'\n%}`,
+          );
+          expectPath(cst, '0.markup.0.name').to.equal('function');
+          expectPath(cst, '0.markup.0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+        }
+      });
+
+      it('should parse function tag with JSON literals as named argument values', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // empty array and empty hash as named argument values
+          cst = toCST(`{% function result = 'my/function', array: [], hash: {} %}`);
+          expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.functionArguments.0.name').to.equal('array');
+          expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.functionArguments.0.value.elements').to.have.lengthOf(0);
+          expectPath(cst, '0.markup.functionArguments.1.name').to.equal('hash');
+          expectPath(cst, '0.markup.functionArguments.1.value.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.functionArguments.1.value.entries').to.have.lengthOf(0);
+
+          // populated array as named argument value
+          cst = toCST(`{% function result = 'my/function', items: ["a", "b"] %}`);
+          expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.functionArguments.0.name').to.equal('items');
+          expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.functionArguments.0.value.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.functionArguments.0.value.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.functionArguments.0.value.elements.0.value').to.equal('a');
+
+          // populated hash as named argument value — keys are variable lookups (bare keys)
+          cst = toCST(`{% function result = 'my/function', config: { key: "val" } %}`);
+          expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.functionArguments.0.name').to.equal('config');
+          expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.functionArguments.0.value.entries').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.functionArguments.0.value.entries.0.key.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(cst, '0.markup.functionArguments.0.value.entries.0.key.name').to.equal('key');
+          expectPath(cst, '0.markup.functionArguments.0.value.entries.0.value.value').to.equal(
+            'val',
+          );
+
+          // multi-line function with JSON array argument in {% liquid %} block
+          cst = toCST(
+            `{% liquid\n  function result = 'my/function',\n    array: [],\n    hash: {}\n%}`,
+          );
+          expectPath(cst, '0.markup.0.name').to.equal('function');
+          expectPath(cst, '0.markup.0.markup.functionArguments').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.functionArguments.0.name').to.equal('array');
+          expectPath(cst, '0.markup.0.markup.functionArguments.0.value.type').to.equal(
+            'JsonArrayLiteral',
+          );
+          expectPath(cst, '0.markup.0.markup.functionArguments.1.name').to.equal('hash');
+          expectPath(cst, '0.markup.0.markup.functionArguments.1.value.type').to.equal(
+            'JsonHashLiteral',
+          );
+        }
+      });
+
+      it('should reject invalid function syntax in strict mode', () => {
+        const invalidCases = [
+          // missing partial (no = expression)
+          `{% function result %}`,
+          // missing = operator
+          `{% function result 'partial' %}`,
+        ];
+        for (const source of invalidCases) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
+          }
+        }
+      });
+
+      it('should parse function with nested multi-line hash argument in {% liquid %} block', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(
+            `{% liquid\n  function res = 'path',\n    config: {\n      key: "val"\n    }\n%}`,
+          );
+          expectPath(cst, '0.markup.0.name').to.equal('function');
+          expectPath(cst, '0.markup.0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.0.markup.functionArguments.0.name').to.equal('config');
+          expectPath(cst, '0.markup.0.markup.functionArguments.0.value.type').to.equal(
+            'JsonHashLiteral',
+          );
+          expectPath(cst, '0.markup.0.markup.functionArguments.0.value.entries').to.have.lengthOf(
+            1,
+          );
+          expectPath(
+            cst,
+            '0.markup.0.markup.functionArguments.0.value.entries.0.key.type',
+          ).to.equal('VariableLookup');
+          expectPath(
+            cst,
+            '0.markup.0.markup.functionArguments.0.value.entries.0.key.name',
+          ).to.equal('key');
+        }
+      });
+
+      it('should parse function with JSON array containing variable lookups as named arg', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% function result = 'my/function', items: [item1, item2] %}`);
+          expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.functionArguments.0.name').to.equal('items');
+          expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.functionArguments.0.value.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.functionArguments.0.value.elements.0.type').to.equal(
+            'VariableLookup',
+          );
+          expectPath(cst, '0.markup.functionArguments.0.value.elements.0.name').to.equal('item1');
+        }
+      });
+
+      it('should parse function tag with nested key:value pair as named argument value (hashPairValue)', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // `filter: type: "string"` — `filter` is the named arg, `type: "string"` is a hashPairValue
+          // which produces a nested NamedArgument node for linter inspection.
+          cst = toCST(`{% function result = 'my/function', filter: type: "string" %}`);
+          expectPath(cst, '0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.functionArguments.0.name').to.equal('filter');
+          expectPath(cst, '0.markup.functionArguments.0.value.type').to.equal('NamedArgument');
+          expectPath(cst, '0.markup.functionArguments.0.value.name').to.equal('type');
+          expectPath(cst, '0.markup.functionArguments.0.value.value.type').to.equal('String');
+          expectPath(cst, '0.markup.functionArguments.0.value.value.value').to.equal('string');
+        }
+      });
+
+      it('should NOT swallow the next statement when function has no trailing comma', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // no comma after partial path — next line must be a separate statement, not an argument
+          cst = toCST(`{% liquid\n  function res = 'path'\n  assign x = 'hi'\n%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('function');
+          expectPath(cst, '0.markup.0.markup.functionArguments').to.have.lengthOf(0);
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+        }
+      });
+
+      it('should reject invalid function JSON argument syntax in strict mode', () => {
+        const invalidCases = [
+          // missing partial after =
+          `{% function res = %}`,
+          // unclosed hash in named argument value
+          `{% function res = 'path', config: { "key": "val" %}`,
+          // unclosed array in named argument value
+          `{% function res = 'path', items: ["a", "b" %}`,
+        ];
+        for (const source of invalidCases) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
+          }
         }
       });
 
@@ -2054,6 +2739,109 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.type').to.equal('LiquidVariable');
           expectPath(cst, '0.markup.expression.type').to.equal('JsonHashLiteral');
           expectPath(cst, '0.markup.expression.entries').to.have.lengthOf(2);
+        }
+      });
+
+      it('should parse multi-line return hash literal in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(
+            `{% liquid\n  return {\n    "payload": payload,\n    "type": 'POST'\n  }\n%}`,
+          );
+          expectPath(cst, '0.markup.0.name').to.equal('return');
+          expectPath(cst, '0.markup.0.markup.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.0.markup.expression.entries').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.expression.entries.0.key.value').to.equal('payload');
+        }
+      });
+
+      it('should parse the return tag with {{ ... }} interpolations inside a string', () => {
+        // This pattern is common for function partials:
+        //   {% return "{{ arg1 }} my {{ arg2 }}" %}
+        // The interpolations are preserved as literal String content at parse time;
+        // the runtime re-renders the returned string.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% return "{{ arg1 }} my {{ arg2 }}" %}`);
+          expectPath(cst, '0.name').to.equal('return');
+          expectPath(cst, '0.markup.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.expression.value').to.equal('{{ arg1 }} my {{ arg2 }}');
+
+          // single interpolation with a filter
+          cst = toCST(`{% return "{{ name | upcase }}" %}`);
+          expectPath(cst, '0.markup.expression.value').to.equal('{{ name | upcase }}');
+
+          // hyphenated variable inside interpolation
+          cst = toCST(`{% return "{{ arg1 }} my {{ arg2-with-hyphens }}" %}`);
+          expectPath(cst, '0.markup.expression.value').to.equal(
+            '{{ arg1 }} my {{ arg2-with-hyphens }}',
+          );
+        }
+      });
+
+      it('should parse the return tag with JSON array literals', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // empty array
+          cst = toCST(`{% return [] %}`);
+          expectPath(cst, '0.name').to.equal('return');
+          expectPath(cst, '0.markup.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.expression.elements').to.have.lengthOf(0);
+
+          // populated array
+          cst = toCST(`{% return ["a", "b"] %}`);
+          expectPath(cst, '0.markup.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.expression.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.expression.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.expression.elements.0.value').to.equal('a');
+        }
+      });
+
+      it('should parse the return tag with a filter applied to a hash literal', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% return { "key": "val" } | json_escape %}`);
+          expectPath(cst, '0.name').to.equal('return');
+          expectPath(cst, '0.markup.expression.type').to.equal('JsonHashLiteral');
+          expectPath(cst, '0.markup.expression.entries').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.filters').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.filters.0.name').to.equal('json_escape');
+        }
+      });
+
+      it('should parse multi-line array return in {% liquid %} block', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  return [\n    "a",\n    "b"\n  ]\n%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('return');
+          expectPath(cst, '0.markup.0.markup.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.0.markup.expression.elements').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.expression.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.0.markup.expression.elements.0.value').to.equal('a');
+        }
+      });
+
+      it('should not swallow next statement after multi-line return hash in {% liquid %} block', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid\n  return {\n    "key": val\n  }\n  assign x = 1\n%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('return');
+          expectPath(cst, '0.markup.0.markup.expression.type').to.equal('JsonHashLiteral');
+          // the assign must be a separate statement, not swallowed into the return
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+          expectPath(cst, '0.markup.1.markup.name').to.equal('x');
+        }
+      });
+
+      it('should reject invalid return syntax in strict mode', () => {
+        const invalidCases = [
+          // unclosed hash
+          `{% return { "key": "val" %}`,
+          // unclosed array
+          `{% return ["a" %}`,
+        ];
+        for (const source of invalidCases) {
+          try {
+            toLiquidHtmlCST(source, { mode: 'strict' });
+            expect(true, `expected ${source} to throw`).to.be.false;
+          } catch (e: any) {
+            expect(e.name, source).to.equal('LiquidHTMLParsingError');
+            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
+          }
         }
       });
 

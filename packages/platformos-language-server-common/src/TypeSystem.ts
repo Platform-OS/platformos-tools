@@ -1,6 +1,5 @@
 import {
   AssignMarkup,
-  AssignPushRhs,
   ComplexLiquidExpression,
   FunctionMarkup,
   LiquidDocParamNode,
@@ -382,14 +381,9 @@ async function buildSymbolsTable(
     // {% assign x = {a: 1, b: "hello"} %}
     // {% assign x["key"] = value %}
     // {% assign arr << item %}
-    // {% assign arr = source << item %}
     async AssignMarkup(node) {
-      // For explicit push form (assign a = source << value), treat as array append
-      const isPushRhs = node.value.type === NodeTypes.AssignPushRhs;
-      const effectiveValue = isPushRhs
-        ? (node.value as AssignPushRhs).pushValue
-        : (node.value as LiquidVariable);
-      const effectiveOperator = isPushRhs ? '<<' : node.operator;
+      const effectiveValue = node.value as LiquidVariable;
+      const effectiveOperator = node.operator;
       const expression = effectiveValue.expression;
       let valueShape: PropertyShape | undefined;
 
@@ -970,9 +964,7 @@ function inferType(
     // The type of the assign markup is the type of the right hand side.
     // {% assign x = y.property | filter1 | filter2 %}
     case NodeTypes.AssignMarkup: {
-      const assignValue =
-        thing.value.type === NodeTypes.AssignPushRhs ? thing.value.pushValue : thing.value;
-      return inferType(assignValue, symbolsTable, objectMap, filtersMap);
+      return inferType(thing.value, symbolsTable, objectMap, filtersMap);
     }
 
     // A variable lookup is expression[.lookup]*

@@ -1,7 +1,10 @@
 import { Severity, SourceCodeType, LiquidCheckDefinition, Problem } from '../../types';
 import { getOffset, isError } from '../../utils';
 import { detectMultipleAssignValues } from './checks/MultipleAssignValues';
-import { detectInvalidAssignSyntax } from './checks/InvalidAssignSyntax';
+import {
+  detectInvalidAssignSyntax,
+  detectInvalidAssignFallback,
+} from './checks/InvalidAssignSyntax';
 import { detectInvalidBooleanExpressions } from './checks/InvalidBooleanExpressions';
 import { detectInvalidEchoValue } from './checks/InvalidEchoValue';
 import { detectInvalidConditionalNode } from './checks/InvalidConditionalNode';
@@ -122,6 +125,14 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
           const pipeProblems = await detectInvalidPipeSyntax(node);
           if (pipeProblems.length > 0) {
             pipeProblems.forEach((pipeProblem) => context.report(pipeProblem));
+          }
+
+          // Last-chance check for assign tags whose tolerant parse fell back to
+          // string markup (e.g. stray `}` before `%}`). Gated on "nothing else
+          // reported on this tag" to avoid double-flagging.
+          if (problems.length + filterProblems.length + pipeProblems.length === 0) {
+            const fallback = detectInvalidAssignFallback(node);
+            if (fallback) context.report(fallback);
           }
         },
 

@@ -92,6 +92,55 @@ describe('detectInvalidAssignSyntax', () => {
     });
   });
 
+  describe('trailing garbage after RHS / filters (fallback)', () => {
+    // These cases have a valid `target = value` skeleton and a valid filter chain,
+    // but extra non-parseable characters trail the filters. The tolerant parser
+    // swallows the entire body as string markup, and none of the other sub-checks
+    // (MultipleAssignValues, InvalidFilterName, InvalidPipeSyntax) detects the
+    // problem — so the fallback re-parses in strict mode and surfaces it.
+    const fallbackCases: Array<[string, string]> = [
+      [
+        'stray `}` after filter array argument',
+        `{% assign name = arr | default: [ "hi", k, v] } %}`,
+      ],
+      ['trailing bare word after filter arg', `{% assign x = y | default: "z" trailing %}`],
+    ];
+
+    for (const [label, sourceCode] of fallbackCases) {
+      it(`should report: ${label} — ${sourceCode}`, async () => {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+        const syntaxOffenses = offenses.filter((o) =>
+          o.message.includes("Invalid syntax for tag 'assign'"),
+        );
+        expect(syntaxOffenses).toHaveLength(1);
+      });
+    }
+
+    // These cases are already flagged by other sub-checks with different messages;
+    // the fallback must NOT also fire on them (no double-reporting).
+    const alreadyCoveredCases: Array<[string, string]> = [
+      [
+        'stray `}` after unary filter (InvalidFilterName catches it)',
+        `{% assign x = y | upcase } %}`,
+      ],
+      [
+        'stray `}` after RHS with no filter (MultipleAssignValues catches it)',
+        `{% assign x = "v" } %}`,
+      ],
+    ];
+
+    for (const [label, sourceCode] of alreadyCoveredCases) {
+      it(`should NOT double-report: ${label} — ${sourceCode}`, async () => {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+        expect(offenses.length).toBeGreaterThan(0);
+        const fallbackOffenses = offenses.filter((o) =>
+          o.message.includes("Invalid syntax for tag 'assign'"),
+        );
+        expect(fallbackOffenses).toHaveLength(0);
+      });
+    }
+  });
+
   describe('valid syntax — should NOT report', () => {
     const validCases: Array<[string, string]> = [
       // primitives

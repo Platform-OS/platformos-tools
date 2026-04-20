@@ -447,8 +447,7 @@ function findCurrentNode(
       case NodeTypes.ExportMarkup:
       case NodeTypes.RedirectToMarkup:
       case NodeTypes.IncludeFormMarkup:
-      case NodeTypes.SpamProtectionMarkup:
-      case NodeTypes.AssignPushRhs: {
+      case NodeTypes.SpamProtectionMarkup: {
         break;
       }
 

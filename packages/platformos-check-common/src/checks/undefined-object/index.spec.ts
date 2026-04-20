@@ -700,4 +700,105 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toBe("Unknown object 'error' used.");
   });
+
+  describe('JSON literals in assign tag', () => {
+    it('should report undefined bare key AND bare value in a hash literal', async () => {
+      // bare keys and bare values are both VariableLookups in platformOS semantics —
+      // they are evaluated at runtime, so both are subject to undefined-object checks
+      const sourceCode = `
+        {% doc %}
+        {% enddoc %}
+        {% assign hash = { bare_key: bare_val } %}
+      `;
+
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+      expect(offenses.map((o) => o.message).sort()).toEqual([
+        "Unknown object 'bare_key' used.",
+        "Unknown object 'bare_val' used.",
+      ]);
+    });
+
+    it('should NOT report string keys in a hash literal (they are literals, not variables)', async () => {
+      const sourceCode = `
+        {% doc %}
+        {% enddoc %}
+        {% assign hash = { "key": "val" } %}
+      `;
+
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should report undefined bare value under a string key', async () => {
+      const sourceCode = `
+        {% doc %}
+        {% enddoc %}
+        {% assign hash = { "key": undefined_var } %}
+      `;
+
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+      expect(offenses).toHaveLength(1);
+      expect(offenses[0].message).toBe("Unknown object 'undefined_var' used.");
+    });
+
+    it('should report undefined elements in an array literal', async () => {
+      const sourceCode = `
+        {% doc %}
+        {% enddoc %}
+        {% assign arr = [a, undefined_var] %}
+      `;
+
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+      expect(offenses.map((o) => o.message).sort()).toEqual([
+        "Unknown object 'a' used.",
+        "Unknown object 'undefined_var' used.",
+      ]);
+    });
+
+    it('should NOT report string elements in an array literal', async () => {
+      const sourceCode = `
+        {% doc %}
+        {% enddoc %}
+        {% assign arr = ["a", "b", "c"] %}
+      `;
+
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should NOT report bare keys/values when they refer to defined variables', async () => {
+      const sourceCode = `
+        {% doc %}
+        {% enddoc %}
+        {% assign bare_key = "k" %}
+        {% assign bare_val = "v" %}
+        {% assign hash = { bare_key: bare_val } %}
+      `;
+
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+      expect(offenses).toHaveLength(0);
+    });
+
+    it('should report undefined bare keys/values in nested hash literals', async () => {
+      const sourceCode = `
+        {% doc %}
+        {% enddoc %}
+        {% assign hash = { outer: { inner: value } } %}
+      `;
+
+      const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+      expect(offenses.map((o) => o.message).sort()).toEqual([
+        "Unknown object 'inner' used.",
+        "Unknown object 'outer' used.",
+        "Unknown object 'value' used.",
+      ]);
+    });
+  });
 });

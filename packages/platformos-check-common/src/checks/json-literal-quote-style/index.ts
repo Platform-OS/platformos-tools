@@ -32,7 +32,7 @@ export const JsonLiteralQuoteStyle: LiquidCheckDefinition = {
 
         context.report({
           message:
-            "Use double quotes for string literals inside object/array literals (e.g. '{\"key\": \"value\"}', not \"{'key': 'value'}\").",
+            'Use double quotes for string literals inside object/array literals (e.g. \'{"key": "value"}\', not "{\'key\': \'value\'}").',
           startIndex: node.position.start,
           endIndex: node.position.end,
           fix: (corrector) => {

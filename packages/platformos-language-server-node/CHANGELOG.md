@@ -1,5 +1,15 @@
 # @platformos/theme-language-server-node
 
+## 0.0.19
+
+### Patch Changes
+
+- Improved checks
+- Updated dependencies
+  - @platformos/platformos-language-server-common@0.0.19
+  - @platformos/platformos-check-docs-updater@0.0.19
+  - @platformos/platformos-check-node@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

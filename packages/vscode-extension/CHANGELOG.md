@@ -1,5 +1,18 @@
 ## platformos-check-vscode
 
+## 0.3.10
+
+### Patch Changes
+
+- Improved checks
+- Updated dependencies
+  - @platformos/platformos-language-server-browser@0.0.19
+  - @platformos/platformos-language-server-common@0.0.19
+  - @platformos/platformos-language-server-node@0.0.19
+  - @platformos/platformos-check-common@0.0.19
+  - @platformos/prettier-plugin-liquid@0.0.17
+  - @platformos/liquid-html-parser@0.0.17
+
 ## 0.3.9
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @platformos/theme-language-server-browser
 
+## 0.0.19
+
+### Patch Changes
+
+- Improved checks
+- Updated dependencies
+  - @platformos/platformos-language-server-common@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

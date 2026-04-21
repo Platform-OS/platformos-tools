@@ -1,5 +1,15 @@
 # @platformos/theme-language-server-common
 
+## 0.0.19
+
+### Patch Changes
+
+- Improved checks
+- Updated dependencies
+  - @platformos/platformos-check-common@0.0.19
+  - @platformos/liquid-html-parser@0.0.17
+  - @platformos/platformos-graph@0.0.19
+
 ## 0.0.18
 
 ### Patch Changes

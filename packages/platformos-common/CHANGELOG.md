@@ -1,5 +1,11 @@
 # @platformos/platformos-common
 
+## 0.0.17
+
+### Patch Changes
+
+- Improved checks
+
 ## 0.0.16
 
 ### Patch Changes

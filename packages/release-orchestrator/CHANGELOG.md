@@ -1,5 +1,11 @@
 # release-orchestrator
 
+## 0.0.16
+
+### Patch Changes
+
+- Improved checks
+
 ## 0.0.15
 
 ### Patch Changes

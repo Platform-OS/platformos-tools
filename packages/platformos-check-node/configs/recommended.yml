@@ -30,6 +30,9 @@ InvalidHashAssignTarget:
 JSONSyntaxError:
   enabled: true
   severity: 0
+JsonLiteralQuoteStyle:
+  enabled: true
+  severity: 0
 LiquidHTMLSyntaxError:
   enabled: true
   severity: 0

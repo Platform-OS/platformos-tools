@@ -1,5 +1,7 @@
-import { LiquidTag } from '@platformos/liquid-html-parser';
+import { LiquidTag, toLiquidAST } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
+
+const INVALID_ASSIGN_MESSAGE = `Invalid syntax for tag 'assign'. Expected syntax: {% assign <var> = <value> %}`;
 
 /**
  * Detects structurally-invalid `assign` tags that neither `MultipleAssignValues` nor
@@ -38,10 +40,42 @@ export function detectInvalidAssignSyntax(
   if (!isStructurallyBroken) return;
 
   return {
-    message: `Invalid syntax for tag 'assign'. Expected syntax: {% assign <var> = <value> %}`,
+    message: INVALID_ASSIGN_MESSAGE,
     startIndex: node.position.start,
     endIndex: node.position.end,
   };
+}
+
+/**
+ * Fallback for assign tags where the tolerant parser landed in string markup even
+ * though the `target = value` skeleton looks fine — meaning the value or filter
+ * chain has parse-breaking characters (e.g. a stray `}` before `%}`) that no other
+ * dedicated sub-check (MultipleAssignValues, InvalidFilterName, InvalidPipeSyntax)
+ * surfaced. Re-parses the tag source in strict mode and reports on failure.
+ *
+ * Must run ONLY when no other sub-check already reported on this tag, otherwise
+ * it double-flags the same problem. The orchestrator enforces that gate.
+ */
+export function detectInvalidAssignFallback(
+  node: LiquidTag,
+): Problem<SourceCodeType.LiquidHtml> | undefined {
+  if (node.name !== 'assign' || typeof node.markup !== 'string') return;
+
+  // Digit-starting targets (e.g. `23_hours_ago`) are accepted by the platformOS
+  // runtime but rejected by the Ohm grammar's `variableSegment` rule. Skipping
+  // them here mirrors the intentional tolerance in isValidAssignTarget above.
+  if (/^\s*\d/.test(node.markup)) return;
+
+  const tagSource = node.source.slice(node.position.start, node.position.end);
+  try {
+    toLiquidAST(tagSource, { mode: 'strict', allowUnclosedDocumentNode: true });
+  } catch {
+    return {
+      message: INVALID_ASSIGN_MESSAGE,
+      startIndex: node.position.start,
+      endIndex: node.position.end,
+    };
+  }
 }
 
 /**

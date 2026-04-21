@@ -31,6 +31,12 @@ export const UnusedAssign: LiquidCheckDefinition = {
     // effects on the original, so they count as "using" the variable.
     const referenceAssignedVariables: Set<string> = new Set();
     const usedVariables: Set<string> = new Set();
+    // Concatenated markup of LiquidTags whose parsing fell back to a raw string
+    // (e.g. a typo like `{% assign name = x | default: [...] } %}`). The AST has
+    // no VariableLookup nodes to traverse inside them, so onCodePathEnd scans
+    // this text for assigned-variable names — avoids compounding the user's
+    // syntax error with false "unused" warnings.
+    let fallbackText = '';
 
     function checkVariableUsage(node: any) {
       if (node.type === NodeTypes.VariableLookup) {
@@ -66,6 +72,8 @@ export const UnusedAssign: LiquidCheckDefinition = {
           }
         } else if (isLiquidTagCapture(node) && node.markup.name) {
           assignedVariables.set(node.markup.name, node);
+        } else if (typeof node.markup === 'string' && node.markup) {
+          fallbackText += '\n' + node.markup;
         }
       },
 
@@ -79,6 +87,13 @@ export const UnusedAssign: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
+        if (fallbackText) {
+          for (const name of assignedVariables.keys()) {
+            if (usedVariables.has(name)) continue;
+            if (new RegExp(`\\b${name}\\b`).test(fallbackText)) usedVariables.add(name);
+          }
+        }
+
         for (const [variable, node] of assignedVariables.entries()) {
           if (!usedVariables.has(variable) && !variable.startsWith('_')) {
             context.report({

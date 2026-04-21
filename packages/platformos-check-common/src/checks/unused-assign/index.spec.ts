@@ -201,4 +201,52 @@ describe('Module: UnusedAssign', () => {
     expect(offenses).to.have.lengthOf(1);
     expect(offenses[0].message).to.equal("The variable 'arr' is assigned but not used");
   });
+
+  it('should not report variables used inside a filter array-literal argument', async () => {
+    const sourceCode = `
+      {% assign k = "key" %}
+      {% assign v = "value" %}
+      {% assign name = arr | default: [ "hi", k, v] %}
+      {{ name }}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
+
+  it('should not report variables used inside a filter hash-literal argument', async () => {
+    const sourceCode = `
+      {% assign k = 1 %}
+      {% assign name = arr | default: { a: k } %}
+      {{ name }}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
+
+  it('should not report variables used inside a named-argument value', async () => {
+    const sourceCode = `
+      {% assign k = 0 %}
+      {% assign name = arr | slice: start: k %}
+      {{ name }}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
+
+  it('should not report variables referenced in a string-markup fallback assign (parse failure)', async () => {
+    // The stray `}` before `%}` causes the tolerant parser to fall back to
+    // string markup. The AST contains no VariableLookup nodes for k/v, so
+    // without a textual fallback scan the check would wrongly flag them.
+    const sourceCode = `
+      {% assign k = "key" %}
+      {% assign v = "value" %}
+      {% assign name = arr | default: [ "hi", k, v] } %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).to.have.lengthOf(0);
+  });
 });

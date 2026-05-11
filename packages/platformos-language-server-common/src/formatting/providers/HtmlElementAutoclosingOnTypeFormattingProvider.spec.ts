@@ -13,7 +13,7 @@ describe('Module: HtmlElementAutoclosingOnTypeFormattingProvider', () => {
   let documentManager: DocumentManager;
   let onTypeFormattingProvider: OnTypeFormattingProvider;
   let setCursorPositionSpy: SetCursorPosition;
-  const uri = 'file:///path/to/document.liquid';
+  const uri = 'file:///app/views/partials/document.liquid';
 
   beforeEach(() => {
     setCursorPositionSpy = vi.fn(async () => {}) as SetCursorPosition;

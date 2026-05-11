@@ -60,11 +60,13 @@ export {
   isFormConfiguration,
   isKnownGraphQLFile,
   isKnownLiquidFile,
+  isKnownYAMLFile,
   isLayout,
   isMigration,
   isPage,
   isPartial,
   isSms,
+  isSupportedSourceFile,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
 export * from './frontmatter';

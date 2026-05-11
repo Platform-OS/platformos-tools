@@ -79,6 +79,8 @@ export const hover: RawMatcherFn<MatcherState> = async function (
 };
 
 function asHoverContext(context: string | HoverContext): HoverContext {
-  if (typeof context === 'string') return { source: context, relativePath: 'app/file.liquid' };
+  if (typeof context === 'string') {
+    return { source: context, relativePath: 'app/views/layouts/file.liquid' };
+  }
   return context;
 }

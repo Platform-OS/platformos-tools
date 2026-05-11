@@ -14,6 +14,7 @@ import {
   isIgnored,
   isKnownLiquidFile,
   isKnownGraphQLFile,
+  isKnownYAMLFile,
   memo,
   path as pathUtils,
   YAMLSourceCode,
@@ -149,6 +150,15 @@ export async function getApp(config: Config): Promise<App> {
         // Only lint .graphql files that belong to a recognized platformOS GraphQL directory.
         // Schema files, generator templates (e.g. ERB .graphql), etc. are excluded.
         if (filePath.endsWith('.graphql') && !isKnownGraphQLFile(filePath)) return false;
+        // Only lint .yml/.yaml files that belong to a recognized platformOS YAML
+        // directory (translations, custom model types, etc.). Config files like
+        // config.yml or .platformos-check.yml are excluded.
+        if (
+          (filePath.endsWith('.yml') || filePath.endsWith('.yaml')) &&
+          !isKnownYAMLFile(filePath)
+        ) {
+          return false;
+        }
         return true;
       }),
   );
@@ -160,7 +170,7 @@ export async function getApp(config: Config): Promise<App> {
 }
 
 export function getAppFilesPathPattern(rootUri: string) {
-  return normalize(path.join(fileURLToPath(rootUri), '**/*.{liquid,json,graphql,yml,yaml}'));
+  return normalize(path.join(fileURLToPath(rootUri), '**/*.{liquid,graphql,yml,yaml}'));
 }
 
 /** @deprecated Use appCheckRun instead */

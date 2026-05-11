@@ -16,7 +16,7 @@ describe('Module: EmptyHtmlTagLinkedRangesProvider', () => {
 
   it('should return null for non-existent documents', async () => {
     const params: LinkedEditingRangeParams = {
-      textDocument: { uri: 'file:///path/to/non-existent-document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/non-existent-document.liquid' },
       position: Position.create(0, 0),
     };
 
@@ -26,7 +26,7 @@ describe('Module: EmptyHtmlTagLinkedRangesProvider', () => {
 
   it('should return null for non-empty HTML tags', async () => {
     const params: LinkedEditingRangeParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 0),
     };
 
@@ -38,7 +38,7 @@ describe('Module: EmptyHtmlTagLinkedRangesProvider', () => {
 
   it('should return linked editing ranges for empty HTML tags', async () => {
     const params: LinkedEditingRangeParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 1), // position within the empty tag
     };
 
@@ -62,7 +62,7 @@ describe('Module: EmptyHtmlTagLinkedRangesProvider', () => {
 
   it('should return null for positions not within empty HTML tags', async () => {
     const params: LinkedEditingRangeParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 0), // position outside the tag
     };
 

@@ -161,7 +161,10 @@ describe('Module: LiquidObjectHoverProvider', async () => {
         { source, relativePath },
         expect.stringContaining(`## ${object}`),
       );
-      await expect(provider).to.hover({ source, relativePath: 'file.liquid' }, null);
+      await expect(provider).to.hover(
+        { source, relativePath: 'app/views/layouts/main.liquid' },
+        null,
+      );
     }
   });
 

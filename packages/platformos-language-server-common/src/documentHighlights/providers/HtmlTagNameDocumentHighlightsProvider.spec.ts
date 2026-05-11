@@ -15,7 +15,7 @@ describe('Module: HtmlTagNameDocumentHighlightsProvider', () => {
 
   it('should return [] for non-existent documents', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/non-existent-document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/non-existent-document.liquid' },
       position: Position.create(0, 0),
     };
 
@@ -25,7 +25,7 @@ describe('Module: HtmlTagNameDocumentHighlightsProvider', () => {
 
   it('should return [] for non-HTML documents', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 0),
     };
 
@@ -37,7 +37,7 @@ describe('Module: HtmlTagNameDocumentHighlightsProvider', () => {
 
   it('should return document highlight ranges for HTML tag names', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 3), // position within the tag name
     };
 
@@ -60,7 +60,7 @@ describe('Module: HtmlTagNameDocumentHighlightsProvider', () => {
 
   it('should return document highlight ranges for closing HTML tag names', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 16), // position within the closing div tag name
     };
 
@@ -82,7 +82,7 @@ describe('Module: HtmlTagNameDocumentHighlightsProvider', () => {
 
   it('return [] for positions not within HTML tag names', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 0), // position outside the tag name
     };
 

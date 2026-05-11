@@ -20,7 +20,7 @@ describe('Module: BracketsAutoclosingOnTypeFormattingProvider', () => {
 
   it('should return a TextEdit to insert a space after "{{" in "{{ }}"', async () => {
     const params: DocumentOnTypeFormattingParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 2),
       ch: '{',
       options,
@@ -37,7 +37,7 @@ describe('Module: BracketsAutoclosingOnTypeFormattingProvider', () => {
 
   it('should return a TextEdit to insert a space after "{%" in "{% %}"', async () => {
     const params: DocumentOnTypeFormattingParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 2),
       ch: '%',
       options,
@@ -54,7 +54,7 @@ describe('Module: BracketsAutoclosingOnTypeFormattingProvider', () => {
 
   it('should return a TextEdit to replace and insert characters in "{{ - }}"', async () => {
     const params: DocumentOnTypeFormattingParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 4),
       ch: '-',
       options,
@@ -71,7 +71,7 @@ describe('Module: BracketsAutoclosingOnTypeFormattingProvider', () => {
 
   it('should return a TextEdit to replace and insert characters in "{% - %}"', async () => {
     const params: DocumentOnTypeFormattingParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 4),
       ch: '-',
       options,

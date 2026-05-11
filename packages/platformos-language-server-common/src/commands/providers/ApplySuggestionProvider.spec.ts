@@ -15,7 +15,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { offenseToDiagnostic } from '../../diagnostics/offenseToDiagnostic';
 
 describe('Unit: ApplySuggestionProvider', () => {
-  const uri = path.normalize(URI.file('/path/to/file.liquid'));
+  const uri = path.normalize(URI.file('/path/to/app/views/partials/file.liquid'));
   const contents = `
     {% assign x = 1 %}
     <script src="2.js"></script>
@@ -44,7 +44,7 @@ describe('Unit: ApplySuggestionProvider', () => {
       type: SourceCodeType.LiquidHtml,
       check: checkName,
       message: 'Parser blocking script detected',
-      uri: 'file:///path/to/file.liquid',
+      uri,
       severity: Severity.ERROR,
       start: { ...document.positionAt(start), index: start },
       end: { ...document.positionAt(end), index: end },

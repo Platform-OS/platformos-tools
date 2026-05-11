@@ -130,6 +130,16 @@ const LIQUID_FILE_TYPES = new Set<PlatformOSFileType>([
 ]);
 
 /**
+ * YAML-based file types. Liquid, GraphQL, and Asset types are excluded.
+ */
+const YAML_FILE_TYPES = new Set<PlatformOSFileType>([
+  PlatformOSFileType.CustomModelType,
+  PlatformOSFileType.InstanceProfileType,
+  PlatformOSFileType.TransactableType,
+  PlatformOSFileType.Translation,
+]);
+
+/**
  * Pre-compiled regex per file type, derived entirely from FILE_TYPE_DIRS.
  *
  * For each canonical dir, three pattern alternatives are generated:
@@ -240,6 +250,32 @@ export function isUnclassifiedLiquidFile(uri: UriString): boolean {
  */
 export function isKnownGraphQLFile(uri: UriString): boolean {
   return getFileType(uri) === PlatformOSFileType.GraphQL;
+}
+
+/**
+ * Returns true if the URI belongs to a recognized platformOS YAML-source
+ * directory (translations, custom model types, profile types, transactable
+ * types). Config files like `config.yml` or `.platformos-check.yml` return
+ * false because they aren't classified by FILE_TYPE_DIRS.
+ */
+export function isKnownYAMLFile(uri: UriString): boolean {
+  const type = getFileType(uri);
+  return type !== undefined && YAML_FILE_TYPES.has(type);
+}
+
+/**
+ * Returns true if the URI is a platformOS source file the LSP and linter
+ * should load and parse: a known Liquid, GraphQL, or YAML source. Standalone
+ * `.json` files are never platformOS sources — JSON is served via
+ * `.json.liquid`, which is classified by its `.liquid` extension. Asset
+ * partials (`.css.liquid`, `.scss.liquid`, `.js.liquid`) are excluded.
+ */
+export function isSupportedSourceFile(uri: UriString): boolean {
+  if (/\.(s?css|js)\.liquid$/.test(uri)) return false;
+  if (uri.endsWith('.liquid')) return isKnownLiquidFile(uri);
+  if (uri.endsWith('.graphql')) return isKnownGraphQLFile(uri);
+  if (uri.endsWith('.yml') || uri.endsWith('.yaml')) return isKnownYAMLFile(uri);
+  return false;
 }
 
 export function isPartial(uri: UriString): boolean {

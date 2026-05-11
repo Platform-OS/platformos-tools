@@ -9,8 +9,8 @@ import { DebouncedFunction } from '../../utils';
 import { RunChecksProvider } from './RunChecksProvider';
 
 describe('Unit: RunChecksProvider', () => {
-  const uri1 = path.normalize(URI.file('/path/to/file1.liquid'));
-  const uri2 = path.normalize(URI.file('/path/to/file2.liquid'));
+  const uri1 = path.normalize(URI.file('/path/to/app/views/partials/file1.liquid'));
+  const uri2 = path.normalize(URI.file('/path/to/app/views/partials/file2.liquid'));
   const contents1 = `
     {% assign x = 1 %}
     <script src="2.js"></script>

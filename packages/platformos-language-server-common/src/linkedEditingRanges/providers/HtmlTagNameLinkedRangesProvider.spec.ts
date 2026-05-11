@@ -7,7 +7,7 @@ import { htmlElementNameWordPattern } from '../wordPattern';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 describe('Module: HtmlTagNameLinkedRangesProvider', () => {
-  const uri = 'file:///path/to/document.liquid';
+  const uri = 'file:///app/views/partials/document.liquid';
   let documentManager: DocumentManager;
   let provider: LinkedEditingRangesProvider;
   let params: LinkedEditingRangeParams;

@@ -3,13 +3,28 @@ import * as path from './path';
 
 type FileExists = (uri: string) => Promise<boolean>;
 
+function isInsideApp(dir: UriString): boolean {
+  let current = dir;
+  while (true) {
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    if (path.basename(parent) === 'app') return true;
+    current = parent;
+  }
+}
+
 async function isRoot(dir: UriString, fileExists: FileExists) {
   return or(
     fileExists(path.join(dir, '.pos')),
     fileExists(path.join(dir, '.platformos-check.yml')),
     fileExists(path.join(dir, 'app')),
-    // modules/ is a root indicator only when not inside app/ (app/modules/ is a valid subdirectory)
-    and(fileExists(path.join(dir, 'modules')), Promise.resolve(path.basename(dir) !== 'app')),
+    // modules/ is a root indicator only when not inside an app/ subtree.
+    // app/modules/ is a valid subdirectory, and app/views/partials/modules/ is a
+    // legitimate partial organization that should not be mistaken for a project root.
+    and(
+      fileExists(path.join(dir, 'modules')),
+      Promise.resolve(path.basename(dir) !== 'app' && !isInsideApp(dir)),
+    ),
   );
 }
 

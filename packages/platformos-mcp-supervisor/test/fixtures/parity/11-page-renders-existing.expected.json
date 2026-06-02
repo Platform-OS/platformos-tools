@@ -1,0 +1,51 @@
+{
+  "id": "11-page-renders-existing",
+  "filePath": "app/views/pages/parity/renders_existing.html.liquid",
+  "mode": "full",
+  "description": "Page rendering an EXISTING fixture partial — expect no errors",
+  "result": {
+    "status": "ok",
+    "must_fix_before_write": false,
+    "errors": [],
+    "warnings": [],
+    "infos": [],
+    "proposed_fixes": [],
+    "clusters": [],
+    "scorecard": [],
+    "tips": [],
+    "domain_guide": {
+      "domain": "pages",
+      "rule": "Pages are controllers — logic only, no inline HTML. Use graphql/render/function/redirect_to tags.",
+      "triggered_gotchas": [
+        {
+          "id": "pages_title",
+          "message": "Page title: use `metadata: { title: 'Static Title' }` in front matter for static titles, or `{% content_for 'title' %}Dynamic Title{% endcontent_for %}` for data-dependent titles.",
+          "severity": "architecture"
+        },
+        {
+          "id": "pages_slug_format",
+          "message": "Slugs use `:param` for dynamic segments (NOT `[param]`, `{param}`, or `<param>`). No leading `/`. For the home page (root `/`), omit the slug entirely — `app/views/pages/index.html.liquid` serves `/` by default. Examples: `products/:id`, `users/:user_id/orders/:id`, `search(/:query)`.",
+          "severity": "required"
+        }
+      ]
+    },
+    "structural": {
+      "renders_used": [
+        "blog_posts/card"
+      ],
+      "graphql_queries_used": [],
+      "filters_used": [],
+      "tags_used": [
+        "render"
+      ],
+      "translation_keys": [],
+      "doc_params": [],
+      "slug": "parity_renders_existing",
+      "layout": null,
+      "method": null,
+      "prompts": []
+    },
+    "parse_error": null,
+    "next_step": "File validated. Write it to disk now."
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "id": "03-page-missing-partial",
+  "filePath": "app/views/pages/parity/missing.html.liquid",
+  "mode": "full",
+  "description": "Page renders a partial that does not exist on disk → MissingPartial error",
+  "result": {
+    "status": "error",
+    "must_fix_before_write": true,
+    "errors": [
+      {
+        "check": "MissingPartial",
+        "severity": "error",
+        "message": "'does/not/exist/at/all' does not exist",
+        "line": 4,
+        "column": 10,
+        "endLine": 4,
+        "endColumn": 33,
+        "hint": "Create missing file: `app/views/partials/does/not/exist/at/all.liquid`. Use `scaffold` tool or create manually with appropriate `{% doc %}` block.",
+        "hover_docs": "### render\n```liquid\n{% render 'filename' %}\n```\n\n---\n\nRenders a [partial](https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure#views-pages-layouts-and-partials).\n\n---\n\nInside partial, you can't directly access variables that are [created](https://documentation.platformos.com/docs/api/liquid/tags/variable-tags) outside\nof the partial. However, you can specify variables as parameters\nto pass outside variables to partials.\n\nWhile you can't directly access created variables, you can access global objects like `context`.\n\nOutside a partial, you can't access variables created inside it.\n\n> Note:\n> When you render a partial using the `render` tag, you can't use the [`include` tag](https://documentation.platformos.com/docs/api/liquid/tags/include)\n> inside the partial.",
+        "rule_id": "MissingPartial.create_file",
+        "confidence": 0.8,
+        "fixes": [
+          {
+            "type": "create_file",
+            "path": "app/views/partials/does/not/exist/at/all.liquid",
+            "description": "Create missing partial: `app/views/partials/does/not/exist/at/all.liquid`"
+          }
+        ],
+        "fix": {
+          "type": "create_file",
+          "path": "app/views/partials/does/not/exist/at/all.liquid",
+          "scaffold": null,
+          "description": "Create missing file: `app/views/partials/does/not/exist/at/all.liquid`",
+          "rule_id": "heuristic:MissingPartial.create_file"
+        }
+      }
+    ],
+    "warnings": [],
+    "infos": [],
+    "proposed_fixes": [
+      {
+        "type": "create_file",
+        "path": "app/views/partials/does/not/exist/at/all.liquid",
+        "scaffold": null,
+        "description": "Create missing file: `app/views/partials/does/not/exist/at/all.liquid`",
+        "rule_id": "heuristic:MissingPartial.create_file"
+      },
+      {
+        "type": "create_file",
+        "path": "app/views/partials/does/not/exist/at/all.liquid",
+        "description": "Create missing partial: `app/views/partials/does/not/exist/at/all.liquid`",
+        "source": "rule",
+        "rule_id": "MissingPartial.create_file",
+        "check": "MissingPartial"
+      }
+    ],
+    "clusters": [],
+    "scorecard": [],
+    "tips": [],
+    "domain_guide": {
+      "domain": "pages",
+      "rule": "Pages are controllers — logic only, no inline HTML. Use graphql/render/function/redirect_to tags.",
+      "triggered_gotchas": [
+        {
+          "id": "pages_title",
+          "message": "Page title: use `metadata: { title: 'Static Title' }` in front matter for static titles, or `{% content_for 'title' %}Dynamic Title{% endcontent_for %}` for data-dependent titles.",
+          "severity": "architecture"
+        },
+        {
+          "id": "pages_slug_format",
+          "message": "Slugs use `:param` for dynamic segments (NOT `[param]`, `{param}`, or `<param>`). No leading `/`. For the home page (root `/`), omit the slug entirely — `app/views/pages/index.html.liquid` serves `/` by default. Examples: `products/:id`, `users/:user_id/orders/:id`, `search(/:query)`.",
+          "severity": "required"
+        }
+      ]
+    },
+    "structural": {
+      "renders_used": [
+        "does/not/exist/at/all"
+      ],
+      "graphql_queries_used": [],
+      "filters_used": [],
+      "tags_used": [
+        "render"
+      ],
+      "translation_keys": [],
+      "doc_params": [],
+      "slug": "parity_missing",
+      "layout": null,
+      "method": null,
+      "prompts": []
+    },
+    "parse_error": null,
+    "next_step": "Fix every ERROR above.\n2 proposed fix(es) available — apply them first.\nRe-validate with validate_code (mode: \"quick\") after fixing.\nMUST NOT write the file to disk until validation passes (must_fix_before_write: false)."
+  }
+}

@@ -1,0 +1,8 @@
+{% doc %}
+  @param id {string} ID
+  @param title {string} Title
+{% enddoc %}
+{% liquid
+  assign object = null | hash_merge: id: id, title: title
+  return object
+%}

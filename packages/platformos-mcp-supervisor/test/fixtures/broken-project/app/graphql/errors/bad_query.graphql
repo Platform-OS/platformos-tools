@@ -1,0 +1,15 @@
+query bad_query($id: ID!, $unused_var: String) {
+  records(
+    per_page: 1
+    filter: {
+      table: "product"
+      id: $id
+    }
+  ) {
+    results {
+      id
+      title
+      nonexistent_field
+    }
+  }
+}

@@ -1,0 +1,9 @@
+---
+slug: admin
+layout: application
+---
+{% liquid
+  include 'modules/user/helpers/can_do_or_redirect', requester: context.current_user, do: 'admin.access', return_url: '/sessions/login'
+  function products = 'queries/products/search'
+  render 'products/caller', items: products.records.results
+%}

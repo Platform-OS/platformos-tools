@@ -1,0 +1,7 @@
+{% doc %}
+  @param id {string} Record ID
+{% enddoc %}
+{% liquid
+  graphql result = 'products/create', title: 'delete_placeholder'
+  return result
+%}

@@ -1,0 +1,7 @@
+mutation delete($id: ID!) {
+  record_delete(
+    id: $id
+  ) {
+    id
+  }
+}

@@ -1,0 +1,10 @@
+{% doc %}
+  @param title {string} Blog post title
+  @param body {string} Blog post body
+  @param author_id {string} Author user ID
+{% enddoc %}
+
+{% liquid
+  assign object = null | hash_merge: title: title, body: body, author_id: author_id
+  return object
+%}

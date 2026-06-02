@@ -1,0 +1,215 @@
+{
+  "id": "13-deprecated-include",
+  "filePath": "app/views/partials/parity/deprecated.liquid",
+  "mode": "full",
+  "description": "Deprecated {% include %} tag → DeprecatedTag warning + enricher hint",
+  "result": {
+    "status": "error",
+    "must_fix_before_write": true,
+    "errors": [
+      {
+        "check": "MissingPartial",
+        "severity": "error",
+        "message": "'shared/header' does not exist",
+        "line": 1,
+        "column": 11,
+        "endLine": 1,
+        "endColumn": 26,
+        "hint": "Create missing file: `app/views/partials/shared/header.liquid`. Use `scaffold` tool or create manually with appropriate `{% doc %}` block.",
+        "hover_docs": "### include\n```liquid\n{% include 'filename' %}\n```\n\n---\n\nDeprecated because the way that variables are handled reduces performance and makes code harder to both read and maintain.\n\nThe `include` tag has been replaced by [`render`](https://documentation.platformos.com/docs/api/liquid/tags/render).\n\n---\n\nRenders a [partial](https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure#views-pages-layouts-and-partials).\n\n---\n\nInside the partial, you can access and alter variables that are [created](https://documentation.platformos.com/docs/api/liquid/tags/variable-tags) outside of the\npartial.\n\n---\n\n[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/include)",
+        "rule_id": "MissingPartial.create_file",
+        "confidence": 0.8,
+        "fixes": [
+          {
+            "type": "create_file",
+            "path": "app/views/partials/shared/header.liquid",
+            "description": "Create missing partial: `app/views/partials/shared/header.liquid`"
+          }
+        ],
+        "fix": {
+          "type": "create_file",
+          "path": "app/views/partials/shared/header.liquid",
+          "scaffold": null,
+          "description": "Create missing file: `app/views/partials/shared/header.liquid`",
+          "rule_id": "heuristic:MissingPartial.create_file"
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "check": "DeprecatedTag",
+        "severity": "warning",
+        "message": "Deprecated tag 'include': Deprecated because the way that variables are handled reduces performance and makes code harder to both read and maintain.\n\nThe `include` tag has been replaced by [`render`](/docs/api/liquid/tags/render).",
+        "line": 1,
+        "column": 3,
+        "endLine": 1,
+        "endColumn": 10,
+        "hint": "`{% include %}` is deprecated. Replace with `{% render %}` everywhere in this file. `{% render %}` has **isolated scope** — variables from the parent are NOT inherited; pass each one explicitly: `{% render 'partial', name: name, items: items %}`. Exception: includes that pull in a module helper meant to share scope (auth, redirects) — leave those alone; the heuristic fix-generator detects this pattern and proposes guidance instead of a rename.",
+        "hover_docs": "### include\n```liquid\n{% include 'filename' %}\n```\n\n---\n\nDeprecated because the way that variables are handled reduces performance and makes code harder to both read and maintain.\n\nThe `include` tag has been replaced by [`render`](https://documentation.platformos.com/docs/api/liquid/tags/render).\n\n---\n\nRenders a [partial](https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure#views-pages-layouts-and-partials).\n\n---\n\nInside the partial, you can access and alter variables that are [created](https://documentation.platformos.com/docs/api/liquid/tags/variable-tags) outside of the\npartial.\n\n---\n\n[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/include)",
+        "rule_id": "DeprecatedTag.include",
+        "confidence": 0.95,
+        "fixes": [
+          {
+            "type": "guidance",
+            "description": "Rename every `{% include 'X' %}` in this file to `{% render 'X', <vars> %}`. List the partial's declared `@param` names and pass each explicitly — isolated scope means undeclared vars come through as `nil`."
+          }
+        ],
+        "see_also": {
+          "tool": "domain_guide",
+          "args": {
+            "domain": "partials",
+            "section": "gotchas"
+          },
+          "reason": "{% include %} is deprecated in platformOS. Use {% render %} for isolated scope or {% function %} for module helpers. domain_guide(partials, gotchas) has the full deprecated-tag list."
+        }
+      },
+      {
+        "check": "OrphanedPartial",
+        "severity": "warning",
+        "message": "This partial is not referenced by any other files",
+        "line": 1,
+        "column": 0,
+        "endLine": 1,
+        "endColumn": 1,
+        "hint": "`app/views/partials/parity/deprecated.liquid` is an orphaned partial. No file in the project renders or includes it.\n\nTwo valid resolutions:\n  • **Dead code** — delete the file. Use the `delete_file` fix if you're certain nothing renders it.\n  • **Work in progress** — the caller hasn't been written yet. Either write the caller now (then re-validate, the warning clears), or pass `pending_files=[\"<caller-path>\"]` to validate_code so the orphan is suppressed during the multi-file plan.\n\nRenaming the file (e.g. via scaffold output) is the third common cause — re-run `project_map` to confirm callers point at the current name.",
+        "rule_id": "OrphanedPartial.default",
+        "confidence": 0.85,
+        "fixes": [
+          {
+            "type": "delete_file",
+            "path": "app/views/partials/parity/deprecated.liquid",
+            "description": "Delete `app/views/partials/parity/deprecated.liquid` — no other file in the project renders it. Re-run validate_code first if you're mid-feature; pass `pending_files=[\"app/views/partials/parity/deprecated.liquid\"]` (or the caller's path) to suppress this warning while you write the caller."
+          },
+          {
+            "type": "guidance",
+            "description": "Decide: (a) delete `app/views/partials/parity/deprecated.liquid` if it's dead, (b) write the calling page/partial if work is in progress, or (c) pass `pending_files=[\"<caller>\"]` to validate_code while you scaffold the caller. Run `platformos_references` to confirm no rendering graph entry points at it."
+          }
+        ]
+      },
+      {
+        "check": "pos-supervisor:MissingDocBlock",
+        "severity": "warning",
+        "message": "Partial is missing a `{% doc %}` block. Document expected parameters so callers know what variables to pass. Example: `{% doc %} @param title {string} Card title {% enddoc %}`.",
+        "line": 1,
+        "column": 0,
+        "fix": {
+          "type": "insert",
+          "range": {
+            "start": {
+              "line": 0,
+              "character": 0
+            },
+            "end": {
+              "line": 0,
+              "character": 0
+            }
+          },
+          "new_text": "{% doc %}\n  @param {object} param_name - Description\n{% enddoc %}\n\n",
+          "description": "Add `{% doc %}` block to document parameters",
+          "rule_id": "heuristic:pos-supervisor:MissingDocBlock.insert"
+        },
+        "confidence": 0.75,
+        "rule_id": "pos-supervisor:MissingDocBlock.unmatched"
+      }
+    ],
+    "infos": [],
+    "proposed_fixes": [
+      {
+        "type": "create_file",
+        "path": "app/views/partials/shared/header.liquid",
+        "scaffold": null,
+        "description": "Create missing file: `app/views/partials/shared/header.liquid`",
+        "rule_id": "heuristic:MissingPartial.create_file"
+      },
+      {
+        "type": "insert",
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 0
+          },
+          "end": {
+            "line": 0,
+            "character": 0
+          }
+        },
+        "new_text": "{% doc %}\n  @param {object} param_name - Description\n{% enddoc %}\n\n",
+        "description": "Add `{% doc %}` block to document parameters",
+        "rule_id": "heuristic:pos-supervisor:MissingDocBlock.insert"
+      },
+      {
+        "type": "create_file",
+        "path": "app/views/partials/shared/header.liquid",
+        "description": "Create missing partial: `app/views/partials/shared/header.liquid`",
+        "source": "rule",
+        "rule_id": "MissingPartial.create_file",
+        "check": "MissingPartial"
+      },
+      {
+        "type": "guidance",
+        "description": "Rename every `{% include 'X' %}` in this file to `{% render 'X', <vars> %}`. List the partial's declared `@param` names and pass each explicitly — isolated scope means undeclared vars come through as `nil`.",
+        "source": "rule",
+        "rule_id": "DeprecatedTag.include",
+        "check": "DeprecatedTag"
+      },
+      {
+        "type": "delete_file",
+        "path": "app/views/partials/parity/deprecated.liquid",
+        "description": "Delete `app/views/partials/parity/deprecated.liquid` — no other file in the project renders it. Re-run validate_code first if you're mid-feature; pass `pending_files=[\"app/views/partials/parity/deprecated.liquid\"]` (or the caller's path) to suppress this warning while you write the caller.",
+        "source": "rule",
+        "rule_id": "OrphanedPartial.default",
+        "check": "OrphanedPartial"
+      },
+      {
+        "type": "guidance",
+        "description": "Decide: (a) delete `app/views/partials/parity/deprecated.liquid` if it's dead, (b) write the calling page/partial if work is in progress, or (c) pass `pending_files=[\"<caller>\"]` to validate_code while you scaffold the caller. Run `platformos_references` to confirm no rendering graph entry points at it.",
+        "source": "rule",
+        "rule_id": "OrphanedPartial.default",
+        "check": "OrphanedPartial"
+      }
+    ],
+    "clusters": [],
+    "scorecard": [],
+    "tips": [
+      {
+        "id": "scaffold_include_deprecated",
+        "severity": "warning",
+        "message": "This file uses deprecated {% include %} tag. The scaffold tool generates code with the modern {% function %} tag. If you used scaffold to generate this code, write the scaffold output exactly as returned — do not substitute {% include %} for {% function %}."
+      }
+    ],
+    "domain_guide": {
+      "domain": "partials",
+      "rule": "Partials receive ONLY explicitly passed variables — no outer scope leaks. Do NOT run {% graphql %} in rendering partials.",
+      "triggered_gotchas": [
+        {
+          "id": "partials_isolated_scope",
+          "message": "Partials have isolated scope. Every variable used must be passed explicitly or assigned locally.",
+          "severity": "architecture"
+        },
+        {
+          "id": "partials_null_param",
+          "message": "NEVER pass null for a typed parameter — use the matching empty value: '' for {string}, 0 for {number}, false for {boolean}, {} for {object}, [] for {array}.",
+          "severity": "architecture"
+        }
+      ]
+    },
+    "structural": {
+      "renders_used": [
+        "shared/header"
+      ],
+      "graphql_queries_used": [],
+      "filters_used": [],
+      "tags_used": [
+        "include"
+      ],
+      "translation_keys": [],
+      "doc_params": [],
+      "slug": null,
+      "layout": null,
+      "method": null,
+      "prompts": []
+    },
+    "parse_error": null,
+    "next_step": "Fix every ERROR above.\nFix every BLOCKING WARNING above (OrphanedPartial). These break callers or drop functionality — they MUST be resolved before write.\n6 proposed fix(es) available — apply them first.\nRe-validate with validate_code (mode: \"quick\") after fixing.\nMUST NOT write the file to disk until validation passes (must_fix_before_write: false)."
+  }
+}

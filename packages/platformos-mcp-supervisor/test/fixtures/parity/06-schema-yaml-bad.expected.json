@@ -1,0 +1,41 @@
+{
+  "id": "06-schema-yaml-bad",
+  "filePath": "app/schema/parity_bad.yml",
+  "mode": "quick",
+  "description": "Schema YAML missing `properties` → pos-supervisor:SchemaStructure error",
+  "result": {
+    "status": "error",
+    "must_fix_before_write": true,
+    "errors": [
+      {
+        "check": "pos-supervisor:SchemaStructure",
+        "severity": "error",
+        "message": "Schema is missing required `properties` key.",
+        "line": 1,
+        "column": 0,
+        "confidence": 0.75,
+        "rule_id": "pos-supervisor:SchemaStructure.unmatched"
+      }
+    ],
+    "warnings": [
+      {
+        "check": "pos-supervisor:SchemaNameMismatch",
+        "severity": "warning",
+        "message": "Schema `name: blog_post` does not match filename `parity_bad.yml`. The name should match the filename.",
+        "line": 1,
+        "column": 0,
+        "confidence": 0.75,
+        "rule_id": "pos-supervisor:SchemaNameMismatch.unmatched"
+      }
+    ],
+    "infos": [],
+    "proposed_fixes": [],
+    "clusters": [],
+    "scorecard": [],
+    "tips": [],
+    "domain_guide": null,
+    "structural": null,
+    "parse_error": null,
+    "next_step": "Fix every ERROR above.\nRe-validate with validate_code (mode: \"quick\") after fixing.\nMUST NOT write the file to disk until validation passes (must_fix_before_write: false)."
+  }
+}

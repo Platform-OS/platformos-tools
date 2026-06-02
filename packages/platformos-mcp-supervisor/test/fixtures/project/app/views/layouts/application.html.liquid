@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ context.page.metadata.title | default: 'Blog' }}</title>
+  <link rel="stylesheet" href="{{ 'styles/app.css' | asset_url }}">
+</head>
+<body>
+  {{ content_for_layout }}
+</body>
+</html>

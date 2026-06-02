@@ -1,0 +1,10 @@
+mutation create($title: String!) {
+  record_create(
+    record: {
+      table: "product"
+      properties: [
+        { name: "title", value: $title }
+      ]
+    }
+  ) { id }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "05-graphql-clean",
+  "filePath": "app/graphql/parity/list.graphql",
+  "mode": "full",
+  "description": "GraphQL query that references a known schema property — no errors",
+  "result": {
+    "status": "ok",
+    "must_fix_before_write": false,
+    "errors": [],
+    "warnings": [],
+    "infos": [],
+    "proposed_fixes": [],
+    "clusters": [],
+    "scorecard": [],
+    "tips": [],
+    "domain_guide": {
+      "domain": "graphql",
+      "rule": "Custom properties use property(name: \"field\") or properties_object, NOT direct field access. StringFilter requires object syntax.",
+      "triggered_gotchas": [
+        {
+          "id": "graphql_sort",
+          "message": "Sort by custom properties: `sort: [{ properties: [{ name: \"field\", order: DESC }] }]`. Built-in: `sort: [{ created_at: { order: DESC } }]`. ASC/DESC are unquoted enum values, NOT strings.",
+          "severity": "architecture"
+        },
+        {
+          "id": "graphql_pagination",
+          "message": "Pagination fields: `total_entries` (NOT total_count), `results`, `has_next_page`, `has_previous_page`. Use `page` and `per_page` arguments.",
+          "severity": "architecture"
+        }
+      ]
+    },
+    "structural": null,
+    "parse_error": null,
+    "next_step": "File validated. Write it to disk now."
+  }
+}

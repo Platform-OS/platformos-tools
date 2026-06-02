@@ -1,0 +1,8 @@
+{% doc %}
+  @param product {object} Product data
+{% enddoc %}
+<a href="/products/{{ product.id }}">View</a>
+<a href="/admin/products/{{ product.id }}/edit">Edit</a>
+<form action="/products/{{ product.id }}/delete" method="post">
+  <button>Delete</button>
+</form>

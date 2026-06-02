@@ -1,0 +1,8 @@
+name: MetadataParamsCheck
+summary: Render call parameters don't match partial's declared metadata
+hint:
+  default: >-
+    Read the target partial's metadata/doc block. Pass all required parameters with matching types. NEVER pass null for
+    a typed parameter — use the matching empty value: '' for {string}, 0 for {number}, false for {boolean}, {} for
+    {object}, [] for {array}. A parameter is required when declared without brackets: @param {string} name. Optional
+    when wrapped: @param {string} [name].

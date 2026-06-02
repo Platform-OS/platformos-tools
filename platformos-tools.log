@@ -387,3 +387,5 @@
 [2026-06-02T11:51:31.732Z] auto-diagnostics: no issues or skipped
 [2026-06-02T11:53:49.764Z] auto-diagnostics triggered by Write: /home/ecgtheow/Work/pos-ai-tools/pos-mcp/platformos-tools/packages/platformos-mcp-supervisor/src/core/diagnostic-pipeline.spec.ts
 [2026-06-02T11:53:49.766Z] auto-diagnostics: no issues or skipped
+[2026-06-02T19:38:40.147Z] auto-diagnostics triggered by Write: /home/ecgtheow/Work/pos-ai-tools/pos-mcp/platformos-tools/packages/platformos-mcp-supervisor/ARCHITECTURE.md
+[2026-06-02T19:38:40.155Z] auto-diagnostics: no issues or skipped

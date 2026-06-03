@@ -30,6 +30,7 @@
 import { existsSync, cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import normalize from 'normalize-path';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -66,16 +67,28 @@ export interface SupervisorHandle {
 // The package compiles to CommonJS (tsconfig `module: commonjs`), so
 // `__dirname` is defined at runtime. vitest transpiles `.ts` via esbuild
 // in CJS mode for this package, so the same identifier resolves there.
-const PACKAGE_ROOT = resolve(__dirname, '..', '..');
+//
+// Every exported absolute path below is normalised with `normalize-path`
+// so callers (helper specs, parity recorder, integration spec) see POSIX
+// separators on every host. Without normalisation, Windows `path.resolve`
+// produces `test\fixtures\project` and downstream `endsWith('test/fixtures/project')`
+// assertions fail. `normalize-path` is safe here because these are
+// filesystem paths (not URIs) — see the JSDoc warning on `toPosixPath` in
+// `src/core/utils.ts`.
+const PACKAGE_ROOT = normalize(resolve(__dirname, '..', '..'));
 
-/** Absolute path to the bundled `project` fixture (read-only). */
-export const FIXTURE_PROJECT_DIR = resolve(PACKAGE_ROOT, 'test', 'fixtures', 'project');
+/** Absolute path to the bundled `project` fixture (read-only). POSIX separators. */
+export const FIXTURE_PROJECT_DIR = normalize(resolve(PACKAGE_ROOT, 'test', 'fixtures', 'project'));
 
-/** Absolute path to the bundled `broken-project` fixture (read-only). */
-export const FIXTURE_BROKEN_PROJECT_DIR = resolve(PACKAGE_ROOT, 'test', 'fixtures', 'broken-project');
+/** Absolute path to the bundled `broken-project` fixture (read-only). POSIX separators. */
+export const FIXTURE_BROKEN_PROJECT_DIR = normalize(
+  resolve(PACKAGE_ROOT, 'test', 'fixtures', 'broken-project'),
+);
 
-/** Default location of the compiled bin entry point. */
-export const DEFAULT_BIN_PATH = resolve(PACKAGE_ROOT, 'dist', 'bin', 'platformos-mcp-supervisor.js');
+/** Default location of the compiled bin entry point. POSIX separators. */
+export const DEFAULT_BIN_PATH = normalize(
+  resolve(PACKAGE_ROOT, 'dist', 'bin', 'platformos-mcp-supervisor.js'),
+);
 
 // ── Public entry points ────────────────────────────────────────────────────
 

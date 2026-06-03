@@ -58,6 +58,7 @@ import {
 } from 'vscode-languageserver-protocol';
 import { createProtocolConnection, type ProtocolConnection } from 'vscode-languageserver-protocol/node';
 
+import { path as commonPath } from '@platformos/platformos-check-common';
 import { startServer as startLanguageServer } from '@platformos/platformos-language-server-node';
 
 import {
@@ -164,7 +165,14 @@ export class PlatformOSLSPClient {
     this.serverToClient = s2c;
     this.serverConn = serverConn;
 
-    const rootUri = pathToFileURL(projectDir).href;
+    // Canonicalise via `vscode-uri` — the same form `vscode-uri`-based code
+    // inside the language server uses. `pathToFileURL` alone produces a
+    // mixed-case drive letter on Windows (`file:///D:/...`), but the LSP
+    // server canonicalises to a lowercased drive letter internally; without
+    // this round-trip the URI we wait on never matches the URI the server
+    // publishes diagnostics for, and every cross-file diagnostic times out
+    // silently on Windows.
+    const rootUri = canonicalUri(pathToFileURL(projectDir).href);
     const initParams: InitializeParams = {
       processId: process.pid,
       clientInfo: { name: 'platformos-mcp-supervisor', version: opts.version ?? '0.0.0' },
@@ -207,17 +215,22 @@ export class PlatformOSLSPClient {
    */
   awaitDiagnostics(uri: string, content: string, timeoutMs: number = LSP_DIAGNOSTICS_TIMEOUT_MS): Promise<Diagnostic[]> {
     this.ensureClient();
-    this.syncDoc(uri, content);
-    this.diagnosticsByUri.delete(uri);
+    // Normalise once at the boundary. Every downstream Map key
+    // (`diagnosticsByUri`, `diagWaiters`, `openDocs`) — and every URI the
+    // server publishes diagnostics for — runs through the same
+    // canonicaliser, so client + server keys agree on Windows.
+    const key = canonicalUri(uri);
+    this.syncDoc(key, content);
+    this.diagnosticsByUri.delete(key);
 
     // Drop any pre-existing waiter for the same URI (shouldn't happen in
     // serialised use but guards against a stray timer leaking through).
-    const existing = this.diagWaiters.get(uri);
+    const existing = this.diagWaiters.get(key);
     if (existing) {
       clearTimeout(existing.mainTimer);
       if (existing.settleTimer) clearTimeout(existing.settleTimer);
       existing.resolve([]);
-      this.diagWaiters.delete(uri);
+      this.diagWaiters.delete(key);
     }
 
     return new Promise<Diagnostic[]>((resolve) => {
@@ -225,18 +238,18 @@ export class PlatformOSLSPClient {
         latest: null,
         settleTimer: null,
         mainTimer: setTimeout(() => {
-          this.diagWaiters.delete(uri);
+          this.diagWaiters.delete(key);
           if (waiter.settleTimer) clearTimeout(waiter.settleTimer);
           resolve(waiter.latest ?? []);
         }, timeoutMs),
         resolve: (diags) => {
-          this.diagWaiters.delete(uri);
+          this.diagWaiters.delete(key);
           clearTimeout(waiter.mainTimer);
           if (waiter.settleTimer) clearTimeout(waiter.settleTimer);
           resolve(diags);
         },
       };
-      this.diagWaiters.set(uri, waiter);
+      this.diagWaiters.set(key, waiter);
 
       // Hover-as-barrier. The result is intentionally discarded — its only
       // purpose is to force the server to drain notifications first. Cap
@@ -246,7 +259,7 @@ export class PlatformOSLSPClient {
       this.barrierId++;
       void this.race(
         this.clientConn!.sendRequest(HoverRequest.type, {
-          textDocument: { uri },
+          textDocument: { uri: key },
           position: { line: 0, character: 0 },
         }),
         barrierTimeout,
@@ -261,7 +274,7 @@ export class PlatformOSLSPClient {
     this.ensureClient();
     return this.race(
       this.clientConn!.sendRequest(CompletionRequest.type, {
-        textDocument: { uri },
+        textDocument: { uri: canonicalUri(uri) },
         position: { line, character },
       }),
       30_000,
@@ -273,7 +286,7 @@ export class PlatformOSLSPClient {
     this.ensureClient();
     return this.race(
       this.clientConn!.sendRequest(HoverRequest.type, {
-        textDocument: { uri },
+        textDocument: { uri: canonicalUri(uri) },
         position: { line, character },
       }),
       30_000,
@@ -368,7 +381,12 @@ export class PlatformOSLSPClient {
   }
 
   private handlePublishDiagnostics(params: PublishDiagnosticsParams): void {
-    const uri = params.uri;
+    // The server's URI is the source of truth for the canonical form — every
+    // map key on the client side is normalised through the same
+    // `vscode-uri`-based helper, so client + server agree on Windows where
+    // pathToFileURL would otherwise produce a mixed-case drive letter that
+    // never matches what the LSP publishes.
+    const uri = canonicalUri(params.uri);
     const diags = params.diagnostics ?? [];
     this.diagnosticsByUri.set(uri, diags);
 
@@ -399,6 +417,49 @@ export class PlatformOSLSPClient {
       if (timer) clearTimeout(timer);
     }
   }
+}
+
+// ── URI canonicaliser ──────────────────────────────────────────────────────
+
+/**
+ * Round-trip a `file:` URI through `vscode-uri`'s `URI.parse(...).toString(true)`
+ * so client-side Map keys and server-side `params.uri` agree byte-for-byte.
+ *
+ * Why this exists: on Windows, `pathToFileURL('D:\\a\\…').href` produces a
+ * URI with an upper-case drive letter (`file:///D:/a/…`), but the in-process
+ * language server canonicalises internally to a lower-case drive letter
+ * (`file:///d:/a/…`). The client waits for diagnostics keyed by the
+ * upper-case URI; the server publishes them keyed by the lower-case URI;
+ * `Map.get(uri)` misses; `awaitDiagnostics` times out at
+ * `LSP_DIAGNOSTICS_TIMEOUT_MS` with `latest: null`; every cross-file
+ * diagnostic on Windows silently returns `[]`. Routing every URI we send
+ * AND every URI we receive through the same canonicaliser closes the gap.
+ *
+ * On Linux this is effectively a no-op (URIs already canonical), so the
+ * Linux parity baselines are preserved unchanged.
+ *
+ * Delegates to `path.normalize` from `@platformos/platformos-check-common`,
+ * the same helper the language-server-common consumes. Treats unparseable
+ * input as-is rather than throwing — the LSP handshake should still
+ * progress and surface a clear failure downstream instead of crashing the
+ * server boot.
+ */
+function canonicalUri(uri: string): string {
+  if (typeof uri !== 'string' || uri.length === 0) return uri;
+  try {
+    return commonPath.normalize(uri);
+  } catch {
+    return uri;
+  }
+}
+
+/**
+ * Test seam — exposes `canonicalUri` for unit assertions without making it
+ * part of the public surface. Underscore-prefixed to match the pattern used
+ * elsewhere in this package (`_resetKnowledge`, `_resetProjectMapCache`).
+ */
+export function _canonicalUri(uri: string): string {
+  return canonicalUri(uri);
 }
 
 // ── Diagnostic normaliser ──────────────────────────────────────────────────

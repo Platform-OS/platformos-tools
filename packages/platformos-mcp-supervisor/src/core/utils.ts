@@ -10,6 +10,13 @@ import normalize from 'normalize-path';
  * silently (no diagnostics returned), so this is load-bearing on Windows.
  *
  * Pass-through for already-URI inputs preserves the prior contract.
+ *
+ * NOTE: `pathToFileURL` does NOT canonicalise the drive-letter case on
+ * Windows (`file:///D:/...` vs `file:///d:/...`). For URIs that round-trip
+ * through the LSP — where the server publishes diagnostics under its own
+ * canonical form — see `canonicalUri` inside `core/lsp-client.ts`. Callers
+ * that only use the URI for client-only purposes (display, fixture paths)
+ * do NOT need to canonicalise.
  */
 export function toUri(p: string): string {
   if (p.startsWith('file://')) return p;

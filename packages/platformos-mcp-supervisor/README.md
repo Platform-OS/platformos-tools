@@ -17,22 +17,45 @@ The package ships the bin `platformos-mcp-supervisor` (registered via
 
 ## Usage — MCP stdio
 
-Point any MCP-aware agent (Claude Code, VS Code MCP extensions, custom
-clients via `@modelcontextprotocol/sdk`) at the bin:
+Point any MCP-aware agent (Claude Code, opencode, VS Code MCP extensions,
+custom clients via `@modelcontextprotocol/sdk`) at the bin:
+
+```sh
+platformos-mcp-supervisor
+```
+
+The bin picks up the project root via this precedence chain:
+
+1. `--project <dir>` CLI argument
+2. `POS_SUPERVISOR_PROJECT_DIR` environment variable
+3. `process.cwd()` — the directory the MCP client spawned the bin from
+
+Most MCP clients launch the server from the workspace root by
+construction, so **no configuration is required** for the common case.
+Example opencode entry:
+
+```json
+{
+  "pos-supervisor": {
+    "type": "local",
+    "command": [
+      "node",
+      "/abs/path/to/platformos-mcp-supervisor/dist/bin/platformos-mcp-supervisor.js"
+    ]
+  }
+}
+```
+
+Override only when the bin's cwd is unrelated to the project (system
+service launches, multiplexed clients):
 
 ```sh
 platformos-mcp-supervisor --project /path/to/platformos-project
-```
-
-Or via the environment variable:
-
-```sh
+# or
 POS_SUPERVISOR_PROJECT_DIR=/path/to/platformos-project platformos-mcp-supervisor
 ```
 
 `stdout` carries the JSON-RPC stream; `stderr` is reserved for log lines.
-The CLI argument wins when both `--project` and the environment variable
-are provided.
 
 ## Usage — programmatic
 

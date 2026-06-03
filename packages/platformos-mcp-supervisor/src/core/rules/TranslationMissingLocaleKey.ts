@@ -31,16 +31,15 @@ export const rules: Rule[] = [
       const localeMatch = msg.match(LOCALE_HINT_RE);
       const expectedLocale = localeMatch?.[1] ?? 'en';
       const topKeysMatch = msg.match(TOP_KEYS_RE);
-      const topKeysList = topKeysMatch?.[1]?.split(',').map(s => s.trim()).filter(Boolean) ?? [];
+      const topKeysList =
+        topKeysMatch?.[1]
+          ?.split(',')
+          .map((s) => s.trim())
+          .filter(Boolean) ?? [];
       const example = topKeysList[0] ?? 'app';
 
-      const beforeYaml =
-        `${example}:\n` +
-        `  greeting: "Hello"`;
-      const afterYaml =
-        `${expectedLocale}:\n` +
-        `  ${example}:\n` +
-        `    greeting: "Hello"`;
+      const beforeYaml = `${example}:\n` + `  greeting: "Hello"`;
+      const afterYaml = `${expectedLocale}:\n` + `  ${example}:\n` + `    greeting: "Hello"`;
 
       return {
         rule_id: 'TranslationMissingLocaleKey.default',
@@ -54,17 +53,20 @@ export const rules: Rule[] = [
           `\`\`\`yaml\n# AFTER (correct)\n${afterYaml}\n\`\`\`\n` +
           `One-liner with sed: \`sed -E 's/^(.+)/  \\1/' file.yml | (echo '${expectedLocale}:'; cat) > file.yml.tmp && mv file.yml.tmp file.yml\` ` +
           `(verify after — re-run validate_code on the file).`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Add \`${expectedLocale}:\` as the new top-level key in this file, then indent every existing line ` +
-            `by two more spaces so the original tree nests under it. Re-run validate_code to confirm.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Add \`${expectedLocale}:\` as the new top-level key in this file, then indent every existing line ` +
+              `by two more spaces so the original tree nests under it. Re-run validate_code to confirm.`,
+          },
+        ],
         confidence: 0.95,
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'translations' },
-          reason: 'Translations domain guide explains the locale-root requirement and lookup conventions.',
+          reason:
+            'Translations domain guide explains the locale-root requirement and lookup conventions.',
         },
       };
     },

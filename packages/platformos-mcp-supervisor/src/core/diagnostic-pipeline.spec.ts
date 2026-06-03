@@ -28,11 +28,17 @@ function makeResult(
   return { errors: [...errors], warnings: [...warnings], infos: [...infos] };
 }
 
-function metadataError(line: number, message = 'Required parameter autohide must be passed'): PipelineDiagnostic {
+function metadataError(
+  line: number,
+  message = 'Required parameter autohide must be passed',
+): PipelineDiagnostic {
   return { check: 'MetadataParamsCheck', severity: 'error', line, message };
 }
 
-function metadataWarn(line: number, message = 'Required parameter delay must be passed'): PipelineDiagnostic {
+function metadataWarn(
+  line: number,
+  message = 'Required parameter delay must be passed',
+): PipelineDiagnostic {
   return { check: 'MetadataParamsCheck', severity: 'warning', line, message };
 }
 
@@ -53,7 +59,9 @@ describe('diagnostic-pipeline: suppressUndocumentedTargetParams', () => {
     });
 
     expect(result.errors).toHaveLength(0);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:ModuleParamsSuppressed')).toBe(true);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:ModuleParamsSuppressed')).toBe(
+      true,
+    );
   });
 
   it('suppresses MetadataParamsCheck warnings on module/ lines', () => {
@@ -70,7 +78,9 @@ describe('diagnostic-pipeline: suppressUndocumentedTargetParams', () => {
     });
 
     expect(result.warnings).toHaveLength(0);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:ModuleParamsSuppressed')).toBe(true);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:ModuleParamsSuppressed')).toBe(
+      true,
+    );
   });
 
   it('does NOT suppress MetadataParamsCheck errors on non-module lines', () => {
@@ -160,7 +170,9 @@ describe('diagnostic-pipeline: verifyMissingPartialsOnDisk does not strip `lib/`
       projectDir: tmpDir,
     });
     expect(result.errors).toHaveLength(0);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(true);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(
+      true,
+    );
   });
 
   it('does NOT suppress MissingPartial for the `lib/commands/X` form — the `lib/` prefix expands to `app/lib/lib/...`', () => {
@@ -178,7 +190,9 @@ describe('diagnostic-pipeline: verifyMissingPartialsOnDisk does not strip `lib/`
     });
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]!.message).toContain('lib/commands/contacts/create');
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(false);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(
+      false,
+    );
   });
 
   it('does NOT suppress MissingPartial for the `lib/queries/X` form even when the bare-form file exists on disk', () => {
@@ -201,7 +215,9 @@ describe('diagnostic-pipeline: verifyMissingPartialsOnDisk does not strip `lib/`
       projectDir: tmpDir,
     });
     expect(result.errors).toHaveLength(1);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(false);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(
+      false,
+    );
   });
 
   it('still suppresses real partial cache-lag misses (non-`lib/` paths)', () => {
@@ -214,7 +230,9 @@ describe('diagnostic-pipeline: verifyMissingPartialsOnDisk does not strip `lib/`
       projectDir: tmpDir,
     });
     expect(result.errors).toHaveLength(0);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(true);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPartialSuppressed')).toBe(
+      true,
+    );
   });
 });
 
@@ -249,7 +267,9 @@ describe('diagnostic-pipeline: verifyMissingAssets via runDiagnosticPipeline', (
       projectDir: tmpDir,
     });
     expect(result.errors).toHaveLength(0);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingAssetSuppressed')).toBe(true);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingAssetSuppressed')).toBe(
+      true,
+    );
   });
 
   it('normalises agent-submitted leading-slash and assets/ prefix variants before checking', () => {
@@ -314,7 +334,9 @@ describe('diagnostic-pipeline: verifyMissingAssets via runDiagnosticPipeline', (
       projectDir: tmpDir,
     });
     expect(result.errors).toHaveLength(1);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingAssetSuppressed')).toBe(false);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingAssetSuppressed')).toBe(
+      false,
+    );
     expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingAssetPathHint')).toBe(false);
   });
 
@@ -430,8 +452,16 @@ describe('diagnostic-pipeline: verifyPageRoutesOnDisk via runDiagnosticPipeline'
   it("suppresses MissingPage for the agent's reported case (links to /, /notes, /dashboard)", () => {
     const result = makeResult([
       { check: 'MissingPage', severity: 'error', message: "No page found for route '/' (GET)" },
-      { check: 'MissingPage', severity: 'error', message: "No page found for route '/notes' (GET)" },
-      { check: 'MissingPage', severity: 'error', message: "No page found for route '/dashboard' (GET)" },
+      {
+        check: 'MissingPage',
+        severity: 'error',
+        message: "No page found for route '/notes' (GET)",
+      },
+      {
+        check: 'MissingPage',
+        severity: 'error',
+        message: "No page found for route '/dashboard' (GET)",
+      },
     ]);
     runDiagnosticPipeline(result, {
       filePath: 'app/views/partials/header.liquid',
@@ -475,7 +505,9 @@ describe('diagnostic-pipeline: verifyPageRoutesOnDisk via runDiagnosticPipeline'
     expect(diag.hint).toBeDefined();
     expect(diag.hint).toContain('POST');
     expect(diag.hint).toContain('GET');
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPageSuppressed')).toBe(false);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPageSuppressed')).toBe(
+      false,
+    );
   });
 
   it('leaves MissingPage in place when the route is genuinely not served by any page file', () => {
@@ -492,12 +524,18 @@ describe('diagnostic-pipeline: verifyPageRoutesOnDisk via runDiagnosticPipeline'
       projectDir: tmpDir,
     });
     expect(result.errors).toHaveLength(1);
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPageSuppressed')).toBe(false);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:MissingPageSuppressed')).toBe(
+      false,
+    );
   });
 
   it('skips the disk check when projectDir is not provided', () => {
     const result = makeResult([
-      { check: 'MissingPage', severity: 'error', message: "No page found for route '/notes' (GET)" },
+      {
+        check: 'MissingPage',
+        severity: 'error',
+        message: "No page found for route '/notes' (GET)",
+      },
     ]);
     runDiagnosticPipeline(result, {
       filePath: 'app/views/partials/header.liquid',
@@ -672,7 +710,10 @@ describe('diagnostic-pipeline: populateDefaultConfidence (in-pipeline stamping)'
   });
 
   it('falls back to `unknown.unmatched` when the diagnostic has no check name', () => {
-    const result = makeResult([], [{ severity: 'warning', message: 'orphan' } as PipelineDiagnostic]);
+    const result = makeResult(
+      [],
+      [{ severity: 'warning', message: 'orphan' } as PipelineDiagnostic],
+    );
     runDiagnosticPipeline(result, { filePath: 'app/views/pages/x.liquid', content: '' });
     expect(result.warnings[0]!.rule_id).toBe('unknown.unmatched');
   });
@@ -682,9 +723,7 @@ describe('diagnostic-pipeline: populateDefaultConfidence (in-pipeline stamping)'
 
 describe('stampDefaultsOn: late-push diagnostics get default confidence', () => {
   it('stamps diagnostics added AFTER runDiagnosticPipeline has already run', () => {
-    const result = makeResult([
-      { check: 'UnknownFilter', severity: 'error', message: 'x' },
-    ]);
+    const result = makeResult([{ check: 'UnknownFilter', severity: 'error', message: 'x' }]);
     runDiagnosticPipeline(result, { filePath: 'app/views/pages/x.liquid', content: '' });
     expect(result.errors[0]!.confidence).toBe(0.9);
 
@@ -750,12 +789,7 @@ describe('diagnostic-pipeline: suppressLspKnownFalsePositives', () => {
   });
 
   it('suppresses every "Syntax is not supported" diagnostic in the same file at once', () => {
-    const content = [
-      '{% liquid',
-      '  assign a = 1 == 1',
-      '  assign b = 2 != 3',
-      '%}',
-    ].join('\n');
+    const content = ['{% liquid', '  assign a = 1 == 1', '  assign b = 2 != 3', '%}'].join('\n');
 
     const result = makeResult([syntaxErr(2), syntaxErr(3)]);
     runDiagnosticPipeline(result, { filePath: 'app/views/partials/check.liquid', content });

@@ -16,14 +16,26 @@ import type { FiltersIndex } from './filters-index';
 import type { ObjectsIndex } from './objects-index';
 import type { TagsIndex } from './tags-index';
 
-function stubFiltersIndex(entries: Record<string, { syntax?: string; summary?: string }>): FiltersIndex {
+function stubFiltersIndex(
+  entries: Record<string, { syntax?: string; summary?: string }>,
+): FiltersIndex {
   const map = new Map(Object.entries(entries));
   return {
     loaded: true,
     lookup: (name: string | null | undefined) => {
       if (!name) return null;
       const e = map.get(name);
-      return e ? { name, category: '', syntax: e.syntax ?? '', summary: e.summary ?? '', parameters: [], platformOS: false, deprecated: false } : null;
+      return e
+        ? {
+            name,
+            category: '',
+            syntax: e.syntax ?? '',
+            summary: e.summary ?? '',
+            parameters: [],
+            platformOS: false,
+            deprecated: false,
+          }
+        : null;
     },
     closestMatch: (name: string | null | undefined) => {
       if (!name) return null;
@@ -39,13 +51,23 @@ function stubFiltersIndex(entries: Record<string, { syntax?: string; summary?: s
         }
       }
       return best
-        ? { name: best.name, category: '', syntax: best.syntax, summary: best.summary, parameters: [], platformOS: false, deprecated: false }
+        ? {
+            name: best.name,
+            category: '',
+            syntax: best.syntax,
+            summary: best.summary,
+            parameters: [],
+            platformOS: false,
+            deprecated: false,
+          }
         : null;
     },
   } as unknown as FiltersIndex;
 }
 
-function stubObjectsIndex(entries: Record<string, { handle: string; properties: string[] }>): ObjectsIndex {
+function stubObjectsIndex(
+  entries: Record<string, { handle: string; properties: string[] }>,
+): ObjectsIndex {
   const map = new Map(Object.entries(entries));
   return {
     loaded: true,
@@ -237,8 +259,7 @@ describe('MissingPartial hint template resolution', () => {
     };
     const result = await enrichError(diagnostic, {
       uri: 'file:///app/views/pages/test.html.liquid',
-      content:
-        "---\nslug: test\n---\n{% render 'modules/payments/helpers/format_price' %}",
+      content: "---\nslug: test\n---\n{% render 'modules/payments/helpers/format_price' %}",
     });
     expect(result.hint).toContain('modules/payments/helpers/format_price');
     expect(result.hint).toContain('project_map');
@@ -317,7 +338,11 @@ describe('TranslationKeyExists hint template resolution', () => {
 describe('enrichAll', () => {
   it('enriches multiple diagnostics', async () => {
     const diagnostics = [
-      { check: 'UndefinedObject', severity: 'warning' as const, message: 'Unknown object "params" used.' },
+      {
+        check: 'UndefinedObject',
+        severity: 'warning' as const,
+        message: 'Unknown object "params" used.',
+      },
       { check: 'UnknownFilter', severity: 'error' as const, message: 'Unknown filter "bad" used.' },
     ];
     const results = await enrichAll(diagnostics, { uri: 'file:///test.liquid' });

@@ -24,9 +24,7 @@ describe('diagnostic-record: templateOf (identifier masking)', () => {
   });
 
   it('masks double-quoted identifiers', () => {
-    expect(templateOf('MissingPartial', 'Cannot find "products/index"')).toBe(
-      'Cannot find <id>',
-    );
+    expect(templateOf('MissingPartial', 'Cannot find "products/index"')).toBe('Cannot find <id>');
   });
 
   it('masks backticked identifiers', () => {
@@ -138,9 +136,10 @@ describe('diagnostic-record: extractParams per check', () => {
   });
 
   it('GraphQLCheck: unused variable', () => {
-    expect(
-      extractParams('GraphQLCheck', 'Variable "$id" is never used in operation "x"'),
-    ).toEqual({ category: 'unused_variable', variable: 'id' });
+    expect(extractParams('GraphQLCheck', 'Variable "$id" is never used in operation "x"')).toEqual({
+      category: 'unused_variable',
+      variable: 'id',
+    });
   });
 
   it('GraphQLCheck: unknown field on Record', () => {

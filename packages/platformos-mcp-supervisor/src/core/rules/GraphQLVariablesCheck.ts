@@ -64,12 +64,14 @@ export const rules: Rule[] = [
         `\`{% graphql %}\` variable mismatch. Open the called .graphql operation under \`app/graphql/\` ` +
         `and read the operation header — variables declared as \`$name: Type\` (no leading \`$\` is wrong). ` +
         `Required → add the argument to the tag (\`{% graphql r = 'op', name: value %}\`); Unknown → drop it.`,
-      fixes: [{
-        type: 'guidance',
-        description:
-          `Open the .graphql file's operation header to see the full \`$variable: Type\` signature, then ` +
-          `pass each required variable as a named argument on the \`{% graphql %}\` tag.`,
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            `Open the .graphql file's operation header to see the full \`$variable: Type\` signature, then ` +
+            `pass each required variable as a named argument on the \`{% graphql %}\` tag.`,
+        },
+      ],
       confidence: 0.5,
     }),
   },
@@ -168,19 +170,22 @@ function buildParserBlindSpotHint(diag: RuleDiagnostic, facts: RuleFacts) {
       `%}\n` +
       '```' +
       sigBlock,
-    fixes: [{
-      type: 'guidance',
-      description:
-        `Convert the multi-line \`graphql\` call to a single-line form. Either move it out of ` +
-        `\`{% liquid %}\` into \`{% graphql ... %}\` tag delimiters, or keep it inside the block ` +
-        `but place every \`name: value\` argument on the same line as \`graphql\`. The arguments ` +
-        `you wrote are correct — only the line breaks are dropping them.${diagFiles(diag, facts)}`,
-    }],
+    fixes: [
+      {
+        type: 'guidance',
+        description:
+          `Convert the multi-line \`graphql\` call to a single-line form. Either move it out of ` +
+          `\`{% liquid %}\` into \`{% graphql ... %}\` tag delimiters, or keep it inside the block ` +
+          `but place every \`name: value\` argument on the same line as \`graphql\`. The arguments ` +
+          `you wrote are correct — only the line breaks are dropping them.${diagFiles(diag, facts)}`,
+      },
+    ],
     confidence: 0.95,
     see_also: {
       tool: 'domain_guide',
       args: { domain: 'graphql' },
-      reason: 'Multi-line `{% graphql %}` continuation inside `{% liquid %}` is silently truncated. domain_guide(graphql) shows the canonical tag form.',
+      reason:
+        'Multi-line `{% graphql %}` continuation inside `{% liquid %}` is silently truncated. domain_guide(graphql) shows the canonical tag form.',
     },
   };
 }
@@ -201,18 +206,21 @@ function buildRequiredHint(diag: RuleDiagnostic, facts: RuleFacts) {
       `{% graphql result = '<op_name>', ${param}: context.params.${param} %}  # request param\n` +
       '```' +
       sigBlock,
-    fixes: [{
-      type: 'guidance',
-      description:
-        `Add \`${param}: <value>\` to the \`{% graphql %}\` tag. The value must match the declared ` +
-        `GraphQL type — pass a string for \`String!\`, an integer for \`Int!\`, an object literal for ` +
-        `input types, etc.${diagFiles(diag, facts)}`,
-    }],
+    fixes: [
+      {
+        type: 'guidance',
+        description:
+          `Add \`${param}: <value>\` to the \`{% graphql %}\` tag. The value must match the declared ` +
+          `GraphQL type — pass a string for \`String!\`, an integer for \`Int!\`, an object literal for ` +
+          `input types, etc.${diagFiles(diag, facts)}`,
+      },
+    ],
     confidence: 0.75,
     see_also: {
       tool: 'domain_guide',
       args: { domain: 'graphql' },
-      reason: 'GraphQL call variable mismatch. domain_guide(graphql) covers $variable signatures and value forwarding.',
+      reason:
+        'GraphQL call variable mismatch. domain_guide(graphql) covers $variable signatures and value forwarding.',
     },
   };
 }
@@ -231,17 +239,20 @@ function buildUnknownHint(diag: RuleDiagnostic, facts: RuleFacts) {
       `the body — orphan declarations themselves trigger \`GraphQLCheck\`).\n` +
       `  C) **Rename** \`${param}\` to match an existing operation variable — common cause is a typo.` +
       sigBlock,
-    fixes: [{
-      type: 'guidance',
-      description:
-        `Pick: (A) drop \`${param}: <value>\` from the call, (B) add \`$${param}: <Type>\` to the .graphql ` +
-        `operation header, or (C) rename \`${param}\` to a declared variable.${diagFiles(diag, facts)}`,
-    }],
+    fixes: [
+      {
+        type: 'guidance',
+        description:
+          `Pick: (A) drop \`${param}: <value>\` from the call, (B) add \`$${param}: <Type>\` to the .graphql ` +
+          `operation header, or (C) rename \`${param}\` to a declared variable.${diagFiles(diag, facts)}`,
+      },
+    ],
     confidence: 0.75,
     see_also: {
       tool: 'domain_guide',
       args: { domain: 'graphql' },
-      reason: 'GraphQL call passes an undeclared variable. domain_guide(graphql) covers $variable signatures.',
+      reason:
+        'GraphQL call passes an undeclared variable. domain_guide(graphql) covers $variable signatures.',
     },
   };
 }
@@ -263,12 +274,15 @@ interface Signature {
 function signatureBlock(diag: RuleDiagnostic, facts: RuleFacts): string {
   const sigs = collectSignatures(diag, facts);
   if (sigs.length === 0) return '';
-  const list = sigs.map((s) => {
-    const args = s.args.length === 0
-      ? '(no variables)'
-      : s.args.map((a) => `\`$${a.name}: ${a.type}\``).join(', ');
-    return `  • \`${s.queryName}\` — ${args}`;
-  }).join('\n');
+  const list = sigs
+    .map((s) => {
+      const args =
+        s.args.length === 0
+          ? '(no variables)'
+          : s.args.map((a) => `\`$${a.name}: ${a.type}\``).join(', ');
+      return `  • \`${s.queryName}\` — ${args}`;
+    })
+    .join('\n');
   return `\n\nGraphQL operation(s) called from this file:\n${list}`;
 }
 

@@ -37,10 +37,11 @@ export const rules: Rule[] = [
         }
 
         const nearest = nearestByLevenshtein(field, allProps, 3);
-        const suggestion = nearest.length > 0
-          ? `Did you mean \`${nearest[0].name}\`?`
-          : null;
-        const schemaList = schemaNodes.slice(0, 5).map((s) => `\`${s.key}\``).join(', ');
+        const suggestion = nearest.length > 0 ? `Did you mean \`${nearest[0].name}\`?` : null;
+        const schemaList = schemaNodes
+          .slice(0, 5)
+          .map((s) => `\`${s.key}\``)
+          .join(', ');
 
         return {
           rule_id: 'GraphQLCheck.unknown_field',
@@ -50,7 +51,8 @@ export const rules: Rule[] = [
           see_also: {
             tool: 'domain_guide',
             args: { domain: 'graphql', section: 'gotchas' },
-            reason: 'Unknown field on Record type. domain_guide(graphql, gotchas) explains how to query schema properties via the properties hash.',
+            reason:
+              'Unknown field on Record type. domain_guide(graphql, gotchas) explains how to query schema properties via the properties hash.',
           },
         };
       }
@@ -105,7 +107,8 @@ export const rules: Rule[] = [
           see_also: {
             tool: 'domain_guide',
             args: { domain: 'graphql', section: 'gotchas' },
-            reason: 'Filter type mismatch. domain_guide(graphql, gotchas) explains platformOS filter input types and how to construct them.',
+            reason:
+              'Filter type mismatch. domain_guide(graphql, gotchas) explains platformOS filter input types and how to construct them.',
           },
         };
       }
@@ -126,13 +129,15 @@ export const rules: Rule[] = [
     when: () => true,
     apply: () => ({
       rule_id: 'GraphQLCheck.generic',
-      hint_md: 'GraphQL validation error. Check the query for syntax errors, undefined variables, or field name typos. Use `domain_guide(graphql)` for platformOS-specific GraphQL conventions.',
+      hint_md:
+        'GraphQL validation error. Check the query for syntax errors, undefined variables, or field name typos. Use `domain_guide(graphql)` for platformOS-specific GraphQL conventions.',
       fixes: [],
       confidence: 0.4,
       see_also: {
         tool: 'domain_guide',
         args: { domain: 'graphql' },
-        reason: 'GraphQL error. domain_guide(graphql) covers platformOS-specific GraphQL patterns, filter types, and common mistakes.',
+        reason:
+          'GraphQL error. domain_guide(graphql) covers platformOS-specific GraphQL patterns, filter types, and common mistakes.',
       },
     }),
   },

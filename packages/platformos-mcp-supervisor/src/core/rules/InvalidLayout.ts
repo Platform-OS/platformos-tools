@@ -46,20 +46,24 @@ export const rules: Rule[] = [
         `\`{{ content_for_layout }}\` exactly once (and may add named \`{% yield 'name' %}\` slots).`;
 
       const fixes: RuleFix[] = expectedPath
-        ? [{
-            type: 'create_file',
-            path: expectedPath,
-            description:
-              `Create ${pathSpan} with at least \`{{ content_for_layout }}\` so pages using ` +
-              `\`layout: ${layoutName ?? '<name>'}\` render. Verify the layout name is intentional first — ` +
-              `a typo in the page front matter is a more common cause than a genuinely missing layout.`,
-          }]
-        : [{
-            type: 'guidance',
-            description:
-              `Either fix the layout name in the page's front matter, or create the layout file. ` +
-              `Run \`project_map\` to see which layouts exist.`,
-          }];
+        ? [
+            {
+              type: 'create_file',
+              path: expectedPath,
+              description:
+                `Create ${pathSpan} with at least \`{{ content_for_layout }}\` so pages using ` +
+                `\`layout: ${layoutName ?? '<name>'}\` render. Verify the layout name is intentional first — ` +
+                `a typo in the page front matter is a more common cause than a genuinely missing layout.`,
+            },
+          ]
+        : [
+            {
+              type: 'guidance',
+              description:
+                `Either fix the layout name in the page's front matter, or create the layout file. ` +
+                `Run \`project_map\` to see which layouts exist.`,
+            },
+          ];
 
       return {
         rule_id: 'InvalidLayout.default',
@@ -69,7 +73,8 @@ export const rules: Rule[] = [
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'layouts' },
-          reason: 'Layout file conventions — required `{{ content_for_layout }}`, named yield slots, locations.',
+          reason:
+            'Layout file conventions — required `{{ content_for_layout }}`, named yield slots, locations.',
         },
       };
     },

@@ -22,7 +22,15 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const KNOWN_CATEGORIES = ['commands', 'queries', 'helpers', 'validations', 'events', 'hooks', 'partials'] as const;
+const KNOWN_CATEGORIES = [
+  'commands',
+  'queries',
+  'helpers',
+  'validations',
+  'events',
+  'hooks',
+  'partials',
+] as const;
 export type ModuleCategory = (typeof KNOWN_CATEGORIES)[number];
 
 export type ModuleCallPathsByCategory = Record<ModuleCategory, string[]>;

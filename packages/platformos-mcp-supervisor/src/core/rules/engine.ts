@@ -79,7 +79,13 @@ export interface RuleFacts {
 
 // ── Result shape ───────────────────────────────────────────────────────────
 
-export type FixKind = 'text_edit' | 'insert' | 'create_file' | 'guidance' | 'add_doc_param' | string;
+export type FixKind =
+  | 'text_edit'
+  | 'insert'
+  | 'create_file'
+  | 'guidance'
+  | 'add_doc_param'
+  | string;
 
 /**
  * Discriminated-ish union over fix kinds. Rules emit varied shapes by

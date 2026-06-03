@@ -99,7 +99,9 @@ describe('startServer', () => {
   });
 
   it('rejects when projectDir is missing', async () => {
-    await expect(startServer({ projectDir: '' } as never)).rejects.toThrow(/projectDir is required/);
+    await expect(startServer({ projectDir: '' } as never)).rejects.toThrow(
+      /projectDir is required/,
+    );
   });
 
   it('rejects when projectDir does not exist on disk', async () => {

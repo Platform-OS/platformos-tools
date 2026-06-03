@@ -28,10 +28,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'UnknownFilter.tag_confusion',
         hint_md: `\`${name}\` is a tag, not a filter. Use \`{% ${name} ... %}\` instead of \`| ${name}\`.`,
-        fixes: [{
-          type: 'guidance',
-          description: `Replace \`| ${name}\` with block syntax \`{% ${name} ... %}\`. This is a structural change — the filter pipe must become a tag block.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Replace \`| ${name}\` with block syntax \`{% ${name} ... %}\`. This is a structural change — the filter pipe must become a tag block.`,
+          },
+        ],
         confidence: 0.95,
       };
     },
@@ -111,15 +113,17 @@ export const rules: Rule[] = [
         return {
           rule_id: 'UnknownFilter.suggest_nearest',
           hint_md: `Did you mean \`${closest.name}\`? ${closest.syntax || closest.summary}`,
-          fixes: [{
-            type: 'text_edit',
-            range: {
-              start: { line: diag.line ?? 0, character: diag.column ?? 0 },
-              end: { line: diag.line ?? 0, character: (diag.column ?? 0) + name.length },
+          fixes: [
+            {
+              type: 'text_edit',
+              range: {
+                start: { line: diag.line ?? 0, character: diag.column ?? 0 },
+                end: { line: diag.line ?? 0, character: (diag.column ?? 0) + name.length },
+              },
+              new_text: closest.name,
+              description: `Replace \`${name}\` with \`${closest.name}\``,
             },
-            new_text: closest.name,
-            description: `Replace \`${name}\` with \`${closest.name}\``,
-          }],
+          ],
           confidence: 0.6,
         };
       }
@@ -165,13 +169,15 @@ export const rules: Rule[] = [
         `\`link_to\` family. Replace with the platformOS equivalent or restructure the template.\n\n` +
         `Tags and filters are syntactically distinct: \`{% tag ... %}\` vs \`| filter\`. ` +
         `If the name is actually a tag, switch to block syntax.`,
-      fixes: [{
-        type: 'guidance',
-        description:
-          `Re-read the upstream message for the filter name, then look it up via \`lookup\` ` +
-          `(completions mode) at the filter position. If it's Shopify-specific, find the ` +
-          `platformOS equivalent or rewrite the expression.`,
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            `Re-read the upstream message for the filter name, then look it up via \`lookup\` ` +
+            `(completions mode) at the filter position. If it's Shopify-specific, find the ` +
+            `platformOS equivalent or rewrite the expression.`,
+        },
+      ],
       confidence: 0.4,
     }),
   },

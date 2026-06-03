@@ -106,8 +106,20 @@ describe('fix-generator: UndefinedObject', () => {
     const content = '<p>{{ post.title }}</p>\n<p>{{ author.name }}</p>';
     const ast = parseLiquidFile(content);
     const diagnostics: FixDiagnostic[] = [
-      { check: 'UndefinedObject', severity: 'error', message: 'Undefined object "post"', line: 0, column: 4 },
-      { check: 'UndefinedObject', severity: 'error', message: 'Undefined object "author"', line: 1, column: 4 },
+      {
+        check: 'UndefinedObject',
+        severity: 'error',
+        message: 'Undefined object "post"',
+        line: 0,
+        column: 4,
+      },
+      {
+        check: 'UndefinedObject',
+        severity: 'error',
+        message: 'Undefined object "author"',
+        line: 1,
+        column: 4,
+      },
     ];
 
     const { proposedFixes } = generateFixes(
@@ -186,8 +198,7 @@ describe('fix-generator: UndefinedObject', () => {
   });
 
   it('skips already-declared params in existing {% doc %}', () => {
-    const content =
-      '{% doc %}\n  @param {object} post\n{% enddoc %}\n<p>{{ post.title }}</p>';
+    const content = '{% doc %}\n  @param {object} post\n{% enddoc %}\n<p>{{ post.title }}</p>';
     const ast = parseLiquidFile(content);
     const diagnostics: FixDiagnostic[] = [
       {
@@ -272,8 +283,20 @@ describe('fix-generator: UndefinedObject', () => {
     const content = '{{ params.id }}\n{{ params.slug }}';
     const ast = parseLiquidFile(content);
     const diagnostics: FixDiagnostic[] = [
-      { check: 'UndefinedObject', severity: 'error', message: 'Undefined object "params"', line: 0, column: 3 },
-      { check: 'UndefinedObject', severity: 'error', message: 'Undefined object "params"', line: 1, column: 3 },
+      {
+        check: 'UndefinedObject',
+        severity: 'error',
+        message: 'Undefined object "params"',
+        line: 0,
+        column: 3,
+      },
+      {
+        check: 'UndefinedObject',
+        severity: 'error',
+        message: 'Undefined object "params"',
+        line: 1,
+        column: 3,
+      },
     ];
 
     const { proposedFixes } = generateFixes(
@@ -1062,8 +1085,20 @@ describe('fix-generator: diagnosticFixes map', () => {
     const content = '<p>{{ post.title }}</p>\n<p>{{ author.name }}</p>';
     const ast = parseLiquidFile(content);
     const diagnostics: FixDiagnostic[] = [
-      { check: 'UndefinedObject', severity: 'error', message: 'Undefined object "post"', line: 0, column: 4 },
-      { check: 'UndefinedObject', severity: 'error', message: 'Undefined object "author"', line: 1, column: 4 },
+      {
+        check: 'UndefinedObject',
+        severity: 'error',
+        message: 'Undefined object "post"',
+        line: 0,
+        column: 4,
+      },
+      {
+        check: 'UndefinedObject',
+        severity: 'error',
+        message: 'Undefined object "author"',
+        line: 1,
+        column: 4,
+      },
     ];
 
     const { diagnosticFixes } = generateFixes(

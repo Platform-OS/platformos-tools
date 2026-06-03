@@ -77,12 +77,14 @@ export const rules: Rule[] = [
         `in the target's \`{% doc %}\` block). The sibling diagnostic on the same line ` +
         `(\`MissingRenderPartialArguments\` / \`UnrecognizedRenderPartialArguments\`) carries the partial ` +
         `or function path when it co-fires — use that to locate the contract.`,
-      fixes: [{
-        type: 'guidance',
-        description:
-          `Open the target's \`{% doc %}\` block to confirm the contract, then either add the missing ` +
-          `argument to the call or drop the unrecognized one.`,
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            `Open the target's \`{% doc %}\` block to confirm the contract, then either add the missing ` +
+            `argument to the call or drop the unrecognized one.`,
+        },
+      ],
       confidence: 0.5,
     }),
   },
@@ -91,7 +93,10 @@ export const rules: Rule[] = [
 function buildRequiredHint(diag: RuleDiagnostic, kind: CallKind): RuleResult {
   const tag = TAG_FOR_KIND[kind];
   const param = diag.params?.param_name ?? '<param>';
-  const id = kind === 'render' ? 'PartialCallArguments.required_render' : 'PartialCallArguments.required_function';
+  const id =
+    kind === 'render'
+      ? 'PartialCallArguments.required_render'
+      : 'PartialCallArguments.required_function';
   // The most common idiomatic resolution is to forward the param under
   // the same name (`X: X`) since the caller usually has the value in
   // scope already (either as its own @param, an `assign` result, or the
@@ -118,14 +123,16 @@ function buildRequiredHint(diag: RuleDiagnostic, kind: CallKind): RuleResult {
       `When the sibling \`MissingRenderPartialArguments\` (or \`UnrecognizedRenderPartialArguments\`) fires ` +
       `on the same line, its message names the partial / function path and may carry a richer \`@param\` ` +
       `signature — prefer its hint when present.`,
-    fixes: [{
-      type: 'guidance',
-      description:
-        `Add \`${param}: <value>\` to the \`{% ${tag} ... %}\` tag. Use \`${param}: ${param}\` when the ` +
-        `caller already has \`${param}\` in scope (most common); otherwise pass a literal or a derived ` +
-        `value. The companion \`Missing*Arguments\` diagnostic on this line carries the target path and ` +
-        `the canonical signature.`,
-    }],
+    fixes: [
+      {
+        type: 'guidance',
+        description:
+          `Add \`${param}: <value>\` to the \`{% ${tag} ... %}\` tag. Use \`${param}: ${param}\` when the ` +
+          `caller already has \`${param}\` in scope (most common); otherwise pass a literal or a derived ` +
+          `value. The companion \`Missing*Arguments\` diagnostic on this line carries the target path and ` +
+          `the canonical signature.`,
+      },
+    ],
     confidence: 0.7,
     see_also: {
       tool: 'domain_guide',
@@ -141,7 +148,10 @@ function buildRequiredHint(diag: RuleDiagnostic, kind: CallKind): RuleResult {
 function buildUnknownHint(diag: RuleDiagnostic, kind: CallKind): RuleResult {
   const tag = TAG_FOR_KIND[kind];
   const param = diag.params?.param_name ?? '<param>';
-  const id = kind === 'render' ? 'PartialCallArguments.unknown_render' : 'PartialCallArguments.unknown_function';
+  const id =
+    kind === 'render'
+      ? 'PartialCallArguments.unknown_render'
+      : 'PartialCallArguments.unknown_function';
   return {
     rule_id: id,
     hint_md:
@@ -157,14 +167,16 @@ function buildUnknownHint(diag: RuleDiagnostic, kind: CallKind): RuleResult {
       `was a typo.\n\n` +
       `When the sibling \`UnrecognizedRenderPartialArguments\` fires on the same line, its message names ` +
       `the partial or function path — use it to locate the \`{% doc %}\` block.`,
-    fixes: [{
-      type: 'guidance',
-      description:
-        `Pick: (A) drop \`${param}: <value>\` from the \`{% ${tag} %}\` tag, (B) declare ` +
-        `\`@param ${param} {<type>}\` in the target's \`{% doc %}\` block, or (C) rename \`${param}\` ` +
-        `to a declared param. Module-owned targets (slugs starting with \`modules/\`) reject option B — ` +
-        `the file is read-only.`,
-    }],
+    fixes: [
+      {
+        type: 'guidance',
+        description:
+          `Pick: (A) drop \`${param}: <value>\` from the \`{% ${tag} %}\` tag, (B) declare ` +
+          `\`@param ${param} {<type>}\` in the target's \`{% doc %}\` block, or (C) rename \`${param}\` ` +
+          `to a declared param. Module-owned targets (slugs starting with \`modules/\`) reject option B — ` +
+          `the file is read-only.`,
+      },
+    ],
     confidence: 0.7,
     see_also: {
       tool: 'domain_guide',

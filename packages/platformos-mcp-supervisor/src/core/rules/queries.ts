@@ -164,13 +164,25 @@ export function isOrphan(graph: ProjectFactGraph | null | undefined, filePath: s
   return graph.hasNode(filePath) && graph.referencedBy(filePath).length === 0;
 }
 
-export function hasDocParams(graph: ProjectFactGraph | null | undefined, filePath: string): boolean {
+export function hasDocParams(
+  graph: ProjectFactGraph | null | undefined,
+  filePath: string,
+): boolean {
   if (!graph || !filePath) return false;
   const node = graph.nodeByPath(filePath);
   return Array.isArray(node?.params) && (node?.params?.length ?? 0) > 0;
 }
 
-export type FileType = 'page' | 'partial' | 'layout' | 'command' | 'query' | 'graphql' | 'schema' | 'module' | 'unknown';
+export type FileType =
+  | 'page'
+  | 'partial'
+  | 'layout'
+  | 'command'
+  | 'query'
+  | 'graphql'
+  | 'schema'
+  | 'module'
+  | 'unknown';
 
 export function classifyFileType(filePath: string | null | undefined): FileType {
   if (!filePath) return 'unknown';

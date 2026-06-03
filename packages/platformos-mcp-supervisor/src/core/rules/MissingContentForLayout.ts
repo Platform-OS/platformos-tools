@@ -27,18 +27,21 @@ export const rules: Rule[] = [
         '  • `{% yield "name" %}` — named, optional slots a page can fill via `{% content_for "name" %}`. ' +
         'Use these for sidebars, head injection, etc. Adding more named slots does NOT replace the ' +
         'implicit body slot.',
-      fixes: [{
-        type: 'guidance',
-        description:
-          'Insert `{{ content_for_layout }}` once in the layout — typically right after the `<body>` tag. ' +
-          'The heuristic fix-generator emits the literal `insert` text_edit; accept it. ' +
-          'Add named `{% yield "name" %}` slots only when pages need extra fill points.',
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Insert `{{ content_for_layout }}` once in the layout — typically right after the `<body>` tag. ' +
+            'The heuristic fix-generator emits the literal `insert` text_edit; accept it. ' +
+            'Add named `{% yield "name" %}` slots only when pages need extra fill points.',
+        },
+      ],
       confidence: 0.95,
       see_also: {
         tool: 'domain_guide',
         args: { domain: 'layouts' },
-        reason: 'Layouts domain guide explains content_for_layout vs yield and shows the canonical layout shape.',
+        reason:
+          'Layouts domain guide explains content_for_layout vs yield and shows the canonical layout shape.',
       },
     }),
   },

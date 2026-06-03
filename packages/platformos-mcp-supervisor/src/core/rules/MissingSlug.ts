@@ -26,13 +26,15 @@ export const rules: Rule[] = [
         '  • Use kebab-case and avoid the file extension (`slug: contact`, not `slug: contact.liquid`).\n' +
         '  • Use `:param` for dynamic segments (`slug: posts/:id`), not `[param]` (Next.js style).\n' +
         '  • No leading slash — `slug: foo`, not `slug: /foo`.',
-      fixes: [{
-        type: 'guidance',
-        description:
-          'Add `slug: <kebab-case-name>` between the front matter `---` markers. ' +
-          'The heuristic fix-generator proposes a slug derived from the filename — accept it ' +
-          'unless the public URL should diverge from the path.',
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Add `slug: <kebab-case-name>` between the front matter `---` markers. ' +
+            'The heuristic fix-generator proposes a slug derived from the filename — accept it ' +
+            'unless the public URL should diverge from the path.',
+        },
+      ],
       confidence: 0.85,
       see_also: {
         tool: 'domain_guide',

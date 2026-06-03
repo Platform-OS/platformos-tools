@@ -43,23 +43,26 @@ function rulesForCheck(checkName: string): Rule[] {
       id: `${ruleIdPrefix(checkName)}.include`,
       check: checkName,
       priority: 10,
-      when: (diag) => /\binclude\b/.test(diag.params?.tag ?? '') || /\binclude\b/.test(diag.message ?? ''),
+      when: (diag) =>
+        /\binclude\b/.test(diag.params?.tag ?? '') || /\binclude\b/.test(diag.message ?? ''),
       apply: () => ({
         rule_id: `${ruleIdPrefix(checkName)}.include`,
         hint_md:
           '`{% include %}` is deprecated. Replace with `{% render %}` everywhere in this file. ' +
           '`{% render %}` has **isolated scope** — variables from the parent are NOT inherited; ' +
-          'pass each one explicitly: `{% render \'partial\', name: name, items: items %}`. ' +
+          "pass each one explicitly: `{% render 'partial', name: name, items: items %}`. " +
           'Exception: includes that pull in a module helper meant to share scope (auth, redirects) — ' +
           'leave those alone; the heuristic fix-generator detects this pattern and proposes guidance ' +
           'instead of a rename.',
-        fixes: [{
-          type: 'guidance',
-          description:
-            'Rename every `{% include \'X\' %}` in this file to `{% render \'X\', <vars> %}`. ' +
-            'List the partial\'s declared `@param` names and pass each explicitly — ' +
-            'isolated scope means undeclared vars come through as `nil`.',
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              "Rename every `{% include 'X' %}` in this file to `{% render 'X', <vars> %}`. " +
+              "List the partial's declared `@param` names and pass each explicitly — " +
+              'isolated scope means undeclared vars come through as `nil`.',
+          },
+        ],
         confidence: 0.95,
       }),
     },
@@ -68,21 +71,24 @@ function rulesForCheck(checkName: string): Rule[] {
       id: `${ruleIdPrefix(checkName)}.hash_assign`,
       check: checkName,
       priority: 10,
-      when: (diag) => /hash_assign/.test(diag.params?.tag ?? '') || /\bhash_assign\b/.test(diag.message ?? ''),
+      when: (diag) =>
+        /hash_assign/.test(diag.params?.tag ?? '') || /\bhash_assign\b/.test(diag.message ?? ''),
       apply: () => ({
         rule_id: `${ruleIdPrefix(checkName)}.hash_assign`,
         hint_md:
           '`{% hash_assign x, key: value %}` is deprecated. Use the bracket-assign form ' +
           '`{% assign x["key"] = value %}` (or dot form `{% assign x.key = value %}` for ' +
           'identifier keys). Both produce the same hash — the new form is plain `assign`.',
-        fixes: [{
-          type: 'guidance',
-          description:
-            'Replace `{% hash_assign x, key: value %}` with `{% assign x["key"] = value %}`. ' +
-            'For dotted identifiers: `{% assign x.key = value %}`. ' +
-            'The heuristic fix-generator emits the literal `hash_assign` → `assign` text_edit; ' +
-            'apply it then update the argument shape from `, key: value` to `["key"] = value`.',
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              'Replace `{% hash_assign x, key: value %}` with `{% assign x["key"] = value %}`. ' +
+              'For dotted identifiers: `{% assign x.key = value %}`. ' +
+              'The heuristic fix-generator emits the literal `hash_assign` → `assign` text_edit; ' +
+              'apply it then update the argument shape from `, key: value` to `["key"] = value`.',
+          },
+        ],
         confidence: 0.85,
       }),
     },
@@ -91,22 +97,25 @@ function rulesForCheck(checkName: string): Rule[] {
       id: `${ruleIdPrefix(checkName)}.parse_json`,
       check: checkName,
       priority: 10,
-      when: (diag) => /parse_json/.test(diag.params?.tag ?? '') || /\bparse_json\b/.test(diag.message ?? ''),
+      when: (diag) =>
+        /parse_json/.test(diag.params?.tag ?? '') || /\bparse_json\b/.test(diag.message ?? ''),
       apply: () => ({
         rule_id: `${ruleIdPrefix(checkName)}.parse_json`,
         hint_md:
           '`{% parse_json x %}…{% endparse_json %}` is deprecated. Use the filter form ' +
-          '`{% assign x = \'<json>\' | parse_json %}` (single-line) or build the literal with ' +
+          "`{% assign x = '<json>' | parse_json %}` (single-line) or build the literal with " +
           '`{% capture json %}…{% endcapture %}{% assign x = json | parse_json %}` for ' +
           'multi-line payloads. The filter is exact-equivalent semantically.',
-        fixes: [{
-          type: 'guidance',
-          description:
-            'Migrate `{% parse_json x %}{ … }{% endparse_json %}` to ' +
-            '`{% assign x = \'{ … }\' | parse_json %}`. For multi-line payloads use ' +
-            '`{% capture body %}{ … }{% endcapture %}{% assign x = body | parse_json %}` so the ' +
-            'JSON is left literal — `parse_json` accepts strings, not block contents.',
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              'Migrate `{% parse_json x %}{ … }{% endparse_json %}` to ' +
+              "`{% assign x = '{ … }' | parse_json %}`. For multi-line payloads use " +
+              '`{% capture body %}{ … }{% endcapture %}{% assign x = body | parse_json %}` so the ' +
+              'JSON is left literal — `parse_json` accepts strings, not block contents.',
+          },
+        ],
         confidence: 0.85,
       }),
     },

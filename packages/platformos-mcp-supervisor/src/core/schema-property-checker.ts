@@ -75,11 +75,13 @@ const TYPE_TO_VALUE_KEY: Readonly<Record<string, string>> = {
   upload: 'value',
 };
 
-const ACCESSOR_REGEX = /\b(property(?:_int|_float|_boolean|_array)?)\s*\(\s*name\s*:\s*"([^"]+)"\s*\)/g;
+const ACCESSOR_REGEX =
+  /\b(property(?:_int|_float|_boolean|_array)?)\s*\(\s*name\s*:\s*"([^"]+)"\s*\)/g;
 
 const TABLE_REGEX = /table\s*:\s*(?:\{\s*value\s*:\s*)?"([^"]+)"/g;
 
-const MUTATION_PROP_REGEX = /\{\s*name\s*:\s*"([^"]+)"\s*,\s*(value(?:_int|_float|_boolean|_array)?)\s*:/g;
+const MUTATION_PROP_REGEX =
+  /\{\s*name\s*:\s*"([^"]+)"\s*,\s*(value(?:_int|_float|_boolean|_array)?)\s*:/g;
 
 // ── Internal types ─────────────────────────────────────────────────────────
 

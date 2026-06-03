@@ -53,7 +53,10 @@ describe('validateTranslationYaml', () => {
   });
 
   it('handles empty content as a no-op', () => {
-    expect(validateTranslationYaml('', 'app/translations/en.yml')).toEqual({ errors: [], warnings: [] });
+    expect(validateTranslationYaml('', 'app/translations/en.yml')).toEqual({
+      errors: [],
+      warnings: [],
+    });
     expect(validateTranslationYaml('   \n\n', 'app/translations/en.yml')).toEqual({
       errors: [],
       warnings: [],

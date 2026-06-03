@@ -15,7 +15,17 @@
 import type { Rule, RuleFix } from './engine';
 import { isShopifyObject, getShopifyObject, getCheckKnowledge } from '../knowledge-loader';
 
-const CONTEXT_PROPS = ['params', 'session', 'current_user', 'page', 'location', 'environment', 'authenticity_token', 'headers', 'constants'];
+const CONTEXT_PROPS = [
+  'params',
+  'session',
+  'current_user',
+  'page',
+  'location',
+  'environment',
+  'authenticity_token',
+  'headers',
+  'constants',
+];
 
 export const rules: Rule[] = [
   {
@@ -86,15 +96,17 @@ export const rules: Rule[] = [
       return {
         rule_id: 'UndefinedObject.context_prefix',
         hint_md: `Use \`context.${name}\` instead of bare \`${name}\`. In pages, all built-in objects require the \`context.\` prefix: \`context.params\`, \`context.session\`, \`context.current_user\`, \`context.page\`.`,
-        fixes: [{
-          type: 'text_edit',
-          range: {
-            start: { line: diag.line ?? 0, character: diag.column ?? 0 },
-            end: { line: diag.line ?? 0, character: (diag.column ?? 0) + name.length },
+        fixes: [
+          {
+            type: 'text_edit',
+            range: {
+              start: { line: diag.line ?? 0, character: diag.column ?? 0 },
+              end: { line: diag.line ?? 0, character: (diag.column ?? 0) + name.length },
+            },
+            new_text: `context.${name}`,
+            description: `Replace \`${name}\` with \`context.${name}\``,
           },
-          new_text: `context.${name}`,
-          description: `Replace \`${name}\` with \`context.${name}\``,
-        }],
+        ],
         confidence: 0.9,
       };
     },
@@ -120,12 +132,14 @@ export const rules: Rule[] = [
       return {
         rule_id: 'UndefinedObject.declare_param',
         hint_md: `Variable \`${name}\` is not defined. In ${fileType}s, all variables must be passed explicitly. Add a \`{% doc %}\` block: \`{% doc %} @param {object} ${name} {% enddoc %}\` and pass it from the caller.`,
-        fixes: [{
-          type: 'insert',
-          position: { line: 0, character: 0 },
-          text: `{% doc %}\n  @param {object} ${name}\n{% enddoc %}\n`,
-          description: `Add \`@param {object} ${name}\` declaration in a {% doc %} block at the top of the file`,
-        }],
+        fixes: [
+          {
+            type: 'insert',
+            position: { line: 0, character: 0 },
+            text: `{% doc %}\n  @param {object} ${name}\n{% enddoc %}\n`,
+            description: `Add \`@param {object} ${name}\` declaration in a {% doc %} block at the top of the file`,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -213,12 +227,14 @@ export const rules: Rule[] = [
         `@param {<type>} <name> {% enddoc %}\` and have the caller pass it.\n` +
         `  • **Local computation** — assign before use: \`{% assign x = ... %}\` / ` +
         `\`{% graphql x = ... %}\` / \`{% function x = ... %}\`.`,
-      fixes: [{
-        type: 'guidance',
-        description:
-          `Re-read the upstream message for the variable name, then either prefix with \`context.\`, ` +
-          `declare as a \`@param\`, or assign before use depending on where the reference lives.`,
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            `Re-read the upstream message for the variable name, then either prefix with \`context.\`, ` +
+            `declare as a \`@param\`, or assign before use depending on where the reference lives.`,
+        },
+      ],
       confidence: 0.4,
     }),
   },

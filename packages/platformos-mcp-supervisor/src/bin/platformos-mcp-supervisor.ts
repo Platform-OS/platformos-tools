@@ -65,7 +65,9 @@ async function main(): Promise<void> {
 
   const projectDir = argDir ?? process.env.POS_SUPERVISOR_PROJECT_DIR;
   if (!projectDir) {
-    log('error: no project directory provided. Pass --project <dir> or set POS_SUPERVISOR_PROJECT_DIR.');
+    log(
+      'error: no project directory provided. Pass --project <dir> or set POS_SUPERVISOR_PROJECT_DIR.',
+    );
     printHelp();
     process.exit(1);
   }

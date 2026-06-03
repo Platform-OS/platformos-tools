@@ -134,7 +134,10 @@ export function normalizeAssetPath(raw: string | null | undefined): string | nul
  *                   surface the candidates.
  *   - `missing`   — no match; diagnostic stands.
  */
-export function resolveAssetPath(rawPath: string | null | undefined, index: AssetIndex): AssetResolution {
+export function resolveAssetPath(
+  rawPath: string | null | undefined,
+  index: AssetIndex,
+): AssetResolution {
   const p = normalizeAssetPath(rawPath);
   if (!p) return { status: 'missing' };
   if (index.paths.has(p)) return { status: 'exists' };

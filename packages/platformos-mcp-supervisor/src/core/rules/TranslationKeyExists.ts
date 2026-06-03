@@ -22,7 +22,12 @@
  * suggestion. See the 2026-04-25 DEMO regression: 6 emits, 6 ignored fixes.
  */
 import type { Rule, RuleDiagnostic, RuleFacts } from './engine';
-import { nearestByLevenshtein, stripLocalePrefix, translationKeysForLocale, type NearestMatch } from './queries';
+import {
+  nearestByLevenshtein,
+  stripLocalePrefix,
+  translationKeysForLocale,
+  type NearestMatch,
+} from './queries';
 
 const ARRAY_INDEX_RE = /\[\d+\]/;
 const DEFAULT_LOCALE = 'en';
@@ -100,25 +105,28 @@ export const rules: Rule[] = [
       // bound so brand-new keys fall through to `create_key` instead of
       // attracting a bogus "did you mean".
       const SUGGEST_MAX_DISTANCE = Math.min(5, Math.floor(bareKey.length / 3));
-      const nearest = pickBest(nearestBare, nearestRaw)
-        .filter(n => n.distance <= SUGGEST_MAX_DISTANCE);
+      const nearest = pickBest(nearestBare, nearestRaw).filter(
+        (n) => n.distance <= SUGGEST_MAX_DISTANCE,
+      );
       if (nearest.length === 0) return null;
 
       const bestMatch = nearest[0].name;
-      const suggestions = nearest.map(n => `\`${n.name}\``).join(', ');
+      const suggestions = nearest.map((n) => `\`${n.name}\``).join(', ');
       return {
         rule_id: 'TranslationKeyExists.suggest_nearest',
         hint_md:
           `Translation key \`${key}\` not found. Did you mean: ${suggestions}? ` +
           `Use the suggested key directly in \`'<key>' | t\` — Liquid auto-prepends the locale, so do NOT include \`${DEFAULT_LOCALE}.\` yourself. ` +
           `Or add the key to \`app/translations/${DEFAULT_LOCALE}.yml\`.`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Replace \`${key}\` with \`${bestMatch}\` everywhere this key is referenced in the file ` +
-            `(\`{{ '...' | t }}\`, \`{% assign x = '...' | t %}\`, etc). Do not include the \`${DEFAULT_LOCALE}.\` prefix — ` +
-            `\`| t\` resolves the active locale automatically.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Replace \`${key}\` with \`${bestMatch}\` everywhere this key is referenced in the file ` +
+              `(\`{{ '...' | t }}\`, \`{% assign x = '...' | t %}\`, etc). Do not include the \`${DEFAULT_LOCALE}.\` prefix — ` +
+              `\`| t\` resolves the active locale automatically.`,
+          },
+        ],
         confidence: 0.7,
       };
     },
@@ -156,10 +164,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'TranslationKeyExists.create_key',
         hint_md: `Add translation key \`${bareKey}\` to \`app/translations/${DEFAULT_LOCALE}.yml\` (under the \`${DEFAULT_LOCALE}:\` root):\n\`\`\`yaml\n${snippet}\n\`\`\``,
-        fixes: [{
-          type: 'guidance',
-          description: `Add the following YAML to \`app/translations/${DEFAULT_LOCALE}.yml\` (nested under the existing \`${DEFAULT_LOCALE}:\` root):\n${snippet}`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Add the following YAML to \`app/translations/${DEFAULT_LOCALE}.yml\` (nested under the existing \`${DEFAULT_LOCALE}:\` root):\n${snippet}`,
+          },
+        ],
         confidence: 0.8,
       };
     },
@@ -189,12 +199,14 @@ export const rules: Rule[] = [
           `\`${DEFAULT_LOCALE}:\` root, mirroring the dot-path of the call.\n\n` +
           `If you're mid-feature and the key is part of the plan but not yet on disk, pass ` +
           `\`pending_translations=[<key>]\` to validate_code so this stops firing while you write it.`,
-        fixes: [{
-          type: 'guidance',
-          description: key
-            ? `Reconcile \`${key}\` with \`app/translations/${DEFAULT_LOCALE}.yml\`: either fix the call-site spelling or add the key under the \`${DEFAULT_LOCALE}:\` root.`
-            : `Inspect \`app/translations/${DEFAULT_LOCALE}.yml\` and reconcile the failing key.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: key
+              ? `Reconcile \`${key}\` with \`app/translations/${DEFAULT_LOCALE}.yml\`: either fix the call-site spelling or add the key under the \`${DEFAULT_LOCALE}:\` root.`
+              : `Inspect \`app/translations/${DEFAULT_LOCALE}.yml\` and reconcile the failing key.`,
+          },
+        ],
         confidence: 0.5,
       };
     },

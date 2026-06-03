@@ -118,7 +118,9 @@ export function buildPageRouteIndex(
     typeof overlay.content === 'string' &&
     /\.liquid$/.test(overlay.filePath)
   ) {
-    const abs = isAbsolute(overlay.filePath) ? overlay.filePath : join(projectDir, overlay.filePath);
+    const abs = isAbsolute(overlay.filePath)
+      ? overlay.filePath
+      : join(projectDir, overlay.filePath);
     if (abs === rootAbs || abs.startsWith(rootAbs + sep)) {
       overlayAbs = abs;
       if (!files.includes(abs)) files.push(abs);
@@ -198,7 +200,9 @@ export function normalizeRoute(raw: string | null | undefined): string {
  *
  * Method defaults to `'get'` when not present.
  */
-export function parseMissingPageMessage(message: string | null | undefined): ParsedMissingPage | null {
+export function parseMissingPageMessage(
+  message: string | null | undefined,
+): ParsedMissingPage | null {
   if (!message) return null;
   const quoted = message.match(/['"`]([^'"`]+)['"`]/);
   if (!quoted) return null;

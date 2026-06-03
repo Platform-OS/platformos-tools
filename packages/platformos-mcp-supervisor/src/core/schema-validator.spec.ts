@@ -28,11 +28,15 @@ describe('validateSchema', () => {
 
     const { errors } = validateSchema(yaml, 'app/schema/blog_post.yml');
 
-    expect(errors.some((e) => e.message.includes('`required` is not a schema-level concept'))).toBe(true);
+    expect(errors.some((e) => e.message.includes('`required` is not a schema-level concept'))).toBe(
+      true,
+    );
   });
 
   it('warns when name does not match filename', () => {
-    const yaml = ['name: wrong_name', 'properties:', '  - name: title', '    type: string'].join('\n');
+    const yaml = ['name: wrong_name', 'properties:', '  - name: title', '    type: string'].join(
+      '\n',
+    );
 
     const { warnings } = validateSchema(yaml, 'app/schema/blog_post.yml');
 
@@ -40,7 +44,9 @@ describe('validateSchema', () => {
   });
 
   it('accepts a valid schema with no diagnostics', () => {
-    const yaml = ['name: blog_post', 'properties:', '  - name: title', '    type: string'].join('\n');
+    const yaml = ['name: blog_post', 'properties:', '  - name: title', '    type: string'].join(
+      '\n',
+    );
 
     const { errors, warnings } = validateSchema(yaml, 'app/schema/blog_post.yml');
 

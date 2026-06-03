@@ -251,7 +251,10 @@ function findFrontMatterEnd(ast: LiquidHtmlNode, content: string): LineCol | nul
  *
  * Deduplicated by name (first occurrence wins).
  */
-export function collectScopeAtOffset(ast: LiquidHtmlNode | null | undefined, targetOffset: number): ScopeVariable[] {
+export function collectScopeAtOffset(
+  ast: LiquidHtmlNode | null | undefined,
+  targetOffset: number,
+): ScopeVariable[] {
   if (!ast) return [];
 
   interface Definition {
@@ -270,7 +273,10 @@ export function collectScopeAtOffset(ast: LiquidHtmlNode | null | undefined, tar
       return;
     }
     if (node.type !== NodeTypes.LiquidTag || !node.position) return;
-    const markup = node.markup as { name?: string | { name?: string }; variableName?: string; collection?: { name?: string } } | string | undefined;
+    const markup = node.markup as
+      | { name?: string | { name?: string }; variableName?: string; collection?: { name?: string } }
+      | string
+      | undefined;
 
     switch (node.name) {
       case 'for':
@@ -290,35 +296,62 @@ export function collectScopeAtOffset(ast: LiquidHtmlNode | null | undefined, tar
       case 'assign': {
         const name = typeof markup === 'object' ? (markup?.name as string | undefined) : undefined;
         if (typeof name === 'string') {
-          definitions.push({ name, source: '{% assign %}', scopeType: 'after', definedAt: node.position.end });
+          definitions.push({
+            name,
+            source: '{% assign %}',
+            scopeType: 'after',
+            definedAt: node.position.end,
+          });
         }
         break;
       }
       case 'capture': {
         const name = typeof markup === 'object' ? (markup?.name as string | undefined) : undefined;
         if (typeof name === 'string') {
-          definitions.push({ name, source: '{% capture %}', scopeType: 'after', definedAt: node.position.end });
+          definitions.push({
+            name,
+            source: '{% capture %}',
+            scopeType: 'after',
+            definedAt: node.position.end,
+          });
         }
         break;
       }
       case 'graphql': {
-        const name = typeof markup === 'object' && typeof markup?.name === 'string' ? markup.name : null;
+        const name =
+          typeof markup === 'object' && typeof markup?.name === 'string' ? markup.name : null;
         if (name) {
-          definitions.push({ name, source: '{% graphql %}', scopeType: 'after', definedAt: node.position.end });
+          definitions.push({
+            name,
+            source: '{% graphql %}',
+            scopeType: 'after',
+            definedAt: node.position.end,
+          });
         }
         break;
       }
       case 'function': {
-        const name = typeof markup === 'object' && typeof markup?.name === 'object' ? markup.name?.name : null;
+        const name =
+          typeof markup === 'object' && typeof markup?.name === 'object' ? markup.name?.name : null;
         if (typeof name === 'string') {
-          definitions.push({ name, source: '{% function %}', scopeType: 'after', definedAt: node.position.end });
+          definitions.push({
+            name,
+            source: '{% function %}',
+            scopeType: 'after',
+            definedAt: node.position.end,
+          });
         }
         break;
       }
       case 'parse_json': {
         const name = typeof markup === 'object' ? (markup?.name as string | undefined) : undefined;
         if (typeof name === 'string') {
-          definitions.push({ name, source: '{% parse_json %}', scopeType: 'after', definedAt: node.position.end });
+          definitions.push({
+            name,
+            source: '{% parse_json %}',
+            scopeType: 'after',
+            definedAt: node.position.end,
+          });
         }
         break;
       }
@@ -361,7 +394,12 @@ function findVarAt(
     if (v.name === varName && v.start.line === line && v.start.character === col) return v;
   }
   for (const v of varIndex) {
-    if (v.name === varName && v.start.line === line && Math.abs(v.start.character - col) <= POSITION_FUZZY_TOLERANCE) return v;
+    if (
+      v.name === varName &&
+      v.start.line === line &&
+      Math.abs(v.start.character - col) <= POSITION_FUZZY_TOLERANCE
+    )
+      return v;
   }
   return null;
 }
@@ -374,7 +412,12 @@ function findFilterAt(
 ): IndexedFilter | null {
   if (line == null || col == null) return null;
   for (const f of filterIndex) {
-    if (f.name === filterName && f.start.line === line && Math.abs(f.start.character - col) <= POSITION_FUZZY_TOLERANCE) return f;
+    if (
+      f.name === filterName &&
+      f.start.line === line &&
+      Math.abs(f.start.character - col) <= POSITION_FUZZY_TOLERANCE
+    )
+      return f;
   }
   return null;
 }
@@ -465,7 +508,10 @@ function fixUnknownFilter(
       type: 'text_edit',
       range: {
         start: { line: diagnostic.line ?? 0, character: diagnostic.column ?? 0 },
-        end: { line: diagnostic.line ?? 0, character: (diagnostic.column ?? 0) + filterName.length },
+        end: {
+          line: diagnostic.line ?? 0,
+          character: (diagnostic.column ?? 0) + filterName.length,
+        },
       },
       new_text: closest.name,
       description: `Replace \`${filterName}\` with \`${closest.name}\``,
@@ -545,7 +591,8 @@ function buildLibPrefixTextEdit(
   corrected: string,
   content: string,
 ): TextEditFix | null {
-  if (diagnostic.line == null || diagnostic.column == null || diagnostic.endColumn == null) return null;
+  if (diagnostic.line == null || diagnostic.column == null || diagnostic.endColumn == null)
+    return null;
   let quote = "'";
   if (typeof content === 'string') {
     const lines = content.split('\n');
@@ -571,8 +618,18 @@ function buildLibPrefixTextEdit(
 function isLikelyCollection(paramName: string): boolean {
   const name = paramName.toLowerCase();
   const knownSingulars = new Set([
-    'status', 'address', 'access', 'progress', 'process', 'focus',
-    'canvas', 'alias', 'class', 'success', 'basis', 'radius',
+    'status',
+    'address',
+    'access',
+    'progress',
+    'process',
+    'focus',
+    'canvas',
+    'alias',
+    'class',
+    'success',
+    'basis',
+    'radius',
   ]);
   if (knownSingulars.has(name)) return false;
   if (/_(list|collection|records|results|items|entries)$/.test(name)) return true;
@@ -598,7 +655,8 @@ function generateScaffold(
   const params: string[] = [];
   walk(ast, (node) => {
     if (node.type !== NodeTypes.LiquidTag) return;
-    if (node.name !== 'render' && node.name !== 'function' && node.name !== 'theme_render_rc') return;
+    if (node.name !== 'render' && node.name !== 'function' && node.name !== 'theme_render_rc')
+      return;
     const markup = node.markup as
       | { partial?: { value?: string }; args?: Array<{ name?: string; key?: string }> }
       | string
@@ -668,7 +726,8 @@ function fixConvertInclude(diagnostic: FixDiagnostic, content: string): Fix | nu
       end: { line: diagnostic.line, character: idx + 'include'.length },
     },
     new_text: 'render',
-    description: 'Replace `include` with `render` — render has isolated scope, pass all needed variables explicitly',
+    description:
+      'Replace `include` with `render` — render has isolated scope, pass all needed variables explicitly',
   };
 }
 
@@ -697,8 +756,10 @@ function fixMissingRenderPartialArguments(
   content: string,
 ): Fix {
   const msg = diagnostic.message ?? '';
-  const partialMatch = msg.match(/partial\s+['"`]([^'"`]+)['"`]/) ?? msg.match(/['"`]([^'"`\/]+\/[^'"`]+)['"`]/);
-  const paramMatch = msg.match(/argument\s+['"`](\w+)['"`]/) ?? msg.match(/@param\s+(?:\{[^}]*\}\s+)?(\w+)/);
+  const partialMatch =
+    msg.match(/partial\s+['"`]([^'"`]+)['"`]/) ?? msg.match(/['"`]([^'"`\/]+\/[^'"`]+)['"`]/);
+  const paramMatch =
+    msg.match(/argument\s+['"`](\w+)['"`]/) ?? msg.match(/@param\s+(?:\{[^}]*\}\s+)?(\w+)/);
 
   let scopeInfo = '';
   if (ast && content && diagnostic.line != null) {
@@ -781,7 +842,8 @@ function fixHardcodedRoutes(diagnostic: FixDiagnostic, _content: string): Fix {
   if (!pathMatch) {
     return {
       type: 'guidance',
-      description: 'Avoid hardcoded URL paths — they break when slugs change. Build URLs dynamically using variables and `| append` filter.',
+      description:
+        'Avoid hardcoded URL paths — they break when slugs change. Build URLs dynamically using variables and `| append` filter.',
     };
   }
   const hardcodedPath = pathMatch[1];
@@ -807,7 +869,8 @@ function fixMissingAsset(diagnostic: FixDiagnostic): Fix {
   if (!pathMatch) {
     return {
       type: 'guidance',
-      description: 'Create the missing asset in `app/assets/`. This check has a high false-positive rate for module assets — verify the file is truly missing.',
+      description:
+        'Create the missing asset in `app/assets/`. This check has a high false-positive rate for module assets — verify the file is truly missing.',
     };
   }
   const assetPath = pathMatch[1];
@@ -833,8 +896,10 @@ function fixMetadataParamsCheck(
     scopeInfo = formatScopeInfo(collectScopeAtOffset(ast, offset));
   }
 
-  const partialMatch = msg.match(/partial\s+['"`]([^'"`]+)['"`]/) ?? msg.match(/['"`]([^'"`\/]+\/[^'"`]+)['"`]/);
-  const paramMatch = msg.match(/argument\s+['"`](\w+)['"`]/) ?? msg.match(/param(?:eter)?\s+['"`](\w+)['"`]/);
+  const partialMatch =
+    msg.match(/partial\s+['"`]([^'"`]+)['"`]/) ?? msg.match(/['"`]([^'"`\/]+\/[^'"`]+)['"`]/);
+  const paramMatch =
+    msg.match(/argument\s+['"`](\w+)['"`]/) ?? msg.match(/param(?:eter)?\s+['"`](\w+)['"`]/);
 
   if (partialMatch && paramMatch) {
     const tagExample = isFunctionCall
@@ -851,7 +916,10 @@ function fixMetadataParamsCheck(
   };
 }
 
-function fixUnknownProperty(diagnostic: FixDiagnostic, _objectsIndex: ObjectsIndex | undefined): Fix {
+function fixUnknownProperty(
+  diagnostic: FixDiagnostic,
+  _objectsIndex: ObjectsIndex | undefined,
+): Fix {
   const msg = diagnostic.message ?? '';
   if (msg.includes('results') || msg.includes('records')) {
     return {
@@ -898,7 +966,8 @@ function fixLiquidHTMLSyntaxError(diagnostic: FixDiagnostic, content: string): F
   if (msg.includes('quote') || msg.includes('Quote') || msg.includes('string')) {
     return {
       type: 'guidance',
-      description: "Check for mismatched quotes. Single and double quotes must be properly paired. In Liquid, both `'string'` and `\"string\"` are valid.",
+      description:
+        'Check for mismatched quotes. Single and double quotes must be properly paired. In Liquid, both `\'string\'` and `"string"` are valid.',
     };
   }
   return null;
@@ -1020,7 +1089,8 @@ function fixMissingContentForLayout(
     type: 'insert',
     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
     new_text: '{{ content_for_layout }}\n',
-    description: 'Insert `{{ content_for_layout }}` — required for page content to render in layout',
+    description:
+      'Insert `{{ content_for_layout }}` — required for page content to render in layout',
   };
 }
 
@@ -1038,7 +1108,10 @@ function fixMissingReturnInsert(_diagnostic: FixDiagnostic, content: string): Fi
   }
   return {
     type: 'insert',
-    range: { start: { line: lines.length, character: 0 }, end: { line: lines.length, character: 0 } },
+    range: {
+      start: { line: lines.length, character: 0 },
+      end: { line: lines.length, character: 0 },
+    },
     new_text: '{% return object %}\n',
     description: 'Add `{% return object %}` at the end of the command',
   };
@@ -1072,14 +1145,18 @@ function fixMissingSlugInsert(_diagnostic: FixDiagnostic, content: string, fileP
       type: 'insert',
       range: { start: { line: 1, character: 0 }, end: { line: 1, character: 0 } },
       new_text: slugLine,
-      description: slug ? `Add \`slug: ${slug}\` to front matter` : 'Add `slug:` to front matter to define the URL explicitly',
+      description: slug
+        ? `Add \`slug: ${slug}\` to front matter`
+        : 'Add `slug:` to front matter to define the URL explicitly',
     };
   }
   return {
     type: 'insert',
     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
     new_text: `---\n${slugLine}---\n`,
-    description: slug ? `Add front matter with \`slug: ${slug}\`` : 'Add front matter with `slug:` to define the URL',
+    description: slug
+      ? `Add front matter with \`slug: ${slug}\``
+      : 'Add front matter with `slug:` to define the URL',
   };
 }
 
@@ -1094,13 +1171,24 @@ function fixShopifyObject(diagnostic: FixDiagnostic): Fix {
 }
 
 const TYPE_ALIASES: Readonly<Record<string, string>> = {
-  int: 'integer', number: 'integer', num: 'integer',
-  double: 'float', decimal: 'float',
+  int: 'integer',
+  number: 'integer',
+  num: 'integer',
+  double: 'float',
+  decimal: 'float',
   bool: 'boolean',
-  str: 'string', varchar: 'string', char: 'string',
-  timestamp: 'datetime', time: 'datetime',
-  file: 'upload', image: 'upload', attachment: 'upload', blob: 'upload',
-  json: 'text', object: 'text', hash: 'text',
+  str: 'string',
+  varchar: 'string',
+  char: 'string',
+  timestamp: 'datetime',
+  time: 'datetime',
+  file: 'upload',
+  image: 'upload',
+  attachment: 'upload',
+  blob: 'upload',
+  json: 'text',
+  object: 'text',
+  hash: 'text',
   list: 'array',
 };
 
@@ -1180,7 +1268,9 @@ function extractLayoutPath(message: string | undefined): string {
   const expected = message?.match(/Expected file:\s*`([^`]+)`/);
   if (expected) return expected[1];
   const layoutName = message?.match(/`([^`]+)`.*not found/)?.[1];
-  return layoutName ? `app/views/layouts/${layoutName}.liquid` : 'app/views/layouts/application.liquid';
+  return layoutName
+    ? `app/views/layouts/${layoutName}.liquid`
+    : 'app/views/layouts/application.liquid';
 }
 
 function fixTranslationKeyExists(diagnostic: FixDiagnostic, content: string): Fix | null {
@@ -1214,7 +1304,8 @@ function fixTranslationKeyExists(diagnostic: FixDiagnostic, content: string): Fi
   }
   return {
     type: 'guidance',
-    description: 'Translation key not found. Add it to app/translations/en.yml, or check for typos in the key name.',
+    description:
+      'Translation key not found. Add it to app/translations/en.yml, or check for typos in the key name.',
   };
 }
 
@@ -1348,7 +1439,17 @@ export function generateFixes(
 
   for (let i = 0; i < diagnostics.length; i++) {
     const d = diagnostics[i];
-    const fix = dispatchFix(d, varIndex, filterIdx, isPartialLike, ctx, ast, content, filePath, projectDir);
+    const fix = dispatchFix(
+      d,
+      varIndex,
+      filterIdx,
+      isPartialLike,
+      ctx,
+      ast,
+      content,
+      filePath,
+      projectDir,
+    );
     if (!fix) continue;
 
     // Stamp heuristic rule_id once per fix.
@@ -1436,7 +1537,13 @@ function generateFixContext(fix: TextEditFix | InsertFix, content: string): FixC
 // ── Public API: clusterDiagnostics ─────────────────────────────────────────
 
 const CONTEXT_VAR_NAMES = new Set([
-  'params', 'session', 'current_user', 'page', 'location', 'headers', 'environment',
+  'params',
+  'session',
+  'current_user',
+  'page',
+  'location',
+  'headers',
+  'environment',
 ]);
 
 interface ClusterAccumulator extends FixDiagnostic {
@@ -1547,7 +1654,8 @@ export function generateScorecard(
   if (domain === 'pages' && renderCount === 0 && tagCount > 3) {
     notes.push({
       level: 'advisory',
-      message: 'Page renders 0 partials. Extract reusable HTML into partials for better maintainability.',
+      message:
+        'Page renders 0 partials. Extract reusable HTML into partials for better maintainability.',
     });
   }
 
@@ -1564,7 +1672,10 @@ export function generateScorecard(
   }
 
   if (domain === 'partials' && structural.prompts && structural.prompts.length > 0) {
-    const paramCount = structural.prompts.reduce((count, p) => count + (p.match(/@param/g)?.length ?? 0), 0);
+    const paramCount = structural.prompts.reduce(
+      (count, p) => count + (p.match(/@param/g)?.length ?? 0),
+      0,
+    );
     if (paramCount >= 8) {
       notes.push({
         level: 'advisory',

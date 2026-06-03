@@ -12,7 +12,8 @@
  */
 import type { Rule } from './engine';
 
-const MISLEADING_RE = /\b(required|default|unique|index|nullable|validation|validates|max_length|min_length|enum|foreign_key|references|belongs_to|has_many)\b.*not (a schema|supported|enforced)/i;
+const MISLEADING_RE =
+  /\b(required|default|unique|index|nullable|validation|validates|max_length|min_length|enum|foreign_key|references|belongs_to|has_many)\b.*not (a schema|supported|enforced)/i;
 
 const HINT_BY_SUB: Record<string, string> = {
   builtin_conflict:
@@ -40,8 +41,7 @@ const FIX_BY_SUB: Record<string, string> = {
     'Rename one of the duplicates so every `name:` is distinct, or remove the redundant entry.',
   invalid_identifier:
     'Rename to start with a letter and use lowercase letters / digits / underscores (snake_case).',
-  snake_case:
-    'Rewrite the name in lowercase snake_case (e.g. `MyField` → `my_field`).',
+  snake_case: 'Rewrite the name in lowercase snake_case (e.g. `MyField` → `my_field`).',
   upload_options:
     'Use only `acl` (public|private), `max_size` (integer bytes), `content_type` (string or regex) under `options:`. Drop any other keys.',
   missing_field:
@@ -69,8 +69,14 @@ export const rules: Rule[] = [
       else if (/Duplicate property name/i.test(msg)) subId = 'duplicate_name';
       else if (/must start with a letter/i.test(msg)) subId = 'invalid_identifier';
       else if (/should use snake_case/i.test(msg)) subId = 'snake_case';
-      else if (/Unknown upload option|Invalid acl value|`options` must be an object|`options` is only valid/i.test(msg)) subId = 'upload_options';
-      else if (/Missing required `name`|Missing required `type`|must be a string/i.test(msg)) subId = 'missing_field';
+      else if (
+        /Unknown upload option|Invalid acl value|`options` must be an object|`options` is only valid/i.test(
+          msg,
+        )
+      )
+        subId = 'upload_options';
+      else if (/Missing required `name`|Missing required `type`|must be a string/i.test(msg))
+        subId = 'missing_field';
       else if (MISLEADING_RE.test(msg)) subId = 'misleading_key';
 
       return {
@@ -81,7 +87,8 @@ export const rules: Rule[] = [
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'schema' },
-          reason: 'Schema property error. domain_guide(schema) lists every supported field, type, and option.',
+          reason:
+            'Schema property error. domain_guide(schema) lists every supported field, type, and option.',
         },
       };
     },

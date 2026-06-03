@@ -54,7 +54,9 @@ function messageTemplate(message: string): string {
 // Per-check template override hook. Today the generic mask is sufficient
 // for every check we ship. Wire a custom mask here if a check ever needs
 // one (e.g. the LSP starts emitting timestamps inside a message).
-const TEMPLATE_OVERRIDES: Readonly<Record<string, (template: string) => string>> = Object.freeze({});
+const TEMPLATE_OVERRIDES: Readonly<Record<string, (template: string) => string>> = Object.freeze(
+  {},
+);
 
 /**
  * Mask `message` into a stable template string. Two messages from the
@@ -129,13 +131,12 @@ const EXTRACTORS = Object.freeze({
     // Tag is the first identifier; replacement (when present) follows
     // "replaced by" or "use".
     const tagMatch =
-      message.match(/[`'"](\w+)[`'"]/) ??
-      message.match(/\btag\s+[`'"]?(\w+)[`'"]?/i);
+      message.match(/[`'"](\w+)[`'"]/) ?? message.match(/\btag\s+[`'"]?(\w+)[`'"]?/i);
     const tag = tagMatch ? tagMatch[1] : null;
     const replMatch =
       message.match(/replaced\s+by\s+\[?[`'"](\w+)[`'"]\]?/i) ??
       message.match(/\buse\s+[`'"](\w+)[`'"]/i);
-    const replacement = replMatch ? replMatch[1] : (tag === 'include' ? 'render' : null);
+    const replacement = replMatch ? replMatch[1] : tag === 'include' ? 'render' : null;
     const params: ExtractedParams = {};
     if (tag) params.tag = tag;
     if (replacement) params.replacement = replacement;
@@ -159,8 +160,12 @@ const EXTRACTORS = Object.freeze({
     // Two distinct LSP message shapes:
     //   "Required parameter <X> must be passed to (render|function|GraphQL) call"
     //   "Unknown parameter <X> passed to (render|function|GraphQL) call"
-    const requiredMatch = message.match(/^Required parameter\s+([A-Za-z_][\w]*)\s+must be passed to (\w+)\s+call/i);
-    const unknownMatch = message.match(/^Unknown parameter\s+([A-Za-z_][\w]*)\s+passed to (\w+)\s+call/i);
+    const requiredMatch = message.match(
+      /^Required parameter\s+([A-Za-z_][\w]*)\s+must be passed to (\w+)\s+call/i,
+    );
+    const unknownMatch = message.match(
+      /^Unknown parameter\s+([A-Za-z_][\w]*)\s+passed to (\w+)\s+call/i,
+    );
     const m = requiredMatch ?? unknownMatch;
     if (!m) return {};
     const callKind = m[2].toLowerCase();
@@ -175,8 +180,12 @@ const EXTRACTORS = Object.freeze({
   GraphQLVariablesCheck(message: string): ExtractedParams {
     // LSP shape mirrors PartialCallArguments but always carries the
     // GraphQL call kind.
-    const requiredMatch = message.match(/^Required parameter\s+([A-Za-z_][\w]*)\s+must be passed to GraphQL call/i);
-    const unknownMatch = message.match(/^Unknown parameter\s+([A-Za-z_][\w]*)\s+passed to GraphQL call/i);
+    const requiredMatch = message.match(
+      /^Required parameter\s+([A-Za-z_][\w]*)\s+must be passed to GraphQL call/i,
+    );
+    const unknownMatch = message.match(
+      /^Unknown parameter\s+([A-Za-z_][\w]*)\s+passed to GraphQL call/i,
+    );
     const m = requiredMatch ?? unknownMatch;
     if (!m) return {};
     return {
@@ -188,7 +197,9 @@ const EXTRACTORS = Object.freeze({
 
   UnusedDocParam(message: string): ExtractedParams {
     // LSP shape: "The parameter 'name' is defined but not used in this file."
-    const m = message.match(/^The parameter\s+['"`]([A-Za-z_][\w]*)['"`]\s+is defined but not used/i);
+    const m = message.match(
+      /^The parameter\s+['"`]([A-Za-z_][\w]*)['"`]\s+is defined but not used/i,
+    );
     return m ? { param_name: m[1] } : {};
   },
 
@@ -206,7 +217,9 @@ const EXTRACTORS = Object.freeze({
     if (/^`layout: false`/.test(message)) return { category: 'layout_false' };
     m = message.match(/^Layout [`'"]([^`'"]+)[`'"] does not exist$/);
     if (m) return { category: 'layout_missing', layout: m[1] };
-    m = message.match(/^Invalid value [`'"]([^`'"]+)[`'"] for [`'"]([^`'"]+)[`'"]\. Must be one of: (.+)$/);
+    m = message.match(
+      /^Invalid value [`'"]([^`'"]+)[`'"] for [`'"]([^`'"]+)[`'"]\. Must be one of: (.+)$/,
+    );
     if (m) return { category: 'invalid_enum', value: m[1], field: m[2], allowed: m[3] };
     m = message.match(/^[`'"]([^`'"]+)[`'"] is deprecated/);
     if (m) return { category: 'deprecated_field', field: m[1] };
@@ -230,7 +243,9 @@ const EXTRACTORS = Object.freeze({
   DuplicateFunctionArguments(message: string): ExtractedParams {
     // "Duplicate argument 'x' in render tag for partial 'p'."
     // "Duplicate argument 'x' in function tag for partial 'p'."
-    const m = message.match(/^Duplicate argument [`'"]([^`'"]+)[`'"] in (\w+) tag for partial [`'"]([^`'"]+)[`'"]\.?$/);
+    const m = message.match(
+      /^Duplicate argument [`'"]([^`'"]+)[`'"] in (\w+) tag for partial [`'"]([^`'"]+)[`'"]\.?$/,
+    );
     if (m) return { argument: m[1], tag_kind: m[2], partial: m[3] };
     return {};
   },
@@ -239,7 +254,9 @@ const EXTRACTORS = Object.freeze({
     const unused = message.match(/Variable\s+["']?\$(\w+)["']?\s+is never used/i);
     if (unused) return { category: 'unused_variable', variable: unused[1] };
 
-    const fieldMatch = message.match(/Cannot query field\s+["']?(\w+)["']?\s+on type\s+["']?(\w+)["']?/i);
+    const fieldMatch = message.match(
+      /Cannot query field\s+["']?(\w+)["']?\s+on type\s+["']?(\w+)["']?/i,
+    );
     if (fieldMatch) {
       return {
         category: fieldMatch[2] === 'Record' ? 'unknown_field_record' : 'unknown_field_other',
@@ -248,7 +265,9 @@ const EXTRACTORS = Object.freeze({
       };
     }
 
-    const typeMismatch = message.match(/Variable\s+["']?\$(\w+)["']?\s+of type\s+["']?([^"']+)["']?\s+used in position expecting(?: type)?\s+["']?([^"'.]+)["']?/i);
+    const typeMismatch = message.match(
+      /Variable\s+["']?\$(\w+)["']?\s+of type\s+["']?([^"']+)["']?\s+used in position expecting(?: type)?\s+["']?([^"'.]+)["']?/i,
+    );
     if (typeMismatch) {
       const expected = typeMismatch[3].trim();
       return {
@@ -259,7 +278,9 @@ const EXTRACTORS = Object.freeze({
       };
     }
 
-    const filterMatch = message.match(/Expected value of type\s+["']?(\w+)["']?,?\s+found\s+["']?([^"'.]+)["']?/i);
+    const filterMatch = message.match(
+      /Expected value of type\s+["']?(\w+)["']?,?\s+found\s+["']?([^"'.]+)["']?/i,
+    );
     if (filterMatch) {
       return {
         category: /filter/i.test(filterMatch[1]) ? 'type_mismatch_filter' : 'type_mismatch_other',

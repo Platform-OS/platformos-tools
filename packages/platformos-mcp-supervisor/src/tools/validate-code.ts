@@ -40,7 +40,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 import { parseLiquidFile, extractAllFromAST } from '../core/liquid-parser';
-import { normalizeLspDiagnostics, type PlatformOSLSPClient, type NormalizedDiagnostics } from '../core/lsp-client';
+import {
+  normalizeLspDiagnostics,
+  type PlatformOSLSPClient,
+  type NormalizedDiagnostics,
+} from '../core/lsp-client';
 import {
   enrichAll,
   bridgeRulesOntoUnattributed,
@@ -393,11 +397,7 @@ export const validateCodeTool = {
           // Always wait for warm-up indexing before requesting diagnostics so
           // cross-file checks (MissingPartial, MissingPage, …) are warm.
           await ctx.awaitLsp();
-          const lspDiags = await ctx.lsp.awaitDiagnostics(
-            uri,
-            content,
-            LSP_DIAGNOSTICS_TIMEOUT_MS,
-          );
+          const lspDiags = await ctx.lsp.awaitDiagnostics(uri, content, LSP_DIAGNOSTICS_TIMEOUT_MS);
           checkResult = normalizeLspDiagnostics(lspDiags, file_path);
         } else {
           result.infos.push({
@@ -459,7 +459,9 @@ export const validateCodeTool = {
               needsDeeper.map(async (e) => {
                 try {
                   const completions = await ctx.lsp.completions(uri, e.line ?? 0, e.column ?? 0);
-                  const items = Array.isArray(completions) ? completions : (completions?.items ?? []);
+                  const items = Array.isArray(completions)
+                    ? completions
+                    : (completions?.items ?? []);
                   const labels = items
                     .slice(0, 10)
                     .map((i) => i.label ?? i.insertText ?? '')
@@ -623,7 +625,9 @@ export const validateCodeTool = {
                 severity: 'warning',
                 message: `Update removes render call(s): ${removedRenders
                   .map((r) => `'${r}'`)
-                  .join(', ')}. Verify this is intentional — removing a render breaks the page for users.`,
+                  .join(
+                    ', ',
+                  )}. Verify this is intentional — removing a render breaks the page for users.`,
               });
             }
             if (removedGraphql.length > 0) {
@@ -664,12 +668,12 @@ export const validateCodeTool = {
                     severity: 'warning',
                     message: `Adding @param(s) ${addedParams
                       .map((p) => `'${p}'`)
-                      .join(', ')} will break ${externalCallers.length} caller(s) that don't pass them yet: ${externalCallers
+                      .join(
+                        ', ',
+                      )} will break ${externalCallers.length} caller(s) that don't pass them yet: ${externalCallers
                       .slice(0, 10)
                       .join(', ')}${
-                      externalCallers.length > 10
-                        ? ` (+${externalCallers.length - 10} more)`
-                        : ''
+                      externalCallers.length > 10 ? ` (+${externalCallers.length - 10} more)` : ''
                     }. Each caller must be updated to pass the new parameter(s).`,
                   });
                 }
@@ -735,7 +739,9 @@ export const validateCodeTool = {
               const related: string[] = [];
               for (const check of checkNames) {
                 if (
-                  g.message.toLowerCase().includes(check.toLowerCase().replace('pos-supervisor:', ''))
+                  g.message
+                    .toLowerCase()
+                    .includes(check.toLowerCase().replace('pos-supervisor:', ''))
                 ) {
                   related.push(check);
                 }
@@ -759,9 +765,19 @@ export const validateCodeTool = {
           // Tag each diagnostic with its origin (errors vs warnings array +
           // index) so we can attach per-diagnostic `fix` fields after the
           // generator emits its map.
-          const allDiagnostics: Array<FixDiagnostic & { _origIdx: number; _origType: 'error' | 'warning' }> = [
-            ...result.errors.map((e, i) => ({ ...(e as FixDiagnostic), _origIdx: i, _origType: 'error' as const })),
-            ...result.warnings.map((w, i) => ({ ...(w as FixDiagnostic), _origIdx: i, _origType: 'warning' as const })),
+          const allDiagnostics: Array<
+            FixDiagnostic & { _origIdx: number; _origType: 'error' | 'warning' }
+          > = [
+            ...result.errors.map((e, i) => ({
+              ...(e as FixDiagnostic),
+              _origIdx: i,
+              _origType: 'error' as const,
+            })),
+            ...result.warnings.map((w, i) => ({
+              ...(w as FixDiagnostic),
+              _origIdx: i,
+              _origType: 'warning' as const,
+            })),
           ];
 
           const { proposedFixes, diagnosticFixes } = generateFixes(
@@ -810,7 +826,8 @@ export const validateCodeTool = {
 
           // Merge rule-generated fixes into proposed_fixes.
           for (const d of allDiagnostics) {
-            const fixes = (d as { fixes?: Fix[]; rule_id?: string | null; check?: string | null }).fixes;
+            const fixes = (d as { fixes?: Fix[]; rule_id?: string | null; check?: string | null })
+              .fixes;
             if (fixes && fixes.length > 0) {
               for (const f of fixes) {
                 result.proposed_fixes.push({
@@ -871,7 +888,11 @@ export const validateCodeTool = {
         // scaffold would have prevented, tell the agent so the next attempt
         // uses scaffold output verbatim instead of re-deriving the patterns.
         try {
-          const scaffoldHints = detectScaffoldPreventableErrors(content, result.errors, result.warnings);
+          const scaffoldHints = detectScaffoldPreventableErrors(
+            content,
+            result.errors,
+            result.warnings,
+          );
           for (const h of scaffoldHints) {
             result.tips.push(h);
           }
@@ -951,10 +972,14 @@ export const validateCodeTool = {
           );
         }
         if (result.proposed_fixes.length > 0) {
-          parts.push(`${result.proposed_fixes.length} proposed fix(es) available — apply them first.`);
+          parts.push(
+            `${result.proposed_fixes.length} proposed fix(es) available — apply them first.`,
+          );
         }
         parts.push('Re-validate with validate_code (mode: "quick") after fixing.');
-        parts.push('MUST NOT write the file to disk until validation passes (must_fix_before_write: false).');
+        parts.push(
+          'MUST NOT write the file to disk until validation passes (must_fix_before_write: false).',
+        );
         result.next_step = parts.join('\n');
       }
 

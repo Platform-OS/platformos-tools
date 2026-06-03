@@ -37,15 +37,18 @@ export const rules: Rule[] = [
       if (!wanted || wanted.includes('/')) return false;
       if (!facts?.graph) return false;
       const all = assetNames(facts.graph);
-      return all.some(a => assetMatchesBareName(a, wanted));
+      return all.some((a) => assetMatchesBareName(a, wanted));
     },
     apply: (diag, facts) => {
       const wanted = parseAssetPath(diag.message);
       if (!wanted || !facts.graph) return null;
       const all = assetNames(facts.graph);
-      const matches = all.filter(a => assetMatchesBareName(a, wanted));
+      const matches = all.filter((a) => assetMatchesBareName(a, wanted));
       const best = matches[0];
-      const matchList = matches.slice(0, 5).map(m => `\`${m}\``).join(', ');
+      const matchList = matches
+        .slice(0, 5)
+        .map((m) => `\`${m}\``)
+        .join(', ');
       return {
         rule_id: 'MissingAsset.missing_subdir_prefix',
         hint_md:
@@ -53,12 +56,14 @@ export const rules: Rule[] = [
           `a subdirectory: ${matchList}. \`asset_url\` paths are relative to \`app/assets/\` AND must include ` +
           `the subdirectory (\`images/\`, \`styles/\`, \`scripts/\`, \`fonts/\`, \`media/\`). Fix the reference, ` +
           `don't create a new file.`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Replace \`'${wanted}'\` with \`'${best}'\` in the \`asset_url\` filter (or \`include_asset\` tag). ` +
-            `Do NOT create a new \`app/assets/${wanted}\` — the file already exists at \`app/assets/${best}\`.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Replace \`'${wanted}'\` with \`'${best}'\` in the \`asset_url\` filter (or \`include_asset\` tag). ` +
+              `Do NOT create a new \`app/assets/${wanted}\` — the file already exists at \`app/assets/${best}\`.`,
+          },
+        ],
         confidence: 0.9,
       };
     },
@@ -82,19 +87,21 @@ export const rules: Rule[] = [
       const all = assetNames(facts.graph);
       const nearest = nearestByLevenshtein(wanted, all, 3);
       const best = nearest[0].name;
-      const list = nearest.map(n => `\`${n.name}\``).join(', ');
+      const list = nearest.map((n) => `\`${n.name}\``).join(', ');
       return {
         rule_id: 'MissingAsset.suggest_nearest',
         hint_md:
           `\`${wanted}\` not found under \`app/assets/\`. Did you mean: ${list}? ` +
           `If the reference is a typo, fix it. If you genuinely need a new asset, create the file ` +
           `at \`app/assets/${wanted}\`.`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Replace \`'${wanted}'\` with \`'${best}'\` in the \`asset_url\` filter (or \`include_asset\` tag). ` +
-            `Distance ${nearest[0].distance} — verify the suggestion before applying.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Replace \`'${wanted}'\` with \`'${best}'\` in the \`asset_url\` filter (or \`include_asset\` tag). ` +
+              `Distance ${nearest[0].distance} — verify the suggestion before applying.`,
+          },
+        ],
         confidence: nearest[0].distance <= 2 ? 0.85 : 0.65,
       };
     },
@@ -117,13 +124,15 @@ export const rules: Rule[] = [
           `If this is a module-shipped asset the file may already exist inside the module's ` +
           `\`public/assets/\` — module assets are referenced through the same \`asset_url\` filter ` +
           `and should resolve automatically; if they don't, the module isn't installed.`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Create the asset at \`${targetPath}\`, OR (more likely) fix the reference — module assets ` +
-            `live under \`modules/<name>/public/assets/\` and resolve through the same \`asset_url\` filter ` +
-            `without any path prefix. Only create a new file when you control the asset and it is genuinely missing.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Create the asset at \`${targetPath}\`, OR (more likely) fix the reference — module assets ` +
+              `live under \`modules/<name>/public/assets/\` and resolve through the same \`asset_url\` filter ` +
+              `without any path prefix. Only create a new file when you control the asset and it is genuinely missing.`,
+          },
+        ],
         confidence: 0.6,
       };
     },

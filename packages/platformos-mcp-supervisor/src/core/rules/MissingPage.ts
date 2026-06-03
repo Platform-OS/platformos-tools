@@ -53,13 +53,15 @@ export const rules: Rule[] = [
         hint_md:
           `No page serves \`/${parsed.route}\` (${parsed.method.toUpperCase()}), but the project has nearby routes: ${list}. ` +
           `If the reference is a typo, fix it; if the page is genuinely missing, scaffold it now.`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Replace \`'/${parsed.route}'\` with \`'/${best.name}'\` in the link/redirect (or correct the slug ` +
-            `to match \`/${parsed.route}\` if you actually meant the latter). Distance ${best.distance} — ` +
-            `verify the correction before applying.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Replace \`'/${parsed.route}'\` with \`'/${best.name}'\` in the link/redirect (or correct the slug ` +
+              `to match \`/${parsed.route}\` if you actually meant the latter). Distance ${best.distance} — ` +
+              `verify the correction before applying.`,
+          },
+        ],
         confidence: best.distance <= 1 ? 0.85 : 0.7,
       };
     },
@@ -72,7 +74,7 @@ export const rules: Rule[] = [
     when: () => true,
     apply: (diag) => {
       const parsed = parseMissingPageMessage(diag.message);
-      const route = parsed ? parsed.route : null;       // can legitimately be '' for root
+      const route = parsed ? parsed.route : null; // can legitimately be '' for root
       const method = parsed?.method ?? 'get';
       const haveRoute = route !== null;
       const inferredPath = haveRoute ? routeToPagePath(route) : 'app/views/pages/<route>.liquid';
@@ -102,19 +104,22 @@ export const rules: Rule[] = [
       return {
         rule_id: 'MissingPage.default',
         hint_md: hint,
-        fixes: [{
-          type: 'create_file',
-          path: inferredPath,
-          description:
-            `Create the missing page at \`${inferredPath}\` (slug: \`${route ?? '<route>'}\`). ` +
-            `Only apply if you intend to add this page — if the route was a typo at the call site, ` +
-            `fix the reference instead.`,
-        }],
+        fixes: [
+          {
+            type: 'create_file',
+            path: inferredPath,
+            description:
+              `Create the missing page at \`${inferredPath}\` (slug: \`${route ?? '<route>'}\`). ` +
+              `Only apply if you intend to add this page — if the route was a typo at the call site, ` +
+              `fix the reference instead.`,
+          },
+        ],
         confidence: 0.6,
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'pages' },
-          reason: 'Pages domain guide explains slug/method semantics and the file-path → route mapping.',
+          reason:
+            'Pages domain guide explains slug/method semantics and the file-path → route mapping.',
         },
       };
     },

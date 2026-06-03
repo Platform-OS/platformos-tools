@@ -36,10 +36,10 @@ export const rules: Rule[] = [
 
       let didYouMean = '';
       if (badTag && tagsIndex?.platformOSTags) {
-        const known = tagsIndex.platformOSTags().map(t => t.name);
+        const known = tagsIndex.platformOSTags().map((t) => t.name);
         const nearest = nearestByLevenshtein(badTag, known, 3);
         if (nearest.length > 0) {
-          const list = nearest.map(n => `\`{% ${n.name} %}\``).join(', ');
+          const list = nearest.map((n) => `\`{% ${n.name} %}\``).join(', ');
           didYouMean = ` Did you mean: ${list}?`;
         }
       }
@@ -53,14 +53,16 @@ export const rules: Rule[] = [
           `like \`{% layout %}\`, \`{% schema %}\` are NOT supported), or a stale rename. ` +
           `If the tag is custom: platformOS does not support custom tags — restructure as a partial ` +
           `(\`{% render %}\`) or filter.`,
-        fixes: [{
-          type: 'guidance',
-          description: badTag
-            ? `Replace ${tagSpan} with the correct tag name (see suggestions in the hint), or ` +
-              `restructure if it was a Shopify-only tag.`
-            : `Read the upstream message — it names the unknown tag. Replace it with a valid platformOS ` +
-              `tag or restructure the logic.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: badTag
+              ? `Replace ${tagSpan} with the correct tag name (see suggestions in the hint), or ` +
+                `restructure if it was a Shopify-only tag.`
+              : `Read the upstream message — it names the unknown tag. Replace it with a valid platformOS ` +
+                `tag or restructure the logic.`,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -86,14 +88,16 @@ export const rules: Rule[] = [
           `header — assign the filtered value first, then iterate.\n\n` +
           `Wrong: \`{% for item in 'k' | t %}\`  Right: \`{% assign items = 'k' | t %}{% for item in items %}\`. ` +
           `Wrong: \`{% for word in str | split: ',' %}\`  Right: \`{% assign words = str | split: ',' %}{% for word in words %}\`.`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Move the filter pipeline out of the \`for in <array>\` clause: ` +
-            `\`{% assign items = <pipeline> %}\` first, then \`{% for item in items %}\`. ` +
-            `For nested loops over translation arrays, see the TranslationKeyExists.array_index_misuse ` +
-            `pattern.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Move the filter pipeline out of the \`for in <array>\` clause: ` +
+              `\`{% assign items = <pipeline> %}\` first, then \`{% for item in items %}\`. ` +
+              `For nested loops over translation arrays, see the TranslationKeyExists.array_index_misuse ` +
+              `pattern.`,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -103,20 +107,23 @@ export const rules: Rule[] = [
     id: 'LiquidHTMLSyntaxError.missing_assign',
     check: 'LiquidHTMLSyntaxError',
     priority: 15,
-    when: (diag) => /\{%\s*(?:graphql|function)/.test(diag.message ?? '') && /=/.test(diag.message ?? ''),
+    when: (diag) =>
+      /\{%\s*(?:graphql|function)/.test(diag.message ?? '') && /=/.test(diag.message ?? ''),
     apply: () => ({
       rule_id: 'LiquidHTMLSyntaxError.missing_assign',
       hint_md:
         '`{% graphql %}` and `{% function %}` require an assignment target. The syntax is ' +
-        '`{% graphql result = \'query_name\' %}` and `{% function result = \'path/to/helper\', arg: val %}` — ' +
+        "`{% graphql result = 'query_name' %}` and `{% function result = 'path/to/helper', arg: val %}` — " +
         'the `result =` part captures the call output and is not optional.',
-      fixes: [{
-        type: 'guidance',
-        description:
-          'Add `<var> =` between the tag name and the call path. ' +
-          '`{% graphql records = \'q\' %}` / `{% function record = \'helper\', x: 1 %}`. ' +
-          'fix-generator emits the literal text_edit for the missing-`=` shape — accept it.',
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Add `<var> =` between the tag name and the call path. ' +
+            "`{% graphql records = 'q' %}` / `{% function record = 'helper', x: 1 %}`. " +
+            'fix-generator emits the literal text_edit for the missing-`=` shape — accept it.',
+        },
+      ],
       confidence: 0.9,
     }),
   },
@@ -125,21 +132,24 @@ export const rules: Rule[] = [
     id: 'LiquidHTMLSyntaxError.inline_literal',
     check: 'LiquidHTMLSyntaxError',
     priority: 20,
-    when: (diag) => /(?:array|hash|object|literal|inline)/i.test(diag.message ?? '') &&
-                    /\{%\s*(?:render|function|graphql)/.test(diag.message ?? ''),
+    when: (diag) =>
+      /(?:array|hash|object|literal|inline)/i.test(diag.message ?? '') &&
+      /\{%\s*(?:render|function|graphql)/.test(diag.message ?? ''),
     apply: () => ({
       rule_id: 'LiquidHTMLSyntaxError.inline_literal',
       hint_md:
         'Inline `[…]` array literals and `{ … }` hash literals are NOT accepted as tag arguments. ' +
-        'Liquid\'s tag parser only takes named scalars and pre-assigned variables. Build the literal ' +
+        "Liquid's tag parser only takes named scalars and pre-assigned variables. Build the literal " +
         'in a preceding `{% assign %}` then pass the variable.\n\n' +
-        'Wrong: `{% render \'p\', items: [] %}`  Right: `{% assign items = [] %}{% render \'p\', items: items %}`.',
-      fixes: [{
-        type: 'guidance',
-        description:
-          'Pre-assign the literal: `{% assign items = […] %}` (or `{% assign cfg = { … } %}` for hashes), ' +
-          'then pass `items` (or `cfg`) by name in the render/function/graphql tag.',
-      }],
+        "Wrong: `{% render 'p', items: [] %}`  Right: `{% assign items = [] %}{% render 'p', items: items %}`.",
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Pre-assign the literal: `{% assign items = […] %}` (or `{% assign cfg = { … } %}` for hashes), ' +
+            'then pass `items` (or `cfg`) by name in the render/function/graphql tag.',
+        },
+      ],
       confidence: 0.85,
     }),
   },

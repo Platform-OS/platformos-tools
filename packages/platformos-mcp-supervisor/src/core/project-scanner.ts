@@ -17,7 +17,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, extname, join, relative } from 'node:path';
 import yaml from 'js-yaml';
-import { extractAllFromAST, parseLiquidFile, type GraphqlRef, type RenderCall } from './liquid-parser';
+import {
+  extractAllFromAST,
+  parseLiquidFile,
+  type GraphqlRef,
+  type RenderCall,
+} from './liquid-parser';
 import { getDomainFromPath, type Domain } from './domain-detector';
 import { toPosixPath } from './utils';
 
@@ -503,10 +508,15 @@ async function scanAssets(appDir: string): Promise<string[]> {
   const assetsDir = join(appDir, 'assets');
   if (!existsSync(assetsDir)) return [];
   try {
-    const entries = (await readdir(assetsDir, { withFileTypes: true, recursive: true })) as DirentLike[];
+    const entries = (await readdir(assetsDir, {
+      withFileTypes: true,
+      recursive: true,
+    })) as DirentLike[];
     return entries
       .filter((e) => e.isFile())
-      .map((e) => toPosixPath(relative(assetsDir, join(e.parentPath ?? e.path ?? assetsDir, e.name))))
+      .map((e) =>
+        toPosixPath(relative(assetsDir, join(e.parentPath ?? e.path ?? assetsDir, e.name))),
+      )
       .sort();
   } catch {
     return [];

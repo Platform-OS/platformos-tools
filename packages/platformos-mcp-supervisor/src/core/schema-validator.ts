@@ -64,18 +64,23 @@ const MISLEADING_PROPERTY_KEYS: Readonly<Record<string, string>> = {
     '`default` is not supported in platformOS schemas. Set defaults in your mutation/command logic before `record_create`.',
   unique:
     '`unique` is not enforced at the schema level in platformOS. Use `records(filter: ...)` to check uniqueness before creating records.',
-  index: '`index` is not a schema option. String properties are indexed by default; text properties are not.',
-  nullable: '`nullable` is not a schema option. All properties are nullable by default in platformOS.',
+  index:
+    '`index` is not a schema option. String properties are indexed by default; text properties are not.',
+  nullable:
+    '`nullable` is not a schema option. All properties are nullable by default in platformOS.',
   validation: '`validation` is not a schema-level concept. Validate in mutations/commands.',
   validates: '`validates` is not a schema-level concept. Validate in mutations/commands.',
   max_length: '`max_length` is not a schema option. Validate length in mutations/commands.',
   min_length: '`min_length` is not a schema option. Validate length in mutations/commands.',
   enum: '`enum` is not a schema option. Use a `string` type and validate allowed values in mutations/commands.',
-  foreign_key: '`foreign_key` is not a schema concept. Use `_id` suffix convention and `related_record()` in GraphQL.',
-  references: '`references` is not a schema concept. Use `_id` suffix convention and `related_record()` in GraphQL.',
+  foreign_key:
+    '`foreign_key` is not a schema concept. Use `_id` suffix convention and `related_record()` in GraphQL.',
+  references:
+    '`references` is not a schema concept. Use `_id` suffix convention and `related_record()` in GraphQL.',
   belongs_to:
     '`belongs_to` is not a schema key. Store the ID as a `string` property with `_id` suffix and query with `related_record()`.',
-  has_many: '`has_many` is not a schema key. Query related records with `related_records()` in GraphQL.',
+  has_many:
+    '`has_many` is not a schema key. Query related records with `related_records()` in GraphQL.',
 };
 
 const VALID_UPLOAD_OPTIONS: ReadonlySet<string> = new Set(['acl', 'max_size', 'content_type']);

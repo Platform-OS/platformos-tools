@@ -69,7 +69,9 @@ describe('schema-property-checker', () => {
         projectDir,
       );
 
-      const mismatch = warnings.filter((w) => w.check === 'pos-supervisor:SchemaPropertyTypeMismatch');
+      const mismatch = warnings.filter(
+        (w) => w.check === 'pos-supervisor:SchemaPropertyTypeMismatch',
+      );
       expect(mismatch.length).toBe(1);
       expect(mismatch[0]!.message).toMatch(/`property_int`/);
       expect(mismatch[0]!.message).toMatch(/found `property`/);
@@ -113,7 +115,9 @@ describe('schema-property-checker', () => {
         projectDir,
       );
 
-      const mismatch = warnings.filter((w) => w.check === 'pos-supervisor:SchemaPropertyTypeMismatch');
+      const mismatch = warnings.filter(
+        (w) => w.check === 'pos-supervisor:SchemaPropertyTypeMismatch',
+      );
       expect(mismatch.length).toBe(1);
       expect(mismatch[0]!.message).toMatch(/`value_boolean`/);
     });
@@ -126,7 +130,9 @@ describe('schema-property-checker', () => {
     });
 
     it('falls back to the singularized parent directory name', () => {
-      expect(extractTableNames('query {}', 'app/graphql/blog_posts/all.graphql')).toEqual(['blog_post']);
+      expect(extractTableNames('query {}', 'app/graphql/blog_posts/all.graphql')).toEqual([
+        'blog_post',
+      ]);
     });
 
     it('skips `modules/...` tables', () => {

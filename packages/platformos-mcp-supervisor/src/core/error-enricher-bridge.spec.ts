@@ -9,7 +9,11 @@
 
 import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { clearRules, registerRule, registerRules } from './rules/engine';
-import { bridgeRulesOntoUnattributed, type EnrichContext, type BridgeResult } from './error-enricher';
+import {
+  bridgeRulesOntoUnattributed,
+  type EnrichContext,
+  type BridgeResult,
+} from './error-enricher';
 import { rules as NonGetRenderingPageRules } from './rules/NonGetRenderingPage';
 import { buildFactGraph } from './project-fact-graph';
 import type { FiltersIndex } from './filters-index';
@@ -50,7 +54,11 @@ const ctx: EnrichContext = {
   filePath: 'app/views/pages/x.liquid',
   content: '',
   factGraph: buildFactGraph(emptyProjectMap()),
-  filtersIndex: { loaded: true, lookup: () => null, closestMatch: () => null } as unknown as FiltersIndex,
+  filtersIndex: {
+    loaded: true,
+    lookup: () => null,
+    closestMatch: () => null,
+  } as unknown as FiltersIndex,
   objectsIndex: { loaded: true, lookup: () => null } as unknown as ObjectsIndex,
   tagsIndex: { isTag: () => false } as unknown as TagsIndex,
 };
@@ -64,7 +72,8 @@ describe('bridgeRulesOntoUnattributed', () => {
         {
           check: 'pos-supervisor:NonGetRenderingPage',
           severity: 'warning',
-          message: 'Page has `method: post` but renders HTML (layout, partials, or `{{ ... }}` output).',
+          message:
+            'Page has `method: post` but renders HTML (layout, partials, or `{{ ... }}` output).',
           line: 1,
         },
       ],
@@ -100,7 +109,9 @@ describe('bridgeRulesOntoUnattributed', () => {
   test('no-op when check has no registered rule module', () => {
     const result: BridgeResult = {
       errors: [],
-      warnings: [{ check: 'pos-supervisor:SomeCheckWithNoRule', severity: 'warning', message: '...' }],
+      warnings: [
+        { check: 'pos-supervisor:SomeCheckWithNoRule', severity: 'warning', message: '...' },
+      ],
       infos: [],
     };
     bridgeRulesOntoUnattributed(result, ctx);

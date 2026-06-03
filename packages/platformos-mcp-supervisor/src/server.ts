@@ -139,7 +139,9 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
   await Promise.allSettled([
     filtersIndex
       .load(docsManager)
-      .then(() => log(`filters index loaded (${filtersIndex.platformOSFilters().length} platformOS filters)`))
+      .then(() =>
+        log(`filters index loaded (${filtersIndex.platformOSFilters().length} platformOS filters)`),
+      )
       .catch((e: Error) => log(`filters index failed: ${e.message}`)),
     objectsIndex
       .load(docsManager)

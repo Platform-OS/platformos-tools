@@ -58,18 +58,21 @@ export const rules: Rule[] = [
           `{% graphql result = 'mutation_path', ...args %}\n` +
           `{{ result | json }}\n` +
           '```',
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Add \`format: json\` to the front matter, drop any \`layout:\` line, and replace the body ` +
-            `with a \`{% graphql %}\` call followed by \`{{ result | json }}\`. ` +
-            `Keep \`method: ${method}\` so the verb still matches the form / fetch caller.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Add \`format: json\` to the front matter, drop any \`layout:\` line, and replace the body ` +
+              `with a \`{% graphql %}\` call followed by \`{{ result | json }}\`. ` +
+              `Keep \`method: ${method}\` so the verb still matches the form / fetch caller.`,
+          },
+        ],
         confidence: 0.9,
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'api-calls' },
-          reason: 'API endpoint conventions in platformOS — JSON format, GraphQL bodies, no layout.',
+          reason:
+            'API endpoint conventions in platformOS — JSON format, GraphQL bodies, no layout.',
         },
       };
     },
@@ -100,18 +103,21 @@ export const rules: Rule[] = [
           `{% graphql result = 'contacts/create', ...context.params.contact %}\n` +
           `{{ result | json }}\n` +
           '```',
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Decide intent: (a) **landing page** — remove \`method: ${method}\` from front matter; the ` +
-            `form on this page should action to an \`/api/...\` slug. (b) **API handler** — move the slug ` +
-            `under \`/api/\`, add \`format: json\`, replace the HTML body with a \`{% graphql %}\` call.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Decide intent: (a) **landing page** — remove \`method: ${method}\` from front matter; the ` +
+              `form on this page should action to an \`/api/...\` slug. (b) **API handler** — move the slug ` +
+              `under \`/api/\`, add \`format: json\`, replace the HTML body with a \`{% graphql %}\` call.`,
+          },
+        ],
         confidence: 0.9,
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'pages' },
-          reason: 'Page method semantics — GET serves browsers, non-GET handles form / fetch payloads.',
+          reason:
+            'Page method semantics — GET serves browsers, non-GET handles form / fetch payloads.',
         },
       };
     },
@@ -138,19 +144,22 @@ export const rules: Rule[] = [
           `1. Update the form action: \`<form action="${apiAction}" method="post">\`.\n` +
           `2. Create the API page at \`${apiPagePath}\` with \`method: post\`, \`format: json\`, and a ` +
           `\`{% graphql %}\` body.`,
-        fixes: [{
-          type: 'guidance',
-          description:
-            `Change the form action from \`${action}\` to \`${apiAction}\` and create ` +
-            `\`${apiPagePath}\` as a \`method: post\` / \`format: json\` page. ` +
-            `Alternative (only if you control \`${action}\` already): verify that \`${action}\` is served ` +
-            `by a page with \`method: post\` — if not, NonGetRenderingPage.html_on_post will fire there.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description:
+              `Change the form action from \`${action}\` to \`${apiAction}\` and create ` +
+              `\`${apiPagePath}\` as a \`method: post\` / \`format: json\` page. ` +
+              `Alternative (only if you control \`${action}\` already): verify that \`${action}\` is served ` +
+              `by a page with \`method: post\` — if not, NonGetRenderingPage.html_on_post will fire there.`,
+          },
+        ],
         confidence: 0.85,
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'forms' },
-          reason: 'Form submission patterns — actions must hit a page with the matching `method:` verb.',
+          reason:
+            'Form submission patterns — actions must hit a page with the matching `method:` verb.',
         },
       };
     },
@@ -170,12 +179,14 @@ export const rules: Rule[] = [
         `  • API endpoint → slug under \`/api/\`, \`method: post\`/etc., \`format: json\`, no layout, ` +
         `body is \`{% graphql %}\` + \`{{ result | json }}\`.\n` +
         `  • Forms on GET pages → \`action="/api/<endpoint>"\` so the POST lands on the API page.`,
-      fixes: [{
-        type: 'guidance',
-        description:
-          `Decide whether this page is a UI page (GET, HTML) or an API page (non-GET, JSON). ` +
-          `Convert front matter and body to match — see \`domain_guide(pages)\` for the canonical layouts.`,
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            `Decide whether this page is a UI page (GET, HTML) or an API page (non-GET, JSON). ` +
+            `Convert front matter and body to match — see \`domain_guide(pages)\` for the canonical layouts.`,
+        },
+      ],
       confidence: 0.6,
     }),
   },

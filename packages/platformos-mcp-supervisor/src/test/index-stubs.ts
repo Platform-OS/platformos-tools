@@ -29,9 +29,7 @@ export interface TagStubEntry {
 }
 
 /** Construct a stub FiltersIndex pre-populated with the given entries. */
-export function stubFiltersIndex(
-  entries: Record<string, FilterStubEntry>,
-): FiltersIndex {
+export function stubFiltersIndex(entries: Record<string, FilterStubEntry>): FiltersIndex {
   const map = new Map(Object.entries(entries));
   return {
     loaded: true,
@@ -77,9 +75,7 @@ export function stubFiltersIndex(
   } as unknown as FiltersIndex;
 }
 
-export function stubObjectsIndex(
-  entries: Record<string, ObjectStubEntry>,
-): ObjectsIndex {
+export function stubObjectsIndex(entries: Record<string, ObjectStubEntry>): ObjectsIndex {
   const map = new Map(Object.entries(entries));
   return {
     loaded: true,

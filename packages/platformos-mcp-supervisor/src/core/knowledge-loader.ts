@@ -164,11 +164,14 @@ function loadFromSplitFiles(): KnowledgeBase | null {
     }
   }
 
-  kb.domains = loadYaml<Record<string, DomainDefinition>>(join(DATA_DIR, 'domain-gotchas.yml')) ?? {};
+  kb.domains =
+    loadYaml<Record<string, DomainDefinition>>(join(DATA_DIR, 'domain-gotchas.yml')) ?? {};
   kb.content_triggers = loadYaml<ContentTriggerDef[]>(join(DATA_DIR, 'content-triggers.yml')) ?? [];
-  kb.language_features = loadYaml<Record<string, unknown>>(join(DATA_DIR, 'language-features.yml')) ?? {};
-  kb.modules_missing_docs =
-    loadJson<ModulesMissingDocs>(join(DATA_DIR, 'modules-missing-docs.json')) ?? { known: [] };
+  kb.language_features =
+    loadYaml<Record<string, unknown>>(join(DATA_DIR, 'language-features.yml')) ?? {};
+  kb.modules_missing_docs = loadJson<ModulesMissingDocs>(
+    join(DATA_DIR, 'modules-missing-docs.json'),
+  ) ?? { known: [] };
 
   return kb;
 }

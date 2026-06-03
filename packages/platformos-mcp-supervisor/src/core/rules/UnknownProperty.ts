@@ -23,7 +23,9 @@ export const rules: Rule[] = [
       if (!objectName) return false;
       if (!facts.graph) return false;
       const schemaNodes = facts.graph.nodesByType('schema');
-      return schemaNodes.some(n => n.key === objectName || n.key === objectName.replace(/s$/, ''));
+      return schemaNodes.some(
+        (n) => n.key === objectName || n.key === objectName.replace(/s$/, ''),
+      );
     },
     apply: (diag, facts) => {
       const params = diag.params!;
@@ -32,17 +34,20 @@ export const rules: Rule[] = [
 
       if (!facts.graph) return null;
       const schemaNodes = facts.graph.nodesByType('schema');
-      const schema = schemaNodes.find(n => n.key === objectName || n.key === objectName.replace(/s$/, ''));
+      const schema = schemaNodes.find(
+        (n) => n.key === objectName || n.key === objectName.replace(/s$/, ''),
+      );
       if (!schema?.properties) return null;
 
-      const validProps = schema.properties.map(p => p.name).filter(Boolean);
+      const validProps = schema.properties.map((p) => p.name).filter(Boolean);
       if (validProps.length === 0) return null;
 
       const nearest = nearestByLevenshtein(propertyName, validProps, 3);
-      const suggestion = nearest.length > 0
-        ? `Did you mean \`${nearest[0].name}\`?`
-        : null;
-      const propList = validProps.slice(0, 10).map(p => `\`${p}\``).join(', ');
+      const suggestion = nearest.length > 0 ? `Did you mean \`${nearest[0].name}\`?` : null;
+      const propList = validProps
+        .slice(0, 10)
+        .map((p) => `\`${p}\``)
+        .join(', ');
 
       return {
         rule_id: 'UnknownProperty.schema_property',
@@ -76,10 +81,11 @@ export const rules: Rule[] = [
       }
 
       const nearest = nearestByLevenshtein(propertyName, allProps, 3);
-      const suggestion = nearest.length > 0
-        ? `Did you mean \`${nearest[0].name}\`?`
-        : null;
-      const contextNames = contextObjects.slice(0, 5).map(o => `\`${o.handle}\``).join(', ');
+      const suggestion = nearest.length > 0 ? `Did you mean \`${nearest[0].name}\`?` : null;
+      const contextNames = contextObjects
+        .slice(0, 5)
+        .map((o) => `\`${o.handle}\``)
+        .join(', ');
 
       return {
         rule_id: 'UnknownProperty.context_property',
@@ -89,7 +95,8 @@ export const rules: Rule[] = [
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'partials', section: 'api' },
-          reason: 'Context property not found. domain_guide(partials, api) lists available context.* objects and their properties.',
+          reason:
+            'Context property not found. domain_guide(partials, api) lists available context.* objects and their properties.',
         },
       };
     },
@@ -135,13 +142,15 @@ export const rules: Rule[] = [
         `position to see what's actually defined.\n` +
         `  • **Partial @param** — if this fires inside a partial / command / query, declare the ` +
         `parameter in the file's \`{% doc %}\` block so the linter knows its shape.`,
-      fixes: [{
-        type: 'guidance',
-        description:
-          `Re-read the upstream message for the object and property names, then verify against ` +
-          `the relevant \`app/schema/<table>.yml\`, the partial's \`{% doc %}\` block, or via ` +
-          `\`lookup\` (completions mode) at the property position.`,
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            `Re-read the upstream message for the object and property names, then verify against ` +
+            `the relevant \`app/schema/<table>.yml\`, the partial's \`{% doc %}\` block, or via ` +
+            `\`lookup\` (completions mode) at the property position.`,
+        },
+      ],
       confidence: 0.4,
     }),
   },

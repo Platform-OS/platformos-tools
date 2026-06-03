@@ -23,10 +23,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'DuplicateFunctionArguments.default',
         hint_md: `\`${arg}\` is passed twice to \`{% ${tag} '${partial}' %}\`. Liquid keeps the LAST occurrence and silently drops earlier ones — usually this is a typo (you meant two different keys). Decide: same value? delete one. Different values intended? rename one to its real key.`,
-        fixes: [{
-          type: 'guidance',
-          description: `Open the \`{% ${tag} '${partial}' %}\` call. Remove the second \`${arg}: …\` occurrence, or rename it to whatever distinct key was meant.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Open the \`{% ${tag} '${partial}' %}\` call. Remove the second \`${arg}: …\` occurrence, or rename it to whatever distinct key was meant.`,
+          },
+        ],
         confidence: 0.9,
       };
     },

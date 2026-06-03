@@ -32,18 +32,21 @@ export const rules: Rule[] = [
         'usually means a missing dash or a missing key.\n\n' +
         'After fixing, re-run `validate_code` on the schema file. Reference: `domain_guide(schema)` shows the ' +
         'minimal valid shape (name + properties array of `{name, type}` objects).',
-      fixes: [{
-        type: 'guidance',
-        description:
-          'Open the file at the line/column from the upstream message, fix the YAML syntax, and re-validate. ' +
-          'Most common pattern: an unaligned property entry or a stray `---` document separator. ' +
-          'Use `domain_guide(schema)` to reference the minimal shape.',
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Open the file at the line/column from the upstream message, fix the YAML syntax, and re-validate. ' +
+            'Most common pattern: an unaligned property entry or a stray `---` document separator. ' +
+            'Use `domain_guide(schema)` to reference the minimal shape.',
+        },
+      ],
       confidence: 0.7,
       see_also: {
         tool: 'domain_guide',
         args: { domain: 'schema' },
-        reason: 'Schema YAML parse failure. domain_guide(schema) shows the canonical schema YAML shape.',
+        reason:
+          'Schema YAML parse failure. domain_guide(schema) shows the canonical schema YAML shape.',
       },
     }),
   },

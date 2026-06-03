@@ -14,11 +14,13 @@ import {
   type PipelineResult,
 } from './diagnostic-pipeline';
 
-function makeResult(opts: {
-  errors?: PipelineDiagnostic[];
-  warnings?: PipelineDiagnostic[];
-  infos?: PipelineDiagnostic[];
-} = {}): PipelineResult {
+function makeResult(
+  opts: {
+    errors?: PipelineDiagnostic[];
+    warnings?: PipelineDiagnostic[];
+    infos?: PipelineDiagnostic[];
+  } = {},
+): PipelineResult {
   return {
     errors: [...(opts.errors ?? [])],
     warnings: [...(opts.warnings ?? [])],
@@ -50,7 +52,9 @@ describe('suppressUpstreamFrontmatterDup', () => {
     expect(removed).toBe(1);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]!.check).toBe('pos-supervisor:InvalidLayout');
-    expect(result.infos.some((i) => i.check === 'pos-supervisor:DuplicateFrontmatterCheck')).toBe(true);
+    expect(result.infos.some((i) => i.check === 'pos-supervisor:DuplicateFrontmatterCheck')).toBe(
+      true,
+    );
   });
 
   it('drops ValidFrontmatter when pos-supervisor:InvalidFrontMatter shares its line (error severity)', () => {
@@ -59,8 +63,7 @@ describe('suppressUpstreamFrontmatterDup', () => {
         {
           check: 'pos-supervisor:InvalidFrontMatter',
           severity: 'error',
-          message:
-            '`cache` is not a front matter option. Use `{% cache key, expire: 3600 %}`.',
+          message: '`cache` is not a front matter option. Use `{% cache key, expire: 3600 %}`.',
           line: 3,
         },
       ],

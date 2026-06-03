@@ -23,12 +23,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
 
-import {
-  walk,
-  NodeTypes,
-  NamedTags,
-  type LiquidHtmlNode,
-} from '@platformos/liquid-html-parser';
+import { walk, NodeTypes, NamedTags, type LiquidHtmlNode } from '@platformos/liquid-html-parser';
 
 import { isShopifyObject, getShopifyObject, getShopifyTag } from './knowledge-loader';
 import { getDomainFromPath } from './domain-detector';
@@ -166,7 +161,8 @@ export function generateStructuralWarnings(
   // wrappers); suppress to avoid the high-regression false positive
   // from the 2026-04-23 DEMO report.
   if (domain === 'pages') {
-    const rendersPartials = Array.isArray(structural?.renders_used) && structural!.renders_used!.length > 0;
+    const rendersPartials =
+      Array.isArray(structural?.renders_used) && structural!.renders_used!.length > 0;
     if (!rendersPartials) {
       const htmlWarning = detectHtmlInPage(ast, content);
       if (htmlWarning) warnings.push(htmlWarning);
@@ -334,11 +330,14 @@ function detectShopifyTags(ast: LiquidHtmlNode, content: string): StructuralDiag
     const tagInfo = getShopifyTag(node.name);
     if (!tagInfo) return;
     const pos = offsetToLineCol(content, node.position.start);
-    const replacementPart = tagInfo.replacement ? ` Use \`{% ${tagInfo.replacement} %}\` instead.` : '';
+    const replacementPart = tagInfo.replacement
+      ? ` Use \`{% ${tagInfo.replacement} %}\` instead.`
+      : '';
     warnings.push({
       check: 'pos-supervisor:ShopifyTag',
       severity: 'error',
-      message: `\`{% ${node.name} %}\` is a Shopify-only tag — not valid in platformOS.${replacementPart}${tagInfo.note ? ` ${tagInfo.note}` : ''}`.trimEnd(),
+      message:
+        `\`{% ${node.name} %}\` is a Shopify-only tag — not valid in platformOS.${replacementPart}${tagInfo.note ? ` ${tagInfo.note}` : ''}`.trimEnd(),
       line: pos.line,
       column: pos.character,
     });
@@ -524,9 +523,10 @@ function validateSlug(slug: string, content: string): StructuralDiagnostic[] {
 
   if (slug.startsWith('/')) {
     const corrected = slug.replace(/^\/+/, '');
-    const hint = corrected === ''
-      ? 'For the home page (root `/`), omit the slug line entirely — `app/views/pages/index.liquid` serves `/` by convention without one.'
-      : `platformOS slugs are relative: \`${corrected}\`.`;
+    const hint =
+      corrected === ''
+        ? 'For the home page (root `/`), omit the slug line entirely — `app/views/pages/index.liquid` serves `/` by convention without one.'
+        : `platformOS slugs are relative: \`${corrected}\`.`;
     warnings.push({
       check: 'pos-supervisor:InvalidSlug',
       severity: 'warning',
@@ -628,7 +628,10 @@ function validateLayout(
       `modules/${moduleName}/private/views/layouts/${layoutPath}.liquid`,
     );
   } else {
-    candidates.push(`app/views/layouts/${layoutName}.html.liquid`, `app/views/layouts/${layoutName}.liquid`);
+    candidates.push(
+      `app/views/layouts/${layoutName}.html.liquid`,
+      `app/views/layouts/${layoutName}.liquid`,
+    );
   }
 
   const found = candidates.some((rel) => existsSync(join(projectDir, rel)));
@@ -745,9 +748,11 @@ function validatePageMethodAndForms(
   const formatHeader = parseFormatHeader(content);
 
   const hasLayout = isExplicitLayout(structural.layout);
-  const rendersPartials = Array.isArray(structural.renders_used) && structural.renders_used.length > 0;
+  const rendersPartials =
+    Array.isArray(structural.renders_used) && structural.renders_used.length > 0;
   const hasOutput = /\{\{/.test(content);
-  const hasHtmlTags = /<(html|body|div|main|section|article|form|h[1-6]|p|ul|ol|nav|header|footer)\b/i.test(content);
+  const hasHtmlTags =
+    /<(html|body|div|main|section|article|form|h[1-6]|p|ul|ol|nav|header|footer)\b/i.test(content);
   const looksLikeUiPage = hasLayout || rendersPartials || hasOutput || hasHtmlTags;
   const apiHasHtmlSignal = hasLayout || rendersPartials || hasHtmlTags;
 
@@ -827,7 +832,12 @@ function parseFormatHeader(content: string): string | null {
   if (!m) return null;
   const fm = m[1].match(/^format:\s*(.+?)\s*$/m);
   if (!fm) return null;
-  return fm[1].replace(/^(['"])(.*)\1$/, '$2').trim().toLowerCase() || null;
+  return (
+    fm[1]
+      .replace(/^(['"])(.*)\1$/, '$2')
+      .trim()
+      .toLowerCase() || null
+  );
 }
 
 function isExplicitLayout(layout: unknown): boolean {
@@ -950,7 +960,9 @@ function validateFrontMatterKeys(content: string, filePath: string): StructuralD
 
 // ── 11. Missing return in commands ─────────────────────────────────────────
 
-function detectMissingReturn(structural: StructuralContext | undefined): StructuralDiagnostic | null {
+function detectMissingReturn(
+  structural: StructuralContext | undefined,
+): StructuralDiagnostic | null {
   if (structural?.tags_used?.includes('return')) return null;
 
   return {

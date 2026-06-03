@@ -69,7 +69,11 @@ import {
   resolvePageRoute,
   type PageOverlay,
 } from './page-route-index';
-import { DEFAULT_CONFIDENCE_BY_SEVERITY, STRUCTURAL_DEFAULT_CONFIDENCE, type Severity } from './constants';
+import {
+  DEFAULT_CONFIDENCE_BY_SEVERITY,
+  STRUCTURAL_DEFAULT_CONFIDENCE,
+  type Severity,
+} from './constants';
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -153,7 +157,9 @@ export function runDiagnosticPipeline(result: PipelineResult, opts: PipelineCont
   // 0a. Suppress known pos-cli LSP false positives ("Syntax is not supported"
   //     on boolean comparisons in `assign`). Runs early so the bogus error
   //     never reaches enrichment, fix gen, or the must_fix gate.
-  traceStep('suppressLspKnownFalsePositives', () => suppressLspKnownFalsePositives(result, content));
+  traceStep('suppressLspKnownFalsePositives', () =>
+    suppressLspKnownFalsePositives(result, content),
+  );
 
   // 1. Suppress UndefinedObject for declared @param names.
   if (docParamNames.size > 0) {
@@ -162,7 +168,9 @@ export function runDiagnosticPipeline(result: PipelineResult, opts: PipelineCont
 
   // 2. Suppress UnusedDocParam when the param is used as a named argument.
   if (docParamNames.size > 0) {
-    traceStep('suppressUnusedDocParams', () => suppressUnusedDocParams(result, docParamNames, content));
+    traceStep('suppressUnusedDocParams', () =>
+      suppressUnusedDocParams(result, docParamNames, content),
+    );
   }
 
   // 3. Elevate Shopify contamination from warning to error.
@@ -209,7 +217,9 @@ export function runDiagnosticPipeline(result: PipelineResult, opts: PipelineCont
 
   // 12. Verify OrphanedPartial against the filesystem.
   if (projectDir) {
-    traceStep('verifyOrphanedPartialOnDisk', () => verifyOrphanedPartialOnDisk(result, filePath, projectDir));
+    traceStep('verifyOrphanedPartialOnDisk', () =>
+      verifyOrphanedPartialOnDisk(result, filePath, projectDir),
+    );
   }
 
   // 13. Verify MissingPartial against the filesystem.
@@ -398,13 +408,16 @@ export function elevateShopify(result: PipelineResult): void {
 export function deduplicateArgChecks(result: PipelineResult): void {
   const mrpaLines = new Set<number | undefined>([
     ...result.errors.filter((d) => d.check === 'MissingRenderPartialArguments').map((d) => d.line),
-    ...result.warnings.filter((d) => d.check === 'MissingRenderPartialArguments').map((d) => d.line),
+    ...result.warnings
+      .filter((d) => d.check === 'MissingRenderPartialArguments')
+      .map((d) => d.line),
   ]);
   if (mrpaLines.size === 0) return;
 
   const isRedundant = (d: PipelineDiagnostic): boolean =>
     d.check === 'MetadataParamsCheck' && mrpaLines.has(d.line);
-  const count = result.errors.filter(isRedundant).length + result.warnings.filter(isRedundant).length;
+  const count =
+    result.errors.filter(isRedundant).length + result.warnings.filter(isRedundant).length;
   if (count > 0) {
     result.errors = result.errors.filter((d) => !isRedundant(d));
     result.warnings = result.warnings.filter((d) => !isRedundant(d));
@@ -644,7 +657,9 @@ export function suppressRequiredParamsWithDefault(
 export function suppressModuleHelpers(result: PipelineResult, content: string): void {
   const isModuleHelperInclude = (d: PipelineDiagnostic): boolean => {
     if (d.check !== 'DeprecatedTag') return false;
-    return /include\s+['"]modules\/[^'"]*\/helpers\//.test(content) && !!d.message?.includes('include');
+    return (
+      /include\s+['"]modules\/[^'"]*\/helpers\//.test(content) && !!d.message?.includes('include')
+    );
   };
   const count =
     result.errors.filter(isModuleHelperInclude).length +
@@ -694,7 +709,9 @@ export function suppressOrphanedPartial(result: PipelineResult, filePath: string
 // ── Step 9: verify MissingAsset ────────────────────────────────────────────
 
 export function verifyMissingAssets(result: PipelineResult, projectDir: string): void {
-  const missingAssets = [...result.errors, ...result.warnings].filter((d) => d.check === 'MissingAsset');
+  const missingAssets = [...result.errors, ...result.warnings].filter(
+    (d) => d.check === 'MissingAsset',
+  );
   if (missingAssets.length === 0) return;
 
   const index = buildAssetIndex(projectDir);
@@ -783,7 +800,9 @@ export function verifyPageRoutesOnDisk(
   projectDir: string,
   currentFile: PageOverlay | null = null,
 ): void {
-  const candidates = [...result.errors, ...result.warnings].filter((d) => d.check === 'MissingPage');
+  const candidates = [...result.errors, ...result.warnings].filter(
+    (d) => d.check === 'MissingPage',
+  );
   if (candidates.length === 0) return;
 
   const index = buildPageRouteIndex(projectDir, currentFile);
@@ -829,7 +848,8 @@ export function verifyOrphanedPartialOnDisk(
   projectDir: string,
 ): void {
   const isOrphan = (d: PipelineDiagnostic): boolean => d.check === 'OrphanedPartial';
-  const orphanCount = result.errors.filter(isOrphan).length + result.warnings.filter(isOrphan).length;
+  const orphanCount =
+    result.errors.filter(isOrphan).length + result.warnings.filter(isOrphan).length;
   if (orphanCount === 0) return;
 
   const partialName = extractPartialNameFromPath(filePath);
@@ -849,7 +869,9 @@ export function verifyOrphanedPartialOnDisk(
 // ── Step 13: verify MissingPartial on disk ─────────────────────────────────
 
 export function verifyMissingPartialsOnDisk(result: PipelineResult, projectDir: string): void {
-  const candidates = [...result.errors, ...result.warnings].filter((d) => d.check === 'MissingPartial');
+  const candidates = [...result.errors, ...result.warnings].filter(
+    (d) => d.check === 'MissingPartial',
+  );
   if (candidates.length === 0) return;
 
   const suppressed = new Set<PipelineDiagnostic>();
@@ -905,7 +927,11 @@ function extractPartialNameFromPath(filePath: string): string | null {
   return m ? m[1] : null;
 }
 
-function hasRenderReferenceOnDisk(projectDir: string, partialName: string, selfPath: string): boolean {
+function hasRenderReferenceOnDisk(
+  projectDir: string,
+  partialName: string,
+  selfPath: string,
+): boolean {
   const escaped = partialName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`['"]${escaped}['"]`);
 
@@ -1010,7 +1036,10 @@ export function suppressUpstreamFrontmatterDup(result: PipelineResult): number {
   const ourLines = new Set<number | undefined>();
   const ourInvalidLayoutNames = new Set<string>();
   for (const d of [...result.errors, ...result.warnings]) {
-    if (d.check === 'pos-supervisor:InvalidLayout' || d.check === 'pos-supervisor:InvalidFrontMatter') {
+    if (
+      d.check === 'pos-supervisor:InvalidLayout' ||
+      d.check === 'pos-supervisor:InvalidFrontMatter'
+    ) {
       ourLines.add(d.line);
     }
     if (d.check === 'pos-supervisor:InvalidLayout') {

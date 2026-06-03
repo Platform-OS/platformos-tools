@@ -124,7 +124,9 @@ describe('asset-index', () => {
       const r = resolveAssetPath('logo.png', index);
       expect(r.status).toBe('ambiguous');
       if (r.status === 'ambiguous') {
-        expect(r.suggestions).toEqual(expect.arrayContaining(['images/logo.png', 'vendor/logo.png']));
+        expect(r.suggestions).toEqual(
+          expect.arrayContaining(['images/logo.png', 'vendor/logo.png']),
+        );
       }
     });
 

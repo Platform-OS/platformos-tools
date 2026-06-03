@@ -18,7 +18,8 @@
  */
 import type { Rule } from './engine';
 
-const MSG_RE = /Unknown argument\s+['"`]([^'"`]+)['"`]\s+in\s+(?:render|function)\s+tag\s+for\s+(?:partial|target)\s+['"`]([^'"`]+)['"`]/i;
+const MSG_RE =
+  /Unknown argument\s+['"`]([^'"`]+)['"`]\s+in\s+(?:render|function)\s+tag\s+for\s+(?:partial|target)\s+['"`]([^'"`]+)['"`]/i;
 
 export const rules: Rule[] = [
   {
@@ -38,14 +39,16 @@ export const rules: Rule[] = [
       const argSpan = argName ? `\`${argName}\`` : 'the unrecognized argument';
       const partialSpan = partialName ? `\`${partialName}\`` : 'the target partial';
 
-      const optionA = `Remove ${argSpan} from the calling tag in this file. ` +
-                      `If the partial doesn't read it, passing it is dead data.`;
+      const optionA =
+        `Remove ${argSpan} from the calling tag in this file. ` +
+        `If the partial doesn't read it, passing it is dead data.`;
       const optionB = isModulePartial
         ? `Skip — module partials are read-only; pick option A or C.`
         : `Add a matching \`@param\` declaration to ${partialSpan}'s \`{% doc %}\` block. ` +
           `Use this when the partial *should* consume the value.`;
-      const optionC = `Rename ${argSpan} to match a declared \`@param\` name. ` +
-                      `Use this when the argument was a typo.`;
+      const optionC =
+        `Rename ${argSpan} to match a declared \`@param\` name. ` +
+        `Use this when the argument was a typo.`;
 
       const hint =
         `${argSpan} passed to ${partialSpan} is not declared in its \`{% doc %}\` block — ` +

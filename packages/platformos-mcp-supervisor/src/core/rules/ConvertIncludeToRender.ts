@@ -24,7 +24,8 @@ export const rules: Rule[] = [
     when: () => true,
     apply: () => ({
       rule_id: 'ConvertIncludeToRender.default',
-      hint_md: 'Replace `{% include "partial" %}` with `{% render "partial" %}`. `render` has isolated scope — pass every variable the partial needs explicitly: `{% render "partial", var: value %}`. Exception: `include` for **module helpers** (authorization, redirects) is correct because those partials intentionally need shared scope; the heuristic fix-generator detects this and proposes guidance instead of a rename.',
+      hint_md:
+        'Replace `{% include "partial" %}` with `{% render "partial" %}`. `render` has isolated scope — pass every variable the partial needs explicitly: `{% render "partial", var: value %}`. Exception: `include` for **module helpers** (authorization, redirects) is correct because those partials intentionally need shared scope; the heuristic fix-generator detects this and proposes guidance instead of a rename.',
       fixes: [],
       confidence: 0.9,
     }),

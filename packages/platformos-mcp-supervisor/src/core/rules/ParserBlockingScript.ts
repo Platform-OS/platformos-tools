@@ -33,14 +33,16 @@ export const rules: Rule[] = [
         '  • `<script src="..."></script>` placed at the very end of `<body>` — the legacy workaround. ' +
         'Prefer `defer` for new code.\n\n' +
         'Inline scripts (`<script>...</script>` with no `src`) are unaffected by this check.',
-      fixes: [{
-        type: 'guidance',
-        description:
-          'Add `defer` to the opening `<script>` tag (`<script defer src="...">`). ' +
-          '`defer` waits until HTML parsing finishes AND preserves script order — ' +
-          'the safe default for src-loaded scripts. Use `async` only when the script ' +
-          'is independent of others and order does not matter.',
-      }],
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Add `defer` to the opening `<script>` tag (`<script defer src="...">`). ' +
+            '`defer` waits until HTML parsing finishes AND preserves script order — ' +
+            'the safe default for src-loaded scripts. Use `async` only when the script ' +
+            'is independent of others and order does not matter.',
+        },
+      ],
       confidence: 0.85,
     }),
   },

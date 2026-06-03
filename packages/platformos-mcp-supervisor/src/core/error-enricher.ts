@@ -36,7 +36,12 @@ import type { RuleFacts, RuleFix, SeeAlso } from './rules/engine';
 
 import { getHint } from './hint-loader';
 import { extractParams, templateOf } from './diagnostic-record';
-import { isShopifyObject, isShopifyFilter, getShopifyObject, getShopifyFilter } from './knowledge-loader';
+import {
+  isShopifyObject,
+  isShopifyFilter,
+  getShopifyObject,
+  getShopifyFilter,
+} from './knowledge-loader';
 import { runRules, hasRules } from './rules/engine';
 
 // ── Public types ───────────────────────────────────────────────────────────
@@ -102,9 +107,7 @@ function extractHoverText(result: Hover | null | undefined): string | null {
   const c = result.contents;
   if (typeof c === 'string') return c;
   if (Array.isArray(c)) {
-    return c
-      .map((x) => (typeof x === 'string' ? x : (x?.value ?? '')))
-      .join('\n\n');
+    return c.map((x) => (typeof x === 'string' ? x : (x?.value ?? ''))).join('\n\n');
   }
   if (typeof c === 'object' && 'value' in c && typeof c.value === 'string') {
     return c.value;
@@ -123,7 +126,18 @@ export async function enrichError(
   diagnostic: EnrichedDiagnostic,
   ctx: EnrichContext,
 ): Promise<EnrichedDiagnostic> {
-  const { uri, lsp, filtersIndex, objectsIndex, tagsIndex, content, _hoverCache, factGraph, filePath, projectDir } = ctx;
+  const {
+    uri,
+    lsp,
+    filtersIndex,
+    objectsIndex,
+    tagsIndex,
+    content,
+    _hoverCache,
+    factGraph,
+    filePath,
+    projectDir,
+  } = ctx;
 
   const result: EnrichedDiagnostic = { ...diagnostic };
 
@@ -248,7 +262,7 @@ export async function enrichError(
     if (suggestion) result.suggestion = suggestion;
     // Pick variant: Shopify objects get a dedicated hint (never "declare
     // as @param"), partials get the partial variant, pages get default.
-    const objVariant = isShopify ? 'shopify' : (isPartial ? 'partial' : null);
+    const objVariant = isShopify ? 'shopify' : isPartial ? 'partial' : null;
     result.hint = varName
       ? getHint(diagnostic.check, objVariant, {
           var_name: varName,
@@ -289,7 +303,13 @@ export async function enrichError(
     // For module paths: fetch LSP completions to show available paths.
     // For project paths the agent has project_map context, no completions needed.
     let suggestion: string | null = null;
-    if (objType === 'module' && partialName && lsp?.initialized && content && diagnostic.line != null) {
+    if (
+      objType === 'module' &&
+      partialName &&
+      lsp?.initialized &&
+      content &&
+      diagnostic.line != null
+    ) {
       const lines = content.split('\n');
       const lineContent = lines[diagnostic.line] ?? '';
       const squoteIdx = lineContent.indexOf(`'${partialName}'`);
@@ -302,8 +322,11 @@ export async function enrichError(
           const labels = extractCompletionLabels(completionResult);
           if (labels.length > 0) {
             const moduleParts = partialName.split('/');
-            const modulePrefix = moduleParts.length >= 2 ? `${moduleParts[0]}/${moduleParts[1]}/` : '';
-            const inSameModule = modulePrefix ? labels.filter((l) => l.startsWith(modulePrefix)) : [];
+            const modulePrefix =
+              moduleParts.length >= 2 ? `${moduleParts[0]}/${moduleParts[1]}/` : '';
+            const inSameModule = modulePrefix
+              ? labels.filter((l) => l.startsWith(modulePrefix))
+              : [];
             // Suggest only paths from the SAME module — don't fall back to
             // unrelated project paths.
             if (inSameModule.length > 0) {
@@ -318,9 +341,8 @@ export async function enrichError(
     }
     if (suggestion) result.suggestion = suggestion;
 
-    const correctedName = objType === 'invalid_lib_prefix' && partialName
-      ? partialName.slice('lib/'.length)
-      : null;
+    const correctedName =
+      objType === 'invalid_lib_prefix' && partialName ? partialName.slice('lib/'.length) : null;
     result.hint = partialName
       ? getHint(diagnostic.check, hintVariant, {
           object: objType,
@@ -334,18 +356,25 @@ export async function enrichError(
   }
 
   if (diagnostic.check === 'UnknownProperty') {
-    const { property: propertyName, object: objectName } = extractParams(diagnostic.check, diagnostic.message);
+    const { property: propertyName, object: objectName } = extractParams(
+      diagnostic.check,
+      diagnostic.message,
+    );
     const propVariant = uri?.includes('/partials/') ? 'partial' : null;
-    result.hint = propertyName && objectName
-      ? getHint(diagnostic.check, propVariant, {
-          property_name: propertyName,
-          object_name: objectName,
-        })
-      : getHint(diagnostic.check, propVariant);
+    result.hint =
+      propertyName && objectName
+        ? getHint(diagnostic.check, propVariant, {
+            property_name: propertyName,
+            object_name: objectName,
+          })
+        : getHint(diagnostic.check, propVariant);
   }
 
   if (diagnostic.check === 'DeprecatedTag') {
-    const { tag: tagName, replacement: replacementTag } = extractParams(diagnostic.check, diagnostic.message);
+    const { tag: tagName, replacement: replacementTag } = extractParams(
+      diagnostic.check,
+      diagnostic.message,
+    );
     result.hint = tagName
       ? getHint(diagnostic.check, null, {
           tag_name: tagName,
@@ -358,9 +387,11 @@ export async function enrichError(
     // an explicit deprecation message so the hint doesn't contradict it.
     if (tagName && /Expected syntax/i.test(diagnostic.message)) {
       const REPLACEMENTS: Record<string, string> = {
-        hash_assign: '{% assign hash["key"] = "value" %} (platformOS assign supports bracket/dot notation)',
+        hash_assign:
+          '{% assign hash["key"] = "value" %} (platformOS assign supports bracket/dot notation)',
         parse_json: '{% assign obj = { "key": "value" } %} (use assign with hash/array literals)',
-        include: "{% render 'partial', var: value %} (render has isolated scope — pass all variables explicitly)",
+        include:
+          "{% render 'partial', var: value %} (render has isolated scope — pass all variables explicitly)",
       };
       const replacement = REPLACEMENTS[tagName];
       result.message = replacement
@@ -370,13 +401,17 @@ export async function enrichError(
   }
 
   if (diagnostic.check === 'MissingRenderPartialArguments') {
-    const { partial: partialName, missing_param: missingParam } = extractParams(diagnostic.check, diagnostic.message);
-    result.hint = partialName || missingParam
-      ? getHint(diagnostic.check, null, {
-          partial_name: partialName ?? 'unknown',
-          missing_param: missingParam ?? 'unknown',
-        })
-      : getHint(diagnostic.check, null);
+    const { partial: partialName, missing_param: missingParam } = extractParams(
+      diagnostic.check,
+      diagnostic.message,
+    );
+    result.hint =
+      partialName || missingParam
+        ? getHint(diagnostic.check, null, {
+            partial_name: partialName ?? 'unknown',
+            missing_param: missingParam ?? 'unknown',
+          })
+        : getHint(diagnostic.check, null);
   }
 
   if (diagnostic.check === 'MetadataParamsCheck') {
@@ -528,7 +563,9 @@ function classifyGraphQLError(message: string | undefined): Record<string, strin
     return { category_unused_var: true, var_name: unusedMatch[1] };
   }
 
-  const fieldMatch = message.match(/Cannot query field\s+["']?(\w+)["']?\s+on type\s+["']?(\w+)["']?/i);
+  const fieldMatch = message.match(
+    /Cannot query field\s+["']?(\w+)["']?\s+on type\s+["']?(\w+)["']?/i,
+  );
   if (fieldMatch) {
     const isRecord = fieldMatch[2] === 'Record';
     return {
@@ -538,7 +575,9 @@ function classifyGraphQLError(message: string | undefined): Record<string, strin
     };
   }
 
-  const typeMismatch = message.match(/Variable\s+["']?\$(\w+)["']?\s+of type\s+["']?([^"']+)["']?\s+used in position expecting(?: type)?\s+["']?([^"'.]+)["']?/i);
+  const typeMismatch = message.match(
+    /Variable\s+["']?\$(\w+)["']?\s+of type\s+["']?([^"']+)["']?\s+used in position expecting(?: type)?\s+["']?([^"'.]+)["']?/i,
+  );
   if (typeMismatch) {
     const expectedType = typeMismatch[3].trim();
     const isFilter = /filter/i.test(expectedType);
@@ -550,7 +589,9 @@ function classifyGraphQLError(message: string | undefined): Record<string, strin
     };
   }
 
-  const filterMatch = message.match(/Expected value of type\s+["']?(\w+)["']?,?\s+found\s+["']?([^"'.]+)["']?/i);
+  const filterMatch = message.match(
+    /Expected value of type\s+["']?(\w+)["']?,?\s+found\s+["']?([^"'.]+)["']?/i,
+  );
   if (filterMatch) {
     const isFilter = /filter/i.test(filterMatch[1]);
     return {

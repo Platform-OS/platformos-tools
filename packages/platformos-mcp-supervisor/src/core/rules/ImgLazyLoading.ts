@@ -18,7 +18,8 @@ export const rules: Rule[] = [
     when: () => true,
     apply: () => ({
       rule_id: 'ImgLazyLoading.recommended',
-      hint_md: 'Add `loading="lazy"` to this `<img>` tag so the browser defers off-screen image loads. Improves Core Web Vitals (LCP) and reduces initial bytes transferred on long pages.',
+      hint_md:
+        'Add `loading="lazy"` to this `<img>` tag so the browser defers off-screen image loads. Improves Core Web Vitals (LCP) and reduces initial bytes transferred on long pages.',
       fixes: [],
       confidence: 0.9,
     }),

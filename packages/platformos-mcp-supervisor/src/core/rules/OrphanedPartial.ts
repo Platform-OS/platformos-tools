@@ -68,11 +68,19 @@ export const rules: Rule[] = [
   },
 ];
 
-function orphanHint(filenameSpan: string, callerCount: number, isPartial: boolean, isLayout: boolean): string {
+function orphanHint(
+  filenameSpan: string,
+  callerCount: number,
+  isPartial: boolean,
+  isLayout: boolean,
+): string {
   if (isLayout) {
     return (
       `${filenameSpan} is a layout with no pages selecting it via \`layout: <name>\`. ` +
-      `Either select it from a page (\`---\\nlayout: ${filenameSpan.replace(/`/g, '').replace(/.*\//, '').replace(/\.liquid$/, '')}\\n---\`) ` +
+      `Either select it from a page (\`---\\nlayout: ${filenameSpan
+        .replace(/`/g, '')
+        .replace(/.*\//, '')
+        .replace(/\.liquid$/, '')}\\n---\`) ` +
       `or delete the layout if it's no longer needed. Pages without a \`layout:\` key ` +
       `default to \`application.liquid\`.`
     );
@@ -85,9 +93,10 @@ function orphanHint(filenameSpan: string, callerCount: number, isPartial: boolea
       `dependencies in the rendering graph.`
     );
   }
-  const callerNote = callerCount === 0
-    ? 'No file in the project renders or includes it.'
-    : `Found ${callerCount} caller(s) outside the standard render graph — verify with \`platformos_references\`.`;
+  const callerNote =
+    callerCount === 0
+      ? 'No file in the project renders or includes it.'
+      : `Found ${callerCount} caller(s) outside the standard render graph — verify with \`platformos_references\`.`;
   return (
     `${filenameSpan} is an orphaned partial. ${callerNote}\n\n` +
     `Two valid resolutions:\n` +

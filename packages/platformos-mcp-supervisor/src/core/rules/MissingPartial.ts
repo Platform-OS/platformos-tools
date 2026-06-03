@@ -16,11 +16,7 @@
  */
 import type { Rule, RuleDiagnostic, RuleFacts, RuleFix } from './engine';
 import { classifyPath, nearestByLevenshtein, partialNames, partialsReachableFrom } from './queries';
-import {
-  installedModules,
-  moduleCallPathsByCategory,
-  moduleInstalled,
-} from './module-paths';
+import { installedModules, moduleCallPathsByCategory, moduleInstalled } from './module-paths';
 
 export const rules: Rule[] = [
   {
@@ -79,23 +75,24 @@ export const rules: Rule[] = [
       if (parsed.moduleName && projectDir && !moduleInstalled(projectDir, parsed.moduleName)) {
         const installed = installedModules(projectDir);
         const nearest = nearestByLevenshtein(parsed.moduleName, installed, 3);
-        const list = installed.length > 0
-          ? `Installed modules: ${installed.map(m => `\`${m}\``).join(', ')}.`
-          : `No modules are installed under \`modules/\`.`;
-        const didYouMean = nearest.length > 0
-          ? ` Did you mean \`${nearest[0].name}\`?`
-          : '';
+        const list =
+          installed.length > 0
+            ? `Installed modules: ${installed.map((m) => `\`${m}\``).join(', ')}.`
+            : `No modules are installed under \`modules/\`.`;
+        const didYouMean = nearest.length > 0 ? ` Did you mean \`${nearest[0].name}\`?` : '';
         return {
           rule_id: 'MissingPartial.module_path',
           hint_md:
             `Module \`${parsed.moduleName}\` is not installed in this project. ${list}${didYouMean} ` +
             `Module paths look like \`modules/<module-name>/<category>/<rest>\` — check the module name first.`,
-          fixes: [{
-            type: 'guidance',
-            description:
-              `Module \`${parsed.moduleName}\` not installed. Either install it (\`pos-cli modules install ${parsed.moduleName}\`), ` +
-              `pick a different module from the installed list, or move the call into a project-local file under \`app/lib/\`.`,
-          }],
+          fixes: [
+            {
+              type: 'guidance',
+              description:
+                `Module \`${parsed.moduleName}\` not installed. Either install it (\`pos-cli modules install ${parsed.moduleName}\`), ` +
+                `pick a different module from the installed list, or move the call into a project-local file under \`app/lib/\`.`,
+            },
+          ],
           confidence: 0.9,
           see_also: {
             tool: 'project_map',
@@ -107,28 +104,24 @@ export const rules: Rule[] = [
 
       // 2. Module installed → enumerate exports and reason about the bad path.
       const moduleName = parsed.moduleName;
-      const exportsByCategory = projectDir && moduleName
-        ? moduleCallPathsByCategory(projectDir, moduleName)
-        : null;
+      const exportsByCategory =
+        projectDir && moduleName ? moduleCallPathsByCategory(projectDir, moduleName) : null;
 
-      const buildCheckSpecial = parsed.category === 'commands'
-        && (parsed.rest === 'build' || parsed.rest === 'check');
+      const buildCheckSpecial =
+        parsed.category === 'commands' && (parsed.rest === 'build' || parsed.rest === 'check');
 
-      const allExports = exportsByCategory
-        ? Object.values(exportsByCategory).flat()
-        : [];
+      const allExports = exportsByCategory ? Object.values(exportsByCategory).flat() : [];
 
       // Levenshtein over every callable in the module, not just the
       // (possibly mistyped) category — agents land in the wrong category
       // bucket all the time (e.g. `commands/find_user` when the export is
       // `queries/users/find`).
-      const nearest = allExports.length > 0
-        ? nearestByLevenshtein(name, allExports, 5)
-        : [];
+      const nearest = allExports.length > 0 ? nearestByLevenshtein(name, allExports, 5) : [];
 
-      const candidatesBlock = nearest.length > 0
-        ? nearest.map(n => `\`${n.name}\``).join(', ')
-        : '(no close matches in this module)';
+      const candidatesBlock =
+        nearest.length > 0
+          ? nearest.map((n) => `\`${n.name}\``).join(', ')
+          : '(no close matches in this module)';
 
       let lead;
       if (buildCheckSpecial) {
@@ -165,18 +158,30 @@ export const rules: Rule[] = [
       const fixDescription = buildCheckSpecial
         ? `Remove the \`{% function ... = '${name}', ... %}\` call and inline the build/check logic ` +
           `directly in this file (or its sibling phase file). If you intended a different module helper, ` +
-          `replace the path with one of: ${nearest.slice(0, 3).map(n => `\`${n.name}\``).join(', ') || '(none)'}. ` +
+          `replace the path with one of: ${
+            nearest
+              .slice(0, 3)
+              .map((n) => `\`${n.name}\``)
+              .join(', ') || '(none)'
+          }. ` +
           `Use \`module_info(${moduleName}, api)\` for the full list.`
-        : `Replace \`${name}\` with the closest valid export: ${nearest.slice(0, 3).map(n => `\`${n.name}\``).join(', ') || '(none)'}, ` +
+        : `Replace \`${name}\` with the closest valid export: ${
+            nearest
+              .slice(0, 3)
+              .map((n) => `\`${n.name}\``)
+              .join(', ') || '(none)'
+          }, ` +
           `or call \`module_info(${moduleName}, api)\` to see every callable path the module exposes.`;
 
       return {
         rule_id: 'MissingPartial.module_path',
         hint_md: hint,
-        fixes: [{
-          type: 'guidance',
-          description: fixDescription,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: fixDescription,
+          },
+        ],
         confidence: nearest.length > 0 ? 0.9 : 0.7,
         see_also: {
           tool: 'module_info',
@@ -202,10 +207,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'MissingPartial.file_exists',
         hint_md: `File \`${path}\` exists but the linter still reports it as missing. Check that the file is not empty, has no syntax errors, and the path in the render/function tag matches exactly.`,
-        fixes: [{
-          type: 'guidance',
-          description: `File \`${path}\` exists on disk. Verify: (1) file is not empty, (2) no Liquid syntax errors inside it, (3) the render/function tag path matches exactly (case-sensitive).`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `File \`${path}\` exists on disk. Verify: (1) file is not empty, (2) no Liquid syntax errors inside it, (3) the render/function tag path matches exactly (case-sensitive).`,
+          },
+        ],
         confidence: 0.7,
       };
     },
@@ -220,9 +227,7 @@ export const rules: Rule[] = [
       if (!name || name.startsWith('modules/')) return false;
       const { type } = classifyPath(name);
       if (type === 'module') return false;
-      const candidates = type === 'partial'
-        ? partialNames(facts.graph!)
-        : []; // commands/queries use exact paths
+      const candidates = type === 'partial' ? partialNames(facts.graph!) : []; // commands/queries use exact paths
       return candidates.length > 0;
     },
     apply: (diag: RuleDiagnostic, facts: RuleFacts) => {
@@ -241,17 +246,19 @@ export const rules: Rule[] = [
       const nearest = nearestByLevenshtein(name, candidates, 5);
       if (nearest.length === 0) return null;
 
-      const suggestions = nearest.map(n => `\`${n.name}\` (distance: ${n.distance})`).join(', ');
+      const suggestions = nearest.map((n) => `\`${n.name}\` (distance: ${n.distance})`).join(', ');
       const tag = type === 'partial' ? 'render' : 'function';
 
       const bestMatch = nearest[0].name;
       return {
         rule_id: 'MissingPartial.suggest_nearest',
         hint_md: `\`${name}\` not found. Did you mean: ${suggestions}? Fix the name in the \`{% ${tag} %}\` tag.`,
-        fixes: [{
-          type: 'guidance',
-          description: `Replace \`${name}\` with \`${bestMatch}\` in the \`{% ${tag} '${name}' %}\` tag.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Replace \`${name}\` with \`${bestMatch}\` in the \`{% ${tag} '${name}' %}\` tag.`,
+          },
+        ],
         confidence: 0.6,
       };
     },
@@ -282,11 +289,13 @@ export const rules: Rule[] = [
       return {
         rule_id: 'MissingPartial.create_file',
         hint_md: `Create missing file: \`${targetPath}\`. Use \`scaffold\` tool or create manually with appropriate \`{% doc %}\` block.`,
-        fixes: [{
-          type: 'create_file',
-          path: targetPath,
-          description: `Create missing ${type}: \`${targetPath}\``,
-        }],
+        fixes: [
+          {
+            type: 'create_file',
+            path: targetPath,
+            description: `Create missing ${type}: \`${targetPath}\``,
+          },
+        ],
         confidence: 0.8,
       };
     },
@@ -317,17 +326,20 @@ export const rules: Rule[] = [
           `  • **Wrong prefix** — \`function\` paths resolve from \`app/lib/\`, so \`lib/commands/X\` ` +
           `expands to \`app/lib/lib/commands/X\` and never resolves. Drop the leading \`lib/\`.\n\n` +
           `Run \`project_map\` to enumerate the partials, commands, and queries this project actually has.`,
-        fixes: [{
-          type: 'guidance',
-          description: name
-            ? `Verify the path \`${name}\` against \`project_map\` output, then either correct the typo, drop a leading \`lib/\` if present, or create the file at the canonical location.`
-            : `Run \`project_map\` to enumerate available partials, commands, and queries; reconcile the failing reference against the live list.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: name
+              ? `Verify the path \`${name}\` against \`project_map\` output, then either correct the typo, drop a leading \`lib/\` if present, or create the file at the canonical location.`
+              : `Run \`project_map\` to enumerate available partials, commands, and queries; reconcile the failing reference against the live list.`,
+          },
+        ],
         confidence: 0.5,
         see_also: {
           tool: 'project_map',
           args: {},
-          reason: 'project_map lists every partial, command, and query the project serves — the authoritative source for resolving a missing reference.',
+          reason:
+            'project_map lists every partial, command, and query the project serves — the authoritative source for resolving a missing reference.',
         },
       };
     },
@@ -346,7 +358,11 @@ export const rules: Rule[] = [
  * preserved here; `fix-generator.js` carries content and re-emits the fix
  * with the correct quote when a buffer is available.
  */
-function buildLibPrefixTextEdit(diag: RuleDiagnostic, name: string, corrected: string): RuleFix | null {
+function buildLibPrefixTextEdit(
+  diag: RuleDiagnostic,
+  name: string,
+  corrected: string,
+): RuleFix | null {
   if (diag.line == null || diag.column == null || diag.endColumn == null) return null;
   return {
     type: 'text_edit',

@@ -67,10 +67,12 @@ export const rules: Rule[] = [
       const isFunctionCall = diag.params?.is_function_call === 'true';
       const tag = isFunctionCall ? 'function' : 'render';
 
-      const paramList = sig.map((p) => {
-        const req = p.required ? '(required)' : '(optional)';
-        return `\`${p.name}\` ${req}`;
-      }).join(', ');
+      const paramList = sig
+        .map((p) => {
+          const req = p.required ? '(required)' : '(optional)';
+          return `\`${p.name}\` ${req}`;
+        })
+        .join(', ');
 
       return {
         rule_id: 'MetadataParamsCheck.doc_block_params',
@@ -80,7 +82,8 @@ export const rules: Rule[] = [
         see_also: {
           tool: 'domain_guide',
           args: { domain: 'partials', section: 'api' },
-          reason: 'Render call param mismatch. domain_guide(partials, api) explains how {% doc %} @param declarations interact with render and function calls.',
+          reason:
+            'Render call param mismatch. domain_guide(partials, api) explains how {% doc %} @param declarations interact with render and function calls.',
         },
       };
     },

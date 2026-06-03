@@ -54,13 +54,14 @@ export const rules: Rule[] = [
         `\`UnrecognizedRenderPartialArguments\`. Safe only when there are no callers.\n\n` +
         callerNote(file, callers);
 
-      const fixDescription = callers.length === 0 && param && file
-        ? `No callers reference this file in the project graph — option B (remove \`@param ${param}\` ` +
-          `from the \`{% doc %}\` block) is safe. Option A (use the param) is still appropriate when the ` +
-          `declaration was intentional. Run \`platformos_references\` to double-check before deleting; the ` +
-          `graph misses dynamic includes and module-side renders.`
-        : `Pick A (use the param) or B (remove \`@param ${param ?? '<param>'}\`). ${callers.length > 0 ? `Be careful with B — ${callers.length} caller(s) reference this file. ` : ''}` +
-          `Run \`platformos_references\` to enumerate every render/function call before changing the contract.`;
+      const fixDescription =
+        callers.length === 0 && param && file
+          ? `No callers reference this file in the project graph — option B (remove \`@param ${param}\` ` +
+            `from the \`{% doc %}\` block) is safe. Option A (use the param) is still appropriate when the ` +
+            `declaration was intentional. Run \`platformos_references\` to double-check before deleting; the ` +
+            `graph misses dynamic includes and module-side renders.`
+          : `Pick A (use the param) or B (remove \`@param ${param ?? '<param>'}\`). ${callers.length > 0 ? `Be careful with B — ${callers.length} caller(s) reference this file. ` : ''}` +
+            `Run \`platformos_references\` to enumerate every render/function call before changing the contract.`;
 
       return {
         rule_id: 'UnusedDocParam.default',
@@ -76,15 +77,21 @@ export const rules: Rule[] = [
 
 function callerNote(file: string | null, callers: string[]): string {
   if (!file) {
-    return `Caller count unknown (no file path on the diagnostic). Run \`platformos_references\` before ` +
-           `picking a resolution.`;
+    return (
+      `Caller count unknown (no file path on the diagnostic). Run \`platformos_references\` before ` +
+      `picking a resolution.`
+    );
   }
   if (callers.length === 0) {
-    return `No callers found in the project graph. **Option B is the lower-risk path** — but the graph ` +
-           `misses dynamic \`{% render %}\` strings (computed partial paths) and module-side calls, so ` +
-           `verify with \`platformos_references\` before deleting.`;
+    return (
+      `No callers found in the project graph. **Option B is the lower-risk path** — but the graph ` +
+      `misses dynamic \`{% render %}\` strings (computed partial paths) and module-side calls, so ` +
+      `verify with \`platformos_references\` before deleting.`
+    );
   }
-  return `${callers.length} caller(s) reference this file. **Option B will break them** if any pass ` +
-         `the param being removed. Run \`platformos_references\` to enumerate; pick A unless you've ` +
-         `verified every caller drops the argument too.`;
+  return (
+    `${callers.length} caller(s) reference this file. **Option B will break them** if any pass ` +
+    `the param being removed. Run \`platformos_references\` to enumerate; pick A unless you've ` +
+    `verified every caller drops the argument too.`
+  );
 }

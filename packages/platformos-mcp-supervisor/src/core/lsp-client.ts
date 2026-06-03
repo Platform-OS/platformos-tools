@@ -56,7 +56,10 @@ import {
   type InitializeParams,
   type PublishDiagnosticsParams,
 } from 'vscode-languageserver-protocol';
-import { createProtocolConnection, type ProtocolConnection } from 'vscode-languageserver-protocol/node';
+import {
+  createProtocolConnection,
+  type ProtocolConnection,
+} from 'vscode-languageserver-protocol/node';
 
 import { path as commonPath } from '@platformos/platformos-check-common';
 import { startServer as startLanguageServer } from '@platformos/platformos-language-server-node';
@@ -148,9 +151,12 @@ export class PlatformOSLSPClient {
       new StreamMessageWriter(c2s),
     );
 
-    clientConn.onNotification(PublishDiagnosticsNotification.type, (params: PublishDiagnosticsParams) => {
-      this.handlePublishDiagnostics(params);
-    });
+    clientConn.onNotification(
+      PublishDiagnosticsNotification.type,
+      (params: PublishDiagnosticsParams) => {
+        this.handlePublishDiagnostics(params);
+      },
+    );
 
     // Silence transport errors after close; rejecting outstanding waiters
     // is the close() path's responsibility.
@@ -213,7 +219,11 @@ export class PlatformOSLSPClient {
    * the server has seen our `didOpen` / `didChange`. The hard `timeoutMs`
    * bound resolves with whatever the latest batch is (or `[]` if none).
    */
-  awaitDiagnostics(uri: string, content: string, timeoutMs: number = LSP_DIAGNOSTICS_TIMEOUT_MS): Promise<Diagnostic[]> {
+  awaitDiagnostics(
+    uri: string,
+    content: string,
+    timeoutMs: number = LSP_DIAGNOSTICS_TIMEOUT_MS,
+  ): Promise<Diagnostic[]> {
     this.ensureClient();
     // Normalise once at the boundary. Every downstream Map key
     // (`diagnosticsByUri`, `diagWaiters`, `openDocs`) — and every URI the
@@ -484,7 +494,11 @@ export function normalizeLspDiagnostics(
   for (const d of lspDiags) {
     const code = d.code;
     const check =
-      typeof code === 'string' ? code : typeof code === 'number' ? String(code) : (d.source ?? 'LSP');
+      typeof code === 'string'
+        ? code
+        : typeof code === 'number'
+          ? String(code)
+          : (d.source ?? 'LSP');
 
     const severity: NormalizedSeverity =
       d.severity === 1 ? 'error' : d.severity === 2 ? 'warning' : 'info';

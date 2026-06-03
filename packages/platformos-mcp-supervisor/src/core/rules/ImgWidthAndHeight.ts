@@ -18,7 +18,8 @@ export const rules: Rule[] = [
     when: () => true,
     apply: () => ({
       rule_id: 'ImgWidthAndHeight.recommended',
-      hint_md: 'Add explicit `width` and `height` attributes to this `<img>` tag. The browser uses them to reserve space before the image loads, eliminating cumulative layout shift (CLS). For responsive images, set the attributes to the intrinsic dimensions and override with CSS (`style="width:100%;height:auto"`).',
+      hint_md:
+        'Add explicit `width` and `height` attributes to this `<img>` tag. The browser uses them to reserve space before the image loads, eliminating cumulative layout shift (CLS). For responsive images, set the attributes to the intrinsic dimensions and override with CSS (`style="width:100%;height:auto"`).',
       fixes: [],
       confidence: 0.9,
     }),

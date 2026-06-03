@@ -34,11 +34,15 @@ export const rules: Rule[] = [
     when: (diag) => diag.params?.category === 'home_deprecated',
     apply: () => ({
       rule_id: 'ValidFrontmatter.home_deprecated',
-      hint_md: '`home.html.liquid` is deprecated. Rename to `index.html.liquid` to serve as the root page. Update any cross-references (renders, redirects) afterwards.',
-      fixes: [{
-        type: 'guidance',
-        description: 'Rename the file from `home.html.liquid` to `index.html.liquid` and update any links/redirects pointing at it.',
-      }],
+      hint_md:
+        '`home.html.liquid` is deprecated. Rename to `index.html.liquid` to serve as the root page. Update any cross-references (renders, redirects) afterwards.',
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Rename the file from `home.html.liquid` to `index.html.liquid` and update any links/redirects pointing at it.',
+        },
+      ],
       confidence: 0.85,
     }),
   },
@@ -55,10 +59,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'ValidFrontmatter.missing_required',
         hint_md: `${field} is required for a ${fileType} file. Add it to the frontmatter block (between the leading and trailing \`---\`). \`scaffold\` produces the correct frontmatter for ${fileType} files when generating from a feature spec.`,
-        fixes: [{
-          type: 'guidance',
-          description: `Add ${field} to the frontmatter. Refer to the ${fileType} domain guide via \`domain_guide\` for the expected shape.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Add ${field} to the frontmatter. Refer to the ${fileType} domain guide via \`domain_guide\` for the expected shape.`,
+          },
+        ],
         confidence: 0.85,
         see_also: {
           tool: 'domain_guide',
@@ -81,10 +87,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'ValidFrontmatter.unknown_field',
         hint_md: `${field} is not a valid frontmatter key for ${fileType} files. Common causes: typo (compare with the field list in \`domain_guide\`), wrong file type (this key may belong on a different file), or a leftover from another framework. Remove the key or move the value into the right shape.`,
-        fixes: [{
-          type: 'guidance',
-          description: `Remove ${field} from the frontmatter, or replace it with the correct platformOS key. Consult \`domain_guide\` for the valid frontmatter keys per file type.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Remove ${field} from the frontmatter, or replace it with the correct platformOS key. Consult \`domain_guide\` for the valid frontmatter keys per file type.`,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -100,10 +108,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'ValidFrontmatter.deprecated_field',
         hint_md: `${field} is deprecated. The upstream message names the replacement (e.g. \`layout_name\` → \`layout\`, \`layout_path\` → \`layout\`). Rename in place; the value semantics are preserved.`,
-        fixes: [{
-          type: 'guidance',
-          description: `Rename ${field} to its modern equivalent per the deprecation message. Don't remove the value — just change the key.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Rename ${field} to its modern equivalent per the deprecation message. Don't remove the value — just change the key.`,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -124,7 +134,10 @@ export const rules: Rule[] = [
       // canonical lowercase variant when the value matches an allowed token
       // case-insensitively.
       const lowerValue = (params.value ?? '').toLowerCase();
-      const allowedTokens = allowed.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+      const allowedTokens = allowed
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
       const canonical = allowedTokens.find((t) => t.toLowerCase() === lowerValue);
       const guidance = canonical
         ? `Replace ${value} with \`${canonical}\` — same value, just the canonical case.`
@@ -132,10 +145,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'ValidFrontmatter.invalid_enum',
         hint_md: `${value} is not a valid value for ${field}. Allowed: ${allowed}. ${guidance}`,
-        fixes: [{
-          type: 'guidance',
-          description: guidance,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: guidance,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -148,11 +163,15 @@ export const rules: Rule[] = [
     when: (diag) => diag.params?.category === 'layout_false',
     apply: () => ({
       rule_id: 'ValidFrontmatter.layout_false',
-      hint_md: '`layout: false` does NOT disable the layout — YAML parses `false` as boolean and platformOS falls back to the default layout. Use `layout: \'\'` (empty string) to render the page without a layout.',
-      fixes: [{
-        type: 'guidance',
-        description: "Replace `layout: false` with `layout: ''` (empty single-quoted string). This is the supported way to opt out of layout rendering.",
-      }],
+      hint_md:
+        "`layout: false` does NOT disable the layout — YAML parses `false` as boolean and platformOS falls back to the default layout. Use `layout: ''` (empty string) to render the page without a layout.",
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            "Replace `layout: false` with `layout: ''` (empty single-quoted string). This is the supported way to opt out of layout rendering.",
+        },
+      ],
       confidence: 0.9,
     }),
   },
@@ -171,10 +190,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'ValidFrontmatter.layout_missing',
         hint_md: `Layout \`${layout}\` was not found. Expected file path: \`${expected}\`. Either fix the layout name in the frontmatter or create the layout file (must include \`{{ content_for_layout }}\` to render the page body).`,
-        fixes: [{
-          type: 'guidance',
-          description: `Verify spelling against existing layouts in \`app/views/layouts/\` (or modules' layout directories) — call \`project_map\` to enumerate. If the layout truly is missing, create it with a \`{{ content_for_layout }}\` placeholder.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Verify spelling against existing layouts in \`app/views/layouts/\` (or modules' layout directories) — call \`project_map\` to enumerate. If the layout truly is missing, create it with a \`{{ content_for_layout }}\` placeholder.`,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -192,10 +213,12 @@ export const rules: Rule[] = [
       return {
         rule_id: 'ValidFrontmatter.association_missing',
         hint_md: `${label} \`${name}\` does not exist. Authorization policies live under \`app/authorization_policies/\`; email/SMS/API-call notifications under their respective dirs. Create the referenced file or fix the reference.`,
-        fixes: [{
-          type: 'guidance',
-          description: `Verify the file path matches an existing ${label.toLowerCase()} or scaffold the missing one. Call \`project_map\` to see what exists.`,
-        }],
+        fixes: [
+          {
+            type: 'guidance',
+            description: `Verify the file path matches an existing ${label.toLowerCase()} or scaffold the missing one. Call \`project_map\` to see what exists.`,
+          },
+        ],
         confidence: 0.85,
       };
     },
@@ -208,7 +231,8 @@ export const rules: Rule[] = [
     when: () => true,
     apply: () => ({
       rule_id: 'ValidFrontmatter.fallback',
-      hint_md: 'Frontmatter validation failed. Read the upstream message — it names the field and shape problem. Reference: `domain_guide` per file type, or `scaffold` to regenerate canonical frontmatter.',
+      hint_md:
+        'Frontmatter validation failed. Read the upstream message — it names the field and shape problem. Reference: `domain_guide` per file type, or `scaffold` to regenerate canonical frontmatter.',
       fixes: [],
       confidence: 0.5,
     }),

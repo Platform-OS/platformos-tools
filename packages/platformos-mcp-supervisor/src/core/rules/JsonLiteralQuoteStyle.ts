@@ -19,11 +19,15 @@ export const rules: Rule[] = [
     when: () => true,
     apply: () => ({
       rule_id: 'JsonLiteralQuoteStyle.default',
-      hint_md: 'String literals inside `{ … }` or `[ … ]` JSON literals must be double-quoted. Change the offending single quote to a double quote — the rest of the literal is fine. Liquid string assigns outside JSON literals (`{% assign x = \'hi\' %}`) are not affected.',
-      fixes: [{
-        type: 'guidance',
-        description: "Replace the single-quoted string with a double-quoted equivalent. Example: `{ 'k': 'v' }` → `{ \"k\": \"v\" }`. The upstream check ships an autofix the agent can accept directly.",
-      }],
+      hint_md:
+        "String literals inside `{ … }` or `[ … ]` JSON literals must be double-quoted. Change the offending single quote to a double quote — the rest of the literal is fine. Liquid string assigns outside JSON literals (`{% assign x = 'hi' %}`) are not affected.",
+      fixes: [
+        {
+          type: 'guidance',
+          description:
+            'Replace the single-quoted string with a double-quoted equivalent. Example: `{ \'k\': \'v\' }` → `{ "k": "v" }`. The upstream check ships an autofix the agent can accept directly.',
+        },
+      ],
       confidence: 0.95,
     }),
   },

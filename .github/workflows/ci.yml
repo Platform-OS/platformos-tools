@@ -3,6 +3,21 @@ name: CI
 
 on: [push]
 
+# Skip the Playwright Chromium download during `yarn install`.
+#
+# `@vscode/test-web` (devDep of the vscode-extension workspace) pulls
+# `@playwright/browser-chromium`, whose `install` script downloads ~150 MB
+# of Chromium and consistently exceeds the runner's [4/4] phase budget on
+# a yarn-cache miss (Node 24 + Ubuntu/Windows; observed in the integration
+# job that hung at `Building fresh packages...` for 15m 50s before the
+# 30-minute step timeout fired). The CI jobs below run unit + integration
+# vitest specs only — none of them invoke `@vscode/test-web` and none need
+# a real Chromium binary. Engineers running `yarn dev:web` locally to
+# exercise the VS Code web extension still get Chromium because the env
+# var is scoped to this workflow.
+env:
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
 jobs:
   code-quality:
     runs-on: ubuntu-latest

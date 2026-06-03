@@ -217,16 +217,25 @@ function normaliseResult(result) {
     }
     return out;
   };
+  // Keep this set in lockstep with `CROSS_PLATFORM_DIVERGENT_LSP_CHECKS`
+  // in `test/parity/validate-code-parity.spec.ts`. Both sides must drop
+  // the same upstream-LSP cross-file checks; otherwise re-recorded
+  // snapshots would carry findings the spec strips at compare time and
+  // every parity entry would diverge.
+  const CROSS_PLATFORM_DIVERGENT = new Set(['MatchingTranslations']);
   const sortDiags = (arr) =>
-    [...(arr ?? [])].map(stripDiag).sort((a, b) => {
-      const k = (a.check ?? '').localeCompare(b.check ?? '');
-      if (k) return k;
-      const l = (a.line ?? -1) - (b.line ?? -1);
-      if (l) return l;
-      const c = (a.column ?? -1) - (b.column ?? -1);
-      if (c) return c;
-      return (a.message ?? '').localeCompare(b.message ?? '');
-    });
+    [...(arr ?? [])]
+      .filter((d) => typeof d?.check !== 'string' || !CROSS_PLATFORM_DIVERGENT.has(d.check))
+      .map(stripDiag)
+      .sort((a, b) => {
+        const k = (a.check ?? '').localeCompare(b.check ?? '');
+        if (k) return k;
+        const l = (a.line ?? -1) - (b.line ?? -1);
+        if (l) return l;
+        const c = (a.column ?? -1) - (b.column ?? -1);
+        if (c) return c;
+        return (a.message ?? '').localeCompare(b.message ?? '');
+      });
 
   const out = {
     status: result.status ?? null,

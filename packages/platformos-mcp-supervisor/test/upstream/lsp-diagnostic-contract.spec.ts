@@ -40,6 +40,23 @@ let supervisor: SupervisorHandle;
 
 beforeAll(async () => {
   supervisor = await startSupervisor(FIXTURE_PROJECT_DIR, { timeoutMs: BOOT_TIMEOUT_MS });
+
+  // First-request warm-up. The in-process LSP completes its `initialize`
+  // handshake before `startSupervisor` resolves, but the FIRST per-document
+  // request races the server's filter / object / tag check initialisation
+  // on slow runners (observed on Windows-CI as a 361 ms early return from
+  // `awaitDiagnostics` before any `UnknownFilter` notification arrived —
+  // the second call onwards consistently reports the same diagnostic in
+  // ~1.1 s). One throwaway `validate_code` call exercises the per-document
+  // path and lets subsequent assertions see a stabilised LSP. Source's
+  // pos-supervisor had explicit `runLspWarmup` in server.js for the same
+  // reason; v1 dropped warm-up for boot speed but needs it on the
+  // assertion-heavy contract suite.
+  await supervisor.callTool('validate_code', {
+    file_path: 'app/views/partials/_lsp_warmup.liquid',
+    content: '{{ "hello" | totally_nonexistent_filter }}',
+    mode: 'quick',
+  });
 }, BOOT_TIMEOUT_MS + 5_000);
 
 afterAll(async () => {

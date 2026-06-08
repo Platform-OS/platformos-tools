@@ -1,0 +1,7 @@
+name: DeprecatedTag
+summary: Using a deprecated Liquid tag
+hint:
+  default: >-
+    This tag is deprecated. `hash_assign` → use `{% assign hash["key"] = "value" %}` or `{% assign hash.key = "value"
+    %}`. `parse_json` → use `{% assign obj = { "key": "value" } %}` or `{% assign arr = [1, 2, 3] %}`. Check the error
+    message for the specific replacement.

@@ -1,0 +1,6 @@
+{% doc %}
+  @param show_header {boolean} Show header
+{% enddoc %}
+{% if show_header %}
+  {% include 'shared/orphan', message: 'Header' %}
+{% endif %}

@@ -1,0 +1,4 @@
+name: ImgLazyLoading
+summary: Image tag missing loading="lazy" attribute
+hint:
+  default: Add `loading="lazy"` to <img> tags for better performance.

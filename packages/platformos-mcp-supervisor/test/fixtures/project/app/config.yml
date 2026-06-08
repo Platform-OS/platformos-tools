@@ -1,0 +1,14 @@
+escape_output_instead_of_sanitize: true
+graphql_argument_type_mismatch_mode: error
+liquid_add_old_variables: false
+liquid_check_mode: error
+liquid_raise_mode: true
+require_table_for_record_delete_mutation: true
+safe_translate: true
+skip_elasticsearch: true
+slug_exact_match: true
+string_interpolation: true
+sync_assets: true
+sync_translations: true
+websockets_require_csrf_token: true
+high_performance_sql_filtering: true

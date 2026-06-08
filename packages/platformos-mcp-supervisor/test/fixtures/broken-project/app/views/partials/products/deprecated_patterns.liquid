@@ -1,0 +1,8 @@
+{% doc %}
+  @param data {string} JSON data
+{% enddoc %}
+{% parse_json config %}
+  {"key": "value", "name": {{ data }}}
+{% endparse_json %}
+{% hash_assign config["extra"] = "added" %}
+{{ config.key }}

@@ -1,0 +1,55 @@
+{
+  "id": "10-frontmatter-only-page",
+  "filePath": "app/views/pages/parity/empty.html.liquid",
+  "mode": "full",
+  "description": "Page with frontmatter but no body → pos-supervisor:FrontmatterOnlyPage warning",
+  "result": {
+    "status": "warning",
+    "must_fix_before_write": false,
+    "errors": [],
+    "warnings": [
+      {
+        "check": "pos-supervisor:FrontmatterOnlyPage",
+        "severity": "warning",
+        "message": "Page 'app/views/pages/parity/empty.html.liquid' has frontmatter but no body — the rendered output will be empty. If this is intentional (redirect-only page, header-driven response), add a body comment to acknowledge the empty body; otherwise add the page content.",
+        "confidence": 0.75,
+        "rule_id": "pos-supervisor:FrontmatterOnlyPage.unmatched"
+      }
+    ],
+    "infos": [],
+    "proposed_fixes": [],
+    "clusters": [],
+    "scorecard": [],
+    "tips": [],
+    "domain_guide": {
+      "domain": "pages",
+      "rule": "Pages are controllers — logic only, no inline HTML. Use graphql/render/function/redirect_to tags.",
+      "triggered_gotchas": [
+        {
+          "id": "pages_title",
+          "message": "Page title: use `metadata: { title: 'Static Title' }` in front matter for static titles, or `{% content_for 'title' %}Dynamic Title{% endcontent_for %}` for data-dependent titles.",
+          "severity": "architecture"
+        },
+        {
+          "id": "pages_slug_format",
+          "message": "Slugs use `:param` for dynamic segments (NOT `[param]`, `{param}`, or `<param>`). No leading `/`. For the home page (root `/`), omit the slug entirely — `app/views/pages/index.html.liquid` serves `/` by default. Examples: `products/:id`, `users/:user_id/orders/:id`, `search(/:query)`.",
+          "severity": "required"
+        }
+      ]
+    },
+    "structural": {
+      "renders_used": [],
+      "graphql_queries_used": [],
+      "filters_used": [],
+      "tags_used": [],
+      "translation_keys": [],
+      "doc_params": [],
+      "slug": "parity_fm_only",
+      "layout": null,
+      "method": null,
+      "prompts": []
+    },
+    "parse_error": null,
+    "next_step": "File has advisory warnings but none block the write. Review the warnings, then write the file to disk."
+  }
+}

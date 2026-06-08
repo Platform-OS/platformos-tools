@@ -1,0 +1,18 @@
+{% doc %}
+  @param title {string} Blog post title
+  @param body {string} Blog post body
+  @param author_id {string} Author user ID
+{% enddoc %}
+
+{% liquid
+  function object = 'commands/blog_posts/create/build', title: title, body: body, author_id: author_id
+  function errors = 'commands/blog_posts/create/check', object: object
+
+  assign error_count = errors | size
+  if error_count > 0
+    return errors
+  endif
+
+  graphql result = 'blog_posts/create', title: object.title, body: object.body, author_id: object.author_id
+  return result
+%}

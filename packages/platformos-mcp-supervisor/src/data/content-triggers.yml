@@ -1,0 +1,148 @@
+- id: session_security
+  pattern: context\.session
+  message: >-
+    Session data: `context.session` is set server-side via `{% session %}` tag but often derived from user input. NEVER
+    trust session values for authorization — always re-validate. Use `context.current_user` for identity.
+  severity: security
+  domains:
+    - pages
+    - partials
+    - commands
+- id: form_csrf
+  pattern: <form[\s>]
+  message: >-
+    Forms: platformOS handles CSRF automatically for POST/PUT/DELETE pages. Ensure `method: post` is in front matter.
+    For AJAX forms, include the CSRF token from `context.authenticity_token`.
+  severity: security
+  domains:
+    - pages
+    - partials
+    - layouts
+- id: raw_filter_xss
+  pattern: \|\s*raw\s*[%}]
+  message: >-
+    XSS risk: `| raw` disables HTML escaping. Only use on trusted content (your own HTML, never user input). Prefer `|
+    sanitize` for user content.
+  severity: security
+  domains:
+    - pages
+    - partials
+    - layouts
+- id: cache_patterns
+  pattern: \{%[-\s]*cache\b
+  message: >-
+    Cache: `{% cache key, expire: 3600 %}...{% endcache %}`. Key must be unique per content variant. Cache is
+    per-instance, cleared on deploy. Never cache user-specific content without including user ID in the key.
+  severity: architecture
+  domains:
+    - pages
+    - partials
+    - layouts
+- id: redirect_patterns
+  pattern: \{%[-\s]*redirect_to\b
+  message: >-
+    Redirects: use `{% redirect_to '/path' %}` or `{% redirect_to '/path', status: 301 %}`. For static redirects, set
+    `redirect_to` and `redirect_code` in front matter. Avoid redirect chains.
+  severity: architecture
+  domains:
+    - pages
+    - commands
+- id: asset_url_pipeline
+  pattern: \|\s*asset_url
+  message: >-
+    Assets: `| asset_url` resolves files from `app/assets/`. The URL is fingerprinted automatically on deploy for cache
+    busting.
+  severity: architecture
+  domains:
+    - pages
+    - partials
+    - layouts
+- id: background_job
+  pattern: \{%[-\s]*background\b
+  message: >-
+    Background jobs: `{% background source_name: 'name' %}...{% endbackground %}`. Code inside runs asynchronously after
+    the response. Useful for emails, API calls, heavy processing. Cannot return data to the page.
+  severity: architecture
+  domains:
+    - pages
+    - commands
+- id: api_call_tag
+  pattern: \{%[-\s]*api_call\b
+  message: >-
+    External API calls: `{% api_call 'config_name', url: url %}...{% endapi_call %}` or use the `api_call_send` GraphQL
+    mutation. Wrap in `{% background %}` for non-blocking calls. Always handle errors with `{% try %}`.
+  severity: architecture
+  domains:
+    - pages
+    - commands
+- id: log_tag
+  pattern: \{%[-\s]*log\b
+  message: >-
+    Logging: `{% log message, type: 'info' %}`. Types: debug, info, warn, error. View logs with `pos-cli logs`. Use for
+    debugging — remove excessive logging before deploy.
+  severity: architecture
+  domains:
+    - pages
+    - partials
+    - commands
+    - queries
+- id: content_for_slots
+  pattern: \{%[-\s]*content_for\b
+  message: >-
+    Layout slots: `{% content_for 'slot_name' %}...{% endcontent_for %}` in pages injects into `{% yield 'slot_name' %}`
+    in the layout. The page body itself renders via `{{ content_for_layout }}` in the layout (not a named slot).
+  severity: architecture
+  domains:
+    - pages
+- id: json_response
+  pattern: \|\s*json\s*[%}]
+  message: >-
+    JSON responses: for API endpoints, use `.json.liquid` file extension and `format: json` in front matter. Then `{{
+    data | json }}` to serialize. Set `layout: ''` to disable HTML layout wrapping.
+  severity: architecture
+  domains:
+    - pages
+- id: shopify-object-shop
+  pattern: \{\{\s*shop\.
+  message: 'Shopify pattern: `shop.*` does not exist in platformOS. Use `context.constants.*` or custom schema properties.'
+  severity: warning
+- id: shopify-object-customer
+  pattern: \{\{\s*customer\.
+  message: >-
+    Shopify pattern: `customer.*` does not exist in platformOS. Use `{% function current_user =
+    'modules/user/queries/user/current' %}` then `current_user.*`.
+  severity: warning
+- id: shopify-object-cart
+  pattern: \{\{\s*cart\.
+  message: 'Shopify pattern: `cart.*` does not exist in platformOS. Cart requires a custom schema + GraphQL queries.'
+  severity: warning
+- id: shopify-object-product-direct
+  pattern: \{\{\s*product\.
+  message: 'Shopify pattern: direct `product.*` access does not exist in platformOS. Use a custom schema + GraphQL query.'
+  severity: warning
+- id: shopify-tag-form
+  pattern: \{%[-\s]*form\b
+  message: >-
+    Shopify pattern: `{% form %}` tag is not valid in platformOS. Use HTML `<form>` with `authenticity_token` hidden
+    field.
+  severity: warning
+- id: shopify-tag-section
+  pattern: \{%[-\s]*section\b
+  message: 'Shopify pattern: `{% section %}` tag is not valid in platformOS. Use `{% render ''path/to/partial'' %}` instead.'
+  severity: warning
+- id: shopify-tag-paginate
+  pattern: \{%[-\s]*paginate\b
+  message: >-
+    Shopify pattern: `{% paginate %}` tag is not valid in platformOS. Use manual pagination with `context.params.page`
+    and GraphQL.
+  severity: warning
+- id: shopify-filter-money
+  pattern: \|\s*money\b
+  message: >-
+    Shopify pattern: `money` filter is not in platformOS. Format prices manually: `value | divided_by: 100.0 | round:
+    2`.
+  severity: warning
+- id: shopify-filter-img_url
+  pattern: \|\s*img_url\b
+  message: 'Shopify pattern: `img_url` filter is not in platformOS. Use `asset_url` for static assets.'
+  severity: warning

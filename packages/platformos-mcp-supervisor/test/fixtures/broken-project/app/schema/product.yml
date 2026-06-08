@@ -1,0 +1,8 @@
+name: product
+properties:
+  - name: title
+    type: string
+  - name: price
+    type: float
+  - name: active
+    type: boolean

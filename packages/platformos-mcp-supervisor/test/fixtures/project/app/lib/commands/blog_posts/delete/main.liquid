@@ -1,0 +1,16 @@
+{% doc %}
+  @param id {string} Record ID to delete
+{% enddoc %}
+
+{% liquid
+  function object = 'commands/blog_posts/delete/build', id: id
+  function errors = 'commands/blog_posts/delete/check', object: object
+
+  assign error_count = errors | size
+  if error_count > 0
+    return errors
+  endif
+
+  graphql result = 'blog_posts/delete', id: object.id
+  return result
+%}

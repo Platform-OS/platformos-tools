@@ -1,0 +1,7 @@
+{% doc %}
+  @param title {string} Product title
+{% enddoc %}
+{% liquid
+  assign object = null | hash_merge: title: title
+  return object
+%}

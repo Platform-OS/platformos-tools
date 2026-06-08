@@ -1,0 +1,15 @@
+name: UndefinedObject
+summary: Variable not defined in current scope
+hint:
+  page: >-
+    Bare variable names need the `context.` prefix: context.params, context.session, context.current_user, context.page,
+    context.location, context.environment. If not a context property, check for a missing assign/graphql/function call.
+  partial: >-
+    Variables in partials/commands/queries must be passed explicitly. Add a {% doc %} block declaring the parameter: {%
+    doc %} @param {object} var_name {% enddoc %}
+  default: >-
+    This variable is not defined in the current scope. Use `context.X` for built-in objects, or ensure it's assigned
+    before use.
+shopify_guidance: >-
+  platformOS does not have Shopify theme objects. Use `{% graphql %}` to fetch data from your schema, access request
+  data via `context.params`, and user data via `context.current_user`.

@@ -1,0 +1,6 @@
+name: ValidDocParamType
+summary: Invalid type in @param declaration — types must be lowercase
+hint:
+  default: >-
+    Doc param types are case-sensitive and must be lowercase: {string}, {number}, {boolean}, {object}, {array},
+    {untyped}. Common mistake: {String} or {Object} (capitalized) — use {string} or {object} instead.

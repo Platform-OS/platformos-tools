@@ -1,0 +1,8 @@
+{% doc %}
+  @param id {string} Record ID to delete
+{% enddoc %}
+
+{% liquid
+  assign object = null | hash_merge: id: id
+  return object
+%}

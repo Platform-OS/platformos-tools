@@ -1,0 +1,14 @@
+query find($id: ID!) {
+  records(
+    per_page: 1
+    filter: {
+      table: { value: "blog_post" }
+      id: { value: $id }
+    }
+  ) {
+    results {
+      id
+      properties
+    }
+  }
+}

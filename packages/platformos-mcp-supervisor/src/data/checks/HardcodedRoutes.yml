@@ -1,0 +1,6 @@
+name: HardcodedRoutes
+summary: URL is hardcoded instead of using dynamic construction
+hint:
+  default: >-
+    Avoid hardcoded URLs — they break when slugs change. Build URLs dynamically using page slugs and `context.params`:
+    e.g., `{% assign url = '/products/' | append: product.id %}`.

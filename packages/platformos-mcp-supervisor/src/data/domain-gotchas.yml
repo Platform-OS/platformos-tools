@@ -1,0 +1,269 @@
+pages:
+  rule: Pages are controllers — logic only, no inline HTML. Use graphql/render/function/redirect_to tags.
+  gotchas:
+    - id: pages_context_prefix
+      trigger: has_check:UndefinedObject
+      message: >-
+        In pages, use `context.params`, `context.session`, `context.current_user`, `context.page` — bare variable names
+        are not valid.
+      severity: required
+    - id: pages_no_graphql_in_loop
+      trigger: has_check:NestedGraphQLQuery
+      message: Move {% graphql %} calls outside loops. Fetch data once, then iterate over results.
+      severity: architecture
+    - id: pages_use_render
+      trigger: has_check:ConvertIncludeToRender
+      message: >-
+        Prefer {% render %} over {% include %}. Render has isolated scope. Exception: {% include %} is correct for
+        module helpers that need scope sharing (e.g., authorization helpers).
+      severity: deprecation
+    - id: pages_title
+      trigger: always
+      message: >-
+        Page title: use `metadata: { title: 'Static Title' }` in front matter for static titles, or `{% content_for
+        'title' %}Dynamic Title{% endcontent_for %}` for data-dependent titles.
+      severity: architecture
+    - id: pages_slug_format
+      trigger: always
+      message: >-
+        Slugs use `:param` for dynamic segments (NOT `[param]`, `{param}`, or `<param>`). No leading `/`. For the home
+        page (root `/`), omit the slug entirely — `app/views/pages/index.html.liquid` serves `/` by default. Examples:
+        `products/:id`, `users/:user_id/orders/:id`, `search(/:query)`.
+      severity: required
+    - id: pages_try_catch
+      trigger: uses_tag:try
+      message: >-
+        {% try %}...{% catch error %}...{% endtry %} — the `error` variable is auto-recognized, no declaration needed.
+        Use for GraphQL/API calls that might fail.
+      severity: architecture
+    - id: pages_parse_json_deprecated
+      trigger: uses_tag:parse_json
+      message: >-
+        {% parse_json %} is deprecated. Use `{% assign obj = { "key": "value" } %}` for hashes and `{% assign arr = [1,
+        2, 3] %}` for arrays.
+      severity: deprecation
+    - id: pages_hash_assign_deprecated
+      trigger: uses_tag:hash_assign
+      message: >-
+        {% hash_assign %} is deprecated. Use `{% assign hash["key"] = "value" %}` or `{% assign hash.key = "value" %}`
+        instead.
+      severity: deprecation
+partials:
+  rule: >-
+    Partials receive ONLY explicitly passed variables — no outer scope leaks. Do NOT run {% graphql %} in rendering
+    partials.
+  gotchas:
+    - id: partials_declare_params
+      trigger: has_check:UndefinedObject
+      message: >-
+        Declare all parameters with {% doc %} block: {% doc %} @param {type} name {% enddoc %}. The caller must pass
+        them via {% render 'partial', name: value %}.
+      severity: required
+    - id: partials_no_graphql
+      trigger: uses_tag:graphql
+      message: >-
+        Do NOT run {% graphql %} in rendering partials (UI components). Fetch data in the page/command and pass results
+        via render parameters. Note: query wrappers under app/lib/queries/ and commands under app/lib/commands/ CAN use
+        {% graphql %} — invoke them via {% function r = 'queries/...' %} / {% function r = 'commands/...' %} (no `lib/` prefix).
+      severity: architecture
+    - id: partials_missing_args
+      trigger: has_check:MissingRenderPartialArguments
+      message: Required @param arguments must be passed at every {% render %} call site. Check the partial's {% doc %} block.
+      severity: required
+    - id: partials_isolated_scope
+      trigger: always
+      message: Partials have isolated scope. Every variable used must be passed explicitly or assigned locally.
+      severity: architecture
+    - id: partials_null_param
+      trigger: always
+      message: >-
+        NEVER pass null for a typed parameter — use the matching empty value: '' for {string}, 0 for {number}, false for
+        {boolean}, {} for {object}, [] for {array}.
+      severity: architecture
+    - id: partials_parse_json_deprecated
+      trigger: uses_tag:parse_json
+      message: >-
+        {% parse_json %} is deprecated. Use `{% assign obj = { "key": "value" } %}` for hashes and `{% assign arr = [1,
+        2, 3] %}` for arrays.
+      severity: deprecation
+    - id: partials_hash_assign_deprecated
+      trigger: uses_tag:hash_assign
+      message: >-
+        {% hash_assign %} is deprecated. Use `{% assign hash["key"] = "value" %}` or `{% assign hash.key = "value" %}`
+        instead.
+      severity: deprecation
+graphql:
+  rule: >-
+    Custom properties use property(name: "field") or properties_object, NOT direct field access. StringFilter requires
+    object syntax.
+  gotchas:
+    - id: graphql_property_access
+      trigger: has_check:GraphQLCheck
+      message: >-
+        Record only has: id, table, created_at, updated_at, user_id, external_id, property(name: "x"),
+        properties_object. Custom properties: `property(name: "field")` NOT direct access. No relation traversal — use
+        separate queries.
+      severity: required
+    - id: graphql_string_filter
+      trigger: has_check:GraphQLCheck
+      message: 'StringFilter is an object: `table: { value: "name" }`, NOT a bare string.'
+      severity: required
+    - id: graphql_property_filter
+      trigger: has_check:GraphQLCheck
+      message: >-
+        PropertyFilter fields: `value`, `contains`, `starts_with`, `ends_with`, `not_contains`, `not_starts_with`,
+        `not_ends_with`, `value_in`, `not_value`, `not_value_in`, `range`, `case_sensitive`. There is NO `operator`, NO
+        `like` field.
+      severity: required
+    - id: graphql_sort
+      trigger: always
+      message: >-
+        Sort by custom properties: `sort: [{ properties: [{ name: "field", order: DESC }] }]`. Built-in: `sort: [{
+        created_at: { order: DESC } }]`. ASC/DESC are unquoted enum values, NOT strings.
+      severity: architecture
+    - id: graphql_pagination
+      trigger: always
+      message: >-
+        Pagination fields: `total_entries` (NOT total_count), `results`, `has_next_page`, `has_previous_page`. Use
+        `page` and `per_page` arguments.
+      severity: architecture
+commands:
+  rule: >-
+    Commands use build/check/execute pattern. Pages invoke commands via {% function %}, not {% graphql %} directly.
+    Commands themselves may call {% graphql %} internally.
+  gotchas:
+    - id: commands_build_check_execute
+      trigger: always
+      message: >-
+        Follow build → check → execute pattern: _build creates data, _check validates (MUST NOT execute if errors),
+        _execute runs side effects.
+      severity: architecture
+    - id: commands_function_tag
+      trigger: always
+      message: >-
+        Pages invoke commands via {% function result = 'commands/name/execute', arg: value %} (no `lib/` prefix —
+        `function` paths resolve under app/lib/). Do not call {% graphql %} mutations directly from pages — use commands.
+      severity: required
+    - id: commands_declare_params
+      trigger: has_check:UndefinedObject
+      message: Command parameters must be declared with {% doc %} @param blocks. The caller passes them via {% function %}.
+      severity: required
+    - id: commands_parse_json_deprecated
+      trigger: uses_tag:parse_json
+      message: >-
+        {% parse_json %} is deprecated. Use `{% assign obj = { "key": "value" } %}` for hashes and `{% assign arr = [1,
+        2, 3] %}` for arrays.
+      severity: deprecation
+    - id: commands_hash_assign_deprecated
+      trigger: uses_tag:hash_assign
+      message: >-
+        {% hash_assign %} is deprecated. Use `{% assign hash["key"] = "value" %}` or `{% assign hash.key = "value" %}`
+        instead.
+      severity: deprecation
+queries:
+  rule: >-
+    Queries live in app/lib/queries/. Pages invoke via {% function %}, not {% graphql %} directly. Query wrappers
+    themselves call {% graphql %} internally.
+  gotchas:
+    - id: queries_function_invoke
+      trigger: always
+      message: >-
+        Pages invoke queries via {% function result = 'queries/name', arg: value %} (no `lib/` prefix — `function`
+        paths resolve under app/lib/). Queries are read-only; all writes go through commands.
+      severity: architecture
+    - id: queries_declare_params
+      trigger: has_check:UndefinedObject
+      message: Query parameters must be declared with {% doc %} @param blocks.
+      severity: required
+    - id: queries_parse_json_deprecated
+      trigger: uses_tag:parse_json
+      message: >-
+        {% parse_json %} is deprecated. Use `{% assign obj = { "key": "value" } %}` for hashes and `{% assign arr = [1,
+        2, 3] %}` for arrays.
+      severity: deprecation
+translations:
+  rule: 'Translation files are YAML in app/translations/. Access via {{ ''key'' | t }} or {{ ''key'' | t: name: value }}.'
+  gotchas:
+    - id: translations_missing_key
+      trigger: has_check:TranslationKeyExists
+      message: >-
+        Add missing translation key to app/translations/en.yml. Use dot notation for scoping. Pluralization: define
+        one:/other: sub-keys.
+      severity: required
+    - id: translations_escape
+      trigger: always
+      message: 'Use t_escape filter for user-provided interpolation values: {{ ''key'' | t_escape: name: user_input }}.'
+      severity: security
+layouts:
+  rule: >-
+    Layouts render page body with {{ content_for_layout }} (required, exactly once). Named slots use {% yield 'name' %}
+    (layout) paired with {% content_for 'name' %} (page).
+  gotchas:
+    - id: layouts_metadata
+      trigger: always
+      message: 'Access page metadata: {{ context.page.metadata.title }}. Set in page front matter under metadata: key.'
+      severity: architecture
+    - id: layouts_yield_slots
+      trigger: always
+      message: >-
+        Named layout slots: {% yield 'slot_name' %} (layout) / {% content_for 'slot_name' %}...{% endcontent_for %}
+        (page). Page body renders via {{ content_for_layout }}.
+      severity: architecture
+schema:
+  rule: Schema files define table structure — NOT GraphQL types. Access custom properties via properties_object.
+  gotchas:
+    - id: schema_properties_not_fields
+      trigger: always
+      message: >-
+        Schema uses `properties:` (not `fields:`). Property types: string, text, integer, float, boolean, datetime,
+        date, array, upload.
+      severity: required
+    - id: schema_crud_generator
+      trigger: always
+      message: >-
+        Use CRUD generator for new resources: `pos-cli generate run modules/core/generators/crud resource_name prop:type
+        --include-views`. Do NOT create CRUD files manually.
+      severity: architecture
+config:
+  rule: app/config.yml controls application flags — changes require deploy.
+  gotchas:
+    - id: config_secure_defaults
+      trigger: always
+      message: >-
+        Use secure defaults: `escape_output_instead_of_sanitize: true`, `safe_translate: true`, `slug_exact_match:
+        true`.
+      severity: security
+    - id: config_string_interpolation
+      trigger: always
+      message: >-
+        String interpolation ({{ }} in double-quoted strings) requires `string_interpolation: true` in app/config.yml.
+        Single-quoted strings remain literal.
+      severity: architecture
+design-system:
+  rule: >-
+    Use only defined CSS classes and token variables. No inline styles. Load CSS via asset_url filter in layout. See
+    domain_guide(domain: "design-system") for setup.
+  gotchas:
+    - id: ds_asset_url
+      trigger: always
+      message: >-
+        Load design system CSS with asset_url filter: {{ "design-tokens.css" | asset_url }}. Never hardcode /assets/
+        paths — they break on deploy.
+      severity: error
+    - id: ds_no_inline
+      trigger: always
+      message: >-
+        No inline style= attributes. Use design system classes (.card, .btn, .btn-primary, .container, .section,
+        .layout-grid, .col-4/6/8/12, .feature-grid, .hero) or define overrides in {% content_for "head" %} using token
+        variables.
+      severity: warning
+    - id: ds_col_wrapper
+      trigger: always
+      message: .col-* classes must be inside a .layout-grid wrapper. Standalone .col-* has no effect.
+      severity: warning
+    - id: ds_accent
+      trigger: always
+      message: >-
+        var(--color-accent) is for interactive elements only (hover, focus, CTA buttons). Never use it for body text or
+        static backgrounds.
+      severity: warning

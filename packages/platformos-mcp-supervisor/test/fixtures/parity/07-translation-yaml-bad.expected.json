@@ -1,0 +1,45 @@
+{
+  "id": "07-translation-yaml-bad",
+  "filePath": "app/translations/en.yml",
+  "mode": "quick",
+  "description": "Translation YAML with no locale wrapper → TranslationMissingLocaleKey error",
+  "result": {
+    "status": "error",
+    "must_fix_before_write": true,
+    "errors": [
+      {
+        "check": "pos-supervisor:TranslationMissingLocaleKey",
+        "severity": "error",
+        "message": "Translation file has no top-level locale key. Top-level keys found: app. Wrap the entire tree in the file's locale (e.g. `en:`) — platformOS indexes translations by locale at the root. Without this wrapper, `{{ 'key' | t }}` lookups will silently fail even though the file parses.",
+        "line": 1,
+        "column": 0,
+        "rule_id": "TranslationMissingLocaleKey.default",
+        "hint": "Translation file is missing the top-level locale wrapper. platformOS indexes translations under `<locale>:` at the YAML root — without it `{{ '...' | t }}` lookups silently return the raw key, even though the file parses cleanly.\n\nWrap the entire tree under `en:` and indent every existing line by two spaces. Example transform:\n```yaml\n# BEFORE (broken — no locale root)\napp:\n  greeting: \"Hello\"\n```\n```yaml\n# AFTER (correct)\nen:\n  app:\n    greeting: \"Hello\"\n```\nOne-liner with sed: `sed -E 's/^(.+)/  \\1/' file.yml | (echo 'en:'; cat) > file.yml.tmp && mv file.yml.tmp file.yml` (verify after — re-run validate_code on the file).",
+        "confidence": 0.95,
+        "see_also": {
+          "tool": "domain_guide",
+          "args": {
+            "domain": "translations"
+          },
+          "reason": "Translations domain guide explains the locale-root requirement and lookup conventions."
+        },
+        "fixes": [
+          {
+            "type": "guidance",
+            "description": "Add `en:` as the new top-level key in this file, then indent every existing line by two more spaces so the original tree nests under it. Re-run validate_code to confirm."
+          }
+        ]
+      }
+    ],
+    "warnings": [],
+    "infos": [],
+    "proposed_fixes": [],
+    "clusters": [],
+    "scorecard": [],
+    "tips": [],
+    "domain_guide": null,
+    "structural": null,
+    "parse_error": null,
+    "next_step": "Fix every ERROR above.\nRe-validate with validate_code (mode: \"quick\") after fixing.\nMUST NOT write the file to disk until validation passes (must_fix_before_write: false)."
+  }
+}

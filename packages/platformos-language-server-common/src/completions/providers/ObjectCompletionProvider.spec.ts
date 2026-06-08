@@ -133,7 +133,10 @@ describe('Module: ObjectCompletionProvider', async () => {
     for (const [object, relativePath] of contexts) {
       const source = `{{ ${object}█ }}`;
       await expect(provider, source).to.complete({ source, relativePath }, [object]);
-      await expect(provider, source).to.complete({ source, relativePath: 'file.liquid' }, []);
+      await expect(provider, source).to.complete(
+        { source, relativePath: 'app/views/layouts/main.liquid' },
+        [],
+      );
     }
   });
 

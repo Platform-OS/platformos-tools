@@ -37,9 +37,9 @@ describe('Module: TranslationStringDefinitionProvider', () => {
   });
 
   it('finds the definition of existing translation keys', async () => {
-    documentManager.open('file:///test.liquid', '{{ "hello.world" | t }}', 1);
+    documentManager.open('file:///app/views/partials/test.liquid', '{{ "hello.world" | t }}', 1);
     const params: DefinitionParams = {
-      textDocument: { uri: 'file:///test.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/test.liquid' },
       position: { line: 0, character: 5 }, // Position within "hello.world"
     };
 

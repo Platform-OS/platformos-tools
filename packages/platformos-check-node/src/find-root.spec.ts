@@ -124,4 +124,41 @@ describe('Unit: findRoot', () => {
       expect(root).toBe(workspace.uri('.'));
     });
   });
+
+  describe('with partials organized under a modules/ subdirectory', () => {
+    let workspace: Workspace;
+
+    beforeAll(async () => {
+      // Real-world structure: partials grouped by module name under
+      // app/views/partials/modules/. This must NOT be treated as a project root.
+      workspace = await makeTempWorkspace({
+        app: {
+          views: {
+            partials: {
+              modules: {
+                foo: {
+                  'bar.liquid': '',
+                },
+              },
+              baz: {
+                'qux.liquid': '',
+              },
+            },
+          },
+        },
+      });
+    });
+
+    afterAll(async () => {
+      await workspace.clean();
+    });
+
+    it('walks past app/views/partials/ even when a modules/ subdir exists there', async () => {
+      const root = await findRoot(
+        workspace.uri('app/views/partials/baz/qux.liquid'),
+        fileExists,
+      );
+      expect(root).toBe(workspace.uri('.'));
+    });
+  });
 });

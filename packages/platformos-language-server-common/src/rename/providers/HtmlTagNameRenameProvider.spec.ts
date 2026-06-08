@@ -23,7 +23,7 @@ describe('HtmlTagNameRenameProvider', () => {
 
   it('returns null when the cursor is not over an HTML tag name', async () => {
     const params = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 0),
       newName: 'new-name',
     };
@@ -34,7 +34,7 @@ describe('HtmlTagNameRenameProvider', () => {
 
   it('returns the correct workspace edit when renaming an HTML tag name', async () => {
     const params = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 2),
       newName: 'new-name',
     };
@@ -59,7 +59,7 @@ describe('HtmlTagNameRenameProvider', () => {
 
   it('also works on complext liquid + text html tag names', async () => {
     const params = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 2),
       newName: 'new-name',
     };

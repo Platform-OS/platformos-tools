@@ -278,7 +278,7 @@ function createLiquidParamsFromContext(
 ) {
   const regex = new RegExp('█', 'g');
   const documentManager = new DocumentManager();
-  const uri = 'file:///path/to/file.liquid';
+  const uri = 'file:///app/views/partials/file.liquid';
   documentManager.open(uri, context.replace(regex, ''), 1);
   const params = mockCompletionParams({ position: cursorPosition });
   return createLiquidCompletionParams(
@@ -303,7 +303,7 @@ function mockCompletionParams(params: Partial<CompletionParams> = {}): Completio
       line: 0,
     },
     textDocument: {
-      uri: 'file:///path/to/file.liquid',
+      uri: 'file:///app/views/partials/file.liquid',
     },
     ...params,
   };

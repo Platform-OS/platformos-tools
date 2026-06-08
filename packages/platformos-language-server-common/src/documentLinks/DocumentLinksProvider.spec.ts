@@ -53,7 +53,7 @@ describe('DocumentLinksProvider', () => {
   });
 
   it('should return a list of document links with correct URLs for a LiquidHtml document', async () => {
-    uriString = 'file:///path/to/liquid-html-document.liquid';
+    uriString = 'file:///app/views/partials/liquid-html-document.liquid';
     rootUri = 'file:///path/to/project';
 
     const liquidHtmlContent = `

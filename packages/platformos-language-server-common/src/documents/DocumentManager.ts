@@ -1,6 +1,7 @@
 import {
   assertNever,
   isKnownLiquidFile,
+  isSupportedSourceFile,
   memoize,
   path,
   recursiveReadDirectory,
@@ -111,8 +112,7 @@ export class DocumentManager {
 
   private set(uri: UriString, source: string, version: number | undefined) {
     uri = path.normalize(uri);
-    // We only support json, liquid, graphql, and yaml files.
-    if (!/\.(json|liquid|graphql|ya?ml)$/.test(uri) || /\.(s?css|js).liquid$/.test(uri)) {
+    if (!isSupportedSourceFile(uri)) {
       return;
     }
 
@@ -139,7 +139,7 @@ export class DocumentManager {
       const filesToLoad = await recursiveReadDirectory(
         this.fs,
         rootUri,
-        ([uri]) => /\.(liquid|json|graphql|ya?ml)$/.test(uri) && !this.sourceCodes.has(uri),
+        ([uri]) => isSupportedSourceFile(uri) && !this.sourceCodes.has(uri),
       );
 
       progress.report(10, 'Preloading files');

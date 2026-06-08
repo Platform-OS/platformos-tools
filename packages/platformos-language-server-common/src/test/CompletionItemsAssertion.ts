@@ -70,7 +70,9 @@ export const complete: RawMatcherFn<MatcherState> = async function (
 };
 
 function asCompleteContextObject(context: string | CompleteContext): CompleteContext {
-  if (typeof context === 'string') return { source: context, relativePath: 'file.liquid' };
+  if (typeof context === 'string') {
+    return { source: context, relativePath: 'app/views/layouts/file.liquid' };
+  }
   return context;
 }
 

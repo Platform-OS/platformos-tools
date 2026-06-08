@@ -14,7 +14,7 @@ import { DocumentManager } from '../../documents';
 import { ApplyFixesProvider } from './ApplyFixesProvider';
 
 describe('Unit: ApplyFixesProvider', () => {
-  const uri = path.normalize(URI.file('/path/to/file.liquid'));
+  const uri = path.normalize(URI.file('/path/to/app/views/partials/file.liquid'));
   const contents = `
     {% assign x = 1 %}
     <script src="2.js"></script>
@@ -38,7 +38,7 @@ describe('Unit: ApplyFixesProvider', () => {
       type: SourceCodeType.LiquidHtml,
       check: checkName,
       message: 'Offense detected',
-      uri: 'file:///path/to/file.liquid',
+      uri,
       severity: Severity.ERROR,
       start: { ...document.positionAt(start), index: start },
       end: { ...document.positionAt(end), index: end },

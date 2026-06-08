@@ -15,7 +15,7 @@ describe('Module: LiquidBlockTagDocumentHighlightsProvider', () => {
 
   it('should return document highlight ranges for liquid blocks', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 4), // position within the tag name
     };
 
@@ -38,7 +38,7 @@ describe('Module: LiquidBlockTagDocumentHighlightsProvider', () => {
 
   it('should return document highlight ranges for liquid conditionals', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 4),
     };
 
@@ -70,7 +70,7 @@ describe('Module: LiquidBlockTagDocumentHighlightsProvider', () => {
 
   it('should return document highlight ranges for liquid case statements', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 4),
     };
 
@@ -109,7 +109,7 @@ describe('Module: LiquidBlockTagDocumentHighlightsProvider', () => {
 
   it('should return document highlight ranges for LiquidRawTags tags', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 4),
     };
 
@@ -131,7 +131,7 @@ describe('Module: LiquidBlockTagDocumentHighlightsProvider', () => {
 
   it('should return document highlight ranges for liquid comment tags', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(0, 4),
     };
 
@@ -153,7 +153,7 @@ describe('Module: LiquidBlockTagDocumentHighlightsProvider', () => {
 
   it('should return the correct highlights inside liquid liquid tags', async () => {
     const params: DocumentHighlightParams = {
-      textDocument: { uri: 'file:///path/to/document.liquid' },
+      textDocument: { uri: 'file:///app/views/partials/document.liquid' },
       position: Position.create(1, 10),
     };
 

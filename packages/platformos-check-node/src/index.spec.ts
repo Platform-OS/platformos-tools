@@ -9,10 +9,10 @@ describe('Unit: getApp', () => {
 
   beforeEach(async () => {
     workspace = await makeTempWorkspace({
-      locales: {
-        'en.default.json': '{}',
-      },
       app: {
+        translations: {
+          'en.yml': 'en:\n  hello: Hello',
+        },
         views: {
           partials: {
             'header.liquid': '',
@@ -34,13 +34,13 @@ describe('Unit: getApp', () => {
     };
 
     const app = await getApp(config);
-    const jsonFile = app.find((sc) => sc.type === SourceCodeType.JSON);
-    assert(jsonFile);
+    const yamlFile = app.find((sc) => sc.type === SourceCodeType.YAML);
+    assert(yamlFile);
 
     // internally we expect the path to be normalized
     // Use .replace() instead of normalize-path here because this is a URI (file:///...),
     // not a filesystem path — normalize-path would collapse the triple slash.
-    expect(jsonFile.uri).to.equal(workspace.uri('locales/en.default.json').replace(/\\/g, '/'));
+    expect(yamlFile.uri).to.equal(workspace.uri('app/translations/en.yml').replace(/\\/g, '/'));
   });
 });
 
@@ -51,6 +51,6 @@ describe('Unit: getAppFilesPathPattern', () => {
     const rootUri = pathToFileURL(__dirname);
     const normalizedGlob = getAppFilesPathPattern(rootUri.toString());
 
-    expect(normalizedGlob).to.equal(normalize(__dirname) + '/**/*.{liquid,json,graphql,yml,yaml}');
+    expect(normalizedGlob).to.equal(normalize(__dirname) + '/**/*.{liquid,graphql,yml,yaml}');
   });
 });

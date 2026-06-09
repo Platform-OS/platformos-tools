@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["./src/**/*.ts"],
+  "exclude": ["./dist"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "paths": {
+      "@platformos/platformos-check-common": ["../platformos-check-common/src"],
+      "@platformos/platformos-check-node": ["../platformos-check-node/src"],
+      "@platformos/platformos-check-docs-updater": ["../platformos-check-docs-updater/src"],
+      "@platformos/platformos-graph": ["../platformos-graph/src"]
+    }
+  },
+  "references": [
+    { "path": "../platformos-check-common" },
+    { "path": "../platformos-check-node" },
+    { "path": "../platformos-check-docs-updater" },
+    { "path": "../platformos-graph" }
+  ]
+}

@@ -21,6 +21,9 @@ GraphQLCheck:
 GraphQLVariablesCheck:
   enabled: true
   severity: 0
+GraphqlMultilineInLiquidBlock:
+  enabled: true
+  severity: 0
 ImgWidthAndHeight:
   enabled: true
   severity: 0
@@ -40,6 +43,9 @@ MatchingTranslations:
   enabled: true
   severity: 0
 MissingAsset:
+  enabled: true
+  severity: 0
+MissingContentForLayout:
   enabled: true
   severity: 0
 MissingPage:

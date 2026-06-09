@@ -41,6 +41,8 @@ import { NestedGraphQLQuery } from './nested-graphql-query';
 import { MissingPage } from './missing-page';
 import { ValidFrontmatter } from './valid-frontmatter';
 import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
+import { GraphqlMultilineInLiquidBlock } from './graphql-multiline-in-liquid-block';
+import { MissingContentForLayout } from './missing-content-for-layout';
 
 export const allChecks: (
   | LiquidCheckDefinition
@@ -83,6 +85,8 @@ export const allChecks: (
   MissingPage,
   ValidFrontmatter,
   JsonLiteralQuoteStyle,
+  GraphqlMultilineInLiquidBlock,
+  MissingContentForLayout,
 ];
 
 /**

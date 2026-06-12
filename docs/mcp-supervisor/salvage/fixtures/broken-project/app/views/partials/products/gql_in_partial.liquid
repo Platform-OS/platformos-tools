@@ -1,7 +1,0 @@
-{% doc %}
-  @param category {string} Category filter
-{% enddoc %}
-{% graphql products = 'products/search', query: category %}
-{% for p in products.records.results %}
-  <div>{{ p.properties.title }}</div>
-{% endfor %}

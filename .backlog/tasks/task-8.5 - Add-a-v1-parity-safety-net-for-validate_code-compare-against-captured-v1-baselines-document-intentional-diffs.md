@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:57'
+updated_date: '2026-06-12 13:18'
 labels: []
 dependencies:
   - TASK-8.4
@@ -47,3 +48,15 @@ Prove that the restored `validate_code` matches the v1 contract where that contr
 - [ ] #3 Every tolerated divergence from v1 is documented with rationale in a divergence registry; no baseline is deleted to pass
 - [ ] #4 An unexplained drift fails the suite (P0); the parity suite runs under root yarn test
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## NOTE — salvage material untracked from git (2026-06-12)
+
+The 13 captured v1 parity baselines + corpus + `OLD-parity-spec.ts` live under `docs/mcp-supervisor/salvage/`, which was UNTRACKED from git (`git rm -r --cached` + `.gitignore`) to keep PRs small. Recover them from history when starting this task:
+
+    git checkout 69aa9e4 -- docs/mcp-supervisor/salvage
+
+(commit `69aa9e4`). The baselines/corpus should then be restored into the package test tree (see TASK-7.11).
+<!-- SECTION:NOTES:END -->

@@ -1,6 +1,0 @@
-name: NestedGraphQLQuery
-summary: '{% graphql %} inside a loop — N+1 query problem'
-hint:
-  default: >-
-    Move the {% graphql %} call BEFORE the loop. Use a batch/list query to fetch all data in one request instead of one
-    query per iteration.

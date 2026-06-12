@@ -1,7 +1,0 @@
-name: TranslationKeyExists
-summary: Translation key not found in translation files
-hint:
-  default: >-
-    Add the key to app/translations/en.yml. Use dot notation for scoping. If creating translation files as part of a
-    multi-file plan, pass pending_translations from validate_intent to suppress this error for keys that will be written
-    soon.

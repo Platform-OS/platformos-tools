@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 09:55'
-updated_date: '2026-06-09 21:40'
+updated_date: '2026-06-12 13:18'
 labels: []
 dependencies: []
 references:
@@ -95,4 +95,10 @@ The rebuilt package now exists and runs end-to-end over MCP stdio with a typed s
 **Remaining (integration half):** 7.6 lint adapter (ProjectContext: graph+docset+findRoot → lintBuffer → StructuredDiagnostic) [deps 7.2/7.3/7.4 all done] → 7.5 data (trimmed) → 7.7 enrich (minimal) → 7.8 advise (minimal) → 7.9 result assembly → 7.10 wire real handler → 7.11 tests + fresh baselines.
 
 Verification commands used: `yarn vitest run <pkg>`, `yarn workspace <pkg> type-check`, `yarn workspace @platformos/platformos-mcp-supervisor build`.
+
+## Update — 2026-06-12: lint-only validate_code slice + salvage untracked
+
+**validate_code now lints for real** (user-directed descope: only the `check()` adapter for now). Flow: resolve path → check-node `lintBuffer` (check() with buffer overlaid on the on-disk project; NO LSP) → map `Offense`→diagnostic (1-based line+col) → bucket into errors/warnings/infos + status + must_fix. All ergonomic/TASK-8 fields stay empty/null; fixes not translated; `mode` a no-op. New files: `src/lint/lint.ts`, `src/result/assemble.ts`, handler rewired in `src/transport/validate-code.ts`; tests assemble(5)/lint(3)/smoke(3 end-to-end). Package suite 31/31; guards 12/12. See partial notes on TASK-7.6 / 7.9 / 7.10.
+
+**Salvage untracked:** `docs/mcp-supervisor/salvage/` (139 files) removed from git via `git rm -r --cached` + `.gitignore` to keep PRs small (it was ~68% of the branch diff). Files remain on disk; recoverable at commit `69aa9e4` via `git checkout 69aa9e4 -- docs/mcp-supervisor/salvage`. TASK-7.11 and TASK-8.5 (which consume the fixtures/parity baselines) carry recovery notes.
 <!-- SECTION:NOTES:END -->

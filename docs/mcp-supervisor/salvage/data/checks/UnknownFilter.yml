@@ -1,7 +1,0 @@
-name: UnknownFilter
-summary: Filter does not exist in platformOS Liquid
-hint:
-  default: This filter is not available in platformOS. Check for typos or Shopify-specific filters that don't exist here.
-shopify_guidance: >-
-  This is a Shopify-specific filter. platformOS uses different filters — check with `lookup (completions mode)` at the
-  filter position to see available filters.

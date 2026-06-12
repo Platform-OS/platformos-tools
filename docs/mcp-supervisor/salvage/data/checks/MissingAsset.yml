@@ -1,4 +1,0 @@
-name: MissingAsset
-summary: Referenced asset file not found
-hint:
-  default: Create the missing asset in app/assets/. This check has a high false-positive rate for module assets.

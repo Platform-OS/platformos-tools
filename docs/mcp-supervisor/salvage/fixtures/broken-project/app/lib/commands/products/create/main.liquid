@@ -1,9 +1,0 @@
-{% doc %}
-  @param title {string} Product title
-{% enddoc %}
-{% liquid
-  function built = 'commands/products/create/build', title: title
-  function errors = 'commands/products/create/check', object: built
-  function result = 'commands/products/nonexistent_execute', object: built
-  return result
-%}

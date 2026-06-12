@@ -1,8 +1,0 @@
-{% doc %}
-  @param id {string} Product ID
-  @param title {string} New title
-{% enddoc %}
-{% liquid
-  graphql result = 'products/create', title: title
-  assign updated = result
-%}

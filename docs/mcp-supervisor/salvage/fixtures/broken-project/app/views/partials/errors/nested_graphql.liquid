@@ -1,7 +1,0 @@
-{% doc %}
-  @param id {string} Product ID
-{% enddoc %}
-{% graphql product = 'products/search' %}
-{% for p in product.records.results %}
-  {% graphql details = 'products/create', title: p.properties.title %}
-{% endfor %}

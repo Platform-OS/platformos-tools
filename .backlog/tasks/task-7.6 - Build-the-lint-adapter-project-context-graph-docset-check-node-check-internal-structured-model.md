@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:01'
-updated_date: '2026-06-09 15:55'
+updated_date: '2026-06-12 13:17'
 labels: []
 dependencies:
   - TASK-7.2
@@ -57,3 +57,22 @@ FORBIDDEN in this package (these were the old duplications): a re-implemented `p
 - [ ] #5 Filesystem/document access goes through the check-node AbstractFileSystem/DocumentsLocator used by check(); the buffer overlay rides on it, not on a custom scanner
 - [ ] #6 A test/guard asserts the package does not re-implement project-scanner, project-fact-graph, dependency-graph, or FiltersIndex/ObjectsIndex/TagsIndex docset wrappers
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Partial progress — lint-only slice (2026-06-12)
+
+Implemented the MINIMAL lint adapter so `validate_code` lints for real (user-directed: only the check() adapter now).
+
+### Done
+- `src/lint/lint.ts`: `runLint({ projectDir, filePath, content }) -> ValidateCodeDiagnostic[]` — resolves the absolute file path, calls the check-node `lintBuffer` seam (TASK-7.3: `check()` with the buffer overlaid on the on-disk project; NO LSP), and maps `Offense[]` → diagnostics (severity enum→string; 0-based line+char → 1-based line+column).
+- `src/lint/lint.spec.ts` (3, hermetic temp project, docset/network-free): real offense → mapped diagnostic with 1-based range; clean file → []; absolute path accepted.
+- This is the ONLY I/O boundary on the request path; the architecture guard (no language-server import on the lint path) passes over `src/lint`.
+
+### NOT yet done (full 7.6 scope)
+- A dedicated `lint/project-context.ts` `ProjectContext` built EXPLICITLY from `platformos-graph` + `AugmentedPlatformOSDocset` with a TTL cache and root via check-common `findRoot`. The current slice relies on `lintBuffer`'s internal app/docset construction (per call) and uses `ctx.projectDir` directly as root.
+- `lint/model.ts` `StructuredDiagnostic` carrying structured `fix`/`suggest` + matched identifiers for the enrich stage. The current slice maps `Offense` straight to the agent `ValidateCodeDiagnostic` (no enrich layer yet), so fixes/identifiers are not carried.
+
+When enrich (7.7) lands, insert StructuredDiagnostic between lint and the result mapping.
+<!-- SECTION:NOTES:END -->

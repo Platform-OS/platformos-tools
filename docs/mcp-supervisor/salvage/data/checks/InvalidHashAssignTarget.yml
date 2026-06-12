@@ -1,6 +1,0 @@
-name: InvalidHashAssignTarget
-summary: hash_assign targeting an uninitialized variable
-hint:
-  default: >-
-    Initialize the variable first: `{% assign var = {} %}`, then set properties: `{% assign var["key"] = "value" %}`.
-    Both hash_assign and parse_json are deprecated — use assign with hash literals and bracket/dot notation.

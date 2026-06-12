@@ -1,9 +1,0 @@
-{% doc %}
-  @param query {string} Search term
-  @param page {Int} Page number
-{% enddoc %}
-
-{% liquid
-  graphql g = 'blog_posts/search', query: query, page: page
-  return g.records
-%}

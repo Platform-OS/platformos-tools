@@ -1,13 +1,16 @@
 /**
  * Smoke test: build the package, then drive the REAL stdio bin with the
  * official MCP SDK client. Verifies the transport, the `validate_code`
- * registration, and the JSON-text result envelope end to end.
+ * registration, the JSON-text result envelope, AND that real linting flows
+ * end to end (check-node → mapped diagnostics).
  *
  * The package is built in `beforeAll` (incremental `tsc -b`) so the suite is
- * self-contained under `yarn test` without a prior build step.
+ * self-contained under `yarn test` without a prior build step. A hermetic
+ * `.platformos-check.yml` (one check enabled) keeps the diagnostics
+ * deterministic and docset/network-free.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +43,16 @@ beforeAll(async () => {
   }
 
   projectDir = mkdtempSync(join(tmpdir(), 'mcp-supervisor-smoke-'));
+  mkdirSync(join(projectDir, '.git'));
+  // Hermetic config: enable only one check so the asserted diagnostics are deterministic.
+  writeFileSync(
+    join(projectDir, '.platformos-check.yml'),
+    ['extends: platformos-check:nothing', 'MissingContentForLayout:', '  enabled: true', ''].join(
+      '\n',
+    ),
+    'utf8',
+  );
+
   transport = new StdioClientTransport({
     command: process.execPath,
     args: [BIN, '--project', projectDir],
@@ -47,6 +60,13 @@ beforeAll(async () => {
   client = new Client({ name: 'smoke-client', version: '0.0.0' });
   await client.connect(transport);
 }, 180_000);
+
+async function validateCode(args: { file_path: string; content: string; mode?: string }) {
+  const res = await client.callTool({ name: 'validate_code', arguments: args });
+  const content = res.content as Array<{ type: string; text: string }>;
+  expect(content[0].type).toEqual('text');
+  return JSON.parse(content[0].text);
+}
 
 afterAll(async () => {
   await client?.close();
@@ -59,21 +79,31 @@ describe('Integration: validate_code over stdio', () => {
     expect(tools.map((t) => t.name)).toEqual(['validate_code']);
   });
 
-  it('returns a well-formed ValidateCodeResult from the stub handler', async () => {
-    const res = await client.callTool({
-      name: 'validate_code',
-      arguments: { file_path: 'app/views/pages/index.liquid', content: '<p>hi</p>' },
+  it('returns a clean, well-formed result for a valid layout', async () => {
+    const result = await validateCode({
+      file_path: 'app/views/layouts/application.liquid',
+      content: '<html><body>{{ content_for_layout }}</body></html>',
     });
 
-    const content = res.content as Array<{ type: string; text: string }>;
-    expect(content[0].type).toEqual('text');
-
-    const result = JSON.parse(content[0].text);
     expect(result.status).toEqual('ok');
-    expect(typeof result.must_fix_before_write).toBe('boolean');
-    expect(Array.isArray(result.errors)).toBe(true);
-    expect(Array.isArray(result.warnings)).toBe(true);
-    expect(Array.isArray(result.infos)).toBe(true);
+    expect(result.must_fix_before_write).toBe(false);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.infos).toEqual([]);
     expect(Array.isArray(result.proposed_fixes)).toBe(true);
+  });
+
+  it('surfaces a real lint diagnostic end to end', async () => {
+    const result = await validateCode({
+      file_path: 'app/views/layouts/application.liquid',
+      content: '<html><body><header>Site</header></body></html>',
+    });
+
+    expect(result.status).toEqual('error');
+    expect(result.must_fix_before_write).toBe(true);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].check).toEqual('MissingContentForLayout');
+    expect(typeof result.errors[0].line).toBe('number');
+    expect(typeof result.errors[0].column).toBe('number');
   });
 });

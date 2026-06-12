@@ -1,6 +1,0 @@
-name: LiquidHTMLSyntaxError
-summary: Liquid or HTML syntax error
-hint:
-  default: >-
-    Fix the exact line reported. Common causes: missing `= 'path'` in graphql/function tags, unclosed HTML/Liquid
-    blocks, mismatched quotes. Inside {% liquid %} blocks: each statement on its own line, no delimiters.

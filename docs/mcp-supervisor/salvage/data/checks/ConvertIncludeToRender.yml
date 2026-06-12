@@ -1,7 +1,0 @@
-name: ConvertIncludeToRender
-summary: '{% include %} shares parent scope — prefer {% render %} for isolation'
-hint:
-  default: >-
-    Prefer `{% render %}` over `{% include %}`. Render has isolated scope — pass all needed variables explicitly: `{%
-    render 'partial', var: value %}`. Exception: `{% include %}` is correct for module helpers that need scope sharing
-    (e.g., `{% include 'modules/user/helpers/can_do_or_unauthorized' %}`).

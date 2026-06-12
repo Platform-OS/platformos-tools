@@ -1,4 +1,0 @@
-name: ImgWidthAndHeight
-summary: Image tag missing width/height attributes
-hint:
-  default: Add `width` and `height` attributes to <img> tags to prevent layout shift (CLS).

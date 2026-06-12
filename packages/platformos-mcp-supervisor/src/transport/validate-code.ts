@@ -1,14 +1,16 @@
 /**
  * Registration of the `validate_code` MCP tool.
  *
- * The handler is a typed STUB for now (TASK-7.4): it returns a well-formed
- * `ValidateCodeResult` so the transport, schema, and serialization can be
- * exercised end to end over stdio. The real `lint → enrich → advise → result`
- * composition replaces the stub body in TASK-7.10.
+ * Current slice: the handler runs the real lint (`check()` via the check-node
+ * seam) and returns the detection results mapped into `ValidateCodeResult`.
+ * The ergonomic stages (enrich → advise → richer result assembly) are layered
+ * in by later tasks; the handler shape stays the same.
  */
 import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import { runLint } from '../lint/lint';
+import { assembleResult } from '../result/assemble';
 import type { Logger } from '../logger';
 import type { ValidateCodeParams, ValidateCodeResult } from '../result/types';
 
@@ -70,30 +72,19 @@ export function registerValidateCode(server: McpServer, ctx: SupervisorContext):
   );
 }
 
-/**
- * STUB. Returns an empty, well-formed result. Replaced by the real pipeline in
- * TASK-7.10.
- */
+/** Lint the buffer via the check-node seam and assemble the result. */
 async function runValidateCode(
   ctx: SupervisorContext,
   params: ValidateCodeParams,
 ): Promise<ValidateCodeResult> {
-  ctx.log(`validate_code: ${params.file_path} (${params.mode ?? 'full'})`);
-  return {
-    status: 'ok',
-    must_fix_before_write: false,
-    errors: [],
-    warnings: [],
-    infos: [],
-    proposed_fixes: [],
-    clusters: [],
-    scorecard: [],
-    next_step: 'Stub handler — real validation lands in TASK-7.10.',
-    parse_error: null,
-    tips: [],
-    domain_guide: null,
-    structural: null,
-  };
+  const mode = params.mode ?? 'full';
+  ctx.log(`validate_code: ${params.file_path} (${mode})`);
+  const diagnostics = await runLint({
+    projectDir: ctx.projectDir,
+    filePath: params.file_path,
+    content: params.content,
+  });
+  return assembleResult(diagnostics, mode);
 }
 
 /** Wrap a result in the MCP text-content envelope (every result is one JSON text block). */

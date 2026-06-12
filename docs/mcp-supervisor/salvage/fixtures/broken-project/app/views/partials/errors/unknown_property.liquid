@@ -1,9 +1,0 @@
-{% doc %}
-  @param item {object} Item to display
-{% enddoc %}
-{% for entry in item.entries %}
-  {{ forloop.nonexistent_prop }}
-  {{ entry.fake_field }}
-{% endfor %}
-{{ item.nonexistent_property }}
-{{ context.current_user.nonexistent_property }}

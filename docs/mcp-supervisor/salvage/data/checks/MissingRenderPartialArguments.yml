@@ -1,7 +1,0 @@
-name: MissingRenderPartialArguments
-summary: Required @param not passed at {% render %} call site
-hint:
-  default: >-
-    Check the partial's {% doc %} block for @param declarations. Required: @param name {string}. Optional: @param [name]
-    {string} (brackets = may be omitted). Each required parameter must be passed as a named argument: {% render
-    'partial', param_name: value %}.

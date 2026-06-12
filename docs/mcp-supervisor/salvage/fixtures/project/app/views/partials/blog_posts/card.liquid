@@ -1,8 +1,0 @@
-{% doc %}
-  @param blog_post {object} Blog post record
-{% enddoc %}
-
-<div class="blog-post-card">
-  <h3>{{ blog_post.properties.title }}</h3>
-  <p>{{ blog_post.properties.body | truncate: 200 }}</p>
-</div>

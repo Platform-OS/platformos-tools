@@ -36,6 +36,13 @@ fixes are owned by `platformos-check-common` (the single source of truth for
 correctness). The supervisor owns only agent ergonomics — how an LLM consumes
 the result.
 
+The principle: the supervisor is a pure consumer/orchestrator + agent-ergonomics layer only. Any capability owned by another package is consumed, never re-implemented.
+
+- All graph/project-structure functionality lives in platformos-graph — if it lacks what we need (function/graphql/include/layout edges, a project-map-style query layer,
+dependents/orphan/reachability, resource completeness), we extend platformos-graph to provide it; the supervisor calls that API. The old supervisor's project-map capability gets
+resurrected inside the owning package(s) (primarily platformos-graph), not inside the supervisor. And where an existing owner already has a fact (check-common: frontmatter schema,
+@param/doc signatures, docset), we consume from there — no duplication, even within the graph.
+
 ---
 
 ## 2. Layering

@@ -6,17 +6,21 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:01'
-updated_date: '2026-06-12 13:17'
+updated_date: '2026-06-23 10:33'
 labels: []
 dependencies:
   - TASK-7.2
   - TASK-7.3
   - TASK-7.4
+  - TASK-9.2
+  - TASK-9.3
 references:
   - packages/platformos-graph
   - packages/platformos-check-common/src/AugmentedPlatformOSDocset.ts
   - packages/platformos-check-common/src/find-root.ts
   - packages/platformos-check-node
+  - >-
+    docs/mcp-supervisor/decisions/003-graph-backed-structural-enrichment/README.md
 parent_task_id: TASK-7
 priority: high
 ---
@@ -75,4 +79,12 @@ Implemented the MINIMAL lint adapter so `validate_code` lints for real (user-dir
 - `lint/model.ts` `StructuredDiagnostic` carrying structured `fix`/`suggest` + matched identifiers for the enrich stage. The current slice maps `Offense` straight to the agent `ValidateCodeDiagnostic` (no enrich layer yet), so fixes/identifiers are not carried.
 
 When enrich (7.7) lands, insert StructuredDiagnostic between lint and the result mapping.
+
+## Reframe (2026-06-23, ADR 003)
+
+`ProjectContext` is a THIN CACHED ADAPTER over `platformos-graph` — NOT a place for graph logic. It calls `buildAppGraph` + the project-structure query API (TASK-9), caches per project (TTL, ~v1's 30s), and hands PLAIN DATA to the pure enrich/result stages.
+
+The old `project-fact-graph.ts` / `project-scanner.ts` / `dependency-graph.ts` / `render-flow.ts` are NOT rebuilt here — by principle, all graph/project-structure functionality lives in `platformos-graph` (TASK-9). The supervisor consumes it and adds zero graph/scanner/query code.
+
+Status: the MINIMAL lint adapter (`runLint` via check-node `lintBuffer`, Offense→diagnostic mapping) is already implemented (see prior note). The FULL graph-backed `ProjectContext` (dependents/orphan/reachability/docset feeding enrichment) depends on TASK-9.2 (query API) + TASK-9.3 (per-file self-structural).
 <!-- SECTION:NOTES:END -->

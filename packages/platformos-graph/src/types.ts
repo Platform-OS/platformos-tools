@@ -4,6 +4,7 @@ import {
   Dependencies as CheckDependencies,
   UriString,
   Reference,
+  ReferenceKind,
   Location,
   Range,
   GraphQLSourceCode,
@@ -32,7 +33,7 @@ export interface AppGraph {
   modules: Record<UriString, AppModule>;
 }
 
-export type AppModule = LiquidModule | AssetModule;
+export type AppModule = LiquidModule | AssetModule | GraphQLModule;
 
 export type FileSourceCode =
   | LiquidSourceCode
@@ -60,6 +61,15 @@ export interface LiquidModule extends IAppModule<ModuleType.Liquid> {
 
 export interface AssetModule extends IAppModule<ModuleType.Asset> {
   kind: 'unused';
+}
+
+/**
+ * A `.graphql` operation file (referenced by `{% graphql op = 'name' %}`).
+ * A leaf node — GraphQL documents have no outgoing platformOS dependencies —
+ * so it is not traversed, only existence-checked (like {@link AssetModule}).
+ */
+export interface GraphQLModule extends IAppModule<ModuleType.GraphQL> {
+  kind: 'graphql';
 }
 
 export interface IAppModule<T extends ModuleType> {
@@ -94,6 +104,7 @@ export interface IAppModule<T extends ModuleType> {
 export const enum ModuleType {
   Liquid = 'Liquid',
   Asset = 'Asset',
+  GraphQL = 'GraphQL',
 }
 
 export const enum LiquidModuleKind {
@@ -124,7 +135,7 @@ export interface AssetSourceCode {
   ast: any | Error;
 }
 
-export { Reference, Range, Location };
+export { Reference, ReferenceKind, Range, Location };
 
 export type Void = void | Void[];
 

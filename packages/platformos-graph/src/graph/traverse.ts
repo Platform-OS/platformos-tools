@@ -1,5 +1,7 @@
-import { NodeTypes } from '@platformos/liquid-html-parser';
+import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { SourceCodeType, visit, Visitor } from '@platformos/platformos-check-common';
+import { DocumentsLocator } from '@platformos/platformos-common';
+import { URI } from 'vscode-uri';
 import {
   AugmentedDependencies,
   AppGraph,
@@ -8,10 +10,17 @@ import {
   ModuleType,
   Range,
   Reference,
+  ReferenceKind,
   Void,
 } from '../types';
-import { assertNever, exists, isString } from '../utils';
-import { getAssetModule, getLayoutModule, getPartialModule } from './module';
+import { assertNever, exists, isString, unique } from '../utils';
+import {
+  getAssetModule,
+  getGraphQLModuleByUri,
+  getLayoutModule,
+  getPartialModule,
+  getPartialModuleByUri,
+} from './module';
 
 export async function traverseModule(
   module: AppModule,
@@ -44,6 +53,10 @@ export async function traverseModule(
       return; // Nothing to traverse in assets
     }
 
+    case ModuleType.GraphQL: {
+      return; // Leaf node — GraphQL documents have no platformOS dependencies
+    }
+
     default: {
       return assertNever(module);
     }
@@ -59,9 +72,14 @@ async function traverseLiquidModule(
 
   if (sourceCode.ast instanceof Error) return; // can't visit what you can't parse
 
+  // Canonical target resolution (lib paths, module prefixes, extensions) is
+  // owned by check-common's DocumentsLocator — never re-derived here.
+  const documentsLocator = new DocumentsLocator(deps.fs);
+  const rootUri = URI.parse(appGraph.rootUri);
+
   const visitor: Visitor<
     SourceCodeType.LiquidHtml,
-    { target: AppModule; sourceRange: Range; targetRange?: Range }
+    { target: AppModule; sourceRange: Range; targetRange?: Range; kind: ReferenceKind }
   > = {
     // {{ 'app.js' | asset_url }}
     // {{ 'image.png' | asset_img_url }}
@@ -78,6 +96,7 @@ async function traverseLiquidModule(
         return {
           target: assetModule,
           sourceRange: [parentNode.position.start, parentNode.position.end],
+          kind: 'asset',
         };
       }
     },
@@ -100,19 +119,50 @@ async function traverseLiquidModule(
         target: assetModule,
         sourceRange: [node.blockStartPosition.start, nodeNameNode.position.end],
         targetRange: range,
+        kind: 'web_component',
       };
     },
 
-    // {% render 'partial' %}
+    // {% render 'partial' %} / {% include 'partial' %}
     RenderMarkup: async (node, ancestors) => {
       const partial = node.partial;
       const tag = ancestors.at(-1)!;
-      if (!isString(partial) && partial.type === NodeTypes.String) {
-        return {
-          target: getPartialModule(appGraph, partial.value),
-          sourceRange: [tag.position.start, tag.position.end],
-        };
-      }
+      if (!isStringLiteral(partial)) return; // dynamic target — skip
+      return {
+        target: getPartialModule(appGraph, partial.value),
+        sourceRange: [tag.position.start, tag.position.end],
+        kind:
+          tag.type === NodeTypes.LiquidTag && tag.name === NamedTags.include ? 'include' : 'render',
+      };
+    },
+
+    // {% function result = 'queries/...' %} / {% function res = 'commands/...' %}
+    FunctionMarkup: async (node, ancestors) => {
+      const target = node.partial;
+      const tag = ancestors.at(-1)!;
+      if (!isStringLiteral(target)) return; // dynamic target — skip
+      const uri = await documentsLocator.locateOrDefault(rootUri, 'function', target.value);
+      if (!uri) return;
+      return {
+        target: getPartialModuleByUri(appGraph, uri),
+        sourceRange: [tag.position.start, tag.position.end],
+        kind: 'function',
+      };
+    },
+
+    // {% graphql result = 'path/to/operation' %}
+    // `node.name` is the RESULT variable; the operation-file path is `node.graphql`.
+    GraphQLMarkup: async (node, ancestors) => {
+      const op = node.graphql;
+      const tag = ancestors.at(-1)!;
+      if (!isStringLiteral(op)) return; // dynamic/inline — no static file
+      const uri = await documentsLocator.locateOrDefault(rootUri, 'graphql', op.value);
+      if (!uri) return;
+      return {
+        target: getGraphQLModuleByUri(appGraph, uri),
+        sourceRange: [tag.position.start, tag.position.end],
+        kind: 'graphql',
+      };
     },
   };
 
@@ -122,6 +172,7 @@ async function traverseLiquidModule(
     bind(module, reference.target, {
       sourceRange: reference.sourceRange,
       targetRange: reference.targetRange,
+      kind: reference.kind,
     });
   }
 
@@ -131,8 +182,16 @@ async function traverseLiquidModule(
   return Promise.all(promises);
 }
 
-function unique<T>(arr: T[]): T[] {
-  return [...new Set(arr)];
+/**
+ * A render/function/graphql target that is a static string literal (e.g.
+ * `{% render 'partial' %}`), narrowed to its `NodeTypes.String` member so the
+ * `.value` is accessible. Dynamic targets (`{% render var %}`) return false and
+ * are skipped — the graph only records statically resolvable edges.
+ */
+function isStringLiteral<T extends { type: NodeTypes }>(
+  node: T,
+): node is Extract<T, { type: NodeTypes.String }> {
+  return !isString(node) && node.type === NodeTypes.String;
 }
 
 /**
@@ -149,16 +208,19 @@ export function bind(
     sourceRange,
     targetRange,
     type = 'direct', // the type of dependency, can be 'direct' or 'indirect'
+    kind, // the semantic Liquid construct that created the edge
   }: {
     sourceRange?: Range; // a range in the source module that references the child
     targetRange?: Range; // a range in the child module that is being referenced
     type?: Reference['type']; // the type of dependency
+    kind?: ReferenceKind; // render | include | function | graphql | asset | web_component | layout
   } = {},
 ): void {
   const dependency: Reference = {
     source: { uri: source.uri, range: sourceRange },
     target: { uri: target.uri, range: targetRange },
     type: type,
+    kind: kind,
   };
 
   source.dependencies.push(dependency);

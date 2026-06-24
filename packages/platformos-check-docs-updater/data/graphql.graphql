@@ -507,6 +507,10 @@ type AssetCollection {
 }
 
 input AssetInput {
+  """
+  Cache-Control header value for the asset (e.g., "max-age=315576000, public")
+  """
+  cache_control: String
   file_size: Int
 
   """
@@ -526,7 +530,13 @@ input AssetInput {
   manual/public/assets/logo.png
   """
   physical_file_path: String!
-  url: String!
+
+  """
+  Optional explicit URL. When provided, it is stored on the asset (raw_url) and
+  used verbatim in the response url field (with /instances/<n>/assets/ host+id
+  normalisation). Omit to leave raw_url alone; new assets default to a name+CDN derived URL.
+  """
+  url: String
 }
 
 input AssetPresignInput {
@@ -541,6 +551,11 @@ input AssetUpdateAllInput {
 }
 
 input AssetUpdateInput {
+  """
+  Cache-Control header value for the asset (e.g., "max-age=315576000, public")
+  """
+  cache_control: String
+
   """
   defines whether this object will be manually managed, meaning it will not be affected via pos-cli deploy / sync
   """
@@ -6124,6 +6139,15 @@ enum PageHandler {
 
 input PageInputType {
   """
+  names of authorization policies which should be checked (the same identifier
+  used in Liquid frontmatter, e.g. "page_policy" or
+  "modules/my_module/page_policy"). Can be used instead of (or combined with)
+  authorization_policy_ids. All names must resolve to existing
+  AuthorizationPolicy records.
+  """
+  authorization_policies: [String]
+
+  """
   ids of authorization policies which should be checked
   """
   authorization_policy_ids: [ID]
@@ -11524,6 +11548,15 @@ input UpdateModelSchemaInputType {
 }
 
 input UpdatePageInputType {
+  """
+  names of authorization policies which should be checked (the same identifier
+  used in Liquid frontmatter, e.g. "page_policy" or
+  "modules/my_module/page_policy"). Can be used instead of (or combined with)
+  authorization_policy_ids. All names must resolve to existing
+  AuthorizationPolicy records.
+  """
+  authorization_policies: [String]
+
   """
   ids of authorization policies which should be checked
   """

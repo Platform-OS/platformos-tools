@@ -103,6 +103,21 @@ describe('Module: index', () => {
           ]),
         );
       });
+
+      it('tags existing edges with a kind discriminant (render, asset)', () => {
+        const layout = graph.modules[p('app/views/layouts/application.liquid')];
+        assert(layout);
+
+        const renderEdge = layout.dependencies.find(
+          (x) => x.target.uri === p('app/views/partials/header.liquid'),
+        );
+        assert(renderEdge);
+        expect(renderEdge.kind).toBe('render');
+
+        const assetEdge = layout.dependencies.find((x) => x.target.uri === p('assets/app.js'));
+        assert(assetEdge);
+        expect(assetEdge.kind).toBe('asset');
+      });
     });
   });
 });

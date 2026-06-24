@@ -101,7 +101,12 @@ export function getPartialModuleByUri(appGraph: AppGraph, uri: string): LiquidMo
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Partial,
-    uri,
+    // Normalize to forward slashes so module keys match the rest of the graph
+    // (getPartialModule/getAssetModule build URIs via path.join, which
+    // normalizes). DocumentsLocator returns `Utils.joinPath(...).toString()`
+    // unnormalized, which on Windows keeps backslashes and breaks key/edge
+    // matching against the normalized URIs everywhere else.
+    uri: path.normalize(uri),
     dependencies: [],
     references: [],
   });
@@ -116,7 +121,8 @@ export function getGraphQLModuleByUri(appGraph: AppGraph, uri: string): GraphQLM
   return module(appGraph, {
     type: ModuleType.GraphQL,
     kind: 'graphql',
-    uri,
+    // Normalize to forward slashes — see getPartialModuleByUri.
+    uri: path.normalize(uri),
     dependencies: [],
     references: [],
   });

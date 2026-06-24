@@ -2,7 +2,39 @@ import { path as pathUtils } from '@platformos/platformos-check-common';
 import { assert, beforeAll, describe, expect, it } from 'vitest';
 import { buildAppGraph } from '../index';
 import { AppGraph, Dependencies, LiquidModuleKind, ModuleType } from '../types';
+import { getGraphQLModuleByUri, getPartialModuleByUri } from './module';
 import { fixturesRoot, getDependencies } from './test-helpers';
+
+/**
+ * Regression guard for the Windows backslash mismatch (TASK-9.1): DocumentsLocator
+ * returns `Utils.joinPath(...).toString()` unnormalized, so on Windows function/
+ * graphql target URIs kept backslashes and failed to match the forward-slash keys
+ * the rest of the graph uses (built via path.join). The by-uri factories must
+ * normalize so module keys are platform-consistent.
+ */
+describe('Module: by-uri module factories normalize the URI', () => {
+  const emptyGraph = (): AppGraph => ({
+    rootUri: 'file:///app',
+    entryPoints: [],
+    modules: {},
+  });
+  const backslashUri = 'file:///d:/a/repo\\app\\lib\\queries\\list.liquid';
+
+  it('getPartialModuleByUri stores a forward-slash URI', () => {
+    const mod = getPartialModuleByUri(emptyGraph(), backslashUri);
+    expect(mod.uri).not.toContain('\\');
+    expect(mod.uri).toBe('file:///d:/a/repo/app/lib/queries/list.liquid');
+  });
+
+  it('getGraphQLModuleByUri stores a forward-slash URI', () => {
+    const mod = getGraphQLModuleByUri(
+      emptyGraph(),
+      'file:///d:/a/repo\\app\\graphql\\find.graphql',
+    );
+    expect(mod.uri).not.toContain('\\');
+    expect(mod.uri).toBe('file:///d:/a/repo/app/graphql/find.graphql');
+  });
+});
 
 /**
  * Edge-kind coverage for the non-render dependency edges added in TASK-9.1.

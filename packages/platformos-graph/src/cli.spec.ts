@@ -1,8 +1,6 @@
-import fsp from 'node:fs/promises';
-import os from 'node:os';
 import nodePath from 'node:path';
 import { path } from '@platformos/platformos-check-common';
-import { FileType } from '@platformos/platformos-common';
+import { AbstractFileSystem, FileType } from '@platformos/platformos-common';
 import { describe, expect, it } from 'vitest';
 import { URI } from 'vscode-uri';
 import { buildSerializedFileDependencies, buildSerializedGraph, nodeFileSystem } from './cli';
@@ -241,19 +239,27 @@ describe('platformos-graph CLI: buildSerializedFileDependencies', () => {
 });
 
 describe('platformos-graph CLI: project-root validation', () => {
+  /**
+   * A filesystem where nothing exists. Injected so `findRoot` walks up from the
+   * given path entirely in memory — no real disk, no dependency on what sits
+   * above the OS temp dir — and deterministically finds no project marker.
+   */
+  const emptyFs: AbstractFileSystem = {
+    stat: () => Promise.reject(new Error('ENOENT')),
+    readFile: () => Promise.reject(new Error('ENOENT')),
+    readDirectory: () => Promise.resolve([]),
+  };
+
   it('throws instead of emitting an empty graph for a non-platformOS directory', async () => {
-    const dir = await fsp.mkdtemp(nodePath.join(os.tmpdir(), 'pos-graph-cli-'));
-    try {
-      const startUri = path.normalize(URI.file(dir));
-      const error = await buildSerializedGraph(dir).catch((e) => e);
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toBe(
-        `Not a platformOS project: ${startUri}\n` +
-          `No app/, modules/, .pos, or .platformos-check.yml found at or above this path. ` +
-          `Pass the path to a platformOS app directory.`,
-      );
-    } finally {
-      await fsp.rm(dir, { recursive: true, force: true });
-    }
+    const dir = nodePath.resolve('no-such-project', 'sub');
+    const startUri = path.normalize(URI.file(dir));
+
+    const error = await buildSerializedGraph(dir, emptyFs).catch((e) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe(
+      `Not a platformOS project: ${startUri}\n` +
+        `No app/, modules/, .pos, or .platformos-check.yml found at or above this path. ` +
+        `Pass the path to a platformOS app directory.`,
+    );
   });
 });

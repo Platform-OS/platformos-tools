@@ -1,6 +1,6 @@
 import nodePath from 'node:path';
 import fs from 'node:fs/promises';
-import { findRoot, path } from '@platformos/platformos-check-common';
+import { findRoot, makeFileExists, path } from '@platformos/platformos-check-common';
 import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { buildAppGraph } from './graph/build';
@@ -56,16 +56,6 @@ export interface SerializableFileDependencies {
   references: Reference[];
 }
 
-/** True when `uri` exists on disk (file or directory). */
-async function fileExists(uri: string): Promise<boolean> {
-  try {
-    await nodeFileSystem.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Resolves the given root path (absolute, or relative to `process.cwd()`) to the
  * forward-slash-normalized `file://` URI of the enclosing platformOS project,
@@ -80,11 +70,11 @@ async function fileExists(uri: string): Promise<boolean> {
  * `path.normalize` (forward slashes), so any lookup must key the same way or it
  * silently misses on Windows, where raw URIs keep backslashes.
  */
-async function resolveProjectRoot(root: string): Promise<string> {
+async function resolveProjectRoot(root: string, fs: AbstractFileSystem): Promise<string> {
   const absolute = nodePath.isAbsolute(root) ? root : nodePath.resolve(process.cwd(), root);
   const startUri = path.normalize(URI.file(absolute));
 
-  const rootUri = await findRoot(startUri, fileExists);
+  const rootUri = await findRoot(startUri, makeFileExists(fs));
   if (!rootUri) {
     throw new Error(
       `Not a platformOS project: ${startUri}\n` +
@@ -112,9 +102,14 @@ function resolveFileUri(rootUri: string, file: string): string {
  * Builds the platformOS app graph for the project rooted at `root` (a native
  * filesystem path, absolute or relative to `process.cwd()`) and returns it in
  * serializable JSON form.
+ *
+ * `fs` is injectable for testing; it defaults to the node-backed filesystem.
  */
-export async function buildSerializedGraph(root: string): Promise<SerializableGraph> {
-  const graph = await buildAppGraph(await resolveProjectRoot(root), { fs: nodeFileSystem });
+export async function buildSerializedGraph(
+  root: string,
+  fs: AbstractFileSystem = nodeFileSystem,
+): Promise<SerializableGraph> {
+  const graph = await buildAppGraph(await resolveProjectRoot(root, fs), { fs });
   return serializeAppGraph(graph);
 }
 
@@ -127,14 +122,17 @@ export async function buildSerializedGraph(root: string): Promise<SerializableGr
  * approach the language server's `AppGraphManager` takes. A file that is not
  * reachable from any entry point therefore has no node in the graph; rather
  * than reporting a misleading empty edge set, this throws.
+ *
+ * `fs` is injectable for testing; it defaults to the node-backed filesystem.
  */
 export async function buildSerializedFileDependencies(
   root: string,
   file: string,
+  fs: AbstractFileSystem = nodeFileSystem,
 ): Promise<SerializableFileDependencies> {
-  const rootUri = await resolveProjectRoot(root);
+  const rootUri = await resolveProjectRoot(root, fs);
   const fileUri = resolveFileUri(rootUri, file);
-  const graph = await buildAppGraph(rootUri, { fs: nodeFileSystem });
+  const graph = await buildAppGraph(rootUri, { fs });
 
   const module = graph.modules[fileUri];
   if (!module) {

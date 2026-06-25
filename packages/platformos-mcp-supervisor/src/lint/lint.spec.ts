@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { runLint } from './lint';
+import type { ValidateCodeDiagnostic } from '../result/types';
 
 /**
  * Adapter integration: drives the real check-node `lintBuffer` against a temp
@@ -12,6 +13,20 @@ import { runLint } from './lint';
  */
 describe('Integration: runLint (lint adapter)', () => {
   let projectDir: string;
+
+  // The exact diagnostic the enabled MissingContentForLayout check produces for
+  // a layout that omits `{{ content_for_layout }}`. The check reports at
+  // startIndex/endIndex 0, which maps to 1-based line/column 1.
+  const MISSING_CONTENT_FOR_LAYOUT: ValidateCodeDiagnostic = {
+    check: 'MissingContentForLayout',
+    severity: 'error',
+    message:
+      "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
+    line: 1,
+    column: 1,
+    end_line: 1,
+    end_column: 1,
+  };
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), 'mcp-sup-lint-'));
@@ -29,21 +44,14 @@ describe('Integration: runLint (lint adapter)', () => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it('maps a real offense to a diagnostic (check, severity, 1-based range)', async () => {
+  it('maps a real offense to the exact diagnostic (check, severity, message, 1-based range)', async () => {
     const diagnostics = await runLint({
       projectDir,
       filePath: 'app/views/layouts/application.liquid',
       content: '<html><body><header>Site</header></body></html>',
     });
 
-    expect(diagnostics).toHaveLength(1);
-    const [d] = diagnostics;
-    expect(d.check).toEqual('MissingContentForLayout');
-    expect(d.severity).toEqual('error');
-    expect(typeof d.line).toBe('number');
-    expect(typeof d.column).toBe('number');
-    expect(d.line).toBeGreaterThanOrEqual(1);
-    expect(d.column).toBeGreaterThanOrEqual(1);
+    expect(diagnostics).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
   });
 
   it('returns no diagnostics for a clean layout', async () => {
@@ -66,6 +74,6 @@ describe('Integration: runLint (lint adapter)', () => {
       content: '<html><body></body></html>',
     });
 
-    expect(diagnostics.some((d) => d.check === 'MissingContentForLayout')).toBe(true);
+    expect(diagnostics).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
   });
 });

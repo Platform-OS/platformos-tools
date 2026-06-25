@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assembleResult } from './assemble';
-import type { ValidateCodeDiagnostic } from './types';
+import type { ValidateCodeDiagnostic, ValidateCodeResult } from './types';
 
 const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => ({
   check: 'SomeCheck',
@@ -11,52 +11,80 @@ const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => 
   ...over,
 });
 
+// The always-empty envelope fields in this lint-only slice. Spread into each
+// expected result so every assertion checks the WHOLE object, catching any
+// field that unexpectedly starts being populated.
+const EMPTY_ENVELOPE = {
+  errors: [],
+  warnings: [],
+  infos: [],
+  proposed_fixes: [],
+  clusters: [],
+  scorecard: [],
+  parse_error: null,
+  tips: [],
+  domain_guide: null,
+  structural: null,
+} satisfies Partial<ValidateCodeResult>;
+
 describe('Unit: assembleResult', () => {
-  it('buckets diagnostics by severity', () => {
-    const result = assembleResult(
-      [
-        diag({ severity: 'error', check: 'E' }),
-        diag({ severity: 'warning', check: 'W' }),
-        diag({ severity: 'info', check: 'I' }),
-      ],
-      'full',
-    );
-    expect(result.errors.map((d) => d.check)).toEqual(['E']);
-    expect(result.warnings.map((d) => d.check)).toEqual(['W']);
-    expect(result.infos.map((d) => d.check)).toEqual(['I']);
+  it('buckets diagnostics by severity into the full result', () => {
+    const error = diag({ severity: 'error', check: 'E' });
+    const warning = diag({ severity: 'warning', check: 'W' });
+    const info = diag({ severity: 'info', check: 'I' });
+
+    expect(assembleResult([error, warning, info], 'full')).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'error',
+      must_fix_before_write: true,
+      errors: [error],
+      warnings: [warning],
+      infos: [info],
+    });
   });
 
   it('derives status = error and must_fix_before_write when any error is present', () => {
-    const result = assembleResult(
-      [diag({ severity: 'error' }), diag({ severity: 'warning' })],
-      'full',
-    );
-    expect(result.status).toEqual('error');
-    expect(result.must_fix_before_write).toBe(true);
+    const error = diag({ severity: 'error' });
+    const warning = diag({ severity: 'warning' });
+
+    expect(assembleResult([error, warning], 'full')).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'error',
+      must_fix_before_write: true,
+      errors: [error],
+      warnings: [warning],
+    });
   });
 
-  it('derives status = warning (no must_fix) when only warnings are present', () => {
-    const result = assembleResult(
-      [diag({ severity: 'warning' }), diag({ severity: 'info' })],
-      'full',
-    );
-    expect(result.status).toEqual('warning');
-    expect(result.must_fix_before_write).toBe(false);
+  it('derives status = warning (no must_fix) when only warnings/infos are present', () => {
+    const warning = diag({ severity: 'warning' });
+    const info = diag({ severity: 'info' });
+
+    expect(assembleResult([warning, info], 'full')).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'warning',
+      must_fix_before_write: false,
+      warnings: [warning],
+      infos: [info],
+    });
   });
 
-  it('derives status = ok for no diagnostics or infos only', () => {
-    expect(assembleResult([], 'full').status).toEqual('ok');
-    expect(assembleResult([diag({ severity: 'info' })], 'full').status).toEqual('ok');
+  it('derives status = ok with an empty envelope for no diagnostics', () => {
+    expect(assembleResult([], 'full')).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+    });
   });
 
-  it('leaves the ergonomic/TASK-8 fields empty in this slice', () => {
-    const result = assembleResult([diag({ severity: 'error' })], 'quick');
-    expect(result.proposed_fixes).toEqual([]);
-    expect(result.clusters).toEqual([]);
-    expect(result.scorecard).toEqual([]);
-    expect(result.tips).toEqual([]);
-    expect(result.domain_guide).toBeNull();
-    expect(result.structural).toBeNull();
-    expect(result.parse_error).toBeNull();
+  it('derives status = ok for infos only', () => {
+    const info = diag({ severity: 'info' });
+
+    expect(assembleResult([info], 'quick')).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      infos: [info],
+    });
   });
 });

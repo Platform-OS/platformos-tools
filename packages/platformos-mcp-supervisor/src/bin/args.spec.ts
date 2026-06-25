@@ -11,8 +11,8 @@ describe('Unit: parseArgs', () => {
   });
 
   it('parses --help and -h', () => {
-    expect(parseArgs(['--help']).help).toBe(true);
-    expect(parseArgs(['-h']).help).toBe(true);
+    expect(parseArgs(['--help'])).toEqual({ projectDir: undefined, help: true });
+    expect(parseArgs(['-h'])).toEqual({ projectDir: undefined, help: true });
   });
 
   it('tolerates unknown flags', () => {

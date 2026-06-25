@@ -83,31 +83,56 @@ describe('Integration: validate_code over stdio', () => {
     expect(tools.map((t) => t.name)).toEqual(['validate_code']);
   });
 
-  it('returns a clean, well-formed result for a valid layout', async () => {
+  // The always-empty envelope fields in this lint-only slice; spread into each
+  // expected result so every assertion checks the WHOLE object.
+  const EMPTY_ENVELOPE = {
+    errors: [],
+    warnings: [],
+    infos: [],
+    proposed_fixes: [],
+    clusters: [],
+    scorecard: [],
+    parse_error: null,
+    tips: [],
+    domain_guide: null,
+    structural: null,
+  };
+
+  it('returns the exact clean result for a valid layout', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body>{{ content_for_layout }}</body></html>',
     });
 
-    expect(result.status).toEqual('ok');
-    expect(result.must_fix_before_write).toBe(false);
-    expect(result.errors).toEqual([]);
-    expect(result.warnings).toEqual([]);
-    expect(result.infos).toEqual([]);
-    expect(Array.isArray(result.proposed_fixes)).toBe(true);
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+    });
   });
 
-  it('surfaces a real lint diagnostic end to end', async () => {
+  it('surfaces the exact lint diagnostic end to end', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body><header>Site</header></body></html>',
     });
 
-    expect(result.status).toEqual('error');
-    expect(result.must_fix_before_write).toBe(true);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0].check).toEqual('MissingContentForLayout');
-    expect(typeof result.errors[0].line).toBe('number');
-    expect(typeof result.errors[0].column).toBe('number');
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'error',
+      must_fix_before_write: true,
+      errors: [
+        {
+          check: 'MissingContentForLayout',
+          severity: 'error',
+          message:
+            "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
+          line: 1,
+          column: 1,
+          end_line: 1,
+          end_column: 1,
+        },
+      ],
+    });
   });
 });

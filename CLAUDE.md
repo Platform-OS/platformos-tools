@@ -128,10 +128,31 @@ const globPattern = normalize(path.join(root, '**/*.liquid'));
 
 ## Test Assertion Guidelines
 
-- Always use `.to.equal()` for message assertions, never `.to.include()` — assert the entire expected string
-- Do not use regex for matching in tests unless absolutely necessary
-- For array assertions (e.g., `applySuggestions` results), use `.to.deep.equal([...])` instead of `.to.include(element)`
-- When multiple `.include()` calls check the same value, collapse them into a single `.to.equal()`
+**Assert whole values, exactly.** 99% of the time we want something to *be*
+exactly something, not merely to *contain* or *resemble* it. Prefer one
+whole-value equality assertion over several partial ones.
+
+- Assert the **entire object/array** in a single equality, not a field at a
+  time and not membership/threshold checks:
+  - Vitest: `expect(result).toEqual({ ...allFields })` and
+    `expect(offenses).toEqual([ ...allElements ])`.
+  - Chai: `.to.deep.equal({...})` / `.to.deep.equal([...])`.
+- Do **not** assert with `length` + per-property reads. Replace
+  `expect(arr).toHaveLength(1); expect(arr[0].check).toBe('X')` with
+  `expect(arr).toEqual([{ check: 'X', /* every field */ }])`.
+- Do **not** use membership or threshold assertions when an exact value is
+  knowable: avoid `.toContain(x)`, `.some(...)`, `.toBeGreaterThanOrEqual(n)`,
+  `typeof x === 'number'`, `.to.include(...)`. Assert the exact element/array
+  and the exact number.
+- Always use `.to.equal()` / `toEqual()` for message assertions, never
+  `.to.include()` / `.toContain()` — assert the entire expected string.
+- When several assertions check parts of the same value, collapse them into one
+  whole-value equality.
+- Do not use regex for matching in tests unless absolutely necessary.
+- Narrow exception: when the contract under test is genuinely
+  presence-or-absence (e.g. a detector that returns a match object or `null`),
+  asserting the boolean/`null` outcome is fine — don't over-pin an internal
+  payload consumers don't depend on.
 
 ## Development Workflows
 

@@ -123,6 +123,17 @@ describe('RenderPartialDefinitionProvider', () => {
     });
   });
 
+  describe('background tag', () => {
+    it('should resolve background partials', async () => {
+      const result = await getDefinitions("{% background x = 'mytest/inner' %}", 22, {
+        'project/app/views/partials/mytest/inner.liquid': 'inner content',
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toBe('file:///project/app/views/partials/mytest/inner.liquid');
+    });
+  });
+
   describe('graphql tag', () => {
     it('should resolve graphql references', async () => {
       const result = await getDefinitions("{% graphql g = 'users/search' %}", 18, {
@@ -149,6 +160,15 @@ describe('RenderPartialDefinitionProvider', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].targetUri).toBe('file:///project/app/lib/commands/missing.liquid');
+    });
+
+    it('background: missing partial resolves to app/views/partials', async () => {
+      const result = await getDefinitions("{% background x = 'my/missing/partial' %}", 22, {});
+
+      expect(result).toHaveLength(1);
+      expect(result[0].targetUri).toBe(
+        'file:///project/app/views/partials/my/missing/partial.liquid',
+      );
     });
 
     it('graphql: missing file resolves to app/graphql', async () => {

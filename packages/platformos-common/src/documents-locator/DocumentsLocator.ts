@@ -7,6 +7,7 @@ export type DocumentType =
   | 'function'
   | 'render'
   | 'include'
+  | 'background'
   | 'graphql'
   | 'asset'
   | 'theme_render_rc';
@@ -266,6 +267,7 @@ export class DocumentsLocator {
     switch (nodeName) {
       case 'render':
       case 'include':
+      case 'background':
         basePath = parsed.isModule
           ? `modules/${parsed.moduleName}/public/views/partials`
           : 'app/views/partials';
@@ -314,6 +316,7 @@ export class DocumentsLocator {
     switch (nodeName) {
       case 'render':
       case 'include':
+      case 'background':
       case 'function':
         return this.locateFile(rootUri, fileName, 'partial');
 
@@ -338,6 +341,7 @@ export class DocumentsLocator {
       case 'function':
       case 'render':
       case 'include':
+      case 'background':
       case 'theme_render_rc':
         return this.listFiles(rootUri, filePrefix, 'partial');
 

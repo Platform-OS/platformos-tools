@@ -62,7 +62,7 @@ function documentLinksVisitor(
 
       const name = node.name as DocumentType;
 
-      // render, include, function, theme_render_rc all have a .partial field
+      // render, include, function, background, theme_render_rc all have a .partial field
       if ('partial' in markup && isLiquidString(markup.partial)) {
         const uri = await documentsLocator.locateOrDefault(
           root,

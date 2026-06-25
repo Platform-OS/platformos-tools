@@ -154,10 +154,7 @@ describe('Unit: findRoot', () => {
     });
 
     it('walks past app/views/partials/ even when a modules/ subdir exists there', async () => {
-      const root = await findRoot(
-        workspace.uri('app/views/partials/baz/qux.liquid'),
-        fileExists,
-      );
+      const root = await findRoot(workspace.uri('app/views/partials/baz/qux.liquid'), fileExists);
       expect(root).toBe(workspace.uri('.'));
     });
   });

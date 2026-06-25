@@ -1,7 +1,1 @@
-window.customElements.define('parent-element', class extends HTMLElement {
-
-});
-
-customElements.define('child-element', class extends HTMLElement {
-
-});
+// Skeleton app bundle (asset reference target).

@@ -2,11 +2,9 @@ import { path, SourceCodeType } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import {
   buildAppGraph,
-  getWebComponentMap,
   IDependencies as GraphDependencies,
   Location,
   toSourceCode,
-  WebComponentMap,
 } from '@platformos/platformos-graph';
 import { Range } from 'vscode-json-languageservice';
 import { Connection } from 'vscode-languageserver';
@@ -162,7 +160,7 @@ export class AppGraphManager {
     const { documentManager } = this;
     await documentManager.preload(rootUri);
 
-    const dependencies = await this.graphDependencies(rootUri);
+    const dependencies = this.graphDependencies();
     const graph = await buildAppGraph(rootUri, dependencies, entryPoints);
     return graph;
   };
@@ -175,20 +173,8 @@ export class AppGraphManager {
     return toSourceCode(uri, source);
   };
 
-  private getWebComponentMap(rootUri: string): Promise<WebComponentMap> {
+  private graphDependencies(): GraphDependencies {
     const { fs, getSourceCode } = this;
-    return getWebComponentMap(rootUri, { fs, getSourceCode });
-  }
-
-  private async graphDependencies(rootUri: string): Promise<GraphDependencies> {
-    const { fs, getSourceCode } = this;
-    const webComponentDefs = await this.getWebComponentMap(rootUri);
-    return {
-      fs: fs,
-      getSourceCode: getSourceCode,
-      getWebComponentDefinitionReference(customElementName: string) {
-        return webComponentDefs.get(customElementName);
-      },
-    };
+    return { fs, getSourceCode };
   }
 }

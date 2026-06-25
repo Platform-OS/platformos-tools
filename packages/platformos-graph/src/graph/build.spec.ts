@@ -11,7 +11,7 @@ describe('Module: index', () => {
   let dependencies: Dependencies;
 
   beforeAll(async () => {
-    dependencies = await getDependencies(rootUri);
+    dependencies = getDependencies();
   }, 15000);
 
   describe('Unit: buildAppGraph', { timeout: 10000 }, () => {
@@ -64,12 +64,10 @@ describe('Module: index', () => {
         assert(parentPartial.type === ModuleType.Liquid);
         assert(parentPartial.kind === LiquidModuleKind.Partial);
 
-        // outgoing links
+        // outgoing links — parent renders exactly one partial (child)
         const deps = parentPartial.dependencies;
         assert(deps.map((x) => x.source.uri).every((x) => x === parentPartial.uri));
-        expect(deps.map((x) => x.target.uri)).toEqual(
-          expect.arrayContaining([p('app/views/partials/child.liquid'), p('assets/app.js')]),
-        );
+        expect(deps.map((x) => x.target.uri)).toEqual([p('app/views/partials/child.liquid')]);
 
         // {% render 'child' %} dependency
         const parentSource = await dependencies.getSourceCode(

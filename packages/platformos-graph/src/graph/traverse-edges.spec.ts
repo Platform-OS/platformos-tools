@@ -91,7 +91,7 @@ describe('Graph traversal: {% function %} edges', () => {
   let brokenSource: string;
 
   beforeAll(async () => {
-    const dependencies: Dependencies = await getDependencies(rootUri);
+    const dependencies: Dependencies = getDependencies();
     graph = await buildAppGraph(rootUri, dependencies);
     indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
     brokenSource = (await dependencies.getSourceCode(p('app/views/pages/broken.liquid'))).source;
@@ -140,7 +140,7 @@ describe('Graph traversal: {% graphql %} edges', () => {
   });
 
   beforeAll(async () => {
-    const dependencies: Dependencies = await getDependencies(rootUri);
+    const dependencies: Dependencies = getDependencies();
     graph = await buildAppGraph(rootUri, dependencies);
     indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
     brokenSource = (await dependencies.getSourceCode(p('app/views/pages/broken.liquid'))).source;
@@ -179,7 +179,7 @@ describe('Graph traversal: {% include %} edges', () => {
   let indexSource: string;
 
   beforeAll(async () => {
-    const dependencies: Dependencies = await getDependencies(rootUri);
+    const dependencies: Dependencies = getDependencies();
     graph = await buildAppGraph(rootUri, dependencies);
     indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
   }, 15000);
@@ -206,7 +206,7 @@ describe('Graph traversal: {% background %} edges', () => {
   let brokenSource: string;
 
   beforeAll(async () => {
-    const dependencies: Dependencies = await getDependencies(rootUri);
+    const dependencies: Dependencies = getDependencies();
     graph = await buildAppGraph(rootUri, dependencies);
     indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
     brokenSource = (await dependencies.getSourceCode(p('app/views/pages/broken.liquid'))).source;
@@ -245,7 +245,7 @@ describe('Graph traversal: module-namespaced targets (modules/<name>/public/...)
   let indexSource: string;
 
   beforeAll(async () => {
-    const dependencies: Dependencies = await getDependencies(rootUri);
+    const dependencies: Dependencies = getDependencies();
     graph = await buildAppGraph(rootUri, dependencies);
     indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
   }, 15000);

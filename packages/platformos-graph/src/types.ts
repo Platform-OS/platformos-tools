@@ -16,11 +16,6 @@ export interface IDependencies {
 
   /** Optional perf improvement if you somehow have access to pre-computed source code info */
   getSourceCode?: (uri: UriString) => Promise<FileSourceCode>;
-
-  /** A way to link <custom-element> to its window.customElements.define statement */
-  getWebComponentDefinitionReference: (
-    customElementName: string,
-  ) => { assetName: string; range: Range } | undefined;
 }
 
 export type Dependencies = Required<IDependencies>;
@@ -48,10 +43,9 @@ export interface SerializableGraph {
   edges: SerializableEdge[];
 }
 
-export interface SerializableEdge {
-  source: Location;
-  target: Location;
-}
+// Serialized edges are the modules' dependency `Reference`s verbatim, so they
+// carry `type` and `kind` in addition to `source`/`target`.
+export type SerializableEdge = Reference;
 
 export type SerializableNode = Pick<AppModule, 'uri' | 'type' | 'kind' | 'exists'>;
 
@@ -138,10 +132,3 @@ export interface AssetSourceCode {
 export { Reference, ReferenceKind, Range, Location };
 
 export type Void = void | Void[];
-
-export type WebComponentMap = Map<WebComponentName, WebComponentDefinition>;
-export type WebComponentName = string;
-export type WebComponentDefinition = {
-  assetName: string; // Relative path to the asset file
-  range: [number, number]; // Start and end positions in the file
-};

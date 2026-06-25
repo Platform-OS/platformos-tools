@@ -77,6 +77,13 @@ describe('DocumentsLocator', () => {
       );
     });
 
+    it('background → app/views/partials', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'background', 'mytest/inner')).toBe(
+        'file:///project/app/views/partials/mytest/inner.liquid',
+      );
+    });
+
     it('graphql → app/graphql', () => {
       const locator = new DocumentsLocator(createMockFileSystem({}));
       expect(locator.locateDefault(rootUri, 'graphql', 'users/search')).toBe(

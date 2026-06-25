@@ -16,6 +16,7 @@ const TAG_MARKUP_TYPE: Record<string, NodeTypes> = {
   include: NodeTypes.RenderMarkup,
   theme_render_rc: NodeTypes.RenderMarkup,
   function: NodeTypes.FunctionMarkup,
+  background: NodeTypes.BackgroundMarkup,
   graphql: NodeTypes.GraphQLMarkup,
 };
 

@@ -22,7 +22,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(HERE, '..', '..');
 const REPO_ROOT = resolve(PACKAGE_ROOT, '..', '..');
-const TSC = resolve(REPO_ROOT, 'node_modules', '.bin', 'tsc');
+// Run tsc through Node (not the `node_modules/.bin/tsc` shim): on Windows the
+// shim is a `.cmd`, which `execFileSync` cannot launch by its extensionless
+// path, so it would throw before producing any output. Invoking the JS entry
+// with `process.execPath` works on every platform.
+const TSC = resolve(REPO_ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 const BIN = resolve(PACKAGE_ROOT, 'dist', 'bin', 'platformos-mcp-supervisor.js');
 
 let client: Client;
@@ -31,7 +35,7 @@ let projectDir: string;
 
 beforeAll(async () => {
   try {
-    execFileSync(TSC, ['-b', resolve(PACKAGE_ROOT, 'tsconfig.build.json')], {
+    execFileSync(process.execPath, [TSC, '-b', resolve(PACKAGE_ROOT, 'tsconfig.build.json')], {
       cwd: PACKAGE_ROOT,
       stdio: 'pipe',
     });

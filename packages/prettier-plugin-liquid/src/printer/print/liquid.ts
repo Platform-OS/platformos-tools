@@ -52,6 +52,35 @@ const { builders, utils } = doc;
 const { group, hardline, ifBreak, indent, join, line, softline, literalline } = builders;
 const { replaceEndOfLine } = doc.utils as any;
 
+// Tags whose comma-separated named-argument list we allow to wrap across lines inside a
+// {% liquid %} block. Their argument list routes through the grammar's
+// argumentSeparatorOptionalComma separator, which supports a newline after a comma.
+//
+// This is a curated subset, NOT every tag that reaches that separator: for/tablerow/export
+// also route through it in the grammar but are intentionally kept flat here, since wrapping
+// their short trailing args (reversed/limit:/offset:, a single namespace arg) is not useful.
+// Other statements (echo, assign, cycle, when, conditions, capture, …) stay on a single line
+// because the {% liquid %} grammar cannot continue them across lines.
+//
+// Caveat: this list is maintained by hand and can drift from the grammar — if a tag gains a
+// wrappable argument list there, add it here too (and vice-versa).
+const LIQUID_STATEMENT_BREAKABLE_TAGS: Set<string> = new Set([
+  NamedTags.render,
+  NamedTags.include,
+  NamedTags.theme_render_rc,
+  NamedTags.function,
+  NamedTags.graphql,
+  NamedTags.background,
+  NamedTags.cache,
+  NamedTags.context,
+  NamedTags.sign_in,
+  NamedTags.transaction,
+  NamedTags.log,
+  NamedTags.redirect_to,
+  NamedTags.include_form,
+  NamedTags.spam_protection,
+]);
+
 export function printLiquidVariableOutput(
   path: LiquidAstPath,
   _options: LiquidParserOptions,
@@ -114,8 +143,18 @@ function printNamedLiquidBlockStart(
   // same conditional.
   const { wrapper, prefix, suffix } = (() => {
     if (isLiquidStatement) {
+      // Inside {% liquid %} a statement has no {% %} delimiters. Most statements stay on a
+      // single line (`removeLines`), because the {% liquid %} grammar is line-oriented and
+      // does NOT support continuing a filter chain, condition, cycle/when list, etc. across
+      // lines — breaking those would emit output the parser can't round-trip.
+      //
+      // The ONE thing it does support is a comma-separated named-argument list spanning lines
+      // (see argumentSeparatorOptionalComma in the grammar). So for exactly those arg-list
+      // tags we use `group`, letting a long argument list wrap just like the standalone form.
+      // `group` keeps short statements flat, so only overflowing arg lists wrap. Filters and
+      // render `with/as` clauses inside these tags are forced flat below (they can't continue).
       return {
-        wrapper: utils.removeLines,
+        wrapper: LIQUID_STATEMENT_BREAKABLE_TAGS.has(node.name) ? group : utils.removeLines,
         prefix: '',
         suffix: () => '',
       };

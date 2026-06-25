@@ -403,7 +403,9 @@ function printNode(
       const partial = path.call((p: any) => print(p), 'partial');
       const doc: Doc = [partial];
       if (node.variable) {
-        const whitespace = node.alias?.value ? line : ' ';
+        // The render `with/for ... as ...` clause cannot be continued across lines inside a
+        // {% liquid %} block, so keep it flat there.
+        const whitespace = node.alias?.value && !args.isLiquidStatement ? line : ' ';
         doc.push(
           whitespace,
           path.call((p: any) => print(p), 'variable'),
@@ -439,7 +441,7 @@ function printNode(
           ),
         );
       }
-      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print);
+      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print, args.isLiquidStatement);
       return doc;
     }
 
@@ -456,7 +458,7 @@ function printNode(
           ),
         );
       }
-      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print);
+      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print, args.isLiquidStatement);
       return doc;
     }
 
@@ -472,7 +474,7 @@ function printNode(
           ),
         );
       }
-      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print);
+      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print, args.isLiquidStatement);
       return doc;
     }
 
@@ -833,14 +835,22 @@ export const printerLiquidHtml3: Printer3<LiquidHtmlNode> & {
   },
 };
 
-function appendFilters(doc: Doc[], path: LiquidAstPath, print: (path: LiquidAstPath) => Doc) {
-  doc.push(
+function appendFilters(
+  doc: Doc[],
+  path: LiquidAstPath,
+  print: (path: LiquidAstPath) => Doc,
+  isLiquidStatement = false,
+) {
+  const filters: Doc = [
     line,
     join(
       line,
       path.map((p) => print(p as LiquidAstPath), 'filters'),
     ),
-  );
+  ];
+  // A filter chain cannot be continued across lines inside a {% liquid %} block, so keep it
+  // flat there even when the surrounding argument list wraps.
+  doc.push(isLiquidStatement ? utils.removeLines(filters) : filters);
 }
 
 function hasOrIsNode<N extends LiquidHtmlNode, K extends keyof N>(node: N, key: K) {

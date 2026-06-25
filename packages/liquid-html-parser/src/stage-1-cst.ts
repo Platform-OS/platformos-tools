@@ -1353,8 +1353,6 @@ function toCST<T>(
     liquidTagRollback: 0,
 
     renderArguments: 1,
-    functionRenderArguments: 1,
-    functionTagArguments: 0,
     completionModeRenderArguments: function (
       _0,
       namedArguments,

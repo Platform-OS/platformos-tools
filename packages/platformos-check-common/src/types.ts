@@ -320,12 +320,14 @@ export type Translations = {
  *
  * Optional/additive: older producers may omit it. Lets consumers distinguish a
  * `{% render %}` edge from an `{% include %}` / `{% function %}` / `{% graphql %}`
- * / asset / `<custom-element>` / layout-association edge without re-parsing.
+ * / `{% background %}` / asset / `<custom-element>` / layout-association edge
+ * without re-parsing.
  */
 export type ReferenceKind =
   | 'render'
   | 'include'
   | 'function'
+  | 'background'
   | 'graphql'
   | 'asset'
   | 'web_component'

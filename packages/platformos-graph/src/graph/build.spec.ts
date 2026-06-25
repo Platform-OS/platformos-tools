@@ -104,19 +104,20 @@ describe('Module: index', () => {
         );
       });
 
-      it('tags existing edges with a kind discriminant (render, asset)', () => {
+      it('tags every layout edge with its kind (asset, asset, render)', () => {
         const layout = graph.modules[p('app/views/layouts/application.liquid')];
         assert(layout);
 
-        const renderEdge = layout.dependencies.find(
-          (x) => x.target.uri === p('app/views/partials/header.liquid'),
-        );
-        assert(renderEdge);
-        expect(renderEdge.kind).toBe('render');
-
-        const assetEdge = layout.dependencies.find((x) => x.target.uri === p('assets/app.js'));
-        assert(assetEdge);
-        expect(assetEdge.kind).toBe('asset');
+        // The complete, ordered edge set — not a membership probe — so an extra,
+        // missing, or mis-kinded edge fails. (Source ranges are pinned by the
+        // dedicated render-dependency test above.)
+        expect(
+          layout.dependencies.map((d) => ({ target: d.target.uri, type: d.type, kind: d.kind })),
+        ).toEqual([
+          { target: p('assets/app.js'), type: 'direct', kind: 'asset' },
+          { target: p('assets/app.css'), type: 'direct', kind: 'asset' },
+          { target: p('app/views/partials/header.liquid'), type: 'direct', kind: 'render' },
+        ]);
       });
     });
   });

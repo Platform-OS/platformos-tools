@@ -14,13 +14,7 @@ import {
   Void,
 } from '../types';
 import { assertNever, exists, isString, unique } from '../utils';
-import {
-  getAssetModule,
-  getGraphQLModuleByUri,
-  getLayoutModule,
-  getPartialModule,
-  getPartialModuleByUri,
-} from './module';
+import { getAssetModule, getGraphQLModuleByUri, getPartialModuleByUri } from './module';
 
 export async function traverseModule(
   module: AppModule,
@@ -124,15 +118,25 @@ async function traverseLiquidModule(
     },
 
     // {% render 'partial' %} / {% include 'partial' %}
+    // Both resolve through DocumentsLocator (like function/graphql), so module
+    // prefixes (`modules/<m>/...`), the lib search path, and `.liquid` /
+    // `.html.liquid` extensions are handled uniformly — not hard-coded to
+    // `app/views/partials`.
     RenderMarkup: async (node, ancestors) => {
       const partial = node.partial;
       const tag = ancestors.at(-1)!;
       if (!isStringLiteral(partial)) return; // dynamic target — skip
+      const isInclude = tag.type === NodeTypes.LiquidTag && tag.name === NamedTags.include;
+      const uri = await documentsLocator.locateOrDefault(
+        rootUri,
+        isInclude ? 'include' : 'render',
+        partial.value,
+      );
+      if (!uri) return;
       return {
-        target: getPartialModule(appGraph, partial.value),
+        target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
-        kind:
-          tag.type === NodeTypes.LiquidTag && tag.name === NamedTags.include ? 'include' : 'render',
+        kind: isInclude ? 'include' : 'render',
       };
     },
 
@@ -147,6 +151,24 @@ async function traverseLiquidModule(
         target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'function',
+      };
+    },
+
+    // {% background job_id = 'partial', ... %} (file-based form)
+    // Runs a partial asynchronously; `node.partial` is the partial reference,
+    // resolved against the same search paths as {% function %}. The inline form
+    // ({% background %}...{% endbackground %}) parses to BackgroundInlineMarkup,
+    // has no file target, and is intentionally not matched here.
+    BackgroundMarkup: async (node, ancestors) => {
+      const target = node.partial;
+      const tag = ancestors.at(-1)!;
+      if (!isStringLiteral(target)) return; // dynamic target — skip
+      const uri = await documentsLocator.locateOrDefault(rootUri, 'function', target.value);
+      if (!uri) return;
+      return {
+        target: getPartialModuleByUri(appGraph, uri),
+        sourceRange: [tag.position.start, tag.position.end],
+        kind: 'background',
       };
     },
 

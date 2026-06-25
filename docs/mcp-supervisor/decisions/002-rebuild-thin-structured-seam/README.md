@@ -158,7 +158,7 @@ Three dispositions:
 
 | # | Detector | Disposition | Rationale (evidence) |
 |---|---|---|---|
-| 1 | GraphqlMultilineInLiquidBlock | **PROMOTE** | Silent runtime data loss — the grammar truncates a multi-line inline `graphql` at the first newline after a trailing comma, dropping later `name:` args with no error. AST/source-detectable, file-role-independent, ~0 FP. Implemented: `checks/graphql-multiline-in-liquid-block`. |
+| 1 | GraphqlMultilineInLiquidBlock | **REVERTED** | Originally promoted (silent runtime data loss — the grammar truncates a multi-line inline `graphql` at the first newline after a trailing comma, dropping later `name:` args). The check + spec were removed (TASK-10); the detection will be re-implemented a different way. |
 | 2 | MissingContentForLayout | **PROMOTE** | A layout that never references `content_for_layout` never renders the page body = broken. File-role detectable via `getFileType → Layout`. Additive. Implemented: `checks/missing-content-for-layout`. |
 | 3 | DeprecatedTag | **DROP** | Owned by `deprecated-tag` (`code: DeprecatedTag`), driven by docset `tags()` deprecation metadata. |
 | 4 | InvalidLayout | **DROP** | Owned by `valid-frontmatter` `checkLayoutExists` — reports `Layout '…' does not exist` for Page/Email. |
@@ -175,8 +175,10 @@ Three dispositions:
 | 15 | ShopifyObject | **ERGONOMIC** | `UndefinedObject` (WARNING) already fires on bare Shopify objects (`product`, …). A separate check double-reports → recreates the dedup collision. Restored as data-driven **elevation/enrichment** of `UndefinedObject` in TASK-8. |
 | 16 | ShopifyTag | **ERGONOMIC** | `UnknownTag` (in `liquid-html-syntax-error`) already fires on Shopify-only tags. Same collision → restored as data-driven elevation of `UnknownTag` in TASK-8. |
 
-Net for TASK-7.2: **2 promotions** (GraphqlMultilineInLiquidBlock,
-MissingContentForLayout), **4 drops** (already engine-owned), **10 ergonomic**
+Net for TASK-7.2: originally **2 promotions** (GraphqlMultilineInLiquidBlock,
+MissingContentForLayout); GraphqlMultilineInLiquidBlock was later **reverted**
+(TASK-10, to be re-implemented differently), leaving **1 promotion in place**
+(MissingContentForLayout), **4 drops** (already engine-owned), **10 ergonomic**
 (deferred to TASK-8). The Shopify rows (15, 16) deliberately deviate from the
 original task's assumption that contamination would become check-common checks:
 both already collide with engine checks, so keeping them as supervisor

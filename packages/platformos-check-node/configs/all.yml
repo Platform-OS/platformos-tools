@@ -21,9 +21,6 @@ GraphQLCheck:
 GraphQLVariablesCheck:
   enabled: true
   severity: 0
-GraphqlMultilineInLiquidBlock:
-  enabled: true
-  severity: 0
 ImgWidthAndHeight:
   enabled: true
   severity: 0

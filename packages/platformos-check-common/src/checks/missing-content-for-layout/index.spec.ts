@@ -61,6 +61,18 @@ describe('Module: MissingContentForLayout', () => {
     ]);
   });
 
+  it('suggests inserting before </body> even when <body> has attributes', async () => {
+    const sourceCode =
+      '<html><body class="theme" data-env="prod"><header>Site</header></body></html>';
+
+    const offenses = await runLiquidCheck(MissingContentForLayout, sourceCode, LAYOUT);
+    const suggestions = applySuggestions({ [LAYOUT]: sourceCode }, offenses[0]);
+
+    expect(suggestions).toEqual([
+      '<html><body class="theme" data-env="prod"><header>Site</header>{{ content_for_layout }}\n</body></html>',
+    ]);
+  });
+
   it('suggests appending content_for_layout when there is no </body> tag', async () => {
     const sourceCode = '<header>Site</header>';
 

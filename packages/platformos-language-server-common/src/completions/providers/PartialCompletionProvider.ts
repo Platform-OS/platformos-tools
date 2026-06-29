@@ -22,9 +22,12 @@ export class PartialCompletionProvider implements Provider {
       !node ||
       !parentNode ||
       node.type !== NodeTypes.String ||
-      ![NodeTypes.RenderMarkup, NodeTypes.GraphQLMarkup, NodeTypes.FunctionMarkup].includes(
-        parentNode.type,
-      )
+      ![
+        NodeTypes.RenderMarkup,
+        NodeTypes.GraphQLMarkup,
+        NodeTypes.FunctionMarkup,
+        NodeTypes.BackgroundMarkup,
+      ].includes(parentNode.type)
     ) {
       return [];
     }

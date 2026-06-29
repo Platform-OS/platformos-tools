@@ -8,6 +8,9 @@ assignee:
   - filip
 created_date: '2026-06-23 10:32'
 updated_date: '2026-06-24 11:12'
+status: To Do
+assignee: []
+created_date: '2026-06-23 10:32'
 labels: []
 dependencies: []
 references:
@@ -135,3 +138,8 @@ Extended platformos-graph to model function, graphql, and include dependency edg
 
 **Layout** (the 4th edge) split to TASK-9.4 as a small cross-package PR (needs a new `'layout'` DocumentType in platformos-common + frontmatter visitor + missing-content-for-layout Layout-type delegation). Note: commands reachable only from other commands (not from any page/layout entry point) still don't appear — deferred to TASK-9.2 (dead-code/entry-point enumeration).
 <!-- SECTION:FINAL_SUMMARY:END -->
+- [ ] #1 traverseModule emits function, graphql, include, and layout-association edges; targets are first-class modules in the graph
+- [ ] #2 Reference carries an optional, additive `kind` discriminant; existing consumers compile and pass unchanged
+- [ ] #3 Target resolution reuses check-common (DocumentsLocator/file-type), not bespoke path logic
+- [ ] #4 Graph unit tests pin the new edge kinds; LSP references/dependencies/dead_code re-verified green
+<!-- AC:END -->

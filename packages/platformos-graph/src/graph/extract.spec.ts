@@ -47,8 +47,7 @@ describe('extractFileReferences: resolves a single buffer against the project', 
     const sourceUri = p('app/views/pages/draft.liquid'); // not on disk — in-flight buffer
     const content = `{% liquid
   function items = 'queries/list'
-%}
-`;
+%}`;
 
     expect(await extract(rootUri, sourceUri, content)).toEqual([
       directRef(
@@ -64,8 +63,7 @@ describe('extractFileReferences: resolves a single buffer against the project', 
     const sourceUri = p('app/views/pages/draft.liquid');
     const content = `{% liquid
   function ghost = 'queries/missing'
-%}
-`;
+%}`;
 
     expect(await extract(rootUri, sourceUri, content)).toEqual([
       directRef(
@@ -83,8 +81,7 @@ describe('extractFileReferences: kinds and resolution match the full graph build
     const rootUri = pathUtils.join(fixturesRoot, 'include-edges');
     const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
     const sourceUri = p('app/views/pages/draft.liquid');
-    const content = `{% include 'shared/header' %}
-`;
+    const content = "{% include 'shared/header' %}";
 
     expect(await extract(rootUri, sourceUri, content)).toEqual([
       directRef(
@@ -102,8 +99,7 @@ describe('extractFileReferences: kinds and resolution match the full graph build
     const sourceUri = p('app/views/pages/draft.liquid');
     const content = `{% liquid
   graphql posts = 'blog_posts/find'
-%}
-`;
+%}`;
 
     expect(await extract(rootUri, sourceUri, content)).toEqual([
       directRef(
@@ -122,8 +118,7 @@ describe('extractFileReferences: kinds and resolution match the full graph build
     const content = `{% liquid
   function items = 'modules/my_module/queries/get'
 %}
-{% render 'modules/my_module/card' %}
-`;
+{% render 'modules/my_module/card' %}`;
 
     expect(await extract(rootUri, sourceUri, content)).toEqual([
       directRef(
@@ -147,9 +142,7 @@ describe('extractFileReferences: only statically resolvable edges', () => {
   const sourceUri = pathUtils.join(rootUri, 'app/views/pages/draft.liquid');
 
   it('skips dynamic render targets', async () => {
-    const content = `{% render partial_name %}
-`;
-    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+    expect(await extract(rootUri, sourceUri, '{% render partial_name %}')).toEqual([]);
   });
 
   it('returns nothing for an unparseable buffer instead of throwing', async () => {
@@ -157,8 +150,6 @@ describe('extractFileReferences: only statically resolvable edges', () => {
   });
 
   it('returns nothing for a buffer with no references', async () => {
-    const content = `<h1>{{ page.title }}</h1>
-`;
-    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+    expect(await extract(rootUri, sourceUri, '<h1>{{ page.title }}</h1>')).toEqual([]);
   });
 });

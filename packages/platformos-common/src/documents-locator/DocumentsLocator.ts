@@ -10,6 +10,7 @@ export type DocumentType =
   | 'background'
   | 'graphql'
   | 'asset'
+  | 'layout'
   | 'theme_render_rc';
 
 /**
@@ -49,36 +50,50 @@ export class DocumentsLocator {
     }
   }
 
-  private getSearchPaths(type: 'partial' | 'graphql' | 'asset', moduleName?: string): string[] {
+  private getSearchPaths(
+    type: 'partial' | 'graphql' | 'asset' | 'layout',
+    moduleName?: string,
+  ): string[] {
     const fileType: PlatformOSFileType = {
       partial: PlatformOSFileType.Partial,
       graphql: PlatformOSFileType.GraphQL,
       asset: PlatformOSFileType.Asset,
+      layout: PlatformOSFileType.Layout,
     }[type];
 
     return moduleName ? getModulePaths(fileType, moduleName) : getAppPaths(fileType);
   }
 
+  /**
+   * Candidate filename extensions to probe for a physical file type, in priority
+   * order. Layouts exist as either `.html.liquid` (legacy) or `.liquid`, so both
+   * are tried (`.html.liquid` first). Assets carry their own extension in the
+   * name, so the candidate is the name itself (empty suffix).
+   */
+  private static readonly EXTENSIONS: Record<'partial' | 'graphql' | 'asset' | 'layout', string[]> =
+    {
+      partial: ['.liquid'],
+      graphql: ['.graphql'],
+      layout: ['.html.liquid', '.liquid'],
+      asset: [''],
+    };
+
   private async locateFile(
     rootUri: URI,
     fileName: string,
-    type: 'partial' | 'graphql' | 'asset',
+    type: 'partial' | 'graphql' | 'asset' | 'layout',
   ): Promise<string | undefined> {
     const parsed = parseModulePrefix(fileName);
     const searchPaths = this.getSearchPaths(type, parsed.isModule ? parsed.moduleName : undefined);
-
-    let targetFile = parsed.key;
-    if (type === 'partial') {
-      targetFile += '.liquid';
-    } else if (type === 'graphql') {
-      targetFile += '.graphql';
-    }
+    const candidates = DocumentsLocator.EXTENSIONS[type].map((ext) => parsed.key + ext);
 
     for (const basePath of searchPaths) {
-      const uri = Utils.joinPath(rootUri, basePath, targetFile).toString();
+      for (const candidate of candidates) {
+        const uri = Utils.joinPath(rootUri, basePath, candidate).toString();
 
-      if (await this.isFile(uri)) {
-        return uri;
+        if (await this.isFile(uri)) {
+          return uri;
+        }
       }
     }
 
@@ -281,6 +296,14 @@ export class DocumentsLocator {
         basePath = parsed.isModule ? `modules/${parsed.moduleName}/public/graphql` : 'app/graphql';
         ext = '.graphql';
         break;
+      case 'layout':
+        // Canonical creation path uses the modern `.liquid` extension (not the
+        // legacy `.html.liquid`), consistent with how the other types default.
+        basePath = parsed.isModule
+          ? `modules/${parsed.moduleName}/public/views/layouts`
+          : 'app/views/layouts';
+        ext = '.liquid';
+        break;
       case 'theme_render_rc': // ambiguous — multiple search paths, no single canonical location
       case 'asset': // no canonical creation path
         return undefined;
@@ -330,6 +353,9 @@ export class DocumentsLocator {
 
       case 'asset':
         return this.locateFile(rootUri, fileName, 'asset');
+
+      case 'layout':
+        return this.locateFile(rootUri, fileName, 'layout');
 
       default:
         return undefined;

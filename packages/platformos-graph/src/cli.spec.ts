@@ -96,6 +96,12 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
       },
       {
         source: p('app/views/pages/index.liquid'),
+        target: p('app/views/layouts/application.liquid'),
+        type: 'direct',
+        kind: 'layout',
+      },
+      {
+        source: p('app/views/pages/index.liquid'),
         target: p('app/views/partials/parent.liquid'),
         type: 'direct',
         kind: 'render',

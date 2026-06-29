@@ -142,6 +142,24 @@ export function getLayoutModule(
   });
 }
 
+/**
+ * Create (or fetch the cached) Layout module for an already-resolved layout URI
+ * — used for the frontmatter `layout:` association edge, whose target is
+ * resolved by `DocumentsLocator` (`'layout'` type: `app/views/layouts`, module
+ * prefixes, `.html.liquid`/`.liquid`). Unlike {@link getLayoutModule} (which
+ * takes a known on-disk entry-point URI), this normalizes the URI — see
+ * {@link getPartialModuleByUri} for why DocumentsLocator URIs must be normalized.
+ */
+export function getLayoutModuleByUri(appGraph: AppGraph, uri: string): LiquidModule {
+  return module(appGraph, {
+    type: ModuleType.Liquid,
+    kind: LiquidModuleKind.Layout,
+    uri: path.normalize(uri),
+    dependencies: [],
+    references: [],
+  });
+}
+
 export function getPageModule(appGraph: AppGraph, pageUri: string): LiquidModule {
   return module(appGraph, {
     type: ModuleType.Liquid,

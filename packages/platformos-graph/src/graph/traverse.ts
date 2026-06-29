@@ -1,6 +1,7 @@
+import yaml from 'js-yaml';
 import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { SourceCodeType, UriString, visit, Visitor } from '@platformos/platformos-check-common';
-import { DocumentsLocator } from '@platformos/platformos-common';
+import { containsLiquid, DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import {
   AugmentedDependencies,
@@ -15,7 +16,12 @@ import {
   Void,
 } from '../types';
 import { assertNever, exists, isString, unique } from '../utils';
-import { getAssetModule, getGraphQLModuleByUri, getPartialModuleByUri } from './module';
+import {
+  getAssetModule,
+  getGraphQLModuleByUri,
+  getLayoutModuleByUri,
+  getPartialModuleByUri,
+} from './module';
 
 /** A resolved outgoing reference: the target graph node + its call-site range + kind. */
 interface ResolvedReference {
@@ -202,6 +208,35 @@ async function resolveLiquidReferences(
         target: getGraphQLModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'graphql',
+      };
+    },
+
+    // Frontmatter `layout: name` → page/email → its wrapper layout.
+    // Resolved through DocumentsLocator (`'layout'`: app/views/layouts, module
+    // prefixes, `.html.liquid`/`.liquid`). Only an EXPLICIT, static, non-empty
+    // string layout produces an edge:
+    //  - `layout: ''`        → explicitly no layout (no edge)
+    //  - layout omitted      → no edge (we never synthesize the implicit default)
+    //  - dynamic `{{ ... }}` → no edge (not statically resolvable)
+    //  - non-string value    → no edge
+    // The source range is the whole frontmatter block (tag-level granularity,
+    // like the other edges).
+    YAMLFrontmatter: async (node) => {
+      let data: unknown;
+      try {
+        data = yaml.load(node.body);
+      } catch {
+        return; // malformed frontmatter — nothing to resolve
+      }
+      if (typeof data !== 'object' || data === null) return;
+      const layout = (data as Record<string, unknown>).layout;
+      if (typeof layout !== 'string' || layout === '' || containsLiquid(layout)) return;
+      const uri = await documentsLocator.locateOrDefault(rootUri, 'layout', layout);
+      if (!uri) return;
+      return {
+        target: getLayoutModuleByUri(appGraph, uri),
+        sourceRange: [node.position.start, node.position.end],
+        kind: 'layout',
       };
     },
   };

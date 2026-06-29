@@ -153,3 +153,71 @@ describe('extractFileReferences: only statically resolvable edges', () => {
     expect(await extract(rootUri, sourceUri, '<h1>{{ page.title }}</h1>')).toEqual([]);
   });
 });
+
+describe('extractFileReferences: layout-association edges (frontmatter `layout:`)', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'function-edges'); // no layouts here → default path
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  const sourceUri = p('app/views/pages/draft.liquid');
+
+  // The whole frontmatter block: start through the closing `---` line + newline.
+  const fmRange = (content: string): [number, number] => [
+    0,
+    content.indexOf('\n', content.indexOf('---', 3)) + 1,
+  ];
+
+  it('emits a layout edge for an explicit frontmatter layout', async () => {
+    const content = `---
+slug: draft
+layout: theme
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([
+      directRef(sourceUri, fmRange(content), p('app/views/layouts/theme.liquid'), 'layout'),
+    ]);
+  });
+
+  it('resolves a module-prefixed layout', async () => {
+    const content = `---
+layout: modules/core/admin
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([
+      directRef(
+        sourceUri,
+        fmRange(content),
+        p('modules/core/public/views/layouts/admin.liquid'),
+        'layout',
+      ),
+    ]);
+  });
+
+  it('emits no edge for an explicitly empty layout', async () => {
+    const content = `---
+slug: draft
+layout: ''
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+  });
+
+  it('emits no edge when layout is omitted (no implicit default)', async () => {
+    const content = `---
+slug: draft
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+  });
+
+  it('emits no edge for a dynamic layout value', async () => {
+    const content = `---
+layout: "{{ context.constants.LAYOUT }}"
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+  });
+});

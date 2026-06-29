@@ -276,3 +276,63 @@ describe('Graph traversal: module-namespaced targets (modules/<name>/public/...)
     );
   });
 });
+
+describe('Graph traversal: layout-association edges (frontmatter `layout:`)', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'layout-edges');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+  let indexSource: string;
+  let brokenSource: string;
+
+  const layoutNode = (uri: string, exists: boolean, references: Reference[]): LiquidModule => ({
+    type: ModuleType.Liquid,
+    kind: LiquidModuleKind.Layout,
+    uri,
+    exists,
+    dependencies: [],
+    references,
+  });
+
+  /**
+   * The source range the layout edge carries — the whole `YAMLFrontmatter`
+   * block, from the opening fence through the closing `---` line (incl. its
+   * trailing newline). Derived from the fixture text so it survives edits.
+   */
+  const frontmatterRange = (source: string): [number, number] => [
+    0,
+    source.indexOf('\n', source.indexOf('---', 3)) + 1,
+  ];
+
+  beforeAll(async () => {
+    const dependencies: Dependencies = getDependencies();
+    graph = await buildAppGraph(rootUri, dependencies);
+    indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
+    brokenSource = (await dependencies.getSourceCode(p('app/views/pages/broken.liquid'))).source;
+  }, 15000);
+
+  it('links a page to its resolved layout via a single layout edge', () => {
+    const edge = directRef(
+      p('app/views/pages/index.liquid'),
+      frontmatterRange(indexSource),
+      p('app/views/layouts/theme.liquid'),
+      'layout',
+    );
+    expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
+    expect(graph.modules[p('app/views/layouts/theme.liquid')]).toEqual(
+      layoutNode(p('app/views/layouts/theme.liquid'), true, [edge]),
+    );
+  });
+
+  it('records a missing layout target as an exists:false Layout node', () => {
+    const edge = directRef(
+      p('app/views/pages/broken.liquid'),
+      frontmatterRange(brokenSource),
+      p('app/views/layouts/ghost.liquid'),
+      'layout',
+    );
+    expect(graph.modules[p('app/views/pages/broken.liquid')].dependencies).toEqual([edge]);
+    expect(graph.modules[p('app/views/layouts/ghost.liquid')]).toEqual(
+      layoutNode(p('app/views/layouts/ghost.liquid'), false, [edge]),
+    );
+  });
+});

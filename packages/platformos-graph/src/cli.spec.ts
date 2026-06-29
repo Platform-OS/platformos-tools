@@ -119,9 +119,9 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
 describe('platformos-graph CLI: nodeFileSystem', () => {
   it('reads a file by URI', async () => {
     const uri = path.join(skeleton, 'assets', 'app.js');
-    expect(await nodeFileSystem.readFile(uri)).toBe(
-      '// Skeleton app bundle (asset reference target).\n',
-    );
+    expect(await nodeFileSystem.readFile(uri))
+      .toBe(`// Skeleton app bundle (asset reference target).
+`);
   });
 
   it('stats a directory and a file', async () => {

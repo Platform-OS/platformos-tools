@@ -98,13 +98,13 @@ describe('extractFileReferences: kinds and resolution match the full graph build
     const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
     const sourceUri = p('app/views/pages/draft.liquid');
     const content = `{% liquid
-  graphql posts = 'blog_posts/find'
+  graphql posts = 'blog_posts/find', id: '1'
 %}`;
 
     expect(await extract(rootUri, sourceUri, content)).toEqual([
       directRef(
         sourceUri,
-        rangeOf(content, "graphql posts = 'blog_posts/find'"),
+        rangeOf(content, "graphql posts = 'blog_posts/find', id: '1'"),
         p('app/graphql/blog_posts/find.graphql'),
         'graphql',
       ),

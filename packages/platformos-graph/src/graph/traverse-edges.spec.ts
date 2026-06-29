@@ -149,7 +149,7 @@ describe('Graph traversal: {% graphql %} edges', () => {
   it('links a page to the resolved .graphql operation via a single graphql edge', () => {
     const edge = directRef(
       p('app/views/pages/index.liquid'),
-      rangeOf(indexSource, "graphql posts = 'blog_posts/find'"),
+      rangeOf(indexSource, "graphql posts = 'blog_posts/find', id: '1'"),
       p('app/graphql/blog_posts/find.graphql'),
       'graphql',
     );

@@ -16,7 +16,5 @@ export function augmentDependencies(rootUri: string, ideps: IDependencies): Augm
         },
       identity,
     ),
-
-    getWebComponentDefinitionReference: ideps.getWebComponentDefinitionReference,
   };
 }

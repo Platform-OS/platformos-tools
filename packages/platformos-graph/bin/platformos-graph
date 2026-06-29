@@ -1,107 +1,47 @@
 #!/usr/bin/env node
 
-const { buildThemeGraph, serializeThemeGraph, toSourceCode } = require('@platformos/theme-graph');
-const {
-  NodeFileSystem,
-  memoize,
-  toSchema,
-  path: pathUtils,
-  recursiveReadDirectory,
-} = require('@platformos/theme-check-node');
-const path = require('path');
-const { URI } = require('vscode-uri');
+const { buildSerializedGraph, buildSerializedFileDependencies } = require('../dist/cli');
 
 const usage = `
 Usage:
-  theme-graph <path-to-theme-directory>
+  platformos-graph <path-to-app-directory> [file]
 
-Example:
-  theme-graph horizon > graph.json
+Without [file], prints the whole app graph (nodes + edges).
+With [file], prints that single file's dependencies and references.
+A relative [file] is resolved against the project directory.
+
+Examples:
+  platformos-graph ./app > graph.json
+  platformos-graph ./app app/views/partials/header.liquid
 `;
 
-const identity = (/** @type {any} */ x) => x;
-
-/**
- * Outputs the JSON representing the theme graph for a Shopify theme directory.
- *
- * @param {string} root
- */
-async function main(root) {
+async function main(root, file) {
   if (!root) {
     console.error(usage);
     process.exit(1);
   }
 
-  if (!path.isAbsolute(root)) {
-    root = path.resolve(process.cwd(), root);
-  }
+  const result = file
+    ? await bench('Build graph', () => buildSerializedFileDependencies(root, file))
+    : await bench('Build graph', () => buildSerializedGraph(root));
 
-  const getSourceCode = makeGetSourceCode();
-
-  // Preload files to get a sense of what is slow
-  const fs = NodeFileSystem;
-  const rootUri = URI.file(root).toString(true);
-  const filesToPreload = await recursiveReadDirectory(fs, rootUri, ([uri]) =>
-    ['.json', '.liquid'].some((ext) => uri.endsWith(ext)),
-  );
-  await bench('Preloading files', async () => {
-    await Promise.all(
-      filesToPreload.map(async (uri) => {
-        await getSourceCode(uri);
-      }),
-    );
-  });
-
-  /** @type {import('@platformos/theme-graph').WebComponentMap} */
-  const webComponentDefs = new Map();
-
-  /** @type {import('@platformos/theme-graph').Dependencies} */
-  const dependencies = {
-    fs,
-    // @ts-ignore
-    getSectionSchema: memoize(async (name) => {
-      const uri = pathUtils.join(rootUri, 'sections', `${name}.liquid`);
-      const sourceCode = await getSourceCode(uri);
-      return toSchema('theme', uri, /** @type {any} */ (sourceCode), async () => true);
-    }, identity),
-    // @ts-ignore
-    getBlockSchema: memoize(async (name) => {
-      const uri = pathUtils.join(rootUri, 'blocks', `${name}.liquid`);
-      const sourceCode = await getSourceCode(uri);
-      return toSchema('theme', uri, /** @type {any} */ (sourceCode), async () => true);
-    }, identity),
-    getSourceCode,
-    getWebComponentDefinitionReference: (customElementName) =>
-      webComponentDefs.get(customElementName),
-  };
-
-  // Build graph
-  const graph = await bench('Build graph', () => buildThemeGraph(rootUri, dependencies));
-
-  // Serialize into JSON
-  const serializedGraph = serializeThemeGraph(graph);
-
-  // Print result to STDOUT
-  console.log(JSON.stringify(serializedGraph));
-}
-
-function makeGetSourceCode() {
-  return memoize(async function getSourceCode(uri) {
-    const source = await NodeFileSystem.readFile(uri);
-    return await toSourceCode(URI.file(uri).toString(), source);
-  }, identity);
+  // Print result to STDOUT (diagnostics go to STDERR), so it can be piped.
+  console.log(JSON.stringify(result));
 }
 
 /**
  * @param {string} name
- * @param {(...args: any[]) => Promise<any>} fn
+ * @param {() => Promise<any>} fn
  */
 async function bench(name, fn) {
   const start = performance.now();
   const result = await fn();
   const end = performance.now();
-  console.error(`${name} took ${end - start}ms`);
+  console.error(`${name} took ${(end - start).toFixed(1)}ms`);
   return result;
 }
 
-main(process.argv[2]);
+main(process.argv[2], process.argv[3]).catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

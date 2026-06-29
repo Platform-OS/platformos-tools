@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-23 10:32'
+updated_date: '2026-06-24 13:13'
 labels: []
 dependencies:
   - TASK-9.1
@@ -51,3 +52,13 @@ The query layer COMPOSES these; it does not re-derive them.
 - [ ] #3 Each query has unit pins over a fixture app graph
 - [ ] #4 A consumer can obtain the full old project-map fact set from this API without any bespoke graph code
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Add: memoize DocumentsLocator.locate during graph build (from TASK-9.1 code review, 2026-06-24)
+
+TASK-9.1's traverse.ts resolves function/graphql targets via `DocumentsLocator.locateOrDefault`, which `stat()`s each candidate search path until a hit, with NO result caching. The same target referenced from many modules (e.g. a shared `queries/list` or graphql op) replays the full stat-probe sequence per reference — FS I/O proportional to reference count, not to distinct targets.
+
+Belongs in this task's shared ProjectContext/locator-caching layer (not in the per-call traverse path): provide a memoized locate keyed on `(type, fileName)` (rootUri is fixed per build) so each distinct target is probed once per build. When the query layer owns graph construction, build the locator + memo once and inject it. (Perf-only; correctness already fine.)
+<!-- SECTION:NOTES:END -->

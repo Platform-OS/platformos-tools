@@ -3,6 +3,7 @@ import {
   AssetModule,
   AppGraph,
   AppModule,
+  GraphQLModule,
   LiquidModule,
   LiquidModuleKind,
   ModuleType,
@@ -83,6 +84,45 @@ export function getPartialModule(appGraph: AppGraph, partial: string): LiquidMod
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Partial,
     uri: uri,
+    dependencies: [],
+    references: [],
+  });
+}
+
+/**
+ * Create (or fetch the cached) Liquid Partial module for an ALREADY-RESOLVED
+ * full URI — used for `{% function %}` / `{% include %}` targets whose URI is
+ * resolved canonically by `DocumentsLocator` (which handles lib paths, module
+ * prefixes, and extensions). Unlike {@link getPartialModule}, it does not
+ * reconstruct the path from a name. Commands/queries/lib helpers are all
+ * `Partial` kind, consistent with check-common's file-type classification.
+ */
+export function getPartialModuleByUri(appGraph: AppGraph, uri: string): LiquidModule {
+  return module(appGraph, {
+    type: ModuleType.Liquid,
+    kind: LiquidModuleKind.Partial,
+    // Normalize to forward slashes so module keys match the rest of the graph
+    // (getPartialModule/getAssetModule build URIs via path.join, which
+    // normalizes). DocumentsLocator returns `Utils.joinPath(...).toString()`
+    // unnormalized, which on Windows keeps backslashes and breaks key/edge
+    // matching against the normalized URIs everywhere else.
+    uri: path.normalize(uri),
+    dependencies: [],
+    references: [],
+  });
+}
+
+/**
+ * Create (or fetch the cached) GraphQL module for an already-resolved
+ * `.graphql` URI — used for `{% graphql op = 'name' %}` targets resolved by
+ * `DocumentsLocator`. A leaf node (no outgoing edges).
+ */
+export function getGraphQLModuleByUri(appGraph: AppGraph, uri: string): GraphQLModule {
+  return module(appGraph, {
+    type: ModuleType.GraphQL,
+    kind: 'graphql',
+    // Normalize to forward slashes — see getPartialModuleByUri.
+    uri: path.normalize(uri),
     dependencies: [],
     references: [],
   });

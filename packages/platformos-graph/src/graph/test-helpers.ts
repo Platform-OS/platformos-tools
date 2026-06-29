@@ -3,7 +3,6 @@ import { AbstractFileSystem } from '@platformos/platformos-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
 import { vi } from 'vitest';
 import { URI } from 'vscode-uri';
-import { getWebComponentMap } from '../getWebComponentMap';
 import { toSourceCode } from '../toSourceCode';
 import { identity } from '../utils';
 
@@ -17,18 +16,12 @@ export function makeGetSourceCode(fs: AbstractFileSystem) {
 export const fixturesRoot = pathUtils.join(URI.file(__dirname), ...'../../fixtures'.split('/'));
 export const skeleton = pathUtils.join(fixturesRoot, 'skeleton');
 
-export async function getDependencies(rootUri: string, fs: AbstractFileSystem = NodeFileSystem) {
+export function getDependencies(fs: AbstractFileSystem = NodeFileSystem) {
   const getSourceCode = makeGetSourceCode(fs);
-  const deps = {
+  return {
     fs,
     getSourceCode,
-    getWebComponentDefinitionReference: (customElementName: string) =>
-      webComponentDefs.get(customElementName),
   };
-
-  const webComponentDefs = await getWebComponentMap(rootUri, deps);
-
-  return deps;
 }
 
 // This thing is way too hard to type.

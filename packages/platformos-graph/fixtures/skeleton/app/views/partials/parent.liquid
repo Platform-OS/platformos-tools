@@ -1,9 +1,7 @@
 {% doc %}
-  Parent partial that renders the children and depends on the parent-element custom element
+  Parent partial that renders the child partial.
 
   @param {string} children
 {% enddoc %}
 
-<parent-element>
-  {% render "child", children: children %}
-</parent-element>
+{% render "child", children: children %}

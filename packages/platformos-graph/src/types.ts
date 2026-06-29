@@ -4,6 +4,7 @@ import {
   Dependencies as CheckDependencies,
   UriString,
   Reference,
+  ReferenceKind,
   Location,
   Range,
   GraphQLSourceCode,
@@ -15,11 +16,6 @@ export interface IDependencies {
 
   /** Optional perf improvement if you somehow have access to pre-computed source code info */
   getSourceCode?: (uri: UriString) => Promise<FileSourceCode>;
-
-  /** A way to link <custom-element> to its window.customElements.define statement */
-  getWebComponentDefinitionReference: (
-    customElementName: string,
-  ) => { assetName: string; range: Range } | undefined;
 }
 
 export type Dependencies = Required<IDependencies>;
@@ -32,7 +28,7 @@ export interface AppGraph {
   modules: Record<UriString, AppModule>;
 }
 
-export type AppModule = LiquidModule | AssetModule;
+export type AppModule = LiquidModule | AssetModule | GraphQLModule;
 
 export type FileSourceCode =
   | LiquidSourceCode
@@ -47,10 +43,9 @@ export interface SerializableGraph {
   edges: SerializableEdge[];
 }
 
-export interface SerializableEdge {
-  source: Location;
-  target: Location;
-}
+// Serialized edges are the modules' dependency `Reference`s verbatim, so they
+// carry `type` and `kind` in addition to `source`/`target`.
+export type SerializableEdge = Reference;
 
 export type SerializableNode = Pick<AppModule, 'uri' | 'type' | 'kind' | 'exists'>;
 
@@ -60,6 +55,15 @@ export interface LiquidModule extends IAppModule<ModuleType.Liquid> {
 
 export interface AssetModule extends IAppModule<ModuleType.Asset> {
   kind: 'unused';
+}
+
+/**
+ * A `.graphql` operation file (referenced by `{% graphql op = 'name' %}`).
+ * A leaf node — GraphQL documents have no outgoing platformOS dependencies —
+ * so it is not traversed, only existence-checked (like {@link AssetModule}).
+ */
+export interface GraphQLModule extends IAppModule<ModuleType.GraphQL> {
+  kind: 'graphql';
 }
 
 export interface IAppModule<T extends ModuleType> {
@@ -94,6 +98,7 @@ export interface IAppModule<T extends ModuleType> {
 export const enum ModuleType {
   Liquid = 'Liquid',
   Asset = 'Asset',
+  GraphQL = 'GraphQL',
 }
 
 export const enum LiquidModuleKind {
@@ -124,13 +129,6 @@ export interface AssetSourceCode {
   ast: any | Error;
 }
 
-export { Reference, Range, Location };
+export { Reference, ReferenceKind, Range, Location };
 
 export type Void = void | Void[];
-
-export type WebComponentMap = Map<WebComponentName, WebComponentDefinition>;
-export type WebComponentName = string;
-export type WebComponentDefinition = {
-  assetName: string; // Relative path to the asset file
-  range: [number, number]; // Start and end positions in the file
-};

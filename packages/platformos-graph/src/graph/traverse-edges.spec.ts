@@ -1,0 +1,278 @@
+import { path as pathUtils } from '@platformos/platformos-check-common';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { buildAppGraph } from '../index';
+import {
+  AppGraph,
+  Dependencies,
+  LiquidModule,
+  LiquidModuleKind,
+  ModuleType,
+  Reference,
+} from '../types';
+import { getGraphQLModuleByUri, getPartialModuleByUri } from './module';
+import { fixturesRoot, getDependencies } from './test-helpers';
+
+/**
+ * The exact source range of `snippet` within `source`. Derived from the fixture
+ * text (rather than hard-coded offsets) so the assertion is self-documenting
+ * and survives edits to unrelated lines.
+ */
+function rangeOf(source: string, snippet: string): [number, number] {
+  const start = source.indexOf(snippet);
+  if (start < 0) throw new Error(`snippet not found in fixture: ${snippet}`);
+  return [start, start + snippet.length];
+}
+
+/** A `direct` dependency Reference with no target range (the common case here). */
+function directRef(
+  sourceUri: string,
+  sourceRange: [number, number],
+  targetUri: string,
+  kind: Reference['kind'],
+): Reference {
+  return {
+    source: { uri: sourceUri, range: sourceRange },
+    target: { uri: targetUri },
+    type: 'direct',
+    kind,
+  };
+}
+
+const partialNode = (uri: string, exists: boolean, references: Reference[]): LiquidModule => ({
+  type: ModuleType.Liquid,
+  kind: LiquidModuleKind.Partial,
+  uri,
+  exists,
+  dependencies: [],
+  references,
+});
+
+describe('URI normalization in graph node factories', () => {
+  const emptyGraph = (): AppGraph => ({
+    rootUri: 'file:///app',
+    entryPoints: [],
+    modules: {},
+  });
+
+  it('getPartialModuleByUri returns a Partial node with a forward-slash URI', () => {
+    const mod = getPartialModuleByUri(
+      emptyGraph(),
+      'file:///d:/a/repo\\app\\lib\\queries\\list.liquid',
+    );
+    expect(mod).toEqual({
+      type: ModuleType.Liquid,
+      kind: LiquidModuleKind.Partial,
+      uri: 'file:///d:/a/repo/app/lib/queries/list.liquid',
+      dependencies: [],
+      references: [],
+    });
+  });
+
+  it('getGraphQLModuleByUri returns a GraphQL node with a forward-slash URI', () => {
+    const mod = getGraphQLModuleByUri(
+      emptyGraph(),
+      'file:///d:/a/repo\\app\\graphql\\find.graphql',
+    );
+    expect(mod).toEqual({
+      type: ModuleType.GraphQL,
+      kind: 'graphql',
+      uri: 'file:///d:/a/repo/app/graphql/find.graphql',
+      dependencies: [],
+      references: [],
+    });
+  });
+});
+
+describe('Graph traversal: {% function %} edges', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'function-edges');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+  let indexSource: string;
+  let brokenSource: string;
+
+  beforeAll(async () => {
+    const dependencies: Dependencies = getDependencies();
+    graph = await buildAppGraph(rootUri, dependencies);
+    indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
+    brokenSource = (await dependencies.getSourceCode(p('app/views/pages/broken.liquid'))).source;
+  }, 15000);
+
+  it('links a page to the resolved lib query via a single function edge', () => {
+    const edge = directRef(
+      p('app/views/pages/index.liquid'),
+      rangeOf(indexSource, "function items = 'queries/list'"),
+      p('app/lib/queries/list.liquid'),
+      'function',
+    );
+    expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
+    expect(graph.modules[p('app/lib/queries/list.liquid')]).toEqual(
+      partialNode(p('app/lib/queries/list.liquid'), true, [edge]),
+    );
+  });
+
+  it('records a missing function target as an exists:false node', () => {
+    const edge = directRef(
+      p('app/views/pages/broken.liquid'),
+      rangeOf(brokenSource, "function ghost = 'queries/missing'"),
+      p('app/lib/queries/missing.liquid'),
+      'function',
+    );
+    expect(graph.modules[p('app/lib/queries/missing.liquid')]).toEqual(
+      partialNode(p('app/lib/queries/missing.liquid'), false, [edge]),
+    );
+  });
+});
+
+describe('Graph traversal: {% graphql %} edges', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'graphql-edges');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+  let indexSource: string;
+  let brokenSource: string;
+
+  const graphqlNode = (uri: string, exists: boolean, references: Reference[]) => ({
+    type: ModuleType.GraphQL,
+    kind: 'graphql' as const,
+    uri,
+    exists,
+    dependencies: [],
+    references,
+  });
+
+  beforeAll(async () => {
+    const dependencies: Dependencies = getDependencies();
+    graph = await buildAppGraph(rootUri, dependencies);
+    indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
+    brokenSource = (await dependencies.getSourceCode(p('app/views/pages/broken.liquid'))).source;
+  }, 15000);
+
+  it('links a page to the resolved .graphql operation via a single graphql edge', () => {
+    const edge = directRef(
+      p('app/views/pages/index.liquid'),
+      rangeOf(indexSource, "graphql posts = 'blog_posts/find', id: '1'"),
+      p('app/graphql/blog_posts/find.graphql'),
+      'graphql',
+    );
+    expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
+    expect(graph.modules[p('app/graphql/blog_posts/find.graphql')]).toEqual(
+      graphqlNode(p('app/graphql/blog_posts/find.graphql'), true, [edge]),
+    );
+  });
+
+  it('records a missing graphql target as an exists:false GraphQL node', () => {
+    const edge = directRef(
+      p('app/views/pages/broken.liquid'),
+      rangeOf(brokenSource, "graphql ghost = 'blog_posts/missing'"),
+      p('app/graphql/blog_posts/missing.graphql'),
+      'graphql',
+    );
+    expect(graph.modules[p('app/graphql/blog_posts/missing.graphql')]).toEqual(
+      graphqlNode(p('app/graphql/blog_posts/missing.graphql'), false, [edge]),
+    );
+  });
+});
+
+describe('Graph traversal: {% include %} edges', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'include-edges');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+  let indexSource: string;
+
+  beforeAll(async () => {
+    const dependencies: Dependencies = getDependencies();
+    graph = await buildAppGraph(rootUri, dependencies);
+    indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
+  }, 15000);
+
+  it('tags an include edge with kind "include" (distinct from render)', () => {
+    const edge = directRef(
+      p('app/views/pages/index.liquid'),
+      rangeOf(indexSource, "{% include 'shared/header' %}"),
+      p('app/views/partials/shared/header.liquid'),
+      'include',
+    );
+    expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
+    expect(graph.modules[p('app/views/partials/shared/header.liquid')]).toEqual(
+      partialNode(p('app/views/partials/shared/header.liquid'), true, [edge]),
+    );
+  });
+});
+
+describe('Graph traversal: {% background %} edges', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'background-edges');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+  let indexSource: string;
+  let brokenSource: string;
+
+  beforeAll(async () => {
+    const dependencies: Dependencies = getDependencies();
+    graph = await buildAppGraph(rootUri, dependencies);
+    indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
+    brokenSource = (await dependencies.getSourceCode(p('app/views/pages/broken.liquid'))).source;
+  }, 15000);
+
+  it('links a page to the background partial via a single background edge', () => {
+    const edge = directRef(
+      p('app/views/pages/index.liquid'),
+      rangeOf(indexSource, "background job_id = 'jobs/notify', data: 'x'"),
+      p('app/views/partials/jobs/notify.liquid'),
+      'background',
+    );
+    expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
+    expect(graph.modules[p('app/views/partials/jobs/notify.liquid')]).toEqual(
+      partialNode(p('app/views/partials/jobs/notify.liquid'), true, [edge]),
+    );
+  });
+
+  it('records a missing background target as an exists:false node', () => {
+    const edge = directRef(
+      p('app/views/pages/broken.liquid'),
+      rangeOf(brokenSource, "background job_id = 'jobs/missing'"),
+      p('app/lib/jobs/missing.liquid'),
+      'background',
+    );
+    expect(graph.modules[p('app/lib/jobs/missing.liquid')]).toEqual(
+      partialNode(p('app/lib/jobs/missing.liquid'), false, [edge]),
+    );
+  });
+});
+
+describe('Graph traversal: module-namespaced targets (modules/<name>/public/...)', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'module-edges');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+  let indexSource: string;
+
+  beforeAll(async () => {
+    const dependencies: Dependencies = getDependencies();
+    graph = await buildAppGraph(rootUri, dependencies);
+    indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
+  }, 15000);
+
+  it('resolves function + render targets into modules/<name>/public/{lib,views/partials}', () => {
+    const functionEdge = directRef(
+      p('app/views/pages/index.liquid'),
+      rangeOf(indexSource, "function items = 'modules/my_module/queries/get'"),
+      p('modules/my_module/public/lib/queries/get.liquid'),
+      'function',
+    );
+    const renderEdge = directRef(
+      p('app/views/pages/index.liquid'),
+      rangeOf(indexSource, "{% render 'modules/my_module/card' %}"),
+      p('modules/my_module/public/views/partials/card.liquid'),
+      'render',
+    );
+
+    expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([
+      functionEdge,
+      renderEdge,
+    ]);
+    expect(graph.modules[p('modules/my_module/public/lib/queries/get.liquid')]).toEqual(
+      partialNode(p('modules/my_module/public/lib/queries/get.liquid'), true, [functionEdge]),
+    );
+    expect(graph.modules[p('modules/my_module/public/views/partials/card.liquid')]).toEqual(
+      partialNode(p('modules/my_module/public/views/partials/card.liquid'), true, [renderEdge]),
+    );
+  });
+});

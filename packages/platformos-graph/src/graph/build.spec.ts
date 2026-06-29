@@ -11,7 +11,7 @@ describe('Module: index', () => {
   let dependencies: Dependencies;
 
   beforeAll(async () => {
-    dependencies = await getDependencies(rootUri);
+    dependencies = getDependencies();
   }, 15000);
 
   describe('Unit: buildAppGraph', { timeout: 10000 }, () => {
@@ -64,12 +64,10 @@ describe('Module: index', () => {
         assert(parentPartial.type === ModuleType.Liquid);
         assert(parentPartial.kind === LiquidModuleKind.Partial);
 
-        // outgoing links
+        // outgoing links — parent renders exactly one partial (child)
         const deps = parentPartial.dependencies;
         assert(deps.map((x) => x.source.uri).every((x) => x === parentPartial.uri));
-        expect(deps.map((x) => x.target.uri)).toEqual(
-          expect.arrayContaining([p('app/views/partials/child.liquid'), p('assets/app.js')]),
-        );
+        expect(deps.map((x) => x.target.uri)).toEqual([p('app/views/partials/child.liquid')]);
 
         // {% render 'child' %} dependency
         const parentSource = await dependencies.getSourceCode(
@@ -102,6 +100,22 @@ describe('Module: index', () => {
             p('app/views/partials/header.liquid'),
           ]),
         );
+      });
+
+      it('tags every layout edge with its kind (asset, asset, render)', () => {
+        const layout = graph.modules[p('app/views/layouts/application.liquid')];
+        assert(layout);
+
+        // The complete, ordered edge set — not a membership probe — so an extra,
+        // missing, or mis-kinded edge fails. (Source ranges are pinned by the
+        // dedicated render-dependency test above.)
+        expect(
+          layout.dependencies.map((d) => ({ target: d.target.uri, type: d.type, kind: d.kind })),
+        ).toEqual([
+          { target: p('assets/app.js'), type: 'direct', kind: 'asset' },
+          { target: p('assets/app.css'), type: 'direct', kind: 'asset' },
+          { target: p('app/views/partials/header.liquid'), type: 'direct', kind: 'render' },
+        ]);
       });
     });
   });

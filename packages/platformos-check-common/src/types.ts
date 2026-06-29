@@ -315,6 +315,22 @@ export type Translations = {
  *   target: 'file:///app/views/partials/child.liquid'
  * }
  */
+/**
+ * The semantic Liquid construct that created a {@link Reference} edge.
+ *
+ * Optional/additive: older producers may omit it. Lets consumers distinguish a
+ * `{% render %}` edge from an `{% include %}` / `{% function %}` / `{% graphql %}`
+ * / `{% background %}` / asset / layout-association edge without re-parsing.
+ */
+export type ReferenceKind =
+  | 'render'
+  | 'include'
+  | 'function'
+  | 'background'
+  | 'graphql'
+  | 'asset'
+  | 'layout';
+
 export type Reference = {
   source: Location;
   target: Location;
@@ -322,6 +338,9 @@ export type Reference = {
   type:
     | 'direct' // explicit dependency, e.g. {% render 'partial' %}
     | 'indirect'; // indirect dependency
+
+  /** Which Liquid construct produced this edge. Optional for backwards compatibility. */
+  kind?: ReferenceKind;
 };
 
 export type Range = [start: number, end: number]; // represents a range in the source code

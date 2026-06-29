@@ -10,6 +10,7 @@ import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { runLint } from '../lint/lint';
+import { runStructure } from '../structure/structure';
 import { assembleResult } from '../result/assemble';
 import type { Logger } from '../logger';
 import type { ValidateCodeParams, ValidateCodeResult } from '../result/types';
@@ -72,19 +73,27 @@ export function registerValidateCode(server: McpServer, ctx: SupervisorContext):
   );
 }
 
-/** Lint the buffer via the check-node seam and assemble the result. */
+/**
+ * Lint the buffer (check-node seam) and resolve its dependency edges
+ * (platformos-graph seam) — two independent I/O adapters, run concurrently —
+ * then assemble the result.
+ */
 async function runValidateCode(
   ctx: SupervisorContext,
   params: ValidateCodeParams,
 ): Promise<ValidateCodeResult> {
   const mode = params.mode ?? 'full';
   ctx.log(`validate_code: ${params.file_path} (${mode})`);
-  const diagnostics = await runLint({
+  const adapterParams = {
     projectDir: ctx.projectDir,
     filePath: params.file_path,
     content: params.content,
-  });
-  return assembleResult(diagnostics, mode);
+  };
+  const [diagnostics, dependencies] = await Promise.all([
+    runLint(adapterParams),
+    runStructure(adapterParams),
+  ]);
+  return assembleResult(diagnostics, dependencies, mode);
 }
 
 /** Wrap a result in the MCP text-content envelope (every result is one JSON text block). */

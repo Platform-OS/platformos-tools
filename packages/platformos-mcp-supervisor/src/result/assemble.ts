@@ -10,6 +10,7 @@
  * in later tasks; they are left empty/null here.
  */
 import type {
+  ValidateCodeDependency,
   ValidateCodeDiagnostic,
   ValidateCodeMode,
   ValidateCodeResult,
@@ -18,6 +19,9 @@ import type {
 
 export function assembleResult(
   diagnostics: ValidateCodeDiagnostic[],
+  // The file's resolved outgoing dependencies (graph-derived, pre-computed by
+  // the structure adapter). Included verbatim — assembly stays pure.
+  dependencies: ValidateCodeDependency[],
   // Reserved: `full`/`quick` do not yet change output (no heavier stages exist).
   _mode: ValidateCodeMode,
 ): ValidateCodeResult {
@@ -39,6 +43,7 @@ export function assembleResult(
     proposed_fixes: [],
     clusters: [],
     scorecard: [],
+    dependencies,
     parse_error: null,
     tips: [],
     domain_guide: null,

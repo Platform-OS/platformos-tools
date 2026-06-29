@@ -57,6 +57,17 @@ beforeAll(async () => {
     'utf8',
   );
 
+  // Real dependency targets so the `dependencies` field points at files that
+  // actually exist in the project (the realistic agent scenario).
+  const writeProjectFile = (rel: string, body: string) => {
+    const abs = join(projectDir, rel);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, body, 'utf8');
+  };
+  writeProjectFile('app/views/partials/card.liquid', '<div class="card">{{ title }}</div>');
+  writeProjectFile('app/views/layouts/theme.liquid', '<html><body>{{ content_for_layout }}</body></html>');
+  writeProjectFile('app/lib/queries/list.liquid', "{% graphql r = 'noop' %}\n{% return r %}");
+
   transport = new StdioClientTransport({
     command: process.execPath,
     args: [BIN, '--project', projectDir],
@@ -92,13 +103,27 @@ describe('Integration: validate_code over stdio', () => {
     proposed_fixes: [],
     clusters: [],
     scorecard: [],
+    dependencies: [],
     parse_error: null,
     tips: [],
     domain_guide: null,
     structural: null,
   };
 
-  it('returns the exact clean result for a valid layout', async () => {
+  // The exact MissingContentForLayout error for a layout that omits
+  // `{{ content_for_layout }}` (reported at index 0 → 1-based line/col 1).
+  const MISSING_CONTENT_FOR_LAYOUT = {
+    check: 'MissingContentForLayout',
+    severity: 'error',
+    message:
+      "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
+    line: 1,
+    column: 1,
+    end_line: 1,
+    end_column: 1,
+  };
+
+  it('returns the exact clean result for a valid layout (no dependencies)', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body>{{ content_for_layout }}</body></html>',
@@ -121,18 +146,77 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
-      errors: [
-        {
-          check: 'MissingContentForLayout',
-          severity: 'error',
-          message:
-            "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
-          line: 1,
-          column: 1,
-          end_line: 1,
-          end_column: 1,
-        },
+      errors: [MISSING_CONTENT_FOR_LAYOUT],
+    });
+  });
+
+  it('reports the exact resolved dependency for a page that renders a partial', async () => {
+    const result = await validateCode({
+      file_path: 'app/views/pages/index.liquid',
+      content: "{% render 'card' %}",
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      dependencies: [
+        { kind: 'render', target: 'app/views/partials/card.liquid', line: 1, column: 1 },
       ],
+    });
+  });
+
+  it('reports every dependency (layout + function + render) in source order', async () => {
+    const result = await validateCode({
+      file_path: 'app/views/pages/index.liquid',
+      content: `---
+layout: theme
+---
+{% function items = 'queries/list' %}
+{% render 'card' %}`,
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      dependencies: [
+        { kind: 'layout', target: 'app/views/layouts/theme.liquid', line: 1, column: 1 },
+        { kind: 'function', target: 'app/lib/queries/list.liquid', line: 4, column: 1 },
+        { kind: 'render', target: 'app/views/partials/card.liquid', line: 5, column: 1 },
+      ],
+    });
+  });
+
+  it('surfaces lint errors AND dependencies together without conflating them', async () => {
+    // A layout that both omits content_for_layout (lint error) and renders a
+    // partial (dependency) — the agent must see both, correctly separated.
+    const result = await validateCode({
+      file_path: 'app/views/layouts/application.liquid',
+      content: "<body>{% render 'card' %}</body>",
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'error',
+      must_fix_before_write: true,
+      errors: [MISSING_CONTENT_FOR_LAYOUT],
+      dependencies: [
+        { kind: 'render', target: 'app/views/partials/card.liquid', line: 1, column: 7 },
+      ],
+    });
+  });
+
+  it('does not invent dependencies for dynamic (non-literal) targets', async () => {
+    const result = await validateCode({
+      file_path: 'app/views/pages/index.liquid',
+      content: '{% assign name = "card" %}{% render name %}',
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
     });
   });
 });

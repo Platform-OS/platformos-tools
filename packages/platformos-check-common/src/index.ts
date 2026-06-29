@@ -42,6 +42,12 @@ import {
 import { getPosition } from './utils';
 import { visitJSON, visitLiquid } from './visitors';
 
+// `getPosition` (source + 0-based offset → { line, character }) is the canonical
+// offset→position utility used by `check()` itself; re-exported so sibling
+// consumers (e.g. the MCP supervisor mapping graph references) reuse it instead
+// of re-counting newlines.
+export { getPosition } from './utils';
+
 export * from './AugmentedPlatformOSDocset';
 export * from './types/platformos-liquid-docs';
 export * from './checks';

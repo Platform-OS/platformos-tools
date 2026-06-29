@@ -113,6 +113,29 @@ export interface ScorecardNote {
   reason: string;
 }
 
+/**
+ * A resolved outgoing dependency of the validated file — what it
+ * renders/includes/runs/queries/wraps. Derived from the platformos-graph
+ * dependency model (`extractFileReferences`); the supervisor maps but never
+ * re-derives graph logic. Tells the agent the canonical resolved target so
+ * "what does this call / where does it live" is answerable from the result.
+ */
+export interface ValidateCodeDependency {
+  /**
+   * The Liquid construct that created the edge — one of
+   * `render | include | function | background | graphql | asset | layout`.
+   * Typed as `string` (like `ValidateCodeDiagnostic.check`) to keep the agent
+   * surface decoupled from the upstream `ReferenceKind` union.
+   */
+  kind: string;
+  /** The resolved dependency target, project-relative (e.g. `app/lib/queries/list.liquid`). */
+  target: string;
+  /** 1-based line of the reference site (the Liquid tag or the frontmatter block). */
+  line: number;
+  /** 1-based column of the reference site. */
+  column: number;
+}
+
 // ── TASK-8 fields (per-domain layer + result completion) ─────────────────────
 // Declared here so the result shape is stable; populated by TASK-8.2 / TASK-8.4.
 
@@ -163,6 +186,11 @@ export interface ValidateCodeResult {
   proposed_fixes: ProposedFix[];
   clusters: DiagnosticCluster[];
   scorecard: ScorecardNote[];
+  /**
+   * The file's resolved outgoing dependencies (graph-derived). Always present;
+   * empty for files with no statically-resolvable dependencies.
+   */
+  dependencies: ValidateCodeDependency[];
   /** Deterministic prose telling the agent what to do next. */
   next_step?: string;
   /** Parse-failure message when the file could not be parsed at all; null/absent otherwise. */

@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assembleResult } from './assemble';
-import type {
-  ValidateCodeDependency,
-  ValidateCodeDiagnostic,
-  ValidateCodeResult,
-} from './types';
+import type { ValidateCodeDependency, ValidateCodeDiagnostic, ValidateCodeResult } from './types';
 
 const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => ({
   check: 'SomeCheck',

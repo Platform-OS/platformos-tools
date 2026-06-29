@@ -65,7 +65,10 @@ beforeAll(async () => {
     writeFileSync(abs, body, 'utf8');
   };
   writeProjectFile('app/views/partials/card.liquid', '<div class="card">{{ title }}</div>');
-  writeProjectFile('app/views/layouts/theme.liquid', '<html><body>{{ content_for_layout }}</body></html>');
+  writeProjectFile(
+    'app/views/layouts/theme.liquid',
+    '<html><body>{{ content_for_layout }}</body></html>',
+  );
   writeProjectFile('app/lib/queries/list.liquid', "{% graphql r = 'noop' %}\n{% return r %}");
 
   transport = new StdioClientTransport({

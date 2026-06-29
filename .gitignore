@@ -24,3 +24,5 @@ packages/lang-jsonc/src/parser.*
 packages/theme-graph/playground/src/graph.json
 .claude
 .devcontainer
+# pos-supervisor v1 reference material (recoverable at git 69aa9e4) — not part of PRs
+docs/mcp-supervisor/salvage/

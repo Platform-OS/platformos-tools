@@ -42,6 +42,9 @@ MatchingTranslations:
 MissingAsset:
   enabled: true
   severity: 0
+MissingContentForLayout:
+  enabled: true
+  severity: 0
 MissingPage:
   enabled: true
   severity: 1

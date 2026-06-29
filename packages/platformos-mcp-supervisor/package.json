@@ -1,0 +1,47 @@
+{
+  "name": "@platformos/platformos-mcp-supervisor",
+  "version": "0.0.1",
+  "description": "platformOS Model Context Protocol (MCP) server exposing validate_code for LLM agents.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "platformOS",
+  "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/platformos-mcp-supervisor#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Platform-OS/platformos-tools.git",
+    "directory": "packages/platformos-mcp-supervisor"
+  },
+  "bugs": {
+    "url": "https://github.com/Platform-OS/platformos-tools/issues"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "@platformos:registry": "https://registry.npmjs.org"
+  },
+  "bin": {
+    "platformos-mcp-supervisor": "dist/bin/platformos-mcp-supervisor.js"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/data/**/*"
+  ],
+  "scripts": {
+    "build": "yarn build:ts",
+    "build:ci": "yarn build",
+    "build:ts": "tsc -b tsconfig.build.json",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@platformos/platformos-check-common": "0.0.19",
+    "@platformos/platformos-check-docs-updater": "0.0.19",
+    "@platformos/platformos-check-node": "0.0.19",
+    "@platformos/platformos-graph": "0.0.19",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {}
+}

@@ -16,6 +16,7 @@
     "packages/platformos-check-*",
     "packages/platformos-graph",
     "packages/platformos-language-server-*",
+    "packages/platformos-mcp-*",
     "packages/vscode-extension",
     "packages/release-orchestrator"
   ],

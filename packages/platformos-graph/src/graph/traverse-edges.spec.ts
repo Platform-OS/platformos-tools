@@ -29,12 +29,14 @@ function directRef(
   sourceRange: [number, number],
   targetUri: string,
   kind: Reference['kind'],
+  args?: string[],
 ): Reference {
   return {
     source: { uri: sourceUri, range: sourceRange },
     target: { uri: targetUri },
     type: 'direct',
     kind,
+    ...(args ? { args } : {}),
   };
 }
 
@@ -152,6 +154,7 @@ describe('Graph traversal: {% graphql %} edges', () => {
       rangeOf(indexSource, "graphql posts = 'blog_posts/find', id: '1'"),
       p('app/graphql/blog_posts/find.graphql'),
       'graphql',
+      ['id'],
     );
     expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
     expect(graph.modules[p('app/graphql/blog_posts/find.graphql')]).toEqual(
@@ -218,6 +221,7 @@ describe('Graph traversal: {% background %} edges', () => {
       rangeOf(indexSource, "background job_id = 'jobs/notify', data: 'x'"),
       p('app/views/partials/jobs/notify.liquid'),
       'background',
+      ['data'],
     );
     expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
     expect(graph.modules[p('app/views/partials/jobs/notify.liquid')]).toEqual(

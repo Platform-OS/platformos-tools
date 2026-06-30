@@ -1,5 +1,5 @@
 import yaml from 'js-yaml';
-import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
+import { LiquidNamedArgument, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import { SourceCodeType, UriString, visit, Visitor } from '@platformos/platformos-check-common';
 import { containsLiquid, DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
@@ -23,11 +23,13 @@ import {
   getPartialModuleByUri,
 } from './module';
 
-/** A resolved outgoing reference: the target graph node + its call-site range + kind. */
+/** A resolved outgoing reference: the target graph node + its call-site range + kind (+ named-arg names). */
 interface ResolvedReference {
   target: AppModule;
   sourceRange: Range;
   kind: ReferenceKind;
+  /** Names of the named arguments at the call site, in source order; omitted when none. */
+  args?: string[];
 }
 
 /** The dependency surface the reference resolver needs: just a filesystem (for DocumentsLocator). */
@@ -86,6 +88,7 @@ async function traverseLiquidModule(
     bind(module, reference.target, {
       sourceRange: reference.sourceRange,
       kind: reference.kind,
+      args: reference.args,
     });
   }
 
@@ -161,6 +164,7 @@ async function resolveLiquidReferences(
         target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: isInclude ? 'include' : 'render',
+        args: argNames(node.args),
       };
     },
 
@@ -175,6 +179,7 @@ async function resolveLiquidReferences(
         target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'function',
+        args: argNames(node.args),
       };
     },
 
@@ -193,6 +198,7 @@ async function resolveLiquidReferences(
         target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'background',
+        args: argNames(node.args),
       };
     },
 
@@ -208,6 +214,7 @@ async function resolveLiquidReferences(
         target: getGraphQLModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'graphql',
+        args: argNames(node.args),
       };
     },
 
@@ -280,8 +287,10 @@ export async function extractFileReferences(
   return references.map((reference) => ({
     source: { uri: sourceUri, range: reference.sourceRange },
     target: { uri: reference.target.uri },
-    type: 'direct',
+    type: 'direct' as const,
     kind: reference.kind,
+    // Only carry `args` when the call site has named arguments (parity with bind).
+    ...(reference.args && reference.args.length > 0 ? { args: reference.args } : {}),
   }));
 }
 
@@ -298,6 +307,21 @@ function isStringLiteral<T extends { type: NodeTypes }>(
 }
 
 /**
+ * The names of a call site's named arguments, in source order, or `undefined`
+ * when there are none. Defensive against the parser's documented
+ * completion-context case (a trailing incomplete argument may not be a
+ * fully-typed `NamedArgument`): only `NamedArgument`s with a string name
+ * contribute. Values are intentionally not captured — names are what
+ * cross-checking against a partial's `@param` signature needs.
+ */
+function argNames(args: LiquidNamedArgument[]): string[] | undefined {
+  const names = args
+    .filter((arg) => arg.type === NodeTypes.NamedArgument && typeof arg.name === 'string')
+    .map((arg) => arg.name);
+  return names.length > 0 ? names : undefined;
+}
+
+/**
  * The bind method is the method that links two modules together.
  *
  * It adds the dependency to the source module's dependencies and the target module's references.
@@ -311,10 +335,12 @@ export function bind(
     sourceRange,
     type = 'direct', // the type of dependency, can be 'direct' or 'indirect'
     kind, // the semantic Liquid construct that created the edge
+    args, // names of the named arguments at the call site (omitted when none)
   }: {
     sourceRange?: Range; // a range in the source module that references the child
     type?: Reference['type']; // the type of dependency
     kind?: ReferenceKind; // render | include | function | background | graphql | asset | layout
+    args?: string[]; // named-argument names at the call site
   } = {},
 ): void {
   const dependency: Reference = {
@@ -322,6 +348,9 @@ export function bind(
     target: { uri: target.uri },
     type: type,
     kind: kind,
+    // Only carry `args` when the call site has named arguments, so argument-less
+    // edges stay free of an empty field.
+    ...(args && args.length > 0 ? { args } : {}),
   };
 
   source.dependencies.push(dependency);

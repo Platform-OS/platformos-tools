@@ -26,12 +26,14 @@ function directRef(
   sourceRange: [number, number],
   targetUri: string,
   kind: Reference['kind'],
+  args?: string[],
 ): Reference {
   return {
     source: { uri: sourceUri, range: sourceRange },
     target: { uri: targetUri },
     type: 'direct',
     kind,
+    ...(args ? { args } : {}),
   };
 }
 
@@ -74,6 +76,21 @@ describe('extractFileReferences: resolves a single buffer against the project', 
       ),
     ]);
   });
+
+  it('captures the named-argument names at a render call site', async () => {
+    const sourceUri = p('app/views/pages/draft.liquid');
+    const content = "{% render 'card', title: page.title, count: 3 %}";
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([
+      directRef(
+        sourceUri,
+        rangeOf(content, "{% render 'card', title: page.title, count: 3 %}"),
+        p('app/views/partials/card.liquid'),
+        'render',
+        ['title', 'count'],
+      ),
+    ]);
+  });
 });
 
 describe('extractFileReferences: kinds and resolution match the full graph build', () => {
@@ -107,6 +124,7 @@ describe('extractFileReferences: kinds and resolution match the full graph build
         rangeOf(content, "graphql posts = 'blog_posts/find', id: '1'"),
         p('app/graphql/blog_posts/find.graphql'),
         'graphql',
+        ['id'],
       ),
     ]);
   });

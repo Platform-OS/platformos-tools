@@ -10,10 +10,11 @@ import {
   isOrphan,
   missingDependencies,
   missingTargets,
+  nearestModules,
   orphans,
   reachableFrom,
 } from './query';
-import { getPageModule, getPartialModule } from './module';
+import { getGraphQLModuleByUri, getLayoutModule, getPageModule, getPartialModule } from './module';
 import { bind } from './traverse';
 import { getDependencies, skeleton } from './test-helpers';
 
@@ -163,5 +164,79 @@ describe('Graph queries: orphan and missing-target detection (hermetic graph)', 
         kind: 'render',
       },
     ]);
+  });
+});
+
+describe('Graph queries: nearest-name candidates (did-you-mean)', () => {
+  const rootUri = 'file:///app';
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+
+  // Partials: header, footer, sidebar (exist). A layout ALSO named "header"
+  // (exists) — same name, different category. A graphql op blog/find (exists).
+  // Typo targets: partial "headr" and graphql "blog/fnd" (both exists:false).
+  let graph: AppGraph;
+  let headerUri: string;
+  let footerUri: string;
+  let sidebarUri: string;
+  let headrUri: string;
+  let graphqlFindUri: string;
+  let graphqlTypoUri: string;
+
+  beforeAll(() => {
+    graph = { rootUri, entryPoints: [], modules: {} };
+    const page = getPageModule(graph, p('app/views/pages/index.liquid'));
+    const header = getPartialModule(graph, 'header');
+    const footer = getPartialModule(graph, 'footer');
+    const sidebar = getPartialModule(graph, 'sidebar');
+    const headerLayout = getLayoutModule(graph, p('app/views/layouts/header.liquid'))!;
+    const find = getGraphQLModuleByUri(graph, p('app/graphql/blog/find.graphql'));
+    const headr = getPartialModule(graph, 'headr');
+    const graphqlTypo = getGraphQLModuleByUri(graph, p('app/graphql/blog/fnd.graphql'));
+
+    for (const m of [page, header, footer, sidebar, headerLayout, find]) m.exists = true;
+    headr.exists = false;
+    graphqlTypo.exists = false;
+
+    graph.entryPoints = [page];
+    for (const m of [page, header, footer, sidebar, headerLayout, find, headr, graphqlTypo]) {
+      graph.modules[m.uri] = m;
+    }
+
+    headerUri = header.uri;
+    footerUri = footer.uri;
+    sidebarUri = sidebar.uri;
+    headrUri = headr.uri;
+    graphqlFindUri = find.uri;
+    graphqlTypoUri = graphqlTypo.uri;
+  });
+
+  it('ranks the closest same-category name first', () => {
+    expect(nearestModules(graph, headrUri, { limit: 1 }).map((m) => m.uri)).toEqual([headerUri]);
+  });
+
+  it('only considers existing modules of the same category (excludes self, layouts, graphql, missing)', () => {
+    // The layout "header" shares the name but is a different kind; the graphql
+    // op, the page, the typo itself, and missing modules are all out.
+    const uris = nearestModules(graph, headrUri, { limit: 10 })
+      .map((m) => m.uri)
+      .sort((a, b) => a.localeCompare(b));
+    expect(uris).toEqual([footerUri, headerUri, sidebarUri]);
+  });
+
+  it('honours maxDistance', () => {
+    // Only "header" is within edit distance 1 of "headr".
+    expect(nearestModules(graph, headrUri, { maxDistance: 1 }).map((m) => m.uri)).toEqual([
+      headerUri,
+    ]);
+  });
+
+  it('suggests graphql operations for a missing graphql target', () => {
+    expect(nearestModules(graph, graphqlTypoUri, { limit: 1 }).map((m) => m.uri)).toEqual([
+      graphqlFindUri,
+    ]);
+  });
+
+  it('returns [] for a URI absent from the graph', () => {
+    expect(nearestModules(graph, p('app/views/partials/unknown.liquid'))).toEqual([]);
   });
 });

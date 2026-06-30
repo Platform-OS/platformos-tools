@@ -48,6 +48,11 @@ import { visitJSON, visitLiquid } from './visitors';
 // of re-counting newlines.
 export { getPosition } from './utils';
 
+// `levenshtein` (edit distance) is re-exported so sibling consumers (e.g. the
+// graph's nearest-name "did you mean" candidates) reuse it rather than
+// re-implementing string-distance.
+export { levenshtein } from './utils';
+
 export * from './AugmentedPlatformOSDocset';
 export * from './types/platformos-liquid-docs';
 export * from './checks';

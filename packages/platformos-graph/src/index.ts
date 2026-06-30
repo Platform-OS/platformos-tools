@@ -10,7 +10,9 @@ export {
   reachableFrom,
   missingDependencies,
   missingTargets,
+  nearestModules,
 } from './graph/query';
+export type { NearestModulesOptions } from './graph/query';
 export { serializeAppGraph } from './graph/serialize';
 export { parseJs, toSourceCode } from './toSourceCode';
 export * from './types';

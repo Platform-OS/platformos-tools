@@ -1,4 +1,4 @@
-import { UriString } from '@platformos/platformos-check-common';
+import { levenshtein, path, UriString } from '@platformos/platformos-check-common';
 import { AppGraph, AppModule, Reference } from '../types';
 
 /**
@@ -97,4 +97,54 @@ export function missingTargets(graph: AppGraph): Reference[] {
       (a, b) =>
         a.source.uri.localeCompare(b.source.uri) || a.target.uri.localeCompare(b.target.uri),
     );
+}
+
+export interface NearestModulesOptions {
+  /** Maximum number of candidates to return, closest first. Default 3. */
+  limit?: number;
+  /** Maximum edit distance to include. Default: no cap (consumer decides relevance). */
+  maxDistance?: number;
+}
+
+/**
+ * The existing modules whose names are closest to `uri` — the "did you mean?"
+ * candidate set for a typo'd or missing reference.
+ *
+ * Candidates are restricted to the SAME category as `uri` (same module `type`,
+ * and for Liquid the same `kind`), so a missing `{% render %}` only suggests
+ * partials, a missing `{% graphql %}` only graphql operations, etc. Ranked by
+ * Levenshtein distance over the project-relative path (reusing check-common's
+ * `levenshtein` + `path.relative` — never re-implemented), closest first, ties
+ * broken by URI. `uri` itself and known-missing modules are excluded.
+ *
+ * Pure over the graph: candidates come only from modules present in it, so build
+ * with every file as an entry point for a complete candidate pool (see header).
+ */
+export function nearestModules(
+  graph: AppGraph,
+  uri: UriString,
+  options: NearestModulesOptions = {},
+): AppModule[] {
+  const { limit = 3, maxDistance = Infinity } = options;
+  const target = graph.modules[uri];
+  if (!target) return [];
+
+  const targetPath = path.relative(uri, graph.rootUri);
+
+  return Object.values(graph.modules)
+    .filter(
+      (module) =>
+        module.uri !== uri &&
+        module.exists !== false &&
+        module.type === target.type &&
+        module.kind === target.kind,
+    )
+    .map((module) => ({
+      module,
+      distance: levenshtein(path.relative(module.uri, graph.rootUri), targetPath),
+    }))
+    .filter((candidate) => candidate.distance <= maxDistance)
+    .sort((a, b) => a.distance - b.distance || a.module.uri.localeCompare(b.module.uri))
+    .slice(0, limit)
+    .map((candidate) => candidate.module);
 }

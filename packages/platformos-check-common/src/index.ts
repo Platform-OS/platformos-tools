@@ -53,6 +53,11 @@ export { getPosition } from './utils';
 // re-implementing string-distance.
 export { levenshtein } from './utils';
 
+// `extractGraphqlTable` parses the platformOS model table a GraphQL operation
+// targets; exported so the graph can model a GraphQL node's table without
+// re-implementing GraphQL parsing (the `graphql` dep lives here).
+export { extractGraphqlTable } from './graphql-table';
+
 export * from './AugmentedPlatformOSDocset';
 export * from './types/platformos-liquid-docs';
 export * from './checks';

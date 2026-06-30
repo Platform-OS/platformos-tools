@@ -7,6 +7,7 @@ import {
   LiquidModule,
   LiquidModuleKind,
   ModuleType,
+  SchemaModule,
   SUPPORTED_ASSET_IMAGE_EXTENSIONS,
 } from '../types';
 import { extname } from '../utils';
@@ -121,6 +122,22 @@ export function getGraphQLModuleByUri(appGraph: AppGraph, uri: string): GraphQLM
   return module(appGraph, {
     type: ModuleType.GraphQL,
     kind: 'graphql',
+    // Normalize to forward slashes — see getPartialModuleByUri.
+    uri: path.normalize(uri),
+    dependencies: [],
+    references: [],
+  });
+}
+
+/**
+ * Create (or fetch the cached) Schema module for an already-resolved
+ * `custom_model_type`/schema URI — discovered during a full `buildAppGraph`.
+ * A leaf node; its `table` (the model `name:`) is populated during traversal.
+ */
+export function getSchemaModule(appGraph: AppGraph, uri: string): SchemaModule {
+  return module(appGraph, {
+    type: ModuleType.Schema,
+    kind: 'schema',
     // Normalize to forward slashes — see getPartialModuleByUri.
     uri: path.normalize(uri),
     dependencies: [],

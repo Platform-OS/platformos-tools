@@ -1,5 +1,5 @@
 import { levenshtein, path, UriString } from '@platformos/platformos-check-common';
-import { AppGraph, AppModule, Reference } from '../types';
+import { AppGraph, AppModule, ModuleType, Reference } from '../types';
 
 /**
  * Project-structure queries over a BUILT {@link AppGraph}.
@@ -51,6 +51,10 @@ export function isOrphan(graph: AppGraph, uri: UriString): boolean {
   const module = graph.modules[uri];
   if (!module || module.exists === false) return false;
   if (isEntryPoint(graph, uri)) return false;
+  // Schema nodes are referenced by model table name (from graphql/commands), not
+  // by file edges, so they are NEVER edge-referenced — "no incoming references"
+  // is meaningless for them. Excluding them keeps orphan = render dead-code.
+  if (module.type === ModuleType.Schema) return false;
   return module.references.length === 0;
 }
 

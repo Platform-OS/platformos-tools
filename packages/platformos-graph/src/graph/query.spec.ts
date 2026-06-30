@@ -14,7 +14,13 @@ import {
   orphans,
   reachableFrom,
 } from './query';
-import { getGraphQLModuleByUri, getLayoutModule, getPageModule, getPartialModule } from './module';
+import {
+  getGraphQLModuleByUri,
+  getLayoutModule,
+  getPageModule,
+  getPartialModule,
+  getSchemaModule,
+} from './module';
 import { bind } from './traverse';
 import { getDependencies, skeleton } from './test-helpers';
 
@@ -100,11 +106,13 @@ describe('Graph queries: orphan and missing-target detection (hermetic graph)', 
   // page (entry) ─render→ used (exists)
   //                └─render→ missing (exists:false)
   // orphan (exists, referenced by nothing, not an entry point)
+  // schema (exists, referenced by nothing, not an entry point — but NOT an orphan)
   let graph: AppGraph;
   let pageUri: string;
   let usedUri: string;
   let orphanUri: string;
   let missingUri: string;
+  let schemaUri: string;
 
   beforeAll(() => {
     graph = { rootUri, entryPoints: [], modules: {} };
@@ -112,22 +120,25 @@ describe('Graph queries: orphan and missing-target detection (hermetic graph)', 
     const used = getPartialModule(graph, 'used');
     const orphan = getPartialModule(graph, 'orphan');
     const missing = getPartialModule(graph, 'missing');
+    const schema = getSchemaModule(graph, p('app/schema/blog_post.yml'));
 
     page.exists = true;
     used.exists = true;
     orphan.exists = true;
     missing.exists = false;
+    schema.exists = true;
 
     bind(page, used, { sourceRange: [0, 10], kind: 'render' });
     bind(page, missing, { sourceRange: [11, 21], kind: 'render' });
 
     graph.entryPoints = [page];
-    for (const module of [page, used, orphan, missing]) graph.modules[module.uri] = module;
+    for (const module of [page, used, orphan, missing, schema]) graph.modules[module.uri] = module;
 
     pageUri = page.uri;
     usedUri = used.uri;
     orphanUri = orphan.uri;
     missingUri = missing.uri;
+    schemaUri = schema.uri;
   });
 
   it('flags an unreferenced, non-entry-point file as an orphan', () => {
@@ -140,7 +151,13 @@ describe('Graph queries: orphan and missing-target detection (hermetic graph)', 
     expect(isOrphan(graph, missingUri)).toBe(false); // missing, not orphan
   });
 
-  it('orphans() lists exactly the orphan modules', () => {
+  it('never flags a schema node as an orphan (referenced by table name, not edges)', () => {
+    // Without the guard this would be a false positive: schema exists, is not an
+    // entry point, and has zero incoming edges.
+    expect(isOrphan(graph, schemaUri)).toBe(false);
+  });
+
+  it('orphans() lists exactly the orphan modules (excludes the schema)', () => {
     expect(orphans(graph).map((m) => m.uri)).toEqual([orphanUri]);
   });
 

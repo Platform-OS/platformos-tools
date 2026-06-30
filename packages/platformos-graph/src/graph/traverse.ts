@@ -1,7 +1,20 @@
 import yaml from 'js-yaml';
 import { LiquidNamedArgument, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
-import { SourceCodeType, UriString, visit, Visitor } from '@platformos/platformos-check-common';
-import { containsLiquid, DocumentsLocator } from '@platformos/platformos-common';
+import {
+  extractDocDefinition,
+  extractGraphqlTable,
+  SourceCodeType,
+  UriString,
+  visit,
+  Visitor,
+} from '@platformos/platformos-check-common';
+import {
+  containsLiquid,
+  DocumentsLocator,
+  extractRelativePagePath,
+  formatFromFilePath,
+  slugFromFilePath,
+} from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import {
   AugmentedDependencies,
@@ -9,6 +22,7 @@ import {
   AppModule,
   FileSourceCode,
   LiquidModule,
+  ModuleStructural,
   ModuleType,
   Range,
   Reference,
@@ -67,7 +81,20 @@ export async function traverseModule(
     }
 
     case ModuleType.GraphQL: {
-      return; // Leaf node — GraphQL documents have no platformOS dependencies
+      // Leaf node — GraphQL documents have no platformOS dependencies. We do read
+      // the source once to record the model `table` it targets (a neutral
+      // platform fact), reusing check-common's GraphQL parser.
+      const sourceCode = await deps.getSourceCode(module.uri);
+      module.table = extractGraphqlTable(sourceCode.source);
+      return;
+    }
+
+    case ModuleType.Schema: {
+      // Leaf node — a custom model type / schema file. Read the source once to
+      // record its model table name (the YAML `name:`), a neutral platform fact.
+      const sourceCode = await deps.getSourceCode(module.uri);
+      module.table = schemaTableName(sourceCode.source);
+      return;
     }
 
     default: {
@@ -82,6 +109,11 @@ async function traverseLiquidModule(
   deps: AugmentedDependencies,
 ) {
   const sourceCode = await deps.getSourceCode(module.uri);
+
+  // Surface the file's own structural declarations as a by-product of the parse
+  // (TASK-9.3). Absent only when the file could not be parsed.
+  module.structural = await extractStructural(sourceCode, module.uri);
+
   const references = await resolveLiquidReferences(appGraph, sourceCode, deps);
 
   for (const reference of references) {
@@ -229,14 +261,9 @@ async function resolveLiquidReferences(
     // The source range is the whole frontmatter block (tag-level granularity,
     // like the other edges).
     YAMLFrontmatter: async (node) => {
-      let data: unknown;
-      try {
-        data = yaml.load(node.body);
-      } catch {
-        return; // malformed frontmatter — nothing to resolve
-      }
-      if (typeof data !== 'object' || data === null) return;
-      const layout = (data as Record<string, unknown>).layout;
+      const data = loadFrontmatter(node.body);
+      if (!data) return; // malformed/empty frontmatter — nothing to resolve
+      const layout = data.layout;
       if (typeof layout !== 'string' || layout === '' || containsLiquid(layout)) return;
       const uri = await documentsLocator.locateOrDefault(rootUri, 'layout', layout);
       if (!uri) return;
@@ -304,6 +331,143 @@ function isStringLiteral<T extends { type: NodeTypes }>(
   node: T,
 ): node is Extract<T, { type: NodeTypes.String }> {
   return !isString(node) && node.type === NodeTypes.String;
+}
+
+/**
+ * Parse a YAML block (frontmatter body or a schema file) into an object, or
+ * `undefined` for unparseable / non-object YAML. The single `js-yaml` entry
+ * point shared by the layout-edge resolver, schema-table extraction, and
+ * self-structural extraction — so there is one frontmatter/YAML parse path.
+ */
+function loadFrontmatter(body: string): Record<string, unknown> | undefined {
+  let data: unknown;
+  try {
+    data = yaml.load(body);
+  } catch {
+    return undefined;
+  }
+  return typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : undefined;
+}
+
+/**
+ * The model table name a schema/custom-model-type file declares — its top-level
+ * YAML `name:`. Returns `undefined` for a missing/non-string `name` or
+ * unparseable YAML.
+ */
+function schemaTableName(source: string): string | undefined {
+  const name = loadFrontmatter(source)?.name;
+  return typeof name === 'string' && name !== '' ? name : undefined;
+}
+
+/** The YAMLFrontmatter body of a parsed Liquid file, if it has frontmatter. */
+function frontmatterBody(sourceCode: FileSourceCode): string | undefined {
+  if (sourceCode.type !== SourceCodeType.LiquidHtml) return undefined;
+  const ast = sourceCode.ast;
+  if (ast instanceof Error || ast.type !== NodeTypes.Document) return undefined;
+  const node = ast.children.find((child) => child.type === NodeTypes.YAMLFrontmatter);
+  return node?.type === NodeTypes.YAMLFrontmatter ? node.body : undefined;
+}
+
+/**
+ * Extract a Liquid file's own structural declarations (TASK-9.3, phase A: page
+ * routing facts) as a by-product of the already-parsed AST. Reuses the shared
+ * `js-yaml` frontmatter parse and platformos-common's slug helpers — never a
+ * second/bespoke parser.
+ *
+ * Usage facts (`renders_used` / `graphql_queries_used` / `filters_used` /
+ * `tags_used` / `translation_keys`) come from one walk of the already-parsed
+ * AST and are always present (sorted, de-duplicated; empty = none used). Routing
+ * facts come from frontmatter:
+ * - `slug`: the frontmatter `slug` override (verbatim, matching the RouteTable
+ *   source of truth) else the path-derived slug — for page files only.
+ * - `layout` / `method`: from frontmatter when declared.
+ *
+ * Returns `undefined` only when the file could not be parsed (no AST to analyze).
+ */
+async function extractStructural(
+  sourceCode: FileSourceCode,
+  uri: UriString,
+): Promise<ModuleStructural | undefined> {
+  if (sourceCode.ast instanceof Error) return undefined; // unparseable — nothing to analyze
+
+  const renders = new Set<string>();
+  const graphqlQueries = new Set<string>();
+  const filters = new Set<string>();
+  const tags = new Set<string>();
+  const translationKeys = new Set<string>();
+
+  await visit<SourceCodeType.LiquidHtml, void>(sourceCode.ast, {
+    RenderMarkup: async (node) => {
+      if (isStringLiteral(node.partial)) renders.add(node.partial.value);
+    },
+    GraphQLMarkup: async (node) => {
+      if (isStringLiteral(node.graphql)) graphqlQueries.add(node.graphql.value);
+    },
+    LiquidFilter: async (node) => {
+      filters.add(node.name);
+    },
+    LiquidTag: async (node) => {
+      if (typeof node.name === 'string') tags.add(node.name);
+    },
+    // A translation-key usage is a string literal piped through `t`/`translate`,
+    // e.g. `{{ 'greeting.hello' | t }}` — same detection as the translation check.
+    LiquidVariable: async (node) => {
+      if (
+        node.expression.type === NodeTypes.String &&
+        node.filters.some((filter) => filter.name === 't' || filter.name === 'translate')
+      ) {
+        translationKeys.add(node.expression.value);
+      }
+    },
+  });
+
+  // `{% doc %}` @param names — reuse check-common's liquid-doc extractor (no
+  // second parser); preserve declaration order (the param signature order).
+  const docDefinition = await extractDocDefinition(uri, sourceCode.ast);
+  const docParams = (docDefinition.liquidDoc?.parameters ?? []).map((param) => param.name);
+
+  const frontmatter = loadFrontmatterOf(sourceCode);
+  const layout = typeof frontmatter?.layout === 'string' ? frontmatter.layout : undefined;
+  const method = typeof frontmatter?.method === 'string' ? frontmatter.method : undefined;
+  const slug = effectiveSlug(uri, frontmatter);
+
+  const sorted = (set: Set<string>) => [...set].sort((a, b) => a.localeCompare(b));
+
+  return {
+    renders_used: sorted(renders),
+    graphql_queries_used: sorted(graphqlQueries),
+    filters_used: sorted(filters),
+    tags_used: sorted(tags),
+    translation_keys: sorted(translationKeys),
+    doc_params: docParams,
+    ...(slug !== undefined ? { slug } : {}),
+    ...(layout !== undefined ? { layout } : {}),
+    ...(method !== undefined ? { method } : {}),
+  };
+}
+
+/** The parsed frontmatter object of a Liquid file, if it has frontmatter. */
+function loadFrontmatterOf(sourceCode: FileSourceCode): Record<string, unknown> | undefined {
+  const body = frontmatterBody(sourceCode);
+  return body ? loadFrontmatter(body) : undefined;
+}
+
+/**
+ * The effective URL slug for `uri`: the frontmatter `slug` override (coerced to
+ * a string, matching RouteTable) when declared, else the slug derived from the
+ * page path (reusing `extractRelativePagePath` + `slugFromFilePath`). Returns
+ * `undefined` for non-page files with no `slug` override.
+ */
+function effectiveSlug(
+  uri: UriString,
+  frontmatter: Record<string, unknown> | undefined,
+): string | undefined {
+  if (frontmatter && frontmatter.slug !== undefined && frontmatter.slug !== null) {
+    return String(frontmatter.slug);
+  }
+  const relativePath = extractRelativePagePath(uri);
+  if (relativePath === null) return undefined;
+  return slugFromFilePath(relativePath, formatFromFilePath(relativePath));
 }
 
 /**

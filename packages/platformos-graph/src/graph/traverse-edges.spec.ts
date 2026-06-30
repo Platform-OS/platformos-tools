@@ -1,8 +1,9 @@
 import { path as pathUtils } from '@platformos/platformos-check-common';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { assert, beforeAll, describe, expect, it } from 'vitest';
 import { buildAppGraph } from '../index';
 import {
   AppGraph,
+  AppModule,
   Dependencies,
   LiquidModule,
   LiquidModuleKind,
@@ -11,6 +12,20 @@ import {
 } from '../types';
 import { getGraphQLModuleByUri, getPartialModuleByUri } from './module';
 import { fixturesRoot, getDependencies } from './test-helpers';
+
+/**
+ * A module compared for its EDGE identity. Self-structural (`LiquidModule.structural`,
+ * TASK-9.3) is a separate concern, pinned exhaustively in `structural.spec.ts`;
+ * stripping it here keeps these edge tests focused and stable as structural grows.
+ */
+function edgeIdentity(module: AppModule | undefined): AppModule | undefined {
+  if (module && module.type === ModuleType.Liquid) {
+    const copy = { ...module };
+    delete copy.structural;
+    return copy;
+  }
+  return module;
+}
 
 /**
  * The exact source range of `snippet` within `source`. Derived from the fixture
@@ -107,7 +122,7 @@ describe('Graph traversal: {% function %} edges', () => {
       'function',
     );
     expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
-    expect(graph.modules[p('app/lib/queries/list.liquid')]).toEqual(
+    expect(edgeIdentity(graph.modules[p('app/lib/queries/list.liquid')])).toEqual(
       partialNode(p('app/lib/queries/list.liquid'), true, [edge]),
     );
   });
@@ -132,13 +147,14 @@ describe('Graph traversal: {% graphql %} edges', () => {
   let indexSource: string;
   let brokenSource: string;
 
-  const graphqlNode = (uri: string, exists: boolean, references: Reference[]) => ({
+  const graphqlNode = (uri: string, exists: boolean, references: Reference[], table?: string) => ({
     type: ModuleType.GraphQL,
     kind: 'graphql' as const,
     uri,
     exists,
     dependencies: [],
     references,
+    ...(table ? { table } : {}),
   });
 
   beforeAll(async () => {
@@ -157,8 +173,10 @@ describe('Graph traversal: {% graphql %} edges', () => {
       ['id'],
     );
     expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
+    // The resolved GraphQL node carries the model `table` it targets (the fixture
+    // operation filters on `table: { value: "blog_post" }`).
     expect(graph.modules[p('app/graphql/blog_posts/find.graphql')]).toEqual(
-      graphqlNode(p('app/graphql/blog_posts/find.graphql'), true, [edge]),
+      graphqlNode(p('app/graphql/blog_posts/find.graphql'), true, [edge], 'blog_post'),
     );
   });
 
@@ -172,6 +190,30 @@ describe('Graph traversal: {% graphql %} edges', () => {
     expect(graph.modules[p('app/graphql/blog_posts/missing.graphql')]).toEqual(
       graphqlNode(p('app/graphql/blog_posts/missing.graphql'), false, [edge]),
     );
+  });
+});
+
+describe('Graph traversal: GraphQL node `table` (build-time, both shapes)', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'graphql-table');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+
+  beforeAll(async () => {
+    graph = await buildAppGraph(rootUri, getDependencies());
+  }, 15000);
+
+  it('records the table for an operation that filters on one', () => {
+    const node = graph.modules[p('app/graphql/with_table.graphql')];
+    assert(node);
+    assert(node.type === ModuleType.GraphQL);
+    expect(node.table).toBe('blog_post');
+  });
+
+  it('leaves table undefined for an operation with no table filter', () => {
+    const node = graph.modules[p('app/graphql/without_table.graphql')];
+    assert(node);
+    assert(node.type === ModuleType.GraphQL);
+    expect(node.table).toBeUndefined();
   });
 });
 
@@ -195,7 +237,7 @@ describe('Graph traversal: {% include %} edges', () => {
       'include',
     );
     expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
-    expect(graph.modules[p('app/views/partials/shared/header.liquid')]).toEqual(
+    expect(edgeIdentity(graph.modules[p('app/views/partials/shared/header.liquid')])).toEqual(
       partialNode(p('app/views/partials/shared/header.liquid'), true, [edge]),
     );
   });
@@ -224,7 +266,7 @@ describe('Graph traversal: {% background %} edges', () => {
       ['data'],
     );
     expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
-    expect(graph.modules[p('app/views/partials/jobs/notify.liquid')]).toEqual(
+    expect(edgeIdentity(graph.modules[p('app/views/partials/jobs/notify.liquid')])).toEqual(
       partialNode(p('app/views/partials/jobs/notify.liquid'), true, [edge]),
     );
   });
@@ -272,10 +314,14 @@ describe('Graph traversal: module-namespaced targets (modules/<name>/public/...)
       functionEdge,
       renderEdge,
     ]);
-    expect(graph.modules[p('modules/my_module/public/lib/queries/get.liquid')]).toEqual(
+    expect(
+      edgeIdentity(graph.modules[p('modules/my_module/public/lib/queries/get.liquid')]),
+    ).toEqual(
       partialNode(p('modules/my_module/public/lib/queries/get.liquid'), true, [functionEdge]),
     );
-    expect(graph.modules[p('modules/my_module/public/views/partials/card.liquid')]).toEqual(
+    expect(
+      edgeIdentity(graph.modules[p('modules/my_module/public/views/partials/card.liquid')]),
+    ).toEqual(
       partialNode(p('modules/my_module/public/views/partials/card.liquid'), true, [renderEdge]),
     );
   });
@@ -322,7 +368,7 @@ describe('Graph traversal: layout-association edges (frontmatter `layout:`)', ()
       'layout',
     );
     expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toEqual([edge]);
-    expect(graph.modules[p('app/views/layouts/theme.liquid')]).toEqual(
+    expect(edgeIdentity(graph.modules[p('app/views/layouts/theme.liquid')])).toEqual(
       layoutNode(p('app/views/layouts/theme.liquid'), true, [edge]),
     );
   });
@@ -338,5 +384,42 @@ describe('Graph traversal: layout-association edges (frontmatter `layout:`)', ()
     expect(graph.modules[p('app/views/layouts/ghost.liquid')]).toEqual(
       layoutNode(p('app/views/layouts/ghost.liquid'), false, [edge]),
     );
+  });
+});
+
+describe('Graph traversal: schema/CustomModelType nodes (full-build discovery)', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'schema-nodes');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+
+  beforeAll(async () => {
+    graph = await buildAppGraph(rootUri, getDependencies());
+  }, 15000);
+
+  it('discovers a schema file as a leaf Schema node carrying its table (the YAML name)', () => {
+    expect(graph.modules[p('app/schema/blog_post.yml')]).toEqual({
+      type: ModuleType.Schema,
+      kind: 'schema',
+      uri: p('app/schema/blog_post.yml'),
+      exists: true,
+      dependencies: [],
+      references: [],
+      table: 'blog_post',
+    });
+  });
+
+  it('leaves table undefined for a schema file with no `name:`', () => {
+    expect(graph.modules[p('app/schema/no_name.yml')]).toEqual({
+      type: ModuleType.Schema,
+      kind: 'schema',
+      uri: p('app/schema/no_name.yml'),
+      exists: true,
+      dependencies: [],
+      references: [],
+    });
+  });
+
+  it('does not make schema files entry points', () => {
+    expect(graph.entryPoints.map((m) => m.uri)).toEqual([p('app/views/pages/index.liquid')]);
   });
 });

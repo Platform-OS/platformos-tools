@@ -60,12 +60,13 @@ describe('Integration: runStructure (structure adapter)', () => {
     ]);
   });
 
-  it('maps an asset filter to an asset dependency', async () => {
+  it('maps an asset filter to an asset dependency (resolved under app/assets)', async () => {
     // The asset edge's range is the `'app.js' | asset_url` expression (the
-    // variable output), which starts at column 4 — after `{{ `.
+    // variable output), which starts at column 4 — after `{{ `. The target
+    // resolves to the canonical `app/assets/` location (see DocumentsLocator).
     expect(
       await deps('app/views/layouts/application.liquid', "{{ 'app.js' | asset_url }}"),
-    ).toEqual([{ kind: 'asset', target: 'assets/app.js', line: 1, column: 4 }]);
+    ).toEqual([{ kind: 'asset', target: 'app/assets/app.js', line: 1, column: 4 }]);
   });
 
   it('maps a frontmatter `layout:` to a layout dependency', async () => {

@@ -19,7 +19,20 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
     expect(graph.rootUri).toBe(URI.file(skeletonPath).toString(true));
 
     // Whole node set, sorted by URI so the assertion is order-independent.
+    // (`app/assets/*` sorts ahead of `app/views/*`.)
     expect([...graph.nodes].sort((a, b) => a.uri.localeCompare(b.uri))).toEqual([
+      {
+        uri: p('app/assets/app.css'),
+        type: ModuleType.Asset,
+        kind: 'unused',
+        exists: true,
+      },
+      {
+        uri: p('app/assets/app.js'),
+        type: ModuleType.Asset,
+        kind: 'unused',
+        exists: true,
+      },
       {
         uri: p('app/views/layouts/application.liquid'),
         type: ModuleType.Liquid,
@@ -50,18 +63,6 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
         kind: LiquidModuleKind.Partial,
         exists: true,
       },
-      {
-        uri: p('assets/app.css'),
-        type: ModuleType.Asset,
-        kind: 'unused',
-        exists: true,
-      },
-      {
-        uri: p('assets/app.js'),
-        type: ModuleType.Asset,
-        kind: 'unused',
-        exists: true,
-      },
     ]);
 
     // Whole edge set, reduced to (source, target, type, kind) and sorted, so an
@@ -78,21 +79,21 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
     expect(edges).toEqual([
       {
         source: p('app/views/layouts/application.liquid'),
+        target: p('app/assets/app.css'),
+        type: 'direct',
+        kind: 'asset',
+      },
+      {
+        source: p('app/views/layouts/application.liquid'),
+        target: p('app/assets/app.js'),
+        type: 'direct',
+        kind: 'asset',
+      },
+      {
+        source: p('app/views/layouts/application.liquid'),
         target: p('app/views/partials/header.liquid'),
         type: 'direct',
         kind: 'render',
-      },
-      {
-        source: p('app/views/layouts/application.liquid'),
-        target: p('assets/app.css'),
-        type: 'direct',
-        kind: 'asset',
-      },
-      {
-        source: p('app/views/layouts/application.liquid'),
-        target: p('assets/app.js'),
-        type: 'direct',
-        kind: 'asset',
       },
       {
         source: p('app/views/pages/index.liquid'),
@@ -124,28 +125,28 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
 
 describe('platformos-graph CLI: nodeFileSystem', () => {
   it('reads a file by URI', async () => {
-    const uri = path.join(skeleton, 'assets', 'app.js');
+    const uri = path.join(skeleton, 'app', 'assets', 'app.js');
     expect(await nodeFileSystem.readFile(uri)).toBe(
       '// Skeleton app bundle (asset reference target).\n',
     );
   });
 
   it('stats a directory and a file', async () => {
-    expect(await nodeFileSystem.stat(path.join(skeleton, 'assets'))).toEqual({
+    expect(await nodeFileSystem.stat(path.join(skeleton, 'app', 'assets'))).toEqual({
       type: FileType.Directory,
       size: expect.any(Number),
     });
-    expect(await nodeFileSystem.stat(path.join(skeleton, 'assets', 'app.css'))).toEqual({
+    expect(await nodeFileSystem.stat(path.join(skeleton, 'app', 'assets', 'app.css'))).toEqual({
       type: FileType.File,
       size: expect.any(Number),
     });
   });
 
   it('lists a directory as [childUri, FileType] tuples', async () => {
-    const entries = await nodeFileSystem.readDirectory(path.join(skeleton, 'assets'));
+    const entries = await nodeFileSystem.readDirectory(path.join(skeleton, 'app', 'assets'));
     expect([...entries].sort((a, b) => a[0].localeCompare(b[0]))).toEqual([
-      [path.join(skeleton, 'assets', 'app.css'), FileType.File],
-      [path.join(skeleton, 'assets', 'app.js'), FileType.File],
+      [path.join(skeleton, 'app', 'assets', 'app.css'), FileType.File],
+      [path.join(skeleton, 'app', 'assets', 'app.js'), FileType.File],
     ]);
   });
 });

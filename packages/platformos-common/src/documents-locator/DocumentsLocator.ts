@@ -304,8 +304,16 @@ export class DocumentsLocator {
           : 'app/views/layouts';
         ext = '.liquid';
         break;
+      case 'asset':
+        // Assets carry their own extension in the reference (e.g. `logo.png`),
+        // so nothing is appended. There is no "creation" path, but there IS a
+        // canonical location — `app/assets` (or the module's public assets) —
+        // used as the fallback so an unresolved asset reference still yields a
+        // canonical target URI.
+        basePath = parsed.isModule ? `modules/${parsed.moduleName}/public/assets` : 'app/assets';
+        ext = '';
+        break;
       case 'theme_render_rc': // ambiguous — multiple search paths, no single canonical location
-      case 'asset': // no canonical creation path
         return undefined;
       default:
         return undefined;

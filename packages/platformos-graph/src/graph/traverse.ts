@@ -32,10 +32,11 @@ import {
 } from '../types';
 import { assertNever, exists, isString, unique } from '../utils';
 import {
-  getAssetModule,
+  getAssetModuleByUri,
   getGraphQLModuleByUri,
   getLayoutModuleByUri,
   getPartialModuleByUri,
+  isSupportedAssetFile,
 } from './module';
 
 /** A resolved outgoing reference: the target graph node + its call-site range + kind (+ named-arg names). */
@@ -172,10 +173,15 @@ async function resolveLiquidReferences(
         if (parentNode.expression.type !== NodeTypes.String) return;
         if (parentNode.filters[0] !== node) return;
         const asset = parentNode.expression.value;
-        const assetModule = getAssetModule(appGraph, asset);
-        if (!assetModule) return;
+        if (!isSupportedAssetFile(asset)) return; // ignore non-asset values (unchanged gate)
+        // Resolve through DocumentsLocator (`'asset'`: app/assets, module
+        // public/assets) — not a hard-coded base — so the target matches the
+        // real on-disk location, with the canonical `app/assets/<name>` as the
+        // fallback for an unresolved asset.
+        const uri = await documentsLocator.locateOrDefault(rootUri, 'asset', asset);
+        if (!uri) return;
         return {
-          target: assetModule,
+          target: getAssetModuleByUri(appGraph, uri),
           sourceRange: [parentNode.position.start, parentNode.position.end],
           kind: 'asset',
         };

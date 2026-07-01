@@ -72,13 +72,14 @@ describe('Graph queries: over the built skeleton app graph', () => {
   });
 
   it('reachableFrom returns the transitive outgoing closure', () => {
+    // Sorted by URI — `app/assets/*` sorts ahead of `app/views/*`.
     expect(reachableFrom(graph, p('app/views/pages/index.liquid'))).toEqual([
+      p('app/assets/app.css'),
+      p('app/assets/app.js'),
       p('app/views/layouts/application.liquid'),
       p('app/views/partials/child.liquid'),
       p('app/views/partials/header.liquid'),
       p('app/views/partials/parent.liquid'),
-      p('assets/app.css'),
-      p('assets/app.js'),
     ]);
   });
 

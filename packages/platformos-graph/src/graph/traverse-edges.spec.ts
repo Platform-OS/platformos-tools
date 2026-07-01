@@ -4,6 +4,7 @@ import { buildAppGraph } from '../index';
 import {
   AppGraph,
   AppModule,
+  AssetModule,
   Dependencies,
   LiquidModule,
   LiquidModuleKind,
@@ -384,6 +385,76 @@ describe('Graph traversal: layout-association edges (frontmatter `layout:`)', ()
     expect(graph.modules[p('app/views/layouts/ghost.liquid')]).toEqual(
       layoutNode(p('app/views/layouts/ghost.liquid'), false, [edge]),
     );
+  });
+});
+
+describe('Graph traversal: asset edges (asset_url resolves under app/assets)', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'asset-edges');
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  let graph: AppGraph;
+  let indexSource: string;
+
+  const assetNode = (uri: string, exists: boolean, references: Reference[]): AssetModule => ({
+    type: ModuleType.Asset,
+    kind: 'unused',
+    uri,
+    exists,
+    dependencies: [],
+    references,
+  });
+
+  // The asset edge carries the `{{ … }}` output's LiquidVariable range: from the
+  // first char after `{{ ` up to the `}}` (the parser includes the trailing
+  // space). Derived from the fixture text around the given literal so it stays
+  // correct as the fixture changes.
+  const outputRange = (literal: string): [number, number] => {
+    const at = indexSource.indexOf(literal);
+    if (at < 0) throw new Error(`literal not found in fixture: ${literal}`);
+    return [indexSource.lastIndexOf('{{', at) + '{{ '.length, indexSource.indexOf('}}', at)];
+  };
+
+  const assetEdge = (literal: string, targetPart: string): Reference =>
+    directRef(p('app/views/pages/index.liquid'), outputRange(literal), p(targetPart), 'asset');
+
+  beforeAll(async () => {
+    const dependencies: Dependencies = getDependencies();
+    graph = await buildAppGraph(rootUri, dependencies);
+    indexSource = (await dependencies.getSourceCode(p('app/views/pages/index.liquid'))).source;
+  }, 15000);
+
+  it('resolves an asset (relative to app/assets) to an exists:true Asset node', () => {
+    const edge = assetEdge("'site/app.js'", 'app/assets/site/app.js');
+    expect(graph.modules[p('app/views/pages/index.liquid')].dependencies).toContainEqual(edge);
+    expect(graph.modules[p('app/assets/site/app.js')]).toEqual(
+      assetNode(p('app/assets/site/app.js'), true, [edge]),
+    );
+  });
+
+  it('resolves a top-level asset under app/assets', () => {
+    const edge = assetEdge("'logo.css'", 'app/assets/logo.css');
+    expect(graph.modules[p('app/assets/logo.css')]).toEqual(
+      assetNode(p('app/assets/logo.css'), true, [edge]),
+    );
+  });
+
+  it('records a missing asset as an exists:false Asset node at its canonical app/assets path', () => {
+    const edge = assetEdge("'images/missing.png'", 'app/assets/images/missing.png');
+    expect(graph.modules[p('app/assets/images/missing.png')]).toEqual(
+      assetNode(p('app/assets/images/missing.png'), false, [edge]),
+    );
+  });
+
+  it('emits exactly the three asset edges for the page, in source order', () => {
+    expect(
+      graph.modules[p('app/views/pages/index.liquid')].dependencies.map((d) => ({
+        kind: d.kind,
+        target: d.target.uri,
+      })),
+    ).toEqual([
+      { kind: 'asset', target: p('app/assets/site/app.js') },
+      { kind: 'asset', target: p('app/assets/logo.css') },
+      { kind: 'asset', target: p('app/assets/images/missing.png') },
+    ]);
   });
 });
 

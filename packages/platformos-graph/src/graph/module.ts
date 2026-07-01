@@ -47,35 +47,48 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
       return getPartialModule(appGraph, path.basename(uri, '.liquid'));
 
     case relativePath.startsWith('assets') || relativePath.startsWith('modules'):
-      return getAssetModule(appGraph, path.basename(uri));
+      // The full URI is already resolved on-disk here, so use it directly rather
+      // than rebuilding a path from the basename.
+      return getAssetModuleByUri(appGraph, uri);
   }
 }
 
-export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule | undefined {
-  const extension = extname(asset);
+/** File extensions the graph treats as assets (the `asset_url` edge gate). */
+const SUPPORTED_ASSET_EXTENSIONS = [
+  ...SUPPORTED_ASSET_IMAGE_EXTENSIONS,
+  'js',
+  'css',
+  'svg',
+  'pdf',
+  'woff',
+  'woff2',
+  'ttf',
+  'eot',
+];
 
-  const SUPPORTED_ASSET_EXTENSIONS = [
-    ...SUPPORTED_ASSET_IMAGE_EXTENSIONS,
-    'js',
-    'css',
-    'svg',
-    'pdf',
-    'woff',
-    'woff2',
-    'ttf',
-    'eot',
-  ];
+/**
+ * Whether `name` refers to a supported asset file (by extension). The gate for
+ * creating an asset edge, preserving the graph's historical behavior of ignoring
+ * an `asset_url`-family filter applied to a value that is not an asset file.
+ */
+export function isSupportedAssetFile(name: string): boolean {
+  return SUPPORTED_ASSET_EXTENSIONS.includes(extname(name));
+}
 
-  if (!SUPPORTED_ASSET_EXTENSIONS.includes(extension)) {
-    return undefined;
-  }
-
+/**
+ * Create (or fetch the cached) Asset module for an ALREADY-RESOLVED asset URI —
+ * used for `asset_url`/`asset_img_url`/`inline_asset_content` targets whose URI is
+ * resolved canonically by `DocumentsLocator` (`'asset'` type: `app/assets`, module
+ * `public/assets`). A leaf node. Normalizes the URI — see
+ * {@link getPartialModuleByUri} for why DocumentsLocator URIs must be normalized.
+ */
+export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModule {
   return module(appGraph, {
     type: ModuleType.Asset,
     kind: 'unused',
+    uri: path.normalize(uri),
     dependencies: [],
     references: [],
-    uri: path.join(appGraph.rootUri, 'assets', asset),
   });
 }
 

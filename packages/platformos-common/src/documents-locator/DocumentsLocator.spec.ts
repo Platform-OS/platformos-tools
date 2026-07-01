@@ -124,9 +124,23 @@ describe('DocumentsLocator', () => {
       );
     });
 
-    it('asset → undefined (no canonical creation path)', () => {
+    it('asset → app/assets (canonical location; the reference carries its own extension)', () => {
       const locator = new DocumentsLocator(createMockFileSystem({}));
-      expect(locator.locateDefault(rootUri, 'asset', 'logo.png')).toBeUndefined();
+      expect(locator.locateDefault(rootUri, 'asset', 'emails/logo.png')).toBe(
+        'file:///project/app/assets/emails/logo.png',
+      );
+    });
+
+    it('module asset → modules/.../public/assets', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'asset', 'modules/core/logo.png')).toBe(
+        'file:///project/modules/core/public/assets/logo.png',
+      );
+    });
+
+    it('theme_render_rc → undefined (no single canonical location)', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'theme_render_rc', 'card')).toBeUndefined();
     });
 
     it('layout → app/views/layouts (.liquid canonical default)', () => {
@@ -330,6 +344,26 @@ describe('DocumentsLocator', () => {
       const result = await locator.locateOrDefault(rootUri, 'layout', 'theme');
 
       expect(result).toBe('file:///project/app/views/layouts/theme.liquid');
+    });
+
+    it('locateOrDefault returns the existing asset under app/assets', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/assets/emails/logo.png': 'binary',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locateOrDefault(rootUri, 'asset', 'emails/logo.png');
+
+      expect(result).toBe('file:///project/app/assets/emails/logo.png');
+    });
+
+    it('locateOrDefault falls back to the canonical app/assets path for a missing asset', async () => {
+      const fs = createMockFileSystem({});
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locateOrDefault(rootUri, 'asset', 'images/missing.png');
+
+      expect(result).toBe('file:///project/app/assets/images/missing.png');
     });
 
     it('should locate an asset by its own extension (no extension appended)', async () => {

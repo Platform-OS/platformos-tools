@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { assembleResult } from './assemble';
-import type { ValidateCodeDependency, ValidateCodeDiagnostic, ValidateCodeResult } from './types';
+import type {
+  ValidateCodeDependency,
+  ValidateCodeDiagnostic,
+  ValidateCodeResult,
+  ValidateCodeStructuralSnapshot,
+} from './types';
 
 const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => ({
   check: 'SomeCheck',
@@ -34,7 +39,7 @@ describe('Unit: assembleResult', () => {
     const warning = diag({ severity: 'warning', check: 'W' });
     const info = diag({ severity: 'info', check: 'I' });
 
-    expect(assembleResult([error, warning, info], [], 'full')).toEqual({
+    expect(assembleResult([error, warning, info], [], null, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
@@ -48,7 +53,7 @@ describe('Unit: assembleResult', () => {
     const error = diag({ severity: 'error' });
     const warning = diag({ severity: 'warning' });
 
-    expect(assembleResult([error, warning], [], 'full')).toEqual({
+    expect(assembleResult([error, warning], [], null, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
@@ -61,7 +66,7 @@ describe('Unit: assembleResult', () => {
     const warning = diag({ severity: 'warning' });
     const info = diag({ severity: 'info' });
 
-    expect(assembleResult([warning, info], [], 'full')).toEqual({
+    expect(assembleResult([warning, info], [], null, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'warning',
       must_fix_before_write: false,
@@ -71,7 +76,7 @@ describe('Unit: assembleResult', () => {
   });
 
   it('derives status = ok with an empty envelope for no diagnostics', () => {
-    expect(assembleResult([], [], 'full')).toEqual({
+    expect(assembleResult([], [], null, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
@@ -81,7 +86,7 @@ describe('Unit: assembleResult', () => {
   it('derives status = ok for infos only', () => {
     const info = diag({ severity: 'info' });
 
-    expect(assembleResult([info], [], 'quick')).toEqual({
+    expect(assembleResult([info], [], null, 'quick')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
@@ -95,11 +100,32 @@ describe('Unit: assembleResult', () => {
       { kind: 'layout', target: 'app/views/layouts/theme.liquid', line: 3, column: 1 },
     ];
 
-    expect(assembleResult([], dependencies, 'full')).toEqual({
+    expect(assembleResult([], dependencies, null, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
       dependencies,
+    });
+  });
+
+  it('carries the structural snapshot through verbatim (status unaffected)', () => {
+    const structural: ValidateCodeStructuralSnapshot = {
+      renders_used: ['card'],
+      graphql_queries_used: [],
+      filters_used: ['upcase'],
+      tags_used: ['render'],
+      translation_keys: [],
+      doc_params: ['title'],
+      slug: 'about',
+      layout: 'theme',
+      method: null,
+    };
+
+    expect(assembleResult([], [], structural, 'full')).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      structural,
     });
   });
 });

@@ -114,6 +114,22 @@ export interface ScorecardNote {
 }
 
 /**
+ * The Liquid construct that created a dependency edge — the agent-facing kind
+ * contract. Owned by the supervisor (not imported from the upstream
+ * `ReferenceKind`): the structure adapter maps upstream kinds onto this union
+ * through an exhaustive table, so an upstream rename/addition is a compile error
+ * at that seam rather than a silent change to the agent surface.
+ */
+export type ValidateCodeDependencyKind =
+  | 'render'
+  | 'include'
+  | 'function'
+  | 'background'
+  | 'graphql'
+  | 'asset'
+  | 'layout';
+
+/**
  * A resolved outgoing dependency of the validated file — what it
  * renders/includes/runs/queries/wraps. Derived from the platformos-graph
  * dependency model (`extractFileReferences`); the supervisor maps but never
@@ -121,13 +137,8 @@ export interface ScorecardNote {
  * "what does this call / where does it live" is answerable from the result.
  */
 export interface ValidateCodeDependency {
-  /**
-   * The Liquid construct that created the edge — one of
-   * `render | include | function | background | graphql | asset | layout`.
-   * Typed as `string` (like `ValidateCodeDiagnostic.check`) to keep the agent
-   * surface decoupled from the upstream `ReferenceKind` union.
-   */
-  kind: string;
+  /** The Liquid construct that created the edge. */
+  kind: ValidateCodeDependencyKind;
   /** The resolved dependency target, project-relative (e.g. `app/lib/queries/list.liquid`). */
   target: string;
   /** 1-based line of the reference site (the Liquid tag or the frontmatter block). */
@@ -158,8 +169,16 @@ export interface DomainGuide {
   triggered_gotchas: DomainGuideGotcha[];
 }
 
+/**
+ * The validated file's own structural declarations — what it renders/queries,
+ * the filters/tags it uses, its translation keys and `{% doc %}` params, and (for
+ * pages) its routing facts. Derived from the platformos-graph per-file primitive
+ * `extractStructural`; the usage arrays are always present (empty = none used),
+ * the routing facts are `null` when not applicable (e.g. a partial has no slug).
+ */
 export interface ValidateCodeStructuralSnapshot {
   renders_used: string[];
+  graphql_queries_used: string[];
   filters_used: string[];
   tags_used: string[];
   translation_keys: string[];

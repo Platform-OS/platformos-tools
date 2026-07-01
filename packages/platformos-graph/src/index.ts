@@ -1,5 +1,5 @@
 export { buildAppGraph } from './graph/build';
-export { extractFileReferences } from './graph/traverse';
+export { extractFileReferences, extractStructural } from './graph/traverse';
 export {
   dependenciesOf,
   dependentsOf,

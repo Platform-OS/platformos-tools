@@ -98,7 +98,8 @@ describe('Integration: validate_code over stdio', () => {
   });
 
   // The always-empty envelope fields in this lint-only slice; spread into each
-  // expected result so every assertion checks the WHOLE object.
+  // expected result so every assertion checks the WHOLE object. `structural` is
+  // set per-test (it is populated for every Liquid buffer).
   const EMPTY_ENVELOPE = {
     errors: [],
     warnings: [],
@@ -110,8 +111,22 @@ describe('Integration: validate_code over stdio', () => {
     parse_error: null,
     tips: [],
     domain_guide: null,
-    structural: null,
   };
+
+  // The self-structural snapshot with all-empty usage + no routing facts; each
+  // test overrides only the fields its buffer declares.
+  const structural = (over: Record<string, unknown> = {}) => ({
+    renders_used: [],
+    graphql_queries_used: [],
+    filters_used: [],
+    tags_used: [],
+    translation_keys: [],
+    doc_params: [],
+    slug: null,
+    layout: null,
+    method: null,
+    ...over,
+  });
 
   // The exact MissingContentForLayout error for a layout that omits
   // `{{ content_for_layout }}` (reported at index 0 → 1-based line/col 1).
@@ -136,6 +151,7 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
+      structural: structural(),
     });
   });
 
@@ -150,6 +166,7 @@ describe('Integration: validate_code over stdio', () => {
       status: 'error',
       must_fix_before_write: true,
       errors: [MISSING_CONTENT_FOR_LAYOUT],
+      structural: structural(),
     });
   });
 
@@ -166,6 +183,7 @@ describe('Integration: validate_code over stdio', () => {
       dependencies: [
         { kind: 'render', target: 'app/views/partials/card.liquid', line: 1, column: 1 },
       ],
+      structural: structural({ renders_used: ['card'], tags_used: ['render'], slug: '/' }),
     });
   });
 
@@ -188,6 +206,12 @@ layout: theme
         { kind: 'function', target: 'app/lib/queries/list.liquid', line: 4, column: 1 },
         { kind: 'render', target: 'app/views/partials/card.liquid', line: 5, column: 1 },
       ],
+      structural: structural({
+        renders_used: ['card'],
+        tags_used: ['function', 'render'],
+        slug: '/',
+        layout: 'theme',
+      }),
     });
   });
 
@@ -207,6 +231,7 @@ layout: theme
       dependencies: [
         { kind: 'render', target: 'app/views/partials/card.liquid', line: 1, column: 7 },
       ],
+      structural: structural({ renders_used: ['card'], tags_used: ['render'] }),
     });
   });
 
@@ -220,6 +245,7 @@ layout: theme
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
+      structural: structural({ tags_used: ['assign', 'render'], slug: '/' }),
     });
   });
 });

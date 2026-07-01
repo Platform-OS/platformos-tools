@@ -22,6 +22,18 @@ export type Dependencies = Required<IDependencies>;
 
 export type AugmentedDependencies = Dependencies;
 
+/** Options controlling what a build/traversal computes beyond the edge graph. */
+export interface GraphBuildOptions {
+  /**
+   * Populate each {@link LiquidModule.structural} (self-structural facts) during
+   * the build, as a by-product of the parse. OFF by default: a consumer that
+   * needs one buffer's structural facts should call `extractStructural` directly
+   * (the per-file primitive), so a full graph build — e.g. the LSP's, which never
+   * reads `structural` — does not compute a fact nothing consumes.
+   */
+  includeStructural?: boolean;
+}
+
 export interface AppGraph {
   rootUri: UriString;
   entryPoints: AppModule[];

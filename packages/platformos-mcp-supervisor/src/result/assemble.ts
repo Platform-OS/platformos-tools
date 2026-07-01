@@ -5,9 +5,10 @@
  * `status` + `must_fix_before_write` envelope. PURE — no I/O, consumes only the
  * diagnostic list and the shared result types.
  *
- * The ergonomic transforms (clustering, scorecard, the explicit
- * blocking-warning set, `next_step`, tips, domain_guide, structural) are added
- * in later tasks; they are left empty/null here.
+ * `dependencies` and `structural` are graph-derived facts pre-computed by the
+ * structure adapter and included verbatim. The remaining ergonomic transforms
+ * (clustering, scorecard, the explicit blocking-warning set, `next_step`, tips,
+ * domain_guide) are added in later tasks; they are left empty/null here.
  */
 import type {
   ValidateCodeDependency,
@@ -15,6 +16,7 @@ import type {
   ValidateCodeMode,
   ValidateCodeResult,
   ValidateCodeStatus,
+  ValidateCodeStructuralSnapshot,
 } from './types';
 
 export function assembleResult(
@@ -22,6 +24,9 @@ export function assembleResult(
   // The file's resolved outgoing dependencies (graph-derived, pre-computed by
   // the structure adapter). Included verbatim — assembly stays pure.
   dependencies: ValidateCodeDependency[],
+  // The file's own structural declarations (graph-derived), or null when the
+  // buffer is non-Liquid / unparseable. Included verbatim.
+  structural: ValidateCodeStructuralSnapshot | null,
   // Reserved: `full`/`quick` do not yet change output (no heavier stages exist).
   _mode: ValidateCodeMode,
 ): ValidateCodeResult {
@@ -47,6 +52,6 @@ export function assembleResult(
     parse_error: null,
     tips: [],
     domain_guide: null,
-    structural: null,
+    structural,
   };
 }

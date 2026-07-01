@@ -12,20 +12,10 @@
  * `enrich/`; for now diagnostics have no `fix` / `hint`, and the structured
  * `Offense.fix` / `suggest` are intentionally not translated.
  */
-import { isAbsolute, join } from 'node:path';
-
 import { lintBuffer, Severity, type Offense } from '@platformos/platformos-check-node';
 
+import { toAbsoluteFilePath, type AdapterInput } from '../adapter-input';
 import type { ValidateCodeDiagnostic, ValidateCodeSeverity } from '../result/types';
-
-export interface RunLintParams {
-  /** Absolute project root the buffer is validated against. */
-  projectDir: string;
-  /** File under edit — absolute, or relative to `projectDir`. */
-  filePath: string;
-  /** In-memory buffer contents. */
-  content: string;
-}
 
 const SEVERITY: Record<Severity, ValidateCodeSeverity> = {
   [Severity.ERROR]: 'error',
@@ -34,9 +24,9 @@ const SEVERITY: Record<Severity, ValidateCodeSeverity> = {
 };
 
 /** Lint the buffer and return the mapped diagnostics for the file. */
-export async function runLint(params: RunLintParams): Promise<ValidateCodeDiagnostic[]> {
+export async function runLint(params: AdapterInput): Promise<ValidateCodeDiagnostic[]> {
   const { projectDir, filePath, content } = params;
-  const absoluteFilePath = isAbsolute(filePath) ? filePath : join(projectDir, filePath);
+  const absoluteFilePath = toAbsoluteFilePath(projectDir, filePath);
   const offenses = await lintBuffer({ root: projectDir, filePath: absoluteFilePath, content });
   return offenses.map(toDiagnostic);
 }

@@ -39,6 +39,34 @@ export function slugFromFilePath(relativeToPages: string, format: string = 'html
 }
 
 /**
+ * The effective URL slug for a page, given its path relative to the pages
+ * directory and its parsed frontmatter — the single source of truth shared by
+ * {@link RouteTable} and any consumer that needs a page's routing slug (e.g. the
+ * dependency graph's self-structural).
+ *
+ * The rule (ported from the platform): an explicit frontmatter `slug` override
+ * wins verbatim (coerced to a string, since YAML may parse it as a non-string);
+ * otherwise the slug is derived from the path using the effective format (a
+ * frontmatter `format` override, else the format read from the filename).
+ *
+ * `frontmatter` fields are typed `unknown` because callers pass loosely-parsed
+ * YAML; only string values are honoured (matching RouteTable's behaviour).
+ */
+export function effectivePageSlug(
+  relativeToPages: string,
+  frontmatter?: { slug?: unknown; format?: unknown } | null,
+): string {
+  if (frontmatter?.slug !== undefined && frontmatter.slug !== null) {
+    return String(frontmatter.slug);
+  }
+  const format =
+    typeof frontmatter?.format === 'string' && frontmatter.format
+      ? frontmatter.format
+      : formatFromFilePath(relativeToPages);
+  return slugFromFilePath(relativeToPages, format);
+}
+
+/**
  * Known response formats supported by the platformOS engine.
  * Derived from the platform's FORMAT_ENUM.
  */

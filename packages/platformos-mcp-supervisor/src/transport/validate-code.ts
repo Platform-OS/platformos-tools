@@ -10,7 +10,7 @@ import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { runLint } from '../lint/lint';
-import { runStructure } from '../structure/structure';
+import { runStructure, type StructureResult } from '../structure/structure';
 import { assembleResult } from '../result/assemble';
 import type { Logger } from '../logger';
 import type { ValidateCodeParams, ValidateCodeResult } from '../result/types';
@@ -74,13 +74,29 @@ export function registerValidateCode(server: McpServer, ctx: SupervisorContext):
 }
 
 /**
- * Lint the buffer (check-node seam) and resolve its dependency edges
- * (platformos-graph seam) — two independent I/O adapters, run concurrently —
- * then assemble the result.
+ * The two I/O adapters {@link runValidateCode} orchestrates. Injectable so the
+ * degrade-vs-propagate contract below can be unit-tested; defaults are the real
+ * lint / structure seams.
  */
-async function runValidateCode(
+export interface ValidateCodeAdapters {
+  lint: typeof runLint;
+  structure: typeof runStructure;
+}
+
+/**
+ * Lint the buffer (check-node seam) and derive its structure — dependency edges
+ * + self-structural (platformos-graph seam) — as two independent I/O adapters
+ * run concurrently, then assemble the result.
+ *
+ * Lint is the PRIMARY signal (the `must_fix_before_write` gate): if it fails the
+ * whole call fails. Structure is SECONDARY enrichment, so a structure-adapter
+ * failure degrades to empty `dependencies` + null `structural` (logged) and
+ * never sinks the lint diagnostics the agent depends on.
+ */
+export async function runValidateCode(
   ctx: SupervisorContext,
   params: ValidateCodeParams,
+  adapters: ValidateCodeAdapters = { lint: runLint, structure: runStructure },
 ): Promise<ValidateCodeResult> {
   const mode = params.mode ?? 'full';
   ctx.log(`validate_code: ${params.file_path} (${mode})`);
@@ -89,11 +105,17 @@ async function runValidateCode(
     filePath: params.file_path,
     content: params.content,
   };
-  const [diagnostics, dependencies] = await Promise.all([
-    runLint(adapterParams),
-    runStructure(adapterParams),
+  const [diagnostics, structure] = await Promise.all([
+    adapters.lint(adapterParams),
+    adapters.structure(adapterParams).catch((error): StructureResult => {
+      ctx.log(
+        `validate_code: structural resolution failed for ${params.file_path}, ` +
+          `continuing without structure: ${error instanceof Error ? error.message : error}`,
+      );
+      return { dependencies: [], structural: null };
+    }),
   ]);
-  return assembleResult(diagnostics, dependencies, mode);
+  return assembleResult(diagnostics, structure.dependencies, structure.structural, mode);
 }
 
 /** Wrap a result in the MCP text-content envelope (every result is one JSON text block). */

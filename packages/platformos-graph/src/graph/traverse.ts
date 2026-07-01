@@ -1,8 +1,9 @@
 import yaml from 'js-yaml';
 import { LiquidNamedArgument, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import {
-  extractDocDefinition,
   extractGraphqlTable,
+  extractSchemaTable,
+  isTranslationKeyUsage,
   SourceCodeType,
   UriString,
   visit,
@@ -11,9 +12,8 @@ import {
 import {
   containsLiquid,
   DocumentsLocator,
+  effectivePageSlug,
   extractRelativePagePath,
-  formatFromFilePath,
-  slugFromFilePath,
 } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import {
@@ -21,6 +21,7 @@ import {
   AppGraph,
   AppModule,
   FileSourceCode,
+  GraphBuildOptions,
   LiquidModule,
   ModuleStructural,
   ModuleType,
@@ -53,6 +54,7 @@ export async function traverseModule(
   module: AppModule,
   appGraph: AppGraph,
   deps: AugmentedDependencies,
+  options: GraphBuildOptions = {},
 ): Promise<Void> {
   // If the module is already traversed, skip it
   if (appGraph.modules[module.uri]) {
@@ -73,7 +75,7 @@ export async function traverseModule(
 
   switch (module.type) {
     case ModuleType.Liquid: {
-      return traverseLiquidModule(module, appGraph, deps);
+      return traverseLiquidModule(module, appGraph, deps, options);
     }
 
     case ModuleType.Asset: {
@@ -93,7 +95,7 @@ export async function traverseModule(
       // Leaf node — a custom model type / schema file. Read the source once to
       // record its model table name (the YAML `name:`), a neutral platform fact.
       const sourceCode = await deps.getSourceCode(module.uri);
-      module.table = schemaTableName(sourceCode.source);
+      module.table = extractSchemaTable(sourceCode.source);
       return;
     }
 
@@ -107,12 +109,16 @@ async function traverseLiquidModule(
   module: LiquidModule,
   appGraph: AppGraph,
   deps: AugmentedDependencies,
+  options: GraphBuildOptions,
 ) {
   const sourceCode = await deps.getSourceCode(module.uri);
 
   // Surface the file's own structural declarations as a by-product of the parse
-  // (TASK-9.3). Absent only when the file could not be parsed.
-  module.structural = await extractStructural(sourceCode, module.uri);
+  // (TASK-9.3) — only when the caller opted in (see GraphBuildOptions). Absent
+  // otherwise, and when the file could not be parsed.
+  if (options.includeStructural) {
+    module.structural = await extractStructural(sourceCode, module.uri);
+  }
 
   const references = await resolveLiquidReferences(appGraph, sourceCode, deps);
 
@@ -125,7 +131,7 @@ async function traverseLiquidModule(
   }
 
   const modules = unique(references.map((ref) => ref.target));
-  const promises = modules.map((mod) => traverseModule(mod, appGraph, deps));
+  const promises = modules.map((mod) => traverseModule(mod, appGraph, deps, options));
 
   return Promise.all(promises);
 }
@@ -316,8 +322,7 @@ export async function extractFileReferences(
     target: { uri: reference.target.uri },
     type: 'direct' as const,
     kind: reference.kind,
-    // Only carry `args` when the call site has named arguments (parity with bind).
-    ...(reference.args && reference.args.length > 0 ? { args: reference.args } : {}),
+    ...argsField(reference.args),
   }));
 }
 
@@ -350,52 +355,44 @@ function loadFrontmatter(body: string): Record<string, unknown> | undefined {
 }
 
 /**
- * The model table name a schema/custom-model-type file declares — its top-level
- * YAML `name:`. Returns `undefined` for a missing/non-string `name` or
- * unparseable YAML.
- */
-function schemaTableName(source: string): string | undefined {
-  const name = loadFrontmatter(source)?.name;
-  return typeof name === 'string' && name !== '' ? name : undefined;
-}
-
-/** The YAMLFrontmatter body of a parsed Liquid file, if it has frontmatter. */
-function frontmatterBody(sourceCode: FileSourceCode): string | undefined {
-  if (sourceCode.type !== SourceCodeType.LiquidHtml) return undefined;
-  const ast = sourceCode.ast;
-  if (ast instanceof Error || ast.type !== NodeTypes.Document) return undefined;
-  const node = ast.children.find((child) => child.type === NodeTypes.YAMLFrontmatter);
-  return node?.type === NodeTypes.YAMLFrontmatter ? node.body : undefined;
-}
-
-/**
- * Extract a Liquid file's own structural declarations (TASK-9.3, phase A: page
- * routing facts) as a by-product of the already-parsed AST. Reuses the shared
- * `js-yaml` frontmatter parse and platformos-common's slug helpers — never a
- * second/bespoke parser.
+ * Extract a Liquid file's own structural declarations from an already-parsed
+ * source (TASK-9.3) — the per-file primitive (sibling to
+ * {@link extractFileReferences}). Reuses the shared `js-yaml` frontmatter parse,
+ * platformos-common's slug helpers, and check-common's liquid-doc/translation
+ * detection — never a second/bespoke parser.
  *
  * Usage facts (`renders_used` / `graphql_queries_used` / `filters_used` /
- * `tags_used` / `translation_keys`) come from one walk of the already-parsed
- * AST and are always present (sorted, de-duplicated; empty = none used). Routing
- * facts come from frontmatter:
+ * `tags_used` / `translation_keys`) come from one walk of the parsed AST and are
+ * always present (sorted, de-duplicated; empty = none used); `doc_params` is in
+ * source (signature) order. Routing facts come from frontmatter:
  * - `slug`: the frontmatter `slug` override (verbatim, matching the RouteTable
  *   source of truth) else the path-derived slug — for page files only.
  * - `layout` / `method`: from frontmatter when declared.
  *
- * Returns `undefined` only when the file could not be parsed (no AST to analyze).
+ * Returns `undefined` for a non-Liquid source or one that could not be parsed
+ * (no Liquid AST to analyze), so it is safe to call on any {@link FileSourceCode}.
  */
-async function extractStructural(
+export async function extractStructural(
   sourceCode: FileSourceCode,
   uri: UriString,
 ): Promise<ModuleStructural | undefined> {
-  if (sourceCode.ast instanceof Error) return undefined; // unparseable — nothing to analyze
+  // Only a parsed Liquid AST has the structure this analyzes; a `.graphql`/`.yml`
+  // buffer (or an unparseable one) yields no structural facts.
+  if (sourceCode.type !== SourceCodeType.LiquidHtml || sourceCode.ast instanceof Error) {
+    return undefined;
+  }
 
   const renders = new Set<string>();
   const graphqlQueries = new Set<string>();
   const filters = new Set<string>();
   const tags = new Set<string>();
   const translationKeys = new Set<string>();
+  // `{% doc %}` @param names, in source (signature) order — not sorted/de-duped.
+  const docParams: string[] = [];
 
+  // A single walk of the already-parsed AST collects every usage fact — no
+  // second traversal (the doc `@param` names are read from the parser-produced
+  // `LiquidDocParamNode`s in this same pass, as `extractDocDefinition` would).
   await visit<SourceCodeType.LiquidHtml, void>(sourceCode.ast, {
     RenderMarkup: async (node) => {
       if (isStringLiteral(node.partial)) renders.add(node.partial.value);
@@ -410,21 +407,15 @@ async function extractStructural(
       if (typeof node.name === 'string') tags.add(node.name);
     },
     // A translation-key usage is a string literal piped through `t`/`translate`,
-    // e.g. `{{ 'greeting.hello' | t }}` — same detection as the translation check.
+    // e.g. `{{ 'greeting.hello' | t }}` — detected via check-common's shared
+    // `isTranslationKeyUsage` so it cannot drift from the translation check.
     LiquidVariable: async (node) => {
-      if (
-        node.expression.type === NodeTypes.String &&
-        node.filters.some((filter) => filter.name === 't' || filter.name === 'translate')
-      ) {
-        translationKeys.add(node.expression.value);
-      }
+      if (isTranslationKeyUsage(node)) translationKeys.add(node.expression.value);
+    },
+    LiquidDocParamNode: async (node) => {
+      docParams.push(node.paramName.value);
     },
   });
-
-  // `{% doc %}` @param names — reuse check-common's liquid-doc extractor (no
-  // second parser); preserve declaration order (the param signature order).
-  const docDefinition = await extractDocDefinition(uri, sourceCode.ast);
-  const docParams = (docDefinition.liquidDoc?.parameters ?? []).map((param) => param.name);
 
   const frontmatter = loadFrontmatterOf(sourceCode);
   const layout = typeof frontmatter?.layout === 'string' ? frontmatter.layout : undefined;
@@ -446,43 +437,51 @@ async function extractStructural(
   };
 }
 
-/** The parsed frontmatter object of a Liquid file, if it has frontmatter. */
+/** The parsed frontmatter object of a Liquid file, if it has parseable frontmatter. */
 function loadFrontmatterOf(sourceCode: FileSourceCode): Record<string, unknown> | undefined {
-  const body = frontmatterBody(sourceCode);
-  return body ? loadFrontmatter(body) : undefined;
+  if (sourceCode.type !== SourceCodeType.LiquidHtml) return undefined;
+  const ast = sourceCode.ast;
+  if (ast instanceof Error || ast.type !== NodeTypes.Document) return undefined;
+  const node = ast.children.find((child) => child.type === NodeTypes.YAMLFrontmatter);
+  return node?.type === NodeTypes.YAMLFrontmatter ? loadFrontmatter(node.body) : undefined;
 }
 
 /**
- * The effective URL slug for `uri`: the frontmatter `slug` override (coerced to
- * a string, matching RouteTable) when declared, else the slug derived from the
- * page path (reusing `extractRelativePagePath` + `slugFromFilePath`). Returns
- * `undefined` for non-page files with no `slug` override.
+ * The effective URL slug for `uri`, delegating to `effectivePageSlug` — the
+ * single slug-derivation shared with `RouteTable`, so the graph's routing fact
+ * can never drift from the platform's actual routing (override-wins, coerced to
+ * a string; else path-derived using the effective format). Returns `undefined`
+ * for a non-page file unless it declares an explicit `slug` override.
  */
 function effectiveSlug(
   uri: UriString,
   frontmatter: Record<string, unknown> | undefined,
 ): string | undefined {
-  if (frontmatter && frontmatter.slug !== undefined && frontmatter.slug !== null) {
-    return String(frontmatter.slug);
-  }
   const relativePath = extractRelativePagePath(uri);
-  if (relativePath === null) return undefined;
-  return slugFromFilePath(relativePath, formatFromFilePath(relativePath));
+  if (relativePath !== null) return effectivePageSlug(relativePath, frontmatter);
+  // Non-page file: only an explicit `slug` override is meaningful.
+  const slug = frontmatter?.slug;
+  return slug !== undefined && slug !== null ? String(slug) : undefined;
 }
 
 /**
  * The names of a call site's named arguments, in source order, or `undefined`
- * when there are none. Defensive against the parser's documented
- * completion-context case (a trailing incomplete argument may not be a
- * fully-typed `NamedArgument`): only `NamedArgument`s with a string name
- * contribute. Values are intentionally not captured — names are what
- * cross-checking against a partial's `@param` signature needs.
+ * when there are none (so an argument-less edge carries no `args` field). Values
+ * are intentionally not captured — names are what cross-checking against a
+ * partial's `@param` signature needs. Every `LiquidNamedArgument` has a string
+ * `name` by construction, so no per-element guard is required.
  */
 function argNames(args: LiquidNamedArgument[]): string[] | undefined {
-  const names = args
-    .filter((arg) => arg.type === NodeTypes.NamedArgument && typeof arg.name === 'string')
-    .map((arg) => arg.name);
-  return names.length > 0 ? names : undefined;
+  return args.length > 0 ? args.map((arg) => arg.name) : undefined;
+}
+
+/**
+ * The spreadable `args` field for an edge: present only for a non-empty
+ * argument-name list, absent otherwise. The single place the "omit when none"
+ * rule lives, so {@link bind} and {@link extractFileReferences} cannot diverge.
+ */
+function argsField(args: string[] | undefined): { args?: string[] } {
+  return args && args.length > 0 ? { args } : {};
 }
 
 /**
@@ -512,9 +511,7 @@ export function bind(
     target: { uri: target.uri },
     type: type,
     kind: kind,
-    // Only carry `args` when the call site has named arguments, so argument-less
-    // edges stay free of an empty field.
-    ...(args && args.length > 0 ? { args } : {}),
+    ...argsField(args),
   };
 
   source.dependencies.push(dependency);

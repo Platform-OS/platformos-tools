@@ -153,7 +153,12 @@ export function getLayoutModule(
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Layout,
-    uri: layoutUri,
+    // Normalize so a layout discovered as an entry point keys identically to the
+    // same file resolved as a frontmatter `layout:` edge target (which comes
+    // through getLayoutModuleByUri, also normalized) — one node, never a split
+    // identity. See getPartialModuleByUri for why DocumentsLocator/fs URIs must
+    // be normalized.
+    uri: path.normalize(layoutUri),
     dependencies: [],
     references: [],
   });
@@ -181,7 +186,9 @@ export function getPageModule(appGraph: AppGraph, pageUri: string): LiquidModule
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Page,
-    uri: pageUri,
+    // Normalize for the same node-identity reason as getLayoutModule / the other
+    // factories (see getPartialModuleByUri).
+    uri: path.normalize(pageUri),
     dependencies: [],
     references: [],
   });

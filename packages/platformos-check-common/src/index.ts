@@ -58,6 +58,16 @@ export { levenshtein } from './utils';
 // re-implementing GraphQL parsing (the `graphql` dep lives here).
 export { extractGraphqlTable } from './graphql-table';
 
+// `extractSchemaTable` reads a custom-model-type/schema file's declared `name:`
+// (its table); exported alongside `extractGraphqlTable` so the graph and other
+// consumers extract this platform fact from the package that owns the parsers.
+export { extractSchemaTable } from './schema-table';
+
+// `isTranslationKeyUsage` is the shared predicate for "a string literal piped
+// through `t`/`translate`"; exported so the graph's self-structural detects
+// translation keys with the SAME rule as the `TranslationKeyExists` check.
+export { isTranslationKeyUsage, TRANSLATION_FILTERS } from './translation-usage';
+
 export * from './AugmentedPlatformOSDocset';
 export * from './types/platformos-liquid-docs';
 export * from './checks';

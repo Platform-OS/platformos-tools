@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { AppCache } from '@platformos/platformos-check-node';
+
 import { runValidateCode, type SupervisorContext } from './validate-code';
 import { GraphCache } from '../graph-cache/graph-cache';
 import type { ValidateCodeDiagnostic, ValidateCodeImpact } from '../result/types';
@@ -34,6 +36,7 @@ describe('runValidateCode: lint/impact orchestration', () => {
   const makeCtx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
     projectDir: '/project',
     graphCache: new GraphCache({ rootUri: 'file:///project' }),
+    appCache: new AppCache(),
     log,
   });
 

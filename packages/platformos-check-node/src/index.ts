@@ -55,14 +55,78 @@ export type AppCheckRun = {
   offenses: Offense[];
 };
 
-export async function toSourceCode(
-  absolutePath: string,
-): Promise<LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode | undefined> {
+/** A parsed source file as it appears in an {@link App}. */
+export type AppSourceCode = LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode;
+
+export async function toSourceCode(absolutePath: string): Promise<AppSourceCode | undefined> {
   try {
     const source = await fs.readFile(absolutePath, 'utf8');
     return commonToSourceCode(pathUtils.normalize(URI.file(absolutePath)), source);
   } catch (e) {
     return undefined;
+  }
+}
+
+/**
+ * Per-file change identity: `mtimeMs:size`. Cheap (a single `stat`) and standard
+ * (TypeScript `--incremental`, bundlers use the same). Returns `undefined` when
+ * the file cannot be stat'd (e.g. removed between enumeration and this call).
+ *
+ * Exported so consumers that maintain their own derived caches (e.g. the MCP
+ * supervisor's project-graph cache) can share ONE fingerprint definition rather
+ * than each inventing their own.
+ */
+export async function fileFingerprint(absolutePath: string): Promise<string | undefined> {
+  try {
+    const info = await fs.stat(absolutePath);
+    return `${info.mtimeMs}:${info.size}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * An OPT-IN, caller-held cache of parsed project sources for {@link getApp}.
+ *
+ * The whole-project parse is the dominant cost of a `lintBuffer` call (seconds
+ * on a large project). A caller that lints the same project repeatedly (the MCP
+ * supervisor) holds one `AppCache` and passes it to `getApp`/`lintBuffer`, so
+ * unchanged files are reused and only changed/new files are re-parsed.
+ *
+ * NEVER stale: reuse is gated on the per-file {@link fileFingerprint}; a changed
+ * file (mtime/size moved) is re-parsed, a removed file is pruned, an added file
+ * is parsed. Passing no cache preserves the original parse-everything behaviour
+ * exactly — existing consumers (CLI, backfill) are unaffected.
+ */
+export class AppCache {
+  private readonly entries = new Map<string, { fingerprint: string; source: AppSourceCode }>();
+
+  /** Number of cached parsed files. */
+  get size(): number {
+    return this.entries.size;
+  }
+
+  /** The cached parse for `uri` when its fingerprint still matches, else undefined. */
+  reuse(uri: string, fingerprint: string): AppSourceCode | undefined {
+    const entry = this.entries.get(uri);
+    return entry && entry.fingerprint === fingerprint ? entry.source : undefined;
+  }
+
+  /** Store (or replace) the parse for `uri` at `fingerprint`. */
+  store(uri: string, fingerprint: string, source: AppSourceCode): void {
+    this.entries.set(uri, { fingerprint, source });
+  }
+
+  /** Drop any cached file not in `keep` (removed from the project). */
+  prune(keep: ReadonlySet<string>): void {
+    for (const uri of this.entries.keys()) {
+      if (!keep.has(uri)) this.entries.delete(uri);
+    }
+  }
+
+  /** Forget everything (explicit full invalidation). */
+  clear(): void {
+    this.entries.clear();
   }
 }
 
@@ -144,6 +208,12 @@ export interface LintBufferParams {
   content: string;
   /** Explicit config path; resolved from `root` when omitted. */
   configPath?: string;
+  /**
+   * Optional parsed-project cache. When passed, the on-disk project is reused
+   * across calls and only changed files are re-parsed (never stale — see
+   * {@link AppCache}). Omit for the original parse-everything behaviour.
+   */
+  cache?: AppCache;
   log?: (message: string) => void;
 }
 
@@ -163,8 +233,8 @@ export interface LintBufferParams {
  * saved) the buffer is added so it is still linted.
  */
 export async function lintBuffer(params: LintBufferParams): Promise<Offense[]> {
-  const { root, filePath, content, configPath, log = () => {} } = params;
-  const { app, config } = await getAppAndConfig(root, configPath);
+  const { root, filePath, content, configPath, cache, log = () => {} } = params;
+  const { app, config } = await getAppAndConfig(root, configPath, cache);
   const uri = pathUtils.normalize(URI.file(filePath));
   const overlaidApp = overlayBuffer(app, uri, content);
   const offenses = await lintApp(root, overlaidApp, config, log);
@@ -190,24 +260,68 @@ function overlayBuffer(app: App, uri: string, content: string): App {
 export async function getAppAndConfig(
   root: string,
   configPath?: string,
+  cache?: AppCache,
 ): Promise<{ app: App; config: Config }> {
   const config = await loadConfig(configPath, root);
-  const app = await getApp(config);
+  const app = await getApp(config, cache);
   return {
     app,
     config,
   };
 }
 
-export async function getApp(config: Config): Promise<App> {
+const isDefinedSource = (x: AppSourceCode | undefined): x is AppSourceCode => x !== undefined;
+
+/**
+ * Load and parse every platformOS source file for `config`.
+ *
+ * When a {@link AppCache} is passed, unchanged files (by {@link fileFingerprint})
+ * are reused instead of re-parsed and only changed/new files are parsed — the
+ * file set + config-driven filter are still re-evaluated every call, so the
+ * result can never be stale. Without a cache the behaviour is unchanged: every
+ * file is parsed.
+ */
+export async function getApp(config: Config, cache?: AppCache): Promise<App> {
+  const paths = await getAppFilePaths(config);
+
+  if (!cache) {
+    const sourceCodes = await Promise.all(paths.map(toSourceCode));
+    return sourceCodes.filter(isDefinedSource);
+  }
+
+  const keep = new Set<string>();
+  const sourceCodes = await Promise.all(
+    paths.map(async (filePath): Promise<AppSourceCode | undefined> => {
+      const uri = pathUtils.normalize(URI.file(filePath));
+      keep.add(uri);
+      const fingerprint = await fileFingerprint(filePath);
+      if (fingerprint === undefined) return undefined; // vanished between glob and stat
+      const reused = cache.reuse(uri, fingerprint);
+      if (reused) return reused;
+      const source = await toSourceCode(filePath);
+      if (source) cache.store(uri, fingerprint, source);
+      return source;
+    }),
+  );
+  cache.prune(keep);
+  return sourceCodes.filter(isDefinedSource);
+}
+
+/**
+ * The absolute, normalized paths of every platformOS source file for `config`
+ * (glob + the recognized-directory filter). This is the file-set discovery the
+ * app is built from; the config-driven `isIgnored` filter is applied here so a
+ * config change is reflected in the returned set.
+ */
+async function getAppFilePaths(config: Config): Promise<string[]> {
   // On windows machines - the separator provided by path.join is '\'
   // however the glob function fails silently since '\' is used to escape glob charater
   // as mentioned in the documentation of node-glob
 
   // the path is normalised and '\' are replaced with '/' and then passed to the glob function
-  let normalizedGlob = getAppFilesPathPattern(config.rootUri);
+  const normalizedGlob = getAppFilesPathPattern(config.rootUri);
 
-  const paths = await glob(normalizedGlob, { absolute: true }).then((result) =>
+  return glob(normalizedGlob, { absolute: true }).then((result) =>
     result
       // Normalize backslashes to forward slashes so that isKnownLiquidFile() and
       // isIgnored() regex/minimatch patterns (which use forward slashes) work on Windows.
@@ -232,11 +346,6 @@ export async function getApp(config: Config): Promise<App> {
         }
         return true;
       }),
-  );
-  const sourceCodes = await Promise.all(paths.map(toSourceCode));
-  return sourceCodes.filter(
-    (x): x is LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode =>
-      x !== undefined,
   );
 }
 

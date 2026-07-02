@@ -10,6 +10,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 import { path } from '@platformos/platformos-check-common';
+import { AppCache } from '@platformos/platformos-check-node';
 
 import { GraphCache } from '../graph-cache/graph-cache';
 import { createLogger, type Logger } from '../logger';
@@ -41,7 +42,10 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
   const graphCache = new GraphCache({
     rootUri: path.normalize(path.URI.file(opts.projectDir)),
   });
-  const context: SupervisorContext = { projectDir: opts.projectDir, graphCache, log };
+  // One never-stale parsed-project cache per server, so repeated lint calls reuse
+  // the parsed project instead of re-parsing it (the dominant per-call cost).
+  const appCache = new AppCache();
+  const context: SupervisorContext = { projectDir: opts.projectDir, graphCache, appCache, log };
 
   const server = new McpServer({ name: SERVER_NAME, version: opts.version ?? DEFAULT_VERSION });
   registerValidateCode(server, context);

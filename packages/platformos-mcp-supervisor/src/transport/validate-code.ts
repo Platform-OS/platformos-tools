@@ -9,6 +9,8 @@
 import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import type { AppCache } from '@platformos/platformos-check-node';
+
 import { runLint } from '../lint/lint';
 import { runImpact } from '../impact/impact';
 import { assembleResult } from '../result/assemble';
@@ -22,6 +24,8 @@ export interface SupervisorContext {
   projectDir: string;
   /** Never-stale, background-built project graph — the blast-radius source. */
   graphCache: GraphCache;
+  /** Never-stale parsed-project cache — reused across lint calls so the project isn't re-parsed each time. */
+  appCache: AppCache;
   log: Logger;
 }
 
@@ -116,7 +120,7 @@ export async function runValidateCode(
     content: params.content,
   };
   const [diagnostics, impact] = await Promise.all([
-    adapters.lint(adapterParams),
+    adapters.lint(adapterParams, ctx.appCache),
     adapters.impact(adapterParams, ctx.graphCache).catch((error): ValidateCodeImpact => {
       ctx.log(
         `validate_code: blast-radius failed for ${params.file_path}, ` +

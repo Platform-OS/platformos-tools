@@ -136,12 +136,19 @@ export interface DomainGuide {
 }
 
 /**
- * Freshness of the blast-radius answer. Distinguishes a real "nothing depends on
- * this" (`computed`, total 0 — safe to change) from "we don't know yet"
- * (`computing`/`unavailable`), so an unbuilt/failed graph can NEVER be misread as
- * a green light. See {@link ValidateCodeImpact}.
+ * Freshness/applicability of the blast-radius answer. Distinguishes a real
+ * "nothing depends on this" (`computed`, total 0 — safe to change) from "we don't
+ * know yet" (`computing`/`unavailable`) and from "this file type has no dependency
+ * graph" (`not_applicable`), so an unbuilt/failed graph — or a file the graph
+ * cannot model — can NEVER be misread as a green light.
+ *
+ * `not_applicable` is returned for files that are not graph-trackable edge targets
+ * (e.g. schema / custom-model-type / translation YAML): nothing references them
+ * via a resolvable edge — they are wired by model/table NAME, not by file
+ * reference (see ADR 004) — so `total: 0` would falsely read as "safe to change".
+ * See {@link ValidateCodeImpact}.
  */
-export type ValidateCodeImpactStatus = 'computed' | 'computing' | 'unavailable';
+export type ValidateCodeImpactStatus = 'computed' | 'computing' | 'unavailable' | 'not_applicable';
 
 /**
  * Cross-file "blast radius" of editing the file: who DEPENDS ON it (its incoming

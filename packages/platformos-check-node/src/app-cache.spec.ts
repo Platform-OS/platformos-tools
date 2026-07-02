@@ -72,7 +72,7 @@ describe('Unit: AppCache (parsed-project reuse for getApp/lintBuffer)', () => {
     const homeUri = workspace.uri('app/views/pages/home.liquid');
 
     expect(after.get(aUri)).not.toBe(first.get(aUri)); // changed ⇒ re-parsed (new instance)
-    expect(after.get(aUri)!.source).toContain('edited longer'); // reflects new content
+    expect(after.get(aUri)!.source).toEqual('<div>a — edited longer</div>'); // reflects new content
     expect(after.get(bUri)).toBe(first.get(bUri)); // unchanged ⇒ reused
     expect(after.get(homeUri)).toBe(first.get(homeUri)); // unchanged ⇒ reused
   });
@@ -128,13 +128,13 @@ describe('Unit: AppCache (parsed-project reuse for getApp/lintBuffer)', () => {
     const lint = () =>
       lintBuffer({ root, filePath: pageFile, content: "{% render 'ghost' %}", configPath, cache });
 
-    // Cold: 'ghost' does not exist → MissingPartial.
+    // Cold: 'ghost' does not exist → exactly one MissingPartial (only that check is enabled).
     const before = await lint();
-    expect(before.some((o) => o.check === 'MissingPartial')).toBe(true);
+    expect(before.map((o) => o.check)).toEqual(['MissingPartial']);
 
     // Create the partial on disk; the SAME cache must reconcile it (not serve stale).
     await fs.writeFile(abs('app/views/partials/ghost.liquid'), '<div>ghost</div>', 'utf8');
     const after = await lint();
-    expect(after.some((o) => o.check === 'MissingPartial')).toBe(false);
+    expect(after.map((o) => o.check)).toEqual([]);
   });
 });

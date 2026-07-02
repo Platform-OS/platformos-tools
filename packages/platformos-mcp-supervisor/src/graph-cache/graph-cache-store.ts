@@ -77,6 +77,13 @@ export function decodeCacheFile(
   if (parsed.rootUri !== expectedRootUri) return null;
 
   try {
+    // Reject a cache whose edges/entry points reference absent nodes: `deserialize`
+    // would SILENTLY drop the dangling parts, yielding a structurally-plausible but
+    // WRONG graph (under-counted dependents / lost entry points). Since the disk
+    // fingerprint may still match — so no reconcile would ever run — that wrong
+    // graph would be served as fresh. A valid serialized graph always satisfies
+    // integrity, so this only rejects genuine corruption (→ full rebuild).
+    if (!hasReferentialIntegrity(parsed)) return null;
     return {
       graph: deserializeAppGraph(parsed.graph, parsed.entryPoints),
       fingerprint: new Map(parsed.fingerprint),
@@ -85,6 +92,20 @@ export function decodeCacheFile(
     // Structurally malformed beyond the shallow shape check → treat as corrupt.
     return null;
   }
+}
+
+/**
+ * Whether every edge endpoint (source + target) and every entry point references a
+ * node actually present in the serialized graph. `serializeAppGraph` always emits
+ * a graph that satisfies this (every edge binds two materialized modules; every
+ * entry point is a module), so a failure here means the on-disk cache is corrupt.
+ */
+function hasReferentialIntegrity(file: CacheFile): boolean {
+  const nodeUris = new Set(file.graph.nodes.map((node) => node.uri));
+  for (const edge of file.graph.edges) {
+    if (!nodeUris.has(edge.source.uri) || !nodeUris.has(edge.target.uri)) return false;
+  }
+  return file.entryPoints.every((uri) => nodeUris.has(uri));
 }
 
 /** Shallow structural validation of a parsed cache document. */

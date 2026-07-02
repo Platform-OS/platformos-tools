@@ -13,6 +13,7 @@ import {
 } from '@platformos/platformos-graph';
 
 import { GraphCache } from './graph-cache';
+import { decodeCacheFile } from './graph-cache-store';
 
 /**
  * A fake graph tagged with a build id so a test can assert WHICH build's graph
@@ -150,6 +151,67 @@ describe('GraphCache: never-stale, background-built, deduplicated', () => {
     results.forEach((result) => expect(result).toEqual({ graph: fakeGraph(1) }));
     // First reconcile applies 'a'; the queued ones re-check (already caught up) → no-op.
     expect(applyCount).toBe(1);
+  });
+
+  it('reconciles to the freshly re-read disk state, never a stale scan the lookup first observed', async () => {
+    // The reconcile re-reads the fingerprint INSIDE the serialized section, so it
+    // converges to the ACTUAL current disk — not the value a racing lookup saw
+    // earlier (which, applied out of order, would be a backward diff / stale graph).
+    const applied: Array<[string, FileChangeKind]> = [];
+    // computeFingerprint returns, in call order: cold build (a:1), the lookup's
+    // off-lock scan (a:2), then the reconcile's fresh in-lock scan (a:2 + b:1).
+    const queue = [fp({ a: '1' }), fp({ a: '2' }), fp({ a: '2', b: '1' })];
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => queue.shift() ?? fp({ a: '2', b: '1' }),
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async (_graph, uri, kind) => {
+        applied.push([uri, kind]);
+      },
+    });
+
+    await cache.lookup(); // cold build at {a:1}
+    await cache.settle();
+    await cache.lookup(); // observes {a:2} off-lock, but reconciles to the fresh {a:2,b:1}
+
+    // The diff applied is {a:1} → {a:2,b:1} (the RE-READ state), not {a:1} → {a:2}.
+    expect(applied).toEqual([
+      ['a', 'modified'],
+      ['b', 'added'],
+    ]);
+  });
+
+  it('coalesces persistence: a burst during an in-flight write flushes as ONE follow-up of the latest state', async () => {
+    let current = fp({ a: '1' });
+    let releaseFirstWrite!: () => void;
+    const firstWriteGate = new Promise<void>((resolve) => (releaseFirstWrite = resolve));
+    const persisted: string[] = [];
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async () => {}, // fingerprint tracks the state; graph object is opaque here
+      readCacheFile: async () => null,
+      writeCacheFile: async (contents) => {
+        persisted.push(contents);
+        if (persisted.length === 1) await firstWriteGate; // hold the cold-build write open
+      },
+    });
+
+    await cache.lookup(); // cold build → schedules write #1 (blocks on the gate)
+    // While write #1 is in flight, two reconciles land — both only mark dirty.
+    current = fp({ a: '2' });
+    await cache.lookup();
+    current = fp({ a: '2', b: '1' });
+    await cache.lookup();
+    releaseFirstWrite();
+    await cache.settle();
+
+    // Exactly two writes — the gated cold-build write (a:1), then ONE coalesced
+    // follow-up for the whole burst persisting the LATEST state (a:2,b:1) — not one
+    // write per reconcile.
+    const persistedFingerprints = persisted.map((c) => decodeCacheFile(c, rootUri)?.fingerprint);
+    expect(persistedFingerprints).toEqual([fp({ a: '1' }), fp({ a: '2', b: '1' })]);
   });
 
   it('reports unavailable when the build fails, without a retry storm for the same source', async () => {
@@ -438,11 +500,16 @@ describe('GraphCache: scoped source walk (Phase 3A — platformOS roots only)', 
     await cache.settle();
     const graph = graphOf(await cache.lookup());
 
-    // The scoped walk descended the real source root…
-    expect(readDirs.some((dir) => dir.endsWith('/app/views/partials'))).toBe(true);
-    // …but never the non-platformOS subtree, and never the project root itself.
-    expect(readDirs.some((dir) => dir.includes('/react-app'))).toBe(false);
-    expect(readDirs).not.toContain(rootUri);
+    // Deduplicate: each lookup re-scans, so a root can be read more than once —
+    // membership, not count, is the contract.
+    const walked = new Set(readDirs);
+    // The scoped walk descended the real source root (`app/` — the exact URI the
+    // enumeration passes to readDirectory)…
+    const appRoot = path.join(rootUri, 'app');
+    expect([...walked].filter((dir) => dir === appRoot)).toEqual([appRoot]);
+    // …but NEVER the non-platformOS subtree, and never the project root itself.
+    expect([...walked].filter((dir) => dir.includes('/react-app'))).toEqual([]);
+    expect([...walked].filter((dir) => dir === rootUri)).toEqual([]);
     // The stray .liquid under react-app/ is not a graph node (never enumerated).
     expect(graph.modules[uri('react-app/src/components/Widget.liquid')]).toBeUndefined();
   }, 20000);

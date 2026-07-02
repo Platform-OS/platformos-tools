@@ -94,22 +94,26 @@ describe('runImpact: blast radius from the cached graph', () => {
       source: `app/views/pages/p${String(i).padStart(2, '0')}.liquid`,
       kind: 'render' as const,
     }));
-    const result = await run(card, stubCache({ graph: graphWithDependents(card, refs) }));
-
-    expect(result.status).toEqual('computed');
-    expect(result.dependents.total).toEqual(15);
-    expect(result.dependents.sample).toEqual([
-      'app/views/pages/p00.liquid',
-      'app/views/pages/p01.liquid',
-      'app/views/pages/p02.liquid',
-      'app/views/pages/p03.liquid',
-      'app/views/pages/p04.liquid',
-      'app/views/pages/p05.liquid',
-      'app/views/pages/p06.liquid',
-      'app/views/pages/p07.liquid',
-      'app/views/pages/p08.liquid',
-      'app/views/pages/p09.liquid',
-    ]);
+    expect(await run(card, stubCache({ graph: graphWithDependents(card, refs) }))).toEqual({
+      scope: 'direct',
+      status: 'computed',
+      dependents: {
+        total: 15,
+        by_kind: { render: 15 },
+        sample: [
+          'app/views/pages/p00.liquid',
+          'app/views/pages/p01.liquid',
+          'app/views/pages/p02.liquid',
+          'app/views/pages/p03.liquid',
+          'app/views/pages/p04.liquid',
+          'app/views/pages/p05.liquid',
+          'app/views/pages/p06.liquid',
+          'app/views/pages/p07.liquid',
+          'app/views/pages/p08.liquid',
+          'app/views/pages/p09.liquid',
+        ],
+      },
+    });
   });
 
   it('reports status "computing" (zeroed) when the graph is not yet fresh — never a stale answer', async () => {
@@ -125,6 +129,45 @@ describe('runImpact: blast radius from the cached graph', () => {
       scope: 'direct',
       status: 'unavailable',
       dependents: { total: 0, by_kind: {}, sample: [] },
+    });
+  });
+});
+
+describe('runImpact: applicability (files the graph cannot model as edge targets)', () => {
+  // A cache that fails if consulted — proves non-trackable files short-circuit
+  // BEFORE the graph lookup (applicability is a file-type property, not a graph one).
+  const throwingCache = () =>
+    ({
+      lookup: async () => {
+        throw new Error('cache.lookup must not be called for a non-trackable file');
+      },
+    }) as unknown as GraphCache;
+
+  it('reports not_applicable for a custom-model-type/schema YAML (wired by table name, not by edge)', async () => {
+    expect(await run('app/custom_model_types/blog_post.yml', throwingCache())).toEqual({
+      scope: 'direct',
+      status: 'not_applicable',
+      dependents: { total: 0, by_kind: {}, sample: [] },
+    });
+  });
+
+  it('reports not_applicable for a translation YAML', async () => {
+    expect(await run('app/translations/en.yml', throwingCache())).toEqual({
+      scope: 'direct',
+      status: 'not_applicable',
+      dependents: { total: 0, by_kind: {}, sample: [] },
+    });
+  });
+
+  it('still computes for a GraphQL operation file (a real edge target)', async () => {
+    const op = 'app/graphql/get_posts.graphql';
+    const graph = graphWithDependents(op, [
+      { source: 'app/views/pages/index.liquid', kind: 'graphql' },
+    ]);
+    expect(await run(op, stubCache({ graph }))).toEqual({
+      scope: 'direct',
+      status: 'computed',
+      dependents: { total: 1, by_kind: { graphql: 1 }, sample: ['app/views/pages/index.liquid'] },
     });
   });
 });
@@ -151,18 +194,33 @@ describe('runImpact: signature-impact (callers vs the edited buffer {% doc %})',
       { source: 'app/views/pages/bare.liquid', kind: 'render' },
     ]);
 
-    const result = await run(card, stubCache({ graph }), docBuffer);
-
-    expect(result.status).toEqual('computed');
-    expect(result.signature_risk).toEqual([
-      { caller: 'app/views/pages/bare.liquid', missing_required: ['title'], unexpected_args: [] },
-      { caller: 'app/views/pages/extra.liquid', missing_required: [], unexpected_args: ['colour'] },
-      {
-        caller: 'app/views/pages/missing.liquid',
-        missing_required: ['title'],
-        unexpected_args: [],
+    expect(await run(card, stubCache({ graph }), docBuffer)).toEqual({
+      scope: 'direct',
+      status: 'computed',
+      dependents: {
+        total: 4,
+        by_kind: { render: 4 },
+        sample: [
+          'app/views/pages/bare.liquid',
+          'app/views/pages/extra.liquid',
+          'app/views/pages/missing.liquid',
+          'app/views/pages/ok.liquid',
+        ],
       },
-    ]);
+      signature_risk: [
+        { caller: 'app/views/pages/bare.liquid', missing_required: ['title'], unexpected_args: [] },
+        {
+          caller: 'app/views/pages/extra.liquid',
+          missing_required: [],
+          unexpected_args: ['colour'],
+        },
+        {
+          caller: 'app/views/pages/missing.liquid',
+          missing_required: ['title'],
+          unexpected_args: [],
+        },
+      ],
+    });
   });
 
   it('returns an empty signature_risk (checked, all match) when every caller satisfies the doc', async () => {
@@ -189,5 +247,59 @@ describe('runImpact: signature-impact (callers vs the edited buffer {% doc %})',
     const result = await run(card, stubCache({ graph: null, reason: 'recomputing' }), docBuffer);
     expect(result.signature_risk).toBeUndefined();
     expect(result.status).toEqual('computing');
+  });
+
+  it('ignores non-@param edges (background/graphql) — only render/include/function args are @params', async () => {
+    const graph = graphWithDependents(card, [
+      // render caller passing an undeclared arg → flagged
+      { source: 'app/views/pages/render.liquid', kind: 'render', args: ['title', 'colour'] },
+      // background caller: `delay` is a scheduling arg, NOT a @param → must NOT be flagged
+      { source: 'app/views/pages/bg.liquid', kind: 'background', args: ['title', 'delay'] },
+      // graphql caller: `per_page` is an operation arg, NOT a @param → must NOT be flagged
+      { source: 'app/views/pages/gql.liquid', kind: 'graphql', args: ['per_page'] },
+    ]);
+
+    // background/graphql callers ARE still counted as dependents — they are only
+    // excluded from the @param signature check.
+    expect(await run(card, stubCache({ graph }), docBuffer)).toEqual({
+      scope: 'direct',
+      status: 'computed',
+      dependents: {
+        total: 3,
+        by_kind: { render: 1, background: 1, graphql: 1 },
+        sample: [
+          'app/views/pages/bg.liquid',
+          'app/views/pages/gql.liquid',
+          'app/views/pages/render.liquid',
+        ],
+      },
+      signature_risk: [
+        {
+          caller: 'app/views/pages/render.liquid',
+          missing_required: [],
+          unexpected_args: ['colour'],
+        },
+      ],
+    });
+  });
+
+  it('includes function call sites (their args ARE @params, mirroring PartialCallArguments)', async () => {
+    const graph = graphWithDependents(card, [
+      // function caller missing the required `title`
+      { source: 'app/lib/commands/run.liquid', kind: 'function', args: ['count'] },
+    ]);
+
+    expect(await run(card, stubCache({ graph }), docBuffer)).toEqual({
+      scope: 'direct',
+      status: 'computed',
+      dependents: {
+        total: 1,
+        by_kind: { function: 1 },
+        sample: ['app/lib/commands/run.liquid'],
+      },
+      signature_risk: [
+        { caller: 'app/lib/commands/run.liquid', missing_required: ['title'], unexpected_args: [] },
+      ],
+    });
   });
 });

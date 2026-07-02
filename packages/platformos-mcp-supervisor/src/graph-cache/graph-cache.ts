@@ -41,7 +41,7 @@
  * cheaper to gather (TASK-9.15 Phase 3, part A).
  */
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -53,7 +53,7 @@ import {
   recursiveReadDirectory,
   type UriString,
 } from '@platformos/platformos-check-common';
-import { NodeFileSystem } from '@platformos/platformos-check-node';
+import { fileFingerprint, NodeFileSystem } from '@platformos/platformos-check-node';
 import type { AbstractFileSystem } from '@platformos/platformos-common';
 import {
   applyFileChange,
@@ -163,7 +163,14 @@ async function enumerateEdgeSources(
   return perRoot.flat();
 }
 
-/** Real disk fingerprint: every edge-source liquid file → `mtimeMs:size`. */
+/**
+ * Real disk fingerprint: every edge-source liquid file → its per-file identity.
+ * Reuses check-node's exported {@link fileFingerprint} — the SAME `mtimeMs:size`
+ * definition its `AppCache` uses — so the two never-stale caches (lint's parsed
+ * project + this graph) can never disagree on what "changed" means. A file that
+ * vanished between the walk and the stat yields `undefined` and is omitted; the
+ * next scan reconciles.
+ */
 async function computeFingerprintFromDisk(
   rootUri: UriString,
   fs: AbstractFileSystem,
@@ -172,12 +179,8 @@ async function computeFingerprintFromDisk(
   const fingerprint: Fingerprint = new Map();
   await Promise.all(
     uris.map(async (uri) => {
-      try {
-        const info = await stat(path.fsPath(uri));
-        fingerprint.set(uri, `${info.mtimeMs}:${info.size}`);
-      } catch {
-        // Vanished between the walk and the stat — omit it; the next scan reconciles.
-      }
+      const identity = await fileFingerprint(path.fsPath(uri));
+      if (identity !== undefined) fingerprint.set(uri, identity);
     }),
   );
   return fingerprint;
@@ -254,10 +257,18 @@ export class GraphCache {
    * mutations of the shared graph. Each stale lookup chains after the previous.
    */
   private reconcileChain: Promise<void> = Promise.resolve();
-  /** Serializes off-path cache writes; a pending write is coalesced (see {@link schedulePersist}). */
-  private persistChain: Promise<void> = Promise.resolve();
-  /** Whether a persist is already queued (so a burst of changes collapses to one write). */
-  private persistScheduled = false;
+  /**
+   * Number of reconciliations queued-or-running. The synchronous fast path serves
+   * `built.graph` ONLY when this is 0, so a lookup can never read the graph while
+   * `applyDiff` is mutating it in place across `await`s (a half-applied graph must
+   * never be served — the never-stale mandate). When >0, a lookup routes through
+   * the chain and serves the fully-reconciled graph.
+   */
+  private reconciling = 0;
+  /** Set when the built graph changed and still needs persisting; the running/next drain flushes it. */
+  private persistDirty = false;
+  /** The in-flight persist drain, if any — so a burst (and changes landing mid-write) coalesce. */
+  private persistDrain: Promise<void> | null = null;
 
   constructor(options: GraphCacheOptions) {
     this.rootUri = options.rootUri;
@@ -279,9 +290,10 @@ export class GraphCache {
 
   /**
    * Return a FRESH graph for the current on-disk state. When the source is
-   * unchanged since the last build/reconcile, serve the built graph directly.
-   * When it moved and a graph exists, reconcile incrementally (apply only the
-   * changed files) and serve the updated graph — no rebuild, no `computing` gap.
+   * unchanged since the last build/reconcile AND no reconcile is in flight, serve
+   * the built graph directly (the synchronous fast path). When it moved (or a
+   * reconcile is running) and a graph exists, reconcile incrementally through the
+   * serialized chain and serve the updated graph — no rebuild, no `computing` gap.
    * Only a cold start (no prior graph) returns without a graph, triggering a
    * background build. The fingerprint scan is cheap (a stat-scan); the request
    * path never awaits a full build.
@@ -290,7 +302,11 @@ export class GraphCache {
     const current = await this.computeFingerprint(this.rootUri, this.fs);
 
     if (this.built) {
-      if (fingerprintsEqual(this.built.fingerprint, current)) {
+      // Fast path: serve directly only when nothing is reconciling — otherwise
+      // `built.graph` may be mid-mutation (applyDiff mutates in place across
+      // `await`s). `this.reconciling === 0` + the synchronous return (no `await`
+      // before it) guarantees the served graph is complete.
+      if (this.reconciling === 0 && fingerprintsEqual(this.built.fingerprint, current)) {
         return { graph: this.built.graph };
       }
       return this.reconcileAndServe(current);
@@ -306,32 +322,42 @@ export class GraphCache {
   }
 
   /**
-   * Bring the built graph up to `target` by applying only the changed files, then
-   * serve it fresh. Reconciliations are serialized (chained) so concurrent
-   * lookups cannot interleave mutations of the shared graph; if incremental apply
+   * Reconcile the built graph to the current disk state through the serialized
+   * chain, then serve it fresh. Reconciliations are chained so concurrent lookups
+   * never interleave mutations of the shared graph, and `reconciling` keeps the
+   * fast path off `built.graph` while any apply is pending. If incremental apply
    * fails, fall back to a full rebuild rather than serve a half-applied graph.
+   *
+   * `fallbackFingerprint` (the caller's observed scan) is used only to seed a
+   * rebuild if apply throws; the reconcile itself re-reads disk (see
+   * {@link applyDiff}), so it always converges to the ACTUAL current state
+   * regardless of chain-arrival order.
    */
-  private reconcileAndServe(target: Fingerprint): Promise<GraphLookup> {
-    const run = this.reconcileChain.then(() => this.applyDiff(target));
+  private reconcileAndServe(fallbackFingerprint: Fingerprint): Promise<GraphLookup> {
+    this.reconciling++;
+    const run = this.reconcileChain.then(() => this.applyDiff());
     // Keep the chain alive whatever this run's outcome (a rejection here is
     // recovered by fallbackToRebuild below; the chain must not stay rejected).
-    this.reconcileChain = run.catch(() => undefined);
+    this.reconcileChain = run.catch(() => undefined).finally(() => this.reconciling--);
     return run.then(
       (): GraphLookup =>
         this.built ? { graph: this.built.graph } : { graph: null, reason: 'recomputing' },
-      (): GraphLookup => this.fallbackToRebuild(target),
+      (): GraphLookup => this.fallbackToRebuild(fallbackFingerprint),
     );
   }
 
   /**
-   * Apply the fingerprint diff (previous → `target`) to the built graph via
-   * `applyChange`, then record `target` as the graph's fingerprint. Re-checks
-   * under the chain lock so a queued reconcile that another run already caught up
-   * to is a no-op; a rebuild that nulled the graph short-circuits.
+   * Reconcile the built graph to the CURRENT on-disk state and record it. Re-reads
+   * the fingerprint fresh (rather than trusting the caller's earlier scan), so a
+   * reconcile always moves the graph toward the actual current disk — never a
+   * backward diff when reconciles resolve out of order under concurrency. A no-op
+   * when already current, or when a rebuild nulled the graph.
    */
-  private async applyDiff(target: Fingerprint): Promise<void> {
+  private async applyDiff(): Promise<void> {
     const built = this.built;
-    if (!built || fingerprintsEqual(built.fingerprint, target)) return;
+    if (!built) return;
+    const target = await this.computeFingerprint(this.rootUri, this.fs);
+    if (fingerprintsEqual(built.fingerprint, target)) return;
     for (const [uri, kind] of diffFingerprints(built.fingerprint, target)) {
       await this.applyChange(built.graph, uri, kind, this.fs);
     }
@@ -341,11 +367,11 @@ export class GraphCache {
   }
 
   /** Incremental apply failed → discard the graph and full-rebuild from scratch. */
-  private fallbackToRebuild(target: Fingerprint): GraphLookup {
+  private fallbackToRebuild(fingerprint: Fingerprint): GraphLookup {
     this.built = null;
     this.lastError = null;
     this.lastAttempt = null;
-    this.ensureGraph(target);
+    this.ensureGraph(fingerprint);
     return { graph: null, reason: 'recomputing' };
   }
 
@@ -403,17 +429,28 @@ export class GraphCache {
   }
 
   /**
-   * Persist the current graph off the request path. Bursts are coalesced: while a
-   * write is pending, further calls are dropped, and the queued write serializes
-   * whatever the latest built state is at write time (never a partial/older one).
+   * Persist the current graph off the request path. Coalesced: a single drain
+   * writes the LATEST built state, and any change that lands while a write is
+   * in-flight is flushed by exactly one follow-up write (never a partial/older
+   * one, never one write per change in a burst).
    */
   private schedulePersist(): void {
-    if (!this.writeCacheFile || this.persistScheduled) return;
-    this.persistScheduled = true;
-    this.persistChain = this.persistChain.then(() => {
-      this.persistScheduled = false;
-      return this.writeCurrent();
+    if (!this.writeCacheFile) return;
+    this.persistDirty = true;
+    // A drain is already running; it re-checks `persistDirty` after each write, so
+    // the change now flagged is picked up without enqueuing a redundant write.
+    if (this.persistDrain) return;
+    this.persistDrain = this.drainPersist().finally(() => {
+      this.persistDrain = null;
     });
+  }
+
+  /** Write the latest built state, looping once more if a change landed during the write. */
+  private async drainPersist(): Promise<void> {
+    while (this.persistDirty) {
+      this.persistDirty = false;
+      await this.writeCurrent();
+    }
   }
 
   /** Serialize + write the current built graph; best-effort (a write failure never breaks the cache). */
@@ -437,6 +474,6 @@ export class GraphCache {
   async settle(): Promise<void> {
     await this.inFlight;
     await this.reconcileChain;
-    await this.persistChain;
+    await this.persistDrain;
   }
 }

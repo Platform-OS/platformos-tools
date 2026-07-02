@@ -15,11 +15,18 @@
  */
 import {
   extractDocDefinition,
+  isKnownGraphQLFile,
+  isKnownLiquidFile,
   path,
   SourceCodeType,
   type UriString,
 } from '@platformos/platformos-check-common';
-import { type AppGraph, dependentsOf, toSourceCode } from '@platformos/platformos-graph';
+import {
+  type AppGraph,
+  dependentsOf,
+  type ReferenceKind,
+  toSourceCode,
+} from '@platformos/platformos-graph';
 
 import { toAbsoluteFilePath, type AdapterInput } from '../adapter-input';
 import type { GraphCache } from '../graph-cache/graph-cache';
@@ -27,6 +34,32 @@ import type { ValidateCodeImpact, ValidateCodeSignatureRisk } from '../result/ty
 
 /** Number of referencing files listed in `sample`/`signature_risk` before truncating. */
 const SAMPLE_LIMIT = 10;
+
+/**
+ * The edge kinds whose call-site arguments are validated against a partial's
+ * `{% doc %}` `@param` contract — EXACTLY the kinds the `PartialCallArguments`
+ * lint check validates (`render`/`include` via its `RenderMarkup` handler,
+ * `function` via `FunctionMarkup`). `background`/`graphql`/`layout`/`asset` edges
+ * carry scheduling/operation arguments that are NOT `@param`s, so signature-impact
+ * must ignore them or it would flag correct calls (a false positive that the
+ * forward `PartialCallArguments` check never produces).
+ */
+const SIGNATURE_EDGE_KINDS: ReadonlySet<ReferenceKind> = new Set(['render', 'include', 'function']);
+
+/**
+ * Whether the graph can model incoming references to `uri` — i.e. `uri` can be a
+ * resolvable edge TARGET (a Liquid page/layout/partial, or a GraphQL operation).
+ * Reuses check-common's canonical classifiers so this cannot drift from the
+ * graph's own edge resolution.
+ *
+ * Files that are NOT edge targets — schema / custom-model-type / translation YAML,
+ * or any unclassified file — are wired by model/table NAME, not by file reference
+ * (ADR 004), so the graph has no dependents for them and `total: 0` would be a
+ * false "safe to change". Those get `status: 'not_applicable'` instead.
+ */
+function isGraphTrackable(uri: UriString): boolean {
+  return isKnownLiquidFile(uri) || isKnownGraphQLFile(uri);
+}
 
 /** A fresh zeroed dependents shape for every non-`computed` status. */
 const noDependents = (): ValidateCodeImpact['dependents'] => ({
@@ -44,15 +77,23 @@ export async function runImpact(
   params: AdapterInput,
   cache: GraphCache,
 ): Promise<ValidateCodeImpact> {
-  const lookup = await cache.lookup();
-  if (!('graph' in lookup) || !lookup.graph) {
-    const status = lookup.reason === 'unavailable' ? 'unavailable' : 'computing';
-    return { scope: 'direct', status, dependents: noDependents() };
-  }
-
   const { projectDir, filePath, content } = params;
   const rootUri = path.normalize(path.URI.file(projectDir));
   const fileUri = path.normalize(path.URI.file(toAbsoluteFilePath(projectDir, filePath)));
+
+  // Applicability is a property of the FILE TYPE, independent of graph freshness:
+  // a non-trackable file (schema/translation YAML, etc.) has no dependency edges,
+  // so short-circuit before touching the graph — `total: 0` here would be a false
+  // "safe to change" (see {@link isGraphTrackable}).
+  if (!isGraphTrackable(fileUri)) {
+    return { scope: 'direct', status: 'not_applicable', dependents: noDependents() };
+  }
+
+  const lookup = await cache.lookup();
+  if (!lookup.graph) {
+    const status = lookup.reason === 'unavailable' ? 'unavailable' : 'computing';
+    return { scope: 'direct', status, dependents: noDependents() };
+  }
 
   const signature = await docSignature(fileUri, content);
   const signature_risk =
@@ -140,6 +181,10 @@ function computeSignatureRisk(
   const byCaller = new Map<string, { missing: Set<string>; unexpected: Set<string> }>();
 
   for (const ref of dependentsOf(graph, fileUri)) {
+    // Only the kinds whose args ARE `@param`s (see {@link SIGNATURE_EDGE_KINDS}) —
+    // a `{% background %}`/`{% graphql %}`/layout edge's args are not, and flagging
+    // them would be a false positive the forward check never makes.
+    if (!ref.kind || !SIGNATURE_EDGE_KINDS.has(ref.kind)) continue;
     const args = ref.args ?? [];
     const missing = signature.required.filter((param) => !args.includes(param));
     const unexpected = args.filter((arg) => !signature.allowed.includes(arg));

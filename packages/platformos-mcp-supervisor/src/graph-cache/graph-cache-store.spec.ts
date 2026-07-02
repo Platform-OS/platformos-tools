@@ -90,4 +90,25 @@ describe('Unit: graph-cache-store (persisted graph encode/decode)', () => {
       decodeCacheFile(JSON.stringify({ version: CACHE_FORMAT_VERSION, rootUri }), rootUri),
     ).toBeNull();
   });
+
+  it('returns null for a corrupt cache whose edge references a node not in the graph', () => {
+    // A truncated/corrupt cache that still parses: an edge points at a URI absent
+    // from `nodes`. Decoding it would silently drop the edge (under-counting
+    // dependents) and, since the disk fingerprint may still match, serve that wrong
+    // graph as fresh — so it must be rejected outright (→ rebuild).
+    const doc = JSON.parse(encodeCacheFile(rootUri, graph, fingerprint));
+    doc.graph.edges.push({
+      source: { uri: doc.graph.nodes[0].uri },
+      target: { uri: `${rootUri}/app/views/partials/ghost.liquid` },
+      type: 'direct',
+      kind: 'render',
+    });
+    expect(decodeCacheFile(JSON.stringify(doc), rootUri)).toBeNull();
+  });
+
+  it('returns null for a corrupt cache whose entry point is not a node in the graph', () => {
+    const doc = JSON.parse(encodeCacheFile(rootUri, graph, fingerprint));
+    doc.entryPoints.push(`${rootUri}/app/views/pages/ghost.liquid`);
+    expect(decodeCacheFile(JSON.stringify(doc), rootUri)).toBeNull();
+  });
 });

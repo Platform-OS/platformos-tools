@@ -2,17 +2,25 @@
  * Project-graph cache at the supervisor I/O edge.
  *
  * The full `AppGraph` is expensive to build (a whole-project parse), so it is
- * built ONCE and reused across `validate_code` calls — but NEVER served stale.
+ * built ONCE and thereafter kept fresh INCREMENTALLY — but NEVER served stale.
  * Staleness would mislead the agent (e.g. "nothing depends on this, safe to
  * change" when a caller was added since the build), so the cache is
- * fingerprint-validated on every request: it serves the graph only when the
- * on-disk source it was built from is unchanged, and otherwise reports
- * "recomputing" (triggering a background rebuild) rather than handing back a
- * possibly-wrong answer.
+ * fingerprint-validated on every request: the fingerprint is the AUTHORITY.
  *
- * The build is fired in the background and NEVER awaited on the request path —
- * blast-radius is a secondary signal and must not add latency to, or ever sink,
- * the primary lint gate (mirrors the `runValidateCode` degrade contract).
+ * When the fingerprint moves and a graph already exists, the cache DIFFS the
+ * fingerprint against the built graph's and applies ONLY the changed files via
+ * platformos-graph's `applyFileChange` (O(changed files), ~ms), then serves the
+ * updated graph immediately — no full rebuild, no `computing` gap after a single
+ * write (TASK-9.15 Phase 1). `applyFileChange` is provably equivalent to a
+ * from-scratch build (TASK-9.14); should incremental apply ever fail, the cache
+ * discards the graph and falls back to a full rebuild, so a half-applied graph is
+ * never served. Reconciliations are serialized so concurrent lookups can never
+ * interleave mutations of the shared graph.
+ *
+ * The COLD build (no prior graph) is still fired in the background and NEVER
+ * awaited on the request path — blast-radius is a secondary signal and must not
+ * add latency to, or ever sink, the primary lint gate (mirrors the
+ * `runValidateCode` degrade contract). (Persisted cold-start load is Phase 2.)
  *
  * Fingerprint domain = the liquid files that are edge SOURCES (page/layout/
  * partial+lib). Only their add/remove/modify can change any file's dependents;
@@ -32,7 +40,12 @@ import {
 } from '@platformos/platformos-check-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
 import type { AbstractFileSystem } from '@platformos/platformos-common';
-import { buildAppGraph, type AppGraph } from '@platformos/platformos-graph';
+import {
+  applyFileChange,
+  buildAppGraph,
+  type AppGraph,
+  type FileChangeKind,
+} from '@platformos/platformos-graph';
 
 /** Per-file identity used to detect on-disk change: `mtimeMs:size`. */
 type Fingerprint = Map<UriString, string>;
@@ -55,6 +68,13 @@ export interface GraphCacheOptions {
     fs: AbstractFileSystem,
     entryPoints: UriString[],
   ) => Promise<AppGraph>;
+  /** Seam for tests: apply one file's change to a built graph. Defaults to `applyFileChange`. */
+  applyChange?: (
+    graph: AppGraph,
+    uri: UriString,
+    kind: FileChangeKind,
+    fs: AbstractFileSystem,
+  ) => Promise<void>;
 }
 
 /** A liquid file that can be an edge SOURCE — the build's entry points + fingerprint domain. */
@@ -91,6 +111,27 @@ function fingerprintsEqual(a: Fingerprint, b: Fingerprint): boolean {
 }
 
 /**
+ * The per-file changes between two fingerprints: a URI present only in `next` is
+ * `added`, present only in `previous` is `deleted`, present in both with a
+ * different value is `modified`. This is the exact input to `applyFileChange`.
+ */
+function diffFingerprints(
+  previous: Fingerprint,
+  next: Fingerprint,
+): Array<[UriString, FileChangeKind]> {
+  const changes: Array<[UriString, FileChangeKind]> = [];
+  for (const [uri, value] of next) {
+    const before = previous.get(uri);
+    if (before === undefined) changes.push([uri, 'added']);
+    else if (before !== value) changes.push([uri, 'modified']);
+  }
+  for (const uri of previous.keys()) {
+    if (!next.has(uri)) changes.push([uri, 'deleted']);
+  }
+  return changes;
+}
+
+/**
  * A never-stale, lazily-built, background-refreshed cache of a project's
  * `AppGraph`. One instance per project root (created per server).
  */
@@ -106,8 +147,14 @@ export class GraphCache {
     fs: AbstractFileSystem,
     entryPoints: UriString[],
   ) => Promise<AppGraph>;
+  private readonly applyChange: (
+    graph: AppGraph,
+    uri: UriString,
+    kind: FileChangeKind,
+    fs: AbstractFileSystem,
+  ) => Promise<void>;
 
-  /** The graph + the fingerprint of the disk it was built from. */
+  /** The graph + the fingerprint of the disk it was built from / reconciled to. */
   private built: { graph: AppGraph; fingerprint: Fingerprint } | null = null;
   /** The in-flight background build, if any (dedup guard). */
   private inFlight: Promise<void> | null = null;
@@ -115,6 +162,11 @@ export class GraphCache {
   private lastAttempt: Fingerprint | null = null;
   /** The error from the most recent failed build attempt, cleared on a new attempt. */
   private lastError: Error | null = null;
+  /**
+   * Serializes incremental reconciliations so concurrent lookups never interleave
+   * mutations of the shared graph. Each stale lookup chains after the previous.
+   */
+  private reconcileChain: Promise<void> = Promise.resolve();
 
   constructor(options: GraphCacheOptions) {
     this.rootUri = options.rootUri;
@@ -123,27 +175,79 @@ export class GraphCache {
     this.buildGraph =
       options.buildGraph ??
       ((rootUri, fs, entryPoints) => buildAppGraph(rootUri, { fs }, entryPoints));
+    this.applyChange =
+      options.applyChange ?? ((graph, uri, kind, fs) => applyFileChange(graph, uri, kind, { fs }));
   }
 
   /**
-   * Return the graph ONLY if it is fresh (the on-disk source is unchanged since
-   * the build); otherwise trigger a background rebuild and report why no graph
-   * is available. Cheap (a stat-scan) and NON-BLOCKING — never awaits the build.
+   * Return a FRESH graph for the current on-disk state. When the source is
+   * unchanged since the last build/reconcile, serve the built graph directly.
+   * When it moved and a graph exists, reconcile incrementally (apply only the
+   * changed files) and serve the updated graph — no rebuild, no `computing` gap.
+   * Only a cold start (no prior graph) returns without a graph, triggering a
+   * background build. The fingerprint scan is cheap (a stat-scan); the request
+   * path never awaits a full build.
    */
   async lookup(): Promise<GraphLookup> {
     const current = await this.computeFingerprint(this.rootUri, this.fs);
 
-    if (this.built && fingerprintsEqual(this.built.fingerprint, current)) {
-      return { graph: this.built.graph };
+    if (this.built) {
+      if (fingerprintsEqual(this.built.fingerprint, current)) {
+        return { graph: this.built.graph };
+      }
+      return this.reconcileAndServe(current);
     }
 
+    // Cold start: no prior graph to update incrementally → full build in the
+    // background (Phase 2 will load a persisted graph here instead). If the
+    // current source already failed to build and nothing is retrying it, it is
+    // genuinely unavailable; otherwise a build is in flight.
     this.ensureBuild(current);
-    // Not fresh: a build is (or was) needed. If the current source already failed
-    // to build and nothing is retrying it, it is genuinely unavailable; otherwise
-    // a build is in flight.
     const reason: 'recomputing' | 'unavailable' =
       this.lastError && !this.inFlight ? 'unavailable' : 'recomputing';
     return { graph: null, reason };
+  }
+
+  /**
+   * Bring the built graph up to `target` by applying only the changed files, then
+   * serve it fresh. Reconciliations are serialized (chained) so concurrent
+   * lookups cannot interleave mutations of the shared graph; if incremental apply
+   * fails, fall back to a full rebuild rather than serve a half-applied graph.
+   */
+  private reconcileAndServe(target: Fingerprint): Promise<GraphLookup> {
+    const run = this.reconcileChain.then(() => this.applyDiff(target));
+    // Keep the chain alive whatever this run's outcome (a rejection here is
+    // recovered by fallbackToRebuild below; the chain must not stay rejected).
+    this.reconcileChain = run.catch(() => undefined);
+    return run.then(
+      (): GraphLookup =>
+        this.built ? { graph: this.built.graph } : { graph: null, reason: 'recomputing' },
+      (): GraphLookup => this.fallbackToRebuild(target),
+    );
+  }
+
+  /**
+   * Apply the fingerprint diff (previous → `target`) to the built graph via
+   * `applyChange`, then record `target` as the graph's fingerprint. Re-checks
+   * under the chain lock so a queued reconcile that another run already caught up
+   * to is a no-op; a rebuild that nulled the graph short-circuits.
+   */
+  private async applyDiff(target: Fingerprint): Promise<void> {
+    const built = this.built;
+    if (!built || fingerprintsEqual(built.fingerprint, target)) return;
+    for (const [uri, kind] of diffFingerprints(built.fingerprint, target)) {
+      await this.applyChange(built.graph, uri, kind, this.fs);
+    }
+    built.fingerprint = target;
+  }
+
+  /** Incremental apply failed → discard the graph and full-rebuild from scratch. */
+  private fallbackToRebuild(target: Fingerprint): GraphLookup {
+    this.built = null;
+    this.lastError = null;
+    this.lastAttempt = null;
+    this.ensureBuild(target);
+    return { graph: null, reason: 'recomputing' };
   }
 
   /**
@@ -174,10 +278,12 @@ export class GraphCache {
   }
 
   /**
-   * Await the in-flight build, if any. TEST/warm-up hook only — the request path
-   * (`lookup`) never awaits a build.
+   * Await the in-flight build and any queued incremental reconciliation. TEST/
+   * warm-up hook only — the request path (`lookup`) never awaits a full build
+   * (it does await its own incremental reconcile, which is fast).
    */
   async settle(): Promise<void> {
     await this.inFlight;
+    await this.reconcileChain;
   }
 }

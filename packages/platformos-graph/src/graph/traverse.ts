@@ -40,7 +40,7 @@ import {
 } from './module';
 
 /** A resolved outgoing reference: the target graph node + its call-site range + kind (+ named-arg names). */
-interface ResolvedReference {
+export interface ResolvedReference {
   target: AppModule;
   sourceRange: Range;
   kind: ReferenceKind;
@@ -150,7 +150,7 @@ async function traverseLiquidModule(
  * match the rest of the graph on every platform. Unparseable input yields no
  * references rather than throwing.
  */
-async function resolveLiquidReferences(
+export async function resolveLiquidReferences(
   appGraph: AppGraph,
   sourceCode: FileSourceCode,
   deps: ResolverDependencies,

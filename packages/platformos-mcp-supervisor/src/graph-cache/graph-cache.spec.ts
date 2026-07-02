@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { path } from '@platformos/platformos-check-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
-import { type AppGraph, dependentsOf } from '@platformos/platformos-graph';
+import { type AppGraph, dependentsOf, type FileChangeKind } from '@platformos/platformos-graph';
 
 import { GraphCache } from './graph-cache';
 
@@ -51,24 +51,100 @@ describe('GraphCache: never-stale, background-built, deduplicated', () => {
     expect(buildGraph).toHaveBeenCalledTimes(1);
   });
 
-  it('NEVER serves a stale graph: a changed fingerprint yields recomputing, then the rebuilt graph', async () => {
+  it('NEVER serves stale: a source change is applied incrementally and served fresh (no rebuild)', async () => {
     let current = fp({ a: '1' });
-    let build = 0;
+    const applied: Array<[string, FileChangeKind]> = [];
+    const buildGraph = vi.fn(async () => fakeGraph(1));
     const cache = new GraphCache({
       rootUri,
       computeFingerprint: async () => current,
-      buildGraph: async () => fakeGraph(++build),
+      buildGraph,
+      applyChange: async (_graph, uri, kind) => {
+        applied.push([uri, kind]);
+      },
     });
 
     await cache.lookup();
     await cache.settle();
     expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
 
-    // A source file changed → the old graph must NOT be served.
+    // A source file changed → the graph is updated in place and served immediately.
+    current = fp({ a: '2' });
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+    expect(applied).toEqual([['a', 'modified']]);
+    expect(buildGraph).toHaveBeenCalledTimes(1); // updated incrementally, NOT rebuilt
+  });
+
+  it('applies added, modified, and deleted files from the fingerprint diff', async () => {
+    let current = fp({ a: '1', b: '1' });
+    const applied: Array<[string, FileChangeKind]> = [];
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async (_graph, uri, kind) => {
+        applied.push([uri, kind]);
+      },
+    });
+
+    await cache.lookup();
+    await cache.settle();
+
+    current = fp({ a: '2', c: '1' }); // a modified, c added, b deleted
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+    // Diff order: changed/added in `next` insertion order, then deletions.
+    expect(applied).toEqual([
+      ['a', 'modified'],
+      ['c', 'added'],
+      ['b', 'deleted'],
+    ]);
+  });
+
+  it('falls back to a full rebuild when incremental apply fails (never a half-applied graph)', async () => {
+    let current = fp({ a: '1' });
+    let build = 0;
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(++build),
+      applyChange: async () => {
+        throw new Error('apply boom');
+      },
+    });
+
+    await cache.lookup();
+    await cache.settle();
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+
+    // Incremental apply throws → discard the graph and rebuild from scratch.
     current = fp({ a: '2' });
     expect(await cache.lookup()).toEqual({ graph: null, reason: 'recomputing' });
     await cache.settle();
     expect(await cache.lookup()).toEqual({ graph: fakeGraph(2) });
+    expect(build).toBe(2);
+  });
+
+  it('serializes concurrent reconciliations so the same change is not double-applied', async () => {
+    let current = fp({ a: '1' });
+    let applyCount = 0;
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async () => {
+        applyCount++;
+        await Promise.resolve();
+      },
+    });
+
+    await cache.lookup();
+    await cache.settle();
+
+    current = fp({ a: '2' });
+    const results = await Promise.all([cache.lookup(), cache.lookup(), cache.lookup()]);
+    results.forEach((result) => expect(result).toEqual({ graph: fakeGraph(1) }));
+    // First reconcile applies 'a'; the queued ones re-check (already caught up) → no-op.
+    expect(applyCount).toBe(1);
   });
 
   it('reports unavailable when the build fails, without a retry storm for the same source', async () => {
@@ -156,7 +232,7 @@ describe('GraphCache: real project (integration — real buildAppGraph + fs + mt
       .map((ref) => ref.source.uri)
       .sort();
 
-  it('builds a fresh graph whose dependents reflect real callers, and rebuilds — never stale — on a source change', async () => {
+  it('builds a fresh graph whose dependents reflect real callers, and stays fresh incrementally on a source change', async () => {
     const cache = new GraphCache({ rootUri, fs: NodeFileSystem });
 
     // Cold: no graph yet, build triggered.
@@ -171,15 +247,13 @@ describe('GraphCache: real project (integration — real buildAppGraph + fs + mt
       uri('app/views/pages/index.liquid'),
     ]);
 
-    // Edit a caller so about now also renders card. The cache must NOT serve the
-    // stale graph (which shows only index) — it recomputes.
-    // (a fresh mtime is guaranteed by writing different content)
+    // Edit a caller so about now also renders card. The cache applies the change
+    // incrementally (real applyFileChange) and serves the UPDATED graph
+    // immediately — no `recomputing` gap. (A fresh mtime is guaranteed by
+    // writing different content.)
     write('app/views/pages/about.liquid', "{% render 'card' %}\n<h1>About</h1>");
-    expect(await cache.lookup()).toEqual({ graph: null, reason: 'recomputing' });
-    await cache.settle();
-
     const second = await cache.lookup();
-    if (!('graph' in second) || !second.graph) throw new Error('expected a rebuilt graph');
+    if (!('graph' in second) || !second.graph) throw new Error('expected an updated graph');
     expect(dependentSources(second.graph, 'app/views/partials/card.liquid')).toEqual([
       uri('app/views/pages/about.liquid'),
       uri('app/views/pages/index.liquid'),

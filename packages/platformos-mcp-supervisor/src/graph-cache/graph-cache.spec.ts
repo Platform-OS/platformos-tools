@@ -361,3 +361,89 @@ describe('GraphCache: persistence (Phase 2 — warm cold-start from disk + recon
     ]);
   });
 });
+
+describe('GraphCache: scoped source walk (Phase 3A — platformOS roots only)', () => {
+  let projectDir: string;
+  let rootUri: string;
+
+  const write = (rel: string, body: string) => {
+    const absPath = join(projectDir, rel);
+    mkdirSync(dirname(absPath), { recursive: true });
+    writeFileSync(absPath, body, 'utf8');
+  };
+  const uri = (rel: string) => path.normalize(path.URI.file(join(projectDir, rel)));
+  const graphOf = (lookup: Awaited<ReturnType<GraphCache['lookup']>>): AppGraph => {
+    if (!('graph' in lookup) || !lookup.graph) throw new Error('expected a graph');
+    return lookup.graph;
+  };
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), 'mcp-sup-scope-'));
+    rootUri = path.normalize(path.URI.file(projectDir));
+  });
+
+  afterEach(() => rmSync(projectDir, { recursive: true, force: true }));
+
+  it('enumerates edge sources across app/, marketplace_builder/, and modules/ roots', async () => {
+    // One edge source under each of the three canonical platformOS source roots,
+    // plus a nested app/modules/ partial (reached via the app/ root).
+    write('app/views/partials/card.liquid', '<div>{{ title }}</div>');
+    write('app/views/pages/index.liquid', "{% render 'card' %}");
+    write('marketplace_builder/views/pages/legacy.liquid', '<h1>legacy</h1>');
+    write('modules/shop/public/views/partials/widget.liquid', '<span></span>');
+    write('app/modules/blog/private/views/pages/post.liquid', '<article></article>');
+
+    // The scoped enumeration feeds `buildAppGraph` its entry points; capture them
+    // to assert the exact edge-source set the walk gathered (the Phase-3A contract).
+    let entryPoints: string[] = [];
+    const cache = new GraphCache({
+      rootUri,
+      fs: NodeFileSystem,
+      buildGraph: async (root, fs, eps) => {
+        entryPoints = eps;
+        return buildAppGraph(root, { fs }, eps);
+      },
+    });
+    await cache.lookup();
+    await cache.settle();
+
+    expect([...entryPoints].sort()).toEqual(
+      [
+        uri('app/views/partials/card.liquid'),
+        uri('app/views/pages/index.liquid'),
+        uri('marketplace_builder/views/pages/legacy.liquid'),
+        uri('modules/shop/public/views/partials/widget.liquid'),
+        uri('app/modules/blog/private/views/pages/post.liquid'),
+      ].sort(),
+    );
+  }, 20000);
+
+  it('never walks non-platformOS subtrees (a bundled react-app/ is skipped)', async () => {
+    write('app/views/pages/index.liquid', "{% render 'card' %}");
+    write('app/views/partials/card.liquid', '<div></div>');
+    // A large non-platformOS sibling that must NOT be descended into.
+    write('react-app/src/components/Widget.liquid', 'noise that is never a source');
+
+    const readDirs: string[] = [];
+    const spyFs: typeof NodeFileSystem = {
+      ...NodeFileSystem,
+      readDirectory: async (dir: string) => {
+        readDirs.push(dir);
+        return NodeFileSystem.readDirectory(dir);
+      },
+    };
+
+    const cache = new GraphCache({ rootUri, fs: spyFs });
+    await cache.lookup();
+    await cache.settle();
+    const graph = graphOf(await cache.lookup());
+
+    // The scoped walk descended the real source root…
+    expect(readDirs.some((dir) => dir.endsWith('/app/views/partials'))).toBe(true);
+    // …but never the non-platformOS subtree, and never the project root itself.
+    expect(readDirs.some((dir) => dir.includes('/react-app'))).toBe(false);
+    expect(readDirs).not.toContain(rootUri);
+    // The stray .liquid under react-app/ is not a graph node (never enumerated).
+    expect(graph.modules[uri('react-app/src/components/Widget.liquid')]).toBeUndefined();
+  }, 20000);
+});

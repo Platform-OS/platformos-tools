@@ -34,6 +34,11 @@
  * `.graphql`/`.yml`/asset files are leaves. This is also exactly the set fed to
  * `buildAppGraph` as entry points, so dependents are COMPLETE (every caller is
  * traversed) — see the query.ts note on entry-point scope.
+ *
+ * The enumeration is SCOPED to the platformOS source roots ({@link SOURCE_ROOTS})
+ * rather than the whole project tree, so a bundled `react-app/` or other
+ * non-platformOS sibling is never walked — the edge-source set is identical, just
+ * cheaper to gather (TASK-9.15 Phase 3, part A).
  */
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
@@ -129,12 +134,41 @@ function isEdgeSource(uri: UriString): boolean {
   return isLayout(uri) || isPage(uri) || isPartial(uri);
 }
 
+/**
+ * The top-level platformOS source roots that can contain an edge-source liquid
+ * file. Per the file-type classifier (`getFileType`), every Page/Layout/Partial
+ * lives under the modern `app/` root (which also holds `app/modules/<m>/…`), the
+ * legacy `marketplace_builder/` alias, or a top-level `modules/<m>/…`. Walking
+ * only these — instead of the whole project tree — skips large non-platformOS
+ * siblings (e.g. a bundled `react-app/`) with NO loss of real sources: for a real
+ * project the enumerated edge-source set is identical, only cheaper to gather.
+ */
+const SOURCE_ROOTS = ['app', 'marketplace_builder', 'modules'] as const;
+
+/**
+ * Enumerate every edge-source liquid file under the platformOS {@link SOURCE_ROOTS},
+ * scoping the walk to those subtrees rather than the whole project tree. A root
+ * absent on disk contributes nothing (`recursiveReadDirectory` returns `[]` on
+ * ENOENT); the roots are disjoint, so no URI is produced twice.
+ */
+async function enumerateEdgeSources(
+  fs: AbstractFileSystem,
+  rootUri: UriString,
+): Promise<UriString[]> {
+  const perRoot = await Promise.all(
+    SOURCE_ROOTS.map((dir) =>
+      recursiveReadDirectory(fs, path.join(rootUri, dir), ([uri]) => isEdgeSource(uri)),
+    ),
+  );
+  return perRoot.flat();
+}
+
 /** Real disk fingerprint: every edge-source liquid file → `mtimeMs:size`. */
 async function computeFingerprintFromDisk(
   rootUri: UriString,
   fs: AbstractFileSystem,
 ): Promise<Fingerprint> {
-  const uris = await recursiveReadDirectory(fs, rootUri, ([uri]) => isEdgeSource(uri));
+  const uris = await enumerateEdgeSources(fs, rootUri);
   const fingerprint: Fingerprint = new Map();
   await Promise.all(
     uris.map(async (uri) => {

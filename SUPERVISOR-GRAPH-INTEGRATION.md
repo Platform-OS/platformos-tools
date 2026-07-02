@@ -437,24 +437,24 @@ For
 
 ## 7. Task ledger (TASK-9 epic)
 
-| Task                                                                             | Status                                                      |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 9.1 dependency edges (render/include/function/background/graphql/asset)          | ✅ Done                                                     |
-| 9.2 project-structure query API (dependents/orphan/reachability/missing/nearest) | ✅ Done                                                     |
-| 9.3 per-file self-structural (9 facts)                                           | ✅ Done                                                     |
-| 9.4 layout edges + `DocumentsLocator 'layout'`                                   | ✅ Done                                                     |
-| 9.5 wire graph `dependencies` into `validate_code`                               | ✅ Done                                                     |
-| 9.6 platform facts (graphql `table`, schema nodes)                               | ✅ Done                                                     |
-| 9.7 resource/CRUD convention overlay                                             | ⬜ Deferred (ADR 004)                                       |
-| 9.8 code-review remediation (§8)                                                 | ✅ Done (F3 deferred)                                       |
-| 9.9 asset-resolution fix + real-project validation                               | ✅ Done                                                     |
-| **9.10 cached graph → blast-radius in `validate_code`** (§9)                     | ✅ Done                                                     |
-| 9.11 `project_map` (discovery + resource overlay)                                | ⬜ Scoped                                                   |
-| 9.12 `validate_project` (health sweep + repair order)                            | ⬜ Scoped                                                   |
-| 9.13 opt-in `AppCache` (parsed-project reuse for lint)                           | ✅ Done                                                     |
-| **9.14 `applyFileChange` incremental graph API** (§10.1)                         | ✅ Done                                                     |
-| **9.15 warm/incremental/persisted GraphCache** (§10.2)                           | ◐ Phases 1–2 done; Phase 3 (fs.watch + scoped walk) pending |
-| 8.4 surface `structural` in `validate_code`                                      | ↩︎ Superseded by 9.10 (removed)                              |
+| Task                                                                             | Status                                                       |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 9.1 dependency edges (render/include/function/background/graphql/asset)          | ✅ Done                                                      |
+| 9.2 project-structure query API (dependents/orphan/reachability/missing/nearest) | ✅ Done                                                      |
+| 9.3 per-file self-structural (9 facts)                                           | ✅ Done                                                      |
+| 9.4 layout edges + `DocumentsLocator 'layout'`                                   | ✅ Done                                                      |
+| 9.5 wire graph `dependencies` into `validate_code`                               | ✅ Done                                                      |
+| 9.6 platform facts (graphql `table`, schema nodes)                               | ✅ Done                                                      |
+| 9.7 resource/CRUD convention overlay                                             | ⬜ Deferred (ADR 004)                                        |
+| 9.8 code-review remediation (§8)                                                 | ✅ Done (F3 deferred)                                        |
+| 9.9 asset-resolution fix + real-project validation                               | ✅ Done                                                      |
+| **9.10 cached graph → blast-radius in `validate_code`** (§9)                     | ✅ Done                                                      |
+| 9.11 `project_map` (discovery + resource overlay)                                | ⬜ Scoped                                                    |
+| 9.12 `validate_project` (health sweep + repair order)                            | ⬜ Scoped                                                    |
+| 9.13 opt-in `AppCache` (parsed-project reuse for lint)                           | ✅ Done                                                      |
+| **9.14 `applyFileChange` incremental graph API** (§10.1)                         | ✅ Done                                                      |
+| **9.15 warm/incremental/persisted GraphCache** (§10.2)                           | ◐ Phases 1–2 + 3A (scoped walk) done; 3B (fs.watch) deferred |
+| 8.4 surface `structural` in `validate_code`                                      | ↩︎ Superseded by 9.10 (removed)                               |
 
 **The three-tool graph strategy** (why the graph lives mostly _outside_
 `validate_code`): lint owns the per-file forward-looking checks, so the graph's
@@ -796,16 +796,38 @@ derivative; wired by the server, disableable by omitting `cachePath`).
 | Cold start           | ~22 s full build                     | **~37 ms** persisted load (+ delta reconcile) — vs a **70 s** cold build here → ~1900× |
 | Serialize + persist  | —                                    | ~48 ms (1.4 MiB)                                                                       |
 
+**Phase 3A — scoped source walk.** The fingerprint enumeration (and, via the
+fingerprint keys, the build's entry points) previously walked the **whole**
+project tree, descending non-platformOS siblings (a bundled `react-app/`, etc.).
+It now walks only the platformOS source roots — `app/`, `marketplace_builder/`,
+`modules/` (`SOURCE_ROOTS`) — which, per the file-type classifier, are the only
+places a Page/Layout/Partial can live (including nested `app/modules/<m>/…`,
+reached via `app/`). The enumerated set is therefore **provably identical**, just
+cheaper to gather.
+
+Measured on `marketplace-dcra` (1,921 edge sources): the walk is **4.4×** faster
+(769 → 175 ms) and the full warm fingerprint (walk + `stat`) **1.7×** (541 → 320
+ms; the per-file `stat` is the irreducible remainder). The enumerated set is
+**byte-identical** to the whole-tree walk (1,921 = 1,921, zero diff either way),
+so never-stale is preserved. Sharing one scan primitive with lint (TASK-9.13) was
+evaluated and declined: lint globs a different mechanism (`glob` in check-node vs
+the browser-safe `AbstractFileSystem` walk here) over a different domain (all four
+source types vs edge-source liquid only); the scoped walk already captures the
+win without coupling the two.
+
 **Tests.** `incremental.spec.ts` (equivalence guardrail), `deserialize.spec.ts`
 (round-trip + a restored graph reconciles exactly like a full build),
 `graph-cache-store.spec.ts` (encode/decode + version/root/corruption
 invalidation), `graph-cache.spec.ts` (incremental serve, diff kinds, apply-
 failure fallback, concurrent-reconcile coalescing, warm cold-start from disk,
-delta reconcile after warm, corrupt→rebuild). Supervisor + graph suites,
+delta reconcile after warm, corrupt→rebuild, **scoped enumeration across all
+three roots + non-platformOS subtree pruned**). Supervisor + graph suites,
 type-check, and format green.
 
-**Phase 3 (pending).** `fs.watch` background freshness (with the fingerprint
+**Phase 3B (pending).** `fs.watch` background freshness (with the fingerprint
 reconciliation kept as the safety net — never trust the watcher alone) so the
-request path does no per-call scan on the steady state; and scoping the file
-walk to platformOS dirs (cuts the residual ~400 ms warm fingerprint cost —
-resolves the first §9 follow-up).
+request path does no per-call scan on the steady state. Deferred deliberately: on
+the actual `validate_code` path the fingerprint scan runs concurrently with lint's
+multi-second parse, so it adds ≈0 wall-clock today — the watcher optimizes a cost
+that is not on the critical path, at the price of real platform-specific watcher
+complexity.

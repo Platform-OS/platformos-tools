@@ -11,7 +11,7 @@ examples, and the open doubts.
 > **§8 is the code-review remediation** — a high-effort review of the whole branch
 > ran before submission (8 finder angles + verification), surfacing 11 findings.
 > Ten were fixed and one deferred with rationale; that section is the place to
-> understand *what changed as a result of review and why*. The rest of this
+> understand _what changed as a result of review and why_. The rest of this
 > document reflects the **post-review** state.
 
 ---
@@ -19,26 +19,28 @@ examples, and the open doubts.
 ## 1. PR summary
 
 ### What & why
-The rebuilt `platformos-mcp-supervisor` must tell coding agents not just *what is
-wrong* in a file but *how the file sits in the project* — what it renders/calls,
+
+The rebuilt `platformos-mcp-supervisor` must tell coding agents not just _what is
+wrong_ in a file but _how the file sits in the project_ — what it renders/calls,
 what it wraps, where targets resolve, and the file's own structure. The
 architectural rule (ADR 003): **all graph/structure logic lives in
 `platformos-graph`; the supervisor is a pure consumer.** This branch extends the
 graph to provide that model and consumes it from `validate_code`.
 
 ### Highlights
+
 - **Dependency edges** for every static Liquid construct — `render`, `include`,
   `function`, `background`, `graphql`, asset filters, and frontmatter `layout`
   — each carrying a semantic `kind`, call-site range, and named-arg names.
 - **Per-file primitive** `extractFileReferences` — resolves one in-flight buffer's
   outgoing edges without building the whole graph (the buffer-before-write model).
-- **`validate_code` returns `impact`** *(TASK-9.10 — see §9)* — the cross-file
+- **`validate_code` returns `impact`** _(TASK-9.10 — see §9)_ — the cross-file
   **blast radius**: who depends on the edited file (its callers), plus
   **signature-impact** (callers whose args no longer match the file's `{% doc %}`).
   This is the one graph signal lint cannot produce; the earlier per-file
   `dependencies`/`structural` fields were **removed** as redundant with lint
   (`MissingPartial`/`MissingAsset` + `PartialCallArguments`) — see §9.
-- **Never-stale cached graph** *(TASK-9.10)* — a fingerprint-validated
+- **Never-stale cached graph** _(TASK-9.10)_ — a fingerprint-validated
   `GraphCache` at the supervisor edge: reused across calls, background-built, and
   **never served stale** (a changed project reports `computing`, never a wrong
   answer).
@@ -47,7 +49,7 @@ graph to provide that model and consumes it from `validate_code`.
 - **Per-file self-structural** — `renders_used`, `graphql_queries_used`,
   `filters_used`, `tags_used`, `translation_keys`, `doc_params`, `slug`,
   `layout`, `method`, exposed both as the per-file primitive `extractStructural`
-  *(exported in review — §8/F1)* and, opt-in, on each module during a full build.
+  _(exported in review — §8/F1)_ and, opt-in, on each module during a full build.
 - **Platform facts** — a GraphQL op's `table`, schema/`CustomModelType` nodes.
 - **`'layout'` DocumentType** in `DocumentsLocator` (the canonical resolver),
   with `.html.liquid`/`.liquid` precedence.
@@ -56,6 +58,7 @@ graph to provide that model and consumes it from `validate_code`.
   in the graph).
 
 ### Scope discipline (kept the changes safe)
+
 - **Additive everywhere.** New optional fields (`Reference.kind`, `.args`,
   `GraphQLModule.table`, `LiquidModule.structural`, `SchemaModule`), new query
   functions, new DocumentType. No breaking change to existing consumers.
@@ -67,13 +70,14 @@ graph to provide that model and consumes it from `validate_code`.
   check-node, language-server, supervisor.
 
 ### Verification (final, post-review)
-| Package | Tests | Δ from pre-review |
-|---|---|---|
-| platformos-common | **257** | +12 (`effectivePageSlug`) |
-| platformos-graph | **80** | +7 (structural opt-in/primitive, node-identity) |
-| platformos-check-common | **1057** | +10 (`extractSchemaTable`) |
-| platformos-mcp-supervisor | **55** | 9.10: +graph-cache (7) +impact (10), −structure adapter |
-| platformos-language-server-common | **467** | unchanged |
+
+| Package                           | Tests    | Δ from pre-review                                       |
+| --------------------------------- | -------- | ------------------------------------------------------- |
+| platformos-common                 | **257**  | +12 (`effectivePageSlug`)                               |
+| platformos-graph                  | **80**   | +7 (structural opt-in/primitive, node-identity)         |
+| platformos-check-common           | **1057** | +10 (`extractSchemaTable`)                              |
+| platformos-mcp-supervisor         | **55**   | 9.10: +graph-cache (7) +impact (10), −structure adapter |
+| platformos-language-server-common | **467**  | unchanged                                               |
 
 All packages type-check clean (via **direct `tsc --noEmit`** — see §8/F6 note on
 the flaky `yarn workspace type-check` wrapper); `yarn format:check` clean;
@@ -109,6 +113,7 @@ platformos-mcp-supervisor          validate_code — pure consumer of graph + ch
 ```
 
 Rule of thumb that governs every decision here:
+
 - **Parsing/resolution/path facts** → owned by common/check-common, **reused** by
   the graph (never re-derived).
 - **The project model (nodes, edges, queries, self-structural)** → owned by
@@ -167,7 +172,7 @@ paths can never drift:
 2. **`extractFileReferences(rootUri, sourceUri, sourceCode, { fs })`** — one
    file's **outgoing** edges from an **in-flight buffer** (parsed by the caller,
    may not be on disk). No whole-graph build, no reachability requirement.
-3. **`extractStructural(sourceCode, uri)`** *(exported in review — §8/F1)* — the
+3. **`extractStructural(sourceCode, uri)`** _(exported in review — §8/F1)_ — the
    per-file **self-structural** primitive (sibling to `extractFileReferences`):
    one buffer's own declarations, no build. `validate_code` uses paths 2 + 3 over
    a single shared parse.
@@ -186,9 +191,11 @@ every other reference kind.
 ## 3. Decisions (and why)
 
 ### ADR 004 — Platform facts vs. conventions (the load-bearing one)
+
 `commands` and `queries` are **not** platformOS primitives — they're a convention
 of the `core` module (`lib/commands/*`, `lib/queries/*` invoked by `{% function %}`).
 The platform sees only "a `function` edge to a partial." Therefore:
+
 - **The graph stays convention-free.** It models the `function` edge and the
   partial; it does **not** learn "command" vs "query". (Baking that in would make
   the platform model — and the LSP that depends on it — wrong for any app not
@@ -197,9 +204,10 @@ The platform sees only "a `function` edge to a partial." Therefore:
   **platform facts** (schema tables, graphql `table`, slug) live in the graph
   (TASK-9.6, done); the **commands/queries convention overlay** lives outside it
   (TASK-9.7, deferred) — a descriptive map in the supervisor domain layer and/or
-  a *configurable* check (disable-able for non-`core` apps).
+  a _configurable_ check (disable-able for non-`core` apps).
 
 ### ADR 003 — resolved
+
 - **Self-structural owner = `platformos-graph`** (it already parses every file;
   exposes the snapshot as a by-product, composing check-common parsers).
 - **`Reference.kind`/`args`** = optional additive discriminant + arg names.
@@ -207,11 +215,12 @@ The platform sees only "a `function` edge to a partial." Therefore:
   platformOS doesn't use `customElements.define`.
 
 ### Other notable decisions
+
 - **`structural` usage arrays are always present** (empty = "none used"), so a
   consumer never has to disambiguate "absent" from "none". Routing facts
   (`slug`/`layout`/`method`) stay optional (absent = not applicable).
 - **Orphan detection guards non-render node kinds.** A schema file has no incoming
-  *edges* (it's referenced by table name), so `isOrphan` explicitly excludes
+  _edges_ (it's referenced by table name), so `isOrphan` explicitly excludes
   `Schema` to avoid a false "dead code" flag.
 - **Schema discovery only on full builds.** Scoped/LSP builds (explicit
   `entryPoints`) are byte-unchanged.
@@ -227,27 +236,29 @@ The platform sees only "a `function` edge to a partial." Therefore:
 
 From `@platformos/platformos-graph`:
 
-| Export | Purpose |
-|---|---|
-| `buildAppGraph(rootUri, deps, entryPoints?, options?)` | Build the full project graph from disk; `options.includeStructural` opts into per-module `structural` |
-| `extractFileReferences(rootUri, sourceUri, sourceCode, { fs })` | One buffer's outgoing edges (no full build) |
-| `extractStructural(sourceCode, uri)` | One buffer's self-structural (no build); `undefined` for non-Liquid/unparseable |
-| `serializeAppGraph(graph)` | JSON `{ rootUri, nodes, edges }` |
-| `toSourceCode(uri, source)` | Parse a buffer into a `FileSourceCode` |
-| `dependenciesOf(graph, uri)` | Outgoing edges (what it renders/calls/wraps) — call sites w/ kind + args |
-| `dependentsOf(graph, uri)` | Incoming edges (who renders/calls it) |
-| `exists(graph, uri)` | Does it resolve to a real file |
-| `isEntryPoint(graph, uri)` | Is it a page/layout root |
-| `isOrphan(graph, uri)` / `orphans(graph)` | Unreferenced dead files (schema-guarded) |
-| `reachableFrom(graph, uri)` | Transitive outgoing closure |
-| `missingDependencies(graph, uri)` / `missingTargets(graph)` | Unresolved edges |
-| `nearestModules(graph, uri, { limit?, maxDistance? })` | Same-category "did you mean" by edit distance |
-| `ModuleStructural` / `GraphBuildOptions` | Self-structural shape; build options |
+| Export                                                          | Purpose                                                                                               |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `buildAppGraph(rootUri, deps, entryPoints?, options?)`          | Build the full project graph from disk; `options.includeStructural` opts into per-module `structural` |
+| `extractFileReferences(rootUri, sourceUri, sourceCode, { fs })` | One buffer's outgoing edges (no full build)                                                           |
+| `extractStructural(sourceCode, uri)`                            | One buffer's self-structural (no build); `undefined` for non-Liquid/unparseable                       |
+| `serializeAppGraph(graph)`                                      | JSON `{ rootUri, nodes, edges }`                                                                      |
+| `toSourceCode(uri, source)`                                     | Parse a buffer into a `FileSourceCode`                                                                |
+| `dependenciesOf(graph, uri)`                                    | Outgoing edges (what it renders/calls/wraps) — call sites w/ kind + args                              |
+| `dependentsOf(graph, uri)`                                      | Incoming edges (who renders/calls it)                                                                 |
+| `exists(graph, uri)`                                            | Does it resolve to a real file                                                                        |
+| `isEntryPoint(graph, uri)`                                      | Is it a page/layout root                                                                              |
+| `isOrphan(graph, uri)` / `orphans(graph)`                       | Unreferenced dead files (schema-guarded)                                                              |
+| `reachableFrom(graph, uri)`                                     | Transitive outgoing closure                                                                           |
+| `missingDependencies(graph, uri)` / `missingTargets(graph)`     | Unresolved edges                                                                                      |
+| `nearestModules(graph, uri, { limit?, maxDistance? })`          | Same-category "did you mean" by edit distance                                                         |
+| `ModuleStructural` / `GraphBuildOptions`                        | Self-structural shape; build options                                                                  |
 
 There is also a CLI (`bin/platformos-graph`): `platformos-graph <root> [file]`.
 
 ### What `validate_code` discovers today
+
 Per call (`{ file_path, content, mode }`):
+
 - **Lint** (check-node `lintBuffer`): errors / warnings / infos with 1-based
   positions, `must_fix_before_write` gate, `status`. Lint is the **primary,
   forward-looking** signal — it also covers broken references (`MissingPartial`/
@@ -274,6 +285,7 @@ agent just wrote. The graph primitives (`extractFileReferences`/
 ### 5.1 `validate_code` — a layout that omits `content_for_layout` while wiring deps
 
 Input `app/views/layouts/application.liquid`:
+
 ```liquid
 ---
 layout: theme
@@ -283,6 +295,7 @@ layout: theme
 ```
 
 Output (verbatim):
+
 ```json
 {
   "status": "error",
@@ -292,7 +305,10 @@ Output (verbatim):
       "check": "MissingContentForLayout",
       "severity": "error",
       "message": "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
-      "line": 1, "column": 1, "end_line": 1, "end_column": 1
+      "line": 1,
+      "column": 1,
+      "end_line": 1,
+      "end_column": 1
     }
   ],
   "warnings": [],
@@ -316,6 +332,7 @@ Output (verbatim):
 ```
 
 Two signals coexist without conflation:
+
 - the **lint error** (`MissingContentForLayout`) — the per-file, forward-looking
   gate;
 - the **blast radius** (`impact`) — the cross-file signal lint cannot give: **2
@@ -332,13 +349,16 @@ longer match.
 ### 5.2 Graph self-structural — `header.liquid`
 
 For
+
 ```liquid
 {% doc %}
   @param title [String] heading
 {% enddoc %}
 <header>{{ title | upcase }}</header>
 ```
+
 `graph.modules[…/header.liquid].structural` is:
+
 ```json
 {
   "renders_used": [],
@@ -349,6 +369,7 @@ For
   "doc_params": ["title"]
 }
 ```
+
 (`{% doc %}` is a raw tag, so it is correctly absent from `tags_used`; its
 `@param` names surface as `doc_params`.)
 
@@ -403,7 +424,7 @@ For
    timeout under full-suite parallel load). Not caused by this branch (verified via
    stash baseline **and** re-confirmed during review: the test passes in ~3.1s in
    isolation); CI is green. If it becomes noisy, bump that one test's timeout — but
-   it is *not* masking a real failure.
+   it is _not_ masking a real failure.
 
 8. **`validate_code` re-globs + re-parses the whole project every call.** The
    dominant per-call cost is check-node's `getApp` (glob + parse the entire
@@ -416,23 +437,26 @@ For
 
 ## 7. Task ledger (TASK-9 epic)
 
-| Task | Status |
-|---|---|
-| 9.1 dependency edges (render/include/function/background/graphql/asset) | ✅ Done |
-| 9.2 project-structure query API (dependents/orphan/reachability/missing/nearest) | ✅ Done |
-| 9.3 per-file self-structural (9 facts) | ✅ Done |
-| 9.4 layout edges + `DocumentsLocator 'layout'` | ✅ Done |
-| 9.5 wire graph `dependencies` into `validate_code` | ✅ Done |
-| 9.6 platform facts (graphql `table`, schema nodes) | ✅ Done |
-| 9.7 resource/CRUD convention overlay | ⬜ Deferred (ADR 004) |
-| 9.8 code-review remediation (§8) | ✅ Done (F3 deferred) |
-| 9.9 asset-resolution fix + real-project validation | ✅ Done |
-| **9.10 cached graph → blast-radius in `validate_code`** (§9) | ✅ Done |
-| 9.11 `project_map` (discovery + resource overlay) | ⬜ Scoped |
-| 9.12 `validate_project` (health sweep + repair order) | ⬜ Scoped |
-| 8.4 surface `structural` in `validate_code` | ↩︎ Superseded by 9.10 (removed) |
+| Task                                                                             | Status                                                      |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 9.1 dependency edges (render/include/function/background/graphql/asset)          | ✅ Done                                                     |
+| 9.2 project-structure query API (dependents/orphan/reachability/missing/nearest) | ✅ Done                                                     |
+| 9.3 per-file self-structural (9 facts)                                           | ✅ Done                                                     |
+| 9.4 layout edges + `DocumentsLocator 'layout'`                                   | ✅ Done                                                     |
+| 9.5 wire graph `dependencies` into `validate_code`                               | ✅ Done                                                     |
+| 9.6 platform facts (graphql `table`, schema nodes)                               | ✅ Done                                                     |
+| 9.7 resource/CRUD convention overlay                                             | ⬜ Deferred (ADR 004)                                       |
+| 9.8 code-review remediation (§8)                                                 | ✅ Done (F3 deferred)                                       |
+| 9.9 asset-resolution fix + real-project validation                               | ✅ Done                                                     |
+| **9.10 cached graph → blast-radius in `validate_code`** (§9)                     | ✅ Done                                                     |
+| 9.11 `project_map` (discovery + resource overlay)                                | ⬜ Scoped                                                   |
+| 9.12 `validate_project` (health sweep + repair order)                            | ⬜ Scoped                                                   |
+| 9.13 opt-in `AppCache` (parsed-project reuse for lint)                           | ✅ Done                                                     |
+| **9.14 `applyFileChange` incremental graph API** (§10.1)                         | ✅ Done                                                     |
+| **9.15 warm/incremental/persisted GraphCache** (§10.2)                           | ◐ Phases 1–2 done; Phase 3 (fs.watch + scoped walk) pending |
+| 8.4 surface `structural` in `validate_code`                                      | ↩︎ Superseded by 9.10 (removed)                              |
 
-**The three-tool graph strategy** (why the graph lives mostly *outside*
+**The three-tool graph strategy** (why the graph lives mostly _outside_
 `validate_code`): lint owns the per-file forward-looking checks, so the graph's
 value is cross-file. It is surfaced through three intent-shaped tools —
 `validate_code` **blast radius** (change safety, at edit time — 9.10, done),
@@ -456,6 +480,7 @@ package suites, type-check, and format re-run green after each. Tracked in
 **TASK-9.8**.
 
 ### What the review confirmed clean (no action)
+
 - **CLAUDE.md conventions:** no violations. Path handling uses the sanctioned
   `URI.file()` + check-common `normalize()` (no manual `\\`→`/`); new tests use
   whole-value `toEqual` (the `.toBe(true/false)`/`.toBeNull()` cases fall under the
@@ -480,7 +505,7 @@ per-file primitive (non-Liquid-safe → `undefined`); the supervisor's structure
 adapter now returns `{ dependencies, structural }` from **one shared parse**; eager
 per-module population is gated behind `buildAppGraph(..., { includeStructural })`
 (default off). Added `graphql_queries_used` to the supervisor's structural snapshot
-for parity with the graph model. *(User decision: full fix incl. the LSP gate.)*
+for parity with the graph model. _(User decision: full fix incl. the LSP gate.)_
 
 **F2 — [Robustness/Med] A structure-adapter failure could sink the lint gate.**
 `validate_code` ran `Promise.all([lint, structure])`; a rejection in the secondary
@@ -494,8 +519,8 @@ adapter and again inside `lintBuffer`. Fully de-duping this needs an additive ch
 to check-node's shared `lintBuffer` API and cross-file-type parse reconciliation,
 for a saving that is marginal against the pre-existing whole-project `getApp` parse
 (doubt #8) that dominates each call. Deferred with a recommendation to memoize
-`getApp` per project instead. *(The intra-adapter half — sharing one parse between
-`extractFileReferences` and `extractStructural` — was done as part of F1.)*
+`getApp` per project instead. _(The intra-adapter half — sharing one parse between
+`extractFileReferences` and `extractStructural` — was done as part of F1.)_
 
 **F4 — [Altitude/Med] Schema-discovery contract was implicit.** Discovery keyed on
 `entryPoints === undefined`, and `isOrphan` special-cased `type === Schema`. **Fix
@@ -507,6 +532,7 @@ single-property check. We **deliberately did not** add a speculative
 it would be more state to keep in sync, not less (YAGNI until a second appears).
 
 **F5 — [Reuse/Med] Three duplications collapsed to shared helpers.**
+
 - (a) `toAbsoluteFilePath` + `AdapterInput` shared by the `lint` and `structure`
   adapters (was copy-pasted `node:path` resolution).
 - (b) `effectivePageSlug` in `platformos-common` is now the single slug-derivation,
@@ -521,8 +547,8 @@ does **one** AST walk — doc `@param` names are collected in the same pass (rea
 the parser-produced `LiquidDocParamNode`, not re-implementing the liquid-doc parser)
 instead of a second `extractDocDefinition` traversal. `buildAppGraph` now does
 **one** directory sweep, partitioning pages/layouts and schema files by extension
-(was two full-tree walks). *(This fix also surfaced a real type error — see the
-tooling note below.)*
+(was two full-tree walks). _(This fix also surfaced a real type error — see the
+tooling note below.)_
 
 **F7 — [Altitude/Low] Schema `table` extraction moved beside the parser.** Added
 exported `extractSchemaTable` in check-common (mirrors `extractGraphqlTable`, reuses
@@ -554,16 +580,18 @@ a single `argsField` helper is the one place the "omit `args` when empty" rule l
 `frontmatterBody` → `loadFrontmatterOf` chain was collapsed.
 
 ### Doubt → finding map
-| Pre-review doubt (§6) | Review finding | Outcome |
-|---|---|---|
-| #1 structural not surfaced | F1 | Fixed |
-| #8 whole-project re-parse cost | F3 | Deferred (recommend `getApp` memo) |
-| #3 orphans completeness | F4 | Contract documented |
-| #4 graphql table single-style | F7 | Moved (behavior unchanged) |
-| #5 schema table = `name:` | F8 | Non-string handling made explicit |
-| #7 TypeSystem flake | — | Re-confirmed unrelated |
+
+| Pre-review doubt (§6)          | Review finding | Outcome                            |
+| ------------------------------ | -------------- | ---------------------------------- |
+| #1 structural not surfaced     | F1             | Fixed                              |
+| #8 whole-project re-parse cost | F3             | Deferred (recommend `getApp` memo) |
+| #3 orphans completeness        | F4             | Contract documented                |
+| #4 graphql table single-style  | F7             | Moved (behavior unchanged)         |
+| #5 schema table = `name:`      | F8             | Non-string handling made explicit  |
+| #7 TypeSystem flake            | —              | Re-confirmed unrelated             |
 
 ### Tooling note (worth a reviewer's attention)
+
 During F6, `npx tsc --noEmit` caught a real control-flow-narrowing error
 (`entryPoints` possibly `undefined`) that the `yarn workspace <pkg> type-check`
 wrapper **and** the vitest runs silently passed over. Type-checking in this review
@@ -571,7 +599,9 @@ was therefore done with **direct `tsc --noEmit` per package**. If CI relies on t
 `yarn workspace` wrapper for type-checking, that gap is worth closing separately.
 
 ### Review-era changes to the public surface (for the reviewer's eye)
+
 All additive except two intentional output improvements and one perf default:
+
 - `buildAppGraph` gains an optional 4th arg `options: GraphBuildOptions`
   (`includeStructural`, default off). **Behavior change:** a full build no longer
   populates `module.structural` unless opted in — intentional (F1); no current
@@ -588,14 +618,16 @@ All additive except two intentional output improvements and one perf default:
 ## 9. Cached graph → blast radius in `validate_code` (TASK-9.10)
 
 ### Why (the reframing)
+
 The whole-branch review (§8) established that the graph's per-file outputs in
 `validate_code` were **redundant with lint**: broken references →
 `MissingPartial`/`MissingAsset`; argument correctness → `PartialCallArguments`;
-the rest echoed the buffer the agent just wrote. The one thing lint *structurally
-cannot* do is the **backward / cross-file** direction — "editing this file breaks
+the rest echoed the buffer the agent just wrote. The one thing lint _structurally
+cannot_ do is the **backward / cross-file** direction — "editing this file breaks
 its N callers." TASK-9.10 delivers exactly that and removes the redundant fields.
 
 ### What shipped
+
 - **`GraphCache`** (`src/graph-cache/`) — one per project/server. Builds the full
   `AppGraph` once (all liquid files as entry points → **complete dependents**) and
   reuses it, background-built and **never awaited** on the request path.
@@ -611,26 +643,30 @@ its N callers." TASK-9.10 delivers exactly that and removes the redundant fields
   structure adapter). Graph primitives kept for CLI / serialize / 9.11 / 9.12.
 
 ### Freshness — never stale (the load-bearing decision)
+
 Staleness would mislead the agent (a stale "0 dependents → safe to change" is the
 worst-case), so **TTL and stale-while-revalidate were both rejected**. The cache
 is **fingerprint-validated on every request**: a cheap `mtime:size` stat-scan over
 the edge-source liquid files (page/layout/partial+lib — the only files whose
 change can alter any dependents). Fingerprint matches → serve; otherwise report
-`computing` and rebuild in the background. The agent validates in-flight *buffers*
+`computing` and rebuild in the background. The agent validates in-flight _buffers_
 without writing to disk, so the fingerprint stays matched across a burst (fresh
 every call); a rebuild triggers only after an actual write.
 
-Buffer overlay is **not** needed for dependents (who points *at* the file lives in
-*other* files, unaffected by the buffer); the buffer is used only to read the
+Buffer overlay is **not** needed for dependents (who points _at_ the file lives in
+_other_ files, unaffected by the buffer); the buffer is used only to read the
 current `{% doc %}` for `signature_risk`.
 
 ### Degrade contract (F2)
+
 `impact` is secondary: a graph-build failure or an impact-adapter throw degrades
 to `status: 'unavailable'` (logged) and **never** sinks the lint gate.
 
 ### Worked example — signature-impact
+
 `home.liquid` renders `card` with no args. Editing `card` to add a required
 `@param title`:
+
 ```json
 "impact": {
   "scope": "direct",
@@ -643,6 +679,7 @@ to `status: 'unavailable'` (logged) and **never** sinks the lint gate.
 ```
 
 ### Tests
+
 `graph-cache.spec` (never-stale/dedup/failure state machine + a real-fixture
 integration proving rebuild-on-change), `impact.spec` (dependents shaping +
 signature-impact), `validate-code.spec` (lint/impact orchestration + degrade),
@@ -650,8 +687,9 @@ and a `stdio-smoke` end-to-end (real cached graph over the transport: dependents
 safe-to-change, and signature-impact). Supervisor suite: **55**.
 
 ### Measured cost (real 1,505-node project `marketplace-dcra`)
+
 - **Warm request (fresh graph served): ~400 ms** — the fingerprint stat-scan.
-  Sub-second, and it runs *concurrently* with lint's own multi-second
+  Sub-second, and it runs _concurrently_ with lint's own multi-second
   whole-project parse, so blast-radius adds ≈0 wall-clock.
 - **Cold first fingerprint: ~8 s** (cold OS cache; dominated by walking the whole
   tree, incl. non-platformOS dirs like `react-app/`) — hidden behind lint's own
@@ -659,6 +697,7 @@ safe-to-change, and signature-impact). Supervisor suite: **55**.
 - **Background build: ~22 s** — never awaited on the request path.
 
 ### Open follow-ups
+
 - The fingerprint (and the build's entry-point enumeration) walks the whole tree;
   scoping the walk to platformOS dirs (or reusing lint's file list) would cut the
   ~400 ms warm cost. Not a 9.10 regression (same walk `buildAppGraph`/lint already
@@ -667,3 +706,106 @@ safe-to-change, and signature-impact). Supervisor suite: **55**.
   `computing` until the background build finishes; a bounded await for small
   projects is a possible future nicety (deliberately omitted to never delay lint).
 - `getApp` memoization (doubt #8) remains the higher-value perf lever, unchanged.
+
+> The first two follow-ups above are resolved by §10 (incremental apply removes the
+> post-write `computing` gap; persistence removes the cold-build wait). Scoping the
+> walk is the remaining Phase-3 item.
+
+---
+
+## 10. Always-fresh graph — incremental + persisted (TASK-9.14 / 9.15)
+
+§9 shipped a _correct, never-stale_ cache, but it FULL-rebuilt (~22 s) on any
+change, so blast-radius went `computing` for ~22 s after every write, and cold
+start paid the full build. The graph is **"embarrassingly incremental"**: a
+file's outgoing edges depend only on its own content (no cross-file inference),
+so a change is applied in `O(edges of the changed file)`. We apply the proven
+playbook (rust-analyzer/Salsa demand-driven incremental, LSP
+`didChangeWatchedFiles`, TS `--incremental`, bundler HMR) rather than invent.
+
+**The never-stale mandate is preserved throughout: the fingerprint is the
+AUTHORITY.** Incremental apply is _driven by_ the fingerprint diff; any detected
+inconsistency falls back to a full rebuild; a persisted graph is reconciled
+against the fingerprint after load. Watch/persistence = speed; fingerprint =
+truth.
+
+### 10.1 `applyFileChange` — incremental graph update (TASK-9.14, platformos-graph)
+
+New `packages/platformos-graph/src/graph/incremental.ts`, exported from the
+package index (structure logic lives in the graph package, per ADR 003):
+
+```
+applyFileChange(graph, uri, kind: 'added'|'modified'|'deleted', deps, options?)
+```
+
+- Reuses the _exact_ build seams — `resolveLiquidReferences` (now exported) +
+  the URI-normalizing module factories + `bind` — so an incremental result can
+  never drift from a from-scratch build. No forked resolution.
+- `modified = removeFile + addFile`. `removeFile` detaches the file's outgoing
+  edges from each target's reverse index, garbage-collects any target that
+  becomes an unreachable non-entry-point leaf (matching a full build's
+  omission), drops it from `entryPoints`, then removes the node unless still
+  referenced (kept `exists:false`). `addFile` materializes/refreshes the node,
+  registers edge-source liquid files as entry points, and resolves + binds its
+  outgoing edges (materializing any newly-reached leaf with its `table` fact).
+- Incoming edges to an added/deleted file resolve automatically via the `exists`
+  flag — an edge is keyed by its canonical target URI, so flipping `exists`
+  re-resolves it with no rewiring.
+- Dependencies are augmented **fresh per call** (like the build), so the changed
+  file — and any newly-reachable leaf — is re-read from disk, never a stale
+  parse. Precondition: the graph was built with every edge-source liquid file as
+  an entry point (the cache's mode).
+
+**Guardrail (the correctness invariant):** `incremental.spec.ts` mutates a real
+temp project on disk, applies the change, and asserts
+`serializeAppGraph(incremental)` is canonically identical to a fresh
+`buildAppGraph` of the same disk state — across add / modify / delete, missing-
+target `exists` flips, leaf GC, self-reference, cycles, and mixed sequences.
+
+### 10.2 Warm, incremental, persisted `GraphCache` (TASK-9.15)
+
+**Phase 1 — incremental apply.** On a fingerprint move with a graph already in
+memory, the cache DIFFS the fingerprint (`diffFingerprints` → added/modified/
+deleted) and applies only the changed files via `applyFileChange`, then serves
+the updated graph **immediately** — no rebuild, no `computing` gap after a write.
+Reconciliations are serialized (a promise chain) so concurrent lookups never
+interleave mutations of the shared graph; a queued reconcile that another run
+already caught up to is a no-op. If incremental apply ever throws, the cache
+discards the graph and falls back to a full rebuild — a half-applied graph is
+never served.
+
+**Phase 2 — persistence (warm cold start).** The built graph + its per-file
+fingerprint + entry-point URIs are persisted to a versioned JSON cache file
+(`graph-cache-store.ts`; `serializeAppGraph` + the new `deserializeAppGraph`,
+which seeds the module identity cache so a loaded graph reconciles exactly like a
+freshly-built one). On cold start the cache LOADS the persisted graph and
+reconciles the on-disk delta incrementally instead of a ~22 s build. Persistence
+is off the request path and coalesced (a burst of edits collapses to one write,
+always writing the latest state). A missing / corrupt / wrong-version /
+wrong-root cache decodes to `null` and falls back to a full build; the
+fingerprint still gates correctness after load, so a stale cache converges to
+fresh and a bad one never yields a wrong answer. Default cache file:
+`<tmpdir>/platformos-mcp-supervisor/graph-<sha256(rootUri)>.json` (a rebuildable
+derivative; wired by the server, disableable by omitting `cachePath`).
+
+**Measured — real project `marketplace-dcra` (2,170 nodes, 1,921 entry points):**
+
+|                      | Before (§9)                          | After (§10)                                                                            |
+| -------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| Post-write freshness | `computing` for ~22 s (full rebuild) | fresh **immediately** (incremental apply, ~ms)                                         |
+| Cold start           | ~22 s full build                     | **~37 ms** persisted load (+ delta reconcile) — vs a **70 s** cold build here → ~1900× |
+| Serialize + persist  | —                                    | ~48 ms (1.4 MiB)                                                                       |
+
+**Tests.** `incremental.spec.ts` (equivalence guardrail), `deserialize.spec.ts`
+(round-trip + a restored graph reconciles exactly like a full build),
+`graph-cache-store.spec.ts` (encode/decode + version/root/corruption
+invalidation), `graph-cache.spec.ts` (incremental serve, diff kinds, apply-
+failure fallback, concurrent-reconcile coalescing, warm cold-start from disk,
+delta reconcile after warm, corrupt→rebuild). Supervisor + graph suites,
+type-check, and format green.
+
+**Phase 3 (pending).** `fs.watch` background freshness (with the fingerprint
+reconciliation kept as the safety net — never trust the watcher alone) so the
+request path does no per-call scan on the steady state; and scoping the file
+walk to platformOS dirs (cuts the residual ~400 ms warm fingerprint cost —
+resolves the first §9 follow-up).

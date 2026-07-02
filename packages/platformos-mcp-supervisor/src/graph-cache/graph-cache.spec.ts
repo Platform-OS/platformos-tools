@@ -1,11 +1,16 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { path } from '@platformos/platformos-check-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
-import { type AppGraph, dependentsOf, type FileChangeKind } from '@platformos/platformos-graph';
+import {
+  buildAppGraph,
+  type AppGraph,
+  dependentsOf,
+  type FileChangeKind,
+} from '@platformos/platformos-graph';
 
 import { GraphCache } from './graph-cache';
 
@@ -259,4 +264,100 @@ describe('GraphCache: real project (integration — real buildAppGraph + fs + mt
       uri('app/views/pages/index.liquid'),
     ]);
   }, 20000);
+});
+
+describe('GraphCache: persistence (Phase 2 — warm cold-start from disk + reconcile)', () => {
+  let projectDir: string;
+  let cacheDir: string;
+  let cachePath: string;
+  let rootUri: string;
+
+  const write = (rel: string, body: string) => {
+    const absPath = join(projectDir, rel);
+    mkdirSync(dirname(absPath), { recursive: true });
+    writeFileSync(absPath, body, 'utf8');
+  };
+  const uri = (rel: string) => path.normalize(path.URI.file(join(projectDir, rel)));
+  const dependentSources = (graph: AppGraph, rel: string): string[] =>
+    dependentsOf(graph, uri(rel))
+      .map((ref) => ref.source.uri)
+      .sort();
+  // A real build, wrapped so a test can spy on whether the graph was rebuilt vs loaded.
+  const realBuild = (root: string, fs: typeof NodeFileSystem, entryPoints: string[]) =>
+    buildAppGraph(root, { fs }, entryPoints);
+  const graphOf = (lookup: Awaited<ReturnType<GraphCache['lookup']>>): AppGraph => {
+    if (!('graph' in lookup) || !lookup.graph) throw new Error('expected a graph');
+    return lookup.graph;
+  };
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), 'mcp-sup-persist-proj-'));
+    // The cache file lives OUTSIDE the project so it is never walked as a source.
+    cacheDir = mkdtempSync(join(tmpdir(), 'mcp-sup-persist-cache-'));
+    cachePath = join(cacheDir, 'graph.json');
+    write('app/views/partials/card.liquid', '<div>{{ title }}</div>');
+    write('app/views/pages/index.liquid', "{% render 'card' %}");
+    rootUri = path.normalize(path.URI.file(projectDir));
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(cacheDir, { recursive: true, force: true });
+  });
+
+  it('persists after a cold build and warms a fresh instance from disk (no rebuild)', async () => {
+    const first = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath });
+    await first.lookup();
+    await first.settle();
+    expect(existsSync(cachePath)).toBe(true); // persisted after the build
+
+    // A brand-new instance (as if the server restarted) must LOAD, not rebuild.
+    const buildSpy = vi.fn(realBuild);
+    const second = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath, buildGraph: buildSpy });
+    expect(await second.lookup()).toEqual({ graph: null, reason: 'recomputing' }); // hydrating
+    await second.settle();
+
+    const served = graphOf(await second.lookup());
+    expect(dependentSources(served, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/index.liquid'),
+    ]);
+    expect(buildSpy).not.toHaveBeenCalled(); // loaded from disk, never rebuilt
+  });
+
+  it('reconciles the on-disk delta after warming from cache (still never rebuilds)', async () => {
+    const first = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath });
+    await first.lookup();
+    await first.settle();
+
+    // Source changed while "offline": a new page renders card. The warmed instance
+    // must reconcile this delta incrementally, not rebuild.
+    write('app/views/pages/about.liquid', "{% render 'card' %}");
+    const buildSpy = vi.fn(realBuild);
+    const second = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath, buildGraph: buildSpy });
+    await second.lookup(); // cold → hydrate (load) in background
+    await second.settle();
+
+    const served = graphOf(await second.lookup()); // reconciles the `about` delta, serves fresh
+    expect(dependentSources(served, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/about.liquid'),
+      uri('app/views/pages/index.liquid'),
+    ]);
+    expect(buildSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a full build when the cache file is corrupt (never a wrong answer)', async () => {
+    mkdirSync(dirname(cachePath), { recursive: true });
+    writeFileSync(cachePath, 'this is not valid json', 'utf8');
+
+    const buildSpy = vi.fn(realBuild);
+    const cache = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath, buildGraph: buildSpy });
+    await cache.lookup();
+    await cache.settle();
+
+    const served = graphOf(await cache.lookup());
+    expect(buildSpy).toHaveBeenCalledTimes(1); // corrupt cache → rebuilt
+    expect(dependentSources(served, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/index.liquid'),
+    ]);
+  });
 });

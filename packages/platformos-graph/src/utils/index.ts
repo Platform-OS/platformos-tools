@@ -5,7 +5,7 @@ export function unique<T>(array: T[]): T[] {
   return [...new Set(array)];
 }
 
-export function assertNever(module: never) {
+export function assertNever(module: never): never {
   throw new Error(`Unknown module type ${module}`);
 }
 

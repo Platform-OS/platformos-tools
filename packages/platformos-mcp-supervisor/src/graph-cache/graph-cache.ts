@@ -17,10 +17,17 @@
  * never served. Reconciliations are serialized so concurrent lookups can never
  * interleave mutations of the shared graph.
  *
- * The COLD build (no prior graph) is still fired in the background and NEVER
- * awaited on the request path — blast-radius is a secondary signal and must not
- * add latency to, or ever sink, the primary lint gate (mirrors the
- * `runValidateCode` degrade contract). (Persisted cold-start load is Phase 2.)
+ * COLD start (no in-memory graph) is warmed from a PERSISTED graph when one is
+ * available (TASK-9.15 Phase 2): the cache loads the serialized graph + its
+ * fingerprint and reconciles the on-disk delta incrementally, instead of a full
+ * ~22s build. The graph is persisted (off the request path, coalesced) after each
+ * build and reconcile, so a restart resumes near-instantly. A missing / corrupt /
+ * wrong-version / wrong-root cache simply falls back to a full build — the
+ * fingerprint still gates correctness after load, so a stale cache converges to
+ * fresh and a bad one never yields a wrong answer. Either way the cold work runs
+ * in the background and is NEVER awaited on the request path — blast-radius is a
+ * secondary signal and must not add latency to, or ever sink, the primary lint
+ * gate (mirrors the `runValidateCode` degrade contract).
  *
  * Fingerprint domain = the liquid files that are edge SOURCES (page/layout/
  * partial+lib). Only their add/remove/modify can change any file's dependents;
@@ -28,7 +35,10 @@
  * `buildAppGraph` as entry points, so dependents are COMPLETE (every caller is
  * traversed) — see the query.ts note on entry-point scope.
  */
-import { stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 
 import {
   isLayout,
@@ -47,8 +57,7 @@ import {
   type FileChangeKind,
 } from '@platformos/platformos-graph';
 
-/** Per-file identity used to detect on-disk change: `mtimeMs:size`. */
-type Fingerprint = Map<UriString, string>;
+import { decodeCacheFile, encodeCacheFile, type Fingerprint } from './graph-cache-store';
 
 /** The result of asking the cache for a usable graph. */
 export type GraphLookup =
@@ -75,6 +84,44 @@ export interface GraphCacheOptions {
     kind: FileChangeKind,
     fs: AbstractFileSystem,
   ) => Promise<void>;
+  /**
+   * Absolute path of the on-disk cache file. When set, the cache is warmed from
+   * it on cold start and persisted to it after builds/reconciles. Omit to disable
+   * persistence (pure in-memory). See {@link defaultGraphCachePath}.
+   */
+  cachePath?: string;
+  /** Seam for tests: read the cache file (`null` when absent/unreadable). Defaults to reading `cachePath`. */
+  readCacheFile?: () => Promise<string | null>;
+  /** Seam for tests: write the cache file (atomically). Defaults to an atomic write to `cachePath`. */
+  writeCacheFile?: (contents: string) => Promise<void>;
+}
+
+/**
+ * The default per-project cache-file path: a stable, project-root-derived name in
+ * the OS temp dir. Temp is fine — the cache is a rebuildable derivative, and a
+ * missing file just triggers a full build. One file per root (hashed) so distinct
+ * projects never collide.
+ */
+export function defaultGraphCachePath(rootUri: UriString): string {
+  const hash = createHash('sha256').update(rootUri).digest('hex').slice(0, 16);
+  return join(tmpdir(), 'platformos-mcp-supervisor', `graph-${hash}.json`);
+}
+
+/** Read a file as UTF-8, or `null` if it does not exist / cannot be read. */
+async function readFileOrNull(filePath: string): Promise<string | null> {
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/** Write a file atomically (temp + rename) so a reader never observes a partial write. */
+async function writeFileAtomic(filePath: string, contents: string): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  await writeFile(tmp, contents, 'utf8');
+  await rename(tmp, filePath);
 }
 
 /** A liquid file that can be an edge SOURCE — the build's entry points + fingerprint domain. */
@@ -153,20 +200,30 @@ export class GraphCache {
     kind: FileChangeKind,
     fs: AbstractFileSystem,
   ) => Promise<void>;
+  /** Read the persisted cache file, or `null` if persistence is disabled/absent. */
+  private readonly readCacheFile: (() => Promise<string | null>) | null;
+  /** Write the persisted cache file, or `null` if persistence is disabled. */
+  private readonly writeCacheFile: ((contents: string) => Promise<void>) | null;
 
   /** The graph + the fingerprint of the disk it was built from / reconciled to. */
   private built: { graph: AppGraph; fingerprint: Fingerprint } | null = null;
-  /** The in-flight background build, if any (dedup guard). */
+  /** The in-flight background build/hydrate, if any (dedup guard). */
   private inFlight: Promise<void> | null = null;
   /** The fingerprint of the most recent build ATTEMPT (success or failure). */
   private lastAttempt: Fingerprint | null = null;
   /** The error from the most recent failed build attempt, cleared on a new attempt. */
   private lastError: Error | null = null;
+  /** Whether the one-shot persisted-cache load has been attempted (cold start only). */
+  private loadAttempted = false;
   /**
    * Serializes incremental reconciliations so concurrent lookups never interleave
    * mutations of the shared graph. Each stale lookup chains after the previous.
    */
   private reconcileChain: Promise<void> = Promise.resolve();
+  /** Serializes off-path cache writes; a pending write is coalesced (see {@link schedulePersist}). */
+  private persistChain: Promise<void> = Promise.resolve();
+  /** Whether a persist is already queued (so a burst of changes collapses to one write). */
+  private persistScheduled = false;
 
   constructor(options: GraphCacheOptions) {
     this.rootUri = options.rootUri;
@@ -177,6 +234,13 @@ export class GraphCache {
       ((rootUri, fs, entryPoints) => buildAppGraph(rootUri, { fs }, entryPoints));
     this.applyChange =
       options.applyChange ?? ((graph, uri, kind, fs) => applyFileChange(graph, uri, kind, { fs }));
+
+    const cachePath = options.cachePath;
+    this.readCacheFile =
+      options.readCacheFile ?? (cachePath ? () => readFileOrNull(cachePath) : null);
+    this.writeCacheFile =
+      options.writeCacheFile ??
+      (cachePath ? (contents) => writeFileAtomic(cachePath, contents) : null);
   }
 
   /**
@@ -198,11 +262,10 @@ export class GraphCache {
       return this.reconcileAndServe(current);
     }
 
-    // Cold start: no prior graph to update incrementally → full build in the
-    // background (Phase 2 will load a persisted graph here instead). If the
-    // current source already failed to build and nothing is retrying it, it is
-    // genuinely unavailable; otherwise a build is in flight.
-    this.ensureBuild(current);
+    // Cold start: no in-memory graph → warm from the persisted cache or full-build
+    // in the background. If the current source already failed and nothing is
+    // retrying it, it is genuinely unavailable; otherwise work is in flight.
+    this.ensureGraph(current);
     const reason: 'recomputing' | 'unavailable' =
       this.lastError && !this.inFlight ? 'unavailable' : 'recomputing';
     return { graph: null, reason };
@@ -239,6 +302,8 @@ export class GraphCache {
       await this.applyChange(built.graph, uri, kind, this.fs);
     }
     built.fingerprint = target;
+    // Advance the on-disk cache so a restart resumes from here (small delta).
+    this.schedulePersist();
   }
 
   /** Incremental apply failed → discard the graph and full-rebuild from scratch. */
@@ -246,16 +311,17 @@ export class GraphCache {
     this.built = null;
     this.lastError = null;
     this.lastAttempt = null;
-    this.ensureBuild(target);
+    this.ensureGraph(target);
     return { graph: null, reason: 'recomputing' };
   }
 
   /**
-   * Start a background build for `fingerprint` unless one is already running or
-   * this exact source already failed (avoids a retry storm on an unbuildable
-   * project — a changed fingerprint retries).
+   * Ensure a graph is being produced in the background for `fingerprint` — warmed
+   * from the persisted cache on the first cold attempt, else full-built — unless
+   * one is already running or this exact source already failed (avoids a retry
+   * storm on an unbuildable project; a changed fingerprint retries).
    */
-  private ensureBuild(fingerprint: Fingerprint): void {
+  private ensureGraph(fingerprint: Fingerprint): void {
     if (this.inFlight) return;
     if (this.lastError && this.lastAttempt && fingerprintsEqual(this.lastAttempt, fingerprint)) {
       return;
@@ -264,11 +330,7 @@ export class GraphCache {
     this.lastAttempt = fingerprint;
     this.lastError = null;
 
-    const entryPoints = [...fingerprint.keys()];
-    this.inFlight = this.buildGraph(this.rootUri, this.fs, entryPoints)
-      .then((graph) => {
-        this.built = { graph, fingerprint };
-      })
+    this.inFlight = this.hydrate(fingerprint)
       .catch((error: unknown) => {
         this.lastError = error instanceof Error ? error : new Error(String(error));
       })
@@ -278,12 +340,69 @@ export class GraphCache {
   }
 
   /**
-   * Await the in-flight build and any queued incremental reconciliation. TEST/
-   * warm-up hook only — the request path (`lookup`) never awaits a full build
-   * (it does await its own incremental reconcile, which is fast).
+   * Produce the graph: on the FIRST cold attempt, try the persisted cache (loaded
+   * graph + its fingerprint — `lookup` then reconciles the delta vs the current
+   * disk); otherwise, or if no usable cache exists, full-build over the current
+   * entry points and persist the result. A load failure/absence falls through to
+   * a build, so a bad cache never blocks startup.
+   */
+  private async hydrate(fingerprint: Fingerprint): Promise<void> {
+    if (!this.loadAttempted) {
+      this.loadAttempted = true;
+      const loaded = await this.tryLoad();
+      if (loaded) {
+        this.built = loaded;
+        return;
+      }
+    }
+
+    const graph = await this.buildGraph(this.rootUri, this.fs, [...fingerprint.keys()]);
+    this.built = { graph, fingerprint };
+    this.schedulePersist();
+  }
+
+  /** Load + decode the persisted cache, or `null` if disabled/absent/unusable. */
+  private async tryLoad(): Promise<{ graph: AppGraph; fingerprint: Fingerprint } | null> {
+    if (!this.readCacheFile) return null;
+    const text = await this.readCacheFile();
+    return text !== null ? decodeCacheFile(text, this.rootUri) : null;
+  }
+
+  /**
+   * Persist the current graph off the request path. Bursts are coalesced: while a
+   * write is pending, further calls are dropped, and the queued write serializes
+   * whatever the latest built state is at write time (never a partial/older one).
+   */
+  private schedulePersist(): void {
+    if (!this.writeCacheFile || this.persistScheduled) return;
+    this.persistScheduled = true;
+    this.persistChain = this.persistChain.then(() => {
+      this.persistScheduled = false;
+      return this.writeCurrent();
+    });
+  }
+
+  /** Serialize + write the current built graph; best-effort (a write failure never breaks the cache). */
+  private async writeCurrent(): Promise<void> {
+    const built = this.built;
+    if (!built || !this.writeCacheFile) return;
+    try {
+      await this.writeCacheFile(encodeCacheFile(this.rootUri, built.graph, built.fingerprint));
+    } catch {
+      // Persistence is best-effort: the next successful build/reconcile
+      // re-persists, and correctness is gated by the fingerprint regardless.
+    }
+  }
+
+  /**
+   * Await the in-flight build/hydrate, any queued incremental reconciliation, and
+   * any pending cache write. TEST/warm-up hook only — the request path (`lookup`)
+   * never awaits a full build (it does await its own incremental reconcile, which
+   * is fast).
    */
   async settle(): Promise<void> {
     await this.inFlight;
     await this.reconcileChain;
+    await this.persistChain;
   }
 }

@@ -12,7 +12,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { path } from '@platformos/platformos-check-common';
 import { AppCache } from '@platformos/platformos-check-node';
 
-import { GraphCache } from '../graph-cache/graph-cache';
+import { defaultGraphCachePath, GraphCache } from '../graph-cache/graph-cache';
 import { createLogger, type Logger } from '../logger';
 import { registerValidateCode, type SupervisorContext } from './validate-code';
 
@@ -38,9 +38,12 @@ const DEFAULT_VERSION = '0.0.1';
 export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
   const log = opts.log ?? createLogger(SERVER_NAME);
   // One never-stale project-graph cache per server (keyed by this project root),
-  // built lazily in the background on first blast-radius request.
+  // warmed from a persisted graph on the first blast-radius request (else built
+  // lazily in the background), then kept fresh incrementally.
+  const rootUri = path.normalize(path.URI.file(opts.projectDir));
   const graphCache = new GraphCache({
-    rootUri: path.normalize(path.URI.file(opts.projectDir)),
+    rootUri,
+    cachePath: defaultGraphCachePath(rootUri),
   });
   // One never-stale parsed-project cache per server, so repeated lint calls reuse
   // the parsed project instead of re-parsing it (the dominant per-call cost).

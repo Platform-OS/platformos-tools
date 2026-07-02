@@ -221,3 +221,15 @@ function module<T extends AppModule>(appGraph: AppGraph, mod: T): T {
   }
   return cache.get(mod.uri)! as T;
 }
+
+/**
+ * Intern a fully-formed module into the graph's identity cache (dedup by URI),
+ * returning the canonical instance. Deserialization uses this to SEED the cache
+ * from a persisted graph, so that a subsequent incremental update
+ * (`applyFileChange`) resolves its targets to the SAME module objects the loaded
+ * graph holds — without it, the factories would mint fresh duplicates on a cache
+ * miss and edges would bind to the wrong nodes. See {@link ModuleCache}.
+ */
+export function internModule<T extends AppModule>(appGraph: AppGraph, mod: T): T {
+  return module(appGraph, mod);
+}

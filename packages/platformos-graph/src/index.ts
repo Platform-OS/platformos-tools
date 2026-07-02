@@ -16,5 +16,6 @@ export {
 } from './graph/query';
 export type { NearestModulesOptions } from './graph/query';
 export { serializeAppGraph } from './graph/serialize';
+export { deserializeAppGraph } from './graph/deserialize';
 export { parseJs, toSourceCode } from './toSourceCode';
 export * from './types';

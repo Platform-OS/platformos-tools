@@ -32,10 +32,16 @@ graph to provide that model and consumes it from `validate_code`.
   — each carrying a semantic `kind`, call-site range, and named-arg names.
 - **Per-file primitive** `extractFileReferences` — resolves one in-flight buffer's
   outgoing edges without building the whole graph (the buffer-before-write model).
-- **`validate_code` now returns `dependencies`** — resolved, project-relative
-  targets with a typed `kind` + 1-based position, alongside lint diagnostics.
-- **`validate_code` now returns `structural`** *(added in review — §8/F1)* — the
-  file's own declarations for the in-flight buffer.
+- **`validate_code` returns `impact`** *(TASK-9.10 — see §9)* — the cross-file
+  **blast radius**: who depends on the edited file (its callers), plus
+  **signature-impact** (callers whose args no longer match the file's `{% doc %}`).
+  This is the one graph signal lint cannot produce; the earlier per-file
+  `dependencies`/`structural` fields were **removed** as redundant with lint
+  (`MissingPartial`/`MissingAsset` + `PartialCallArguments`) — see §9.
+- **Never-stale cached graph** *(TASK-9.10)* — a fingerprint-validated
+  `GraphCache` at the supervisor edge: reused across calls, background-built, and
+  **never served stale** (a changed project reports `computing`, never a wrong
+  answer).
 - **Project-structure query API** — dependents / orphans / reachability /
   missing-target / nearest-name ("did you mean").
 - **Per-file self-structural** — `renders_used`, `graphql_queries_used`,
@@ -53,8 +59,10 @@ graph to provide that model and consumes it from `validate_code`.
 - **Additive everywhere.** New optional fields (`Reference.kind`, `.args`,
   `GraphQLModule.table`, `LiquidModule.structural`, `SchemaModule`), new query
   functions, new DocumentType. No breaking change to existing consumers.
-- **The LSP and `validate_code` outputs are unchanged** except the deliberate
-  new `dependencies` field — verified by whole-result assertions.
+- **The LSP output is unchanged.** The `validate_code` output was reshaped by
+  TASK-9.10 (§9): `dependencies`/`structural` removed, `impact` added — a
+  deliberate change to a not-yet-released tool, verified by whole-result
+  assertions.
 - Cross-package safety re-verified after every slice: graph, check-common,
   check-node, language-server, supervisor.
 
@@ -64,7 +72,7 @@ graph to provide that model and consumes it from `validate_code`.
 | platformos-common | **257** | +12 (`effectivePageSlug`) |
 | platformos-graph | **80** | +7 (structural opt-in/primitive, node-identity) |
 | platformos-check-common | **1057** | +10 (`extractSchemaTable`) |
-| platformos-mcp-supervisor | **56** | +6 (orchestration, structural, adapter) |
+| platformos-mcp-supervisor | **55** | 9.10: +graph-cache (7) +impact (10), −structure adapter |
 | platformos-language-server-common | **467** | unchanged |
 
 All packages type-check clean (via **direct `tsc --noEmit`** — see §8/F6 note on
@@ -239,22 +247,25 @@ From `@platformos/platformos-graph`:
 There is also a CLI (`bin/platformos-graph`): `platformos-graph <root> [file]`.
 
 ### What `validate_code` discovers today
-Per call (`{ file_path, content, mode }`), over the in-flight buffer (parsed
-**once**, shared by the two graph primitives — §8/F1):
+Per call (`{ file_path, content, mode }`):
 - **Lint** (check-node `lintBuffer`): errors / warnings / infos with 1-based
-  positions, `must_fix_before_write` gate, `status`.
-- **`dependencies`** (graph `extractFileReferences`): every statically-resolvable
-  outgoing edge — typed `kind`, **project-relative resolved target**, 1-based
-  line/col. This is the "how it sits in the project" signal. It does **not**
-  re-flag missing targets (the linter's `MissingPartial` already does); its value
-  is the canonical resolved path + kind.
-- **`structural`** (graph `extractStructural`) *(wired in review — §8/F1)*: the
-  file's own declarations for this buffer (`renders_used`, `graphql_queries_used`,
-  `filters_used`, `tags_used`, `translation_keys`, `doc_params`, and the routing
-  facts `slug`/`layout`/`method`), or `null` for a non-Liquid/unparseable buffer.
+  positions, `must_fix_before_write` gate, `status`. Lint is the **primary,
+  forward-looking** signal — it also covers broken references (`MissingPartial`/
+  `MissingAsset`) and argument correctness (`PartialCallArguments`).
+- **`impact`** (graph `dependentsOf` over the cached graph — §9): the
+  **backward, cross-file** signal lint cannot produce —
+  - `dependents`: who references the edited file (`total`, `by_kind`, a capped
+    `sample`), so the agent knows the blast radius before changing a shared file;
+  - `signature_risk`: existing callers whose args no longer match the buffer's
+    `{% doc %}` contract (the cross-file inverse of `PartialCallArguments`);
+  - `status` (`computed`/`computing`/`unavailable`): never stale — "nothing
+    depends on this" (computed, 0) is distinguishable from "not computed yet".
 
-Still graph-side / not yet surfaced in `validate_code` (see §6): the project-wide
-queries (dependents/orphans/nearest-name), which need a cached full build.
+The earlier per-file `dependencies`/`structural` fields were **removed** (§9): a
+buffer's own outgoing edges + self-summary duplicated lint and echoed what the
+agent just wrote. The graph primitives (`extractFileReferences`/
+`extractStructural`) remain for the CLI, serialization, and the planned
+`project_map`/`validate_project` tools (TASK-9.11 / 9.12).
 
 ---
 
@@ -289,40 +300,34 @@ Output (verbatim):
   "proposed_fixes": [],
   "clusters": [],
   "scorecard": [],
-  "dependencies": [
-    { "kind": "layout",   "target": "app/views/layouts/theme.liquid",   "line": 1, "column": 1 },
-    { "kind": "function", "target": "app/lib/queries/list.liquid",       "line": 4, "column": 1 },
-    { "kind": "render",   "target": "app/views/partials/header.liquid",  "line": 5, "column": 13 }
-  ],
+  "impact": {
+    "scope": "direct",
+    "status": "computed",
+    "dependents": {
+      "total": 2,
+      "by_kind": { "layout": 2 },
+      "sample": ["app/views/pages/about.liquid", "app/views/pages/index.liquid"]
+    }
+  },
   "parse_error": null,
   "tips": [],
-  "domain_guide": null,
-  "structural": {
-    "renders_used": ["header"],
-    "graphql_queries_used": [],
-    "filters_used": [],
-    "tags_used": ["function", "render"],
-    "translation_keys": [],
-    "doc_params": [],
-    "slug": null,
-    "layout": "theme",
-    "method": null
-  }
+  "domain_guide": null
 }
 ```
 
-Note the clean separation of three signals that coexist without conflation:
-- the **lint error** (`MissingContentForLayout`);
-- the **resolved dependencies** — the frontmatter `layout`, the `{% function %}`
-  lib query, and the `{% render %}` partial, each resolved to its canonical
-  project-relative path with an exact position;
-- the file's own **structural** facts — what it renders (`header`), the tags it
-  uses (`function`, `render`), and its routing (`layout: theme`; `slug`/`method`
-  are `null` because this is a layout, not a page).
+Two signals coexist without conflation:
+- the **lint error** (`MissingContentForLayout`) — the per-file, forward-looking
+  gate;
+- the **blast radius** (`impact`) — the cross-file signal lint cannot give: **2
+  pages use this layout**, so the missing `content_for_layout` affects both. The
+  agent sees who is impacted before writing. (`status: computed` with `total: 0`
+  would instead mean "nothing depends on this — safe to change".)
 
-The `structural` block was `null` in the pre-review revision (built on graph
-modules but not reachable from the per-file `validate_code` path); §8/F1 exported
-`extractStructural` and wired it in.
+The buffer's own outgoing edges are covered by lint (`MissingPartial` /
+`PartialCallArguments`), so the previously-shown `dependencies`/`structural`
+fields were removed as redundant — see §9. For a **partial** edit whose `{% doc %}`
+changed, `impact.signature_risk` additionally lists the callers whose arguments no
+longer match.
 
 ### 5.2 Graph self-structural — `header.liquid`
 
@@ -355,18 +360,20 @@ For
 > **resolved**; the rest are unchanged unless annotated. See §8 for the full
 > mapping of doubts → findings → fixes.
 
-1. ~~**`structural` is built but not surfaced in `validate_code`.**~~ **RESOLVED
-   (§8/F1).** `extractStructural` is now an exported per-file primitive; the
-   supervisor computes `structural` for the in-flight buffer over the same parse
-   it uses for `dependencies`, and eager per-module population on a full build is
-   now opt-in (`includeStructural`, default off) so the LSP stops paying for a
-   fact it never reads.
+1. ~~**`structural` is built but not surfaced in `validate_code`.**~~
+   **SUPERSEDED (TASK-9.10 — §9).** §8/F1 briefly surfaced `structural`, but the
+   whole-branch analysis showed `dependencies`/`structural` were redundant with
+   lint (they echo the buffer the agent just wrote). Both were **removed** from
+   `validate_code`; the graph's real contribution is the cross-file `impact`
+   (blast radius) instead. The graph primitives remain for `project_map`/
+   `validate_project`.
 
-2. **Project-wide queries need a cached full build.** `dependentsOf`, `orphans`,
-   `nearestModules` require `buildAppGraph` (O(project), parse-heavy). `validate_code`
-   currently does a per-file resolution only. Surfacing "who renders this /
-   did-you-mean" to the agent needs a cached graph at the supervisor edge (ADR 003
-   open question #5 — TTL vs explicit invalidation). Not built.
+2. ~~**Project-wide queries need a cached full build.**~~ **RESOLVED (TASK-9.10 —
+   §9).** A never-stale, fingerprint-validated `GraphCache` at the supervisor edge
+   now backs `validate_code`'s `impact` (dependents / blast radius). It amortizes
+   the parse-heavy full build and reports `computing` rather than serving stale.
+   (ADR 003 open question #5 is now marked resolved.) `nearestModules` /
+   project-wide orphans remain for `validate_project` (TASK-9.12).
 
 3. **`orphans()` completeness depends on how the graph was built.** `buildAppGraph`
    only materializes modules reachable from entry points (+ schema on a full
@@ -418,10 +425,22 @@ For
 | 9.5 wire graph `dependencies` into `validate_code` | ✅ Done |
 | 9.6 platform facts (graphql `table`, schema nodes) | ✅ Done |
 | 9.7 resource/CRUD convention overlay | ⬜ Deferred (ADR 004) |
-| 9.8 code-review remediation (this review — §8) | ✅ Done (F3 deferred) |
-| 8.4 surface `structural` in `validate_code` | ✅ Done (via §8/F1) |
+| 9.8 code-review remediation (§8) | ✅ Done (F3 deferred) |
+| 9.9 asset-resolution fix + real-project validation | ✅ Done |
+| **9.10 cached graph → blast-radius in `validate_code`** (§9) | ✅ Done |
+| 9.11 `project_map` (discovery + resource overlay) | ⬜ Scoped |
+| 9.12 `validate_project` (health sweep + repair order) | ⬜ Scoped |
+| 8.4 surface `structural` in `validate_code` | ↩︎ Superseded by 9.10 (removed) |
 
-ADRs: `docs/mcp-supervisor/decisions/003-…` (resolved), `004-platform-facts-vs-conventions` (accepted).
+**The three-tool graph strategy** (why the graph lives mostly *outside*
+`validate_code`): lint owns the per-file forward-looking checks, so the graph's
+value is cross-file. It is surfaced through three intent-shaped tools —
+`validate_code` **blast radius** (change safety, at edit time — 9.10, done),
+`project_map` (discovery, at task start — 9.11), and `validate_project` (health
+sweep + dependency-ordered repair plan, at task end — 9.12).
+
+ADRs: `docs/mcp-supervisor/decisions/003-…` (resolved, incl. Q#5 via 9.10),
+`004-platform-facts-vs-conventions` (accepted).
 
 ---
 
@@ -563,3 +582,88 @@ All additive except two intentional output improvements and one perf default:
 - `validate_code` result: `structural` is now populated (was always `null`);
   `dependencies[].kind` is now a typed union (was `string`). Both are widened/filled,
   not removed — existing consumers keep working.
+
+---
+
+## 9. Cached graph → blast radius in `validate_code` (TASK-9.10)
+
+### Why (the reframing)
+The whole-branch review (§8) established that the graph's per-file outputs in
+`validate_code` were **redundant with lint**: broken references →
+`MissingPartial`/`MissingAsset`; argument correctness → `PartialCallArguments`;
+the rest echoed the buffer the agent just wrote. The one thing lint *structurally
+cannot* do is the **backward / cross-file** direction — "editing this file breaks
+its N callers." TASK-9.10 delivers exactly that and removes the redundant fields.
+
+### What shipped
+- **`GraphCache`** (`src/graph-cache/`) — one per project/server. Builds the full
+  `AppGraph` once (all liquid files as entry points → **complete dependents**) and
+  reuses it, background-built and **never awaited** on the request path.
+- **`impact`** in the `validate_code` result (`src/impact/`):
+  - `dependents`: `{ total, by_kind, sample≤10 }` — who references the edited file
+    (via `dependentsOf`), distinct files, capped, sorted;
+  - `signature_risk`: dependent callers whose passed args (from the graph's edge
+    `args`) violate the buffer's `{% doc %}` contract — missing a required
+    `@param` or passing an undeclared one. The cross-file **inverse** of
+    `PartialCallArguments`; conservative (doc-block only, no inference);
+  - `status`: `computed | computing | unavailable`.
+- **Removed** `dependencies` and `structural` from the result (+ the dead
+  structure adapter). Graph primitives kept for CLI / serialize / 9.11 / 9.12.
+
+### Freshness — never stale (the load-bearing decision)
+Staleness would mislead the agent (a stale "0 dependents → safe to change" is the
+worst-case), so **TTL and stale-while-revalidate were both rejected**. The cache
+is **fingerprint-validated on every request**: a cheap `mtime:size` stat-scan over
+the edge-source liquid files (page/layout/partial+lib — the only files whose
+change can alter any dependents). Fingerprint matches → serve; otherwise report
+`computing` and rebuild in the background. The agent validates in-flight *buffers*
+without writing to disk, so the fingerprint stays matched across a burst (fresh
+every call); a rebuild triggers only after an actual write.
+
+Buffer overlay is **not** needed for dependents (who points *at* the file lives in
+*other* files, unaffected by the buffer); the buffer is used only to read the
+current `{% doc %}` for `signature_risk`.
+
+### Degrade contract (F2)
+`impact` is secondary: a graph-build failure or an impact-adapter throw degrades
+to `status: 'unavailable'` (logged) and **never** sinks the lint gate.
+
+### Worked example — signature-impact
+`home.liquid` renders `card` with no args. Editing `card` to add a required
+`@param title`:
+```json
+"impact": {
+  "scope": "direct",
+  "status": "computed",
+  "dependents": { "total": 1, "by_kind": { "render": 1 }, "sample": ["app/views/pages/home.liquid"] },
+  "signature_risk": [
+    { "caller": "app/views/pages/home.liquid", "missing_required": ["title"], "unexpected_args": [] }
+  ]
+}
+```
+
+### Tests
+`graph-cache.spec` (never-stale/dedup/failure state machine + a real-fixture
+integration proving rebuild-on-change), `impact.spec` (dependents shaping +
+signature-impact), `validate-code.spec` (lint/impact orchestration + degrade),
+and a `stdio-smoke` end-to-end (real cached graph over the transport: dependents,
+safe-to-change, and signature-impact). Supervisor suite: **55**.
+
+### Measured cost (real 1,505-node project `marketplace-dcra`)
+- **Warm request (fresh graph served): ~400 ms** — the fingerprint stat-scan.
+  Sub-second, and it runs *concurrently* with lint's own multi-second
+  whole-project parse, so blast-radius adds ≈0 wall-clock.
+- **Cold first fingerprint: ~8 s** (cold OS cache; dominated by walking the whole
+  tree, incl. non-platformOS dirs like `react-app/`) — hidden behind lint's own
+  slower cold parse of the same files.
+- **Background build: ~22 s** — never awaited on the request path.
+
+### Open follow-ups
+- The fingerprint (and the build's entry-point enumeration) walks the whole tree;
+  scoping the walk to platformOS dirs (or reusing lint's file list) would cut the
+  ~400 ms warm cost. Not a 9.10 regression (same walk `buildAppGraph`/lint already
+  do); worth a follow-up.
+- Cold-start: the first blast-radius request (or the first after a write) returns
+  `computing` until the background build finishes; a bounded await for small
+  projects is a possible future nicety (deliberately omitted to never delay lint).
+- `getApp` memoization (doubt #8) remains the higher-value perf lever, unchanged.

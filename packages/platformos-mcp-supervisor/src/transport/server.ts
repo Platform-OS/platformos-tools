@@ -9,6 +9,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
+import { path } from '@platformos/platformos-check-common';
+
+import { GraphCache } from '../graph-cache/graph-cache';
 import { createLogger, type Logger } from '../logger';
 import { registerValidateCode, type SupervisorContext } from './validate-code';
 
@@ -33,7 +36,12 @@ const DEFAULT_VERSION = '0.0.1';
 
 export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
   const log = opts.log ?? createLogger(SERVER_NAME);
-  const context: SupervisorContext = { projectDir: opts.projectDir, log };
+  // One never-stale project-graph cache per server (keyed by this project root),
+  // built lazily in the background on first blast-radius request.
+  const graphCache = new GraphCache({
+    rootUri: path.normalize(path.URI.file(opts.projectDir)),
+  });
+  const context: SupervisorContext = { projectDir: opts.projectDir, graphCache, log };
 
   const server = new McpServer({ name: SERVER_NAME, version: opts.version ?? DEFAULT_VERSION });
   registerValidateCode(server, context);

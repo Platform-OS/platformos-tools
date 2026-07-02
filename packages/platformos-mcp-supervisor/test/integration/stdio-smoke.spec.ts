@@ -1,8 +1,9 @@
 /**
  * Smoke test: build the package, then drive the REAL stdio bin with the
  * official MCP SDK client. Verifies the transport, the `validate_code`
- * registration, the JSON-text result envelope, AND that real linting flows
- * end to end (check-node → mapped diagnostics).
+ * registration, the JSON-text result envelope, real linting end to end
+ * (check-node → mapped diagnostics), AND the cross-file blast radius end to end
+ * (the cached project graph → `dependentsOf` → `impact`).
  *
  * The package is built in `beforeAll` (incremental `tsc -b`) so the suite is
  * self-contained under `yarn test` without a prior build step. A hermetic
@@ -57,14 +58,16 @@ beforeAll(async () => {
     'utf8',
   );
 
-  // Real dependency targets so the `dependencies` field points at files that
-  // actually exist in the project (the realistic agent scenario).
+  // A real project on disk so the cached graph (and thus blast radius) is real:
+  // `home` renders `card` → `card` has one dependent; `lonely` has none.
   const writeProjectFile = (rel: string, body: string) => {
     const abs = join(projectDir, rel);
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, body, 'utf8');
   };
   writeProjectFile('app/views/partials/card.liquid', '<div class="card">{{ title }}</div>');
+  writeProjectFile('app/views/partials/lonely.liquid', '<div>nobody renders me</div>');
+  writeProjectFile('app/views/pages/home.liquid', "{% render 'card' %}");
   writeProjectFile(
     'app/views/layouts/theme.liquid',
     '<html><body>{{ content_for_layout }}</body></html>',
@@ -79,11 +82,22 @@ beforeAll(async () => {
   await client.connect(transport);
 }, 180_000);
 
+/**
+ * Call `validate_code` and return the parsed result, polling until the
+ * background-built project graph is fresh (so `impact` is deterministic rather
+ * than the transient `computing`). Disk is not written between calls, so once
+ * built the graph stays fresh.
+ */
 async function validateCode(args: { file_path: string; content: string; mode?: string }) {
-  const res = await client.callTool({ name: 'validate_code', arguments: args });
-  const content = res.content as Array<{ type: string; text: string }>;
-  expect(content[0].type).toEqual('text');
-  return JSON.parse(content[0].text);
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const res = await client.callTool({ name: 'validate_code', arguments: args });
+    const content = res.content as Array<{ type: string; text: string }>;
+    expect(content[0].type).toEqual('text');
+    const result = JSON.parse(content[0].text);
+    if (result.impact?.status !== 'computing') return result;
+    await new Promise((resolvePoll) => setTimeout(resolvePoll, 100));
+  }
+  throw new Error('blast radius did not settle (impact still "computing" after polling)');
 }
 
 afterAll(async () => {
@@ -92,14 +106,8 @@ afterAll(async () => {
 });
 
 describe('Integration: validate_code over stdio', () => {
-  it('advertises exactly the validate_code tool', async () => {
-    const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['validate_code']);
-  });
-
-  // The always-empty envelope fields in this lint-only slice; spread into each
-  // expected result so every assertion checks the WHOLE object. `structural` is
-  // set per-test (it is populated for every Liquid buffer).
+  // The always-empty envelope fields in this slice; spread into each expected
+  // result so every assertion checks the WHOLE object.
   const EMPTY_ENVELOPE = {
     errors: [],
     warnings: [],
@@ -107,29 +115,19 @@ describe('Integration: validate_code over stdio', () => {
     proposed_fixes: [],
     clusters: [],
     scorecard: [],
-    dependencies: [],
     parse_error: null,
     tips: [],
     domain_guide: null,
   };
 
-  // The self-structural snapshot with all-empty usage + no routing facts; each
-  // test overrides only the fields its buffer declares.
-  const structural = (over: Record<string, unknown> = {}) => ({
-    renders_used: [],
-    graphql_queries_used: [],
-    filters_used: [],
-    tags_used: [],
-    translation_keys: [],
-    doc_params: [],
-    slug: null,
-    layout: null,
-    method: null,
-    ...over,
-  });
+  // "Computed, nothing depends on this" — the safe-to-change signal, and the
+  // impact for files nothing on disk references.
+  const NO_DEPENDENTS = {
+    scope: 'direct',
+    status: 'computed',
+    dependents: { total: 0, by_kind: {}, sample: [] },
+  };
 
-  // The exact MissingContentForLayout error for a layout that omits
-  // `{{ content_for_layout }}` (reported at index 0 → 1-based line/col 1).
   const MISSING_CONTENT_FOR_LAYOUT = {
     check: 'MissingContentForLayout',
     severity: 'error',
@@ -141,7 +139,12 @@ describe('Integration: validate_code over stdio', () => {
     end_column: 1,
   };
 
-  it('returns the exact clean result for a valid layout (no dependencies)', async () => {
+  it('advertises exactly the validate_code tool', async () => {
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name)).toEqual(['validate_code']);
+  });
+
+  it('returns the exact clean result for a valid layout (nothing depends on it)', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body>{{ content_for_layout }}</body></html>',
@@ -151,11 +154,11 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      structural: structural(),
+      impact: NO_DEPENDENTS,
     });
   });
 
-  it('surfaces the exact lint diagnostic end to end', async () => {
+  it('surfaces the exact lint diagnostic AND the blast radius together, without conflating them', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body><header>Site</header></body></html>',
@@ -166,86 +169,74 @@ describe('Integration: validate_code over stdio', () => {
       status: 'error',
       must_fix_before_write: true,
       errors: [MISSING_CONTENT_FOR_LAYOUT],
-      structural: structural(),
+      impact: NO_DEPENDENTS,
     });
   });
 
-  it('reports the exact resolved dependency for a page that renders a partial', async () => {
+  it('reports the cross-file blast radius: who depends on the edited partial', async () => {
+    // `card` is rendered by the on-disk `home` page → exactly one dependent.
     const result = await validateCode({
-      file_path: 'app/views/pages/index.liquid',
-      content: "{% render 'card' %}",
+      file_path: 'app/views/partials/card.liquid',
+      content: '<div class="card">{{ title }} {{ subtitle }}</div>',
     });
 
     expect(result).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      dependencies: [
-        { kind: 'render', target: 'app/views/partials/card.liquid', line: 1, column: 1 },
-      ],
-      structural: structural({ renders_used: ['card'], tags_used: ['render'], slug: '/' }),
+      impact: {
+        scope: 'direct',
+        status: 'computed',
+        dependents: {
+          total: 1,
+          by_kind: { render: 1 },
+          sample: ['app/views/pages/home.liquid'],
+        },
+      },
     });
   });
 
-  it('reports every dependency (layout + function + render) in source order', async () => {
+  it('reports zero dependents (safe to change) as computed — distinct from "not computed"', async () => {
     const result = await validateCode({
-      file_path: 'app/views/pages/index.liquid',
-      content: `---
-layout: theme
----
-{% function items = 'queries/list' %}
-{% render 'card' %}`,
+      file_path: 'app/views/partials/lonely.liquid',
+      content: '<div>still nobody</div>',
     });
 
     expect(result).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      dependencies: [
-        { kind: 'layout', target: 'app/views/layouts/theme.liquid', line: 1, column: 1 },
-        { kind: 'function', target: 'app/lib/queries/list.liquid', line: 4, column: 1 },
-        { kind: 'render', target: 'app/views/partials/card.liquid', line: 5, column: 1 },
-      ],
-      structural: structural({
-        renders_used: ['card'],
-        tags_used: ['function', 'render'],
-        slug: '/',
-        layout: 'theme',
-      }),
+      impact: NO_DEPENDENTS,
     });
   });
 
-  it('surfaces lint errors AND dependencies together without conflating them', async () => {
-    // A layout that both omits content_for_layout (lint error) and renders a
-    // partial (dependency) — the agent must see both, correctly separated.
+  it('flags a caller broken by the edited partial’s new {% doc %} signature (signature-impact)', async () => {
+    // `home` renders `card` passing NO args. Give `card` a doc that REQUIRES
+    // `title` → `home` is now missing a required param, reported cross-file.
     const result = await validateCode({
-      file_path: 'app/views/layouts/application.liquid',
-      content: "<body>{% render 'card' %}</body>",
-    });
-
-    expect(result).toEqual({
-      ...EMPTY_ENVELOPE,
-      status: 'error',
-      must_fix_before_write: true,
-      errors: [MISSING_CONTENT_FOR_LAYOUT],
-      dependencies: [
-        { kind: 'render', target: 'app/views/partials/card.liquid', line: 1, column: 7 },
-      ],
-      structural: structural({ renders_used: ['card'], tags_used: ['render'] }),
-    });
-  });
-
-  it('does not invent dependencies for dynamic (non-literal) targets', async () => {
-    const result = await validateCode({
-      file_path: 'app/views/pages/index.liquid',
-      content: '{% assign name = "card" %}{% render name %}',
+      file_path: 'app/views/partials/card.liquid',
+      content: `{% doc %}
+  @param {String} title - required title
+{% enddoc %}
+<div class="card">{{ title }}</div>`,
     });
 
     expect(result).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      structural: structural({ tags_used: ['assign', 'render'], slug: '/' }),
+      impact: {
+        scope: 'direct',
+        status: 'computed',
+        dependents: { total: 1, by_kind: { render: 1 }, sample: ['app/views/pages/home.liquid'] },
+        signature_risk: [
+          {
+            caller: 'app/views/pages/home.liquid',
+            missing_required: ['title'],
+            unexpected_args: [],
+          },
+        ],
+      },
     });
   });
 });

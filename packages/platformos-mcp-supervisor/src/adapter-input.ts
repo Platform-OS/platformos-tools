@@ -1,5 +1,5 @@
 /**
- * Shared input for the request-path I/O adapters (`lint/`, `structure/`).
+ * Shared input for the request-path I/O adapters (`lint/`, `impact/`).
  *
  * Both adapters receive the identical `{ projectDir, filePath, content }` and
  * must agree on the buffer's absolute path, so the shape and the

@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assembleResult } from './assemble';
-import type {
-  ValidateCodeDependency,
-  ValidateCodeDiagnostic,
-  ValidateCodeResult,
-  ValidateCodeStructuralSnapshot,
-} from './types';
+import type { ValidateCodeDiagnostic, ValidateCodeImpact, ValidateCodeResult } from './types';
 
 const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => ({
   check: 'SomeCheck',
@@ -15,6 +10,14 @@ const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => 
   column: 1,
   ...over,
 });
+
+// A neutral "not computed yet" impact used where the test does not exercise the
+// blast radius itself (it is threaded verbatim by assembleResult).
+const NO_IMPACT: ValidateCodeImpact = {
+  scope: 'direct',
+  status: 'computing',
+  dependents: { total: 0, by_kind: {}, sample: [] },
+};
 
 // The always-empty envelope fields in this lint-only slice. Spread into each
 // expected result so every assertion checks the WHOLE object, catching any
@@ -26,11 +29,10 @@ const EMPTY_ENVELOPE = {
   proposed_fixes: [],
   clusters: [],
   scorecard: [],
-  dependencies: [],
+  impact: NO_IMPACT,
   parse_error: null,
   tips: [],
   domain_guide: null,
-  structural: null,
 } satisfies Partial<ValidateCodeResult>;
 
 describe('Unit: assembleResult', () => {
@@ -39,7 +41,7 @@ describe('Unit: assembleResult', () => {
     const warning = diag({ severity: 'warning', check: 'W' });
     const info = diag({ severity: 'info', check: 'I' });
 
-    expect(assembleResult([error, warning, info], [], null, 'full')).toEqual({
+    expect(assembleResult([error, warning, info], NO_IMPACT, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
@@ -53,7 +55,7 @@ describe('Unit: assembleResult', () => {
     const error = diag({ severity: 'error' });
     const warning = diag({ severity: 'warning' });
 
-    expect(assembleResult([error, warning], [], null, 'full')).toEqual({
+    expect(assembleResult([error, warning], NO_IMPACT, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
@@ -66,7 +68,7 @@ describe('Unit: assembleResult', () => {
     const warning = diag({ severity: 'warning' });
     const info = diag({ severity: 'info' });
 
-    expect(assembleResult([warning, info], [], null, 'full')).toEqual({
+    expect(assembleResult([warning, info], NO_IMPACT, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'warning',
       must_fix_before_write: false,
@@ -76,7 +78,7 @@ describe('Unit: assembleResult', () => {
   });
 
   it('derives status = ok with an empty envelope for no diagnostics', () => {
-    expect(assembleResult([], [], null, 'full')).toEqual({
+    expect(assembleResult([], NO_IMPACT, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
@@ -86,7 +88,7 @@ describe('Unit: assembleResult', () => {
   it('derives status = ok for infos only', () => {
     const info = diag({ severity: 'info' });
 
-    expect(assembleResult([info], [], null, 'quick')).toEqual({
+    expect(assembleResult([info], NO_IMPACT, 'quick')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
@@ -94,38 +96,22 @@ describe('Unit: assembleResult', () => {
     });
   });
 
-  it('carries the dependencies through verbatim (status unaffected by deps)', () => {
-    const dependencies: ValidateCodeDependency[] = [
-      { kind: 'render', target: 'app/views/partials/card.liquid', line: 1, column: 1 },
-      { kind: 'layout', target: 'app/views/layouts/theme.liquid', line: 3, column: 1 },
-    ];
-
-    expect(assembleResult([], dependencies, null, 'full')).toEqual({
-      ...EMPTY_ENVELOPE,
-      status: 'ok',
-      must_fix_before_write: false,
-      dependencies,
-    });
-  });
-
-  it('carries the structural snapshot through verbatim (status unaffected)', () => {
-    const structural: ValidateCodeStructuralSnapshot = {
-      renders_used: ['card'],
-      graphql_queries_used: [],
-      filters_used: ['upcase'],
-      tags_used: ['render'],
-      translation_keys: [],
-      doc_params: ['title'],
-      slug: 'about',
-      layout: 'theme',
-      method: null,
+  it('carries the impact through verbatim (status unaffected by blast radius)', () => {
+    const impact: ValidateCodeImpact = {
+      scope: 'direct',
+      status: 'computed',
+      dependents: {
+        total: 2,
+        by_kind: { render: 1, include: 1 },
+        sample: ['app/views/pages/index.liquid', 'app/views/partials/wrapper.liquid'],
+      },
     };
 
-    expect(assembleResult([], [], structural, 'full')).toEqual({
+    expect(assembleResult([], impact, 'full')).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      structural,
+      impact,
     });
   });
 });

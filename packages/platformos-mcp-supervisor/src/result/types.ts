@@ -113,40 +113,6 @@ export interface ScorecardNote {
   reason: string;
 }
 
-/**
- * The Liquid construct that created a dependency edge — the agent-facing kind
- * contract. Owned by the supervisor (not imported from the upstream
- * `ReferenceKind`): the structure adapter maps upstream kinds onto this union
- * through an exhaustive table, so an upstream rename/addition is a compile error
- * at that seam rather than a silent change to the agent surface.
- */
-export type ValidateCodeDependencyKind =
-  | 'render'
-  | 'include'
-  | 'function'
-  | 'background'
-  | 'graphql'
-  | 'asset'
-  | 'layout';
-
-/**
- * A resolved outgoing dependency of the validated file — what it
- * renders/includes/runs/queries/wraps. Derived from the platformos-graph
- * dependency model (`extractFileReferences`); the supervisor maps but never
- * re-derives graph logic. Tells the agent the canonical resolved target so
- * "what does this call / where does it live" is answerable from the result.
- */
-export interface ValidateCodeDependency {
-  /** The Liquid construct that created the edge. */
-  kind: ValidateCodeDependencyKind;
-  /** The resolved dependency target, project-relative (e.g. `app/lib/queries/list.liquid`). */
-  target: string;
-  /** 1-based line of the reference site (the Liquid tag or the frontmatter block). */
-  line: number;
-  /** 1-based column of the reference site. */
-  column: number;
-}
-
 // ── TASK-8 fields (per-domain layer + result completion) ─────────────────────
 // Declared here so the result shape is stable; populated by TASK-8.2 / TASK-8.4.
 
@@ -170,22 +136,53 @@ export interface DomainGuide {
 }
 
 /**
- * The validated file's own structural declarations — what it renders/queries,
- * the filters/tags it uses, its translation keys and `{% doc %}` params, and (for
- * pages) its routing facts. Derived from the platformos-graph per-file primitive
- * `extractStructural`; the usage arrays are always present (empty = none used),
- * the routing facts are `null` when not applicable (e.g. a partial has no slug).
+ * Freshness of the blast-radius answer. Distinguishes a real "nothing depends on
+ * this" (`computed`, total 0 — safe to change) from "we don't know yet"
+ * (`computing`/`unavailable`), so an unbuilt/failed graph can NEVER be misread as
+ * a green light. See {@link ValidateCodeImpact}.
  */
-export interface ValidateCodeStructuralSnapshot {
-  renders_used: string[];
-  graphql_queries_used: string[];
-  filters_used: string[];
-  tags_used: string[];
-  translation_keys: string[];
-  doc_params: string[];
-  slug: string | null;
-  layout: string | null;
-  method: string | null;
+export type ValidateCodeImpactStatus = 'computed' | 'computing' | 'unavailable';
+
+/**
+ * Cross-file "blast radius" of editing the file: who DEPENDS ON it (its incoming
+ * references), which lint cannot see (lint is per-file, forward-looking). Graph-
+ * derived (`dependentsOf` over the cached project graph) and NEVER stale — a
+ * changed project reports `computing`, never an out-of-date answer.
+ *
+ * `scope` is always `direct` (immediate callers only — transitive closure is
+ * excluded as noise). `dependents` is meaningful ONLY when `status` is
+ * `computed`; otherwise it is zeroed and the status says why.
+ */
+export interface ValidateCodeImpact {
+  scope: 'direct';
+  status: ValidateCodeImpactStatus;
+  dependents: {
+    /** Number of distinct files that reference the edited file. */
+    total: number;
+    /** Distinct referencing files per edge kind (render/include/function/…); a file using two kinds counts in both. */
+    by_kind: Record<string, number>;
+    /** Up to 10 distinct referencing files, project-relative, sorted. */
+    sample: string[];
+  };
+  /**
+   * Dependent callers whose arguments do NOT match the edited file's `{% doc %}`
+   * signature — the cross-file counterpart to the `PartialCallArguments` lint
+   * check (which only fires when editing the caller). Present ONLY when the
+   * edited buffer declares a `{% doc %}` block (an explicit contract): an empty
+   * array means "checked, every caller matches", absent means "no contract to
+   * check against". Never inferred from a doc-less file (avoids false positives).
+   */
+  signature_risk?: ValidateCodeSignatureRisk[];
+}
+
+/** One dependent caller at risk from the edited file's current `{% doc %}` signature. */
+export interface ValidateCodeSignatureRisk {
+  /** The referencing file, project-relative. */
+  caller: string;
+  /** Required `@param`s the caller does not pass. */
+  missing_required: string[];
+  /** Arguments the caller passes that the `{% doc %}` block does not declare. */
+  unexpected_args: string[];
 }
 
 /**
@@ -206,10 +203,11 @@ export interface ValidateCodeResult {
   clusters: DiagnosticCluster[];
   scorecard: ScorecardNote[];
   /**
-   * The file's resolved outgoing dependencies (graph-derived). Always present;
-   * empty for files with no statically-resolvable dependencies.
+   * Cross-file blast radius (graph-derived): who depends on the edited file.
+   * Always present; `status` distinguishes a real "nothing depends on this"
+   * from "not computed yet". See {@link ValidateCodeImpact}.
    */
-  dependencies: ValidateCodeDependency[];
+  impact: ValidateCodeImpact;
   /** Deterministic prose telling the agent what to do next. */
   next_step?: string;
   /** Parse-failure message when the file could not be parsed at all; null/absent otherwise. */
@@ -218,5 +216,4 @@ export interface ValidateCodeResult {
   // TASK-8 fields (empty/null in the minimal TASK-7 build):
   tips?: TipEntry[];
   domain_guide?: DomainGuide | null;
-  structural?: ValidateCodeStructuralSnapshot | null;
 }

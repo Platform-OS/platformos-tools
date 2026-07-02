@@ -179,13 +179,21 @@ Apply the consumer principle:
    (`render | include | function | background | graphql | asset | layout`) plus a
    later `args?: string[]` (TASK-9.2); web-component was removed.
 
-## Open questions
+## Resolved (2026-07-02)
 
-5. **Build cost / freshness** — full-app graph build is parse-heavy; cache at the
-   supervisor edge with a TTL (matches v1's 30s) vs explicit invalidation? (Still
-   open — the supervisor's `extractFileReferences` per-file path avoids a full
-   build for `validate_code` today; a cached full build is needed when TASK-9.7
-   consumes project-wide facts.)
+5. **Build cost / freshness — RESOLVED (TASK-9.10).** The full-app graph is cached
+   at the supervisor edge (one `GraphCache` per project) and reused across
+   `validate_code` calls — but **never served stale**. Rejected TTL *and*
+   serve-stale-while-revalidate: both can hand the agent an out-of-date answer,
+   which would mislead it (e.g. "nothing depends on this, safe to change" when a
+   caller was added). Instead the cache is **fingerprint-validated on every
+   request** (a cheap `mtime:size` stat-scan over the edge-source liquid files):
+   it serves the graph only when that fingerprint is unchanged, and otherwise
+   reports `computing` and rebuilds in the background. The build is never awaited
+   on the request path (blast-radius is a secondary signal; a graph failure never
+   sinks the lint gate). In practice the agent validates in-flight *buffers*
+   without writing to disk, so the fingerprint keeps matching and the answer stays
+   fresh across a burst; a rebuild is triggered only after an actual file write.
 
 ## References
 

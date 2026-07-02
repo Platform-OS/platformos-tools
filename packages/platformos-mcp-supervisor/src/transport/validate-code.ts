@@ -10,15 +10,18 @@ import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import { runLint } from '../lint/lint';
-import { runStructure, type StructureResult } from '../structure/structure';
+import { runImpact } from '../impact/impact';
 import { assembleResult } from '../result/assemble';
+import type { GraphCache } from '../graph-cache/graph-cache';
 import type { Logger } from '../logger';
-import type { ValidateCodeParams, ValidateCodeResult } from '../result/types';
+import type { ValidateCodeImpact, ValidateCodeParams, ValidateCodeResult } from '../result/types';
 
 /** Per-server context threaded into the handler. */
 export interface SupervisorContext {
   /** Absolute project root the buffer is validated against. */
   projectDir: string;
+  /** Never-stale, background-built project graph — the blast-radius source. */
+  graphCache: GraphCache;
   log: Logger;
 }
 
@@ -76,27 +79,34 @@ export function registerValidateCode(server: McpServer, ctx: SupervisorContext):
 /**
  * The two I/O adapters {@link runValidateCode} orchestrates. Injectable so the
  * degrade-vs-propagate contract below can be unit-tested; defaults are the real
- * lint / structure seams.
+ * lint / impact seams.
  */
 export interface ValidateCodeAdapters {
   lint: typeof runLint;
-  structure: typeof runStructure;
+  impact: typeof runImpact;
 }
 
+/** Blast radius when it could not be computed at all — never blocks the lint gate. */
+const UNAVAILABLE_IMPACT: ValidateCodeImpact = {
+  scope: 'direct',
+  status: 'unavailable',
+  dependents: { total: 0, by_kind: {}, sample: [] },
+};
+
 /**
- * Lint the buffer (check-node seam) and derive its structure — dependency edges
- * + self-structural (platformos-graph seam) — as two independent I/O adapters
- * run concurrently, then assemble the result.
+ * Lint the buffer (check-node seam) and compute its cross-file blast radius
+ * (platformos-graph seam, via the cached project graph) — two independent I/O
+ * adapters run concurrently — then assemble the result.
  *
  * Lint is the PRIMARY signal (the `must_fix_before_write` gate): if it fails the
- * whole call fails. Structure is SECONDARY enrichment, so a structure-adapter
- * failure degrades to empty `dependencies` + null `structural` (logged) and
- * never sinks the lint diagnostics the agent depends on.
+ * whole call fails. Impact is SECONDARY enrichment, so an impact-adapter failure
+ * degrades to `status: 'unavailable'` (logged) and never sinks the lint
+ * diagnostics the agent depends on.
  */
 export async function runValidateCode(
   ctx: SupervisorContext,
   params: ValidateCodeParams,
-  adapters: ValidateCodeAdapters = { lint: runLint, structure: runStructure },
+  adapters: ValidateCodeAdapters = { lint: runLint, impact: runImpact },
 ): Promise<ValidateCodeResult> {
   const mode = params.mode ?? 'full';
   ctx.log(`validate_code: ${params.file_path} (${mode})`);
@@ -105,17 +115,17 @@ export async function runValidateCode(
     filePath: params.file_path,
     content: params.content,
   };
-  const [diagnostics, structure] = await Promise.all([
+  const [diagnostics, impact] = await Promise.all([
     adapters.lint(adapterParams),
-    adapters.structure(adapterParams).catch((error): StructureResult => {
+    adapters.impact(adapterParams, ctx.graphCache).catch((error): ValidateCodeImpact => {
       ctx.log(
-        `validate_code: structural resolution failed for ${params.file_path}, ` +
-          `continuing without structure: ${error instanceof Error ? error.message : error}`,
+        `validate_code: blast-radius failed for ${params.file_path}, ` +
+          `continuing without impact: ${error instanceof Error ? error.message : error}`,
       );
-      return { dependencies: [], structural: null };
+      return UNAVAILABLE_IMPACT;
     }),
   ]);
-  return assembleResult(diagnostics, structure.dependencies, structure.structural, mode);
+  return assembleResult(diagnostics, impact, mode);
 }
 
 /** Wrap a result in the MCP text-content envelope (every result is one JSON text block). */

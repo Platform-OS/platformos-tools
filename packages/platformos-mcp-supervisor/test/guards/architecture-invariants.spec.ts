@@ -39,7 +39,15 @@ const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = join(PACKAGE_ROOT, 'src');
 
 /** The whole validate_code request path — none of it may reach for a language server. */
-const LINT_PATH_LAYERS = ['lint', 'structure', 'enrich', 'advise', 'result', 'transport'];
+const LINT_PATH_LAYERS = [
+  'lint',
+  'graph-cache',
+  'impact',
+  'enrich',
+  'advise',
+  'result',
+  'transport',
+];
 /** The layers contractually required to be pure (no I/O). */
 const PURE_LAYERS = ['enrich', 'result'];
 

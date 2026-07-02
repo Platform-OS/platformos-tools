@@ -1,21 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { runValidateCode, type SupervisorContext } from './validate-code';
-import type { StructureResult } from '../structure/structure';
-import type {
-  ValidateCodeDependency,
-  ValidateCodeDiagnostic,
-  ValidateCodeStructuralSnapshot,
-} from '../result/types';
+import { GraphCache } from '../graph-cache/graph-cache';
+import type { ValidateCodeDiagnostic, ValidateCodeImpact } from '../result/types';
 
 /**
- * The lint/structure orchestration contract in `runValidateCode`:
+ * The lint/impact orchestration contract in `runValidateCode`:
  * - lint is the PRIMARY signal — a lint failure propagates (the whole call fails);
- * - structure is SECONDARY enrichment — a structure failure degrades to empty
- *   `dependencies` + null `structural` (logged) and never sinks the lint diagnostics.
+ * - impact (blast radius) is SECONDARY enrichment — an impact failure degrades to
+ *   `status: 'unavailable'` (logged) and never sinks the lint diagnostics.
  */
-describe('runValidateCode: lint/structure orchestration', () => {
-  const params = { file_path: 'app/views/pages/index.liquid', content: "{% render 'card' %}" };
+describe('runValidateCode: lint/impact orchestration', () => {
+  const params = { file_path: 'app/views/partials/card.liquid', content: '<div></div>' };
 
   const warning: ValidateCodeDiagnostic = {
     check: 'SomeCheck',
@@ -27,36 +23,24 @@ describe('runValidateCode: lint/structure orchestration', () => {
     end_column: 5,
   };
 
-  const dependency: ValidateCodeDependency = {
-    kind: 'render',
-    target: 'app/views/partials/card.liquid',
-    line: 1,
-    column: 1,
+  const impact: ValidateCodeImpact = {
+    scope: 'direct',
+    status: 'computed',
+    dependents: { total: 1, by_kind: { render: 1 }, sample: ['app/views/pages/index.liquid'] },
   };
 
-  const structural: ValidateCodeStructuralSnapshot = {
-    renders_used: ['card'],
-    graphql_queries_used: [],
-    filters_used: [],
-    tags_used: ['render'],
-    translation_keys: [],
-    doc_params: [],
-    slug: '/',
-    layout: null,
-    method: null,
-  };
-
-  const structureOk: StructureResult = { dependencies: [dependency], structural };
-
+  // The cache is never exercised here — the impact adapter is faked — but the
+  // context requires one; a bare cache (never triggered) satisfies the type.
   const makeCtx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
     projectDir: '/project',
+    graphCache: new GraphCache({ rootUri: 'file:///project' }),
     log,
   });
 
-  it('passes lint diagnostics, dependencies, and structural straight through when both succeed', async () => {
+  it('passes lint diagnostics and impact straight through when both succeed', async () => {
     const result = await runValidateCode(makeCtx(), params, {
       lint: async () => [warning],
-      structure: async () => structureOk,
+      impact: async () => impact,
     });
 
     expect(result).toEqual({
@@ -68,22 +52,21 @@ describe('runValidateCode: lint/structure orchestration', () => {
       proposed_fixes: [],
       clusters: [],
       scorecard: [],
-      dependencies: [dependency],
+      impact,
       parse_error: null,
       tips: [],
       domain_guide: null,
-      structural,
     });
   });
 
-  it('degrades to empty dependencies + null structural (and logs) when the structure adapter fails, preserving lint output', async () => {
+  it('degrades to an unavailable impact (and logs) when the impact adapter fails, preserving lint output', async () => {
     const logs: string[] = [];
     const result = await runValidateCode(
       makeCtx((message) => logs.push(message)),
       params,
       {
         lint: async () => [warning],
-        structure: async () => {
+        impact: async () => {
           throw new Error('boom');
         },
       },
@@ -98,17 +81,19 @@ describe('runValidateCode: lint/structure orchestration', () => {
       proposed_fixes: [],
       clusters: [],
       scorecard: [],
-      dependencies: [],
+      impact: {
+        scope: 'direct',
+        status: 'unavailable',
+        dependents: { total: 0, by_kind: {}, sample: [] },
+      },
       parse_error: null,
       tips: [],
       domain_guide: null,
-      structural: null,
     });
 
     expect(logs).toEqual([
       `validate_code: ${params.file_path} (full)`,
-      `validate_code: structural resolution failed for ${params.file_path}, ` +
-        `continuing without structure: boom`,
+      `validate_code: blast-radius failed for ${params.file_path}, continuing without impact: boom`,
     ]);
   });
 
@@ -119,7 +104,7 @@ describe('runValidateCode: lint/structure orchestration', () => {
         lint: async () => {
           throw failure;
         },
-        structure: async () => structureOk,
+        impact: async () => impact,
       }),
     ).rejects.toThrow(failure);
   });

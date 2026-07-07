@@ -1,4 +1,5 @@
 export { buildAppGraph } from './graph/build';
+export { enumerateEdgeSources, isEdgeSource } from './graph/edge-sources';
 export { applyFileChange } from './graph/incremental';
 export type { FileChangeKind } from './graph/incremental';
 export { extractFileReferences, extractStructural } from './graph/traverse';

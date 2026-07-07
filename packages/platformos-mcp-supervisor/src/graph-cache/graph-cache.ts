@@ -35,29 +35,25 @@
  * `buildAppGraph` as entry points, so dependents are COMPLETE (every caller is
  * traversed) — see the query.ts note on entry-point scope.
  *
- * The enumeration is SCOPED to the platformOS source roots ({@link SOURCE_ROOTS})
- * rather than the whole project tree, so a bundled `react-app/` or other
- * non-platformOS sibling is never walked — the edge-source set is identical, just
- * cheaper to gather (TASK-9.15 Phase 3, part A).
+ * The cache is a PURE CONSUMER of the graph's canonical `enumerateEdgeSources`
+ * (TASK-9.17): the "which files are edge sources" + "where sources live"
+ * definitions live in platformos-graph beside the classifier, so this cache can
+ * never drift from them. The enumeration is scoped to the platformOS source roots
+ * (a bundled `react-app/` is never walked; identical set, cheaper — TASK-9.15
+ * Phase 3A).
  */
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import {
-  isLayout,
-  isPage,
-  isPartial,
-  path,
-  recursiveReadDirectory,
-  type UriString,
-} from '@platformos/platformos-check-common';
+import { path, type UriString } from '@platformos/platformos-check-common';
 import { fileFingerprint, NodeFileSystem } from '@platformos/platformos-check-node';
 import type { AbstractFileSystem } from '@platformos/platformos-common';
 import {
   applyFileChange,
   buildAppGraph,
+  enumerateEdgeSources,
   type AppGraph,
   type FileChangeKind,
 } from '@platformos/platformos-graph';
@@ -127,40 +123,6 @@ async function writeFileAtomic(filePath: string, contents: string): Promise<void
   const tmp = `${filePath}.${process.pid}.tmp`;
   await writeFile(tmp, contents, 'utf8');
   await rename(tmp, filePath);
-}
-
-/** A liquid file that can be an edge SOURCE — the build's entry points + fingerprint domain. */
-function isEdgeSource(uri: UriString): boolean {
-  return isLayout(uri) || isPage(uri) || isPartial(uri);
-}
-
-/**
- * The top-level platformOS source roots that can contain an edge-source liquid
- * file. Per the file-type classifier (`getFileType`), every Page/Layout/Partial
- * lives under the modern `app/` root (which also holds `app/modules/<m>/…`), the
- * legacy `marketplace_builder/` alias, or a top-level `modules/<m>/…`. Walking
- * only these — instead of the whole project tree — skips large non-platformOS
- * siblings (e.g. a bundled `react-app/`) with NO loss of real sources: for a real
- * project the enumerated edge-source set is identical, only cheaper to gather.
- */
-const SOURCE_ROOTS = ['app', 'marketplace_builder', 'modules'] as const;
-
-/**
- * Enumerate every edge-source liquid file under the platformOS {@link SOURCE_ROOTS},
- * scoping the walk to those subtrees rather than the whole project tree. A root
- * absent on disk contributes nothing (`recursiveReadDirectory` returns `[]` on
- * ENOENT); the roots are disjoint, so no URI is produced twice.
- */
-async function enumerateEdgeSources(
-  fs: AbstractFileSystem,
-  rootUri: UriString,
-): Promise<UriString[]> {
-  const perRoot = await Promise.all(
-    SOURCE_ROOTS.map((dir) =>
-      recursiveReadDirectory(fs, path.join(rootUri, dir), ([uri]) => isEdgeSource(uri)),
-    ),
-  );
-  return perRoot.flat();
 }
 
 /**

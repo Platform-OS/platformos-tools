@@ -3,6 +3,7 @@ import { AppGraph } from '../types';
 import {
   getLayoutModule,
   getLayoutModuleByUri,
+  getModule,
   getPageModule,
   getPartialModuleByUri,
 } from './module';
@@ -49,5 +50,44 @@ describe('module factories: normalized node identity', () => {
 
     expect(a).toBe(b);
     expect(a.uri).toEqual('file:///project/app/views/partials/card.liquid');
+  });
+});
+
+/**
+ * `getModule` (the entry-point dispatcher) must key a partial by its OWN
+ * resolved URI — like it does for layouts/pages/assets — NOT by rebuilding the
+ * path from the basename. Rebuilding from the basename forced every partial into
+ * `app/views/partials/<basename>.liquid`, which mis-keyed any `lib/` or nested
+ * partial (e.g. `app/lib/can/payment_request.liquid` → the phantom
+ * `app/views/partials/payment_request.liquid`), splitting it from the same file
+ * resolved as an edge target and losing its edges in the full build.
+ */
+describe('getModule: partial entry point keys by its own URI', () => {
+  const newGraph = (): AppGraph => ({ rootUri: 'file:///project', entryPoints: [], modules: {} });
+
+  it('keys a lib partial at its own URI, not app/views/partials/<basename>', () => {
+    const graph = newGraph();
+    const uri = 'file:///project/app/lib/can/payment_request.liquid';
+    expect(getModule(graph, uri)?.uri).toEqual(uri);
+  });
+
+  it('keys a nested lib partial at its own URI', () => {
+    const graph = newGraph();
+    const uri = 'file:///project/app/lib/queries/v2/projects/find.liquid';
+    expect(getModule(graph, uri)?.uri).toEqual(uri);
+  });
+
+  it('a lib partial entry point and the same file resolved as an edge target are ONE node', () => {
+    const graph = newGraph();
+    const uri = 'file:///project/app/lib/commands/create.liquid';
+    const entry = getModule(graph, uri);
+    const edgeTarget = getPartialModuleByUri(graph, uri);
+    expect(entry).toBe(edgeTarget);
+  });
+
+  it('a flat app/views/partials partial is unaffected', () => {
+    const graph = newGraph();
+    const uri = 'file:///project/app/views/partials/card.liquid';
+    expect(getModule(graph, uri)?.uri).toEqual(uri);
   });
 });

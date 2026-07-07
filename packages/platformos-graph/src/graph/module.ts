@@ -44,7 +44,12 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
       return getPageModule(appGraph, uri);
 
     case isPartial(uri):
-      return getPartialModule(appGraph, path.basename(uri, '.liquid'));
+      // Key by the file's OWN resolved URI (like layout/page/asset entry points),
+      // NOT a path rebuilt from the basename — the latter forced every partial
+      // into `app/views/partials/<basename>.liquid`, mis-keying `lib/` and nested
+      // partials (e.g. `app/lib/can/x.liquid`) and splitting them from the same
+      // file resolved as an edge target (which comes through getPartialModuleByUri).
+      return getPartialModuleByUri(appGraph, uri);
 
     case relativePath.startsWith('assets') || relativePath.startsWith('modules'):
       // The full URI is already resolved on-disk here, so use it directly rather

@@ -13,6 +13,11 @@ examples, and the open doubts.
 > Ten were fixed and one deferred with rationale; that section is the place to
 > understand _what changed as a result of review and why_. The rest of this
 > document reflects the **post-review** state.
+>
+> **§11 is a SECOND review round** (post-submission) — the supervisor flagged
+> division-of-responsibility + test-hygiene defects, all fixed. Where §11
+> supersedes earlier prose (table-extraction shape/placement, edge-source
+> enumeration ownership), the §11 statement is authoritative.
 
 ---
 
@@ -60,7 +65,7 @@ graph to provide that model and consumes it from `validate_code`.
 ### Scope discipline (kept the changes safe)
 
 - **Additive everywhere.** New optional fields (`Reference.kind`, `.args`,
-  `GraphQLModule.table`, `LiquidModule.structural`, `SchemaModule`), new query
+  `GraphQLModule.tables`, `LiquidModule.structural`, `SchemaModule`), new query
   functions, new DocumentType. No breaking change to existing consumers.
 - **The LSP output is unchanged.** The `validate_code` output was reshaped by
   TASK-9.10 (§9): `dependencies`/`structural` removed, `impact` added — a
@@ -180,7 +185,7 @@ paths can never drift:
 
 ### 2.4 Resolution is delegated to `DocumentsLocator`
 
-The graph never hand-rolls path logic. Targets resolve through check-common's
+The graph never hand-rolls path logic. Targets resolve through platformos-common's
 `DocumentsLocator`, which owns lib search paths, `modules/<m>/public/...`
 prefixes, and extension handling. This branch added a **`'layout'` DocumentType**
 there (maps to `PlatformOSFileType.Layout`, tries `.html.liquid` then `.liquid`),
@@ -202,7 +207,7 @@ The platform sees only "a `function` edge to a partial." Therefore:
   the platform model — and the LSP that depends on it — wrong for any app not
   using `core`.)
 - **Resource/CRUD completeness** (the old `detectResources`) is split: neutral
-  **platform facts** (schema tables, graphql `table`, slug) live in the graph
+  **platform facts** (schema tables, graphql `tables`, slug) live in the graph
   (TASK-9.6, done); the **commands/queries convention overlay** lives outside it
   (TASK-9.7, deferred) — a descriptive map in the supervisor domain layer and/or
   a _configurable_ check (disable-able for non-`core` apps).
@@ -459,6 +464,8 @@ For
 | 9.13 opt-in `AppCache` (parsed-project reuse for lint)                           | ✅ Done                                                      |
 | **9.14 `applyFileChange` incremental graph API** (§10.1)                         | ✅ Done                                                      |
 | **9.15 warm/incremental/persisted GraphCache** (§10.2)                           | ◐ Phases 1–2 + 3A (scoped walk) done; 3B (fs.watch) deferred |
+| **9.17 edge-source enumeration → `platformos-graph`** (§11)                      | ✅ Done                                                      |
+| **9.22 supervisor⇄graph review round 2** (§11)                                   | ✅ Done                                                      |
 | 8.4 surface `structural` in `validate_code`                                      | ↩︎ Superseded by 9.10 (removed)                               |
 
 **The three-tool graph strategy** (why the graph lives mostly _outside_
@@ -703,10 +710,10 @@ safe-to-change, and signature-impact). Supervisor suite: **55**.
 
 ### Open follow-ups
 
-- The fingerprint (and the build's entry-point enumeration) walks the whole tree;
-  scoping the walk to platformOS dirs (or reusing lint's file list) would cut the
-  ~400 ms warm cost. Not a 9.10 regression (same walk `buildAppGraph`/lint already
-  do); worth a follow-up.
+- ~~The fingerprint (and the build's entry-point enumeration) walks the whole
+  tree; scoping the walk to platformOS dirs would cut the ~400 ms warm cost.~~
+  **RESOLVED** — Phase 3A (§10.2) scoped the walk, and TASK-9.17 (§11) moved the
+  enumeration into `platformos-graph` as the canonical `enumerateEdgeSources`.
 - Cold-start: the first blast-radius request (or the first after a write) returns
   `computing` until the background build finishes; a bounded await for small
   projects is a possible future nicety (deliberately omitted to never delay lint).
@@ -714,7 +721,7 @@ safe-to-change, and signature-impact). Supervisor suite: **55**.
 
 > The first two follow-ups above are resolved by §10 (incremental apply removes the
 > post-write `computing` gap; persistence removes the cold-build wait). Scoping the
-> walk is the remaining Phase-3 item.
+> walk is done (Phase 3A) and its ownership moved to `platformos-graph` (§11).
 
 ---
 
@@ -761,10 +768,10 @@ applyFileChange(graph, uri, kind: 'added'|'modified'|'deleted', deps, options?)
   parse. Precondition: the graph was built with every edge-source liquid file as
   an entry point (the cache's mode).
 
-**Guardrail (the correctness invariant):** `incremental.spec.ts` mutates a real
-temp project on disk, applies the change, and asserts
-`serializeAppGraph(incremental)` is canonically identical to a fresh
-`buildAppGraph` of the same disk state — across add / modify / delete, missing-
+**Guardrail (the correctness invariant):** `incremental.spec.ts` mutates an
+in-memory `MockFileSystem` (TASK-9.22.2 — no disk I/O), applies the change, and
+asserts `serializeAppGraph(incremental)` is canonically identical to a fresh
+`buildAppGraph` of the same source state — across add / modify / delete, missing-
 target `exists` flips, leaf GC, self-reference, cycles, and mixed sequences.
 
 ### 10.2 Warm, incremental, persisted `GraphCache` (TASK-9.15)
@@ -808,7 +815,10 @@ It now walks only the platformOS source roots — `app/`, `marketplace_builder/`
 `modules/` (`SOURCE_ROOTS`) — which, per the file-type classifier, are the only
 places a Page/Layout/Partial can live (including nested `app/modules/<m>/…`,
 reached via `app/`). The enumerated set is therefore **provably identical**, just
-cheaper to gather.
+cheaper to gather. **(Since TASK-9.17 — §11 — `SOURCE_ROOTS`, the `isEdgeSource`
+predicate, and this scoped `enumerateEdgeSources` live in `platformos-graph`; the
+cache is a pure consumer, so the enumeration can no longer drift from the
+classifier.)**
 
 Measured on `marketplace-dcra` (1,921 edge sources): the walk is **4.4×** faster
 (769 → 175 ms) and the full warm fingerprint (walk + `stat`) **1.7×** (541 → 320
@@ -820,8 +830,9 @@ the browser-safe `AbstractFileSystem` walk here) over a different domain (all fo
 source types vs edge-source liquid only); the scoped walk already captures the
 win without coupling the two.
 
-**Tests.** `incremental.spec.ts` (equivalence guardrail), `deserialize.spec.ts`
-(round-trip + a restored graph reconciles exactly like a full build),
+**Tests.** `incremental.spec.ts` (equivalence guardrail) and `deserialize.spec.ts`
+(round-trip + a restored graph reconciles exactly like a full build) — both over
+an in-memory `MockFileSystem` (TASK-9.22.2, no disk) —
 `graph-cache-store.spec.ts` (encode/decode + version/root/corruption
 invalidation), `graph-cache.spec.ts` (incremental serve, diff kinds, apply-
 failure fallback, concurrent-reconcile coalescing, warm cold-start from disk,
@@ -836,3 +847,98 @@ the actual `validate_code` path the fingerprint scan runs concurrently with lint
 multi-second parse, so it adds ≈0 wall-clock today — the watcher optimizes a cost
 that is not on the critical path, at the price of real platform-specific watcher
 complexity.
+
+---
+
+## 11. Round-2 review remediation (post-submission)
+
+A second supervisor review of the branch flagged **division-of-responsibility**
+and **test-hygiene** defects (the first round is §8). All were fixed. Where the
+statements below supersede earlier prose, they are authoritative. Tracked as
+**TASK-9.22** (umbrella: 9.22.1–9.22.4) and **TASK-9.17**.
+
+### 11.1 Platform-fact parsers moved to `platformos-common` (9.22.1)
+
+`extractGraphqlTables` and `extractSchemaTable` are neutral platform-fact parsers
+with **no lint/offense use** — their only consumer is the graph. They moved from
+`platformos-check-common` to **`platformos-common`**, beside the other
+structure/resolution facts (frontmatter, RouteTable, DocumentsLocator). A
+browser-safe `graphql` dep was added to common (`js-yaml` was already there);
+check-common dropped the re-exports; the graph imports them from common. Lossless
+move — check-common 1057 → 1034 tests, common +23. **This supersedes §8/F7**,
+which had placed them in check-common.
+
+### 11.2 GraphQL table extraction returns ALL tables (9.22.4)
+
+`extractGraphqlTable` (scalar, first-wins) became **`extractGraphqlTables`**,
+returning **every distinct** model table a document targets — across multiple
+`records(...)` blocks, aliased queries, and `record_create`/mutation inputs — as
+`string[]` in document order (empty for none / dynamic / unparseable). The graph
+node field is now **`GraphQLModule.tables: string[]`** (required, always-present;
+was `table?: string`). `SchemaModule.table` stays scalar (a schema declares one
+`name:`). `tables` is **not serialized** (a re-derived leaf fact) and is read by
+no supervisor/LSP consumer, so `validate_code` output is unchanged. **This
+supersedes §6 doubt #4 and the §2.2 model shape.**
+
+### 11.3 Graph specs use an in-memory filesystem (9.22.2)
+
+`incremental.spec.ts` and `deserialize.spec.ts` no longer build a real project on
+disk (`mkdtemp`/`NodeFileSystem`); they run over an in-memory `MockFileSystem`
+whose backing object is mutated to simulate add/modify/delete. Every scenario and
+the equivalence-to-full-build guarantee are preserved; the suite is faster with
+no disk I/O. (Line-array string fixtures also became template literals.)
+
+### 11.4 `AppCache` placement documented (9.22.3)
+
+`AppCache` (parsed-project reuse for lint) stays in `platformos-check-node`: it
+caches `getApp`'s output and `getApp` globs the real filesystem — a Node-only
+concern. A JSDoc note records this and that **no pre-existing mechanism
+duplicates it** (the LSP `DocumentManager` caches editor buffers; the supervisor
+`GraphCache` caches the graph — different runtimes/payloads). No code moved.
+
+### 11.5 Edge-source enumeration owned by `platformos-graph` (9.17)
+
+The supervisor's `GraphCache` had hardcoded three pieces of graph-domain
+knowledge — `SOURCE_ROOTS`, `isEdgeSource = isLayout || isPage || isPartial`, and
+the scoped `enumerateEdgeSources` walk — that ADR 003 says belong in the graph.
+That set does double duty: the **fingerprint domain** _and_ the build's **entry
+points**. Nothing forced it to agree with the file-type classifier, so a new
+source root / partial location added to the classifier would silently diverge →
+the scan omits real edge sources → the graph builds with an **incomplete
+entry-point set** → `dependentsOf` under-reports → a wrong _"0 dependents, safe to
+change"_. That is a correctness bug from an incomplete domain model, not
+staleness — the exact class the never-stale mandate exists to kill.
+
+**Fix.** `platformos-graph/src/graph/edge-sources.ts` now owns and exports
+`enumerateEdgeSources(fs, rootUri)` and `isEdgeSource(uri)` (moved **verbatim**,
+so the enumerated set is byte-identical on any project). `isEdgeSource` derives
+entirely from the classifier (`isLayout`/`isPage`/`isPartial` ← `FILE_TYPE_DIRS`),
+so "which files" has a single source of truth. The supervisor `GraphCache` is now
+a **pure consumer** — it imports the primitive and still owns fingerprinting
+(`fileFingerprint`), caching, persistence, and reconcile.
+
+**Guardrail.** `edge-sources.spec.ts` pins the scoped walk to the classifier: it
+asserts the scoped enumeration equals a **whole-tree walk filtered by
+`isEdgeSource`** over a fixture spanning every source root (`app/`, `app/lib`,
+`marketplace_builder/`, top-level `modules/`, nested `app/modules/`) plus a
+bundled `react-app/` sibling. Add a root to the classifier but not to
+`SOURCE_ROOTS`, and the whole-tree walk finds files the scoped walk misses → the
+test fails. It also pins `isEdgeSource === isLayout || isPage || isPartial`
+directly.
+
+**Not shared with the full build (evaluated — AC of 9.17).** `buildAppGraph`'s
+full-build discovery gathers a **different domain** — render _entry points_
+(pages + layouts only; partials are edge-reached) plus standalone schema nodes,
+over the whole tree — versus this (page + layout + partial, scoped, because the
+cache needs partials as entry points for **complete** dependents). They share the
+`isLayout`/`isPage`/`isPartial` predicate (the part that must not drift); sharing
+the walk itself would conflate two entry-point domains.
+
+### Verification (round 2)
+
+Builds + type-checks clean (common / check-common / graph / check-node /
+supervisor). Suites: platformos-common **286**, check-common **1034**, graph
+**105**, check-node `app-cache` **6**, supervisor **76** (blast-radius +
+scoped-walk regression tests unchanged). `format:check` clean;
+`yarn install --frozen-lockfile` clean with **zero `yarn.lock` churn**. `dist/`
+regenerated for the touched packages.

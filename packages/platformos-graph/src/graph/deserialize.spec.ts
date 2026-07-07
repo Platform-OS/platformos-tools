@@ -1,8 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import nodePath from 'node:path';
-import { URI } from 'vscode-uri';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   isLayout,
@@ -12,7 +8,7 @@ import {
   recursiveReadDirectory,
   UriString,
 } from '@platformos/platformos-check-common';
-import { NodeFileSystem } from '@platformos/platformos-check-node';
+import { MockFileSystem, type MockApp } from '@platformos/platformos-check-common/dist/test';
 
 import {
   applyFileChange,
@@ -32,67 +28,53 @@ import {
  *     is seeded, so reconciling a loaded graph converges to the same graph a full
  *     build would produce. This is the guarantee that makes "load a persisted
  *     graph, then reconcile the delta" never-stale.
+ *
+ * The project source is an in-memory {@link MockFileSystem}; its backing object
+ * is mutated to add/modify/delete a file (no disk I/O).
  */
 describe('Unit: deserializeAppGraph (persistence load half)', () => {
-  let root: string;
-  let rootUri: UriString;
+  const rootUri = path.normalize('file:/');
 
-  const deps = { fs: NodeFileSystem };
-  const abs = (rel: string) => nodePath.join(root, ...rel.split('/'));
-  const uri = (rel: string): UriString => path.normalize(URI.file(abs(rel)).toString());
+  let files: MockApp;
+  let fs: MockFileSystem;
 
-  async function write(rel: string, content: string): Promise<void> {
-    const file = abs(rel);
-    await mkdir(nodePath.dirname(file), { recursive: true });
-    await writeFile(file, content, 'utf8');
-  }
+  const uri = (rel: string): UriString => path.join(rootUri, rel);
 
-  async function entryPoints(): Promise<UriString[]> {
-    return recursiveReadDirectory(
-      NodeFileSystem,
-      rootUri,
-      ([u]) => isLayout(u) || isPage(u) || isPartial(u),
-    );
-  }
+  const write = (rel: string, content: string): void => {
+    files[rel] = content;
+  };
+  const remove = (rel: string): void => {
+    delete files[rel];
+  };
 
-  async function buildFull(): Promise<AppGraph> {
-    return buildAppGraph(rootUri, deps, await entryPoints());
-  }
+  const entryPoints = (): Promise<UriString[]> =>
+    recursiveReadDirectory(fs, rootUri, ([u]) => isLayout(u) || isPage(u) || isPartial(u));
 
-  function canonical(graph: AppGraph) {
+  const buildFull = async (): Promise<AppGraph> =>
+    buildAppGraph(rootUri, { fs }, await entryPoints());
+
+  const canonical = (graph: AppGraph) => {
     const serialized = serializeAppGraph(graph);
     return {
       rootUri: serialized.rootUri,
       nodes: [...serialized.nodes].sort((a, b) => a.uri.localeCompare(b.uri)),
       edges: [...serialized.edges].map((edge) => JSON.stringify(edge)).sort(),
     };
-  }
+  };
 
-  beforeEach(async () => {
-    root = await mkdtemp(nodePath.join(tmpdir(), 'pos-graph-deserialize-'));
-    rootUri = path.normalize(URI.file(root).toString());
-
-    await write(
-      'app/views/pages/index.liquid',
-      [
-        '---',
-        'layout: application',
-        '---',
-        "{% render 'card' %}",
-        "{% graphql q = 'get_posts' %}",
-      ].join('\n'),
-    );
-    await write('app/views/partials/card.liquid', "{% render 'button' %}");
-    await write('app/views/partials/button.liquid', '<button></button>');
-    await write('app/views/layouts/application.liquid', '{{ content_for_layout }}');
-    await write(
-      'app/graphql/get_posts.graphql',
-      'query get_posts { records(filter: { table: { value: "blog_post" } }) { results { id } } }',
-    );
-  });
-
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true });
+  beforeEach(() => {
+    files = {
+      'app/views/pages/index.liquid': `---
+layout: application
+---
+{% render 'card' %}
+{% graphql q = 'get_posts' %}`,
+      'app/views/partials/card.liquid': `{% render 'button' %}`,
+      'app/views/partials/button.liquid': `<button></button>`,
+      'app/views/layouts/application.liquid': `{{ content_for_layout }}`,
+      'app/graphql/get_posts.graphql': `query get_posts { records(filter: { table: { value: "blog_post" } }) { results { id } } }`,
+    };
+    fs = new MockFileSystem(files, rootUri);
   });
 
   it('round-trips serialize → deserialize → serialize identically', async () => {
@@ -131,13 +113,15 @@ describe('Unit: deserializeAppGraph (persistence load half)', () => {
     );
 
     // Edit index so it renders button directly, then apply to the RESTORED graph.
-    await write(
+    write(
       'app/views/pages/index.liquid',
-      ['---', 'layout: application', '---', "{% render 'card' %}", "{% render 'button' %}"].join(
-        '\n',
-      ),
+      `---
+layout: application
+---
+{% render 'card' %}
+{% render 'button' %}`,
     );
-    await applyFileChange(restored, uri('app/views/pages/index.liquid'), 'modified', deps);
+    await applyFileChange(restored, uri('app/views/pages/index.liquid'), 'modified', { fs });
 
     // If the identity cache were not seeded, the new edge would bind to a
     // duplicate node and this would diverge from a full build.
@@ -156,11 +140,11 @@ describe('Unit: deserializeAppGraph (persistence load half)', () => {
       original.entryPoints.map((module) => module.uri),
     );
 
-    await write('app/views/partials/footer.liquid', '<footer></footer>');
-    await applyFileChange(restored, uri('app/views/partials/footer.liquid'), 'added', deps);
+    write('app/views/partials/footer.liquid', '<footer></footer>');
+    await applyFileChange(restored, uri('app/views/partials/footer.liquid'), 'added', { fs });
 
-    await rm(abs('app/views/pages/index.liquid'));
-    await applyFileChange(restored, uri('app/views/pages/index.liquid'), 'deleted', deps);
+    remove('app/views/pages/index.liquid');
+    await applyFileChange(restored, uri('app/views/pages/index.liquid'), 'deleted', { fs });
 
     expect(canonical(restored)).toEqual(canonical(await buildFull()));
   });

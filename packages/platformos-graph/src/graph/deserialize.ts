@@ -72,7 +72,9 @@ function nodeToModule(node: SerializableNode): AppModule {
     case ModuleType.Asset:
       return { ...base, type: ModuleType.Asset, kind: 'unused' };
     case ModuleType.GraphQL:
-      return { ...base, type: ModuleType.GraphQL, kind: 'graphql' };
+      // `tables` is a re-derived leaf fact (not serialized) — default to empty;
+      // the fingerprint-driven incremental reconcile re-reads it from disk.
+      return { ...base, type: ModuleType.GraphQL, kind: 'graphql', tables: [] };
     case ModuleType.Schema:
       return { ...base, type: ModuleType.Schema, kind: 'schema' };
     default:

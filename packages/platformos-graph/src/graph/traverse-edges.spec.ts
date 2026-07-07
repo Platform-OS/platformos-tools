@@ -97,6 +97,7 @@ describe('URI normalization in graph node factories', () => {
       uri: 'file:///d:/a/repo/app/graphql/find.graphql',
       dependencies: [],
       references: [],
+      tables: [],
     });
   });
 });
@@ -148,14 +149,19 @@ describe('Graph traversal: {% graphql %} edges', () => {
   let indexSource: string;
   let brokenSource: string;
 
-  const graphqlNode = (uri: string, exists: boolean, references: Reference[], table?: string) => ({
+  const graphqlNode = (
+    uri: string,
+    exists: boolean,
+    references: Reference[],
+    tables: string[] = [],
+  ) => ({
     type: ModuleType.GraphQL,
     kind: 'graphql' as const,
     uri,
     exists,
     dependencies: [],
     references,
-    ...(table ? { table } : {}),
+    tables,
   });
 
   beforeAll(async () => {
@@ -177,7 +183,7 @@ describe('Graph traversal: {% graphql %} edges', () => {
     // The resolved GraphQL node carries the model `table` it targets (the fixture
     // operation filters on `table: { value: "blog_post" }`).
     expect(graph.modules[p('app/graphql/blog_posts/find.graphql')]).toEqual(
-      graphqlNode(p('app/graphql/blog_posts/find.graphql'), true, [edge], 'blog_post'),
+      graphqlNode(p('app/graphql/blog_posts/find.graphql'), true, [edge], ['blog_post']),
     );
   });
 
@@ -194,7 +200,7 @@ describe('Graph traversal: {% graphql %} edges', () => {
   });
 });
 
-describe('Graph traversal: GraphQL node `table` (build-time, both shapes)', () => {
+describe('Graph traversal: GraphQL node `tables` (build-time, both shapes)', () => {
   const rootUri = pathUtils.join(fixturesRoot, 'graphql-table');
   const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
   let graph: AppGraph;
@@ -203,18 +209,18 @@ describe('Graph traversal: GraphQL node `table` (build-time, both shapes)', () =
     graph = await buildAppGraph(rootUri, getDependencies());
   }, 15000);
 
-  it('records the table for an operation that filters on one', () => {
+  it('records the tables for an operation that filters on one', () => {
     const node = graph.modules[p('app/graphql/with_table.graphql')];
     assert(node);
     assert(node.type === ModuleType.GraphQL);
-    expect(node.table).toBe('blog_post');
+    expect(node.tables).toEqual(['blog_post']);
   });
 
-  it('leaves table undefined for an operation with no table filter', () => {
+  it('leaves tables empty for an operation with no table filter', () => {
     const node = graph.modules[p('app/graphql/without_table.graphql')];
     assert(node);
     assert(node.type === ModuleType.GraphQL);
-    expect(node.table).toBeUndefined();
+    expect(node.tables).toEqual([]);
   });
 });
 

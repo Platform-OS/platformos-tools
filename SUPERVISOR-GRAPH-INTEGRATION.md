@@ -50,7 +50,7 @@ graph to provide that model and consumes it from `validate_code`.
   `filters_used`, `tags_used`, `translation_keys`, `doc_params`, `slug`,
   `layout`, `method`, exposed both as the per-file primitive `extractStructural`
   _(exported in review — §8/F1)_ and, opt-in, on each module during a full build.
-- **Platform facts** — a GraphQL op's `table`, schema/`CustomModelType` nodes.
+- **Platform facts** — a GraphQL op's `tables`, schema/`CustomModelType` nodes.
 - **`'layout'` DocumentType** in `DocumentsLocator` (the canonical resolver),
   with `.html.liquid`/`.liquid` precedence.
 - **Two ADRs**: 003 (graph-backed enrichment) resolved; **004** (the
@@ -102,9 +102,10 @@ unrelated by a stash baseline; CI does not hit it).
 ```
 liquid-html-parser     CST → AST (the parse everything reuses)
 platformos-common      path/URI math, DocumentsLocator (resolution), RouteTable/slug,
-                         frontmatter schemas, AbstractFileSystem
+                         frontmatter schemas, AbstractFileSystem,
+                         extractGraphqlTables / extractSchemaTable (platform-fact parsers)
 platformos-check-common lint engine, Offense, ReferenceKind/Reference, getPosition,
-                         levenshtein, liquid-doc, graphql parsing, extractGraphqlTable
+                         levenshtein, liquid-doc, graphql parsing
 platformos-check-node   NodeFileSystem, lintBuffer / check()
 platformos-graph        THE project model: AppGraph (nodes + edges), buildAppGraph,
                          extractFileReferences, query API, self-structural
@@ -139,8 +140,8 @@ AppModule = LiquidModule | AssetModule | GraphQLModule | SchemaModule
   }
   LiquidModule  { kind: Page|Partial|Layout, structural?: ModuleStructural }
   AssetModule   { kind: 'unused' }
-  GraphQLModule { kind: 'graphql', table?: string }
-  SchemaModule  { kind: 'schema',  table?: string }   // custom_model_type
+  GraphQLModule { kind: 'graphql', tables: string[] }  // all model tables it targets
+  SchemaModule  { kind: 'schema',  table?: string }    // custom_model_type (single name:)
 
 Reference {
   source: { uri, range? }               // call site (0-based offsets)
@@ -402,12 +403,16 @@ For
    as an entry point. Documented in `query.ts` and now in the `buildAppGraph`
    JSDoc (§8/F4); a convenience "whole-project" build mode may be worth adding.
 
-4. **graphql `table` extraction is path/AST-based, single-style.** It reads the
-   first `table` object/`table:"x"` filter via the GraphQL AST. Exotic query
-   shapes (computed table, multiple tables) resolve to the first/none. Adequate for
-   resource grouping; not a full GraphQL semantic analysis. (The extractor moved
-   to check-common alongside `extractSchemaTable` — §8/F7 — but its behavior is
-   unchanged.)
+4. ~~**graphql `table` extraction is path/AST-based, single-style.**~~ **RESOLVED
+   (TASK-9.22.4).** `extractGraphqlTables` now reads the GraphQL AST for **every**
+   distinct `table` object/`table:"x"` filter — across multiple `records(...)`
+   blocks, aliased queries, and `record_create`/mutation inputs — and returns them
+   all as `string[]` in document order (`GraphQLModule.tables`), rather than the
+   first/none. Still AST-path based (a dynamic, non-string table is skipped), not a
+   full GraphQL semantic analysis, which remains adequate for resource grouping.
+   The extractor now lives in **platformos-common** beside `extractSchemaTable`
+   (moved from check-common — TASK-9.22.1 — since they are platform-fact parsers,
+   not lint).
 
 5. **Schema table name = the YAML `name:`.** Files with no (or a non-string)
    `name:` get a node with `table` undefined. The review made the non-string

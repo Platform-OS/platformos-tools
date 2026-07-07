@@ -53,16 +53,6 @@ export { getPosition } from './utils';
 // re-implementing string-distance.
 export { levenshtein } from './utils';
 
-// `extractGraphqlTable` parses the platformOS model table a GraphQL operation
-// targets; exported so the graph can model a GraphQL node's table without
-// re-implementing GraphQL parsing (the `graphql` dep lives here).
-export { extractGraphqlTable } from './graphql-table';
-
-// `extractSchemaTable` reads a custom-model-type/schema file's declared `name:`
-// (its table); exported alongside `extractGraphqlTable` so the graph and other
-// consumers extract this platform fact from the package that owns the parsers.
-export { extractSchemaTable } from './schema-table';
-
 // `isTranslationKeyUsage` is the shared predicate for "a string literal piped
 // through `t`/`translate`"; exported so the graph's self-structural detects
 // translation keys with the SAME rule as the `TranslationKeyExists` check.

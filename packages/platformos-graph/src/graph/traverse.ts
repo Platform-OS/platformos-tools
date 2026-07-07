@@ -1,8 +1,6 @@
 import yaml from 'js-yaml';
 import { LiquidNamedArgument, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import {
-  extractGraphqlTable,
-  extractSchemaTable,
   isTranslationKeyUsage,
   SourceCodeType,
   UriString,
@@ -13,7 +11,9 @@ import {
   containsLiquid,
   DocumentsLocator,
   effectivePageSlug,
+  extractGraphqlTables,
   extractRelativePagePath,
+  extractSchemaTable,
 } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import {
@@ -85,10 +85,10 @@ export async function traverseModule(
 
     case ModuleType.GraphQL: {
       // Leaf node — GraphQL documents have no platformOS dependencies. We do read
-      // the source once to record the model `table` it targets (a neutral
-      // platform fact), reusing check-common's GraphQL parser.
+      // the source once to record the model tables it targets (a neutral
+      // platform fact), reusing platformos-common's GraphQL parser.
       const sourceCode = await deps.getSourceCode(module.uri);
-      module.table = extractGraphqlTable(sourceCode.source);
+      module.tables = extractGraphqlTables(sourceCode.source);
       return;
     }
 

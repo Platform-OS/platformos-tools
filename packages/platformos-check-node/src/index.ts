@@ -97,6 +97,16 @@ export async function fileFingerprint(absolutePath: string): Promise<string | un
  * file (mtime/size moved) is re-parsed, a removed file is pruned, an added file
  * is parsed. Passing no cache preserves the original parse-everything behaviour
  * exactly — existing consumers (CLI, backfill) are unaffected.
+ *
+ * PLACEMENT: this belongs in check-node (the lint I/O shell), not
+ * platformos-common or the language server, because it caches `getApp`'s output
+ * and `getApp` globs the real filesystem — a Node-only concern (common is
+ * browser-safe and has no glob). It is the ONLY parsed-project cache in
+ * check-node; no pre-existing mechanism duplicates it. The nearest neighbours
+ * are deliberately separate: the LSP's `DocumentManager` caches open editor
+ * buffers, and the supervisor's `GraphCache` caches the dependency graph —
+ * different runtimes and different payloads (parsed lint sources here), so they
+ * are not, and should not be, shared.
  */
 export class AppCache {
   private readonly entries = new Map<string, { fingerprint: string; source: AppSourceCode }>();

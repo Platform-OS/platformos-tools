@@ -116,11 +116,12 @@ export interface AssetModule extends IAppModule<ModuleType.Asset> {
 export interface GraphQLModule extends IAppModule<ModuleType.GraphQL> {
   kind: 'graphql';
   /**
-   * The platformOS model table this operation targets (from its `table` filter),
-   * when it declares one. Populated during `buildAppGraph` traversal; absent for
-   * operations with no table filter or that were never resolved on disk.
+   * The platformOS model tables this operation targets (from its `table`
+   * filters / `record_create` inputs) — every distinct table in document order.
+   * Populated during `buildAppGraph` traversal; always present (empty = the
+   * operation declares no table, or was never resolved on disk).
    */
-  table?: string;
+  tables: string[];
 }
 
 /**
@@ -137,10 +138,10 @@ export interface GraphQLModule extends IAppModule<ModuleType.GraphQL> {
 export interface SchemaModule extends IAppModule<ModuleType.Schema> {
   kind: 'schema';
   /**
-   * The model table name (the schema's top-level `name:`), when declared. Named
-   * `table` to align with {@link GraphQLModule.table} so a consumer can join a
-   * GraphQL op to its schema. Absent when the file declares no `name:` or could
-   * not be parsed.
+   * The model table name (the schema's top-level `name:`), when declared. A
+   * schema declares exactly one, so this is a single value (unlike a GraphQL
+   * op's {@link GraphQLModule.tables}) that a consumer can join against. Absent
+   * when the file declares no `name:` or could not be parsed.
    */
   table?: string;
 }

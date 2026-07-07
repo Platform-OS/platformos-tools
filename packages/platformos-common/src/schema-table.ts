@@ -11,7 +11,7 @@ import { load } from 'js-yaml';
  *     type: string
  * ```
  *
- * Named to mirror {@link extractGraphqlTable} so a consumer can join a GraphQL
+ * Named to mirror {@link extractGraphqlTables} so a consumer can join a GraphQL
  * operation to the schema it targets. Reuses the `js-yaml` parser this package
  * already owns rather than a regex.
  *

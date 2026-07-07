@@ -139,6 +139,8 @@ export function getGraphQLModuleByUri(appGraph: AppGraph, uri: string): GraphQLM
     uri: path.normalize(uri),
     dependencies: [],
     references: [],
+    // Always present (empty = no table declared); populated during traversal.
+    tables: [],
   });
 }
 

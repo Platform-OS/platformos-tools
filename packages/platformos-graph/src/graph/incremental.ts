@@ -1,9 +1,5 @@
-import {
-  extractGraphqlTable,
-  extractSchemaTable,
-  path,
-  UriString,
-} from '@platformos/platformos-check-common';
+import { path, UriString } from '@platformos/platformos-check-common';
+import { extractGraphqlTables, extractSchemaTable } from '@platformos/platformos-common';
 
 import {
   AppGraph,
@@ -201,13 +197,14 @@ async function materializeTarget(
 
 /**
  * Record a leaf module's neutral platform table fact — the GraphQL operation's
- * `table` filter, or a schema's model `name:` — reusing check-common's parsers,
- * exactly as {@link traverseModule} does. A no-op for asset/liquid modules.
+ * `table` filters, or a schema's model `name:` — reusing platformos-common's
+ * parsers, exactly as {@link traverseModule} does. A no-op for asset/liquid
+ * modules.
  */
 async function readLeafTable(module: AppModule, deps: AugmentedDependencies): Promise<void> {
   if (module.type === ModuleType.GraphQL) {
     const sourceCode = await deps.getSourceCode(module.uri);
-    module.table = extractGraphqlTable(sourceCode.source);
+    module.tables = extractGraphqlTables(sourceCode.source);
   } else if (module.type === ModuleType.Schema) {
     const sourceCode = await deps.getSourceCode(module.uri);
     module.table = extractSchemaTable(sourceCode.source);

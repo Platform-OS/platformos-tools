@@ -18,7 +18,7 @@ import {
   getGraphQLModuleByUri,
   getLayoutModule,
   getPageModule,
-  getPartialModule,
+  getPartialModuleByUri,
   getSchemaModule,
 } from './module';
 import { bind } from './traverse';
@@ -118,9 +118,9 @@ describe('Graph queries: orphan and missing-target detection (hermetic graph)', 
   beforeAll(() => {
     graph = { rootUri, entryPoints: [], modules: {} };
     const page = getPageModule(graph, p('app/views/pages/index.liquid'));
-    const used = getPartialModule(graph, 'used');
-    const orphan = getPartialModule(graph, 'orphan');
-    const missing = getPartialModule(graph, 'missing');
+    const used = getPartialModuleByUri(graph, p('app/views/partials/used.liquid'));
+    const orphan = getPartialModuleByUri(graph, p('app/views/partials/orphan.liquid'));
+    const missing = getPartialModuleByUri(graph, p('app/views/partials/missing.liquid'));
     const schema = getSchemaModule(graph, p('app/schema/blog_post.yml'));
 
     page.exists = true;
@@ -203,12 +203,12 @@ describe('Graph queries: nearest-name candidates (did-you-mean)', () => {
   beforeAll(() => {
     graph = { rootUri, entryPoints: [], modules: {} };
     const page = getPageModule(graph, p('app/views/pages/index.liquid'));
-    const header = getPartialModule(graph, 'header');
-    const footer = getPartialModule(graph, 'footer');
-    const sidebar = getPartialModule(graph, 'sidebar');
+    const header = getPartialModuleByUri(graph, p('app/views/partials/header.liquid'));
+    const footer = getPartialModuleByUri(graph, p('app/views/partials/footer.liquid'));
+    const sidebar = getPartialModuleByUri(graph, p('app/views/partials/sidebar.liquid'));
     const headerLayout = getLayoutModule(graph, p('app/views/layouts/header.liquid'))!;
     const find = getGraphQLModuleByUri(graph, p('app/graphql/blog/find.graphql'));
-    const headr = getPartialModule(graph, 'headr');
+    const headr = getPartialModuleByUri(graph, p('app/views/partials/headr.liquid'));
     const graphqlTypo = getGraphQLModuleByUri(graph, p('app/graphql/blog/fnd.graphql'));
 
     for (const m of [page, header, footer, sidebar, headerLayout, find]) m.exists = true;

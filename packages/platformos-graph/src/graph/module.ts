@@ -34,8 +34,6 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
     return cache.get(uri)!;
   }
 
-  const relativePath = path.relative(uri, appGraph.rootUri);
-
   switch (true) {
     case isLayout(uri):
       return getLayoutModule(appGraph, uri);
@@ -44,17 +42,13 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
       return getPageModule(appGraph, uri);
 
     case isPartial(uri):
-      // Key by the file's OWN resolved URI (like layout/page/asset entry points),
-      // NOT a path rebuilt from the basename — the latter forced every partial
-      // into `app/views/partials/<basename>.liquid`, mis-keying `lib/` and nested
-      // partials (e.g. `app/lib/can/x.liquid`) and splitting them from the same
-      // file resolved as an edge target (which comes through getPartialModuleByUri).
+      // Key every entry point by its OWN resolved URI (like the layout/page
+      // factories above), NOT a path rebuilt from the basename — the latter
+      // forced every partial into `app/views/partials/<basename>.liquid`,
+      // mis-keying `lib/` and nested partials (e.g. `app/lib/can/x.liquid`) and
+      // splitting them from the same file resolved as an edge target (which comes
+      // through getPartialModuleByUri).
       return getPartialModuleByUri(appGraph, uri);
-
-    case relativePath.startsWith('assets') || relativePath.startsWith('modules'):
-      // The full URI is already resolved on-disk here, so use it directly rather
-      // than rebuilding a path from the basename.
-      return getAssetModuleByUri(appGraph, uri);
   }
 }
 
@@ -97,34 +91,23 @@ export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModul
   });
 }
 
-export function getPartialModule(appGraph: AppGraph, partial: string): LiquidModule {
-  const uri = path.join(appGraph.rootUri, 'app/views/partials', `${partial}.liquid`);
-  return module(appGraph, {
-    type: ModuleType.Liquid,
-    kind: LiquidModuleKind.Partial,
-    uri: uri,
-    dependencies: [],
-    references: [],
-  });
-}
-
 /**
  * Create (or fetch the cached) Liquid Partial module for an ALREADY-RESOLVED
  * full URI — used for `{% function %}` / `{% include %}` targets whose URI is
  * resolved canonically by `DocumentsLocator` (which handles lib paths, module
- * prefixes, and extensions). Unlike {@link getPartialModule}, it does not
- * reconstruct the path from a name. Commands/queries/lib helpers are all
+ * prefixes, and extensions). It keys the node by that URI verbatim (normalized),
+ * never reconstructing a path from a name. Commands/queries/lib helpers are all
  * `Partial` kind, consistent with check-common's file-type classification.
  */
 export function getPartialModuleByUri(appGraph: AppGraph, uri: string): LiquidModule {
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Partial,
-    // Normalize to forward slashes so module keys match the rest of the graph
-    // (getPartialModule/getAssetModule build URIs via path.join, which
-    // normalizes). DocumentsLocator returns `Utils.joinPath(...).toString()`
-    // unnormalized, which on Windows keeps backslashes and breaks key/edge
-    // matching against the normalized URIs everywhere else.
+    // Normalize so a node keyed here matches the same file keyed by any other
+    // factory (they all normalize their stored URI): DocumentsLocator returns
+    // `Utils.joinPath(...).toString()` unnormalized, which on Windows keeps
+    // backslashes and would break key/edge matching against the normalized URIs
+    // used everywhere else.
     uri: path.normalize(uri),
     dependencies: [],
     references: [],

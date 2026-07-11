@@ -144,3 +144,14 @@ if shop.foo contains '{{cond}}'
 echo 'xxx'
 endif
 %}
+
+It should wrap long argument lists for arg-list tags while keeping filters and other tags flat
+printWidth: 80
+{% liquid
+  graphql data = "my_query", first_id: "111", second_id: "222", third_id: "333", per_page: 100
+  render "some/partial", first_argument: "value one", second_argument: "value two", third_arg: "v3"
+  background job = "worker", first: "aaaa", second: "bbbb", third: "cccc", fourth: "dddd", data: payload
+  context first_key: "one", second_key: "two", third_key: "three", fourth_key: "four", fifth: "five"
+  assign x = a | f1 | f2 | f3 | f4 | f5 | f6 | f7 | f8 | f9 | f10 | f11 | f12 | f13
+  cycle "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"
+%}

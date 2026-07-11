@@ -220,7 +220,7 @@ Liquid <: Helpers {
   liquidTagOpenBackground = liquidTagOpenRule<"background", liquidTagBackgroundInlineMarkup>
   // Block form: only named arguments, no result variable (matches Ruby inline syntax)
   // Use negative lookahead to exclude file-based syntax (with "=")
-  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") argumentSeparatorOptionalComma tagArguments space*
+  liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") argumentSeparatorOptionalComma tagArguments (space* ",")? space*
 
   liquidTagOpenCache = liquidTagOpenRule<"cache", liquidTagCacheMarkup>
   liquidTagCacheMarkup = liquidExpression<delimTag> renderArguments
@@ -228,7 +228,7 @@ Liquid <: Helpers {
   liquidTagOpenParseJson = liquidTagOpenRule<"parse_json", variableSegmentAsLookupMarkup>
 
   liquidTagOpenTransaction = liquidTagOpenRule<"transaction", liquidTagOpenTransactionMarkup>
-  liquidTagOpenTransactionMarkup = tagArguments space*
+  liquidTagOpenTransactionMarkup = tagArguments (space* ",")? space*
 
   liquidTagOpenTry = liquidTagOpenRule<"try", empty>
 
@@ -264,10 +264,10 @@ Liquid <: Helpers {
   exportVariable = variableSegmentAsLookup ~(space* ":")
 
   liquidTagContext = liquidTagRule<"context", liquidTagContextMarkup>
-  liquidTagContextMarkup = tagArguments space*
+  liquidTagContextMarkup = tagArguments (space* ",")? space*
 
   liquidTagSignIn = liquidTagRule<"sign_in", liquidTagSignInMarkup>
-  liquidTagSignInMarkup = tagArguments space*
+  liquidTagSignInMarkup = tagArguments (space* ",")? space*
 
   liquidTagRedirectTo = liquidTagRule<"redirect_to", liquidTagRedirectToMarkup>
   liquidTagRedirectToMarkup = liquidExpression<delimTag> renderArguments
@@ -611,18 +611,27 @@ LiquidStatement <: Liquid {
   liquidJsonHashLiteral<delim> := "{" (space | newline)* listOf<liquidJsonKeyValue<delim>, liquidJsonSep> (space | newline)* "}"
   liquidJsonArrayLiteral<delim> := "[" (space | newline)* listOf<liquidJsonValue<delim>, liquidJsonSep> (space | newline)* "]"
 
-  // Only the function tag supports multi-line named arguments in {% liquid %} blocks.
-  // render, include, and other tags use the base argumentSeparatorOptionalComma (horizontal-
-  // only), which prevents their argument lists from spanning lines. Function uses a dedicated
-  // separator that allows newlines ONLY after a comma, preventing the next statement from
-  // being swallowed as an argument when no comma is present.
+  // Inside {% liquid %} blocks, a tag's key:value argument list may span multiple lines.
+  // Every argument-list tag whose separator is argumentSeparatorOptionalComma — function,
+  // graphql, background, render, include, log, context, sign_in, transaction, cache, etc. —
+  // inherits this automatically; the base Liquid grammar keeps these horizontal-only outside
+  // {% liquid %}, so the standalone tag/block forms are unaffected (zero regression surface).
   //
-  // Both alternatives have 3 components (space, comma, space) to match each other's arity,
-  // ensuring consistent visitor child indexing.
-  functionArgumentSeparatorOptionalComma = space* "," (space | newline)* | space* ","? space*
-  functionTagArguments = listOf<namedArgument<delimTag>, functionArgumentSeparatorOptionalComma>
-  functionRenderArguments = (functionArgumentSeparatorOptionalComma functionTagArguments) (space* ",")? space*
-  liquidTagFunctionMarkup := liquidVariableLookup<delimTag> space* "=" space* partialExpression functionRenderArguments liquidFilter<delimTag>* space*
+  // A newline is only crossed AFTER a comma AND only when the next non-blank token is a
+  // named argument (`name:`). This mirrors the Ruby runtime's continuation guard
+  // (continuation_line? matches /\A[\w-]+\s*:/): a trailing comma followed by a new
+  // directive (another tag, an assign, an echo, a bare/positional value such as
+  // `log "second"`, …) does NOT look like `name:`, so the newline is not consumed, the list
+  // ends, and the comma is treated as a stylistic trailing comma — the next line stays a
+  // separate statement. This guard is essential for positional-accepting lists like log's,
+  // where a following directive would otherwise be swallowed as a positional argument.
+  //
+  // Both alternatives must have the same arity (3: space, comma, group) for Ohm's uniform-arity
+  // requirement and consistent visitor child indexing. The positive lookahead is written as
+  // ~(~(...)) so it contributes arity 0, keeping the first alternative's group at arity 3.
+  argumentSeparatorOptionalComma :=
+      space* "," ((space | newline)* ~(~(variableSegment space* ":")))
+    | space* ","? space*
 }
 
 LiquidDoc <: Helpers {

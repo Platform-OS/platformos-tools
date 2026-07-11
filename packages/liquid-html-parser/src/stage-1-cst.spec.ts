@@ -1336,22 +1336,219 @@ describe('Unit: Stage 1 (CST)', () => {
         );
       });
 
-      it('should reject multi-line arguments for render in {% liquid %} blocks (strict mode)', () => {
-        // render does not support multi-line argument lists; only function does.
-        // A newline after the comma in render arguments must be treated as a statement separator,
-        // not an argument continuation.
-        const invalidCases = [
-          `{% liquid\n  render 'partial',\n    arg1: "val"\n%}`,
-          `{% liquid\n  render 'partial',\n    arg1: "val",\n    arg2: "val2"\n%}`,
+      it('should parse multi-line render arguments in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // arguments on separate lines with trailing commas
+          cst = toCST(`{% liquid
+  render 'card',
+    title: "hello",
+    body: "world"
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('render');
+          expectPath(cst, '0.markup.0.markup.renderArguments').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.renderArguments.0.name').to.equal('title');
+          expectPath(cst, '0.markup.0.markup.renderArguments.1.name').to.equal('body');
+
+          // statement following multi-line render is parsed correctly
+          cst = toCST(`{% liquid
+  render 'card',
+    title: "hello"
+  assign x = 'hi'
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('render');
+          expectPath(cst, '0.markup.0.markup.renderArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+        }
+      });
+
+      it('should parse multi-line include arguments in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid
+  include 'card',
+    title: "hello",
+    body: "world"
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('include');
+          expectPath(cst, '0.markup.0.markup.renderArguments').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.renderArguments.0.name').to.equal('title');
+          expectPath(cst, '0.markup.0.markup.renderArguments.1.name').to.equal('body');
+        }
+      });
+
+      it('should parse multi-line graphql arguments in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid
+  graphql g = "my_query",
+    id: "1",
+    per_page: 1
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('graphql');
+          expectPath(cst, '0.markup.0.markup.functionArguments').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.functionArguments.0.name').to.equal('id');
+          expectPath(cst, '0.markup.0.markup.functionArguments.1.name').to.equal('per_page');
+        }
+      });
+
+      it('should parse multi-line background arguments in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid
+  background job_id = 'ml_job',
+    delay: 0,
+    priority: 'low'
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('background');
+          expectPath(cst, '0.markup.0.markup.args').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.args.0.name').to.equal('delay');
+          expectPath(cst, '0.markup.0.markup.args.1.name').to.equal('priority');
+        }
+      });
+
+      it('should treat a trailing comma as style (not continuation) when the next line is a new directive', () => {
+        // The newline after a trailing comma is only crossed when the next token is a
+        // named argument (name:). A following directive — another tag, an assign, an echo,
+        // or a positional value — must remain a separate statement (the historical
+        // "next line silently ignored" bug must not regress).
+        for (const { toCST, expectPath } of testCases) {
+          // render trailing comma followed by another render
+          cst = toCST(`{% liquid
+  render 'a', x: 1,
+  render 'b', y: 2
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('render');
+          expectPath(cst, '0.markup.0.markup.renderArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.1.name').to.equal('render');
+          expectPath(cst, '0.markup.1.markup.renderArguments').to.have.lengthOf(1);
+
+          // graphql trailing comma followed by an assign
+          cst = toCST(`{% liquid
+  graphql g = "q", id: "1",
+  assign copy = g.x
+  echo copy
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('graphql');
+          expectPath(cst, '0.markup.0.markup.functionArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+          expectPath(cst, '0.markup.2.name').to.equal('echo');
+
+          // background trailing comma followed by an assign
+          cst = toCST(`{% liquid
+  background x = 'job_a', source_name: 'first',
+  assign copy = "done"
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('background');
+          expectPath(cst, '0.markup.0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+
+          // log trailing comma followed by another log (log accepts positional args,
+          // so this is the critical guard: the second log must NOT be swallowed)
+          cst = toCST(`{% liquid
+  log "first",
+  log "second"
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('log');
+          expectPath(cst, '0.markup.1.name').to.equal('log');
+        }
+      });
+
+      it('should not treat a comma inside a quoted string as a continuation in {% liquid %} blocks', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid
+  render 'a', msg: "hello, world"
+  echo "next"
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('render');
+          expectPath(cst, '0.markup.0.markup.renderArguments').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.0.markup.renderArguments.0.name').to.equal('msg');
+          expectPath(cst, '0.markup.0.markup.renderArguments.0.value.value').to.equal(
+            'hello, world',
+          );
+          expectPath(cst, '0.markup.1.name').to.equal('echo');
+        }
+      });
+
+      it('should parse JSON literal arguments spanning multiple lines for non-function tags', () => {
+        for (const { toCST, expectPath } of testCases) {
+          // background with a multi-line JSON hash argument
+          cst = toCST(`{% liquid
+  background x = 'job',
+    data: {
+      "a": 1,
+      "b": [2, 3]
+    }
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('background');
+          expectPath(cst, '0.markup.0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.0.markup.args.0.name').to.equal('data');
+          expectPath(cst, '0.markup.0.markup.args.0.value.type').to.equal('JsonHashLiteral');
+        }
+      });
+
+      it('should accept multi-line arguments in strict mode (not only tolerant)', () => {
+        // The previous behaviour rejected multi-line render arguments in strict mode; it is now
+        // accepted for every argument-list tag. Strict mode shares the same LiquidStatement rules.
+        const validCases = [
+          `{% liquid\n  render 'card',\n    title: "hello",\n    body: "world"\n%}`,
+          `{% liquid\n  graphql g = "q",\n    id: "1",\n    per_page: 1\n%}`,
         ];
-        for (const source of invalidCases) {
-          try {
-            toLiquidHtmlCST(source, { mode: 'strict' });
-            expect(true, `expected ${source} to throw`).to.be.false;
-          } catch (e: any) {
-            expect(e.name, source).to.equal('LiquidHTMLParsingError');
-            expect(e.loc, `expected ${source} to have location info`).not.to.be.undefined;
-          }
+        for (const source of validCases) {
+          expect(() => toLiquidHtmlCST(source, { mode: 'strict' }), source).not.to.throw();
+        }
+      });
+
+      it('should support multi-line arguments across the remaining attribute-list tags', () => {
+        // Cross-tag regression sweep (mirrors the Ruby multiline_sweep_test): every key:value
+        // argument-list tag continues across a newline after a comma, and a trailing comma
+        // before a new directive keeps that directive a separate statement.
+        for (const { toCST, expectPath } of testCases) {
+          // context: markup is the named-argument list directly
+          cst = toCST(`{% liquid
+  context a: 1,
+    b: 2
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('context');
+          expectPath(cst, '0.markup.0.markup').to.have.lengthOf(2);
+          expectPath(cst, '0.markup.0.markup.0.name').to.equal('a');
+          expectPath(cst, '0.markup.0.markup.1.name').to.equal('b');
+
+          // sign_in
+          cst = toCST(`{% liquid
+  sign_in id: 1,
+    timeout: 5
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('sign_in');
+          expectPath(cst, '0.markup.0.markup').to.have.lengthOf(2);
+
+          // redirect_to: a positional url followed by multi-line named arguments
+          cst = toCST(`{% liquid
+  redirect_to "/x",
+    status: 301
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('redirect_to');
+          expectPath(cst, '0.markup.0.markup.args').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.0.markup.args.0.name').to.equal('status');
+
+          // guard: trailing comma before a new directive stays separate
+          cst = toCST(`{% liquid
+  context a: 1,
+  assign x = 'hi'
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('context');
+          expectPath(cst, '0.markup.0.markup').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.1.name').to.equal('assign');
+        }
+      });
+
+      it('should NOT continue across a newline when there is no trailing comma', () => {
+        // A newline is only crossed after a comma. Without one, the following line is always a
+        // separate statement — never folded into the previous tag's argument list.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% liquid
+  render 'card'
+  echo "x"
+%}`);
+          expectPath(cst, '0.markup.0.name').to.equal('render');
+          expectPath(cst, '0.markup.0.markup.renderArguments').to.have.lengthOf(0);
+          expectPath(cst, '0.markup.1.name').to.equal('echo');
         }
       });
 

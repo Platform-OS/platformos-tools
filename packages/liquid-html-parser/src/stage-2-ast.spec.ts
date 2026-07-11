@@ -1492,6 +1492,82 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
+      it('should parse multi-line arguments for render/include/graphql/background in {% liquid %} blocks', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          // render
+          ast = toAST(`{% liquid
+  render 'card',
+    title: "hello",
+    body: "world"
+%}`);
+          expectPath(ast, 'children.0.markup.0.name').to.equal('render');
+          expectPath(ast, 'children.0.markup.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.0.markup.args.0.name').to.equal('title');
+          expectPath(ast, 'children.0.markup.0.markup.args.0.value.type').to.equal('String');
+          expectPath(ast, 'children.0.markup.0.markup.args.0.value.value').to.equal('hello');
+          expectPath(ast, 'children.0.markup.0.markup.args.1.name').to.equal('body');
+          expectPosition(ast, 'children.0');
+
+          // include
+          ast = toAST(`{% liquid
+  include 'card',
+    title: "hello",
+    body: "world"
+%}`);
+          expectPath(ast, 'children.0.markup.0.name').to.equal('include');
+          expectPath(ast, 'children.0.markup.0.markup.args').to.have.lengthOf(2);
+
+          // graphql
+          ast = toAST(`{% liquid
+  graphql g = "my_query",
+    id: "1",
+    per_page: 1
+%}`);
+          expectPath(ast, 'children.0.markup.0.name').to.equal('graphql');
+          expectPath(ast, 'children.0.markup.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.0.markup.args.0.name').to.equal('id');
+          expectPath(ast, 'children.0.markup.0.markup.args.1.name').to.equal('per_page');
+
+          // background, with a multi-line JSON hash argument
+          ast = toAST(`{% liquid
+  background x = 'job',
+    delay: 0,
+    data: {
+      "a": 1,
+      "b": [2, 3]
+    }
+%}`);
+          expectPath(ast, 'children.0.markup.0.name').to.equal('background');
+          expectPath(ast, 'children.0.markup.0.markup.args').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.0.markup.args.1.name').to.equal('data');
+          expectPath(ast, 'children.0.markup.0.markup.args.1.value.type').to.equal(
+            'JsonHashLiteral',
+          );
+        }
+      });
+
+      it('should keep a trailing comma as style: the next directive stays a separate statement', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% liquid
+  graphql g = "q", id: "1",
+  assign copy = g.x
+  echo copy
+%}`);
+          expectPath(ast, 'children.0.markup.0.name').to.equal('graphql');
+          expectPath(ast, 'children.0.markup.0.markup.args').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.1.name').to.equal('assign');
+          expectPath(ast, 'children.0.markup.2.name').to.equal('echo');
+
+          // log accepts positional args; the second log must not be swallowed
+          ast = toAST(`{% liquid
+  log "first",
+  log "second"
+%}`);
+          expectPath(ast, 'children.0.markup.0.name').to.equal('log');
+          expectPath(ast, 'children.0.markup.1.name').to.equal('log');
+        }
+      });
+
       it('should parse the yield tag', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
           ast = toAST(`{% yield 'name' %}`);

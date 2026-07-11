@@ -9,6 +9,7 @@ import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Connection } from 'vscode-languageserver';
 import { DocumentManager } from '../documents';
+import { DocumentBackedFileSystem } from '../server/DocumentBackedFileSystem';
 import { DiagnosticsManager } from './DiagnosticsManager';
 import { makeRunChecks } from './runChecks';
 
@@ -272,6 +273,91 @@ describe('Module: runChecks', () => {
       uri: frURI,
       version: 0,
       diagnostics: [],
+    });
+  });
+
+  describe('when a referenced partial is edited in the editor', () => {
+    const callerURI = path.join(rootUri, 'app', 'views', 'pages', 'index.liquid');
+    const partialURI = path.join(rootUri, 'app', 'lib', 'my_partial.liquid');
+    // The caller passes `arg`, which is only a known parameter once the partial
+    // references it.
+    const caller = `{% function res = 'my_partial', arg: 'value' %}`;
+    // On disk the partial only knows `followships`, so `arg` looks unknown.
+    const partialOnDisk = `{% liquid\n  assign followships = followships | default: null\n%}`;
+    // In the editor the partial now uses `arg`, making it a known parameter.
+    const partialInBuffer = `{% liquid\n  log arg, type: 'arg'\n  assign followships = followships | default: null\n%}`;
+
+    const partialCallArguments = allChecks.filter((c) => c.meta.code === 'PartialCallArguments');
+
+    const unknownArgDiagnostic = {
+      source: 'platformos-check',
+      code: 'PartialCallArguments',
+      codeDescription: { href: expect.any(String) },
+      message: 'Unknown parameter arg passed to function call',
+      severity: 1,
+      range: {
+        start: { line: 0, character: 32 },
+        end: { line: 0, character: 44 },
+      },
+    };
+
+    function makeRunChecksWithFs(fs: MockFileSystem | DocumentBackedFileSystem) {
+      return makeRunChecks(documentManager, diagnosticsManager, {
+        fs: fs as MockFileSystem,
+        loadConfig: async () => ({
+          settings: {},
+          checks: partialCallArguments,
+          rootUri,
+        }),
+        platformosDocset: {
+          graphQL: async () => null,
+          filters: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          tags: async () => [],
+        },
+        jsonValidationSet: {
+          schemas: async () => [],
+        },
+      });
+    }
+
+    beforeEach(() => {
+      expect(partialCallArguments).to.have.lengthOf(1);
+      fs = new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/index.liquid': caller,
+          'app/lib/my_partial.liquid': partialOnDisk,
+        },
+        rootUri,
+      );
+      documentManager.open(callerURI, caller, 0);
+      documentManager.open(partialURI, partialInBuffer, 0);
+    });
+
+    it('reports a stale offense when the check reads the partial straight from disk', async () => {
+      runChecks = makeRunChecksWithFs(fs);
+
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [unknownArgDiagnostic],
+      });
+    });
+
+    it('reads the in-editor buffer of the partial through DocumentBackedFileSystem', async () => {
+      runChecks = makeRunChecksWithFs(new DocumentBackedFileSystem(fs, documentManager));
+
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [],
+      });
     });
   });
 });

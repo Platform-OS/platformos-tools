@@ -1,5 +1,6 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { findNearestKeys } from '../../utils/levenshtein';
+import { isTranslationKeyUsage } from '../../translation-usage';
 import { loadAllDefinedKeys } from '../translation-utils';
 
 export const TranslationKeyExists: LiquidCheckDefinition = {
@@ -22,11 +23,7 @@ export const TranslationKeyExists: LiquidCheckDefinition = {
 
     return {
       async LiquidVariable(node) {
-        if (node.expression.type !== 'String') {
-          return;
-        }
-
-        if (!node.filters.some(({ name }) => ['t', 'translate'].includes(name))) {
+        if (!isTranslationKeyUsage(node)) {
           return;
         }
 

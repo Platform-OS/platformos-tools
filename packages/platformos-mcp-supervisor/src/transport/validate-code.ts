@@ -9,15 +9,23 @@
 import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import type { AppCache } from '@platformos/platformos-check-node';
+
 import { runLint } from '../lint/lint';
+import { runImpact } from '../impact/impact';
 import { assembleResult } from '../result/assemble';
+import type { GraphCache } from '../graph-cache/graph-cache';
 import type { Logger } from '../logger';
-import type { ValidateCodeParams, ValidateCodeResult } from '../result/types';
+import type { ValidateCodeImpact, ValidateCodeParams, ValidateCodeResult } from '../result/types';
 
 /** Per-server context threaded into the handler. */
 export interface SupervisorContext {
   /** Absolute project root the buffer is validated against. */
   projectDir: string;
+  /** Never-stale, background-built project graph — the blast-radius source. */
+  graphCache: GraphCache;
+  /** Never-stale parsed-project cache — reused across lint calls so the project isn't re-parsed each time. */
+  appCache: AppCache;
   log: Logger;
 }
 
@@ -72,19 +80,56 @@ export function registerValidateCode(server: McpServer, ctx: SupervisorContext):
   );
 }
 
-/** Lint the buffer via the check-node seam and assemble the result. */
-async function runValidateCode(
+/**
+ * The two I/O adapters {@link runValidateCode} orchestrates. Injectable so the
+ * degrade-vs-propagate contract below can be unit-tested; defaults are the real
+ * lint / impact seams.
+ */
+export interface ValidateCodeAdapters {
+  lint: typeof runLint;
+  impact: typeof runImpact;
+}
+
+/** Blast radius when it could not be computed at all — never blocks the lint gate. */
+const UNAVAILABLE_IMPACT: ValidateCodeImpact = {
+  scope: 'direct',
+  status: 'unavailable',
+  dependents: { total: 0, by_kind: {}, sample: [] },
+};
+
+/**
+ * Lint the buffer (check-node seam) and compute its cross-file blast radius
+ * (platformos-graph seam, via the cached project graph) — two independent I/O
+ * adapters run concurrently — then assemble the result.
+ *
+ * Lint is the PRIMARY signal (the `must_fix_before_write` gate): if it fails the
+ * whole call fails. Impact is SECONDARY enrichment, so an impact-adapter failure
+ * degrades to `status: 'unavailable'` (logged) and never sinks the lint
+ * diagnostics the agent depends on.
+ */
+export async function runValidateCode(
   ctx: SupervisorContext,
   params: ValidateCodeParams,
+  adapters: ValidateCodeAdapters = { lint: runLint, impact: runImpact },
 ): Promise<ValidateCodeResult> {
   const mode = params.mode ?? 'full';
   ctx.log(`validate_code: ${params.file_path} (${mode})`);
-  const diagnostics = await runLint({
+  const adapterParams = {
     projectDir: ctx.projectDir,
     filePath: params.file_path,
     content: params.content,
-  });
-  return assembleResult(diagnostics, mode);
+  };
+  const [diagnostics, impact] = await Promise.all([
+    adapters.lint(adapterParams, ctx.appCache),
+    adapters.impact(adapterParams, ctx.graphCache).catch((error): ValidateCodeImpact => {
+      ctx.log(
+        `validate_code: blast-radius failed for ${params.file_path}, ` +
+          `continuing without impact: ${error instanceof Error ? error.message : error}`,
+      );
+      return UNAVAILABLE_IMPACT;
+    }),
+  ]);
+  return assembleResult(diagnostics, impact, mode);
 }
 
 /** Wrap a result in the MCP text-content envelope (every result is one JSON text block). */

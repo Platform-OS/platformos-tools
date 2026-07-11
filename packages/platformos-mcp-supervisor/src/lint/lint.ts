@@ -12,20 +12,15 @@
  * `enrich/`; for now diagnostics have no `fix` / `hint`, and the structured
  * `Offense.fix` / `suggest` are intentionally not translated.
  */
-import { isAbsolute, join } from 'node:path';
+import {
+  lintBuffer,
+  Severity,
+  type AppCache,
+  type Offense,
+} from '@platformos/platformos-check-node';
 
-import { lintBuffer, Severity, type Offense } from '@platformos/platformos-check-node';
-
+import { toAbsoluteFilePath, type AdapterInput } from '../adapter-input';
 import type { ValidateCodeDiagnostic, ValidateCodeSeverity } from '../result/types';
-
-export interface RunLintParams {
-  /** Absolute project root the buffer is validated against. */
-  projectDir: string;
-  /** File under edit — absolute, or relative to `projectDir`. */
-  filePath: string;
-  /** In-memory buffer contents. */
-  content: string;
-}
 
 const SEVERITY: Record<Severity, ValidateCodeSeverity> = {
   [Severity.ERROR]: 'error',
@@ -33,11 +28,26 @@ const SEVERITY: Record<Severity, ValidateCodeSeverity> = {
   [Severity.INFO]: 'info',
 };
 
-/** Lint the buffer and return the mapped diagnostics for the file. */
-export async function runLint(params: RunLintParams): Promise<ValidateCodeDiagnostic[]> {
+/**
+ * Lint the buffer and return the mapped diagnostics for the file.
+ *
+ * The optional `cache` reuses the parsed on-disk project across calls (the
+ * whole-project parse is the dominant per-call cost); it is never stale (see
+ * check-node `AppCache`). The supervisor passes a per-project cache; omitting it
+ * lints correctly but re-parses the project each call.
+ */
+export async function runLint(
+  params: AdapterInput,
+  cache?: AppCache,
+): Promise<ValidateCodeDiagnostic[]> {
   const { projectDir, filePath, content } = params;
-  const absoluteFilePath = isAbsolute(filePath) ? filePath : join(projectDir, filePath);
-  const offenses = await lintBuffer({ root: projectDir, filePath: absoluteFilePath, content });
+  const absoluteFilePath = toAbsoluteFilePath(projectDir, filePath);
+  const offenses = await lintBuffer({
+    root: projectDir,
+    filePath: absoluteFilePath,
+    content,
+    cache,
+  });
   return offenses.map(toDiagnostic);
 }
 

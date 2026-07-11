@@ -157,23 +157,43 @@ Apply the consumer principle:
   `project-scanner.ts` / `render-flow.ts` inside the supervisor. If a capability
   is missing, it is added to `platformos-graph`.
 
-## Open questions
+## Resolved (2026-06-30)
 
-1. **Per-file self-structural owner** — expose per-module on `platformos-graph`
-   (it already parses everything) vs a shared extraction util in
-   check-common/common? (Recommendation: platformos-graph, since it owns parsing
-   the app.)
-2. **`Reference.kind`** — add an optional discriminant (`render | include |
-   function | graphql | asset | web-component | layout`) to `Reference`, or model
-   per-edge metadata another way?
-3. **Resource/CRUD completeness** — does this belong in `platformos-graph`
-   (project-structure analysis) or a thin separate analysis layer? It is the
-   least "pure graph" of the old project-map facts.
-4. **Phase 1 now or wait?** Ship render/asset-scoped structural against today's
-   graph, or hold the `structural` block until the graph extensions (Phase 2)
-   land?
-5. **Build cost / freshness** — full-app graph build is parse-heavy; cache at the
-   supervisor edge with a TTL (matches v1's 30s) vs explicit invalidation?
+1. **Per-file self-structural owner — RESOLVED: `platformos-graph`** (TASK-9.3).
+   The self-structural snapshot is exposed as an optional `structural` property on
+   each `LiquidModule` (`ModuleStructural`: `renders_used`, `graphql_queries_used`,
+   `filters_used`, `tags_used`, `translation_keys`, `doc_params` — always-present
+   arrays, empty = none; plus optional `slug`/`layout`/`method`). It is populated
+   in `traverseLiquidModule` as a by-product of the parse the graph already does —
+   the consumer never re-parses. Extraction COMPOSES check-common parsers rather
+   than re-deriving: `extractDocDefinition` (doc_params), `js-yaml` via a single
+   shared `loadFrontmatter` (slug/layout/method), the liquid-html AST `visit`
+   (renders/graphql/filters/tags), the translation `t`/`translate` detection from
+   the translation-key check, and `extractRelativePagePath`/`slugFromFilePath`
+   (slug). No second/bespoke parser was introduced.
+3. **Resource/CRUD completeness — RESOLVED in ADR 004**: it is the core-module
+   commands/queries CONVENTION, not platform truth, so it lives OUTSIDE the graph
+   (TASK-9.6 platform facts + TASK-9.7 convention overlay), not in `platformos-graph`.
+
+   `Reference.kind` was also resolved (TASK-9.1): an optional discriminant
+   (`render | include | function | background | graphql | asset | layout`) plus a
+   later `args?: string[]` (TASK-9.2); web-component was removed.
+
+## Resolved (2026-07-02)
+
+5. **Build cost / freshness — RESOLVED (TASK-9.10).** The full-app graph is cached
+   at the supervisor edge (one `GraphCache` per project) and reused across
+   `validate_code` calls — but **never served stale**. Rejected TTL *and*
+   serve-stale-while-revalidate: both can hand the agent an out-of-date answer,
+   which would mislead it (e.g. "nothing depends on this, safe to change" when a
+   caller was added). Instead the cache is **fingerprint-validated on every
+   request** (a cheap `mtime:size` stat-scan over the edge-source liquid files):
+   it serves the graph only when that fingerprint is unchanged, and otherwise
+   reports `computing` and rebuilds in the background. The build is never awaited
+   on the request path (blast-radius is a secondary signal; a graph failure never
+   sinks the lint gate). In practice the agent validates in-flight *buffers*
+   without writing to disk, so the fingerprint keeps matching and the answer stays
+   fresh across a burst; a rebuild is triggered only after an actual file write.
 
 ## References
 

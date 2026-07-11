@@ -1,6 +1,6 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isLayout } from '../../path';
+import { getFileType, PlatformOSFileType } from '../../path';
 
 /**
  * Ensures every layout outputs `{{ content_for_layout }}`.
@@ -10,8 +10,10 @@ import { isLayout } from '../../path';
  * entirely — a correctness defect, not a style issue. (Named slots use
  * `{% yield 'name' %}` separately and do not substitute for it.)
  *
- * The check is scoped to layout files via `getFileType` (re-exported as
- * `isLayout`) so it never fires on pages or partials. Both detection and the
+ * The check is scoped to layout files via the canonical
+ * `PlatformOSFileType.Layout` (the single source of truth shared with
+ * DocumentsLocator's `'layout'` type and the graph's layout edge), so it never
+ * fires on pages or partials. Both detection and the
  * suggested fix are AST-based: any reference to the `content_for_layout`
  * variable clears the check (whether emitted with `{{ … }}`, `{% echo … %}`,
  * or inside a `{% liquid %}` block), and the fix is inserted before the
@@ -39,7 +41,7 @@ export const MissingContentForLayout: LiquidCheckDefinition = {
 
   create(context) {
     // Scope to layout files only; pages/partials/etc. must not be flagged.
-    if (!isLayout(context.file.uri)) return {};
+    if (getFileType(context.file.uri) !== PlatformOSFileType.Layout) return {};
 
     let referencesContentForLayout = false;
     // Start index of the `</body>` closing tag, captured from the AST so the

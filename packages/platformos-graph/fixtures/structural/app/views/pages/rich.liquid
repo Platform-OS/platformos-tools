@@ -1,0 +1,8 @@
+---
+layout: application
+---
+{% assign x = 'a' %}
+{% if x %}{{ x | upcase }}{% endif %}
+{% render 'card' %}
+{% graphql res = 'blog/find' %}
+{{ 'greeting.hello' | t }}

@@ -1,0 +1,516 @@
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { path } from '@platformos/platformos-check-common';
+import { NodeFileSystem } from '@platformos/platformos-check-node';
+import {
+  buildAppGraph,
+  type AppGraph,
+  dependentsOf,
+  type FileChangeKind,
+} from '@platformos/platformos-graph';
+
+import { GraphCache } from './graph-cache';
+import { decodeCacheFile } from './graph-cache-store';
+
+/**
+ * A fake graph tagged with a build id so a test can assert WHICH build's graph
+ * was returned (the cache treats the graph as opaque).
+ */
+const fakeGraph = (id: number): AppGraph =>
+  ({ rootUri: 'file:///p', entryPoints: [], modules: {}, __build: id }) as unknown as AppGraph;
+
+const fp = (entries: Record<string, string>) => new Map(Object.entries(entries));
+
+describe('GraphCache: never-stale, background-built, deduplicated', () => {
+  const rootUri = 'file:///p';
+
+  it('does not serve a graph on the first lookup, but triggers a build that a later lookup serves', async () => {
+    const buildGraph = vi.fn(async () => fakeGraph(1));
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => fp({ a: '1' }),
+      buildGraph,
+    });
+
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'recomputing' });
+    await cache.settle();
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+    expect(buildGraph).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses the built graph across lookups while the fingerprint is unchanged (one build)', async () => {
+    const buildGraph = vi.fn(async () => fakeGraph(1));
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => fp({ a: '1' }),
+      buildGraph,
+    });
+
+    await cache.lookup();
+    await cache.settle();
+    await cache.lookup();
+    await cache.lookup();
+
+    expect(buildGraph).toHaveBeenCalledTimes(1);
+  });
+
+  it('NEVER serves stale: a source change is applied incrementally and served fresh (no rebuild)', async () => {
+    let current = fp({ a: '1' });
+    const applied: Array<[string, FileChangeKind]> = [];
+    const buildGraph = vi.fn(async () => fakeGraph(1));
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph,
+      applyChange: async (_graph, uri, kind) => {
+        applied.push([uri, kind]);
+      },
+    });
+
+    await cache.lookup();
+    await cache.settle();
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+
+    // A source file changed → the graph is updated in place and served immediately.
+    current = fp({ a: '2' });
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+    expect(applied).toEqual([['a', 'modified']]);
+    expect(buildGraph).toHaveBeenCalledTimes(1); // updated incrementally, NOT rebuilt
+  });
+
+  it('applies added, modified, and deleted files from the fingerprint diff', async () => {
+    let current = fp({ a: '1', b: '1' });
+    const applied: Array<[string, FileChangeKind]> = [];
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async (_graph, uri, kind) => {
+        applied.push([uri, kind]);
+      },
+    });
+
+    await cache.lookup();
+    await cache.settle();
+
+    current = fp({ a: '2', c: '1' }); // a modified, c added, b deleted
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+    // Diff order: changed/added in `next` insertion order, then deletions.
+    expect(applied).toEqual([
+      ['a', 'modified'],
+      ['c', 'added'],
+      ['b', 'deleted'],
+    ]);
+  });
+
+  it('falls back to a full rebuild when incremental apply fails (never a half-applied graph)', async () => {
+    let current = fp({ a: '1' });
+    let build = 0;
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(++build),
+      applyChange: async () => {
+        throw new Error('apply boom');
+      },
+    });
+
+    await cache.lookup();
+    await cache.settle();
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+
+    // Incremental apply throws → discard the graph and rebuild from scratch.
+    current = fp({ a: '2' });
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'recomputing' });
+    await cache.settle();
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(2) });
+    expect(build).toBe(2);
+  });
+
+  it('serializes concurrent reconciliations so the same change is not double-applied', async () => {
+    let current = fp({ a: '1' });
+    let applyCount = 0;
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async () => {
+        applyCount++;
+        await Promise.resolve();
+      },
+    });
+
+    await cache.lookup();
+    await cache.settle();
+
+    current = fp({ a: '2' });
+    const results = await Promise.all([cache.lookup(), cache.lookup(), cache.lookup()]);
+    results.forEach((result) => expect(result).toEqual({ graph: fakeGraph(1) }));
+    // First reconcile applies 'a'; the queued ones re-check (already caught up) → no-op.
+    expect(applyCount).toBe(1);
+  });
+
+  it('reconciles to the freshly re-read disk state, never a stale scan the lookup first observed', async () => {
+    // The reconcile re-reads the fingerprint INSIDE the serialized section, so it
+    // converges to the ACTUAL current disk — not the value a racing lookup saw
+    // earlier (which, applied out of order, would be a backward diff / stale graph).
+    const applied: Array<[string, FileChangeKind]> = [];
+    // computeFingerprint returns, in call order: cold build (a:1), the lookup's
+    // off-lock scan (a:2), then the reconcile's fresh in-lock scan (a:2 + b:1).
+    const queue = [fp({ a: '1' }), fp({ a: '2' }), fp({ a: '2', b: '1' })];
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => queue.shift() ?? fp({ a: '2', b: '1' }),
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async (_graph, uri, kind) => {
+        applied.push([uri, kind]);
+      },
+    });
+
+    await cache.lookup(); // cold build at {a:1}
+    await cache.settle();
+    await cache.lookup(); // observes {a:2} off-lock, but reconciles to the fresh {a:2,b:1}
+
+    // The diff applied is {a:1} → {a:2,b:1} (the RE-READ state), not {a:1} → {a:2}.
+    expect(applied).toEqual([
+      ['a', 'modified'],
+      ['b', 'added'],
+    ]);
+  });
+
+  it('coalesces persistence: a burst during an in-flight write flushes as ONE follow-up of the latest state', async () => {
+    let current = fp({ a: '1' });
+    let releaseFirstWrite!: () => void;
+    const firstWriteGate = new Promise<void>((resolve) => (releaseFirstWrite = resolve));
+    const persisted: string[] = [];
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => current,
+      buildGraph: async () => fakeGraph(1),
+      applyChange: async () => {}, // fingerprint tracks the state; graph object is opaque here
+      readCacheFile: async () => null,
+      writeCacheFile: async (contents) => {
+        persisted.push(contents);
+        if (persisted.length === 1) await firstWriteGate; // hold the cold-build write open
+      },
+    });
+
+    await cache.lookup(); // cold build → schedules write #1 (blocks on the gate)
+    // While write #1 is in flight, two reconciles land — both only mark dirty.
+    current = fp({ a: '2' });
+    await cache.lookup();
+    current = fp({ a: '2', b: '1' });
+    await cache.lookup();
+    releaseFirstWrite();
+    await cache.settle();
+
+    // Exactly two writes — the gated cold-build write (a:1), then ONE coalesced
+    // follow-up for the whole burst persisting the LATEST state (a:2,b:1) — not one
+    // write per reconcile.
+    const persistedFingerprints = persisted.map((c) => decodeCacheFile(c, rootUri)?.fingerprint);
+    expect(persistedFingerprints).toEqual([fp({ a: '1' }), fp({ a: '2', b: '1' })]);
+  });
+
+  it('reports unavailable when the build fails, without a retry storm for the same source', async () => {
+    const buildGraph = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => fp({ a: '1' }),
+      buildGraph,
+    });
+
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'recomputing' });
+    await cache.settle();
+    // Same (failed) fingerprint: unavailable, and NOT retried on every call.
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'unavailable' });
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'unavailable' });
+    expect(buildGraph).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries the build after a failure once the source fingerprint changes', async () => {
+    let current = fp({ a: '1' });
+    const buildGraph = vi.fn(async () => {
+      if (current.get('a') === '1') throw new Error('boom');
+      return fakeGraph(2);
+    });
+    const cache = new GraphCache({ rootUri, computeFingerprint: async () => current, buildGraph });
+
+    await cache.lookup();
+    await cache.settle();
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'unavailable' });
+
+    current = fp({ a: '2' }); // project edited (maybe fixed)
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'recomputing' });
+    await cache.settle();
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(2) });
+    expect(buildGraph).toHaveBeenCalledTimes(2);
+  });
+
+  it('deduplicates concurrent lookups into a single in-flight build', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const buildGraph = vi.fn(async () => {
+      await gate;
+      return fakeGraph(1);
+    });
+    const cache = new GraphCache({
+      rootUri,
+      computeFingerprint: async () => fp({ a: '1' }),
+      buildGraph,
+    });
+
+    // Fire several lookups before the build resolves.
+    await Promise.all([cache.lookup(), cache.lookup(), cache.lookup()]);
+    release();
+    await cache.settle();
+
+    expect(buildGraph).toHaveBeenCalledTimes(1);
+    expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+  });
+});
+
+describe('GraphCache: real project (integration — real buildAppGraph + fs + mtime)', () => {
+  let projectDir: string;
+  let rootUri: string;
+  const write = (rel: string, body: string) => {
+    const abs = join(projectDir, rel);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, body, 'utf8');
+  };
+  const uri = (rel: string) => path.normalize(path.URI.file(join(projectDir, rel)));
+
+  beforeAll(() => {
+    projectDir = mkdtempSync(join(tmpdir(), 'mcp-sup-graphcache-'));
+    write('app/views/partials/card.liquid', '<div>{{ title }}</div>');
+    write('app/views/pages/index.liquid', "{% render 'card' %}");
+    write('app/views/pages/about.liquid', '<h1>About</h1>');
+    rootUri = path.normalize(path.URI.file(projectDir));
+  });
+
+  afterAll(() => rmSync(projectDir, { recursive: true, force: true }));
+
+  const dependentSources = (graph: AppGraph, rel: string): string[] =>
+    dependentsOf(graph, uri(rel))
+      .map((ref) => ref.source.uri)
+      .sort();
+
+  it('builds a fresh graph whose dependents reflect real callers, and stays fresh incrementally on a source change', async () => {
+    const cache = new GraphCache({ rootUri, fs: NodeFileSystem });
+
+    // Cold: no graph yet, build triggered.
+    expect(await cache.lookup()).toEqual({ graph: null, reason: 'recomputing' });
+    await cache.settle();
+
+    const first = await cache.lookup();
+    expect('graph' in first && first.graph).toBeTruthy();
+    if (!('graph' in first) || !first.graph) throw new Error('expected a fresh graph');
+    // card is rendered by index → index is its sole dependent.
+    expect(dependentSources(first.graph, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/index.liquid'),
+    ]);
+
+    // Edit a caller so about now also renders card. The cache applies the change
+    // incrementally (real applyFileChange) and serves the UPDATED graph
+    // immediately — no `recomputing` gap. (A fresh mtime is guaranteed by
+    // writing different content.)
+    write('app/views/pages/about.liquid', "{% render 'card' %}\n<h1>About</h1>");
+    const second = await cache.lookup();
+    if (!('graph' in second) || !second.graph) throw new Error('expected an updated graph');
+    expect(dependentSources(second.graph, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/about.liquid'),
+      uri('app/views/pages/index.liquid'),
+    ]);
+  }, 20000);
+});
+
+describe('GraphCache: persistence (Phase 2 — warm cold-start from disk + reconcile)', () => {
+  let projectDir: string;
+  let cacheDir: string;
+  let cachePath: string;
+  let rootUri: string;
+
+  const write = (rel: string, body: string) => {
+    const absPath = join(projectDir, rel);
+    mkdirSync(dirname(absPath), { recursive: true });
+    writeFileSync(absPath, body, 'utf8');
+  };
+  const uri = (rel: string) => path.normalize(path.URI.file(join(projectDir, rel)));
+  const dependentSources = (graph: AppGraph, rel: string): string[] =>
+    dependentsOf(graph, uri(rel))
+      .map((ref) => ref.source.uri)
+      .sort();
+  // A real build, wrapped so a test can spy on whether the graph was rebuilt vs loaded.
+  const realBuild = (root: string, fs: typeof NodeFileSystem, entryPoints: string[]) =>
+    buildAppGraph(root, { fs }, entryPoints);
+  const graphOf = (lookup: Awaited<ReturnType<GraphCache['lookup']>>): AppGraph => {
+    if (!('graph' in lookup) || !lookup.graph) throw new Error('expected a graph');
+    return lookup.graph;
+  };
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), 'mcp-sup-persist-proj-'));
+    // The cache file lives OUTSIDE the project so it is never walked as a source.
+    cacheDir = mkdtempSync(join(tmpdir(), 'mcp-sup-persist-cache-'));
+    cachePath = join(cacheDir, 'graph.json');
+    write('app/views/partials/card.liquid', '<div>{{ title }}</div>');
+    write('app/views/pages/index.liquid', "{% render 'card' %}");
+    rootUri = path.normalize(path.URI.file(projectDir));
+  });
+
+  afterEach(() => {
+    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(cacheDir, { recursive: true, force: true });
+  });
+
+  it('persists after a cold build and warms a fresh instance from disk (no rebuild)', async () => {
+    const first = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath });
+    await first.lookup();
+    await first.settle();
+    expect(existsSync(cachePath)).toBe(true); // persisted after the build
+
+    // A brand-new instance (as if the server restarted) must LOAD, not rebuild.
+    const buildSpy = vi.fn(realBuild);
+    const second = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath, buildGraph: buildSpy });
+    expect(await second.lookup()).toEqual({ graph: null, reason: 'recomputing' }); // hydrating
+    await second.settle();
+
+    const served = graphOf(await second.lookup());
+    expect(dependentSources(served, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/index.liquid'),
+    ]);
+    expect(buildSpy).not.toHaveBeenCalled(); // loaded from disk, never rebuilt
+  });
+
+  it('reconciles the on-disk delta after warming from cache (still never rebuilds)', async () => {
+    const first = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath });
+    await first.lookup();
+    await first.settle();
+
+    // Source changed while "offline": a new page renders card. The warmed instance
+    // must reconcile this delta incrementally, not rebuild.
+    write('app/views/pages/about.liquid', "{% render 'card' %}");
+    const buildSpy = vi.fn(realBuild);
+    const second = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath, buildGraph: buildSpy });
+    await second.lookup(); // cold → hydrate (load) in background
+    await second.settle();
+
+    const served = graphOf(await second.lookup()); // reconciles the `about` delta, serves fresh
+    expect(dependentSources(served, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/about.liquid'),
+      uri('app/views/pages/index.liquid'),
+    ]);
+    expect(buildSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a full build when the cache file is corrupt (never a wrong answer)', async () => {
+    mkdirSync(dirname(cachePath), { recursive: true });
+    writeFileSync(cachePath, 'this is not valid json', 'utf8');
+
+    const buildSpy = vi.fn(realBuild);
+    const cache = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath, buildGraph: buildSpy });
+    await cache.lookup();
+    await cache.settle();
+
+    const served = graphOf(await cache.lookup());
+    expect(buildSpy).toHaveBeenCalledTimes(1); // corrupt cache → rebuilt
+    expect(dependentSources(served, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/index.liquid'),
+    ]);
+  });
+});
+
+describe('GraphCache: scoped source walk (Phase 3A — platformOS roots only)', () => {
+  let projectDir: string;
+  let rootUri: string;
+
+  const write = (rel: string, body: string) => {
+    const absPath = join(projectDir, rel);
+    mkdirSync(dirname(absPath), { recursive: true });
+    writeFileSync(absPath, body, 'utf8');
+  };
+  const uri = (rel: string) => path.normalize(path.URI.file(join(projectDir, rel)));
+  const graphOf = (lookup: Awaited<ReturnType<GraphCache['lookup']>>): AppGraph => {
+    if (!('graph' in lookup) || !lookup.graph) throw new Error('expected a graph');
+    return lookup.graph;
+  };
+
+  beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), 'mcp-sup-scope-'));
+    rootUri = path.normalize(path.URI.file(projectDir));
+  });
+
+  afterEach(() => rmSync(projectDir, { recursive: true, force: true }));
+
+  it('enumerates edge sources across app/, marketplace_builder/, and modules/ roots', async () => {
+    // One edge source under each of the three canonical platformOS source roots,
+    // plus a nested app/modules/ partial (reached via the app/ root).
+    write('app/views/partials/card.liquid', '<div>{{ title }}</div>');
+    write('app/views/pages/index.liquid', "{% render 'card' %}");
+    write('marketplace_builder/views/pages/legacy.liquid', '<h1>legacy</h1>');
+    write('modules/shop/public/views/partials/widget.liquid', '<span></span>');
+    write('app/modules/blog/private/views/pages/post.liquid', '<article></article>');
+
+    // The scoped enumeration feeds `buildAppGraph` its entry points; capture them
+    // to assert the exact edge-source set the walk gathered (the Phase-3A contract).
+    let entryPoints: string[] = [];
+    const cache = new GraphCache({
+      rootUri,
+      fs: NodeFileSystem,
+      buildGraph: async (root, fs, eps) => {
+        entryPoints = eps;
+        return buildAppGraph(root, { fs }, eps);
+      },
+    });
+    await cache.lookup();
+    await cache.settle();
+
+    expect([...entryPoints].sort()).toEqual(
+      [
+        uri('app/views/partials/card.liquid'),
+        uri('app/views/pages/index.liquid'),
+        uri('marketplace_builder/views/pages/legacy.liquid'),
+        uri('modules/shop/public/views/partials/widget.liquid'),
+        uri('app/modules/blog/private/views/pages/post.liquid'),
+      ].sort(),
+    );
+  }, 20000);
+
+  it('never walks non-platformOS subtrees (a bundled react-app/ is skipped)', async () => {
+    write('app/views/pages/index.liquid', "{% render 'card' %}");
+    write('app/views/partials/card.liquid', '<div></div>');
+    // A large non-platformOS sibling that must NOT be descended into.
+    write('react-app/src/components/Widget.liquid', 'noise that is never a source');
+
+    const readDirs: string[] = [];
+    const spyFs: typeof NodeFileSystem = {
+      ...NodeFileSystem,
+      readDirectory: async (dir: string) => {
+        readDirs.push(dir);
+        return NodeFileSystem.readDirectory(dir);
+      },
+    };
+
+    const cache = new GraphCache({ rootUri, fs: spyFs });
+    await cache.lookup();
+    await cache.settle();
+    const graph = graphOf(await cache.lookup());
+
+    // Deduplicate: each lookup re-scans, so a root can be read more than once —
+    // membership, not count, is the contract.
+    const walked = new Set(readDirs);
+    // The scoped walk descended the real source root (`app/` — the exact URI the
+    // enumeration passes to readDirectory)…
+    const appRoot = path.join(rootUri, 'app');
+    expect([...walked].filter((dir) => dir === appRoot)).toEqual([appRoot]);
+    // …but NEVER the non-platformOS subtree, and never the project root itself.
+    expect([...walked].filter((dir) => dir.includes('/react-app'))).toEqual([]);
+    expect([...walked].filter((dir) => dir === rootUri)).toEqual([]);
+    // The stray .liquid under react-app/ is not a graph node (never enumerated).
+    expect(graph.modules[uri('react-app/src/components/Widget.liquid')]).toBeUndefined();
+  }, 20000);
+});

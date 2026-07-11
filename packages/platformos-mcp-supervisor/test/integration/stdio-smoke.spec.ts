@@ -1,8 +1,9 @@
 /**
  * Smoke test: build the package, then drive the REAL stdio bin with the
  * official MCP SDK client. Verifies the transport, the `validate_code`
- * registration, the JSON-text result envelope, AND that real linting flows
- * end to end (check-node → mapped diagnostics).
+ * registration, the JSON-text result envelope, real linting end to end
+ * (check-node → mapped diagnostics), AND the cross-file blast radius end to end
+ * (the cached project graph → `dependentsOf` → `impact`).
  *
  * The package is built in `beforeAll` (incremental `tsc -b`) so the suite is
  * self-contained under `yarn test` without a prior build step. A hermetic
@@ -57,6 +58,22 @@ beforeAll(async () => {
     'utf8',
   );
 
+  // A real project on disk so the cached graph (and thus blast radius) is real:
+  // `home` renders `card` → `card` has one dependent; `lonely` has none.
+  const writeProjectFile = (rel: string, body: string) => {
+    const abs = join(projectDir, rel);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, body, 'utf8');
+  };
+  writeProjectFile('app/views/partials/card.liquid', '<div class="card">{{ title }}</div>');
+  writeProjectFile('app/views/partials/lonely.liquid', '<div>nobody renders me</div>');
+  writeProjectFile('app/views/pages/home.liquid', "{% render 'card' %}");
+  writeProjectFile(
+    'app/views/layouts/theme.liquid',
+    '<html><body>{{ content_for_layout }}</body></html>',
+  );
+  writeProjectFile('app/lib/queries/list.liquid', "{% graphql r = 'noop' %}\n{% return r %}");
+
   transport = new StdioClientTransport({
     command: process.execPath,
     args: [BIN, '--project', projectDir],
@@ -65,11 +82,22 @@ beforeAll(async () => {
   await client.connect(transport);
 }, 180_000);
 
+/**
+ * Call `validate_code` and return the parsed result, polling until the
+ * background-built project graph is fresh (so `impact` is deterministic rather
+ * than the transient `computing`). Disk is not written between calls, so once
+ * built the graph stays fresh.
+ */
 async function validateCode(args: { file_path: string; content: string; mode?: string }) {
-  const res = await client.callTool({ name: 'validate_code', arguments: args });
-  const content = res.content as Array<{ type: string; text: string }>;
-  expect(content[0].type).toEqual('text');
-  return JSON.parse(content[0].text);
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const res = await client.callTool({ name: 'validate_code', arguments: args });
+    const content = res.content as Array<{ type: string; text: string }>;
+    expect(content[0].type).toEqual('text');
+    const result = JSON.parse(content[0].text);
+    if (result.impact?.status !== 'computing') return result;
+    await new Promise((resolvePoll) => setTimeout(resolvePoll, 100));
+  }
+  throw new Error('blast radius did not settle (impact still "computing" after polling)');
 }
 
 afterAll(async () => {
@@ -78,13 +106,8 @@ afterAll(async () => {
 });
 
 describe('Integration: validate_code over stdio', () => {
-  it('advertises exactly the validate_code tool', async () => {
-    const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['validate_code']);
-  });
-
-  // The always-empty envelope fields in this lint-only slice; spread into each
-  // expected result so every assertion checks the WHOLE object.
+  // The always-empty envelope fields in this slice; spread into each expected
+  // result so every assertion checks the WHOLE object.
   const EMPTY_ENVELOPE = {
     errors: [],
     warnings: [],
@@ -95,10 +118,33 @@ describe('Integration: validate_code over stdio', () => {
     parse_error: null,
     tips: [],
     domain_guide: null,
-    structural: null,
   };
 
-  it('returns the exact clean result for a valid layout', async () => {
+  // "Computed, nothing depends on this" — the safe-to-change signal, and the
+  // impact for files nothing on disk references.
+  const NO_DEPENDENTS = {
+    scope: 'direct',
+    status: 'computed',
+    dependents: { total: 0, by_kind: {}, sample: [] },
+  };
+
+  const MISSING_CONTENT_FOR_LAYOUT = {
+    check: 'MissingContentForLayout',
+    severity: 'error',
+    message:
+      "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
+    line: 1,
+    column: 1,
+    end_line: 1,
+    end_column: 1,
+  };
+
+  it('advertises exactly the validate_code tool', async () => {
+    const { tools } = await client.listTools();
+    expect(tools.map((t) => t.name)).toEqual(['validate_code']);
+  });
+
+  it('returns the exact clean result for a valid layout (nothing depends on it)', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body>{{ content_for_layout }}</body></html>',
@@ -108,10 +154,11 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
+      impact: NO_DEPENDENTS,
     });
   });
 
-  it('surfaces the exact lint diagnostic end to end', async () => {
+  it('surfaces the exact lint diagnostic AND the blast radius together, without conflating them', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body><header>Site</header></body></html>',
@@ -121,18 +168,75 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
-      errors: [
-        {
-          check: 'MissingContentForLayout',
-          severity: 'error',
-          message:
-            "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
-          line: 1,
-          column: 1,
-          end_line: 1,
-          end_column: 1,
+      errors: [MISSING_CONTENT_FOR_LAYOUT],
+      impact: NO_DEPENDENTS,
+    });
+  });
+
+  it('reports the cross-file blast radius: who depends on the edited partial', async () => {
+    // `card` is rendered by the on-disk `home` page → exactly one dependent.
+    const result = await validateCode({
+      file_path: 'app/views/partials/card.liquid',
+      content: '<div class="card">{{ title }} {{ subtitle }}</div>',
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      impact: {
+        scope: 'direct',
+        status: 'computed',
+        dependents: {
+          total: 1,
+          by_kind: { render: 1 },
+          sample: ['app/views/pages/home.liquid'],
         },
-      ],
+      },
+    });
+  });
+
+  it('reports zero dependents (safe to change) as computed — distinct from "not computed"', async () => {
+    const result = await validateCode({
+      file_path: 'app/views/partials/lonely.liquid',
+      content: '<div>still nobody</div>',
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      impact: NO_DEPENDENTS,
+    });
+  });
+
+  it('flags a caller broken by the edited partial’s new {% doc %} signature (signature-impact)', async () => {
+    // `home` renders `card` passing NO args. Give `card` a doc that REQUIRES
+    // `title` → `home` is now missing a required param, reported cross-file.
+    const result = await validateCode({
+      file_path: 'app/views/partials/card.liquid',
+      content: `{% doc %}
+  @param {String} title - required title
+{% enddoc %}
+<div class="card">{{ title }}</div>`,
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      impact: {
+        scope: 'direct',
+        status: 'computed',
+        dependents: { total: 1, by_kind: { render: 1 }, sample: ['app/views/pages/home.liquid'] },
+        signature_risk: [
+          {
+            caller: 'app/views/pages/home.liquid',
+            missing_required: ['title'],
+            unexpected_args: [],
+          },
+        ],
+      },
     });
   });
 });

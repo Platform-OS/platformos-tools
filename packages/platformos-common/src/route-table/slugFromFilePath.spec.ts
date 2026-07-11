@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slugFromFilePath, formatFromFilePath } from './slugFromFilePath';
+import { slugFromFilePath, formatFromFilePath, effectivePageSlug } from './slugFromFilePath';
 
 describe('slugFromFilePath', () => {
   it('derives / from index.html.liquid', () => {
@@ -80,5 +80,57 @@ describe('formatFromFilePath', () => {
 
   it('returns html for index.liquid', () => {
     expect(formatFromFilePath('index.liquid')).toBe('html');
+  });
+});
+
+describe('effectivePageSlug', () => {
+  it('derives the slug from the path when no frontmatter is present', () => {
+    expect(effectivePageSlug('about.html.liquid')).toBe('about');
+  });
+
+  it('derives / from index.liquid with no frontmatter', () => {
+    expect(effectivePageSlug('index.liquid')).toBe('/');
+  });
+
+  it('uses an explicit string slug override verbatim, not the path', () => {
+    expect(effectivePageSlug('about.liquid', { slug: 'custom/path' })).toBe('custom/path');
+  });
+
+  it('honours an empty-string slug override verbatim', () => {
+    expect(effectivePageSlug('about.liquid', { slug: '' })).toBe('');
+  });
+
+  it('coerces a numeric slug override to a string (YAML may parse it as a number)', () => {
+    expect(effectivePageSlug('about.liquid', { slug: 2024 })).toBe('2024');
+  });
+
+  it('coerces a boolean slug override to a string', () => {
+    expect(effectivePageSlug('about.liquid', { slug: false })).toBe('false');
+  });
+
+  it('falls back to the path-derived slug when the override is null', () => {
+    expect(effectivePageSlug('about.liquid', { slug: null })).toBe('about');
+  });
+
+  it('falls back to the path-derived slug when the override is undefined', () => {
+    expect(effectivePageSlug('about.liquid', { slug: undefined })).toBe('about');
+  });
+
+  it('derives the slug using the frontmatter `format` override when present', () => {
+    // The filename has no format extension, so the file-derived format is html;
+    // the frontmatter override selects json, which changes nothing here but is
+    // the value threaded to slugFromFilePath (mirrors RouteTable).
+    expect(effectivePageSlug('api/data.liquid', { format: 'json' })).toBe('api/data');
+  });
+
+  it('strips the format extension using the frontmatter `format` override', () => {
+    // `data.json` under the pages dir with a `json` format override strips
+    // `.json`, yielding `data` — proving the override, not the filename, drives
+    // the format used for stripping.
+    expect(effectivePageSlug('data.json', { format: 'json' })).toBe('data');
+  });
+
+  it('ignores a non-string frontmatter `format` and uses the file-derived format', () => {
+    expect(effectivePageSlug('api/data.json.liquid', { format: 123 })).toBe('api/data');
   });
 });

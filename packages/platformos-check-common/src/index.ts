@@ -42,6 +42,22 @@ import {
 import { getPosition } from './utils';
 import { visitJSON, visitLiquid } from './visitors';
 
+// `getPosition` (source + 0-based offset → { line, character }) is the canonical
+// offset→position utility used by `check()` itself; re-exported so sibling
+// consumers (e.g. the MCP supervisor mapping graph references) reuse it instead
+// of re-counting newlines.
+export { getPosition } from './utils';
+
+// `levenshtein` (edit distance) is re-exported so sibling consumers (e.g. the
+// graph's nearest-name "did you mean" candidates) reuse it rather than
+// re-implementing string-distance.
+export { levenshtein } from './utils';
+
+// `isTranslationKeyUsage` is the shared predicate for "a string literal piped
+// through `t`/`translate`"; exported so the graph's self-structural detects
+// translation keys with the SAME rule as the `TranslationKeyExists` check.
+export { isTranslationKeyUsage, TRANSLATION_FILTERS } from './translation-usage';
+
 export * from './AugmentedPlatformOSDocset';
 export * from './types/platformos-liquid-docs';
 export * from './checks';

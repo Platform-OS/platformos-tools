@@ -47,6 +47,7 @@ import { debounce } from '../utils';
 import { SearchPathsLoader } from '../utils/searchPaths';
 import { VERSION } from '../version';
 import { CachedFileSystem } from './CachedFileSystem';
+import { DocumentBackedFileSystem } from './DocumentBackedFileSystem';
 import { Configuration, INCLUDE_FILES_FROM_DISK } from './Configuration';
 import { safe } from './safe';
 import { AppGraphManager } from './AppGraphManager';
@@ -163,9 +164,14 @@ export function startServer(
 
   // These are augmented here so that the caching is maintained over different runs.
   const platformosDocset = new AugmentedPlatformOSDocset(remotePlatformOSDocset);
+  // Checks read the files they reference (e.g. the partial targeted by a
+  // render/function call) through `context.fs`. Serve those reads from the
+  // DocumentManager so cross-file diagnostics reflect the latest in-editor buffer
+  // rather than a stale, disk-cached copy.
+  const checksFs = new DocumentBackedFileSystem(fs, documentManager);
   const runChecks = debounce(
     makeRunChecks(documentManager, diagnosticsManager, {
-      fs,
+      fs: checksFs,
       loadConfig,
       platformosDocset,
       jsonValidationSet,

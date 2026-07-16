@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseArgs, resolveProjectDir } from './args';
+import { parseArgs, resolveProjectDir } from './args.js';
 
 describe('Unit: parseArgs', () => {
   it('parses --project <dir>', () => {

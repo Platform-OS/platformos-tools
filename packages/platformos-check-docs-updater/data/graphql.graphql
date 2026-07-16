@@ -11898,7 +11898,16 @@ type User implements HasModelsInterface & HasRecordsInterface & LegacyCustomAttr
   """
   JWT token that can be used for authentication
   """
-  jwt_token(algorithm: JwtAlgorithm = HS256): String
+  jwt_token(
+    algorithm: JwtAlgorithm = HS256
+
+    """
+    Number of seconds after which the token expires, clamped to a maximum of one
+    year. When omitted, the token expires after the instance session timeout
+    (same source as the `{% sign_in %}` tag). Expired tokens are rejected on decode.
+    """
+    expires_in: Int = null
+  ): String
 
   """
   Used by translations to set the language of currently logged in user

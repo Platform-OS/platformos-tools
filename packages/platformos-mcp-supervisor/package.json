@@ -2,8 +2,15 @@
   "name": "@platformos/platformos-mcp-supervisor",
   "version": "0.0.1",
   "description": "platformOS Model Context Protocol (MCP) server exposing validate_code for LLM agents.",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/platformos-mcp-supervisor#readme",
   "repository": {

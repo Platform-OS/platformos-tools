@@ -9,10 +9,10 @@
 import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-import { runLint } from '../lint/lint';
-import { assembleResult } from '../result/assemble';
-import type { Logger } from '../logger';
-import type { ValidateCodeParams, ValidateCodeResult } from '../result/types';
+import { runLint } from '../lint/lint.js';
+import { assembleResult } from '../result/assemble.js';
+import type { Logger } from '../logger.js';
+import type { ValidateCodeParams, ValidateCodeResult } from '../result/types.js';
 
 /** Per-server context threaded into the handler. */
 export interface SupervisorContext {

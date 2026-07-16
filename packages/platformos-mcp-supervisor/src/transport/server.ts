@@ -9,8 +9,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { createLogger, type Logger } from '../logger';
-import { registerValidateCode, type SupervisorContext } from './validate-code';
+import { createLogger, type Logger } from '../logger.js';
+import { registerValidateCode, type SupervisorContext } from './validate-code.js';
 
 export interface ServerOptions {
   /** Absolute project root that buffers are validated against. */

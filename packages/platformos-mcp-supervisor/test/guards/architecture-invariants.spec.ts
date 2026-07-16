@@ -33,7 +33,7 @@ import {
   type SourceFile,
   usesLegacyParamExtraction,
   usesProcessGlobal,
-} from './scan';
+} from './scan.js';
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = join(PACKAGE_ROOT, 'src');

@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { runLint } from './lint';
-import type { ValidateCodeDiagnostic } from '../result/types';
+import { runLint } from './lint.js';
+import type { ValidateCodeDiagnostic } from '../result/types.js';
 
 /**
  * Adapter integration: drives the real check-node `lintBuffer` against a temp

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { assembleResult } from './assemble';
-import type { ValidateCodeDiagnostic, ValidateCodeResult } from './types';
+import { assembleResult } from './assemble.js';
+import type { ValidateCodeDiagnostic, ValidateCodeResult } from './types.js';
 
 const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => ({
   check: 'SomeCheck',

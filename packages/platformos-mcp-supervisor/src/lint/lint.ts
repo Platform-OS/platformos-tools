@@ -16,7 +16,7 @@ import { isAbsolute, join } from 'node:path';
 
 import { lintBuffer, Severity, type Offense } from '@platformos/platformos-check-node';
 
-import type { ValidateCodeDiagnostic, ValidateCodeSeverity } from '../result/types';
+import type { ValidateCodeDiagnostic, ValidateCodeSeverity } from '../result/types.js';
 
 export interface RunLintParams {
   /** Absolute project root the buffer is validated against. */

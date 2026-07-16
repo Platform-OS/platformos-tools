@@ -18,9 +18,9 @@
  * Pure arg/dir resolution lives in `./args` so it can be unit-tested without
  * importing this module (which boots the server on load).
  */
-import { createLogger } from '../logger';
-import { startServer } from '../transport/server';
-import { HELP, parseArgs, resolveProjectDir } from './args';
+import { createLogger } from '../logger.js';
+import { startServer } from '../transport/server.js';
+import { HELP, parseArgs, resolveProjectDir } from './args.js';
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));

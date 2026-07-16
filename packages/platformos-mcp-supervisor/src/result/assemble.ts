@@ -14,7 +14,7 @@ import type {
   ValidateCodeMode,
   ValidateCodeResult,
   ValidateCodeStatus,
-} from './types';
+} from './types.js';
 
 export function assembleResult(
   diagnostics: ValidateCodeDiagnostic[],

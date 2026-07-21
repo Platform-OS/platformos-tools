@@ -1,7 +1,12 @@
-It always takes at least one argument, but we don't break it
+It doesn't break a short single argument
 printWidth: 1
 {% form x %}{% endform %}
 {% form x %}hello{% endform %}
+
+It can be used without arguments
+printWidth: 1
+{% form %}{% endform %}
+{% form %}hello{% endform %}
 
 It can take named arguments, and respects liquidSingleQuote
 printWidth: 1
@@ -23,3 +28,7 @@ printWidth: 1
 It indents content (without whitespace stripping b/c form is inner insensitive)
 printWidth: 1
 {% form "cart",pos1%}hello{% endform %}
+
+It allows hyphenated attribute keys and optional commas between attributes
+printWidth: 120
+{% form html-class: "foo-form", html-submitonce: "true" html-foo-bar: "true" %}{% endform %}

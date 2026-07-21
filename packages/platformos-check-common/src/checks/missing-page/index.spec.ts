@@ -658,6 +658,100 @@ describe('Module: MissingPage', () => {
     });
   });
 
+  describe('rss format link regression (/blog/rss.rss)', () => {
+    it('does not report when the rss format page exists', async () => {
+      const sourceCode = '<a href="/blog/rss.rss">RSS</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/blog/rss.rss.liquid': '<rss></rss>',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([]);
+    });
+
+    it('does not report when the page declares format rss in frontmatter', async () => {
+      const sourceCode = '<a href="/blog/rss.rss">RSS</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/blog/rss.liquid': '---\nformat: rss\n---\n<rss></rss>',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([]);
+    });
+
+    it('reports when no page matches the rss URL', async () => {
+      const sourceCode = '<a href="/blog/rss.rss">RSS</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/blog/index.html.liquid': '<h1>Blog</h1>',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/blog/rss.rss' (GET)",
+      ]);
+    });
+
+    it('reports when only an html page exists at the rss URL path', async () => {
+      const sourceCode = '<a href="/blog/rss.rss">RSS</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {},
+        {
+          'app/views/pages/blog/rss.html.liquid': '<h1>Not a feed</h1>',
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/blog/rss.rss' (GET)",
+      ]);
+    });
+
+    it('reports when the module page serves the feed as xml (the platformos-blog scenario)', async () => {
+      const sourceCode = '<a href="/blog/rss.rss">RSS</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'modules/blog/public/views/partials/layout/footer.liquid',
+        {},
+        {
+          'modules/blog/public/views/pages/blog/rss.liquid':
+            "---\nslug: 'blog/rss'\nformat: xml\n---\n<rss></rss>",
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/blog/rss.rss' (GET)",
+      ]);
+    });
+
+    it('does not report the xml link when the module page serves the feed as xml', async () => {
+      const sourceCode = '<a href="/blog/rss.xml">RSS</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'modules/blog/public/views/partials/layout/footer.liquid',
+        {},
+        {
+          'modules/blog/public/views/pages/blog/rss.liquid':
+            "---\nslug: 'blog/rss'\nformat: xml\n---\n<rss></rss>",
+        },
+      );
+      expect(offenses.map((o) => o.message)).toEqual([]);
+    });
+  });
+
   describe('assign variable scoping per position', () => {
     it('resolves each link against the variable value at that point in the document', async () => {
       const sourceCode =

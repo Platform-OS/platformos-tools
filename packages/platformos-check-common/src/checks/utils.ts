@@ -9,12 +9,23 @@ import {
   AttrUnquoted,
   LiquidHtmlNode,
   LiquidBranch,
+  LiquidLiteralValues,
   LiquidTagFor,
   LiquidTagTablerow,
   LiquidTag,
   LoopNamedTags,
 } from '@platformos/liquid-html-parser';
 import { LiquidHtmlNodeOfType as NodeOfType } from '../types';
+
+/**
+ * Names that Liquid resolves as built-in literals before looking up variables
+ * (Liquid::Expression::LITERALS in the backend, `LiquidLiteralValues` in the
+ * parser grammar). Assigning to them succeeds silently, but reading them
+ * always returns the literal, never the assigned value.
+ */
+export const RESERVED_VARIABLE_NAMES: ReadonlySet<string> = new Set(
+  Object.keys(LiquidLiteralValues),
+);
 
 type ElementType<T> = T extends (infer E)[] ? E : never;
 

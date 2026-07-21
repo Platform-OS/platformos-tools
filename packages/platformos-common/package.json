@@ -25,7 +25,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.3.0",
     "vscode-json-languageservice": "^5.7.1",
     "vscode-uri": "^3.1.0"
   },

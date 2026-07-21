@@ -236,6 +236,19 @@ describe('Module: UnusedAssign', () => {
     expect(offenses).to.have.lengthOf(0);
   });
 
+  it('should not report assignments to reserved literal names (handled by ReservedVariableName)', async () => {
+    const sourceCode = `
+      {% liquid
+        assign empty = '{}' | parse_json
+        function invalid = 'modules/blog/commands/blog_instances/build', object: empty
+        echo invalid
+      %}
+    `;
+
+    const offenses = await runLiquidCheck(UnusedAssign, sourceCode);
+    expect(offenses).toEqual([]);
+  });
+
   it('should not report variables referenced in a string-markup fallback assign (parse failure)', async () => {
     // The stray `}` before `%}` causes the tolerant parser to fall back to
     // string markup. The AST contains no VariableLookup nodes for k/v, so

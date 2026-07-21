@@ -176,19 +176,23 @@ function printNamedLiquidBlockStart(
       ...suffix(trailingWhitespace),
     ]);
 
+  // Empty argument lists ({% form %}, {% transaction %}) print without the markup
+  // segment so we don't emit a double space between the tag name and the delimiter.
   const tagWithArrayMarkup = (whitespace: Doc) =>
-    wrapper([
-      ...prefix,
-      node.name,
-      ' ',
-      indent([
-        join(
-          [',', line],
-          path.map((p) => print(p, args), 'markup'),
-        ),
-      ]),
-      ...suffix(whitespace),
-    ]);
+    Array.isArray(node.markup) && node.markup.length === 0
+      ? wrapper([...prefix, node.name, ...suffix(whitespace)])
+      : wrapper([
+          ...prefix,
+          node.name,
+          ' ',
+          indent([
+            join(
+              [',', line],
+              path.map((p) => print(p, args), 'markup'),
+            ),
+          ]),
+          ...suffix(whitespace),
+        ]);
 
   switch (node.name) {
     case NamedTags.echo: {

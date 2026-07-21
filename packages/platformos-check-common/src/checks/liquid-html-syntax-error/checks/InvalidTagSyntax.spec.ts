@@ -194,6 +194,29 @@ describe('Module: InvalidTagSyntax', () => {
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
       expect(syntaxOffenses).toHaveLength(0);
     });
+
+    it('should not report form without arguments', async () => {
+      const sourceCode = `{% form %}content{% endform %}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
+
+    it('should not report form with hyphenated keys and missing commas between attributes', async () => {
+      // The runtime scans `[\w-]+: value` pairs out of the markup, so commas
+      // between attributes are optional and keys may contain hyphens.
+      const sourceCode = `{% form html-class: "foo-form", html-submitonce: "true" html-foo-bar: "true" %}content{% endform %}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
+
+    it('should not report form with a positional model name', async () => {
+      const sourceCode = `{% form form, method: 'delete' %}content{% endform %}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+      expect(syntaxOffenses).toHaveLength(0);
+    });
   });
 
   describe('inside {% liquid %} blocks', () => {

@@ -127,9 +127,10 @@ async function writeFileAtomic(filePath: string, contents: string): Promise<void
 
 /**
  * Real disk fingerprint: every edge-source liquid file → its per-file identity.
- * Reuses check-node's exported {@link fileFingerprint} — the SAME `mtimeMs:size`
- * definition its `AppCache` uses — so the two never-stale caches (lint's parsed
- * project + this graph) can never disagree on what "changed" means. A file that
+ * Reuses check-node's exported {@link fileFingerprint} — the SAME
+ * `mtimeMs:ctimeMs:size` definition its `AppCache` uses — so the two never-stale
+ * caches (lint's parsed project + this graph) can never disagree on what
+ * "changed" means. A file that
  * vanished between the walk and the stat yields `undefined` and is omitted; the
  * next scan reconciles.
  */

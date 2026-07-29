@@ -26,9 +26,14 @@ import {
  * interpreted (serialized-graph shape, fingerprint domain, entry-point meaning).
  * A file with a different version is discarded on load — never migrated.
  */
-export const CACHE_FORMAT_VERSION = 1;
+export const CACHE_FORMAT_VERSION = 2;
 
-/** Per-file identity used to detect on-disk change: `mtimeMs:size`. */
+/**
+ * Per-file identity used to detect on-disk change: `mtimeMs:ctimeMs:size` (see
+ * check-node's `fileFingerprint`). Version 2 added `ctimeMs`, so v1 files are
+ * discarded on load: their fingerprints are in the old domain and would compare
+ * unequal against every current one anyway, silently forcing a full rebuild.
+ */
 export type Fingerprint = Map<UriString, string>;
 
 /** The persisted cache document. `fingerprint` is a Map serialized as entries. */

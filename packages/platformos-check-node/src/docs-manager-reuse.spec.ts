@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 import { URI } from 'vscode-uri';
 
-import { appCheckRun, lintBuffer } from './index';
+import { appCheckRun, lintBuffer, resetPlatformOSLiquidDocsManager, updateDocs } from './index';
 import { Workspace, makeTempWorkspace } from './test/test-helpers';
 
 /**
@@ -23,7 +23,12 @@ vi.mock('@platformos/platformos-check-docs-updater', async (importOriginal) => {
     }
   }
 
-  return { ...actual, PlatformOSLiquidDocsManager: CountingDocsManager };
+  return {
+    ...actual,
+    PlatformOSLiquidDocsManager: CountingDocsManager,
+    // Stubbed so `updateDocs` performs no network I/O in tests.
+    downloadPlatformOSLiquidDocs: vi.fn(async () => {}),
+  };
 });
 
 /**
@@ -102,6 +107,28 @@ describe('Integration: docs manager reuse across lint runs', () => {
 
     expect(earlierRunLog).toHaveLength(earlierBefore);
     expect(laterRunLog.slice(laterBefore)).toEqual(['probe']);
+  });
+
+  it('builds a fresh manager after an explicit reset, so a changed docset is re-read', async () => {
+    await lintBuffer({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
+    const before = constructions.length;
+
+    resetPlatformOSLiquidDocsManager();
+    await lintBuffer({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
+
+    expect(constructions.length).toEqual(before + 1);
+  });
+
+  it('drops the shared manager when updateDocs refreshes the docset', async () => {
+    await lintBuffer({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
+    const before = constructions.length;
+
+    // Without this reset the process would keep validating against the docset it
+    // read BEFORE the download — e.g. reporting a brand-new filter as unknown.
+    await updateDocs();
+    await lintBuffer({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
+
+    expect(constructions.length).toEqual(before + 1);
   });
 
   it('still lints correctly through the shared manager', async () => {

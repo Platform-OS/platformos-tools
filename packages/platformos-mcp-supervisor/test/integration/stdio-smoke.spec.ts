@@ -88,9 +88,12 @@ beforeAll(async () => {
  * than the transient `computing`). Disk is not written between calls, so once
  * built the graph stays fresh.
  */
-async function validateCode(args: { file_path: string; content: string; mode?: string }) {
+async function validateCodeWith(
+  withClient: Client,
+  args: { file_path: string; content: string; mode?: string },
+) {
   for (let attempt = 0; attempt < 50; attempt++) {
-    const res = await client.callTool({ name: 'validate_code', arguments: args });
+    const res = await withClient.callTool({ name: 'validate_code', arguments: args });
     const content = res.content as Array<{ type: string; text: string }>;
     expect(content[0].type).toEqual('text');
     const result = JSON.parse(content[0].text);
@@ -99,6 +102,9 @@ async function validateCode(args: { file_path: string; content: string; mode?: s
   }
   throw new Error('blast radius did not settle (impact still "computing" after polling)');
 }
+
+const validateCode = (args: { file_path: string; content: string; mode?: string }) =>
+  validateCodeWith(client, args);
 
 afterAll(async () => {
   await client?.close();
@@ -239,4 +245,122 @@ describe('Integration: validate_code over stdio', () => {
       },
     });
   });
+});
+
+/**
+ * The loop an agent actually runs: `validate_code` reports a problem, the agent
+ * fixes it on disk, `validate_code` is asked again — and must no longer report it.
+ *
+ * This is the end-to-end guarantee behind the caches on the request path (the
+ * parsed-project `AppCache` and the project `GraphCache`): they are keyed on a
+ * per-file fingerprint, so a file appearing, changing, or disappearing is picked
+ * up on the NEXT call with no cache-clearing step. A regression here would be
+ * invisible to unit tests of either cache — the tool would simply keep reporting a
+ * problem the agent already fixed, or stop reporting one it re-introduced.
+ *
+ * Deliberately isolated: its own project dir, its own config (only `MissingPartial`
+ * enabled) and its own server process, because unlike the suite above it WRITES to
+ * disk between calls.
+ */
+describe('Integration: validate_code sees on-disk fixes without a cache-clearing step', () => {
+  let fixClient: Client;
+  let fixTransport: StdioClientTransport;
+  let fixProjectDir: string;
+  let partialPath: string;
+
+  /** A page that renders `ghost`; only ever sent as a buffer, never written to disk. */
+  const CALLER = {
+    file_path: 'app/views/pages/ghost-caller.liquid',
+    content: "{% render 'ghost' %}",
+  };
+
+  const MISSING_GHOST = {
+    check: 'MissingPartial',
+    severity: 'error',
+    message: "'ghost' does not exist",
+    line: 1,
+    column: 11,
+    end_line: 1,
+    end_column: 18,
+  };
+
+  const EMPTY_ENVELOPE = {
+    errors: [],
+    warnings: [],
+    infos: [],
+    proposed_fixes: [],
+    clusters: [],
+    scorecard: [],
+    parse_error: null,
+    tips: [],
+    domain_guide: null,
+    impact: {
+      scope: 'direct',
+      status: 'computed',
+      dependents: { total: 0, by_kind: {}, sample: [] },
+    },
+  };
+
+  beforeAll(async () => {
+    fixProjectDir = mkdtempSync(join(tmpdir(), 'mcp-supervisor-invalidation-'));
+    mkdirSync(join(fixProjectDir, '.git'));
+    writeFileSync(
+      join(fixProjectDir, '.platformos-check.yml'),
+      ['extends: platformos-check:nothing', 'MissingPartial:', '  enabled: true', ''].join('\n'),
+      'utf8',
+    );
+    partialPath = join(fixProjectDir, 'app', 'views', 'partials', 'ghost.liquid');
+    mkdirSync(dirname(partialPath), { recursive: true });
+
+    fixTransport = new StdioClientTransport({
+      command: process.execPath,
+      args: [BIN, '--project', fixProjectDir],
+    });
+    fixClient = new Client({ name: 'invalidation-client', version: '0.0.0' });
+    await fixClient.connect(fixTransport);
+  }, 180_000);
+
+  afterAll(async () => {
+    await fixClient?.close();
+    if (fixProjectDir) rmSync(fixProjectDir, { recursive: true, force: true });
+  });
+
+  it('reports the missing partial, clears it once created, and reports it again once removed', async () => {
+    expect(await validateCodeWith(fixClient, CALLER)).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'error',
+      must_fix_before_write: true,
+      errors: [MISSING_GHOST],
+    });
+
+    // The fix an agent would apply, in the SAME server process.
+    writeFileSync(partialPath, '<div>ghost</div>', 'utf8');
+
+    expect(await validateCodeWith(fixClient, CALLER)).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+    });
+
+    // Editing the now-existing partial keeps it resolved (the cached parse is
+    // replaced, not discarded-and-forgotten).
+    writeFileSync(partialPath, '<div>ghost, edited</div>', 'utf8');
+
+    expect(await validateCodeWith(fixClient, CALLER)).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+    });
+
+    // And removing it brings the diagnostic back, so the cache is not merely
+    // "sticky in the pass direction".
+    rmSync(partialPath);
+
+    expect(await validateCodeWith(fixClient, CALLER)).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'error',
+      must_fix_before_write: true,
+      errors: [MISSING_GHOST],
+    });
+  }, 120_000);
 });

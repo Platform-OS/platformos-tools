@@ -41,8 +41,19 @@ export * from '@platformos/platformos-check-common';
 export * from './config/types';
 export { NodeFileSystem };
 export { runBackfillDocsCLI } from './backfill-docs';
+/**
+ * Download the latest platformOS liquid docs over the local docset.
+ *
+ * Also drops this process's shared docs manager (see
+ * {@link getPlatformOSLiquidDocsManager}). That manager memoizes every resource
+ * for its lifetime, so without the reset a process that refreshed the docs and
+ * then linted would keep validating against the docset it read BEFORE the
+ * download — reporting a brand-new filter as `UnknownFilter`, or a new GraphQL
+ * field as unknown, with the fix already sitting on disk.
+ */
 export async function updateDocs(log: (msg: string) => void = () => {}): Promise<void> {
   await downloadPlatformOSLiquidDocs(platformOSLiquidDocsRoot, log);
+  resetPlatformOSLiquidDocsManager();
 }
 
 export const loadConfig: typeof resolveConfig = async (configPath, root) => {
@@ -69,18 +80,38 @@ export async function toSourceCode(absolutePath: string): Promise<AppSourceCode 
 }
 
 /**
- * Per-file change identity: `mtimeMs:size`. Cheap (a single `stat`) and standard
- * (TypeScript `--incremental`, bundlers use the same). Returns `undefined` when
- * the file cannot be stat'd (e.g. removed between enumeration and this call).
+ * Per-file change identity: `mtimeMs:ctimeMs:size`. Cheap (a single `stat`).
+ * Returns `undefined` when the file cannot be stat'd (e.g. removed between
+ * enumeration and this call).
+ *
+ * `ctimeMs` is what makes this trustworthy, and it is why this is stricter than
+ * the usual `mtime:size` pair (TypeScript `--incremental`, bundlers). `mtime` is
+ * writable: `utimes` (and therefore `tar -p`, `rsync --times`, `cp -p`, or any
+ * build step that pins timestamps) can restore an OLD mtime onto NEW content. If
+ * the size also happens to match — an equal-length edit — the pair is unchanged
+ * and a stale parse gets reused. That is not theoretical: it was reproduced
+ * against this cache, where a same-length `{% doc %}` edit kept serving the
+ * previous `@param` list and produced a false "Unknown parameter" offense.
+ *
+ * `ctimeMs` (inode change time) is updated by the kernel on any write to the file
+ * or its metadata and cannot be set by an unprivileged process — `utimes`
+ * *advances* it rather than restoring it. So content that changed always yields a
+ * different fingerprint.
+ *
+ * Coarse-granularity filesystems (1 s on some NFS mounts, 2 s on FAT/exFAT) are
+ * the other reason to include it: there, two edits inside one tick share an mtime
+ * far more easily.
  *
  * Exported so consumers that maintain their own derived caches (e.g. the MCP
  * supervisor's project-graph cache) can share ONE fingerprint definition rather
- * than each inventing their own.
+ * than each inventing their own. Changing this string's shape invalidates every
+ * persisted derived cache that stores it, so `CACHE_FORMAT_VERSION` in the
+ * supervisor's graph-cache store must be bumped alongside it.
  */
 export async function fileFingerprint(absolutePath: string): Promise<string | undefined> {
   try {
     const info = await fs.stat(absolutePath);
-    return `${info.mtimeMs}:${info.size}`;
+    return `${info.mtimeMs}:${info.ctimeMs}:${info.size}`;
   } catch {
     return undefined;
   }
@@ -244,6 +275,23 @@ function getPlatformOSLiquidDocsManager(
   sharedDocsManagerLog = log;
   sharedDocsManager ??= new PlatformOSLiquidDocsManager((message) => sharedDocsManagerLog(message));
   return sharedDocsManager;
+}
+
+/**
+ * Forget the shared docs manager so the next lint run reads the docset afresh.
+ *
+ * The manager's loaders are per-instance memos with no way to clear them, so
+ * discarding the instance is the only way to pick up docs that changed underneath
+ * a long-lived process. Called by {@link updateDocs}; exported for embedders that
+ * refresh the docset by other means (and for tests).
+ *
+ * NOTE: this does not help a docset changed by ANOTHER process (e.g. a separate
+ * `pos-cli` download). A long-running server still reads the docs once and keeps
+ * them until restart — deliberate, since re-checking per call is exactly the
+ * ~190 ms network round trip that made `validate_code` slow.
+ */
+export function resetPlatformOSLiquidDocsManager(): void {
+  sharedDocsManager = undefined;
 }
 
 export interface LintBufferParams {

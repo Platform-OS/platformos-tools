@@ -41,8 +41,19 @@ export * from '@platformos/platformos-check-common';
 export * from './config/types';
 export { NodeFileSystem };
 export { runBackfillDocsCLI } from './backfill-docs';
+/**
+ * Download the latest platformOS liquid docs over the local docset.
+ *
+ * Also drops this process's shared docs manager (see
+ * {@link getPlatformOSLiquidDocsManager}). That manager memoizes every resource
+ * for its lifetime, so without the reset a process that refreshed the docs and
+ * then linted would keep validating against the docset it read BEFORE the
+ * download — reporting a brand-new filter as `UnknownFilter`, or a new GraphQL
+ * field as unknown, with the fix already sitting on disk.
+ */
 export async function updateDocs(log: (msg: string) => void = () => {}): Promise<void> {
   await downloadPlatformOSLiquidDocs(platformOSLiquidDocsRoot, log);
+  resetPlatformOSLiquidDocsManager();
 }
 
 export const loadConfig: typeof resolveConfig = async (configPath, root) => {
@@ -170,6 +181,23 @@ function getPlatformOSLiquidDocsManager(
   sharedDocsManagerLog = log;
   sharedDocsManager ??= new PlatformOSLiquidDocsManager((message) => sharedDocsManagerLog(message));
   return sharedDocsManager;
+}
+
+/**
+ * Forget the shared docs manager so the next lint run reads the docset afresh.
+ *
+ * The manager's loaders are per-instance memos with no way to clear them, so
+ * discarding the instance is the only way to pick up docs that changed underneath
+ * a long-lived process. Called by {@link updateDocs}; exported for embedders that
+ * refresh the docset by other means (and for tests).
+ *
+ * NOTE: this does not help a docset changed by ANOTHER process (e.g. a separate
+ * `pos-cli` download). A long-running server still reads the docs once and keeps
+ * them until restart — deliberate, since re-checking per call is exactly the
+ * ~190 ms network round trip that made `validate_code` slow.
+ */
+export function resetPlatformOSLiquidDocsManager(): void {
+  sharedDocsManager = undefined;
 }
 
 export interface LintBufferParams {

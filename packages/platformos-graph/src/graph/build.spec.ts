@@ -51,8 +51,8 @@ describe('Module: index', () => {
         const deps = layout.dependencies;
         expect(deps.map((x) => x.target.uri)).toEqual(
           expect.arrayContaining([
-            p('assets/app.js'),
-            p('assets/app.css'),
+            p('app/assets/app.js'),
+            p('app/assets/app.css'),
             p('app/views/partials/header.liquid'),
           ]),
         );
@@ -112,8 +112,8 @@ describe('Module: index', () => {
         expect(
           layout.dependencies.map((d) => ({ target: d.target.uri, type: d.type, kind: d.kind })),
         ).toEqual([
-          { target: p('assets/app.js'), type: 'direct', kind: 'asset' },
-          { target: p('assets/app.css'), type: 'direct', kind: 'asset' },
+          { target: p('app/assets/app.js'), type: 'direct', kind: 'asset' },
+          { target: p('app/assets/app.css'), type: 'direct', kind: 'asset' },
           { target: p('app/views/partials/header.liquid'), type: 'direct', kind: 'render' },
         ]);
       });

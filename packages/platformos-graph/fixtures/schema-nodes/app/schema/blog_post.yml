@@ -1,0 +1,6 @@
+name: blog_post
+properties:
+  - name: title
+    type: string
+  - name: body
+    type: text

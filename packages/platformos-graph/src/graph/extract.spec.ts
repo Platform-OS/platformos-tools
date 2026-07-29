@@ -26,12 +26,14 @@ function directRef(
   sourceRange: [number, number],
   targetUri: string,
   kind: Reference['kind'],
+  args?: string[],
 ): Reference {
   return {
     source: { uri: sourceUri, range: sourceRange },
     target: { uri: targetUri },
     type: 'direct',
     kind,
+    ...(args ? { args } : {}),
   };
 }
 
@@ -74,6 +76,21 @@ describe('extractFileReferences: resolves a single buffer against the project', 
       ),
     ]);
   });
+
+  it('captures the named-argument names at a render call site', async () => {
+    const sourceUri = p('app/views/pages/draft.liquid');
+    const content = "{% render 'card', title: page.title, count: 3 %}";
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([
+      directRef(
+        sourceUri,
+        rangeOf(content, "{% render 'card', title: page.title, count: 3 %}"),
+        p('app/views/partials/card.liquid'),
+        'render',
+        ['title', 'count'],
+      ),
+    ]);
+  });
 });
 
 describe('extractFileReferences: kinds and resolution match the full graph build', () => {
@@ -107,6 +124,7 @@ describe('extractFileReferences: kinds and resolution match the full graph build
         rangeOf(content, "graphql posts = 'blog_posts/find', id: '1'"),
         p('app/graphql/blog_posts/find.graphql'),
         'graphql',
+        ['id'],
       ),
     ]);
   });
@@ -151,5 +169,73 @@ describe('extractFileReferences: only statically resolvable edges', () => {
 
   it('returns nothing for a buffer with no references', async () => {
     expect(await extract(rootUri, sourceUri, '<h1>{{ page.title }}</h1>')).toEqual([]);
+  });
+});
+
+describe('extractFileReferences: layout-association edges (frontmatter `layout:`)', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'function-edges'); // no layouts here → default path
+  const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+  const sourceUri = p('app/views/pages/draft.liquid');
+
+  // The whole frontmatter block: start through the closing `---` line + newline.
+  const fmRange = (content: string): [number, number] => [
+    0,
+    content.indexOf('\n', content.indexOf('---', 3)) + 1,
+  ];
+
+  it('emits a layout edge for an explicit frontmatter layout', async () => {
+    const content = `---
+slug: draft
+layout: theme
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([
+      directRef(sourceUri, fmRange(content), p('app/views/layouts/theme.liquid'), 'layout'),
+    ]);
+  });
+
+  it('resolves a module-prefixed layout', async () => {
+    const content = `---
+layout: modules/core/admin
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([
+      directRef(
+        sourceUri,
+        fmRange(content),
+        p('modules/core/public/views/layouts/admin.liquid'),
+        'layout',
+      ),
+    ]);
+  });
+
+  it('emits no edge for an explicitly empty layout', async () => {
+    const content = `---
+slug: draft
+layout: ''
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+  });
+
+  it('emits no edge when layout is omitted (no implicit default)', async () => {
+    const content = `---
+slug: draft
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+  });
+
+  it('emits no edge for a dynamic layout value', async () => {
+    const content = `---
+layout: "{{ context.constants.LAYOUT }}"
+---
+<h1>x</h1>`;
+
+    expect(await extract(rootUri, sourceUri, content)).toEqual([]);
   });
 });

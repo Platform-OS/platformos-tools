@@ -1,13 +1,29 @@
-import { NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
-import { SourceCodeType, UriString, visit, Visitor } from '@platformos/platformos-check-common';
-import { DocumentsLocator } from '@platformos/platformos-common';
+import yaml from 'js-yaml';
+import { LiquidNamedArgument, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
+import {
+  isTranslationKeyUsage,
+  SourceCodeType,
+  UriString,
+  visit,
+  Visitor,
+} from '@platformos/platformos-check-common';
+import {
+  containsLiquid,
+  DocumentsLocator,
+  effectivePageSlug,
+  extractGraphqlTables,
+  extractRelativePagePath,
+  extractSchemaTable,
+} from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import {
   AugmentedDependencies,
   AppGraph,
   AppModule,
   FileSourceCode,
+  GraphBuildOptions,
   LiquidModule,
+  ModuleStructural,
   ModuleType,
   Range,
   Reference,
@@ -15,13 +31,21 @@ import {
   Void,
 } from '../types';
 import { assertNever, exists, isString, unique } from '../utils';
-import { getAssetModule, getGraphQLModuleByUri, getPartialModuleByUri } from './module';
+import {
+  getAssetModuleByUri,
+  getGraphQLModuleByUri,
+  getLayoutModuleByUri,
+  getPartialModuleByUri,
+  isSupportedAssetFile,
+} from './module';
 
-/** A resolved outgoing reference: the target graph node + its call-site range + kind. */
-interface ResolvedReference {
+/** A resolved outgoing reference: the target graph node + its call-site range + kind (+ named-arg names). */
+export interface ResolvedReference {
   target: AppModule;
   sourceRange: Range;
   kind: ReferenceKind;
+  /** Names of the named arguments at the call site, in source order; omitted when none. */
+  args?: string[];
 }
 
 /** The dependency surface the reference resolver needs: just a filesystem (for DocumentsLocator). */
@@ -31,6 +55,7 @@ export async function traverseModule(
   module: AppModule,
   appGraph: AppGraph,
   deps: AugmentedDependencies,
+  options: GraphBuildOptions = {},
 ): Promise<Void> {
   // If the module is already traversed, skip it
   if (appGraph.modules[module.uri]) {
@@ -51,7 +76,7 @@ export async function traverseModule(
 
   switch (module.type) {
     case ModuleType.Liquid: {
-      return traverseLiquidModule(module, appGraph, deps);
+      return traverseLiquidModule(module, appGraph, deps, options);
     }
 
     case ModuleType.Asset: {
@@ -59,7 +84,20 @@ export async function traverseModule(
     }
 
     case ModuleType.GraphQL: {
-      return; // Leaf node — GraphQL documents have no platformOS dependencies
+      // Leaf node — GraphQL documents have no platformOS dependencies. We do read
+      // the source once to record the model tables it targets (a neutral
+      // platform fact), reusing platformos-common's GraphQL parser.
+      const sourceCode = await deps.getSourceCode(module.uri);
+      module.tables = extractGraphqlTables(sourceCode.source);
+      return;
+    }
+
+    case ModuleType.Schema: {
+      // Leaf node — a custom model type / schema file. Read the source once to
+      // record its model table name (the YAML `name:`), a neutral platform fact.
+      const sourceCode = await deps.getSourceCode(module.uri);
+      module.table = extractSchemaTable(sourceCode.source);
+      return;
     }
 
     default: {
@@ -72,19 +110,29 @@ async function traverseLiquidModule(
   module: LiquidModule,
   appGraph: AppGraph,
   deps: AugmentedDependencies,
+  options: GraphBuildOptions,
 ) {
   const sourceCode = await deps.getSourceCode(module.uri);
+
+  // Surface the file's own structural declarations as a by-product of the parse
+  // (TASK-9.3) — only when the caller opted in (see GraphBuildOptions). Absent
+  // otherwise, and when the file could not be parsed.
+  if (options.includeStructural) {
+    module.structural = await extractStructural(sourceCode, module.uri);
+  }
+
   const references = await resolveLiquidReferences(appGraph, sourceCode, deps);
 
   for (const reference of references) {
     bind(module, reference.target, {
       sourceRange: reference.sourceRange,
       kind: reference.kind,
+      args: reference.args,
     });
   }
 
   const modules = unique(references.map((ref) => ref.target));
-  const promises = modules.map((mod) => traverseModule(mod, appGraph, deps));
+  const promises = modules.map((mod) => traverseModule(mod, appGraph, deps, options));
 
   return Promise.all(promises);
 }
@@ -102,7 +150,7 @@ async function traverseLiquidModule(
  * match the rest of the graph on every platform. Unparseable input yields no
  * references rather than throwing.
  */
-async function resolveLiquidReferences(
+export async function resolveLiquidReferences(
   appGraph: AppGraph,
   sourceCode: FileSourceCode,
   deps: ResolverDependencies,
@@ -125,10 +173,15 @@ async function resolveLiquidReferences(
         if (parentNode.expression.type !== NodeTypes.String) return;
         if (parentNode.filters[0] !== node) return;
         const asset = parentNode.expression.value;
-        const assetModule = getAssetModule(appGraph, asset);
-        if (!assetModule) return;
+        if (!isSupportedAssetFile(asset)) return; // ignore non-asset values (unchanged gate)
+        // Resolve through DocumentsLocator (`'asset'`: app/assets, module
+        // public/assets) — not a hard-coded base — so the target matches the
+        // real on-disk location, with the canonical `app/assets/<name>` as the
+        // fallback for an unresolved asset.
+        const uri = await documentsLocator.locateOrDefault(rootUri, 'asset', asset);
+        if (!uri) return;
         return {
-          target: assetModule,
+          target: getAssetModuleByUri(appGraph, uri),
           sourceRange: [parentNode.position.start, parentNode.position.end],
           kind: 'asset',
         };
@@ -155,6 +208,7 @@ async function resolveLiquidReferences(
         target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: isInclude ? 'include' : 'render',
+        args: argNames(node.args),
       };
     },
 
@@ -169,6 +223,7 @@ async function resolveLiquidReferences(
         target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'function',
+        args: argNames(node.args),
       };
     },
 
@@ -187,6 +242,7 @@ async function resolveLiquidReferences(
         target: getPartialModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'background',
+        args: argNames(node.args),
       };
     },
 
@@ -202,6 +258,31 @@ async function resolveLiquidReferences(
         target: getGraphQLModuleByUri(appGraph, uri),
         sourceRange: [tag.position.start, tag.position.end],
         kind: 'graphql',
+        args: argNames(node.args),
+      };
+    },
+
+    // Frontmatter `layout: name` → page/email → its wrapper layout.
+    // Resolved through DocumentsLocator (`'layout'`: app/views/layouts, module
+    // prefixes, `.html.liquid`/`.liquid`). Only an EXPLICIT, static, non-empty
+    // string layout produces an edge:
+    //  - `layout: ''`        → explicitly no layout (no edge)
+    //  - layout omitted      → no edge (we never synthesize the implicit default)
+    //  - dynamic `{{ ... }}` → no edge (not statically resolvable)
+    //  - non-string value    → no edge
+    // The source range is the whole frontmatter block (tag-level granularity,
+    // like the other edges).
+    YAMLFrontmatter: async (node) => {
+      const data = loadFrontmatter(node.body);
+      if (!data) return; // malformed/empty frontmatter — nothing to resolve
+      const layout = data.layout;
+      if (typeof layout !== 'string' || layout === '' || containsLiquid(layout)) return;
+      const uri = await documentsLocator.locateOrDefault(rootUri, 'layout', layout);
+      if (!uri) return;
+      return {
+        target: getLayoutModuleByUri(appGraph, uri),
+        sourceRange: [node.position.start, node.position.end],
+        kind: 'layout',
       };
     },
   };
@@ -245,8 +326,9 @@ export async function extractFileReferences(
   return references.map((reference) => ({
     source: { uri: sourceUri, range: reference.sourceRange },
     target: { uri: reference.target.uri },
-    type: 'direct',
+    type: 'direct' as const,
     kind: reference.kind,
+    ...argsField(reference.args),
   }));
 }
 
@@ -263,6 +345,152 @@ function isStringLiteral<T extends { type: NodeTypes }>(
 }
 
 /**
+ * Parse a YAML block (frontmatter body or a schema file) into an object, or
+ * `undefined` for unparseable / non-object YAML. The single `js-yaml` entry
+ * point shared by the layout-edge resolver, schema-table extraction, and
+ * self-structural extraction — so there is one frontmatter/YAML parse path.
+ */
+function loadFrontmatter(body: string): Record<string, unknown> | undefined {
+  let data: unknown;
+  try {
+    data = yaml.load(body);
+  } catch {
+    return undefined;
+  }
+  return typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : undefined;
+}
+
+/**
+ * Extract a Liquid file's own structural declarations from an already-parsed
+ * source (TASK-9.3) — the per-file primitive (sibling to
+ * {@link extractFileReferences}). Reuses the shared `js-yaml` frontmatter parse,
+ * platformos-common's slug helpers, and check-common's liquid-doc/translation
+ * detection — never a second/bespoke parser.
+ *
+ * Usage facts (`renders_used` / `graphql_queries_used` / `filters_used` /
+ * `tags_used` / `translation_keys`) come from one walk of the parsed AST and are
+ * always present (sorted, de-duplicated; empty = none used); `doc_params` is in
+ * source (signature) order. Routing facts come from frontmatter:
+ * - `slug`: the frontmatter `slug` override (verbatim, matching the RouteTable
+ *   source of truth) else the path-derived slug — for page files only.
+ * - `layout` / `method`: from frontmatter when declared.
+ *
+ * Returns `undefined` for a non-Liquid source or one that could not be parsed
+ * (no Liquid AST to analyze), so it is safe to call on any {@link FileSourceCode}.
+ */
+export async function extractStructural(
+  sourceCode: FileSourceCode,
+  uri: UriString,
+): Promise<ModuleStructural | undefined> {
+  // Only a parsed Liquid AST has the structure this analyzes; a `.graphql`/`.yml`
+  // buffer (or an unparseable one) yields no structural facts.
+  if (sourceCode.type !== SourceCodeType.LiquidHtml || sourceCode.ast instanceof Error) {
+    return undefined;
+  }
+
+  const renders = new Set<string>();
+  const graphqlQueries = new Set<string>();
+  const filters = new Set<string>();
+  const tags = new Set<string>();
+  const translationKeys = new Set<string>();
+  // `{% doc %}` @param names, in source (signature) order — not sorted/de-duped.
+  const docParams: string[] = [];
+
+  // A single walk of the already-parsed AST collects every usage fact — no
+  // second traversal (the doc `@param` names are read from the parser-produced
+  // `LiquidDocParamNode`s in this same pass, as `extractDocDefinition` would).
+  await visit<SourceCodeType.LiquidHtml, void>(sourceCode.ast, {
+    RenderMarkup: async (node) => {
+      if (isStringLiteral(node.partial)) renders.add(node.partial.value);
+    },
+    GraphQLMarkup: async (node) => {
+      if (isStringLiteral(node.graphql)) graphqlQueries.add(node.graphql.value);
+    },
+    LiquidFilter: async (node) => {
+      filters.add(node.name);
+    },
+    LiquidTag: async (node) => {
+      if (typeof node.name === 'string') tags.add(node.name);
+    },
+    // A translation-key usage is a string literal piped through `t`/`translate`,
+    // e.g. `{{ 'greeting.hello' | t }}` — detected via check-common's shared
+    // `isTranslationKeyUsage` so it cannot drift from the translation check.
+    LiquidVariable: async (node) => {
+      if (isTranslationKeyUsage(node)) translationKeys.add(node.expression.value);
+    },
+    LiquidDocParamNode: async (node) => {
+      docParams.push(node.paramName.value);
+    },
+  });
+
+  const frontmatter = loadFrontmatterOf(sourceCode);
+  const layout = typeof frontmatter?.layout === 'string' ? frontmatter.layout : undefined;
+  const method = typeof frontmatter?.method === 'string' ? frontmatter.method : undefined;
+  const slug = effectiveSlug(uri, frontmatter);
+
+  const sorted = (set: Set<string>) => [...set].sort((a, b) => a.localeCompare(b));
+
+  return {
+    renders_used: sorted(renders),
+    graphql_queries_used: sorted(graphqlQueries),
+    filters_used: sorted(filters),
+    tags_used: sorted(tags),
+    translation_keys: sorted(translationKeys),
+    doc_params: docParams,
+    ...(slug !== undefined ? { slug } : {}),
+    ...(layout !== undefined ? { layout } : {}),
+    ...(method !== undefined ? { method } : {}),
+  };
+}
+
+/** The parsed frontmatter object of a Liquid file, if it has parseable frontmatter. */
+function loadFrontmatterOf(sourceCode: FileSourceCode): Record<string, unknown> | undefined {
+  if (sourceCode.type !== SourceCodeType.LiquidHtml) return undefined;
+  const ast = sourceCode.ast;
+  if (ast instanceof Error || ast.type !== NodeTypes.Document) return undefined;
+  const node = ast.children.find((child) => child.type === NodeTypes.YAMLFrontmatter);
+  return node?.type === NodeTypes.YAMLFrontmatter ? loadFrontmatter(node.body) : undefined;
+}
+
+/**
+ * The effective URL slug for `uri`, delegating to `effectivePageSlug` — the
+ * single slug-derivation shared with `RouteTable`, so the graph's routing fact
+ * can never drift from the platform's actual routing (override-wins, coerced to
+ * a string; else path-derived using the effective format). Returns `undefined`
+ * for a non-page file unless it declares an explicit `slug` override.
+ */
+function effectiveSlug(
+  uri: UriString,
+  frontmatter: Record<string, unknown> | undefined,
+): string | undefined {
+  const relativePath = extractRelativePagePath(uri);
+  if (relativePath !== null) return effectivePageSlug(relativePath, frontmatter);
+  // Non-page file: only an explicit `slug` override is meaningful.
+  const slug = frontmatter?.slug;
+  return slug !== undefined && slug !== null ? String(slug) : undefined;
+}
+
+/**
+ * The names of a call site's named arguments, in source order, or `undefined`
+ * when there are none (so an argument-less edge carries no `args` field). Values
+ * are intentionally not captured — names are what cross-checking against a
+ * partial's `@param` signature needs. Every `LiquidNamedArgument` has a string
+ * `name` by construction, so no per-element guard is required.
+ */
+function argNames(args: LiquidNamedArgument[]): string[] | undefined {
+  return args.length > 0 ? args.map((arg) => arg.name) : undefined;
+}
+
+/**
+ * The spreadable `args` field for an edge: present only for a non-empty
+ * argument-name list, absent otherwise. The single place the "omit when none"
+ * rule lives, so {@link bind} and {@link extractFileReferences} cannot diverge.
+ */
+function argsField(args: string[] | undefined): { args?: string[] } {
+  return args && args.length > 0 ? { args } : {};
+}
+
+/**
  * The bind method is the method that links two modules together.
  *
  * It adds the dependency to the source module's dependencies and the target module's references.
@@ -276,10 +504,12 @@ export function bind(
     sourceRange,
     type = 'direct', // the type of dependency, can be 'direct' or 'indirect'
     kind, // the semantic Liquid construct that created the edge
+    args, // names of the named arguments at the call site (omitted when none)
   }: {
     sourceRange?: Range; // a range in the source module that references the child
     type?: Reference['type']; // the type of dependency
     kind?: ReferenceKind; // render | include | function | background | graphql | asset | layout
+    args?: string[]; // named-argument names at the call site
   } = {},
 ): void {
   const dependency: Reference = {
@@ -287,6 +517,7 @@ export function bind(
     target: { uri: target.uri },
     type: type,
     kind: kind,
+    ...argsField(args),
   };
 
   source.dependencies.push(dependency);

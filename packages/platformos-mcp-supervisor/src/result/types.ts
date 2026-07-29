@@ -135,15 +135,61 @@ export interface DomainGuide {
   triggered_gotchas: DomainGuideGotcha[];
 }
 
-export interface ValidateCodeStructuralSnapshot {
-  renders_used: string[];
-  filters_used: string[];
-  tags_used: string[];
-  translation_keys: string[];
-  doc_params: string[];
-  slug: string | null;
-  layout: string | null;
-  method: string | null;
+/**
+ * Freshness/applicability of the blast-radius answer. Distinguishes a real
+ * "nothing depends on this" (`computed`, total 0 — safe to change) from "we don't
+ * know yet" (`computing`/`unavailable`) and from "this file type has no dependency
+ * graph" (`not_applicable`), so an unbuilt/failed graph — or a file the graph
+ * cannot model — can NEVER be misread as a green light.
+ *
+ * `not_applicable` is returned for files that are not graph-trackable edge targets
+ * (e.g. schema / custom-model-type / translation YAML): nothing references them
+ * via a resolvable edge — they are wired by model/table NAME, not by file
+ * reference (see ADR 004) — so `total: 0` would falsely read as "safe to change".
+ * See {@link ValidateCodeImpact}.
+ */
+export type ValidateCodeImpactStatus = 'computed' | 'computing' | 'unavailable' | 'not_applicable';
+
+/**
+ * Cross-file "blast radius" of editing the file: who DEPENDS ON it (its incoming
+ * references), which lint cannot see (lint is per-file, forward-looking). Graph-
+ * derived (`dependentsOf` over the cached project graph) and NEVER stale — a
+ * changed project reports `computing`, never an out-of-date answer.
+ *
+ * `scope` is always `direct` (immediate callers only — transitive closure is
+ * excluded as noise). `dependents` is meaningful ONLY when `status` is
+ * `computed`; otherwise it is zeroed and the status says why.
+ */
+export interface ValidateCodeImpact {
+  scope: 'direct';
+  status: ValidateCodeImpactStatus;
+  dependents: {
+    /** Number of distinct files that reference the edited file. */
+    total: number;
+    /** Distinct referencing files per edge kind (render/include/function/…); a file using two kinds counts in both. */
+    by_kind: Record<string, number>;
+    /** Up to 10 distinct referencing files, project-relative, sorted. */
+    sample: string[];
+  };
+  /**
+   * Dependent callers whose arguments do NOT match the edited file's `{% doc %}`
+   * signature — the cross-file counterpart to the `PartialCallArguments` lint
+   * check (which only fires when editing the caller). Present ONLY when the
+   * edited buffer declares a `{% doc %}` block (an explicit contract): an empty
+   * array means "checked, every caller matches", absent means "no contract to
+   * check against". Never inferred from a doc-less file (avoids false positives).
+   */
+  signature_risk?: ValidateCodeSignatureRisk[];
+}
+
+/** One dependent caller at risk from the edited file's current `{% doc %}` signature. */
+export interface ValidateCodeSignatureRisk {
+  /** The referencing file, project-relative. */
+  caller: string;
+  /** Required `@param`s the caller does not pass. */
+  missing_required: string[];
+  /** Arguments the caller passes that the `{% doc %}` block does not declare. */
+  unexpected_args: string[];
 }
 
 /**
@@ -163,6 +209,12 @@ export interface ValidateCodeResult {
   proposed_fixes: ProposedFix[];
   clusters: DiagnosticCluster[];
   scorecard: ScorecardNote[];
+  /**
+   * Cross-file blast radius (graph-derived): who depends on the edited file.
+   * Always present; `status` distinguishes a real "nothing depends on this"
+   * from "not computed yet". See {@link ValidateCodeImpact}.
+   */
+  impact: ValidateCodeImpact;
   /** Deterministic prose telling the agent what to do next. */
   next_step?: string;
   /** Parse-failure message when the file could not be parsed at all; null/absent otherwise. */
@@ -171,5 +223,4 @@ export interface ValidateCodeResult {
   // TASK-8 fields (empty/null in the minimal TASK-7 build):
   tips?: TipEntry[];
   domain_guide?: DomainGuide | null;
-  structural?: ValidateCodeStructuralSnapshot | null;
 }

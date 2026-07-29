@@ -33,9 +33,11 @@
     "@platformos/platformos-check-common": "0.0.19",
     "@platformos/platformos-common": "0.0.17",
     "acorn": "^8.16.0",
+    "js-yaml": "^4.1.1",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
-    "@platformos/platformos-check-node": "0.0.19"
+    "@platformos/platformos-check-node": "0.0.19",
+    "@types/js-yaml": "^4.0.9"
   }
 }

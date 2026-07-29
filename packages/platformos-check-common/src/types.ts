@@ -341,6 +341,16 @@ export type Reference = {
 
   /** Which Liquid construct produced this edge. Optional for backwards compatibility. */
   kind?: ReferenceKind;
+
+  /**
+   * The names of the named arguments passed at the call site, in source order —
+   * e.g. `['title', 'count']` for `{% render 'card', title: x, count: 3 %}`.
+   * Present only for edges that carry named arguments (render/include/function/
+   * background/graphql); omitted entirely when there are none. Values are not
+   * captured (names are what cross-checking against a partial's `@param`
+   * signature needs).
+   */
+  args?: string[];
 };
 
 export type Range = [start: number, end: number]; // represents a range in the source code

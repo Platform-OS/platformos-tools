@@ -3,7 +3,7 @@ import { URI, Utils } from 'vscode-uri';
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { getAppPaths, getModulePaths, PlatformOSFileType } from '../path-utils';
 import { RouteEntry, RouteSegment } from './types';
-import { slugFromFilePath, formatFromFilePath, KNOWN_FORMATS } from './slugFromFilePath';
+import { formatFromFilePath, effectivePageSlug, KNOWN_FORMATS } from './slugFromFilePath';
 import { parseSlug, calculatePrecedence } from './parseSlug';
 
 interface PageFrontmatter {
@@ -348,12 +348,9 @@ export class RouteTable {
     const method = (frontmatter?.method || 'get').toLowerCase();
     const format = frontmatter?.format || fileFormat;
 
-    let slug: string;
-    if (frontmatter?.slug !== undefined && frontmatter.slug !== null) {
-      slug = String(frontmatter.slug);
-    } else {
-      slug = slugFromFilePath(relativePath, format);
-    }
+    // Slug derivation (override-wins, else path-derived) is shared with every
+    // other consumer via `effectivePageSlug`, so it cannot drift.
+    const slug = effectivePageSlug(relativePath, frontmatter);
 
     const entries: RouteEntry[] = [];
 

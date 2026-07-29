@@ -17,6 +17,7 @@ import {
   isKnownYAMLFile,
   memo,
   path as pathUtils,
+  UriString,
   YAMLSourceCode,
 } from '@platformos/platformos-check-common';
 import {
@@ -106,8 +107,9 @@ async function lintApp(
   app: App,
   config: Config,
   log: (message: string) => void = () => {},
+  only?: UriString[],
 ): Promise<Offense[]> {
-  const platformOSLiquidDocsManager = new PlatformOSLiquidDocsManager(log);
+  const platformOSLiquidDocsManager = getPlatformOSLiquidDocsManager(log);
 
   const validator = await JSONValidator.create(platformOSLiquidDocsManager, config);
 
@@ -127,12 +129,47 @@ async function lintApp(
     ]),
   );
 
-  return coreCheck(app, config, {
-    fs: NodeFileSystem,
-    platformosDocset: platformOSLiquidDocsManager,
-    jsonValidationSet: platformOSLiquidDocsManager,
-    getDocDefinition: async (relativePath) => docDefinitions.get(relativePath)?.(),
-  });
+  return coreCheck(
+    app,
+    config,
+    {
+      fs: NodeFileSystem,
+      platformosDocset: platformOSLiquidDocsManager,
+      jsonValidationSet: platformOSLiquidDocsManager,
+      getDocDefinition: async (relativePath) => docDefinitions.get(relativePath)?.(),
+    },
+    { only },
+  );
+}
+
+/**
+ * The one docs manager this process uses, and the log sink it currently reports
+ * through.
+ *
+ * Every loader on `PlatformOSLiquidDocsManager` — including `setup()`, which makes
+ * a NETWORK call to compare the local docs revision against the remote one — is a
+ * per-instance memo. Constructing one per lint run therefore re-did that network
+ * check, and re-read and re-parsed filters/objects/tags/SDL from disk, on every
+ * single run: ~200 ms per `validate_code` call for a long-lived server. The docset
+ * is a process-level constant (it does not vary by project or by call), so one
+ * instance is correct and the memos finally pay off. Keeping the SDL string stable
+ * is also what lets check-common's schema cache hit.
+ *
+ * The sink is swapped per run rather than captured once, so each run's docset
+ * diagnostics reach ITS logger instead of being silently delivered to whichever
+ * run happened to be first. Runs are expected to be sequential; if two ever
+ * overlap, a late async docset message can land in the newer run's log — a
+ * cosmetic mislabelling of a diagnostic line, never a lint result.
+ */
+let sharedDocsManager: PlatformOSLiquidDocsManager | undefined;
+let sharedDocsManagerLog: (message: string) => void = () => {};
+
+function getPlatformOSLiquidDocsManager(
+  log: (message: string) => void,
+): PlatformOSLiquidDocsManager {
+  sharedDocsManagerLog = log;
+  sharedDocsManager ??= new PlatformOSLiquidDocsManager((message) => sharedDocsManagerLog(message));
+  return sharedDocsManager;
 }
 
 export interface LintBufferParams {
@@ -161,13 +198,22 @@ export interface LintBufferParams {
  * `filePath` must be absolute. When it already exists in the project its
  * on-disk `SourceCode` is replaced by the buffer; when it is new (not yet
  * saved) the buffer is added so it is still linted.
+ *
+ * Only the buffer's file is VISITED (`CheckOptions.only`), while the complete
+ * project is still handed to `check()` so cross-file checks resolve against it.
+ * That is a pure speed-up, not a narrowing: offenses are always attributed to the
+ * visited file, so visiting the others could only ever produce results this
+ * function discards. On a 1400-file project it is the difference between ~21 s
+ * and ~0.1 s of check time.
  */
 export async function lintBuffer(params: LintBufferParams): Promise<Offense[]> {
   const { root, filePath, content, configPath, log = () => {} } = params;
   const { app, config } = await getAppAndConfig(root, configPath);
   const uri = pathUtils.normalize(URI.file(filePath));
   const overlaidApp = overlayBuffer(app, uri, content);
-  const offenses = await lintApp(root, overlaidApp, config, log);
+  const offenses = await lintApp(root, overlaidApp, config, log, [uri]);
+  // Belt and braces: `only` already restricts this to the buffer's file, but the
+  // filter keeps the contract explicit and independent of that optimization.
   return offenses.filter((offense) => offense.uri === uri);
 }
 

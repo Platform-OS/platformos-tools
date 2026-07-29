@@ -1,6 +1,7 @@
 import { GraphQLCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { parse } from 'graphql/language';
-import { buildSchema, GraphQLError, validate } from 'graphql';
+import { GraphQLError, validate } from 'graphql';
+import { buildGraphQLSchema } from '../../utils/graphql-schema';
 
 export function lineToRange(text: string, line: number): [number, number] {
   const lines = text.split(/\r?\n/);
@@ -37,7 +38,7 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
         return;
       }
 
-      const graphQLSchema = buildSchema(graphQLSchemaString);
+      const graphQLSchema = buildGraphQLSchema(graphQLSchemaString);
 
       let document;
       try {

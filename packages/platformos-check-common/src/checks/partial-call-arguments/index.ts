@@ -3,6 +3,7 @@ import { DocumentsLocator, DocumentType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
 import { relative } from '../../path';
+import { memo } from '../../utils/memo';
 import { extractUndefinedVariables } from './extract-undefined-variables';
 
 export const PartialCallArguments: LiquidCheckDefinition = {
@@ -24,6 +25,24 @@ export const PartialCallArguments: LiquidCheckDefinition = {
 
   create(context) {
     const locator = new DocumentsLocator(context.fs);
+
+    /**
+     * Names that are always in scope inside a partial, so they must not be
+     * reported as missing arguments. Computed once per checked file rather than
+     * once per call site: `objects()` is memoized upstream, but the filtering
+     * pass over every documented object was not.
+     *
+     * The array is shared with every call site, so callers that need to extend it
+     * must copy first.
+     */
+    const globalObjectNames = memo(async (): Promise<string[]> => {
+      if (!context.platformosDocset) return [];
+
+      const objects = await context.platformosDocset.objects();
+      return objects
+        .filter((obj) => !obj.access || obj.access.global === true || obj.access.template.length > 0)
+        .map((obj) => obj.name);
+    });
 
     const validate = async (
       nodeType: DocumentType,
@@ -53,17 +72,8 @@ export const PartialCallArguments: LiquidCheckDefinition = {
         : undefined;
 
       if (docDef?.liquidDoc?.parameters) {
-        const globalObjectNames: string[] = [];
-        if (context.platformosDocset) {
-          const objects = await context.platformosDocset.objects();
-          for (const obj of objects) {
-            if (!obj.access || obj.access.global === true || obj.access.template.length > 0) {
-              globalObjectNames.push(obj.name);
-            }
-          }
-        }
         const { required: undefinedRequiredVars, optional: undefinedOptionalVars } =
-          extractUndefinedVariables(source, globalObjectNames);
+          extractUndefinedVariables(source, await globalObjectNames());
         const undefinedVars = [...undefinedRequiredVars, ...undefinedOptionalVars];
         const docRequiredNames = docDef.liquidDoc.parameters
           .filter((p) => p.required)
@@ -73,24 +83,17 @@ export const PartialCallArguments: LiquidCheckDefinition = {
       } else {
         // No @doc — infer required vs optional from undefined variables in the source.
         // Variables used with `| default` are treated as optional.
-        const globalObjectNames: string[] = [];
-        if (context.platformosDocset) {
-          const objects = await context.platformosDocset.objects();
-          for (const obj of objects) {
-            if (!obj.access || obj.access.global === true || obj.access.template.length > 0) {
-              globalObjectNames.push(obj.name);
-            }
-          }
-        }
+        // Copy before extending: the memoized list is shared across call sites.
+        const inScopeNames = [...(await globalObjectNames())];
         if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
-          if (!globalObjectNames.includes('app')) {
-            globalObjectNames.push('app');
+          if (!inScopeNames.includes('app')) {
+            inScopeNames.push('app');
           }
         }
 
         const { required: requiredVars, optional: optionalVars } = extractUndefinedVariables(
           source,
-          globalObjectNames,
+          inScopeNames,
         );
         if (requiredVars.length === 0 && optionalVars.length === 0) return;
 

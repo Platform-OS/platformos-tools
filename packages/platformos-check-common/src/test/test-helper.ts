@@ -2,6 +2,7 @@ import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
 import {
   applyFixToString,
   CheckDefinition,
+  CheckOptions,
   ChecksSettings,
   Config,
   autofix as coreAutofix,
@@ -40,6 +41,7 @@ export async function check(
   checks: CheckDefinition[] = recommended,
   mockDependencies: Partial<Dependencies> = {},
   checkSettings: ChecksSettings = {},
+  options: CheckOptions = {},
 ): Promise<Offense[]> {
   const app = getApp(appDesc);
   const config: Config = {
@@ -122,7 +124,7 @@ export async function check(
     },
   };
 
-  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies });
+  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies }, options);
 }
 
 export async function runLiquidCheck(

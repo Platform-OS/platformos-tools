@@ -1,6 +1,5 @@
 import { parse, SelectionSetNode, FieldNode } from 'graphql/language';
 import {
-  buildSchema,
   GraphQLSchema,
   GraphQLObjectType,
   isListType,
@@ -9,7 +8,11 @@ import {
   getNamedType,
   GraphQLOutputType,
 } from 'graphql';
-import { parseJSON, isError } from '@platformos/platformos-check-common';
+import {
+  parseJSON,
+  isError,
+  buildGraphQLSchema,
+} from '@platformos/platformos-check-common';
 import {
   JsonHashLiteral,
   JsonArrayLiteral,
@@ -275,7 +278,7 @@ export function inferShapeFromGraphQL(
 
     if (schemaString) {
       try {
-        schema = buildSchema(schemaString);
+        schema = buildGraphQLSchema(schemaString);
       } catch {
         // Schema parse error - continue without schema
       }

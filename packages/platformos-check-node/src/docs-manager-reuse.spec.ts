@@ -14,8 +14,7 @@ import { Workspace, makeTempWorkspace } from './test/test-helpers';
 const constructions: Array<(message: string) => void> = [];
 
 vi.mock('@platformos/platformos-check-docs-updater', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@platformos/platformos-check-docs-updater')>();
+  const actual = await importOriginal<typeof import('@platformos/platformos-check-docs-updater')>();
 
   class CountingDocsManager extends actual.PlatformOSLiquidDocsManager {
     constructor(log: (message: string) => void = () => {}) {

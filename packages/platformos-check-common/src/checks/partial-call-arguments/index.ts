@@ -40,7 +40,9 @@ export const PartialCallArguments: LiquidCheckDefinition = {
 
       const objects = await context.platformosDocset.objects();
       return objects
-        .filter((obj) => !obj.access || obj.access.global === true || obj.access.template.length > 0)
+        .filter(
+          (obj) => !obj.access || obj.access.global === true || obj.access.template.length > 0,
+        )
         .map((obj) => obj.name);
     });
 

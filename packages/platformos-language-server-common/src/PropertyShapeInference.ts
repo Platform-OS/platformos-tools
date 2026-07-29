@@ -8,11 +8,7 @@ import {
   getNamedType,
   GraphQLOutputType,
 } from 'graphql';
-import {
-  parseJSON,
-  isError,
-  buildGraphQLSchema,
-} from '@platformos/platformos-check-common';
+import { parseJSON, isError, buildGraphQLSchema } from '@platformos/platformos-check-common';
 import {
   JsonHashLiteral,
   JsonArrayLiteral,

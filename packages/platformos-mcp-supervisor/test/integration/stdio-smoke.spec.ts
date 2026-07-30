@@ -11,11 +11,14 @@
  * deterministic and docset/network-free.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { path as pathUtils } from '@platformos/platformos-check-common';
+
+import { defaultGraphCachePath } from '../../src/graph-cache/graph-cache.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -363,4 +366,96 @@ describe('Integration: validate_code sees on-disk fixes without a cache-clearing
       errors: [MISSING_GHOST],
     });
   }, 120_000);
+});
+
+/**
+ * TASK-12.7: the project graph must be built at server START, not on the first
+ * request.
+ *
+ * Asserted through the warm-up's own durable artifact — the persisted cache file —
+ * rather than by timing anything: a client connects and calls NO tool, and the file
+ * must still appear. Before the fix nothing built until a request arrived, so the
+ * file never appeared and this fails; the polling loop makes it robust on a loaded
+ * machine instead of racing a fixed sleep.
+ *
+ * Why it matters: the cold build takes ~37 s on a real project and Node is
+ * single-threaded, so a build triggered by the first `validate_code` starves that
+ * lint — a ~1 s call measured 46–58 s.
+ */
+describe('Integration: the project graph is warmed at server start', () => {
+  let warmClient: Client;
+  let warmTransport: StdioClientTransport;
+  let warmProjectDir: string;
+  let warmCachePath: string;
+
+  beforeAll(async () => {
+    warmProjectDir = mkdtempSync(join(tmpdir(), 'mcp-supervisor-warmup-'));
+    mkdirSync(join(warmProjectDir, '.git'));
+    writeFileSync(
+      join(warmProjectDir, '.platformos-check.yml'),
+      ['extends: platformos-check:nothing', ''].join('\n'),
+      'utf8',
+    );
+    // A real edge source, so there is something for the graph to be built from.
+    const page = join(warmProjectDir, 'app', 'views', 'pages', 'index.liquid');
+    mkdirSync(dirname(page), { recursive: true });
+    writeFileSync(page, "{% render 'card' %}", 'utf8');
+    const partial = join(warmProjectDir, 'app', 'views', 'partials', 'card.liquid');
+    mkdirSync(dirname(partial), { recursive: true });
+    writeFileSync(partial, '<div>card</div>', 'utf8');
+
+    // Start from a genuinely cold cache: the path is derived from the (unique) temp
+    // root, so removing it cannot disturb any other project's cache.
+    warmCachePath = defaultGraphCachePath(pathUtils.normalize(pathUtils.URI.file(warmProjectDir)));
+    rmSync(warmCachePath, { force: true });
+
+    warmTransport = new StdioClientTransport({
+      command: process.execPath,
+      args: [BIN, '--project', warmProjectDir],
+    });
+    warmClient = new Client({ name: 'warmup-client', version: '0.0.0' });
+    await warmClient.connect(warmTransport);
+  }, 180_000);
+
+  afterAll(async () => {
+    await warmClient?.close();
+    if (warmCachePath) rmSync(warmCachePath, { force: true });
+    if (warmProjectDir) rmSync(warmProjectDir, { recursive: true, force: true });
+  });
+
+  it('builds and persists the graph without any tool call', async () => {
+    // Deliberately no callTool() anywhere in this test.
+    for (let attempt = 0; attempt < 100 && !existsSync(warmCachePath); attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    expect(existsSync(warmCachePath)).toBe(true);
+  }, 60_000);
+
+  it('answers the first validate_code with an already-computed blast radius', async () => {
+    // Deliberately NOT the polling helper: polling would hide the very thing under
+    // test by waiting out a background build. The graph is known ready (the test
+    // above waited for its persisted file), so the FIRST response must already
+    // carry a computed blast radius. Without the boot warm-up this response is
+    // `computing`, because the request itself would be what starts the build.
+    const res = await warmClient.callTool({
+      name: 'validate_code',
+      arguments: {
+        file_path: 'app/views/partials/card.liquid',
+        content: '<div>card, edited</div>',
+      },
+    });
+    const content = res.content as Array<{ type: string; text: string }>;
+    const result = JSON.parse(content[0].text);
+
+    expect(result.impact).toEqual({
+      scope: 'direct',
+      status: 'computed',
+      dependents: {
+        total: 1,
+        by_kind: { render: 1 },
+        sample: ['app/views/pages/index.liquid'],
+      },
+    });
+  }, 60_000);
 });

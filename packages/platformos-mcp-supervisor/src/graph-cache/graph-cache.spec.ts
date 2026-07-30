@@ -41,6 +41,105 @@ describe('GraphCache: never-stale, background-built, deduplicated', () => {
     expect(buildGraph).toHaveBeenCalledTimes(1);
   });
 
+  describe('warm(): moving the cold build off the request path', () => {
+    it('builds without any lookup, so the first request finds a graph already there', async () => {
+      const buildGraph = vi.fn(async () => fakeGraph(1));
+      const cache = new GraphCache({
+        rootUri,
+        computeFingerprint: async () => fp({ a: '1' }),
+        buildGraph,
+      });
+
+      await cache.warm();
+
+      // No lookup happened before this one, yet it is served immediately —
+      // previously the first lookup could only return `recomputing`.
+      expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+      expect(buildGraph).toHaveBeenCalledTimes(1);
+    });
+
+    it('joins an in-flight build instead of starting a second one', async () => {
+      const buildGraph = vi.fn(async () => fakeGraph(1));
+      const cache = new GraphCache({
+        rootUri,
+        computeFingerprint: async () => fp({ a: '1' }),
+        buildGraph,
+      });
+
+      await Promise.all([cache.warm(), cache.warm(), cache.lookup()]);
+      await cache.settle();
+
+      expect(buildGraph).toHaveBeenCalledTimes(1);
+      expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+    });
+
+    it('is a no-op once a graph exists (does not rebuild)', async () => {
+      const buildGraph = vi.fn(async () => fakeGraph(1));
+      const cache = new GraphCache({
+        rootUri,
+        computeFingerprint: async () => fp({ a: '1' }),
+        buildGraph,
+      });
+
+      await cache.warm();
+      await cache.warm();
+
+      expect(buildGraph).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reject when the build fails, and leaves lookup reporting unavailable', async () => {
+      const buildGraph = vi.fn(async () => {
+        throw new Error('build exploded');
+      });
+      const cache = new GraphCache({
+        rootUri,
+        computeFingerprint: async () => fp({ a: '1' }),
+        buildGraph,
+      });
+
+      await expect(cache.warm()).resolves.toBeUndefined();
+      expect(await cache.lookup()).toEqual({ graph: null, reason: 'unavailable' });
+    });
+
+    it('does not reject when the fingerprint scan fails, and leaves the next lookup free to retry', async () => {
+      let scans = 0;
+      const buildGraph = vi.fn(async () => fakeGraph(1));
+      const cache = new GraphCache({
+        rootUri,
+        computeFingerprint: async () => {
+          scans += 1;
+          if (scans === 1) throw new Error('scan exploded');
+          return fp({ a: '1' });
+        },
+        buildGraph,
+      });
+
+      await expect(cache.warm()).resolves.toBeUndefined();
+      expect(buildGraph).not.toHaveBeenCalled();
+
+      // The failed scan must not have poisoned anything: a request still builds.
+      await cache.lookup();
+      await cache.settle();
+      expect(await cache.lookup()).toEqual({ graph: fakeGraph(1) });
+    });
+
+    it('leaves the persisted cache on disk once it resolves, so a restart resumes from it', async () => {
+      const writeCacheFile = vi.fn(async () => {});
+      const cache = new GraphCache({
+        rootUri,
+        computeFingerprint: async () => fp({ a: '1' }),
+        buildGraph: async () => fakeGraph(1),
+        readCacheFile: async () => null,
+        writeCacheFile,
+      });
+
+      await cache.warm();
+
+      // Not merely scheduled: the drain completed before warm() resolved.
+      expect(writeCacheFile).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('reuses the built graph across lookups while the fingerprint is unchanged (one build)', async () => {
     const buildGraph = vi.fn(async () => fakeGraph(1));
     const cache = new GraphCache({
@@ -384,6 +483,24 @@ describe('GraphCache: persistence (Phase 2 — warm cold-start from disk + recon
       uri('app/views/pages/index.liquid'),
     ]);
     expect(buildSpy).not.toHaveBeenCalled(); // loaded from disk, never rebuilt
+  });
+
+  it('warm() hydrates a restarted instance from disk without building', async () => {
+    const first = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath });
+    await first.warm();
+    expect(existsSync(cachePath)).toBe(true); // warm() drained the persist itself
+
+    // A brand-new instance, as if the server restarted: warming must LOAD.
+    const buildSpy = vi.fn(realBuild);
+    const second = new GraphCache({ rootUri, fs: NodeFileSystem, cachePath, buildGraph: buildSpy });
+    await second.warm();
+
+    // Served immediately — no request had to trigger the hydrate first.
+    const served = graphOf(await second.lookup());
+    expect(dependentSources(served, 'app/views/partials/card.liquid')).toEqual([
+      uri('app/views/pages/index.liquid'),
+    ]);
+    expect(buildSpy).not.toHaveBeenCalled();
   });
 
   it('reconciles the on-disk delta after warming from cache (still never rebuilds)', async () => {

@@ -12,6 +12,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { path } from '@platformos/platformos-check-common';
 import { AppCache } from '@platformos/platformos-check-node';
 
+import {
+  buildAppGraphInWorker,
+  terminateGraphBuildWorkers,
+} from '../graph-cache/build-in-worker.js';
 import { defaultGraphCachePath, GraphCache } from '../graph-cache/graph-cache.js';
 import { createLogger, type Logger } from '../logger.js';
 import { registerValidateCode, type SupervisorContext } from './validate-code.js';
@@ -28,6 +32,15 @@ export interface ServerOptions {
 export interface ServerHandle {
   server: McpServer;
   context: SupervisorContext;
+  /**
+   * The project-graph warm-up started at boot. Resolves when that attempt has
+   * settled and NEVER rejects (see {@link GraphCache.warm}).
+   *
+   * Exposed so an embedder can await graph readiness deliberately — and so tests
+   * can assert `startServer` does not await it. Ignoring it is the normal case:
+   * blast radius degrades to `computing` until the graph lands.
+   */
+  graphWarmup: Promise<void>;
   /** Tear down the transport. Idempotent. */
   shutdown: (reason?: string) => Promise<void>;
 }
@@ -38,13 +51,38 @@ const DEFAULT_VERSION = '0.0.1';
 export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
   const log = opts.log ?? createLogger(SERVER_NAME);
   // One never-stale project-graph cache per server (keyed by this project root),
-  // warmed from a persisted graph on the first blast-radius request (else built
-  // lazily in the background), then kept fresh incrementally.
+  // warmed from a persisted graph (else built) at BOOT — see below — then kept
+  // fresh incrementally.
   const rootUri = path.normalize(path.URI.file(opts.projectDir));
   const graphCache = new GraphCache({
     rootUri,
     cachePath: defaultGraphCachePath(rootUri),
+    // Build on a worker thread. A cold build is ~36 s and a CPU profile puts 83.5%
+    // of it in ohm-js (parsing ~808 liquid files), so on the main thread it does
+    // not interleave with a lint — the two ADD, which is why a first
+    // `validate_code` measured 51–65 s against ~1 s warm. Off-thread, the lint
+    // keeps its own latency. Incremental reconciles stay in-process: they touch
+    // only changed files and are milliseconds.
+    buildGraph: (buildRoot, _fs, entryPoints) => buildAppGraphInWorker(buildRoot, entryPoints),
   });
+
+  // Start the graph now rather than on the first request. Deliberately NOT
+  // awaited: awaiting would hold `initialize` — and so the client handshake —
+  // behind a build that takes tens of seconds on a large project. Firing it here
+  // instead overlaps the cold cost with the client's own startup rather than with
+  // its first `validate_code`, which previously turned a ~1 s call into 46–58 s
+  // because the build and the lint contend for the one event loop.
+  //
+  // `warm()` never rejects; the `catch` is defence in depth so that an
+  // instrumented or subclassed cache cannot turn this fire-and-forget into an
+  // unhandled rejection that takes the process down.
+  const warmStartedAt = Date.now();
+  const graphWarmup = graphCache
+    .warm()
+    .then(() => log(`project graph warm-up settled in ${Date.now() - warmStartedAt} ms`))
+    .catch((error: unknown) => {
+      log(`project graph warm-up failed: ${error instanceof Error ? error.message : error}`);
+    });
   // One never-stale parsed-project cache per server, so repeated lint calls reuse
   // the parsed project instead of re-parsing it (the dominant per-call cost).
   const appCache = new AppCache();
@@ -62,12 +100,15 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
     if (closed) return;
     closed = true;
     if (reason) log(`shutting down (${reason})`);
+    // Reap a build in flight first: a worker mid-parse holds the process open, and
+    // its rejection is absorbed by GraphCache like any other build failure.
+    await terminateGraphBuildWorkers();
     await server.close();
   };
 
   installSignalHandlers(shutdown);
 
-  return { server, context, shutdown };
+  return { server, context, graphWarmup, shutdown };
 }
 
 function installSignalHandlers(shutdown: (reason?: string) => Promise<void>): void {

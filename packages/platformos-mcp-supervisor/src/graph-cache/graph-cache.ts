@@ -261,6 +261,54 @@ export class GraphCache {
    * background build. The fingerprint scan is cheap (a stat-scan); the request
    * path never awaits a full build.
    */
+  /**
+   * Begin producing the graph NOW, off the request path, and resolve once that
+   * attempt has settled.
+   *
+   * `lookup` already builds in the background on a cold start — but only once a
+   * request arrives, so the entire cold cost (persisted-cache load, else a full
+   * build) lands on the FIRST request. Node being single-threaded, the lint
+   * sharing that tick is starved by it: a first `validate_code` measured 46–58 s
+   * on a project whose warm calls are ~1 s, against a 37 s standalone build. The
+   * contention is the cost, not the build alone.
+   *
+   * Called at server start, this moves the work BEFORE the first request instead
+   * of underneath it. It does not make the build cheaper — see TASK-12.8 for that.
+   *
+   * NEVER REJECTS, so callers can fire-and-forget without risking an unhandled
+   * rejection: a failed build is recorded internally exactly as if a request had
+   * triggered it (`lookup` then reports `unavailable`), and a failed fingerprint
+   * scan is left for the next `lookup` to retry.
+   *
+   * Idempotent and cheap to over-call: a concurrent build is joined rather than
+   * duplicated (`ensureGraph`'s in-flight guard), and it is a no-op once a graph
+   * exists. It deliberately does NOT reconcile an existing graph — that is
+   * `lookup`'s job on the request path, where freshness is required.
+   */
+  async warm(): Promise<void> {
+    if (this.built) return;
+
+    let fingerprint: Fingerprint;
+    try {
+      fingerprint = await this.computeFingerprint(this.rootUri, this.fs);
+    } catch {
+      // The scan itself failed (e.g. the root is not readable yet). Nothing to
+      // record — the next `lookup` retries from scratch.
+      return;
+    }
+
+    // A request may have won the race while the scan was in flight; building
+    // again would be wasted work.
+    if (this.built) return;
+
+    this.ensureGraph(fingerprint);
+    // Settle rather than just awaiting the build: it also drains the persist
+    // write, so once this resolves the on-disk cache reflects the warm-up and a
+    // restart resumes from it. Every promise `settle` awaits has already absorbed
+    // its own rejection, so this cannot throw.
+    await this.settle();
+  }
+
   async lookup(): Promise<GraphLookup> {
     const current = await this.computeFingerprint(this.rootUri, this.fs);
 

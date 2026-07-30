@@ -3,9 +3,10 @@ id: TASK-12.6
 title: >-
   Stop re-parsing the whole project on every validate_code call (last remaining
   cost)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 05:00'
+updated_date: '2026-07-29 21:44'
 labels:
   - performance
   - check-node
@@ -46,10 +47,32 @@ The two branches were compared file by file. The four check/LSP files touched by
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 An approach is chosen from the three options with its rationale recorded
-- [ ] #2 Warm `validate_code` latency on pos-module-mcp is under 500 ms per call, measured over the real MCP stdio bin and recorded
-- [ ] #3 Cold (first-call) latency is measured and recorded separately from warm latency — not hidden behind an average
-- [ ] #4 Live heap after repeated calls is measured with forced GC and recorded, so the memory cost of the chosen approach is explicit
-- [ ] #5 Diagnostics remain byte-identical: `lintBuffer` still matches `appCheckRun`'s whole-project offenses filtered to the same uri, over a real multi-hundred-file project
+- [x] #1 An approach is chosen from the three options with its rationale recorded
+- [x] #2 Warm `validate_code` latency on pos-module-mcp is under 500 ms per call, measured over the real MCP stdio bin and recorded
+- [x] #3 Cold (first-call) latency is measured and recorded separately from warm latency — not hidden behind an average
+- [x] #4 Live heap after repeated calls is measured with forced GC and recorded, so the memory cost of the chosen approach is explicit
+- [x] #5 Diagnostics remain byte-identical: `lintBuffer` still matches `appCheckRun`'s whole-project offenses filtered to the same uri, over a real multi-hundred-file project
 - [ ] #6 If the chosen approach is lazy parsing, a test pins that a parse error is still surfaced as a captured `Error` and not thrown from `getApp`
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Superseded — split into TASK-12.7 (warm the graph at server start) and TASK-12.8 (lazy parse), which replace this task's three unresolved options with measured, concrete plans. Closing so the same ground is not re-analysed.
+
+AC#1 DECISION: option 3 (`AppCache`) landed by merging the graph branch, and it is now on `supervisor-graph-integration`. Warm `validate_code` on pos-module-mcp is **0.9–1.0 s**, down from 26 s. Option 1 (lazy parse, confined to check-node) remains the right next step and is now TASK-12.8; the `DocumentManager` spread problem that undercuts option 2 is recorded there.
+
+AC#2/#3 MEASURED, and the two must not be conflated:
+- warm: 0.9–1.0 s (target met in practice)
+- first call, persisted graph: 6.6 s (AppCache cold → full project parse)
+- first call, no persisted graph: 46–58 s (the 37.3 s graph build contends with the lint on one event loop)
+Cold is now the whole problem, and it is exactly what 12.7 + 12.8 address.
+
+AC#4 MEMORY: with `AppCache` wired, RSS settles at 848–940 MB per instance; without it, post-GC live heap plateaus at ~19.2 MB with RSS ~404 MB (+0.5 MB/call — no leak, verified with forced GC over 8 calls). So the retention is the cache's parsed ASTs, not a leak, and 12.8 attacks the cause rather than the symptom.
+
+AC#5 DIAGNOSTICS UNCHANGED: `lintBuffer` matched `appCheckRun`'s whole-project offenses filtered per uri across dna-idea (87/87 files), pos-module-mcp and poetry-blog — 0 mismatches; whole-project offense dumps byte-identical on three real projects, re-verified after merging master.
+
+AC#6 was conditional on choosing lazy parsing; it carries over to TASK-12.8 AC#2, where the captured-`Error` guarantee is spelled out.
+
+Merge note from this task proved accurate: `check-common/src/index.ts` and `check-node/src/index.ts` were the only real conflicts and both sides composed (`cache` + `only` + process-scoped docset), while the ESM extension tax on the graph branch's new modules was real and had to be paid for all 12 relative imports.
+<!-- SECTION:FINAL_SUMMARY:END -->

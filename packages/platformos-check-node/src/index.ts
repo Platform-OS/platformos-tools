@@ -8,6 +8,7 @@ import {
   Offense,
   App,
   toSourceCode as commonToSourceCode,
+  toLazySourceCode as commonToLazySourceCode,
   check as coreCheck,
   extractDocDefinition,
   filePathSupportsLiquidDoc,
@@ -70,10 +71,25 @@ export type AppCheckRun = {
 /** A parsed source file as it appears in an {@link App}. */
 export type AppSourceCode = LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode;
 
+/**
+ * Read a project file and return its `SourceCode`, with the AST parsed LAZILY (on
+ * first access) — see check-common's {@link commonToLazySourceCode}.
+ *
+ * `getApp` reads every project file so cross-file checks can resolve against a
+ * complete `App`, but a `validate_code` request visits only the edited buffer
+ * (`CheckOptions.only`), so parsing the rest is work whose result is never read.
+ * Deferring it removes that work rather than caching it, and with it the transient
+ * ASTs that dominate the server's peak RSS.
+ *
+ * Behaviour is otherwise unchanged: a read failure still yields `undefined` (the
+ * file is dropped from the `App`), and a PARSE failure is still captured as an
+ * `Error` on `ast` rather than thrown — it simply surfaces when a check first looks
+ * at that file instead of during the load.
+ */
 export async function toSourceCode(absolutePath: string): Promise<AppSourceCode | undefined> {
   try {
     const source = await fs.readFile(absolutePath, 'utf8');
-    return commonToSourceCode(pathUtils.normalize(URI.file(absolutePath)), source);
+    return commonToLazySourceCode(pathUtils.normalize(URI.file(absolutePath)), source);
   } catch (e) {
     return undefined;
   }

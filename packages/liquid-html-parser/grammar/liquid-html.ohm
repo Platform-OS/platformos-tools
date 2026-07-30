@@ -43,20 +43,20 @@ Liquid <: Helpers {
   // every candidate position and fans out into ~35 `liquidTagRule<name, markup>`
   // plus ~14 `liquidTagOpenRule<name, markup>` applications before failing. Those
   // are PARAMETERIZED applications, and `Apply.prototype.substituteParams` only
-  // returns `this` when `args.length === 0` — so each allocates a fresh `Apply`
-  // and rebuilds its memo-key string on every evaluation, never hitting the memo
-  // table. That is why the profile shows `toMemoKey`/`Apply.toString` high in self
-  // time with ~32% of parse CPU in GC.
+  // returns `this` when `args.length === 0` — so each one allocates a fresh
+  // `Apply` and rebuilds its memo-key string on every evaluation, and therefore
+  // never hits the memo table. That is why a parse profile shows `toMemoKey` and
+  // `Apply.toString` high in self time with a large share of CPU in GC.
   //
   // It matters because `liquidNode` is reached from three hot places: `Node`'s
-  // iteration, `Attr`, and `attr{Single,Double}QuotedValue` — once per text run,
-  // once per attribute slot, once per attribute value segment.
+  // iteration, `Attr`, and `attr{Single,Double}QuotedValue` — i.e. once per text
+  // run, once per attribute slot, and once per attribute value segment.
   //
-  // Written as the `~(~x)` double-negation idiom already used by
-  // `argumentSeparatorOptionalComma`, so it contributes arity 0 and the CST shape
-  // is unchanged — `LiquidMappings.liquidNode: 0` still indexes the alternation.
+  // Written with the `~(~x)` double-negation idiom already used by
+  // `argumentSeparatorOptionalComma` so it contributes arity 0 and the CST shape is
+  // unchanged — `LiquidMappings.liquidNode: 0` still indexes the alternation.
   // Verified CST-identical (ctorName + source intervals + node count, sha1) over
-  // 1392 real files: 22.92 s -> 14.22 s (1.61x), same parse outcomes.
+  // 1392 real files, with identical parse outcomes and identical lint offenses.
   liquidNode =
     ~(~"{") (liquidDoc
       | liquidBlockComment
@@ -334,7 +334,12 @@ Liquid <: Helpers {
     ) endOfIdentifier
 
   liquidTagOpenForm = liquidTagOpenRule<"form", liquidTagOpenFormMarkup>
-  liquidTagOpenFormMarkup = arguments<delimTag> (space* ",")? space*
+  // Matches the platformOS runtime (FormForTag): an optional positional model name first
+  // ({% form form, method: 'delete' %}), then key: value attributes. The runtime scans
+  // `[\w-]+: value` pairs out of the markup, so keys may contain hyphens (html-class:,
+  // html-data-user-id:), commas between attributes are optional, and bare {% form %} is valid.
+  liquidTagOpenFormMarkup =
+    orderedListOf<positionalArgument<delimTag>, namedArgument<delimTag>, argumentSeparatorOptionalComma> (space* ",")? space*
 
   liquidTagOpenFor = liquidTagOpenRule<"for", liquidTagOpenForMarkup>
 
@@ -708,10 +713,10 @@ LiquidHTML <: Liquid {
     "---" newline anyExceptStar<"---"> "---" newline
 
   // PERF: same idea as `liquidNode`, smaller payoff. Guards the doctype /
-  // comment / processing-instruction / raw-tag / void-element scan — including
-  // ~15 `caseInsensitive<1>` applications for `voidElementName`, which are
-  // parameterized and so also never memoize — behind one character. Arity 0, CST
-  // unchanged.
+  // comment / processing-instruction / raw-tag / void-element scan — including the
+  // `caseInsensitive<1>` applications for `voidElementName`, which are also
+  // parameterized and so also never memoize — behind one character. Arity 0, so
+  // the CST shape is unchanged.
   HtmlNode =
     ~(~"<") (HtmlDoctype
       | HtmlComment

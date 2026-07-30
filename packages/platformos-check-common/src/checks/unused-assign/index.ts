@@ -6,7 +6,7 @@ import {
   NodeTypes,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
+import { isWithinRawTagThatDoesNotParseItsContents, RESERVED_VARIABLE_NAMES } from '../utils';
 
 export const UnusedAssign: LiquidCheckDefinition = {
   meta: {
@@ -95,6 +95,9 @@ export const UnusedAssign: LiquidCheckDefinition = {
         }
 
         for (const [variable, node] of assignedVariables.entries()) {
+          // Reserved literal names are reported by ReservedVariableName instead —
+          // "unused" would be misleading when the source visibly references the name.
+          if (RESERVED_VARIABLE_NAMES.has(variable)) continue;
           if (!usedVariables.has(variable) && !variable.startsWith('_')) {
             context.report({
               message: `The variable '${variable}' is assigned but not used`,

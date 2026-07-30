@@ -67,6 +67,9 @@ ParserBlockingScript:
 PartialCallArguments:
   enabled: true
   severity: 0
+ReservedVariableName:
+  enabled: true
+  severity: 0
 TranslationKeyExists:
   enabled: true
   severity: 0

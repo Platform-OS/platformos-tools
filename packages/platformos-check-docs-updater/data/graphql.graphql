@@ -438,7 +438,9 @@ Input for API call request details
 """
 input ApiCallSendRequestInput {
   """
-  The body of the API call
+  The body of the API call, delivered verbatim - it is not parsed as a Liquid
+  template and may contain binary data (e.g. an encrypted Web Push payload built
+  with the base64_decode filter)
   """
   body: String
 
@@ -7601,6 +7603,22 @@ input QueryModelSchema {
   names: [String]
 }
 
+"""
+Execution options for this query
+"""
+input QueryOptionsInput {
+  """
+  Execute against the read replica database when one is configured; falls back
+  to the primary database otherwise. Routing applies to the whole operation.
+  """
+  read_replica: Boolean = false
+
+  """
+  Database statement timeout in seconds applied to the whole operation. Defaults to 19 seconds.
+  """
+  timeout: Int = 19
+}
+
 input QueryTransactableType {
   id: Int
   ids: [Int]
@@ -9962,7 +9980,7 @@ type RootQuery {
   admin_transactable_schemas(filter: TransactableSchemasFilterInput, page: Int = 1, per_page: Int = 20, sort: [TransactableSchemasSortInput!]): TransactableSchemaCollection! @doc(category: "Admin")
   admin_user_profile_schemas(filter: UserProfileSchemasFilterInput, page: Int = 1, per_page: Int = 20, sort: [UserProfileSchemasSortInput!]): UserProfileSchemaCollection! @doc(category: "Admin")
   admin_user_schema: UserSchema! @doc(category: "Admin")
-  admin_versions(filter: VersionFilterInput, page: Int = 1, per_page: Int = 20, sort: [VersionSortInput!]): VersionCollection! @doc(category: "Admin")
+  admin_versions(filter: VersionFilterInput, options: QueryOptionsInput, page: Int = 1, per_page: Int = 20, sort: [VersionSortInput!]): VersionCollection! @doc(category: "Admin")
   cms_discovery(types: [CMSItemType]): CMSItemDefinitionCollection @deprecated(reason: "Use admin_* queries") @doc(category: "Deprecated")
   cms_items(page: Int = 1, per_page: Int, type: CMSItemType!): CMSItemPayloadCollection @deprecated(reason: "Use admin_* queries") @doc(category: "Deprecated")
   constant(filter: EncryptedConstantFilterInput): EncryptedConstant @deprecated(reason: "Use constants") @doc(category: "Deprecated")
@@ -10050,7 +10068,7 @@ type RootQuery {
   """
   Returns collection of all Embeddings in the system.
   """
-  embeddings_rc(filter: EmbeddingsFilterInput, page: Int = 1, per_page: Int!, sort: [EmbeddingsSortInput!]): EmbeddingCollection! @doc(category: "Data")
+  embeddings_rc(filter: EmbeddingsFilterInput, options: QueryOptionsInput, page: Int = 1, per_page: Int!, sort: [EmbeddingsSortInput!]): EmbeddingCollection! @doc(category: "Data")
   feeds: [ActivityStreamsFeed] @doc(category: "Activity feeds")
   handlers(page: Int = 1, per_page: Int = 20): ActivityStreamsHandlerCollection @doc(category: "Activity feeds")
   images(filter: ImagesFilterInput, page: Int = 1, per_page: Int!, sort: [ImagesSortInput!]): CustomImageCollection! @deprecated(reason: "Use property upload") @doc(category: "Deprecated")
@@ -10078,7 +10096,7 @@ type RootQuery {
   """
   Returns collection of all Models in the system, including soft deleted items.
   """
-  models(filter: ModelsFilterInput, page: Int = 1, per_page: Int!, sort: [ModelsSortInput!]): ModelCollection! @deprecated(reason: "Use records") @doc(category: "Deprecated")
+  models(filter: ModelsFilterInput, options: QueryOptionsInput, page: Int = 1, per_page: Int!, sort: [ModelsSortInput!]): ModelCollection! @deprecated(reason: "Use records") @doc(category: "Deprecated")
   pages(
     """
     deprecated use filter: { metadata: { exclude: $exclude }}
@@ -10130,7 +10148,7 @@ type RootQuery {
   """
   Returns collection of all Records in the system.
   """
-  records(filter: RecordsFilterInput, page: Int = 1, per_page: Int!, sort: [RecordsSortInput!]): RecordCollection! @doc(category: "Data")
+  records(filter: RecordsFilterInput, options: QueryOptionsInput, page: Int = 1, per_page: Int!, sort: [RecordsSortInput!]): RecordCollection! @doc(category: "Data")
 
   """
   Returns collection of remote Records.
@@ -10201,8 +10219,8 @@ type RootQuery {
   """
   Finds non deleted users based on arguments provided
   """
-  user(email: String, external_id: String, id: ID, is_deleted: Boolean, slug: String): User @deprecated(reason: "Use users") @doc(category: "Deprecated")
-  users(filter: UsersFilterInput, page: Int = 1, per_page: Int!, sort: [UsersSortInput!]): UserCollection! @doc(category: "Data")
+  user(email: String, external_id: String, id: ID, is_deleted: Boolean, options: QueryOptionsInput, slug: String): User @deprecated(reason: "Use users") @doc(category: "Deprecated")
+  users(filter: UsersFilterInput, options: QueryOptionsInput, page: Int = 1, per_page: Int!, sort: [UsersSortInput!]): UserCollection! @doc(category: "Data")
 }
 
 enum SelectPropertyTypeEnum {

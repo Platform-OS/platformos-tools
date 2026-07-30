@@ -1818,6 +1818,50 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPosition(ast, 'children.0');
         }
       });
+
+      it('should parse the form tag without arguments', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% form %}content{% endform %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('form');
+          expectPath(ast, 'children.0.markup').to.have.lengthOf(0);
+          expectPath(ast, 'children.0.children').to.have.lengthOf(1);
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the form tag with hyphenated keys and optional commas', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          // The runtime scans `[\w-]+: value` pairs out of the markup, so commas
+          // between attributes are optional and keys may contain hyphens.
+          ast = toAST(
+            `{% form html-class: "foo-form", html-submitonce: "true" html-data-user-id: "12345" %}content{% endform %}`,
+          );
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('form');
+          expectPath(ast, 'children.0.markup').to.have.lengthOf(3);
+          expectPath(ast, 'children.0.markup.0.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.markup.0.name').to.equal('html-class');
+          expectPath(ast, 'children.0.markup.1.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.markup.1.name').to.equal('html-submitonce');
+          expectPath(ast, 'children.0.markup.2.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.markup.2.name').to.equal('html-data-user-id');
+          expectPosition(ast, 'children.0');
+        }
+      });
+
+      it('should parse the form tag with a positional model name', () => {
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          ast = toAST(`{% form form, method: 'delete' %}content{% endform %}`);
+          expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+          expectPath(ast, 'children.0.name').to.equal('form');
+          expectPath(ast, 'children.0.markup').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.0.type').to.equal('VariableLookup');
+          expectPath(ast, 'children.0.markup.1.type').to.equal('NamedArgument');
+          expectPath(ast, 'children.0.markup.1.name').to.equal('method');
+          expectPosition(ast, 'children.0');
+        }
+      });
     });
   });
 

@@ -11,6 +11,8 @@ import {
   BasicParamTypes,
   ObjectEntry,
 } from '@platformos/platformos-check-common';
+import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
+import { DocumentsLocator } from '@platformos/platformos-common';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
 import { ArrayType, ShapeType, TypeSystem, UnionType } from './TypeSystem';
@@ -339,9 +341,6 @@ describe('Module: TypeSystem', () => {
       // Setup: File C calls GraphQL, B calls C, A calls B
       // The type from GraphQL should propagate: C -> B -> A
 
-      const { MockFileSystem } = await import('@platformos/platformos-check-common/src/test');
-      const { DocumentsLocator } = await import('@platformos/platformos-common');
-
       const mockFiles = {
         // File C: calls GraphQL and returns the result
         'app/lib/deep/get_user.liquid': `{% graphql result %}
@@ -441,9 +440,6 @@ query {
     });
 
     it('should handle multiple return types creating a union', async () => {
-      const { MockFileSystem } = await import('@platformos/platformos-check-common/src/test');
-      const { DocumentsLocator } = await import('@platformos/platformos-common');
-
       const mockFiles = {
         // File with conditional returns
         'app/lib/conditional/get_value.liquid': `
@@ -502,9 +498,6 @@ query {
     });
 
     it('should handle circular references gracefully', async () => {
-      const { MockFileSystem } = await import('@platformos/platformos-check-common/src/test');
-      const { DocumentsLocator } = await import('@platformos/platformos-common');
-
       const mockFiles = {
         // File A calls B
         'app/lib/circular/a.liquid': `
@@ -555,9 +548,6 @@ query {
     });
 
     it('should infer types through 3-level chain: A -> B -> C with GraphQL', async () => {
-      const { MockFileSystem } = await import('@platformos/platformos-check-common/src/test');
-      const { DocumentsLocator } = await import('@platformos/platformos-common');
-
       const mockFiles = {
         // File C: the deepest level, calls GraphQL
         'app/lib/level3/fetch_data.liquid': `{% graphql result %}
@@ -636,9 +626,6 @@ query {
     });
 
     it('should merge hash_assign keys with existing function return shapes', async () => {
-      const { MockFileSystem } = await import('@platformos/platformos-check-common/src/test');
-      const { DocumentsLocator } = await import('@platformos/platformos-common');
-
       const mockFiles = {
         // Function that returns a shape from GraphQL
         'app/lib/api/get_user.liquid': `{% graphql result %}
@@ -692,9 +679,6 @@ query {
     });
 
     it('should accumulate multiple hash_assign keys', async () => {
-      const { MockFileSystem } = await import('@platformos/platformos-check-common/src/test');
-      const { DocumentsLocator } = await import('@platformos/platformos-common');
-
       const mockFiles = {};
 
       const rootUri = 'file:///project';

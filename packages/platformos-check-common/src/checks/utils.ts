@@ -14,7 +14,7 @@ import {
   LiquidTag,
   LoopNamedTags,
 } from '@platformos/liquid-html-parser';
-import { LiquidHtmlNodeOfType as NodeOfType } from '../types';
+import { LiquidHtmlNodeOfType as NodeOfType, ObjectEntry } from '../types';
 
 type ElementType<T> = T extends (infer E)[] ? E : never;
 
@@ -114,4 +114,17 @@ function isRawTagThatDoesNotParseItsContent(node: LiquidHtmlNode) {
 
 export function isWithinRawTagThatDoesNotParseItsContents(ancestors: LiquidHtmlNode[]) {
   return ancestors.some(isRawTagThatDoesNotParseItsContent);
+}
+
+/**
+ * Whether a documented object is in scope everywhere, and so must never be
+ * reported as an undefined variable or a missing partial argument.
+ *
+ * Shared by `UndefinedObject` and `PartialCallArguments` so the two agree when the
+ * docset's `access` shape changes. Note that contextual names (e.g. `app` inside a
+ * partial) are NOT covered here: they are not documented objects at all, so each
+ * check adds them separately.
+ */
+export function isGloballyAccessibleObject({ access }: ObjectEntry): boolean {
+  return !access || access.global === true || access.template.length > 0;
 }

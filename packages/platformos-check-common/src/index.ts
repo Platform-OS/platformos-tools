@@ -78,7 +78,8 @@ export * from './to-source-code';
 export * from './types';
 export * from './utils/bounded-cache';
 export * from './utils/error';
-export * from './utils/graphql-schema';
+// NOT `./utils/graphql-schema`: a schema is only inspectable by the `graphql`
+// module record that built it, so consumers must build their own. See that file.
 export * from './utils/indexBy';
 export * from './utils/memo';
 export * from './utils/types';
@@ -104,19 +105,17 @@ export interface CheckOptions {
    * decide for itself what an empty result means — passing `[]` to mean "the
    * whole project" would silently lint nothing.
    *
-   * `app` must STILL be the complete project. `getDefaultTranslations` and
-   * `getTranslationsForBase` are built from it below, and check-node additionally
-   * builds `getDocDefinition` from it (see `lintApp`) — which is what lets an
-   * overlaid, unsaved buffer be cross-referenced with its own `{% doc %}` params.
-   * Together those are how cross-file checks (`MissingPartial`, `OrphanedPartial`,
+   * `app` must STILL be the complete project. `getDefaultTranslations`,
+   * `getTranslationsForBase` and check-node's `getDocDefinition` are all built from
+   * it, and are how cross-file checks (`MissingPartial`, `OrphanedPartial`,
    * `TranslationKeyExists`, …) resolve the rest of the project. This option
    * narrows what gets VISITED, never what the checks can see.
    *
    * The result is exactly the subset of the unrestricted run's offenses that
    * belongs to these files, because an offense's `uri` is always the visited
    * file's `uri` (see `report` in `createContext` — the single place offenses are
-   * created). It is therefore a performance option, not a semantic one: linting
-   * one buffer in a 1400-file project drops from ~21 s to ~0.1 s.
+   * created). It is therefore a performance option, not a semantic one: on a
+   * 1400-file project it takes the check phase from ~21 s to ~0.15 s.
    */
   only?: UriString[];
 }
@@ -150,10 +149,12 @@ export async function check(
     dependencies.platformosDocset = new AugmentedPlatformOSDocset(dependencies.platformosDocset);
   }
 
+  const visitable = filesToVisit(app, options.only);
+
   for (const type of Object.values(SourceCodeType)) {
     switch (type) {
       case SourceCodeType.JSON: {
-        const files = filesToVisit(filesOfType(type, app), options.only);
+        const files = filesOfType(type, visitable);
         const checkDefs = checksOfType(type, config.checks);
         for (const file of files) {
           for (const checkDef of checkDefs) {
@@ -165,7 +166,7 @@ export async function check(
         break;
       }
       case SourceCodeType.GraphQL: {
-        const files = filesToVisit(filesOfType(type, app), options.only);
+        const files = filesOfType(type, visitable);
         const checkDefs = checksOfType(type, config.checks);
         for (const file of files) {
           for (const checkDef of checkDefs) {
@@ -177,7 +178,7 @@ export async function check(
         break;
       }
       case SourceCodeType.LiquidHtml: {
-        const files = filesToVisit(filesOfType(type, app), options.only);
+        const files = filesOfType(type, visitable);
         const checkDefs = [DisabledChecksVisitor, ...checksOfType(type, config.checks)];
         for (const file of files) {
           for (const checkDef of checkDefs) {
@@ -189,7 +190,7 @@ export async function check(
         break;
       }
       case SourceCodeType.YAML: {
-        const files = filesToVisit(filesOfType(type, app), options.only);
+        const files = filesOfType(type, visitable);
         const checkDefs = checksOfType(type, config.checks);
         for (const file of files) {
           for (const checkDef of checkDefs) {
@@ -274,20 +275,12 @@ function createCheck<S extends SourceCodeType>(
   return check.create(context as any) as Check<S>;
 }
 
-/**
- * The files a run should visit: all of them when {@link CheckOptions.only} is
- * absent, otherwise just the ones it names. Unknown URIs in `only` simply match
- * nothing (a buffer for a file that is not part of the app yields no offenses,
- * same as before), and an empty `only` therefore visits nothing at all.
- */
-function filesToVisit<T extends SourceCodeType>(
-  files: SourceCode<T>[],
-  only?: UriString[],
-): SourceCode<T>[] {
-  if (only === undefined) return files;
+/** The files a run should visit. Unknown URIs in `only` simply match nothing. */
+function filesToVisit(app: App, only?: UriString[]): App {
+  if (only === undefined) return app;
 
   const visit = new Set(only);
-  return files.filter((file) => visit.has(file.uri));
+  return app.filter((file) => visit.has(file.uri));
 }
 
 function filesOfType<S extends SourceCodeType>(type: S, sourceCodes: App): SourceCode<S>[] {

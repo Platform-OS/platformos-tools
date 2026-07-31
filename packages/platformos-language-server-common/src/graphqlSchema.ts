@@ -3,8 +3,9 @@ import { createBoundedCache } from '@platformos/platformos-check-common';
 
 /**
  * Build a `GraphQLSchema` from SDL, reusing the previous result while the SDL is
- * unchanged — the same one-entry cache check-common keeps for its own checks, but
- * built with THIS package's `graphql`.
+ * unchanged — the same one-entry cache check-common keeps for its own checks (see
+ * `utils/graphql-schema.ts` there for the performance rationale), but built with
+ * THIS package's `graphql`.
  *
  * A `GraphQLSchema` may only be inspected by the `graphql` module record that
  * built it. `isNonNullType`/`isListType`/`getNamedType` identify types with
@@ -20,9 +21,6 @@ import { createBoundedCache } from '@platformos/platformos-check-common';
  * hands us a schema from its record. `GraphQLFieldHoverProvider` and
  * `GraphQLFieldCompletionProvider` avoid the same hazard by `require`-ing graphql
  * at runtime; here it is enough to build and inspect within one record.
- *
- * The SDL is ~300 KB and `buildSchema` costs 45-85 ms on it, so caching the last
- * result is what keeps repeated `{% graphql %}` inference off that cost.
  */
 const schemaCache = createBoundedCache<GraphQLSchema>(1);
 

@@ -40,11 +40,13 @@ export * from '@platformos/platformos-check-common';
 export * from './config/types';
 export { NodeFileSystem };
 export { runBackfillDocsCLI } from './backfill-docs';
+/**
+ * Download the latest platformOS liquid docs over the local docset, then
+ * {@link resetPlatformOSLiquidDocsManager} so the next lint run reads them.
+ */
 export async function updateDocs(log: (msg: string) => void = () => {}): Promise<void> {
   await downloadPlatformOSLiquidDocs(platformOSLiquidDocsRoot, log);
-  // The shared manager has memoized the docs we just replaced. Without this, a
-  // process that updates its docs keeps linting against the pre-update docset.
-  invalidateDocsManager();
+  resetPlatformOSLiquidDocsManager();
 }
 
 export const loadConfig: typeof resolveConfig = async (configPath, root) => {
@@ -112,10 +114,11 @@ async function lintApp(
   only?: UriString[],
 ): Promise<Offense[]> {
   const platformOSLiquidDocsManager = getPlatformOSLiquidDocsManager();
+  const rootUri = URI.file(root).toString();
 
   const docDefinitions = new Map(
     app.map((file) => [
-      path.relative(URI.file(root).toString(), file.uri),
+      path.relative(rootUri, file.uri),
       memo(async (): Promise<DocDefinition | undefined> => {
         const ast = file.ast;
         if (!isLiquidHtmlNode(ast)) {
@@ -155,15 +158,15 @@ async function lintApp(
  * instance is what makes those memos pay off, and keeping the SDL string stable is
  * also what lets check-common's schema cache hit.
  *
- * Reuse is time-boxed rather than permanent. Because the memos are per instance,
- * an instance kept forever also pins forever whatever docset its FIRST run
- * resolved — including the bundled fallback it settles for when `setup()` fails
- * (no network, docs not downloaded yet, a half-written resource file). A server
- * that started offline would then report `UnknownFilter` on valid code for its
- * whole life, and nothing short of a restart would fix it. Rebuilding on the
- * first run after {@link DOCS_MANAGER_MAX_AGE_MS} keeps a burst of `validate_code`
- * calls on one instance while letting a long-lived process recover, pick up a new
- * remote revision, and see the results of an out-of-band `--update-docs`.
+ * Reuse is time-boxed rather than permanent, because those memos also pin whatever
+ * each resource resolved to on first use — including the bundled fallback a loader
+ * settles for when the cache directory is missing or a resource file is unreadable
+ * (see `findSuitableResource`). The fallback is a complete docset, so the cost is
+ * staleness rather than breakage: a process that started before its docs were
+ * downloaded keeps linting against the bundled snapshot. Rebuilding on the first
+ * run after {@link DOCS_MANAGER_MAX_AGE_MS} keeps a burst of `validate_code` calls
+ * on one instance while letting a long-lived process pick up a new remote revision
+ * and the results of an out-of-band `--update-docs`.
  */
 let sharedDocsManager: PlatformOSLiquidDocsManager | undefined;
 let sharedDocsManagerBuiltAt = 0;
@@ -177,11 +180,15 @@ let sharedDocsManagerBuiltAt = 0;
 const DOCS_MANAGER_MAX_AGE_MS = 5 * 60 * 1000;
 
 /**
- * Drop the shared docs manager so the next lint run builds one from the docs
- * currently on disk. {@link updateDocs} calls this; hosts that refresh the docs
- * cache by other means can call it too.
+ * Forget the shared docs manager so the next lint run builds one from the docs
+ * currently on disk. Called by {@link updateDocs}; exported for embedders that
+ * refresh the docset by other means (and for tests).
+ *
+ * A docset changed by ANOTHER process (e.g. a separate `pos-cli` download) is
+ * picked up without this call, but only on the first run after
+ * {@link DOCS_MANAGER_MAX_AGE_MS}; calling this makes it immediate.
  */
-export function invalidateDocsManager(): void {
+export function resetPlatformOSLiquidDocsManager(): void {
   sharedDocsManager = undefined;
 }
 
@@ -197,19 +204,18 @@ export function invalidateDocsManager(): void {
  *
  * The replay is what makes these messages usable at all. Every loader is
  * memoized, so a degraded docset explains itself exactly once — during the first
- * run of the process, which for the MCP supervisor is a `lintBuffer` call with no
- * `log` at all. Without replay, that explanation is discarded and every later run
- * sees hundreds of unexplained `UnknownFilter` offenses against an empty log.
+ * run of the process. Without replay, that explanation is discarded and every later
+ * run sees unexplained `UnknownFilter` offenses against an empty log. The history
+ * is bounded by the manager itself: every call site that writes to `log` sits behind
+ * a per-instance memo, so one instance emits a small fixed set of messages.
  */
 const activeDocsManagerLogs = new Set<(message: string) => void>();
 const docsManagerLogHistory: string[] = [];
 
-/** Enough to carry a full set of loader failures; a cap so a long-lived process cannot grow it. */
-const DOCS_MANAGER_LOG_HISTORY_LIMIT = 50;
-
 function getPlatformOSLiquidDocsManager(): PlatformOSLiquidDocsManager {
-  const expired = Date.now() - sharedDocsManagerBuiltAt > DOCS_MANAGER_MAX_AGE_MS;
-  if (sharedDocsManager && expired) invalidateDocsManager();
+  if (Date.now() - sharedDocsManagerBuiltAt > DOCS_MANAGER_MAX_AGE_MS) {
+    sharedDocsManager = undefined;
+  }
 
   if (!sharedDocsManager) {
     // A rebuilt manager re-reports whatever it finds, so start the history over
@@ -218,9 +224,6 @@ function getPlatformOSLiquidDocsManager(): PlatformOSLiquidDocsManager {
     sharedDocsManagerBuiltAt = Date.now();
     sharedDocsManager = new PlatformOSLiquidDocsManager((message) => {
       docsManagerLogHistory.push(message);
-      if (docsManagerLogHistory.length > DOCS_MANAGER_LOG_HISTORY_LIMIT) {
-        docsManagerLogHistory.shift();
-      }
       for (const sink of activeDocsManagerLogs) sink(message);
     });
   }
@@ -276,18 +279,17 @@ export interface LintBufferParams {
  * project is still handed to `check()` so cross-file checks resolve against it.
  * That is a pure speed-up, not a narrowing: offenses are always attributed to the
  * visited file, so visiting the others could only ever produce results this
- * function discards. On a 1400-file project it is the difference between ~21 s
- * and ~0.1 s of check time.
+ * function discards. On a 1400-file project it takes the check phase from ~21 s to
+ * ~0.15 s — after which `getAppAndConfig` below, which reads and eagerly parses
+ * every file in the project on every call, is what dominates the latency a caller
+ * actually sees.
  */
 export async function lintBuffer(params: LintBufferParams): Promise<Offense[]> {
   const { root, filePath, content, configPath, log = () => {} } = params;
   const { app, config } = await getAppAndConfig(root, configPath);
   const uri = pathUtils.normalize(URI.file(filePath));
   const overlaidApp = overlayBuffer(app, uri, content);
-  const offenses = await lintApp(root, overlaidApp, config, log, [uri]);
-  // Belt and braces: `only` already restricts this to the buffer's file, but the
-  // filter keeps the contract explicit and independent of that optimization.
-  return offenses.filter((offense) => offense.uri === uri);
+  return lintApp(root, overlaidApp, config, log, [uri]);
 }
 
 /**

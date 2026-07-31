@@ -13,9 +13,10 @@
  * (typically file content), so an entry can never be stale: changed content is a
  * different key, and the old entry ages out.
  *
- * `clear()` drops everything. Long-lived hosts (language server, MCP supervisor)
- * use it to release a project's entries when they switch projects; tests use it
- * to stay independent of each other.
+ * `clear()` drops everything. No production caller needs it today (entries are
+ * keyed by content, so none can go stale); it exists so tests stay independent of
+ * each other, and so a long-lived host that switches projects has a way to release
+ * the previous project's entries.
  */
 export interface BoundedCache<Result> {
   (key: string, compute: () => Result): Result;
@@ -25,7 +26,7 @@ export interface BoundedCache<Result> {
 export function createBoundedCache<Result>(limit: number): BoundedCache<Result> {
   const entries = new Map<string, Result>();
 
-  const cached = function cached(key: string, compute: () => Result): Result {
+  const cached = (key: string, compute: () => Result): Result => {
     // `has` rather than a truthiness check: `undefined`/`null`/`false` are
     // legitimate cached results and must count as hits.
     if (entries.has(key)) {
@@ -43,9 +44,7 @@ export function createBoundedCache<Result>(limit: number): BoundedCache<Result> 
       if (!oldest.done) entries.delete(oldest.value);
     }
     return result;
-  } as BoundedCache<Result>;
+  };
 
-  cached.clear = () => entries.clear();
-
-  return cached;
+  return Object.assign(cached, { clear: () => entries.clear() });
 }

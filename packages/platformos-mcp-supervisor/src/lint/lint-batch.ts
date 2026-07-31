@@ -38,6 +38,18 @@ export interface BatchBuffer {
   content: string;
 }
 
+/** What one lint pass found, and which requested buffers it did not check. */
+export interface BatchLintResult {
+  /** Diagnostics per caller key. An empty array means checked and clean. */
+  diagnostics: Map<string, ValidateCodeDiagnostic[]>;
+  /**
+   * Caller keys the project config excludes — NOT checked. Reported by
+   * `lintBuffers` from the config it already loaded, so this costs no extra I/O and
+   * cannot disagree with what the engine actually skipped.
+   */
+  ignored: Set<string>;
+}
+
 export interface BatchLintInput {
   /** Absolute project root the buffers are validated against. */
   projectDir: string;
@@ -45,8 +57,8 @@ export interface BatchLintInput {
 }
 
 /**
- * Lint every buffer in one pass, returning diagnostics keyed by the caller's
- * ORIGINAL `filePath` string.
+ * Lint every buffer in one pass, returning diagnostics — and the config-excluded
+ * buffers — keyed by the caller's ORIGINAL `filePath` string.
  *
  * Keyed by the caller's own key on purpose: the caller may pass a relative path, an
  * absolute one, or a mix, and it must be able to find its results without
@@ -56,17 +68,18 @@ export interface BatchLintInput {
 export async function runBatchLint(
   input: BatchLintInput,
   cache?: AppCache,
-): Promise<Map<string, ValidateCodeDiagnostic[]>> {
+): Promise<BatchLintResult> {
   const { projectDir, buffers } = input;
-  const results = new Map<string, ValidateCodeDiagnostic[]>();
-  if (buffers.length === 0) return results;
+  const diagnostics = new Map<string, ValidateCodeDiagnostic[]>();
+  const ignored = new Set<string>();
+  if (buffers.length === 0) return { diagnostics, ignored };
 
   const absoluteByKey = new Map<string, string>();
   for (const buffer of buffers) {
     absoluteByKey.set(buffer.filePath, toAbsoluteFilePath(projectDir, buffer.filePath));
   }
 
-  const byUri = await lintBuffers({
+  const result = await lintBuffers({
     root: projectDir,
     buffers: buffers.map((buffer) => ({
       filePath: absoluteByKey.get(buffer.filePath)!,
@@ -79,9 +92,13 @@ export async function runBatchLint(
   // the same normalization rather than string-comparing paths.
   for (const [key, absolute] of absoluteByKey) {
     const uri = pathUtils.normalize(pathUtils.URI.file(absolute));
-    results.set(key, (byUri.get(uri) ?? []).map(toDiagnostic));
+    if (result.ignored.has(uri)) {
+      ignored.add(key);
+      continue;
+    }
+    diagnostics.set(key, (result.offenses.get(uri) ?? []).map(toDiagnostic));
   }
-  return results;
+  return { diagnostics, ignored };
 }
 
 /**

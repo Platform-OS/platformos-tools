@@ -319,38 +319,6 @@ export function resetPlatformOSLiquidDocsManager(): void {
   sharedDocsManager = undefined;
 }
 
-/**
- * Which of `filePaths` the project's config EXCLUDES from linting entirely.
- *
- * WHY A CALLER NEEDS THIS. `check()` silently skips ignored files, so a caller that
- * lints one buffer and sees no offenses cannot tell "clean" from "never checked".
- * For the MCP supervisor that difference is the whole contract: an ignored file with
- * unparseable Liquid was reported `status: ok, must_fix_before_write: false` — the
- * write gate approving a file nothing had looked at. Same class of false approval as
- * an off-project path.
- *
- * Only the GLOBAL `ignore` list counts. A per-check `settings.<Check>.ignore` means
- * the file is still checked, just by fewer checks, so treating that as "not checked"
- * would be wrong in the other direction.
- *
- * `filePaths` must be absolute. Returns the subset, as given, so a caller can key
- * results by its own strings. One config load serves the whole list.
- */
-export async function ignoredByConfig(
-  root: string,
-  filePaths: string[],
-  configPath?: string,
-): Promise<Set<string>> {
-  const ignored = new Set<string>();
-  if (filePaths.length === 0) return ignored;
-
-  const config = await loadConfig(configPath, root);
-  for (const filePath of filePaths) {
-    if (isIgnored(pathUtils.normalize(URI.file(filePath)), config)) ignored.add(filePath);
-  }
-  return ignored;
-}
-
 export interface LintBufferParams {
   /** Absolute path to the project root. */
   root: string;
@@ -394,8 +362,11 @@ export interface LintBufferParams {
 export async function lintBuffer(params: LintBufferParams): Promise<Offense[]> {
   const { root, filePath, content, ...rest } = params;
   const uri = pathUtils.normalize(URI.file(filePath));
-  const byFile = await lintBuffers({ root, buffers: [{ filePath, content }], ...rest });
-  return byFile.get(uri) ?? [];
+  const { offenses } = await lintBuffers({ root, buffers: [{ filePath, content }], ...rest });
+  // An ignored buffer yields no offenses, which is what `check()` would have done
+  // anyway — the distinction is only meaningful to callers that ASK for it via
+  // `lintBuffers`, so this narrower seam keeps its original contract.
+  return offenses.get(uri) ?? [];
 }
 
 /** One in-memory buffer in a {@link lintBuffers} batch. */
@@ -415,8 +386,30 @@ export interface LintBuffersParams extends Omit<LintBufferParams, 'filePath' | '
 }
 
 /**
+ * What a {@link lintBuffers} pass found, and what it did NOT look at.
+ *
+ * The second half is not a nicety. `check()` skips config-ignored files SILENTLY,
+ * so an empty offense list alone cannot distinguish "checked and clean" from "never
+ * checked" — and a caller that guesses the first reports a file as validated when
+ * nothing examined it. Reporting the fact here, from the config this pass already
+ * loaded, is what lets a caller tell them apart without loading the config again
+ * and re-deriving an answer this function already knew.
+ */
+export interface LintBuffersResult {
+  /**
+   * Offenses per requested buffer URI. A key with an empty array WAS checked and is
+   * clean; a requested buffer that is absent from this map was not checked, and
+   * `ignored` says why.
+   */
+  offenses: Map<UriString, Offense[]>;
+  /** Requested buffers the project's `ignore` list excludes — not checked at all. */
+  ignored: Set<UriString>;
+}
+
+/**
  * Lint SEVERAL in-memory buffers in one pass over the project, returning the
- * offenses per buffer keyed by normalized URI.
+ * offenses per buffer keyed by normalized URI plus the buffers the project config
+ * excluded (see {@link LintBuffersResult}).
  *
  * WHY THIS IS THE PRIMARY SEAM. Everything expensive here is per-PROJECT, not
  * per-buffer: loading the config, globbing and reconciling the app, building the
@@ -436,22 +429,38 @@ export interface LintBuffersParams extends Omit<LintBufferParams, 'filePath' | '
  * Offenses are always attributed to the visited file, so visiting the rest could
  * only produce results this function discards.
  */
-export async function lintBuffers(params: LintBuffersParams): Promise<Map<UriString, Offense[]>> {
+export async function lintBuffers(params: LintBuffersParams): Promise<LintBuffersResult> {
   const { root, buffers, configPath, cache, log = () => {} } = params;
   const { app, config } = await getAppAndConfig(root, configPath, cache);
 
   // Deduplicate by URI, last entry winning. Two entries for one file would
   // otherwise overlay twice and double every offense for it.
-  const overlays = new Map<UriString, string>();
+  const requested = new Map<UriString, string>();
   for (const buffer of buffers) {
-    overlays.set(pathUtils.normalize(URI.file(buffer.filePath)), buffer.content);
+    requested.set(pathUtils.normalize(URI.file(buffer.filePath)), buffer.content);
   }
 
-  const results = new Map<UriString, Offense[]>();
-  if (overlays.size === 0) return results;
-  // Seed every requested URI so a clean buffer yields [] rather than a missing key
-  // — the caller must be able to tell "no offenses" from "not linted".
-  for (const uri of overlays.keys()) results.set(uri, []);
+  const offensesByUri = new Map<UriString, Offense[]>();
+  const ignored = new Set<UriString>();
+  if (requested.size === 0) return { offenses: offensesByUri, ignored };
+
+  // Split off the buffers this project's config excludes, using the config just
+  // loaded. Doing it HERE is the whole point: the config is already in hand, and
+  // `isIgnored` is consulted once for a fact that would otherwise be re-derived by
+  // every caller from its own second config load.
+  const overlays = new Map<UriString, string>();
+  for (const [uri, content] of requested) {
+    if (isIgnored(uri, config)) {
+      ignored.add(uri);
+      continue;
+    }
+    overlays.set(uri, content);
+    // Seed every LINTED uri so a clean buffer yields [] rather than a missing key —
+    // the caller must be able to tell "checked and clean" from "not checked".
+    offensesByUri.set(uri, []);
+  }
+
+  if (overlays.size === 0) return { offenses: offensesByUri, ignored };
 
   const overlaidApp = overlayBuffers(app, overlays);
   const offenses = await lintApp(root, overlaidApp, config, log, [...overlays.keys()], overlays);
@@ -459,9 +468,9 @@ export async function lintBuffers(params: LintBuffersParams): Promise<Map<UriStr
   for (const offense of offenses) {
     // `only` already restricts the visit to these files; the lookup keeps the
     // partition explicit and independent of that optimization.
-    results.get(offense.uri)?.push(offense);
+    offensesByUri.get(offense.uri)?.push(offense);
   }
-  return results;
+  return { offenses: offensesByUri, ignored };
 }
 
 /**

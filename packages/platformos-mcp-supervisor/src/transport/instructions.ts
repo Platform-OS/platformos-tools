@@ -1,0 +1,70 @@
+/**
+ * Server-level instructions, returned to the client in the `initialize` response
+ * and surfaced to the model alongside the tool list.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM THE TOOL DESCRIPTION. The tool description answers
+ * "what does this tool do and how do I call it". These answer "how do I USE this
+ * server correctly" — when to reach for it, and how to read an answer once you have
+ * one. Those rules do not belong in a parameter description, and without them an
+ * agent invents its own reading of the result. The most costly mistakes an agent can
+ * make with this server are all interpretation mistakes, not calling mistakes:
+ * treating a clean result as proof of correctness, or treating a `not_applicable` as
+ * either approval or refusal.
+ *
+ * WRITING RULES FOR THIS TEXT.
+ *   - State what to DO, not how the server is built.
+ *   - Every claim must be true of the current build. An instruction that overstates
+ *     coverage is worse than no instruction: it converts "I do not know" into
+ *     false confidence, which is the failure mode this whole server exists to
+ *     prevent.
+ *   - Keep it short enough to be read in full. This is spent context on every
+ *     session, competing with the user's actual task.
+ */
+export const SERVER_INSTRUCTIONS = `platformOS code validator.
+
+WHEN TO USE
+Call validate_code BEFORE writing or editing any platformOS Liquid or GraphQL file
+— it validates an in-memory buffer, so call it with the content you are about to
+write, not after writing. This is the primary quality gate. If you are changing several files as one coherent change,
+send them together in a single call (see the tool's \`files\` parameter): files in
+one call can reference each other, so a partial you are creating alongside its
+caller resolves correctly. Sent one at a time, that same edit is reported broken.
+Skipping this tool is the #1 cause of broken platformOS code.
+
+HOW TO READ THE RESULT
+
+must_fix_before_write
+  true  -> Do NOT write the file. It will not work: it does not parse, or it
+           references something that does not exist.
+  false -> Nothing BLOCKING was found. This is not a statement that the code is
+           correct, only that no known-fatal problem was detected. Keep your own
+           judgement.
+
+status
+  ok | warning | error  -> the file WAS checked; these describe what was found.
+  not_applicable        -> the file was NOT checked at all. This is neither
+                           approval nor refusal — it carries no opinion about the
+                           file. Read not_applicable_reason before deciding:
+    outside_project  - not inside the project this server serves
+    unsupported_type - not a file type platformOS lints
+    ignored          - excluded by the project's .platformos-check.yml
+    too_large        - above the size limit; split the file
+    timed_out        - validation was abandoned; retrying may work
+    internal_error   - a bug in the validator; retrying will not help
+
+errors / warnings / infos
+  Every finding, ordered by line then column. Note that errors[] can be non-empty
+  while must_fix_before_write is false: some errors are real problems that do not
+  stop the file working (an argument a partial ignores, a missing image dimension).
+  Fix them when you can; they do not block the write.
+
+WHAT IS ACTUALLY CHECKED
+  Liquid  - syntax, unknown filters and tags, missing partials/assets, render
+            arguments against {% doc %}, layout correctness, and more.
+  GraphQL - operations validated against the project schema.
+  YAML    - translation files only, and YAML SYNTAX IS NOT VALIDATED. A clean
+            result for a .yml file does not mean it parses. Verify those yourself.
+
+Coverage is per project: checks can be enabled, disabled or ignored in the
+project's .platformos-check.yml, so a clean result reflects that project's
+configuration, not a fixed universal standard.`;

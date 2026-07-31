@@ -63,33 +63,64 @@ export const VALIDATE_CODE_INPUT: ZodRawShape = {
   file_path: filePath
     .optional()
     .describe(
-      'Path of the single file under edit (absolute, or relative to the project root). ' +
-        'Use with `content`. Omit both when using `files`.',
+      'Path of the file to validate, absolute or relative to the project root ' +
+        '(e.g. "app/views/partials/card.liquid"). Pair with `content`.',
     ),
   content: content
     .optional()
-    .describe('The file contents to validate (the in-memory buffer). Use with `file_path`.'),
+    .describe('The exact file contents you are about to write. Pair with `file_path`.'),
   files: z
     .array(z.object({ file_path: filePath, content }))
     .min(1)
     .max(MAX_BATCH_FILES)
     .optional()
     .describe(
-      'Several files under edit, validated TOGETHER. Prefer this for any multi-file change: ' +
-        'it is much faster (the project is loaded once) and more accurate, because files in the ' +
-        'same call can reference each other — a partial you are creating alongside its caller ' +
-        'is not reported missing. Omit `file_path`/`content` when using this.',
+      'Two or more files to validate together, each with its own `file_path` and ' +
+        '`content`. Files in one call can reference each other.',
     ),
 };
 
-const DESCRIPTION =
-  'Validate platformOS Liquid/GraphQL/YAML before writing it. Pass one file as ' +
-  '`file_path` + `content`, or several at once as `files` — prefer `files` for any multi-file ' +
-  'change, since files validated together can reference each other. Returns structured errors, ' +
-  'warnings, infos, and a must_fix_before_write gate. Files outside the project root, types ' +
-  'platformOS does not lint, and files excluded by the project config return ' +
-  'status "not_applicable" — meaning NOT CHECKED, which is neither an approval nor a reason to ' +
-  'hold the write.';
+const DESCRIPTION = `Validate platformOS Liquid and GraphQL code BEFORE writing it to disk.
+
+Pass EITHER one file OR several — never both.
+
+  One file:
+    { "file_path": "app/views/partials/card.liquid",
+      "content": "<div>{{ title }}</div>" }
+
+  Several files (use this whenever one change touches more than one file):
+    { "files": [
+        { "file_path": "app/views/pages/home.liquid",
+          "content": "{% render 'promo' %}" },
+        { "file_path": "app/views/partials/promo.liquid",
+          "content": "<div>Promo</div>" }
+      ] }
+
+Sending several together is faster AND more accurate: they can reference each
+other, so the new partial above resolves. Validated one at a time, the page would
+be reported as rendering a missing partial.
+
+Returns, for one file:
+  { "status": "ok" | "warning" | "error" | "not_applicable",
+    "must_fix_before_write": boolean,
+    "errors": [...], "warnings": [...], "infos": [...],
+    "impact": { ... } }
+
+For several files:
+  { "must_fix_before_write": boolean,
+    "files": [ { "file_path": "...", "result": { ...as above... } } ] }
+
+must_fix_before_write true means the file will not work — do not write it. false
+means nothing fatal was found, which is not a guarantee of correctness.
+status "not_applicable" means the file was NOT checked (see not_applicable_reason);
+that is neither approval nor refusal.`;
+
+/**
+ * The agent-facing prose, exported so tests can pin claims that must not rot. The
+ * description is the agent's whole understanding of this tool; a stale sentence
+ * here misleads silently.
+ */
+export const TOOL_TEXT = { VALIDATE_CODE_DESCRIPTION: DESCRIPTION } as const;
 
 /** The MCP text-content envelope every tool result is serialized into. */
 interface ToolTextResult {

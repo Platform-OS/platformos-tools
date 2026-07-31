@@ -3,13 +3,15 @@ import { z } from 'zod';
 
 import { AppCache } from '@platformos/platformos-check-node';
 
-import { runValidateCode, VALIDATE_CODE_INPUT } from './validate-code.js';
+import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code.js';
+import { SERVER_INSTRUCTIONS } from './instructions.js';
 import { IMPACT_DEADLINE_MS, LINT_DEADLINE_MS, type SupervisorContext } from '../context.js';
 import { MAX_BUFFER_BYTES } from '../adapter-input.js';
 import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from '../validate/batch-bounds.js';
 import { GraphCache } from '../graph-cache/graph-cache.js';
 import type { ValidateAdapters } from '../validate/validate-buffers.js';
 import type {
+  NotApplicableReason,
   ValidateCodeDiagnostic,
   ValidateCodeImpact,
   ValidateCodeResult,
@@ -22,8 +24,8 @@ import type {
  * orchestrator (`validateBuffers`), so this file pins the TOOL contract — shape
  * adaptation, the write gate, refusals, and bounded work.
  *
- * Adapters are always injected, so nothing here touches a real project. `ignored`
- * in particular MUST be stubbed: under fake timers real config I/O never settles.
+ * Adapters are always injected, so nothing here touches a real project — which
+ * matters under fake timers, where real config I/O would never settle.
  */
 const ctx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
   projectDir: '/srv/app',
@@ -38,8 +40,6 @@ const COMPUTED: ValidateCodeImpact = {
   dependents: { total: 0, by_kind: {}, sample: [] },
 };
 
-const NOT_IGNORED = async () => new Set<string>();
-
 const diagnostic = (
   check: string,
   severity: ValidateCodeDiagnostic['severity'] = 'error',
@@ -49,10 +49,11 @@ const diagnostic = (
 const adaptersFor = (
   byFile: Record<string, ValidateCodeDiagnostic[]> = {},
 ): Partial<ValidateAdapters> => ({
-  lint: async ({ buffers }) =>
-    new Map(buffers.map((buffer) => [buffer.filePath, byFile[buffer.filePath] ?? []])),
+  lint: async ({ buffers }) => ({
+    diagnostics: new Map(buffers.map((b) => [b.filePath, byFile[b.filePath] ?? []])),
+    ignored: new Set<string>(),
+  }),
   impact: async () => COMPUTED,
-  ignored: NOT_IGNORED,
 });
 
 const PAGE = 'app/views/pages/index.liquid';
@@ -113,11 +114,13 @@ describe('validate_code: the single-file form', () => {
         ctx((message) => logs.push(message)),
         { file_path: PAGE, content: '<div></div>' },
         {
-          lint: async ({ buffers }) => new Map(buffers.map((b) => [b.filePath, [warning]])),
+          lint: async ({ buffers }) => ({
+            diagnostics: new Map(buffers.map((b) => [b.filePath, [warning]])),
+            ignored: new Set<string>(),
+          }),
           impact: async () => {
             throw new Error('boom');
           },
-          ignored: NOT_IGNORED,
         },
       ),
     );
@@ -139,7 +142,6 @@ describe('validate_code: the single-file form', () => {
             throw failure;
           },
           impact: async () => COMPUTED,
-          ignored: NOT_IGNORED,
         },
       ),
     ).rejects.toThrow(failure);
@@ -175,10 +177,12 @@ describe('validate_code: the multi-file form', () => {
         lint: async ({ buffers }) => {
           calls++;
           sawBuffers = buffers.length;
-          return new Map(buffers.map((b) => [b.filePath, []]));
+          return {
+            diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+            ignored: new Set<string>(),
+          };
         },
         impact: async () => COMPUTED,
-        ignored: NOT_IGNORED,
       },
     );
 
@@ -256,13 +260,15 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
       {
         lint: async ({ buffers }) => {
           calls.push('lint');
-          return new Map(buffers.map((b) => [b.filePath, []]));
+          return {
+            diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+            ignored: new Set<string>(),
+          };
         },
         impact: async () => {
           calls.push('impact');
           return COMPUTED;
         },
-        ignored: NOT_IGNORED,
       },
       file_path,
     );
@@ -284,8 +290,10 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
     // `check()` skips ignored files silently, so "no offenses" would mean "never
     // looked at" — the write gate approving a file nothing checked.
     const result = await validateOne('{% if %}{{ unclosed', {
-      ...adaptersFor(),
-      ignored: async () => new Set(['/srv/app/app/views/pages/index.liquid']),
+      // The LINT seam reports this — it holds the config. There is no separate
+      // ignore adapter to stub, which is the point: one source of truth.
+      lint: async () => ({ diagnostics: new Map(), ignored: new Set([PAGE]) }),
+      impact: async () => COMPUTED,
     });
 
     expect(result.status).toEqual('not_applicable');
@@ -293,25 +301,29 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
     expect(result.must_fix_before_write).toBe(false);
   });
 
-  it('never consults the config for a file the pure gate already declined', async () => {
-    let consulted = false;
+  it('never reaches the lint for a file the pure gate already declined', async () => {
+    // The pure gate is synchronous and runs first, so an off-project path costs no
+    // I/O at all — no lint pass, and therefore no config load.
+    let linted = false;
     await validateOne(
       'x',
       {
-        ...adaptersFor(),
-        ignored: async () => {
-          consulted = true;
-          return new Set<string>();
+        lint: async () => {
+          linted = true;
+          return { diagnostics: new Map(), ignored: new Set<string>() };
         },
+        impact: async () => COMPUTED,
       },
       '/etc/passwd',
     );
 
-    expect(consulted).toBe(false);
+    expect(linted).toBe(false);
   });
 
-  it('consults the config ONCE for a whole multi-file request', async () => {
-    let calls = 0;
+  it('loads the project ONCE for a whole multi-file request', async () => {
+    // The config-exclusion answer rides along with the single lint pass rather than
+    // costing a second config load, so one pass IS one load.
+    let passes = 0;
     await runValidateCode(
       ctx(),
       {
@@ -322,15 +334,18 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
         ],
       },
       {
-        ...adaptersFor(),
-        ignored: async () => {
-          calls++;
-          return new Set<string>();
+        lint: async ({ buffers }) => {
+          passes++;
+          return {
+            diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+            ignored: new Set<string>(),
+          };
         },
+        impact: async () => COMPUTED,
       },
     );
 
-    expect(calls).toEqual(1);
+    expect(passes).toEqual(1);
   });
 });
 
@@ -340,10 +355,12 @@ describe('validate_code: bounded work', () => {
     const result = await validateOne('a'.repeat(MAX_BUFFER_BYTES + 1), {
       lint: async ({ buffers }) => {
         calls.push('lint');
-        return new Map(buffers.map((b) => [b.filePath, []]));
+        return {
+          diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+          ignored: new Set<string>(),
+        };
       },
       impact: async () => COMPUTED,
-      ignored: NOT_IGNORED,
     });
 
     expect(result.not_applicable_reason).toEqual('too_large');
@@ -376,7 +393,7 @@ describe('validate_code: bounded work', () => {
       const pending = runValidateCode(
         ctx(),
         { file_path: PAGE, content: '<div></div>' },
-        { lint: () => new Promise(() => {}), impact: async () => COMPUTED, ignored: NOT_IGNORED },
+        { lint: () => new Promise(() => {}), impact: async () => COMPUTED },
       );
 
       await vi.advanceTimersByTimeAsync(LINT_DEADLINE_MS + 1);
@@ -407,7 +424,6 @@ describe('validate_code: bounded work', () => {
               rejectLint = reject;
             }),
           impact: async () => COMPUTED,
-          ignored: NOT_IGNORED,
         },
       );
 
@@ -436,9 +452,11 @@ describe('validate_code: bounded work', () => {
         ctx(),
         { file_path: PAGE, content: 'x' },
         {
-          lint: async ({ buffers }) => new Map(buffers.map((b) => [b.filePath, []])),
+          lint: async ({ buffers }) => ({
+            diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+            ignored: new Set<string>(),
+          }),
           impact: () => new Promise(() => {}),
-          ignored: NOT_IGNORED,
         },
       );
 
@@ -470,14 +488,16 @@ describe('validate_code: bounded work', () => {
         lint: async ({ buffers }) => {
           lintStarted = true;
           await lintGate;
-          return new Map(buffers.map((b) => [b.filePath, []]));
+          return {
+            diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+            ignored: new Set<string>(),
+          };
         },
         impact: async () => {
           impactSawLintRunning = lintStarted;
           releaseLint();
           return COMPUTED;
         },
-        ignored: NOT_IGNORED,
       },
     );
 
@@ -562,5 +582,83 @@ describe('VALIDATE_CODE_INPUT', () => {
 
     expect(parsed.success).toBe(true);
     expect(parsed.success && Object.keys(parsed.data).sort()).toEqual(['content', 'file_path']);
+  });
+});
+
+/**
+ * The description and the server instructions ARE the agent's entire understanding
+ * of this tool. A wrong or stale claim there is worse than a bug in the code: it
+ * converts "I do not know" into false confidence, silently.
+ *
+ * These pin the claims most likely to rot, and the ones whose rotting is dangerous.
+ */
+describe('validate_code: the agent-facing surface', () => {
+  const { VALIDATE_CODE_DESCRIPTION } = TOOL_TEXT;
+
+  it('states the either/or rule exactly ONCE, in the description', () => {
+    // It used to be repeated in all three parameter descriptions — three copies of
+    // one rule, in the exact place an agent is deciding what to send.
+    const inParams = Object.values(VALIDATE_CODE_INPUT).filter((field) =>
+      /omit|never both|either/i.test((field as { description?: string }).description ?? ''),
+    );
+
+    expect(inParams).toEqual([]);
+    expect(VALIDATE_CODE_DESCRIPTION).toContain('EITHER one file OR several — never both');
+  });
+
+  it('shows a concrete example of BOTH input forms', () => {
+    // An agent copies examples. Prose alone leaves the nesting ambiguous.
+    expect(VALIDATE_CODE_DESCRIPTION).toContain('"file_path": "app/views/partials/card.liquid"');
+    expect(VALIDATE_CODE_DESCRIPTION).toContain('"files": [');
+  });
+
+  it('does NOT claim to validate YAML', () => {
+    // YAML syntax is not validated at all (TASK-21); the old description advertised
+    // "Liquid/GraphQL/YAML", which invited an agent to trust a clean .yml result.
+    expect(VALIDATE_CODE_DESCRIPTION).not.toMatch(/\bYAML\b/);
+    expect(VALIDATE_CODE_DESCRIPTION).toContain('Liquid and GraphQL');
+  });
+
+  it('says plainly that a false gate is not a correctness guarantee', () => {
+    expect(VALIDATE_CODE_DESCRIPTION).toContain('not a guarantee of correctness');
+  });
+
+  it('says not_applicable is neither approval nor refusal', () => {
+    expect(VALIDATE_CODE_DESCRIPTION).toContain('neither approval nor refusal');
+  });
+});
+
+describe('server instructions', () => {
+  it('documents EVERY not_applicable_reason the code can return', () => {
+    // A reason the agent has never heard of is a reason it cannot act on. This fails
+    // the moment someone adds a code without documenting it.
+    const documented: NotApplicableReason[] = [
+      'outside_project',
+      'unsupported_type',
+      'ignored',
+      'too_large',
+      'timed_out',
+      'internal_error',
+    ];
+
+    for (const reason of documented) {
+      expect(SERVER_INSTRUCTIONS).toContain(reason);
+    }
+  });
+
+  it('warns that YAML syntax is not validated, rather than staying silent', () => {
+    // The tool description drops the YAML claim; the instructions must still say
+    // what happens if an agent sends one, or a clean .yml result reads as a pass.
+    expect(SERVER_INSTRUCTIONS).toContain('YAML SYNTAX IS NOT VALIDATED');
+  });
+
+  it('tells the agent to validate BEFORE writing', () => {
+    expect(SERVER_INSTRUCTIONS).toContain('BEFORE writing');
+  });
+
+  it('explains that errors[] can be non-empty while the gate is false', () => {
+    // The single most confusing thing about the result, and the one an agent is
+    // most likely to get wrong by assuming error => blocked.
+    expect(SERVER_INSTRUCTIONS).toContain('must_fix_before_write is false');
   });
 });

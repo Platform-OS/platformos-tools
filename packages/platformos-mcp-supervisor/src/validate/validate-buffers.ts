@@ -19,7 +19,7 @@
  * another. Checking the same coordinated edit one file at a time reports
  * `MissingPartial` for a file present in the very same changeset.
  */
-import { ignoredByConfig, path as pathUtils } from '@platformos/platformos-check-node';
+import { path as pathUtils } from '@platformos/platformos-check-node';
 
 import {
   bufferTooLarge,
@@ -30,7 +30,7 @@ import {
 import { IMPACT_DEADLINE_MS, LINT_DEADLINE_MS, type SupervisorContext } from '../context.js';
 import { TIMED_OUT, withDeadline } from '../deadline.js';
 import { runImpact } from '../impact/impact.js';
-import { runBatchLint, type BatchBuffer } from '../lint/lint-batch.js';
+import { runBatchLint, type BatchBuffer, type BatchLintResult } from '../lint/lint-batch.js';
 import { assembleNotApplicableResult, assembleResult } from '../result/assemble.js';
 import { COMPUTING_IMPACT, UNAVAILABLE_IMPACT } from '../result/impact-states.js';
 import type {
@@ -51,14 +51,11 @@ export interface BufferToValidate {
 export interface ValidateAdapters {
   lint: typeof runBatchLint;
   impact: typeof runImpact;
-  /** Which requested paths the project config excludes from linting entirely. */
-  ignored: typeof ignoredByConfig;
 }
 
 const DEFAULT_ADAPTERS: ValidateAdapters = {
   lint: runBatchLint,
   impact: runImpact,
-  ignored: ignoredByConfig,
 };
 
 /**
@@ -76,14 +73,29 @@ export async function validateBuffers(
 ): Promise<Map<string, ValidateCodeResult>> {
   const adapters = { ...DEFAULT_ADAPTERS, ...overrides };
 
-  const { declined, lintable } = await partition(ctx, buffers, adapters);
+  const { declined, lintable } = partition(ctx.projectDir, buffers);
 
   // Concurrently: the lint is the long pole and impact must hide behind it. Running
   // these in sequence added the whole blast-radius cost (~142 ms) to every call.
-  const [diagnostics, impacts] = await Promise.all([
+  const [lint, impacts] = await Promise.all([
     lintWithDeadline(ctx, adapters, lintable),
     impactWithDeadline(ctx, adapters, lintable),
   ]);
+
+  // The lint pass is what knows which buffers the project config excludes — it holds
+  // the config. Folding its answer in here keeps ONE config load and one source of
+  // truth for "is this file part of the app".
+  if (lint !== TIMED_OUT) {
+    const rootUri = pathUtils.normalize(pathUtils.URI.file(ctx.projectDir));
+    for (const key of lint.ignored) {
+      const absolute = pathUtils.normalize(
+        pathUtils.URI.file(toAbsoluteFilePath(ctx.projectDir, key)),
+      );
+      declined.set(key, ignoredByProjectConfig(pathUtils.relative(absolute, rootUri)));
+    }
+  }
+
+  const diagnostics = lint === TIMED_OUT ? TIMED_OUT : lint.diagnostics;
 
   return new Map(
     buffers.map((buffer) => [
@@ -94,29 +106,28 @@ export async function validateBuffers(
 }
 
 /**
- * Split the requested buffers into those this server declines to judge and those it
- * will lint.
+ * Split the requested buffers into those this server declines outright and those it
+ * will send to the lint.
  *
- * Two kinds of refusal, in order, because they need different things:
+ * PURE and synchronous. Every refusal decidable without I/O happens here — outside
+ * the project root, an unsupported file type, over the size bound — so a declined
+ * buffer costs nothing and never reaches the engine.
  *
- *   1. PURE, per buffer — outside the project root, an unsupported file type, or
- *      over the size bound. No I/O, so it runs first and an off-project path never
- *      triggers a config load.
- *   2. CONFIG-DRIVEN — excluded by the project's `ignore` list. Needs the project
- *      config, and one load answers the whole batch. `check()` skips ignored files
- *      SILENTLY, so without this an ignored file came back `ok`: the write gate
- *      approving a file nothing had looked at.
+ * Config-level exclusion is deliberately NOT here. It needs the project config, and
+ * the lint pass already loads one; asking separately meant a second config load and,
+ * worse, a second source of truth for "is this file part of the app". `lintBuffers`
+ * reports it instead (see `LintBuffersResult`), and {@link validateBuffers} folds
+ * that answer in afterwards.
  */
-async function partition(
-  ctx: SupervisorContext,
+function partition(
+  projectDir: string,
   buffers: readonly BufferToValidate[],
-  adapters: ValidateAdapters,
-): Promise<{ declined: Map<string, Declined>; lintable: BatchBuffer[] }> {
+): { declined: Map<string, Declined>; lintable: BatchBuffer[] } {
   const declined = new Map<string, Declined>();
   const lintable: BatchBuffer[] = [];
 
   for (const buffer of buffers) {
-    const refusal = refuse(ctx.projectDir, buffer);
+    const refusal = refuse(projectDir, buffer);
     if (refusal) {
       declined.set(buffer.filePath, refusal);
       continue;
@@ -124,30 +135,7 @@ async function partition(
     lintable.push({ filePath: buffer.filePath, content: buffer.content });
   }
 
-  if (lintable.length === 0) return { declined, lintable };
-
-  const absoluteByKey = new Map(
-    lintable.map((buffer) => [
-      buffer.filePath,
-      toAbsoluteFilePath(ctx.projectDir, buffer.filePath),
-    ]),
-  );
-  const ignored = await adapters.ignored(ctx.projectDir, [...absoluteByKey.values()]);
-  if (ignored.size === 0) return { declined, lintable };
-
-  const rootUri = pathUtils.normalize(pathUtils.URI.file(ctx.projectDir));
-  for (const [key, absolute] of absoluteByKey) {
-    if (!ignored.has(absolute)) continue;
-    declined.set(
-      key,
-      ignoredByProjectConfig(
-        pathUtils.relative(pathUtils.normalize(pathUtils.URI.file(absolute)), rootUri),
-      ),
-    );
-  }
-
-  // Drop them from the lint — `check()` would skip them anyway.
-  return { declined, lintable: lintable.filter((buffer) => !declined.has(buffer.filePath)) };
+  return { declined, lintable };
 }
 
 /** The pure, per-buffer refusal for this buffer, if any. */
@@ -170,8 +158,8 @@ async function lintWithDeadline(
   ctx: SupervisorContext,
   adapters: ValidateAdapters,
   lintable: BatchBuffer[],
-): Promise<DiagnosticsByFile | typeof TIMED_OUT> {
-  if (lintable.length === 0) return new Map();
+): Promise<BatchLintResult | typeof TIMED_OUT> {
+  if (lintable.length === 0) return { diagnostics: new Map(), ignored: new Set() };
 
   const work = adapters.lint({ projectDir: ctx.projectDir, buffers: lintable }, ctx.appCache);
   const outcome = await withDeadline(work, LINT_DEADLINE_MS);

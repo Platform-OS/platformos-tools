@@ -58,7 +58,7 @@ describe('Integration: runBatchLint (the lint adapter)', () => {
       { filePath: LAYOUT, content: '<html><body><header>Site</header></body></html>' },
     ]);
 
-    expect(byFile.get(LAYOUT)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
+    expect(byFile.diagnostics.get(LAYOUT)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
   });
 
   it('returns no diagnostics for a clean layout', async () => {
@@ -66,7 +66,7 @@ describe('Integration: runBatchLint (the lint adapter)', () => {
       { filePath: LAYOUT, content: '<html><body>{{ content_for_layout }}</body></html>' },
     ]);
 
-    expect(byFile.get(LAYOUT)).toEqual([]);
+    expect(byFile.diagnostics.get(LAYOUT)).toEqual([]);
   });
 
   it('returns an entry for every requested buffer, so "clean" is distinguishable from "not linted"', async () => {
@@ -76,9 +76,9 @@ describe('Integration: runBatchLint (the lint adapter)', () => {
       { filePath: clean, content: '<html>{{ content_for_layout }}</html>' },
     ]);
 
-    expect([...byFile.keys()].sort()).toEqual([clean, LAYOUT].sort());
-    expect(byFile.get(clean)).toEqual([]);
-    expect(byFile.get(LAYOUT)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
+    expect([...byFile.diagnostics.keys()].sort()).toEqual([clean, LAYOUT].sort());
+    expect(byFile.diagnostics.get(clean)).toEqual([]);
+    expect(byFile.diagnostics.get(LAYOUT)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
   });
 
   it('accepts an absolute file path and keys the result by that same string', async () => {
@@ -89,7 +89,7 @@ describe('Integration: runBatchLint (the lint adapter)', () => {
 
     const byFile = await lint([{ filePath: absolute, content: '<html><body></body></html>' }]);
 
-    expect(byFile.get(absolute)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
+    expect(byFile.diagnostics.get(absolute)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
   });
 
   it('gives a relative and an absolute path for the SAME file identical diagnostics', async () => {
@@ -101,11 +101,11 @@ describe('Integration: runBatchLint (the lint adapter)', () => {
       { filePath: absolute, content },
     ]);
 
-    expect(byFile.get(LAYOUT)).toEqual(byFile.get(absolute));
-    expect(byFile.get(LAYOUT)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
+    expect(byFile.diagnostics.get(LAYOUT)).toEqual(byFile.diagnostics.get(absolute));
+    expect(byFile.diagnostics.get(LAYOUT)).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
   });
 
   it('returns an empty map for an empty request without touching the project', async () => {
-    expect(await lint([])).toEqual(new Map());
+    expect(await lint([])).toEqual({ diagnostics: new Map(), ignored: new Set() });
   });
 });

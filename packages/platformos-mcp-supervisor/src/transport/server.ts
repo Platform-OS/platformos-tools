@@ -20,6 +20,7 @@ import { defaultGraphCachePath, GraphCache } from '../graph-cache/graph-cache.js
 import { type SupervisorContext } from '../context.js';
 import { createLogger, type Logger } from '../logger.js';
 import { installProcessGuards } from './process-guards.js';
+import { SERVER_INSTRUCTIONS } from './instructions.js';
 import { registerValidateCode } from './validate-code.js';
 
 export interface ServerOptions {
@@ -90,7 +91,13 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
   const appCache = new AppCache();
   const context: SupervisorContext = { projectDir: opts.projectDir, graphCache, appCache, log };
 
-  const server = new McpServer({ name: SERVER_NAME, version: opts.version ?? DEFAULT_VERSION });
+  // `instructions` reaches the model with the tool list. Without them an agent has
+  // only the tool description to go on, and has to invent a reading of the result —
+  // the costly mistakes here are interpretation, not invocation (see instructions.ts).
+  const server = new McpServer(
+    { name: SERVER_NAME, version: opts.version ?? DEFAULT_VERSION },
+    { instructions: SERVER_INSTRUCTIONS },
+  );
   registerValidateCode(server, context);
 
   const transport = new StdioServerTransport();

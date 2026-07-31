@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URI } from 'vscode-uri';
 
-import { AppCache, lintBuffer, lintBuffers } from './index';
+import { AppCache, lintBuffer, lintBuffers, type LintBuffersResult } from './index';
 import { Workspace, makeTempWorkspace } from './test/test-helpers';
 
 /**
@@ -55,8 +55,8 @@ describe('Integration: lintBuffers', () => {
     await workspace?.clean();
   });
 
-  const messagesFor = (byFile: Map<string, { message: string }[]>, relativePath: string) =>
-    (byFile.get(uriOf(relativePath)) ?? []).map((offense) => offense.message);
+  const messagesFor = (result: LintBuffersResult, relativePath: string) =>
+    (result.offenses.get(uriOf(relativePath)) ?? []).map((offense) => offense.message);
 
   it('THE CORRECTNESS WIN: a partial added in one buffer resolves a render in another', async () => {
     // `promo` exists on neither disk nor in the page's own buffer — only in a
@@ -128,10 +128,10 @@ describe('Integration: lintBuffers', () => {
       ],
     });
 
-    expect([...byFile.keys()].sort()).toEqual(
+    expect([...byFile.offenses.keys()].sort()).toEqual(
       [uriOf('app/views/pages/index.liquid'), uriOf('app/views/partials/card.liquid')].sort(),
     );
-    expect([...byFile.values()]).toEqual([[], []]);
+    expect([...byFile.offenses.values()]).toEqual([[], []]);
   });
 
   it('is byte-identical to lintBuffer for a single buffer', async () => {
@@ -149,7 +149,7 @@ describe('Integration: lintBuffers', () => {
       buffers: [{ filePath: params.filePath, content: params.content }],
     });
 
-    expect(batched.get(uriOf('app/views/pages/index.liquid'))).toEqual(single);
+    expect(batched.offenses.get(uriOf('app/views/pages/index.liquid'))).toEqual(single);
   });
 
   it('deduplicates two entries for the same file, last one winning', async () => {
@@ -164,13 +164,16 @@ describe('Integration: lintBuffers', () => {
       ],
     });
 
-    expect(byFile.size).toEqual(1);
+    expect(byFile.offenses.size).toEqual(1);
     // The LAST content wins, so the clean version is what was linted.
     expect(messagesFor(byFile, 'app/views/pages/index.liquid')).toEqual([]);
   });
 
   it('returns an empty map for an empty batch without touching the project', async () => {
-    expect(await lintBuffers({ root, configPath, buffers: [] })).toEqual(new Map());
+    expect(await lintBuffers({ root, configPath, buffers: [] })).toEqual({
+      offenses: new Map(),
+      ignored: new Set(),
+    });
   });
 
   it('walks the project ONCE for the whole batch, not once per buffer', async () => {
@@ -231,5 +234,147 @@ describe('Integration: lintBuffers', () => {
       buffers: [{ filePath: page, content: "{% render 'later' %}" }],
     });
     expect(messagesFor(second, 'app/views/pages/index.liquid')).toEqual([]);
+  });
+});
+
+/**
+ * `check()` skips config-ignored files SILENTLY, so an empty offense list alone
+ * cannot distinguish "checked and clean" from "never checked". A caller that guesses
+ * the first reports a file as validated when nothing looked at it — that was a real
+ * false approval in the MCP supervisor.
+ *
+ * `lintBuffers` reports the distinction because it already holds the config. It used
+ * to be answered by a separate `ignoredByConfig` helper that loaded the config a
+ * SECOND time, which meant two sources of truth for "is this file part of the app"
+ * agreeing only by coincidence of implementation.
+ */
+describe('Integration: lintBuffers reports what it did NOT check', () => {
+  let workspace: Workspace;
+  let root: string;
+  let configPath: string;
+
+  const uriIn = (relativePath: string) =>
+    URI.file(path.join(root, ...relativePath.split('/'))).toString();
+  const abs = (relativePath: string) => path.join(root, ...relativePath.split('/'));
+
+  beforeEach(async () => {
+    workspace = await makeTempWorkspace({
+      '.platformos-check.yml': [
+        'extends: platformos-check:nothing',
+        'MissingContentForLayout:',
+        '  enabled: true',
+        'ignore:',
+        '  - app/views/pages/**',
+        '',
+      ].join('\n'),
+      app: {
+        views: {
+          pages: { 'ignored.liquid': '<div></div>' },
+          layouts: { 'theme.liquid': '<html>{{ content_for_layout }}</html>' },
+        },
+      },
+    });
+    root = URI.parse(workspace.rootUri).fsPath;
+    configPath = path.join(root, '.platformos-check.yml');
+  });
+
+  afterEach(async () => {
+    await workspace?.clean();
+  });
+
+  it('reports an ignored buffer as ignored, and does NOT report it as clean', async () => {
+    // Deliberately unparseable: a checked file would have plenty to say, so an empty
+    // offenses entry here would be indistinguishable from a pass.
+    const result = await lintBuffers({
+      root,
+      configPath,
+      buffers: [{ filePath: abs('app/views/pages/ignored.liquid'), content: '{% if %}{{ x' }],
+    });
+
+    expect([...result.ignored]).toEqual([uriIn('app/views/pages/ignored.liquid')]);
+    // Absent from `offenses` entirely — not an empty array, which would read as clean.
+    expect(result.offenses.has(uriIn('app/views/pages/ignored.liquid'))).toBe(false);
+  });
+
+  it('CONTRAST: a non-ignored file with the same broken content IS checked', async () => {
+    // Proves the assertion above is not vacuous — the emptiness came from the ignore
+    // list, not from the checks having nothing to say.
+    const result = await lintBuffers({
+      root,
+      configPath,
+      buffers: [{ filePath: abs('app/views/layouts/theme.liquid'), content: '<html></html>' }],
+    });
+
+    expect(result.ignored).toEqual(new Set());
+    expect(
+      (result.offenses.get(uriIn('app/views/layouts/theme.liquid')) ?? []).map((o) => o.check),
+    ).toEqual(['MissingContentForLayout']);
+  });
+
+  it('partitions a mixed request', async () => {
+    const result = await lintBuffers({
+      root,
+      configPath,
+      buffers: [
+        { filePath: abs('app/views/pages/ignored.liquid'), content: 'x' },
+        { filePath: abs('app/views/layouts/theme.liquid'), content: '<html></html>' },
+      ],
+    });
+
+    expect([...result.ignored]).toEqual([uriIn('app/views/pages/ignored.liquid')]);
+    expect([...result.offenses.keys()]).toEqual([uriIn('app/views/layouts/theme.liquid')]);
+  });
+
+  it('decides from the PATTERN, not from whether the file exists on disk', async () => {
+    // Buffers are frequently unsaved, so existence is the wrong question.
+    const result = await lintBuffers({
+      root,
+      configPath,
+      buffers: [{ filePath: abs('app/views/pages/not-created-yet.liquid'), content: 'x' }],
+    });
+
+    expect([...result.ignored]).toEqual([uriIn('app/views/pages/not-created-yet.liquid')]);
+  });
+
+  it('does not parse an ignored buffer at all', async () => {
+    // The reason the split happens BEFORE the overlay: `overlayBuffers` parses
+    // eagerly, so including an ignored buffer would burn a full parse for a file
+    // `check()` then skips. A syntactically broken buffer must therefore be
+    // harmless here.
+    const result = await lintBuffers({
+      root,
+      configPath,
+      buffers: [{ filePath: abs('app/views/pages/ignored.liquid'), content: '{% if %}{{ ' }],
+    });
+
+    expect(result.offenses.size).toEqual(0);
+    expect(result.ignored.size).toEqual(1);
+  });
+
+  it('reports nothing as ignored when the config has no ignore list', async () => {
+    const plain = await makeTempWorkspace({
+      '.platformos-check.yml': [
+        'extends: platformos-check:nothing',
+        'MissingContentForLayout:',
+        '  enabled: true',
+        '',
+      ].join('\n'),
+      app: { views: { layouts: { 'theme.liquid': '<html></html>' } } },
+    });
+    try {
+      const otherRoot = URI.parse(plain.rootUri).fsPath;
+      const result = await lintBuffers({
+        root: otherRoot,
+        configPath: path.join(otherRoot, '.platformos-check.yml'),
+        buffers: [
+          { filePath: path.join(otherRoot, 'app/views/layouts/theme.liquid'), content: '<html>' },
+        ],
+      });
+
+      expect(result.ignored).toEqual(new Set());
+      expect(result.offenses.size).toEqual(1);
+    } finally {
+      await plain.clean();
+    }
   });
 });

@@ -36,15 +36,36 @@ Liquid <: Helpers {
   endOfVarName = ~identifierCharacter
   endOfIdentifier = endOfTagName | endOfVarName
 
+  // PERF: single-character positive lookahead guard.
+  //
+  // Every alternative below begins with "{{" or "{%", so input that does not
+  // start with "{" cannot match. Without the guard, Ohm enters the alternation at
+  // every candidate position and fans out into ~35 `liquidTagRule<name, markup>`
+  // plus ~14 `liquidTagOpenRule<name, markup>` applications before failing. Those
+  // are PARAMETERIZED applications, and `Apply.prototype.substituteParams` only
+  // returns `this` when `args.length === 0` — so each one allocates a fresh
+  // `Apply` and rebuilds its memo-key string on every evaluation, and therefore
+  // never hits the memo table. That is why a parse profile shows `toMemoKey` and
+  // `Apply.toString` high in self time with a large share of CPU in GC.
+  //
+  // It matters because `liquidNode` is reached from three hot places: `Node`'s
+  // iteration, `Attr`, and `attr{Single,Double}QuotedValue` — i.e. once per text
+  // run, once per attribute slot, and once per attribute value segment.
+  //
+  // Written with the `~(~x)` double-negation idiom already used by
+  // `argumentSeparatorOptionalComma` so it contributes arity 0 and the CST shape is
+  // unchanged — `LiquidMappings.liquidNode: 0` still indexes the alternation.
+  // Verified CST-identical (ctorName + source intervals + node count, sha1) over
+  // 1392 real files, with identical parse outcomes and identical lint offenses.
   liquidNode =
-  	| liquidDoc
-    | liquidBlockComment
-    | liquidRawTag
-    | liquidDrop
-    | liquidTagClose
-    | liquidTagOpen
-    | liquidTag
-    | liquidInlineComment
+    ~(~"{") (liquidDoc
+      | liquidBlockComment
+      | liquidRawTag
+      | liquidDrop
+      | liquidTagClose
+      | liquidTagOpen
+      | liquidTag
+      | liquidInlineComment)
 
   liquidTagStrict =
     | liquidTagAssign
@@ -691,15 +712,20 @@ LiquidHTML <: Liquid {
   yamlFrontmatter =
     "---" newline anyExceptStar<"---"> "---" newline
 
+  // PERF: same idea as `liquidNode`, smaller payoff. Guards the doctype /
+  // comment / processing-instruction / raw-tag / void-element scan — including the
+  // `caseInsensitive<1>` applications for `voidElementName`, which are also
+  // parameterized and so also never memoize — behind one character. Arity 0, so
+  // the CST shape is unchanged.
   HtmlNode =
-    | HtmlDoctype
-    | HtmlComment
-    | HtmlProcessingInstruction
-    | HtmlRawTag
-    | HtmlVoidElement
-    | HtmlSelfClosingElement
-    | HtmlTagClose
-    | HtmlTagOpen
+    ~(~"<") (HtmlDoctype
+      | HtmlComment
+      | HtmlProcessingInstruction
+      | HtmlRawTag
+      | HtmlVoidElement
+      | HtmlSelfClosingElement
+      | HtmlTagClose
+      | HtmlTagOpen)
 
   // https://html.spec.whatwg.org/multipage/syntax.html#the-doctype
   HtmlDoctype =

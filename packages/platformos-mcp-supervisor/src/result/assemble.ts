@@ -6,48 +6,104 @@
  * diagnostic list and the shared result types.
  *
  * `impact` is the graph-derived cross-file blast radius (who depends on the
- * file), pre-computed by the impact adapter and included verbatim. The remaining
- * ergonomic transforms (clustering, scorecard, the explicit blocking-warning
- * set, `next_step`, tips, domain_guide) are added in later tasks; they are left
- * empty/null here.
+ * file), pre-computed by the impact adapter and included verbatim.
+ *
+ * The result carries ONLY fields that are actually populated. The ergonomic
+ * additions (proposed fixes, clustering, scorecard, tips, domain guide,
+ * `parse_error`) were previously emitted as permanently-empty stubs; an agent
+ * cannot tell an always-`[]` field from a meaningful one, so they were removed and
+ * will be reintroduced by the tasks that actually fill them (TASK-8.x).
  */
+import { blocksWrite } from './blocking.js';
+import { NOT_APPLICABLE_IMPACT } from './impact-states.js';
 import type {
+  Declined,
   ValidateCodeDiagnostic,
   ValidateCodeImpact,
-  ValidateCodeMode,
   ValidateCodeResult,
   ValidateCodeStatus,
 } from './types.js';
+
+/**
+ * Order diagnostics the way someone READS the file: top to bottom, left to right.
+ *
+ * `check()` runs one pipeline per check and collects results per check, so the raw
+ * order is grouped by check code — an `ImgWidthAndHeight` on line 5 arrives before a
+ * `MissingPartial` on line 1. That is fine for a linter dumping a report, but an
+ * agent walking the list to fix a file jumps around it, and a human reading the JSON
+ * cannot tell whether the list is ordered at all.
+ *
+ * Sorting belongs HERE rather than in check-common: the engine's job is detection,
+ * and per-check batching is exactly what makes it fast (TASK-12). Presentation order
+ * is an agent-ergonomics concern, which is this package's whole remit.
+ *
+ * `check` is the final tiebreak so that two findings at the identical position have
+ * a deterministic order — without it, byte-identical inputs could produce results
+ * that differ between runs, which would make offense-comparison verification (used
+ * throughout TASK-12) unreliable.
+ */
+function inReadingOrder(diagnostics: ValidateCodeDiagnostic[]): ValidateCodeDiagnostic[] {
+  return [...diagnostics].sort(
+    (a, b) => a.line - b.line || a.column - b.column || a.check.localeCompare(b.check),
+  );
+}
 
 export function assembleResult(
   diagnostics: ValidateCodeDiagnostic[],
   // The file's cross-file blast radius (graph-derived, pre-computed by the impact
   // adapter). Included verbatim — assembly stays pure.
   impact: ValidateCodeImpact,
-  // Reserved: `full`/`quick` do not yet change output (no heavier stages exist).
-  _mode: ValidateCodeMode,
 ): ValidateCodeResult {
-  const errors = diagnostics.filter((d) => d.severity === 'error');
-  const warnings = diagnostics.filter((d) => d.severity === 'warning');
-  const infos = diagnostics.filter((d) => d.severity === 'info');
+  const ordered = inReadingOrder(diagnostics);
+  const errors = ordered.filter((d) => d.severity === 'error');
+  const warnings = ordered.filter((d) => d.severity === 'warning');
+  const infos = ordered.filter((d) => d.severity === 'info');
 
   const status: ValidateCodeStatus =
     errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'ok';
 
   return {
     status,
-    // Minimal gate: any error blocks the write. The richer blocking-warning set
-    // is defined in the result-assembly task.
-    must_fix_before_write: errors.length > 0,
+    // NOT `errors.length > 0`. `status` says what was FOUND; this says whether the
+    // file is broken, which is a strictly smaller question — see `blocking.ts`.
+    // A dead argument is a real `error` in the list below and still leaves this
+    // false, because writing the file works fine.
+    must_fix_before_write: blocksWrite(errors),
     errors,
     warnings,
     infos,
-    proposed_fixes: [],
-    clusters: [],
-    scorecard: [],
     impact,
-    parse_error: null,
-    tips: [],
-    domain_guide: null,
+  };
+}
+
+/**
+ * The result for a file this server did NOT check — outside the project root, not
+ * a platformOS source type, too large to parse safely, or past its deadline (see
+ * `fileApplicability` / `bufferTooLarge` / `withDeadline` for why each case is
+ * refused).
+ *
+ * Everything is empty and `must_fix_before_write` is `false`, so the call neither
+ * blocks the write nor approves it. `reason` lands in `next_step` for a human or
+ * an LLM to read; `code` lands in `not_applicable_reason` for an agent to branch
+ * on without parsing prose.
+ *
+ * `must_fix_before_write: false` even for a TIMEOUT is deliberate: blocking a
+ * write because our own validation failed would make the tool a liability rather
+ * than a safeguard, and it matches how `impact` already degrades. The agent is
+ * told plainly that nothing was checked.
+ *
+ * `impact` is `not_applicable` for the same underlying reason the lint is, and its
+ * zeroed `dependents` must never be read as "nothing depends on this".
+ */
+export function assembleNotApplicableResult(declined: Declined): ValidateCodeResult {
+  return {
+    status: 'not_applicable',
+    not_applicable_reason: declined.code,
+    must_fix_before_write: false,
+    errors: [],
+    warnings: [],
+    infos: [],
+    impact: NOT_APPLICABLE_IMPACT(),
+    next_step: declined.reason,
   };
 }

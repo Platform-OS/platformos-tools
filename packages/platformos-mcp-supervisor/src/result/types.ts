@@ -15,20 +15,81 @@
  * TASK-7 build leaves them empty / null.
  */
 
-export type ValidateCodeMode = 'full' | 'quick';
+/**
+ * The outcome of a `validate_code` call.
+ *
+ * `ok` / `warning` / `error` all mean "this file was checked" and differ only in
+ * what was found. `not_applicable` means the opposite — the file was NOT checked,
+ * because it is outside the project root or is not a platformOS source type (see
+ * `fileApplicability`). It is deliberately distinct from `ok`: reporting an
+ * unchecked file as `ok` reads as "validated, safe to write", which is exactly
+ * the false approval this status exists to prevent. `must_fix_before_write` is
+ * always `false` for it — declining to judge must not block a legitimate write
+ * either — and `next_step` carries the reason.
+ */
+export type ValidateCodeStatus = 'ok' | 'warning' | 'error' | 'not_applicable';
 
-export type ValidateCodeStatus = 'ok' | 'warning' | 'error';
+/**
+ * WHY a file was not checked, as a machine-readable code.
+ *
+ * `next_step` explains the same thing in prose, but this is an agent surface and
+ * prose is not a contract — an agent must be able to branch on the cause without
+ * parsing English. Present exactly when `status` is `not_applicable`.
+ *
+ * - `outside_project`  — resolved outside the project root this server serves.
+ * - `unsupported_type` — inside the project, but not a platformOS source type.
+ * - `too_large`        — buffer above the size bound; refused before parsing.
+ * - `timed_out`        — validation exceeded its deadline; nothing conclusive.
+ * - `ignored`          — excluded by the project's `.platformos-check.yml` `ignore`
+ *                        list, so no check ran. Reported rather than passed off as
+ *                        `ok`: `check()` skips ignored files silently, and an
+ *                        unparseable ignored file would otherwise come back clean.
+ * - `internal_error`   — the validator failed to produce a result. A bug here, not
+ *                        a property of the file. Distinct from `timed_out` so an
+ *                        agent does not "retry with fewer files" for something
+ *                        retrying cannot fix.
+ *
+ * All four share the invariant that makes `not_applicable` safe: the file was NOT
+ * checked, so the result is neither an approval nor a reason to block the write.
+ */
+export type NotApplicableReason =
+  | 'outside_project'
+  | 'unsupported_type'
+  | 'too_large'
+  | 'timed_out'
+  | 'ignored'
+  | 'internal_error';
+
+/**
+ * A refusal to validate: agent-facing prose plus its machine-readable cause.
+ *
+ * `reason` becomes the result's `next_step` so a declined call explains itself
+ * rather than looking like a silent pass; `code` becomes `not_applicable_reason`,
+ * which is what an agent branches on.
+ */
+export interface Declined {
+  reason: string;
+  code: NotApplicableReason;
+}
 
 export type ValidateCodeSeverity = 'error' | 'warning' | 'info';
 
-/** Tool input. */
+/**
+ * Tool input. Exactly ONE of the two forms:
+ *
+ *   - `file_path` + `content` — a single file (the original contract, unchanged).
+ *   - `files` — several files validated TOGETHER, so they can reference each other.
+ *
+ * Both are optional here because the "exactly one" rule is enforced by the handler;
+ * a zod union would emit `anyOf`, which several MCP clients do not surface.
+ */
 export interface ValidateCodeParams {
-  /** Path of the file under edit (absolute, or relative to the project root). */
-  file_path: string;
-  /** The file contents to validate (the in-memory buffer). */
-  content: string;
-  /** Depth of analysis. Defaults to `full`. */
-  mode?: ValidateCodeMode;
+  /** Path of the single file under edit (absolute, or relative to the project root). */
+  file_path?: string;
+  /** The single file's contents (the in-memory buffer). */
+  content?: string;
+  /** Several files under edit, validated together. */
+  files?: Array<{ file_path: string; content: string }>;
 }
 
 /**
@@ -91,48 +152,6 @@ export interface SeeAlso {
   tool?: string;
   args?: Record<string, unknown>;
   reason?: string;
-}
-
-/**
- * A proposed fix shown to the agent at the top level of the result. Carries the
- * originating `check` so the agent can correlate it with a diagnostic.
- */
-export type ProposedFix = AgentFix & { check?: string | null };
-
-/** A group of related diagnostics sharing a root cause, with a unified remedy. */
-export interface DiagnosticCluster {
-  check: string;
-  count: number;
-  unified_fix?: string;
-}
-
-/** An advisory note about the file's architecture (doc-block coverage, layout correctness, …). */
-export interface ScorecardNote {
-  category: string;
-  status: 'ok' | 'warning' | 'info';
-  reason: string;
-}
-
-// ── TASK-8 fields (per-domain layer + result completion) ─────────────────────
-// Declared here so the result shape is stable; populated by TASK-8.2 / TASK-8.4.
-
-export interface TipEntry {
-  id: string;
-  severity: string;
-  message: string;
-}
-
-export interface DomainGuideGotcha {
-  id: string;
-  message: string;
-  severity: string;
-  applies_to_errors?: string[];
-}
-
-export interface DomainGuide {
-  domain: string;
-  rule?: string;
-  triggered_gotchas: DomainGuideGotcha[];
 }
 
 /**
@@ -206,9 +225,6 @@ export interface ValidateCodeResult {
   errors: ValidateCodeDiagnostic[];
   warnings: ValidateCodeDiagnostic[];
   infos: ValidateCodeDiagnostic[];
-  proposed_fixes: ProposedFix[];
-  clusters: DiagnosticCluster[];
-  scorecard: ScorecardNote[];
   /**
    * Cross-file blast radius (graph-derived): who depends on the edited file.
    * Always present; `status` distinguishes a real "nothing depends on this"
@@ -217,10 +233,41 @@ export interface ValidateCodeResult {
   impact: ValidateCodeImpact;
   /** Deterministic prose telling the agent what to do next. */
   next_step?: string;
-  /** Parse-failure message when the file could not be parsed at all; null/absent otherwise. */
-  parse_error?: string | null;
+  /**
+   * Machine-readable cause when `status` is `not_applicable`; absent otherwise.
+   * See {@link NotApplicableReason}.
+   */
+  not_applicable_reason?: NotApplicableReason;
+}
 
-  // TASK-8 fields (empty/null in the minimal TASK-7 build):
-  tips?: TipEntry[];
-  domain_guide?: DomainGuide | null;
+/** One file's outcome inside a multi-file {@link ValidateFilesResult}. */
+export interface ValidateFilesEntry {
+  /** The `file_path` exactly as the caller supplied it, so results are easy to match up. */
+  file_path: string;
+  result: ValidateCodeResult;
+}
+
+/**
+ * The multi-file result: one entry per requested file plus a request-level gate.
+ * Returned only for the `files` input form; the single form returns a bare
+ * {@link ValidateCodeResult}.
+ *
+ * A batch is NOT atomic. One declined or failing file never sinks the others, so
+ * `files` always has an entry for every requested path and the agent reads
+ * per-file detail there.
+ */
+export interface ValidateFilesResult {
+  /**
+   * True when ANY file blocks. One gate to read: an agent about to write a
+   * multi-file change needs a single answer to "may I write this changeset?", and a
+   * coordinated edit is only as safe as its worst file.
+   *
+   * Note this is deliberately an OR over the files' own gates, so a file that is
+   * merely `not_applicable` (not checked) never blocks the set.
+   */
+  must_fix_before_write: boolean;
+  /** Per-file results, in the order requested. */
+  files: ValidateFilesEntry[];
+  /** Deterministic prose telling the agent what to do next across the whole batch. */
+  next_step?: string;
 }

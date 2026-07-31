@@ -36,11 +36,13 @@ import normalize from 'normalize-path';
 import { autofix } from './autofix';
 import { findConfigPath, loadConfig as resolveConfig } from './config';
 import { NodeFileSystem } from './NodeFileSystem';
+import { overlayFileSystem } from './overlay-file-system';
 import { fileURLToPath } from 'node:url';
 
 export * from '@platformos/platformos-check-common';
 export * from './config/types';
 export { NodeFileSystem };
+export { overlayFileSystem } from './overlay-file-system';
 export { runBackfillDocsCLI } from './backfill-docs';
 /**
  * Download the latest platformOS liquid docs over the local docset.
@@ -229,6 +231,13 @@ async function lintApp(
   config: Config,
   log: (message: string) => void = () => {},
   only?: UriString[],
+  /**
+   * In-memory buffers to present as existing files. Reference checks
+   * (`MissingPartial`, …) resolve names through `context.fs`, NOT through the
+   * `App`, so without this a partial that exists only as an unsaved buffer is
+   * reported missing. See {@link overlayFileSystem}.
+   */
+  overlays?: ReadonlyMap<UriString, string>,
 ): Promise<Offense[]> {
   const platformOSLiquidDocsManager = getPlatformOSLiquidDocsManager(log);
 
@@ -254,7 +263,7 @@ async function lintApp(
     app,
     config,
     {
-      fs: NodeFileSystem,
+      fs: overlays ? overlayFileSystem(NodeFileSystem, overlays) : NodeFileSystem,
       platformosDocset: platformOSLiquidDocsManager,
       jsonValidationSet: platformOSLiquidDocsManager,
       getDocDefinition: async (relativePath) => docDefinitions.get(relativePath)?.(),
@@ -310,6 +319,38 @@ export function resetPlatformOSLiquidDocsManager(): void {
   sharedDocsManager = undefined;
 }
 
+/**
+ * Which of `filePaths` the project's config EXCLUDES from linting entirely.
+ *
+ * WHY A CALLER NEEDS THIS. `check()` silently skips ignored files, so a caller that
+ * lints one buffer and sees no offenses cannot tell "clean" from "never checked".
+ * For the MCP supervisor that difference is the whole contract: an ignored file with
+ * unparseable Liquid was reported `status: ok, must_fix_before_write: false` — the
+ * write gate approving a file nothing had looked at. Same class of false approval as
+ * an off-project path.
+ *
+ * Only the GLOBAL `ignore` list counts. A per-check `settings.<Check>.ignore` means
+ * the file is still checked, just by fewer checks, so treating that as "not checked"
+ * would be wrong in the other direction.
+ *
+ * `filePaths` must be absolute. Returns the subset, as given, so a caller can key
+ * results by its own strings. One config load serves the whole list.
+ */
+export async function ignoredByConfig(
+  root: string,
+  filePaths: string[],
+  configPath?: string,
+): Promise<Set<string>> {
+  const ignored = new Set<string>();
+  if (filePaths.length === 0) return ignored;
+
+  const config = await loadConfig(configPath, root);
+  for (const filePath of filePaths) {
+    if (isIgnored(pathUtils.normalize(URI.file(filePath)), config)) ignored.add(filePath);
+  }
+  return ignored;
+}
+
 export interface LintBufferParams {
   /** Absolute path to the project root. */
   root: string;
@@ -351,29 +392,93 @@ export interface LintBufferParams {
  * and ~0.1 s of check time.
  */
 export async function lintBuffer(params: LintBufferParams): Promise<Offense[]> {
-  const { root, filePath, content, configPath, cache, log = () => {} } = params;
-  const { app, config } = await getAppAndConfig(root, configPath, cache);
+  const { root, filePath, content, ...rest } = params;
   const uri = pathUtils.normalize(URI.file(filePath));
-  const overlaidApp = overlayBuffer(app, uri, content);
-  const offenses = await lintApp(root, overlaidApp, config, log, [uri]);
-  // Belt and braces: `only` already restricts this to the buffer's file, but the
-  // filter keeps the contract explicit and independent of that optimization.
-  return offenses.filter((offense) => offense.uri === uri);
+  const byFile = await lintBuffers({ root, buffers: [{ filePath, content }], ...rest });
+  return byFile.get(uri) ?? [];
+}
+
+/** One in-memory buffer in a {@link lintBuffers} batch. */
+export interface BufferToLint {
+  /** Absolute path to the file under edit. */
+  filePath: string;
+  /** In-memory contents (may differ from, or not yet exist on, disk). */
+  content: string;
+}
+
+export interface LintBuffersParams extends Omit<LintBufferParams, 'filePath' | 'content'> {
+  /**
+   * The buffers under edit. A later entry for the same path wins, matching
+   * "last write for this file", so a caller need not deduplicate.
+   */
+  buffers: BufferToLint[];
 }
 
 /**
- * Return a copy of `app` with the `SourceCode` for `uri` replaced by one built
- * from `content`, appending it when the file is not already present.
+ * Lint SEVERAL in-memory buffers in one pass over the project, returning the
+ * offenses per buffer keyed by normalized URI.
+ *
+ * WHY THIS IS THE PRIMARY SEAM. Everything expensive here is per-PROJECT, not
+ * per-buffer: loading the config, globbing and reconciling the app, building the
+ * `getDocDefinition` map, constructing the `JSONValidator`. Linting N buffers one
+ * call at a time repeats all of it N times against an unchanged project — measured
+ * at ~250 ms of fixed cost against ~84 ms of actual per-buffer work, so a 20-file
+ * edit spent most of its time re-discovering the same project twenty times.
+ *
+ * IT IS ALSO MORE CORRECT, which matters more than the speed. With every buffer
+ * overlaid at once, a partial introduced in one buffer resolves for a `render` in
+ * another. Linting the same edit file-by-file reports `MissingPartial` for a file
+ * that exists in the very batch being checked — a false positive inherent to the
+ * single-buffer shape, not a tuning problem.
+ *
+ * Only the buffers are VISITED (`CheckOptions.only`) while the whole project is
+ * handed to `check()`, so cross-file checks still resolve against real files.
+ * Offenses are always attributed to the visited file, so visiting the rest could
+ * only produce results this function discards.
  */
-function overlayBuffer(app: App, uri: string, content: string): App {
-  const overlay = commonToSourceCode(uri, content);
-  let replaced = false;
+export async function lintBuffers(params: LintBuffersParams): Promise<Map<UriString, Offense[]>> {
+  const { root, buffers, configPath, cache, log = () => {} } = params;
+  const { app, config } = await getAppAndConfig(root, configPath, cache);
+
+  // Deduplicate by URI, last entry winning. Two entries for one file would
+  // otherwise overlay twice and double every offense for it.
+  const overlays = new Map<UriString, string>();
+  for (const buffer of buffers) {
+    overlays.set(pathUtils.normalize(URI.file(buffer.filePath)), buffer.content);
+  }
+
+  const results = new Map<UriString, Offense[]>();
+  if (overlays.size === 0) return results;
+  // Seed every requested URI so a clean buffer yields [] rather than a missing key
+  // — the caller must be able to tell "no offenses" from "not linted".
+  for (const uri of overlays.keys()) results.set(uri, []);
+
+  const overlaidApp = overlayBuffers(app, overlays);
+  const offenses = await lintApp(root, overlaidApp, config, log, [...overlays.keys()], overlays);
+
+  for (const offense of offenses) {
+    // `only` already restricts the visit to these files; the lookup keeps the
+    // partition explicit and independent of that optimization.
+    results.get(offense.uri)?.push(offense);
+  }
+  return results;
+}
+
+/**
+ * Return a copy of `app` with each overlaid URI's `SourceCode` replaced by one
+ * built from its buffer content, appending any file not already present.
+ */
+function overlayBuffers(app: App, overlays: ReadonlyMap<UriString, string>): App {
+  const seen = new Set<UriString>();
   const next = app.map((file) => {
-    if (file.uri !== uri) return file;
-    replaced = true;
-    return overlay;
+    const content = overlays.get(file.uri);
+    if (content === undefined) return file;
+    seen.add(file.uri);
+    return commonToSourceCode(file.uri, content);
   });
-  if (!replaced) next.push(overlay);
+  for (const [uri, content] of overlays) {
+    if (!seen.has(uri)) next.push(commonToSourceCode(uri, content));
+  }
   return next;
 }
 

@@ -17,8 +17,10 @@ import {
   terminateGraphBuildWorkers,
 } from '../graph-cache/build-in-worker.js';
 import { defaultGraphCachePath, GraphCache } from '../graph-cache/graph-cache.js';
+import { type SupervisorContext } from '../context.js';
 import { createLogger, type Logger } from '../logger.js';
-import { registerValidateCode, type SupervisorContext } from './validate-code.js';
+import { installProcessGuards } from './process-guards.js';
+import { registerValidateCode } from './validate-code.js';
 
 export interface ServerOptions {
   /** Absolute project root that buffers are validated against. */
@@ -100,21 +102,19 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
     if (closed) return;
     closed = true;
     if (reason) log(`shutting down (${reason})`);
+    // Drop the process listeners as part of teardown, so a start/stop/start cycle
+    // in one process does not accumulate them.
+    uninstallGuards();
     // Reap a build in flight first: a worker mid-parse holds the process open, and
     // its rejection is absorbed by GraphCache like any other build failure.
     await terminateGraphBuildWorkers();
     await server.close();
   };
 
-  installSignalHandlers(shutdown);
+  // Signals plus the last-resort error guards: without them a single unhandled
+  // rejection on a background path is fatal under Node's default, and the agent
+  // loses the tool mid-session with nothing in the JSON-RPC stream to explain it.
+  const uninstallGuards = installProcessGuards({ log, shutdown });
 
   return { server, context, graphWarmup, shutdown };
-}
-
-function installSignalHandlers(shutdown: (reason?: string) => Promise<void>): void {
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.once(signal, () => {
-      void shutdown(signal).finally(() => process.exit(0));
-    });
-  }
 }

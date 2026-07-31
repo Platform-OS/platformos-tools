@@ -121,12 +121,6 @@ describe('Integration: validate_code over stdio', () => {
     errors: [],
     warnings: [],
     infos: [],
-    proposed_fixes: [],
-    clusters: [],
-    scorecard: [],
-    parse_error: null,
-    tips: [],
-    domain_guide: null,
   };
 
   // "Computed, nothing depends on this" — the safe-to-change signal, and the
@@ -149,6 +143,9 @@ describe('Integration: validate_code over stdio', () => {
   };
 
   it('advertises exactly the validate_code tool', async () => {
+    // ONE tool. A second, similarly-named tool would force the agent to choose
+    // between `validate_code` and `validate_files` with nothing in either name to
+    // guide it; the multi-file case is the same tool with a `files` argument.
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(['validate_code']);
   });
@@ -291,12 +288,6 @@ describe('Integration: validate_code sees on-disk fixes without a cache-clearing
     errors: [],
     warnings: [],
     infos: [],
-    proposed_fixes: [],
-    clusters: [],
-    scorecard: [],
-    parse_error: null,
-    tips: [],
-    domain_guide: null,
     impact: {
       scope: 'direct',
       status: 'computed',
@@ -457,5 +448,43 @@ describe('Integration: the project graph is warmed at server start', () => {
         sample: ['app/views/pages/index.liquid'],
       },
     });
+  }, 60_000);
+});
+
+/**
+ * TASK-17: the MULTI-FILE form of `validate_code` over the real stdio transport —
+ * the result envelope and per-file applicability.
+ *
+ * The CROSS-BUFFER correctness win is deliberately NOT asserted here. This
+ * project's hermetic config enables only `MissingContentForLayout`, so a
+ * "`render` of a sibling buffer resolves" assertion would pass whether or not the
+ * overlay worked — vacuous. It is proven properly, with a failing contrast, in
+ * check-node's `lint-buffers.spec.ts`, where `MissingPartial` is enabled.
+ *
+ * The speed claim is likewise pinned structurally (one adapter call per batch) in
+ * `validate-files.spec.ts` rather than by a flaky timing assertion. Measured on a
+ * real 162-file project: the same 20-file changeset took 12.25 s as 20
+ * `validate_code` calls and 3.06 s as one batch (4.0x).
+ */
+describe('Integration: the multi-file form over stdio', () => {
+  it('declines only the off-project entry and still validates its siblings', async () => {
+    const res = await client.callTool({
+      name: 'validate_code',
+      arguments: {
+        files: [
+          { file_path: '/etc/passwd', content: 'root:x:0:0' },
+          { file_path: 'app/views/layouts/theme.liquid', content: '<html><body></body></html>' },
+        ],
+      },
+    });
+    const content = res.content as Array<{ type: string; text: string }>;
+    const result = JSON.parse(content[0].text);
+
+    expect(result.files[0].result.not_applicable_reason).toEqual('outside_project');
+    // The sibling was still checked, and IT is what gates the changeset.
+    expect(result.files[1].result.errors.map((error: { check: string }) => error.check)).toEqual([
+      'MissingContentForLayout',
+    ]);
+    expect(result.must_fix_before_write).toBe(true);
   }, 60_000);
 });

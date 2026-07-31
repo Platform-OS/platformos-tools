@@ -33,9 +33,16 @@ yarn test src/lint-buffer.spec.ts
 | `getApp(config)` / `getAppAndConfig(root, configPath?)` | Build the `App` (globbed `SourceCode[]`) and resolve config. |
 
 `appCheckRun` and `lintBuffer` both delegate to the private `lintApp(root, app,
-config, log)` helper, which builds the `getDocDefinition` map from the passed
-`app` — this is what lets `lintBuffer`'s overlaid buffer be cross-referenced
-with its UNSAVED `{% doc %}` params rather than the stale on-disk version.
+config, log, only?)` helper, which builds the `getDocDefinition` map from the
+passed `app` — this is what lets `lintBuffer`'s overlaid buffer be
+cross-referenced with its UNSAVED `{% doc %}` params rather than the stale
+on-disk version. `lintBuffer` passes `only: [uri]` so just that file is
+*visited*, while the whole `app` stays visible to cross-file checks.
+
+All lint runs share one process-level `PlatformOSLiquidDocsManager` (every
+loader on it is a per-instance memo, including a network revision check).
+`resetPlatformOSLiquidDocsManager()` discards it; `updateDocs` calls that for
+you.
 
 ## Factory configs (`configs/*.yml`)
 

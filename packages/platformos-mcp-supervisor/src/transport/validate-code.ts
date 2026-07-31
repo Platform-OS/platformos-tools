@@ -37,7 +37,8 @@ export const VALIDATE_CODE_INPUT: ZodRawShape = {
     .enum(['full', 'quick'])
     .optional()
     .describe(
-      'Analysis depth. `full` (default) runs the heavier ergonomic stages; `quick` is lint + enrichment.',
+      'Reserved for future analysis depths; currently ignored — `full` (default) and ' +
+        '`quick` return the same result at the same cost.',
     ),
 };
 

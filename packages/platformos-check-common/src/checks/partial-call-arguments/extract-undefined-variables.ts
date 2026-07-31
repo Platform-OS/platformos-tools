@@ -21,8 +21,35 @@ import {
   BackgroundMarkup,
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
+import { createBoundedCache } from '../../utils/bounded-cache';
 
 type Scope = { start?: number; end?: number };
+
+export interface UndefinedVariables {
+  required: string[];
+  optional: string[];
+}
+
+/**
+ * How many distinct analyses to keep. A lint run asks about one entry per
+ * DISTINCT referenced partial, so this comfortably covers a whole project while
+ * bounding what a long-lived process (MCP supervisor, language server) retains.
+ * Values are two short string arrays; the keys hold partial sources, which is
+ * what the cap is really sizing.
+ */
+const ANALYSIS_CACHE_LIMIT = 512;
+
+const analysisCache = createBoundedCache<UndefinedVariables>(ANALYSIS_CACHE_LIMIT);
+
+/**
+ * Drop every memoized analysis. Entries are keyed by content and so can never be
+ * stale, which is why nothing in a lint run calls this: it exists so tests stay
+ * independent of one another, and so a long-lived host that has moved on from a
+ * project has a way to release that project's sources.
+ */
+export function clearUndefinedVariablesCache(): void {
+  analysisCache.clear();
+}
 
 /**
  * Parses a Liquid source string and returns a deduplicated list of variable names
@@ -33,11 +60,32 @@ type Scope = { start?: number; end?: number };
  *
  * This mirrors the variable tracking logic from the UndefinedObject check but
  * packaged as a standalone synchronous function.
+ *
+ * Memoized, because callers ask the same question repeatedly: `PartialCallArguments`
+ * analyzes the render TARGET at every call site, so a partial rendered from 40
+ * places used to be parsed 40 times per lint run (the dominant cost of that
+ * check on a real project — ~9.9 s of a 21 s run).
+ *
+ * The analysis is a pure function of `(source, globalObjectNames)`, so both go
+ * into the key and a cached entry can never be stale: edited content is simply a
+ * different key. Results are copied out, so callers keep owning (and are free to
+ * mutate) the arrays they receive, exactly as before.
  */
 export function extractUndefinedVariables(
   source: string,
   globalObjectNames: string[] = [],
-): { required: string[]; optional: string[] } {
+): UndefinedVariables {
+  const cached = analysisCache(`${globalObjectNames.join(',')}\u0000${source}`, () =>
+    computeUndefinedVariables(source, globalObjectNames),
+  );
+
+  return { required: [...cached.required], optional: [...cached.optional] };
+}
+
+function computeUndefinedVariables(
+  source: string,
+  globalObjectNames: string[],
+): UndefinedVariables {
   let ast;
   try {
     ast = toLiquidHtmlAST(source);

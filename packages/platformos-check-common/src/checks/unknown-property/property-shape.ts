@@ -1,6 +1,5 @@
 import { parse, SelectionSetNode, FieldNode } from 'graphql/language';
 import {
-  buildSchema,
   GraphQLSchema,
   GraphQLObjectType,
   GraphQLOutputType,
@@ -11,6 +10,7 @@ import {
 } from 'graphql';
 import { parseJSON } from '../../json';
 import { isError } from '../../utils';
+import { buildGraphQLSchema } from '../../utils/graphql-schema';
 
 export interface PropertyShape {
   kind: 'object' | 'array' | 'primitive';
@@ -199,7 +199,7 @@ export function inferShapeFromGraphQL(
 
     if (schemaString) {
       try {
-        schema = buildSchema(schemaString);
+        schema = buildGraphQLSchema(schemaString);
       } catch {
         // Schema parse error - continue without schema
       }

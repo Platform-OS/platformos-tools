@@ -1,6 +1,5 @@
 import { parse, SelectionSetNode, FieldNode } from 'graphql/language';
 import {
-  buildSchema,
   GraphQLSchema,
   GraphQLObjectType,
   isListType,
@@ -10,6 +9,10 @@ import {
   GraphQLOutputType,
 } from 'graphql';
 import { parseJSON, isError } from '@platformos/platformos-check-common';
+// This package's own builder, NOT check-common's: the schema is inspected below
+// with this package's `graphql` predicates, and the two must come from the same
+// module record. See `graphqlSchema.ts`.
+import { buildGraphQLSchema } from './graphqlSchema';
 import {
   JsonHashLiteral,
   JsonArrayLiteral,
@@ -275,7 +278,7 @@ export function inferShapeFromGraphQL(
 
     if (schemaString) {
       try {
-        schema = buildSchema(schemaString);
+        schema = buildGraphQLSchema(schemaString);
       } catch {
         // Schema parse error - continue without schema
       }

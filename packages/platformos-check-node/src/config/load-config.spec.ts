@@ -24,12 +24,38 @@ import * as resolveModule from './resolve';
 describe('Unit: loadConfig', () => {
   let tempDir: string;
 
+  /**
+   * Mock packages that two of these tests must install into the REAL installation
+   * root (`thisNodeModuleRoot()`), because that is the sibling-discovery path they
+   * assert — a temp dir cannot stand in for it.
+   *
+   * They are removed after every test, unconditionally. Without this a failing (or
+   * interrupted) test leaves a package behind in the repo's own `node_modules`,
+   * which is gitignored and therefore invisible: later runs then discover a
+   * half-deleted module and fail with `Cannot find module …`, intermittently and
+   * far away from the cause.
+   */
+  const MOCK_INSTALLED_MODULES = ['not-conventional', 'platformos-check-global-extension'];
+
+  const removeMockInstalledModules = () =>
+    Promise.all(
+      MOCK_INSTALLED_MODULES.map((moduleName) =>
+        fs.rm(path.join(thisNodeModuleRoot(), 'node_modules', moduleName), {
+          recursive: true,
+          force: true,
+        }),
+      ),
+    );
+
   beforeEach(async () => {
     tempDir = await makeTmpFolder();
+    // Also up front, in case a previous run was killed mid-test.
+    await removeMockInstalledModules();
   });
 
   afterEach(async () => {
     await removeTmpFolder(tempDir);
+    await removeMockInstalledModules();
   });
 
   it('loads the recommended config by default', async () => {
@@ -115,9 +141,11 @@ describe('Unit: loadConfig', () => {
       mockNodeModuleCheck,
     );
     const config = await loadConfig(configPath, tempDir);
-    await fs.rm(globalModulePath, { recursive: true });
     const nodeModuleCheck = config.checks.find((check) => check.meta.code === 'NodeModuleCheck');
     expect(nodeModuleCheck).to.exist;
+    expect(globalModulePath).toEqual(
+      path.join(thisNodeModuleRoot(), 'node_modules', 'platformos-check-global-extension'),
+    );
   });
 
   it('loads a community-provided extension by automatic node_module discovery (unscoped)', async () => {

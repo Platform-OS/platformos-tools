@@ -77,6 +77,16 @@ describe('Unit: assembleResult', () => {
     });
   });
 
+  it('returns the same result for `full` and `quick` — the mode is reserved and does nothing yet', () => {
+    const diagnostics = [
+      diag({ severity: 'error' }),
+      diag({ severity: 'warning' }),
+      diag({ severity: 'info' }),
+    ];
+
+    expect(assembleResult(diagnostics, 'quick')).toEqual(assembleResult(diagnostics, 'full'));
+  });
+
   it('derives status = ok for infos only', () => {
     const info = diag({ severity: 'info' });
 

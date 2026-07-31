@@ -3,7 +3,6 @@ import {
   DocDefinition,
   GraphQLSourceCode,
   JSONSourceCode,
-  JSONValidator,
   LiquidSourceCode,
   Offense,
   App,
@@ -43,6 +42,9 @@ export { NodeFileSystem };
 export { runBackfillDocsCLI } from './backfill-docs';
 export async function updateDocs(log: (msg: string) => void = () => {}): Promise<void> {
   await downloadPlatformOSLiquidDocs(platformOSLiquidDocsRoot, log);
+  // The shared manager has memoized the docs we just replaced. Without this, a
+  // process that updates its docs keeps linting against the pre-update docset.
+  invalidateDocsManager();
 }
 
 export const loadConfig: typeof resolveConfig = async (configPath, root) => {
@@ -109,9 +111,7 @@ async function lintApp(
   log: (message: string) => void = () => {},
   only?: UriString[],
 ): Promise<Offense[]> {
-  const platformOSLiquidDocsManager = getPlatformOSLiquidDocsManager(log);
-
-  const validator = await JSONValidator.create(platformOSLiquidDocsManager, config);
+  const platformOSLiquidDocsManager = getPlatformOSLiquidDocsManager();
 
   const docDefinitions = new Map(
     app.map((file) => [
@@ -129,47 +129,120 @@ async function lintApp(
     ]),
   );
 
-  return coreCheck(
-    app,
-    config,
-    {
-      fs: NodeFileSystem,
-      platformosDocset: platformOSLiquidDocsManager,
-      jsonValidationSet: platformOSLiquidDocsManager,
-      getDocDefinition: async (relativePath) => docDefinitions.get(relativePath)?.(),
-    },
-    { only },
+  return withDocsManagerLog(log, () =>
+    coreCheck(
+      app,
+      config,
+      {
+        fs: NodeFileSystem,
+        platformosDocset: platformOSLiquidDocsManager,
+        jsonValidationSet: platformOSLiquidDocsManager,
+        getDocDefinition: async (relativePath) => docDefinitions.get(relativePath)?.(),
+      },
+      { only },
+    ),
   );
 }
 
 /**
- * The one docs manager this process uses, and the log sink it currently reports
- * through.
+ * The docs manager this process is currently using.
  *
  * Every loader on `PlatformOSLiquidDocsManager` — including `setup()`, which makes
  * a NETWORK call to compare the local docs revision against the remote one — is a
  * per-instance memo. Constructing one per lint run therefore re-did that network
  * check, and re-read and re-parsed filters/objects/tags/SDL from disk, on every
- * single run: ~200 ms per `validate_code` call for a long-lived server. The docset
- * is a process-level constant (it does not vary by project or by call), so one
- * instance is correct and the memos finally pay off. Keeping the SDL string stable
- * is also what lets check-common's schema cache hit.
+ * single run: ~200 ms per `validate_code` call for a long-lived server. Reusing one
+ * instance is what makes those memos pay off, and keeping the SDL string stable is
+ * also what lets check-common's schema cache hit.
  *
- * The sink is swapped per run rather than captured once, so each run's docset
- * diagnostics reach ITS logger instead of being silently delivered to whichever
- * run happened to be first. Runs are expected to be sequential; if two ever
- * overlap, a late async docset message can land in the newer run's log — a
- * cosmetic mislabelling of a diagnostic line, never a lint result.
+ * Reuse is time-boxed rather than permanent. Because the memos are per instance,
+ * an instance kept forever also pins forever whatever docset its FIRST run
+ * resolved — including the bundled fallback it settles for when `setup()` fails
+ * (no network, docs not downloaded yet, a half-written resource file). A server
+ * that started offline would then report `UnknownFilter` on valid code for its
+ * whole life, and nothing short of a restart would fix it. Rebuilding on the
+ * first run after {@link DOCS_MANAGER_MAX_AGE_MS} keeps a burst of `validate_code`
+ * calls on one instance while letting a long-lived process recover, pick up a new
+ * remote revision, and see the results of an out-of-band `--update-docs`.
  */
 let sharedDocsManager: PlatformOSLiquidDocsManager | undefined;
-let sharedDocsManagerLog: (message: string) => void = () => {};
+let sharedDocsManagerBuiltAt = 0;
 
-function getPlatformOSLiquidDocsManager(
-  log: (message: string) => void,
-): PlatformOSLiquidDocsManager {
-  sharedDocsManagerLog = log;
-  sharedDocsManager ??= new PlatformOSLiquidDocsManager((message) => sharedDocsManagerLog(message));
+/**
+ * How long one docs manager is reused before the next lint run builds a fresh one.
+ * Long enough that the per-run cost this sharing exists to remove stays removed for
+ * any realistic burst of calls; short enough that "docs updated" is a wait, not a
+ * restart.
+ */
+const DOCS_MANAGER_MAX_AGE_MS = 5 * 60 * 1000;
+
+/**
+ * Drop the shared docs manager so the next lint run builds one from the docs
+ * currently on disk. {@link updateDocs} calls this; hosts that refresh the docs
+ * cache by other means can call it too.
+ */
+export function invalidateDocsManager(): void {
+  sharedDocsManager = undefined;
+}
+
+/**
+ * The log sinks of the lint runs currently in flight, and the docset diagnostics
+ * emitted so far.
+ *
+ * A shared manager cannot capture one run's logger: it outlives that run. It
+ * cannot route to "the latest run" either — that delivers one run's diagnostics
+ * to another run's output, or to a run that has already returned. So it fans out
+ * to every run in flight, and each run is replayed the diagnostics the docset
+ * already emitted before it started.
+ *
+ * The replay is what makes these messages usable at all. Every loader is
+ * memoized, so a degraded docset explains itself exactly once — during the first
+ * run of the process, which for the MCP supervisor is a `lintBuffer` call with no
+ * `log` at all. Without replay, that explanation is discarded and every later run
+ * sees hundreds of unexplained `UnknownFilter` offenses against an empty log.
+ */
+const activeDocsManagerLogs = new Set<(message: string) => void>();
+const docsManagerLogHistory: string[] = [];
+
+/** Enough to carry a full set of loader failures; a cap so a long-lived process cannot grow it. */
+const DOCS_MANAGER_LOG_HISTORY_LIMIT = 50;
+
+function getPlatformOSLiquidDocsManager(): PlatformOSLiquidDocsManager {
+  const expired = Date.now() - sharedDocsManagerBuiltAt > DOCS_MANAGER_MAX_AGE_MS;
+  if (sharedDocsManager && expired) invalidateDocsManager();
+
+  if (!sharedDocsManager) {
+    // A rebuilt manager re-reports whatever it finds, so start the history over
+    // rather than replaying the previous instance's (now answered) complaints.
+    docsManagerLogHistory.length = 0;
+    sharedDocsManagerBuiltAt = Date.now();
+    sharedDocsManager = new PlatformOSLiquidDocsManager((message) => {
+      docsManagerLogHistory.push(message);
+      if (docsManagerLogHistory.length > DOCS_MANAGER_LOG_HISTORY_LIMIT) {
+        docsManagerLogHistory.shift();
+      }
+      for (const sink of activeDocsManagerLogs) sink(message);
+    });
+  }
+
   return sharedDocsManager;
+}
+
+/**
+ * Run `lint` with `log` subscribed to the shared docset's diagnostics: first the
+ * ones it has already emitted, then any it emits while this run is in flight.
+ */
+async function withDocsManagerLog<T>(
+  log: (message: string) => void,
+  lint: () => Promise<T>,
+): Promise<T> {
+  for (const message of docsManagerLogHistory) log(message);
+  activeDocsManagerLogs.add(log);
+  try {
+    return await lint();
+  } finally {
+    activeDocsManagerLogs.delete(log);
+  }
 }
 
 export interface LintBufferParams {

@@ -42,6 +42,16 @@ const ANALYSIS_CACHE_LIMIT = 512;
 const analysisCache = createBoundedCache<UndefinedVariables>(ANALYSIS_CACHE_LIMIT);
 
 /**
+ * Drop every memoized analysis. Nothing in a lint run needs this — entries are
+ * keyed by content and so can never be stale — but a long-lived host that has
+ * moved on from a project can use it to release that project's sources, and
+ * tests use it to stay independent of one another.
+ */
+export function clearUndefinedVariablesCache(): void {
+  analysisCache.clear();
+}
+
+/**
  * Parses a Liquid source string and returns a deduplicated list of variable names
  * that are used but never defined. Returns `{ required: [], optional: [] }` on parse errors.
  *

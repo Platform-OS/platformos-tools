@@ -96,15 +96,21 @@ const defaultErrorHandler = (_error: Error): void => {
 export interface CheckOptions {
   /**
    * Visit ONLY these files (normalized `file://` URIs), instead of every file in
-   * `app`. Omit to visit everything, which is the whole-project behaviour every
-   * caller had before this option existed.
+   * `app`. Omit (or pass `undefined`) to visit everything, which is the
+   * whole-project behaviour every caller had before this option existed.
    *
-   * `app` must STILL be the complete project: the cross-file dependencies built
-   * below (`getDefaultTranslations`, `getTranslationsForBase`, `getRouteTable`,
-   * `fileExists`) are derived from it, and that is how cross-file checks
-   * (`MissingPartial`, `OrphanedPartial`, `TranslationKeyExists`, …) resolve the
-   * rest of the project. This option narrows what gets VISITED, never what the
-   * checks can see.
+   * The list is taken literally: `[]` names no files and so visits none, and the
+   * run reports no offenses. A caller that computes this list must therefore
+   * decide for itself what an empty result means — passing `[]` to mean "the
+   * whole project" would silently lint nothing.
+   *
+   * `app` must STILL be the complete project. `getDefaultTranslations` and
+   * `getTranslationsForBase` are built from it below, and check-node additionally
+   * builds `getDocDefinition` from it (see `lintApp`) — which is what lets an
+   * overlaid, unsaved buffer be cross-referenced with its own `{% doc %}` params.
+   * Together those are how cross-file checks (`MissingPartial`, `OrphanedPartial`,
+   * `TranslationKeyExists`, …) resolve the rest of the project. This option
+   * narrows what gets VISITED, never what the checks can see.
    *
    * The result is exactly the subset of the unrestricted run's offenses that
    * belongs to these files, because an offense's `uri` is always the visited
@@ -269,15 +275,16 @@ function createCheck<S extends SourceCodeType>(
 }
 
 /**
- * The files a run should visit: all of them, or just the ones {@link CheckOptions.only}
- * names. Unknown URIs in `only` simply match nothing (a buffer for a file that is
- * not part of the app yields no offenses, same as before).
+ * The files a run should visit: all of them when {@link CheckOptions.only} is
+ * absent, otherwise just the ones it names. Unknown URIs in `only` simply match
+ * nothing (a buffer for a file that is not part of the app yields no offenses,
+ * same as before), and an empty `only` therefore visits nothing at all.
  */
 function filesToVisit<T extends SourceCodeType>(
   files: SourceCode<T>[],
   only?: UriString[],
 ): SourceCode<T>[] {
-  if (!only) return files;
+  if (only === undefined) return files;
 
   const visit = new Set(only);
   return files.filter((file) => visit.has(file.uri));

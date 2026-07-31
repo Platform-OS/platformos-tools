@@ -17,6 +17,7 @@ import { MissingAsset } from './missing-asset';
 import { MissingPartial } from './missing-partial';
 import { OrphanedPartial } from './orphaned-partial';
 import { ParserBlockingScript } from './parser-blocking-script';
+import { ReservedVariableName } from './reserved-variable-name';
 import { TranslationKeyExists } from './translation-key-exists';
 import { UnclosedHTMLElement } from './unclosed-html-element';
 import { UndefinedObject } from './undefined-object';
@@ -61,6 +62,7 @@ export const allChecks: (
   MissingPartial,
   OrphanedPartial,
   ParserBlockingScript,
+  ReservedVariableName,
   TranslationKeyExists,
   UnclosedHTMLElement,
   UndefinedObject,

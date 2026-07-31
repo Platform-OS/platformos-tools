@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-29 05:00'
+updated_date: '2026-07-31 16:40'
 labels:
   - performance
   - check-node
@@ -53,3 +54,98 @@ The two branches were compared file by file. The four check/LSP files touched by
 - [ ] #5 Diagnostics remain byte-identical: `lintBuffer` still matches `appCheckRun`'s whole-project offenses filtered to the same uri, over a real multi-hundred-file project
 - [ ] #6 If the chosen approach is lazy parsing, a test pins that a parse error is still surfaced as a captured `Error` and not thrown from `getApp`
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Approach chosen (AC #1): a lazy App object model in `platformos-common`
+
+None of the three options above; they are all local fixes to one consumer. The
+chosen approach is the one `platformos-common` was created for: reproduce the
+Ruby `platformos-check` App model (`~/projects/lsp/platformos-check/lib/platformos_check/`
+— `app.rb`, `app_file.rb`, `liquid_file.rb`, `storage.rb`) as the single source
+of truth for what an app file IS, where it lives, and when its parse is stale.
+
+### Why not options 1–3
+
+There are FOUR live implementations of "the project's files, parsed", and every
+option above fixes exactly one of them:
+
+| Where | Shape | Eager? | Invalidation |
+|---|---|---|---|
+| `check-node getApp` | flat `SourceCode[]` | reads AND parses all | none — rebuilt per call |
+| LSP `DocumentManager` | `Map<uri, AugmentedSourceCode>` | `preload` reads+parses all | open/change/close/delete/rename ✔ |
+| `platformos-graph toSourceCode` | adds JS/asset types | eager | none |
+| `AppCache` (`supervisor-graph-integration`) | fingerprint-gated `getApp` | retains parsed ASTs | stat fingerprint |
+
+- Option 1 (lazy in check-node) leaves the other three untouched.
+- Option 2 (lazy in check-common) was rated "buys less than it appears to"
+  precisely because `DocumentManager` spreads the source object — see the
+  blocker below. That is a fixable bug, not a reason to reject shared laziness.
+- Option 3 (AppCache) remembers work instead of not doing it, so it trades
+  latency for retained heap, per instance.
+
+`DocumentManager` is the closest thing to the right model — it has versions and
+rename tracking — but it is LSP-shaped, re-parses everything in `preload`, and
+cannot serve check-node. TASK-12.15 (eliminate the graph/lint double parse)
+exists only because this layer is missing.
+
+### The model
+
+In `platformos-common`, on top of the classification source of truth it already
+owns (`FILE_TYPE_DIRS` → `TYPE_MATCHERS`, `getFileType`, `getAppPaths`/
+`getModulePaths`, `AbstractFileSystem`):
+
+| Ruby | TS |
+|---|---|
+| `Storage` | `AbstractFileSystem` (exists) |
+| `App.new(storage)` → classify PATHS only | `App.fromPaths(rootUri, uris, fs)` — no reads |
+| `grouped_files: {Class => {name => file}}` | `byUri: Map` + per-type `Map<name, AppFile>` |
+| `AppFile#source` lazy / `#parse` memoized | `load()` async + `ast` SYNC memoized getter |
+| `AppFile#name` (logical `render` name, `modules/X/` prefix) | derived from `FILE_TYPE_DIRS` prefix strip |
+| `module_overwrite_file?` shadowing | `app/modules/X` shadows `modules/X` |
+| `App#update(files, remove:)` | `update(uris)` / `remove(uris)` |
+| `PartialFile`/`PageFile`/`YamlFile`… | `AppFile` subclasses per `PlatformOSFileType` |
+
+### Three things that make this non-trivial
+
+1. **Checks read `file.ast` synchronously** (`visitLiquid(file.ast, check)`,
+   `onCodePathEnd(file & { ast })`). Async `ast` would touch every check. Use
+   Ruby's own split: `load()` async (reads source), `ast` a sync memoized
+   getter. `check()` then awaits `load()` only for the files it will visit and
+   no check signature changes.
+2. **`{...sourceCode}` forces the getter.** `DocumentManager.augmentedSourceCode`
+   spreads the source object in ALL FOUR type branches
+   (`documents/DocumentManager.ts`, verified). Spreading evaluates getters, so
+   laziness dies silently there. Must become composition (`textDocument`
+   alongside the `AppFile`, not spread into a copy). This is the blocker that
+   made option 2 look weak.
+3. **`platformos-common` sits BELOW the parsers.** Its deps are only `js-yaml`,
+   `vscode-json-languageservice`, `vscode-uri`; `liquid-html-parser`,
+   `jsonc/parse` and `yaml/parse` are in check-common above it. So `App` takes
+   INJECTED parsers (a `Parsers` map keyed by type), the same way it already
+   injects `AbstractFileSystem`. Keeps common browser-safe and lets the graph
+   register its JS/asset parser instead of forking `toSourceCode`.
+
+### What this retires
+
+- Options 1 and 2 of this task, together — laziness lands in the model.
+- TASK-12.15 (graph/lint double parse) — both hold the same `AppFile` instances.
+- `AppCache` becomes a fingerprint-driven `App.update()`, not a second cache.
+- `DocumentsLocator.locate()`'s per-call-site `stat` walk — measured ~40,000
+  `stat` calls per whole-project run across the five checks that call it —
+  becomes an O(1) lookup in the per-type name index.
+
+### Found on the way
+
+`platformos-check-common` imports `@platformos/platformos-common` in 20 source
+files but does NOT declare it in its `package.json`; it resolves only through
+workspace hoisting. Needs fixing regardless, and becomes load-bearing once `App`
+lives there. Split out as 12.6.2.
+
+### Children
+
+12.6.1 model · 12.6.2 undeclared dep · 12.6.3 check-node · 12.6.4
+DocumentManager · 12.6.5 graph · 12.6.6 locator index. 12.6.1 and 12.6.2 gate
+the rest; 12.6.3–12.6.6 are independent of each other.
+<!-- SECTION:NOTES:END -->

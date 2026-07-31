@@ -1,7 +1,14 @@
-It always takes at least one argument, but we don't break it
+It doesn't break a short single argument
 printWidth: 1
 {% form x %}{% endform %}
 {% form x %}
+  hello
+{% endform %}
+
+It can be used without arguments
+printWidth: 1
+{% form %}{% endform %}
+{% form %}
   hello
 {% endform %}
 
@@ -43,3 +50,7 @@ printWidth: 1
 %}
   hello
 {% endform %}
+
+It allows hyphenated attribute keys and optional commas between attributes
+printWidth: 120
+{% form html-class: 'foo-form', html-submitonce: 'true', html-foo-bar: 'true' %}{% endform %}

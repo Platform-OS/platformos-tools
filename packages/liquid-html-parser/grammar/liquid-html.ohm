@@ -313,7 +313,12 @@ Liquid <: Helpers {
     ) endOfIdentifier
 
   liquidTagOpenForm = liquidTagOpenRule<"form", liquidTagOpenFormMarkup>
-  liquidTagOpenFormMarkup = arguments<delimTag> (space* ",")? space*
+  // Matches the platformOS runtime (FormForTag): an optional positional model name first
+  // ({% form form, method: 'delete' %}), then key: value attributes. The runtime scans
+  // `[\w-]+: value` pairs out of the markup, so keys may contain hyphens (html-class:,
+  // html-data-user-id:), commas between attributes are optional, and bare {% form %} is valid.
+  liquidTagOpenFormMarkup =
+    orderedListOf<positionalArgument<delimTag>, namedArgument<delimTag>, argumentSeparatorOptionalComma> (space* ",")? space*
 
   liquidTagOpenFor = liquidTagOpenRule<"for", liquidTagOpenForMarkup>
 

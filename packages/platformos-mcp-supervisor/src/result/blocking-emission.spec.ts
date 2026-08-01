@@ -199,6 +199,46 @@ const NEVER_REACHES_THE_GATE: Record<string, UnreachableProof> = {
   JSONSyntaxError: { filePath: 'app/views/pages/data.json', content: '{ "a": ,\n' },
 };
 
+/**
+ * Whitespace between two Liquid tags, varied — the axis a fixture cannot exercise by
+ * being minimal.
+ *
+ * WHY THIS EXISTS. Asserting that ONE buffer emits cannot detect a check that is
+ * blind to a DIFFERENT buffer for the same defect. `InvalidHashAssignTarget` was
+ * exactly that: it tracked a variable's type over a range starting at the defining
+ * tag's end offset and excluded a lookup at precisely that offset, so it went silent
+ * when the two tags abutted and fired with one space between them. The fixture here
+ * used the separated form, so this suite was green while a member of
+ * `BLOCKING_CHECKS` had a hole. Separation between tags is formatting; it must never
+ * change a verdict.
+ *
+ * WHY THE TRANSFORMATION IS THE FIXTURE'S OWN TEXT rather than an injected probe.
+ * Prefixing or appending a benign `{% assign %}` in both spacings was measured
+ * across all ten members and changed NOTHING anywhere — including for the one check
+ * that has the defect, because the probe's adjacency is not the pair the check
+ * reasons about. It would have produced twenty extra lint calls and zero signal. The
+ * axis only exists between tags the check actually relates to each other, which
+ * means it exists only where a fixture already contains two of them.
+ *
+ * That makes the axis THIN by measurement, not by neglect: fixtures above are
+ * deliberately minimal, and most are a single construct with no inter-tag boundary
+ * to vary. Which members genuinely carry the axis is pinned below rather than left
+ * implicit, so a fixture that quietly loses it is a visible change.
+ */
+const TAGS_APART = /%\}\s+\{%/g;
+const TAGS_TOGETHER = /%\}\{%/g;
+
+/** The distinct spellings of `content` that differ only in inter-tag whitespace. */
+function adjacencyVariants(content: string): string[] {
+  return [
+    ...new Set([
+      content,
+      content.replace(TAGS_APART, '%}{%'),
+      content.replace(TAGS_TOGETHER, '%}\n{%'),
+    ]),
+  ];
+}
+
 describe('Integration: every blocking check can actually block', () => {
   let projectDir: string;
 
@@ -268,6 +308,41 @@ describe('Integration: every blocking check can actually block', () => {
         status: 'error',
         errors: [...fixture.errors].sort(),
       });
+    });
+  }
+
+  it('records which fixtures actually exercise tag adjacency', () => {
+    // Not an exemption list — an OBSERVATION, pinned so it cannot drift silently.
+    // A fixture rewritten into a single tag stops testing the axis, and the only way
+    // to notice is to state today's answer and let a change fail. Equally, adding a
+    // multi-tag fixture shows up here as new coverage rather than passing unremarked.
+    const withAxis = Object.entries(EMITS)
+      .filter(([, fixture]) => adjacencyVariants(fixture.content).length > 1)
+      .map(([code]) => code);
+
+    expect(withAxis).toEqual(['InvalidHashAssignTarget']);
+  });
+
+  for (const [code, fixture] of Object.entries(EMITS)) {
+    it(`${code}: inter-tag whitespace does not change the verdict`, async () => {
+      write(fixture.project);
+      const variants = adjacencyVariants(fixture.content);
+
+      const verdicts = [];
+      for (const content of variants) {
+        const result = await validate(fixture.filePath, content);
+        verdicts.push({
+          blocked: result.must_fix_before_write,
+          errors: [...new Set(result.errors.map((error) => error.check))].sort(),
+        });
+      }
+
+      // Stated as AGREEMENT: every spelling must produce the SAME verdict, and the
+      // expectation is written once. A member is never given a second hand-written
+      // answer to satisfy, so a check that behaves differently across shapes fails
+      // here instead of being encoded as though it were intended.
+      const agreed = { blocked: true, errors: [...fixture.errors].sort() };
+      expect(verdicts).toEqual(variants.map(() => agreed));
     });
   }
 

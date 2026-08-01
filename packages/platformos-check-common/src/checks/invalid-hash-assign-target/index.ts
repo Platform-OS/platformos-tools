@@ -53,15 +53,48 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
       }
     };
 
-    // Find the applicable type for a variable at a given position
+    /**
+     * The type in effect for `variableName` at `position`, or `undefined` if none is
+     * known there.
+     *
+     * THE START BOUND IS INCLUSIVE, and that is the whole fix. A range STARTS at the
+     * defining tag's `position.end`, which is an offset a real tag can begin at
+     * exactly, because Liquid tags may abut with nothing between them:
+     *
+     *   {% assign x = 5 %}{% hash_assign x['k'] = 'v' %}
+     *                     ^ range start AND lookup position are both 18
+     *
+     * An exclusive `position <= start` excluded that case, so the check went silent
+     * on a buffer the runtime raises `HashAssignTagError` for, while firing on the
+     * same code with a single space inserted. The defect therefore looked like the
+     * check being dead rather than a boundary being wrong, and an evaluation reported
+     * it as such. A node that begins exactly where the previous one ended IS after
+     * it, and no two nodes share an offset, so nothing is admitted wrongly.
+     *
+     * THE END BOUND IS NOT SYMMETRIC WITH IT, despite reading that way. A range is
+     * closed at the START offset of the tag that redefines the variable, and that
+     * tag's own lookup — if it performs one — happens BEFORE the close, while the
+     * range is still open. Every later lookup sits at a strictly greater offset. So
+     * no lookup can land on a closed range's end, and `>` versus `>=` is not
+     * currently distinguishable by any buffer: verified by flipping it, which changes
+     * no test. It is written as the inclusive reading because that is what the range
+     * means; do not infer from the symmetry that both bounds were measured.
+     *
+     * Later entries win, which is what resolves a reassignment whose ranges abut.
+     */
     const findVariableType = (variableName: string, position: number): VariableType | undefined => {
       let result: VariableType | undefined;
 
       for (const entry of variableTypes) {
         if (entry.name !== variableName) continue;
         const [start, end] = entry.range;
-        if (position <= start) continue;
-        if (end && position > end) continue;
+        if (position < start) continue;
+        // `end !== undefined`, not `end`: "no upper bound" is an OPEN range, which is
+        // exactly `undefined` — truthiness would also reopen a range closed at offset
+        // 0. Defensive rather than a live fix: an entry's start is a preceding tag's
+        // end, so a close at 0 cannot occur. Written this way because the predicate
+        // should be right by construction, not by an argument about offsets.
+        if (end !== undefined && position > end) continue;
         result = entry.type;
       }
 

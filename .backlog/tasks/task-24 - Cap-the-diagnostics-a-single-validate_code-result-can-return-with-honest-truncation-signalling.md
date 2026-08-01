@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-01 02:59'
-updated_date: '2026-08-01 20:15'
+updated_date: '2026-08-01 23:16'
 labels:
   - mcp-supervisor
   - agent-surface
@@ -19,7 +19,7 @@ modified_files:
   - packages/platformos-mcp-supervisor/src/result/types.ts
   - packages/platformos-mcp-supervisor/src/transport/instructions.ts
   - packages/platformos-mcp-supervisor/src/transport/validate-code.ts
-priority: high
+priority: medium
 ---
 
 ## Description
@@ -95,4 +95,32 @@ DELIVERED over stdio
 A 1.28 MiB JSON-RPC frame is delivered intact, parses, and carries every diagnostic. Nothing upstream truncates or rejects it. So the payload reaches the model in full, and the damage is entirely context-window consumption rather than a failed call — which is worse in one specific way: there is no error to notice. The agent simply loses most of its working context to one tool result and has no signal that anything unusual happened.
 
 That also removes one design option: a cap cannot be justified as 'the transport would drop it anyway'. It is a deliberate ergonomics judgement about how much of an agent's context one call may spend, and the constant needs to carry that rationale rather than a technical limit.
+
+PROPORTION — CORRECTING THE FRAMING ABOVE, which quoted only the pathological bound and read as though every call were expensive. It is not. Measured against the 21 real files of the eval substrate, plus a realistic broken edit:
+
+| Case | Diagnostics | Response | ~tokens |
+|---|---|---|---|
+| real project file, median (n=16) | 0 | 0.2 KiB | **~45** |
+| real project file, worst | 1 | 0.5 KiB | ~122 |
+| realistic broken edit (231 B, 3 errors) | 3 | 0.9 KiB | **~219** |
+| 1 file at MAX_BUFFER_BYTES, all-broken | 4 228 | 634 KiB | ~162 000 |
+| worst legal batch | 8 784 | 1 313 KiB | ~336 000 |
+
+So a normal call costs **tens to a couple of hundred tokens**, and the alarming figures are three orders of magnitude out on the tail. The pathological buffer is 128 KiB of one repeated broken construct — not a file anyone writes.
+
+The relationship is close to linear at ~153 bytes per diagnostic (~38 tokens), which is the number to size a cap against:
+
+```
+   10 diagnostics  ->  ~1.5 KiB   ~380 tokens
+  100 diagnostics  ->  ~15 KiB    ~3 800 tokens
+ 1000 diagnostics  -> ~150 KiB   ~38 000 tokens
+```
+
+Token counts are derived at ~4 bytes/token and are ESTIMATES; the byte figures are measured exactly.
+
+CONSEQUENCE FOR PRIORITY — downgraded HIGH to MEDIUM, and the reason is worth recording rather than just the change. This is a TAIL-RISK bound, not a per-call cost: the common path is already cheap, so nothing is gained on it. What the cap buys is protection against a single unusual file — a generated or minified blob, or one cascading syntax error in a large partial — quietly consuming most of an agent's context with no error to notice.
+
+That is still worth fixing, and the implementation constraints above are unchanged. It is not worth fixing ahead of anything that produces a wrong ANSWER, which is how the earlier note's numbers made it read. A cap of a few hundred diagnostics would leave every measured real case untouched.
+
+STILL THE ONE THING THAT MATTERS IN THE IMPLEMENTATION, unchanged by the reproportioning: `must_fix_before_write` must be computed from the COMPLETE diagnostic set, before truncation, and that has to be sabotage-verified with a buffer whose only blocking error sorts beyond the cap. A cap that drops the blocking diagnostic while the gate still reads `false` manufactures precisely the false approval this package exists to prevent — and it would do so only on large inputs, which is where nobody is looking.
 <!-- SECTION:NOTES:END -->

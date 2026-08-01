@@ -59,6 +59,27 @@ export function assembleResult(
   const warnings = ordered.filter((d) => d.severity === 'warning');
   const infos = ordered.filter((d) => d.severity === 'info');
 
+  // `ok` MEANS "checked, nothing objected" — and that claim is only honest while
+  // every file type this server admits has at least one check that examines it.
+  //
+  // It has not always been. An evaluation found three YAML file-type families
+  // (model/custom model types, transactable types, instance profile types) where the
+  // lint ran and ZERO checks applied: the only two YAML checks were translation
+  // content checks that return immediately on any other path. The answer was `ok`,
+  // which the instructions define as "the file WAS checked" — so an agent was told a
+  // file had been examined when nothing had looked at it, for a class whose
+  // uncovered failure mode fails the entire deploy.
+  //
+  // The fix belonged upstream, not here. `YAMLSyntaxError` (TASK-21) gave those
+  // families a check, and re-measuring afterwards found ZERO admitted file types with
+  // nothing examining them — all 14, across 17 directory spellings. So `ok` is
+  // accurate and needs no new vocabulary; introducing a `no_applicable_checks` state
+  // would have spent the "we did not look" signal on precisely the class we had just
+  // started looking at.
+  //
+  // That makes this an INVARIANT rather than a fact, and it is guarded as one:
+  // `validate/file-type-coverage.spec.ts` fails if a file type is ever admitted
+  // without something to examine it. Read it before adding a `PlatformOSFileType`.
   const status: ValidateCodeStatus =
     errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'ok';
 

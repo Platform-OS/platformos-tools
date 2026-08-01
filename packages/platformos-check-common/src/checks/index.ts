@@ -44,6 +44,7 @@ import { MissingPage } from './missing-page';
 import { ValidFrontmatter } from './valid-frontmatter';
 import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
+import { YAMLSyntaxError } from './yaml-syntax-error';
 
 export const allChecks: (
   | LiquidCheckDefinition
@@ -89,6 +90,7 @@ export const allChecks: (
   ValidFrontmatter,
   JsonLiteralQuoteStyle,
   MissingContentForLayout,
+  YAMLSyntaxError,
 ];
 
 /**

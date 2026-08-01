@@ -81,7 +81,7 @@ export const VALIDATE_CODE_INPUT: ZodRawShape = {
     ),
 };
 
-const DESCRIPTION = `Validate platformOS Liquid and GraphQL code BEFORE writing it to disk.
+const DESCRIPTION = `Validate platformOS Liquid, GraphQL and YAML code BEFORE writing it to disk.
 
 Pass EITHER one file OR several — never both.
 

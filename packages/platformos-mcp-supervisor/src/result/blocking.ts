@@ -70,6 +70,19 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // Does not parse. Nothing downstream can be trusted about the file at all.
   'LiquidHTMLSyntaxError',
 
+  // Unparseable YAML. Measured, and it clears the highest bar in the rule above:
+  // `pos-cli deploy --dry-run` REJECTS the file ("Body contains invalid YAML"),
+  // which fails the WHOLE changeset rather than this one file. Until this check
+  // existed, all four admitted YAML types — model/custom model types, transactable
+  // types, instance profile types and translations — returned a clean `ok` for
+  // genuinely invalid YAML, so an agent was told to proceed and took every other
+  // file in the deploy down with it.
+  //
+  // Scoped to SYNTAX on purpose. The converter accepts unknown property types and
+  // duplicate property names, so schema-shape validation would block nothing real;
+  // this blocks only files that do not parse.
+  'YAMLSyntaxError',
+
   // Broken reference: the target does not exist, so the render fails at runtime.
   'MissingPartial',
 

@@ -23,9 +23,9 @@
 export const SERVER_INSTRUCTIONS = `platformOS code validator.
 
 WHEN TO USE
-Call validate_code BEFORE writing or editing any platformOS Liquid or GraphQL file
-— it validates an in-memory buffer, so call it with the content you are about to
-write, not after writing. This is the primary quality gate. If you are changing several files as one coherent change,
+Call validate_code BEFORE writing or editing any platformOS Liquid, GraphQL or
+YAML file — it validates an in-memory buffer, so call it with the content you are
+about to write, not after writing. This is the primary quality gate. If you are changing several files as one coherent change,
 send them together in a single call (see the tool's \`files\` parameter): files in
 one call can reference each other, so a partial you are creating alongside its
 caller resolves correctly. Sent one at a time, that same edit is reported broken.
@@ -77,8 +77,12 @@ WHAT IS ACTUALLY CHECKED
             of arguments, missing partials/assets, render arguments against
             {% doc %}, layout correctness, and more.
   GraphQL - operations validated against the project schema.
-  YAML    - translation files only, and YAML SYNTAX IS NOT VALIDATED. A clean
-            result for a .yml file does not mean it parses. Verify those yourself.
+  YAML    - syntax, for model/schema, transactable-type, profile-type and
+            translation files: one that does not parse is reported and blocks,
+            because the deploy converter rejects it and takes the whole changeset
+            with it. Translation CONTENT is checked as well. The SHAPE of a model
+            schema is not — an unknown property or a duplicated name is not
+            reported, because the platform accepts both.
 
 Coverage is per project: checks can be enabled, disabled or ignored in the
 project's .platformos-check.yml, so a clean result reflects that project's

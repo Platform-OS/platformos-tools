@@ -747,11 +747,14 @@ describe('validate_code: the agent-facing surface', () => {
     expect(VALIDATE_CODE_DESCRIPTION).toContain('"files": [');
   });
 
-  it('does NOT claim to validate YAML', () => {
-    // YAML syntax is not validated at all (TASK-21); the old description advertised
-    // "Liquid/GraphQL/YAML", which invited an agent to trust a clean .yml result.
-    expect(VALIDATE_CODE_DESCRIPTION).not.toMatch(/\bYAML\b/);
-    expect(VALIDATE_CODE_DESCRIPTION).toContain('Liquid and GraphQL');
+  it('claims YAML only now that YAML syntax is actually validated', () => {
+    // This assertion was the exact inverse until `YAMLSyntaxError` landed (TASK-21).
+    // The description advertised "Liquid/GraphQL/YAML" while nothing checked a .yml
+    // at all, so it was narrowed to two languages on purpose; the third is back
+    // because the claim became true, not because the wording was inconvenient.
+    // Coverage is still not total — see the instructions, which say what is and is
+    // not checked for YAML.
+    expect(VALIDATE_CODE_DESCRIPTION).toContain('Liquid, GraphQL and YAML');
   });
 
   it('says plainly that a false gate is not a correctness guarantee', () => {
@@ -781,10 +784,15 @@ describe('server instructions', () => {
     }
   });
 
-  it('warns that YAML syntax is not validated, rather than staying silent', () => {
-    // The tool description drops the YAML claim; the instructions must still say
-    // what happens if an agent sends one, or a clean .yml result reads as a pass.
-    expect(SERVER_INSTRUCTIONS).toContain('YAML SYNTAX IS NOT VALIDATED');
+  it('states what YAML coverage now IS, and what it still is not', () => {
+    // Previously this pinned the opposite claim — 'YAML SYNTAX IS NOT VALIDATED' —
+    // which was true and load-bearing until `YAMLSyntaxError` landed. The danger has
+    // moved rather than disappeared: an agent that reads "YAML is validated" may take
+    // a clean model schema as a shape guarantee, which it is not. Both halves are
+    // pinned so neither can quietly become the whole story.
+    expect(SERVER_INSTRUCTIONS).toContain('one that does not parse is reported and blocks');
+    expect(SERVER_INSTRUCTIONS).toContain('The SHAPE of a model');
+    expect(SERVER_INSTRUCTIONS).not.toContain('YAML SYNTAX IS NOT VALIDATED');
   });
 
   it('tells the agent to validate BEFORE writing', () => {

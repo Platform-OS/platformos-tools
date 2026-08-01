@@ -150,6 +150,15 @@ const EMITS: Record<string, EmissionFixture> = {
     errors: ['MissingRenderPartialArguments', 'PartialCallArguments'],
   },
 
+  YAMLSyntaxError: {
+    // A model schema whose second property sits one column left of the sequence
+    // item above it. `--dry-run` rejects this and fails the whole changeset; before
+    // the check existed the supervisor returned `ok` with nothing in `errors[]`.
+    filePath: 'app/schema/car.yml',
+    content: 'name: car\nproperties:\n - name: make\n   type: string\n  year: 1\n',
+    errors: ['YAMLSyntaxError'],
+  },
+
   GraphQLCheck: {
     filePath: 'app/graphql/broken.graphql',
     content: 'query { no_such_root_field { id } }\n',

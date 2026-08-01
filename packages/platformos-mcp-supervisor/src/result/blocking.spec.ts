@@ -21,6 +21,7 @@ describe('Unit: blocksWrite', () => {
   describe('blocks on findings that mean the file will not work', () => {
     it.each([
       ['does not parse', 'LiquidHTMLSyntaxError'],
+      ['does not parse, and the converter rejects the changeset', 'YAMLSyntaxError'],
       ['broken reference', 'MissingPartial'],
       ['platformOS raises on it', 'UnknownFilter'],
       ['a known filter, wrong argument count — same raise', 'FilterArity'],
@@ -112,6 +113,7 @@ describe('Unit: blocksWrite', () => {
       'MissingPartial',
       'MissingRenderPartialArguments',
       'UnknownFilter',
+      'YAMLSyntaxError',
     ]);
   });
 

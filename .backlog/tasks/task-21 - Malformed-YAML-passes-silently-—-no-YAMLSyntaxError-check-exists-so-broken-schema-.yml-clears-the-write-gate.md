@@ -3,10 +3,10 @@ id: TASK-21
 title: >-
   Malformed YAML passes silently — no YAMLSyntaxError check exists, so broken
   schema/*.yml clears the write gate
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 14:10'
-updated_date: '2026-08-01 20:11'
+updated_date: '2026-08-01 22:00'
 labels:
   - bug
   - check-common
@@ -95,56 +95,80 @@ This is check-common, so it lands in the CLI and the language server too, not ju
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Malformed YAML reports a `YAMLSyntaxError` offense instead of nothing
-- [ ] #2 Verified for BOTH a translation file and a `schema/*.yml`, since the latter has no other checks at all
-- [ ] #3 Valid YAML still produces no offense (no false positives), including the multi-document and empty-file cases
-- [ ] #4 `must_fix_before_write: true` for malformed YAML through the supervisor
-- [ ] #5 The offense carries a usable position (line/column of the parse failure), not 0:0, so an agent can act on it
-- [ ] #6 Factory configs regenerated and committed
-- [ ] #7 check-common, check-node, LSP and CLI suites pass; the new error is confirmed to appear in `pos-cli check` output
-- [ ] #8 The GraphQL question above is either resolved or split into its own task
+- [x] #1 Malformed YAML reports a `YAMLSyntaxError` offense instead of nothing
+- [x] #2 Verified for BOTH a translation file and a `schema/*.yml`, since the latter has no other checks at all
+- [x] #3 Valid YAML still produces no offense (no false positives), including the multi-document and empty-file cases
+- [x] #4 `must_fix_before_write: true` for malformed YAML through the supervisor
+- [x] #5 The offense carries a usable position (line/column of the parse failure), not 0:0, so an agent can act on it
+- [x] #6 Factory configs regenerated and committed
+- [x] #7 check-common, check-node, LSP and CLI suites pass; the new error is confirmed to appear in `pos-cli check` output
+- [x] #8 The GraphQL question above is either resolved or split into its own task
 <!-- SECTION:DESCRIPTION:END -->
 
-- [ ] #9 The check reports SYNTAX only. Explicitly NOT in scope: unknown property types, duplicate property names, or any schema-shape validation — measured, the deploy converter accepts all of those
-- [ ] #10 Verified for all FOUR YAML file types, not just schema: CustomModelType (app/schema, custom_model_types, model_schemas), TransactableType, InstanceProfileType, and Translation
-- [ ] #11 `toYAMLNode` preserves the parse failure's POSITION, not only its message — AC#5 cannot be met without this, and recovering the position by parsing the message string is forbidden by non-goal #2
-- [ ] #12 Adding it to BLOCKING_CHECKS requires a fixture in blocking-emission.spec.ts; the exhaustiveness guard there fails otherwise, which is the intended workflow
+- [x] #9 The check reports SYNTAX only. Explicitly NOT in scope: unknown property types, duplicate property names, or any schema-shape validation — measured, the deploy converter accepts all of those
+- [x] #10 Verified for all FOUR YAML file types, not just schema: CustomModelType (app/schema, custom_model_types, model_schemas), TransactableType, InstanceProfileType, and Translation
+- [x] #11 `toYAMLNode` preserves the parse failure's POSITION, not only its message — AC#5 cannot be met without this, and recovering the position by parsing the message string is forbidden by non-goal #2
+- [x] #12 Adding it to BLOCKING_CHECKS requires a fixture in blocking-emission.spec.ts; the exhaustiveness guard there fails otherwise, which is the intended workflow
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-ROUND 3 (2026-08-01) re-measured this and it is worse and narrower than recorded — both of which change the fix.
+Two changes, in the order the notes predicted.
 
-SEVERITY IS HIGHER THAN 'deploy-breaker'. O1c settles it: `pos-cli deploy --dry-run` REJECTS invalid YAML with `Body contains invalid YAML: did not find expected '-' indicator at line 3`, and a converter rejection fails the WHOLE CHANGESET, not just the offending file. So a silently-approved broken .yml takes every other file in the deploy down with it. That is the strongest membership argument in BLOCKING_CHECKS' own rule.
+1. `yaml/parse.ts` — the parse failure now carries WHERE it happened. `YAMLConvertError` holds a `readonly failures: YAMLParseFailure[]` (message, offset, length) instead of a bare message string. `parseDocument` is called with `prettyErrors: false`, which keeps the parser's message as its own sentence: with the default the library appends ` at line N, column M:` plus a source snippet, and the only route back to a clean message would have been a regex over English. Offsets are clamped to the source, because `yaml` points one PAST the last character for an unterminated construct.
 
-SCOPE IS NARROWER, which makes the fix much smaller. Rounds 1 and 2 recorded this as 'model/translation YAML is not validated', which implies a schema validator. Probed separately against the converter:
+2. `checks/yaml-syntax-error/` — new check, `SourceCodeType.YAML`, `Severity.ERROR`, recommended. Reports from `onCodePathStart`, which is the seam `JSONSyntaxError` uses and the only hook `checkYAMLFile` runs BEFORE it returns on an unparseable document. Reports EVERY failure the parser recovered from, not just the first. Falls back to a whole-file range for a non-`YAMLConvertError` failure (a document that parsed but could not be mapped to the shared node model) so that case is never silent either.
 
-| Defect in model YAML | validate_code | deploy converter |
-|---|---|---|
-| invalid YAML SYNTAX | ok | REJECTED |
-| unknown property `type:` | ok | accepted |
-| duplicate property name | ok | accepted |
+Registered in `checks/index.ts`; factory configs regenerated via `yarn generate-factory-configs` (both `all.yml` and `recommended.yml` gained the entry). Added to `BLOCKING_CHECKS` with the measured justification, plus its fixture in `blocking-emission.spec.ts` — the exhaustiveness guard demanded it, exactly as AC#12 anticipated.
 
-The converter does not care about schema semantics. The ENTIRE cost of this gap is syntax. Do not build a model-schema validator.
+Agent-facing text corrected: the tool description now says "Liquid, GraphQL and YAML", and the server instructions replace `YAML SYNTAX IS NOT VALIDATED` with what is now true AND what still is not (schema SHAPE is unchecked, because the converter accepts unknown property types and duplicate names).
 
-SCOPE CORRECTION TO ROUND 3 ITSELF — it is FOUR file types, not three. Round 3 reported schema / transactable_types / user_profile_types, excluding translations on the grounds that translations already have checks targeting them. They do, but both are CONTENT checks and neither reports a parse failure: `valid-html-translation/index.ts:22` early-returns unless the path contains `/translations/`, and `matching-translations/index.ts:74` bails explicitly on `ast instanceof Error`. Measured through the real pipeline with verified-invalid YAML (bad indent, unclosed flow, tab indent):
+THE ONE DECISION THAT COULD HAVE SHIPPED A FALSE BLOCK, found by testing an assumption rather than trusting it. `parseDocument` raises `MULTIPLE_DOCS` on a multi-document file — and multi-document YAML is VALID YAML. The parser is objecting to being asked for a single document, not to the file; it still returns a fully parsed first document (`{"name":"a"}`). Reporting it would have put a blocking refusal on every such file for a reason no author could act on except by restructuring valid input.
+
+`toYAMLNode` therefore drops that error specifically, and if nothing else remains it does not throw at all. The cost is stated rather than hidden: documents after the first are not parsed, so a syntax error inside one is invisible. That is a property of the parser, not of the filter — measured, `yaml` reports MULTIPLE_DOCS INSTEAD OF a syntax error in document two, never alongside it — so the filter loses no diagnostic that was ever available. Both halves are pinned.
+
+I had written this case into the spec as 'stays silent, obviously' before running it. It did not. That is the second assumption this task falsified.
+
+TWO OTHER ASSUMPTIONS FALSIFIED, both mine, both caught by asserting exact values instead of 'reports something':
+
+- The offense position. I predicted the failure would point at the offending token (4:2); it points at the start of the line (4:0). Expectations corrected to measured.
+- `app/views/pages/notes.yml` was written as a case proving the check ignores non-YAML directories. It does not — check-common's `check()` harness types any `.yml` as a YAML source regardless of path; directory filtering lives in check-node/`isSupportedSourceFile`, a different layer. The test was removed rather than adjusted, because it was asserting the wrong layer's behaviour. Real routing is covered by the supervisor's emission fixture.
+
+AC#8 RESOLVED — NOT A GAP, so no follow-up task. The carried concern was that `toGraphQLAST` never fails (it wraps the source without parsing), so `.graphql` syntax errors might be silent the way YAML's were. Probed through the real pipeline:
 
 ```
-app/schema/g.yml              ok  block=false errs=0
-app/transactable_types/z.yml  ok  block=false errs=0
-app/user_profile_types/z.yml  ok  block=false errs=0
-app/model_schemas/m.yml       ok  block=false errs=0
-app/translations/en.yml       ok  block=false errs=0   <- reported as covered; is not
+unclosed brace        error  block=true  GraphQLCheck: Syntax Error: Expected Name, found <EOF>.
+stray token           error  block=true  GraphQLCheck: Syntax Error: Expected Name, found "@".
+empty selection set   error  block=true  GraphQLCheck: Syntax Error: Expected Name, found "}".
+not graphql at all    error  block=true  GraphQLCheck: Syntax Error: Unexpected Name "this".
 ```
 
-Every member of YAML_FILE_TYPES (path-utils.ts:135) is uncovered for syntax.
+`GraphQLCheck` parses the document itself as part of validating it against the schema, so the syntax error surfaces there and blocks. The lazy `toGraphQLAST` is harmless because nothing depends on it to detect this.
 
-CONCRETE BLOCKER FOR AC#5 (usable position), which round 3's 'the parse result already exists' understates. The message survives; the position does not. `yaml/parse.ts:38` is
+VERIFICATION. Before: all five YAML directory families returned `status: ok`, `block=false`, `errs=0` on genuinely invalid YAML. After, through the real supervisor pipeline:
 
-    throw new YAMLConvertError(doc.errors[0].message);
+```
+app/schema/g.yml              error  block=true  errs=1
+app/transactable_types/z.yml  error  block=true  errs=1
+app/user_profile_types/z.yml  error  block=true  errs=1
+app/translations/en.yml       error  block=true  errs=1
+app/model_schemas/m.yml       error  block=true  errs=1
+```
 
-and `doc.errors[0]` carries `pos: [47, 48]` and `linePos: [{line:5,col:1},{line:5,col:2}]`, both discarded. A check written against the Error as it stands reports 1:1 for every file. Recovering the position by regexing the message is exactly what non-goal #2 forbids. So this is TWO small changes, not one: carry the position through `YAMLConvertError` first, then write the check.
+CLI confirmed separately (AC#7) — `platformos-check` on a temp project emits `YAMLSyntaxError` with `start: {line: 4, character: 0}`, a real position rather than 0:0.
 
-STILL UNRESOLVED, carried from AC#8: `toGraphQLAST` never fails — it wraps the source without parsing. Round 3 did not test whether a pure `.graphql` syntax error is caught by `GraphQLCheck` before schema validation. Verify rather than assume; split into its own task if it is a real gap.
+SABOTAGE-VERIFIED twice: reverting the position to 0/0 fails 5 tests across the parse and check specs; removing the MULTIPLE_DOCS filter fails 4. Suites: check-common 84 files / 1142 tests green, full monorepo green.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+YAML was the only source type with no syntax check. The parse failure was computed by `toYAMLAST` and stored on `file.ast`, and nothing ever read it — so a malformed `.yml` produced no diagnostic in any of the four admitted YAML file types, while `pos-cli deploy --dry-run` rejected the same file and failed the WHOLE changeset with it.
+
+Closed with two small changes: the parse layer now carries the failure's position (offsets the `yaml` package already computed and the old code discarded), and a new `YAMLSyntaxError` check reports them. Registered, configs regenerated, added to `BLOCKING_CHECKS`, and the agent-facing text corrected in both directions — it now claims YAML, and it now says explicitly that schema SHAPE is still unchecked, because the converter accepts unknown property types and duplicate names.
+
+Scoped to syntax deliberately: semantic defects were probed against the converter and it accepts them, so a schema model would block nothing real.
+
+Three assumptions were falsified while building it, each by asserting an exact value rather than "reports something" — the offense position, which layer filters file paths, and most importantly that a multi-document file parses cleanly. It does not: `parseDocument` raises `MULTIPLE_DOCS`, and reporting that would have put a false block on every multi-document file. That error is now filtered, with the trade-off pinned from both sides.
+<!-- SECTION:FINAL_SUMMARY:END -->

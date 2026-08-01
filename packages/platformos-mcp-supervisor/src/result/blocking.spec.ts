@@ -160,9 +160,10 @@ describe('Unit: blocksWrite', () => {
    * the object form it permits renders HTTP 200. So it stays, on its own evidence
    * rather than a neighbour's.
    *
-   * It does over-report on filter-produced arrays (TASK-27). That is a precision bug
-   * in the check, not grounds to de-block: removing it would approve the number,
-   * string and boolean cases that genuinely raise.
+   * It used to over-report on filter-produced arrays, which was a precision bug in
+   * the check rather than grounds to de-block — de-blocking would have approved the
+   * number, string and boolean cases that genuinely raise. Fixed in TASK-27, so the
+   * member no longer carries a known false block.
    */
   it('blocks the hash_assign target error, on its own measured evidence', () => {
     expect(BLOCKING_CHECKS.has('InvalidHashAssignTarget')).toBe(true);

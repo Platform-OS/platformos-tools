@@ -120,12 +120,12 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // Array"), while the object case it permits renders HTTP 200. So the check models
   // a genuine runtime failure and belongs here.
   //
-  // It does over-report in one narrow case: it does not model filter RETURN types,
-  // so `{% assign a = '' | split: ',' %}{% hash_assign a[0] = 'v' %}` is typed as a
-  // string and reported, although the runtime accepts an Array with a numeric index.
-  // That is a precision bug in the check rather than a reason to stop blocking on it
-  // — the alternative is approving the number/string/boolean cases that do raise.
-  // Tracked separately; see TASK-27.
+  // It used to over-report on filter-produced values — `{% assign a = '' | split:
+  // ',' %}{% hash_assign a[0] = 'v' %}` renders, and was reported as a hash_assign on
+  // a string. Fixed in TASK-27: filter return types now come from the docset rather
+  // than a hand-written list, and the check reads the SUBSCRIPT, which is what the
+  // runtime actually constrains (a Hash takes a key, an Array takes an index). An
+  // unknown return type produces nothing, so a docset gap cannot refuse working code.
   'InvalidHashAssignTarget',
 
   // --- The two deliberate exceptions to the membership rule. ---

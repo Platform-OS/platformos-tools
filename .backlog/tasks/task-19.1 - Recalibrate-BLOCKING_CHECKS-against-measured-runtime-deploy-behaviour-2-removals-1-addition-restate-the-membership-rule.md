@@ -3,10 +3,10 @@ id: TASK-19.1
 title: >-
   Recalibrate BLOCKING_CHECKS against measured runtime + deploy behaviour (2
   removals, 1 addition, restate the membership rule)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-01 02:58'
-updated_date: '2026-08-01 03:44'
+updated_date: '2026-08-01 11:57'
 labels:
   - bug
   - mcp-supervisor
@@ -68,7 +68,7 @@ Do not change check-common severities — the LSP and CLI must behave identicall
 - [x] #2 `ReservedVariableName` is not in `BLOCKING_CHECKS`; a buffer whose only error is `ReservedVariableName` yields `must_fix_before_write: false` while still reporting the error in `errors[]`
 - [x] #3 `JsonLiteralQuoteStyle` is in `BLOCKING_CHECKS`; `{% assign o = {'k': 'v'} %}` yields `must_fix_before_write: true`, and the same holds for the array-literal form
 - [x] #4 The 'no runtime effect' comment block no longer lists `JsonLiteralQuoteStyle`, and the entry for it states why it blocks
-- [ ] #5 `InvalidHashAssignTarget` is independently verified against a live instance and either kept with evidence recorded or removed; it is no longer justified only by the shared 'Runtime errors on execution' comment
+- [x] #5 `InvalidHashAssignTarget` is independently verified against a live instance and either kept with evidence recorded or removed; it is no longer justified only by the shared 'Runtime errors on execution' comment
 - [x] #6 The membership rule in the file header is restated so it honestly covers `MissingRenderPartialArguments` and `MissingContentForLayout`, naming them as deliberate exceptions with their criterion, rather than asserting a runtime-failure rule they do not meet
 - [x] #7 `status` is unchanged by every case above — a removed-from-blocking check still produces `status: 'error'`; the gate and the status remain separate signals
 - [x] #8 An unknown/unrecognized check code still defaults to NON-blocking, asserted explicitly
@@ -126,4 +126,38 @@ Full monorepo suite: 2918 passed, 1 pre-existing unrelated failure (known `fileF
 ## Parent task corrected (AC#10)
 
 TASK-19 AC#2 required `MissingAsset` to block. Rewritten to require the opposite, with the measurement inline so the correction is not mistaken for a typo.
+
+## AC#5 closed — `InvalidHashAssignTarget` measured, and KEPT
+
+Probed against `fk-docs.ps-01-platformos.com`. It models a genuine runtime failure, unlike the neighbour whose justification it was sharing:
+
+```
+{% assign x = 5 %}     + x['key'] -> HashAssignTagError: x is 5, expected Hash or Array
+{% assign x = 'str' %} + x['key'] -> HashAssignTagError: x is str, ...
+{% assign x = true %}  + x['key'] -> HashAssignTagError: x is true, ...
+{% assign x = (1..3) %}+ x['key'] -> HashAssignTagError: x is 1..3, ...
+parse_json object      + x['key'] -> renders (control)
+```
+
+Kept in `BLOCKING_CHECKS`, now justified by its own evidence rather than a shared comment, and pinned by a named test.
+
+## Found while verifying: a false block, filed as TASK-27
+
+The runtime message says "expected Hash **or Array**", which the check's wording contradicts. Probing further: an Array with a NUMERIC INDEX is valid (`x[0] = 'v'` renders `["value",2,3]`); only a string key on an Array raises.
+
+The check does not model filter RETURN types, so `{% assign x = '' | split: ',' %}{% hash_assign x[0] = 'v' %}` is typed as a *string* and reported — while the runtime renders it. A false block inside a blocking check.
+
+Not fixed here, and deliberately NOT resolved by de-blocking: the number/string/boolean cases all genuinely raise, so removing the check would trade one false block for several false approvals. Filed as TASK-27 with the full measured table.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+`BLOCKING_CHECKS` was measured entry by entry against a live instance and corrected in both directions. `MissingAsset` and `ReservedVariableName` were removed — both render HTTP 200, so both were refusing working code. `JsonLiteralQuoteStyle` was added — it raises `Invalid JSON in assign` AND is rejected by `pos-cli deploy --dry-run`, failing the whole changeset, yet sat under a "no runtime effect" comment.
+
+The membership rule was restated, because two of its own members failed the criterion it claimed. It now has three parts: a BLOCKING bar that includes deploy-converter rejection (new, and what `JsonLiteralQuoteStyle` needs), an explicit EXCEPTION clause naming `MissingRenderPartialArguments` and `MissingContentForLayout` with their individual arguments, and NOT BLOCKING for everything else. The header also states plainly that membership is established by measurement, since a plausible-sounding justification is what produced three wrong entries.
+
+`InvalidHashAssignTarget` was the last unverified member and has now been probed on its own evidence: all four flagged types raise `HashAssignTagError`. It stays. Verifying it surfaced a genuine false block — the check mis-types filter results, so a working array index-assign is reported — filed as TASK-27 rather than papered over by de-blocking.
+
+Set went 12 entries to 11. Verified end to end against the real server: every de-blocked finding still reports `status: error` in `errors[]`, so only the gate moved.
+<!-- SECTION:FINAL_SUMMARY:END -->

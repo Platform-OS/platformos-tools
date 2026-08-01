@@ -51,9 +51,13 @@ describe('Unit: toUri', () => {
   });
 
   it('round-trips through fsPath, its documented inverse', () => {
-    expect(fsPath(toUri('/srv/app/views/pages/index.liquid'))).toEqual(
-      '/srv/app/views/pages/index.liquid',
-    );
+    // Stated as uri -> fsPath -> uri, NOT as a string comparison against the input
+    // path. `fsPath` returns a NATIVE filesystem path, so on Windows it is
+    // `\srv\app\...`; asserting the POSIX spelling asserted the host platform rather
+    // than the inverse relationship these two functions actually promise.
+    const uri = toUri('/srv/app/views/pages/index.liquid');
+
+    expect(toUri(fsPath(uri))).toEqual(uri);
   });
 
   it('is idempotent under normalize, so a key cannot drift by being normalized twice', () => {

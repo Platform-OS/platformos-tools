@@ -25,6 +25,7 @@ describe('Unit: blocksWrite', () => {
       ['invalid JSON', 'ValidJSON'],
       ['broken reference', 'MissingPartial'],
       ['platformOS raises on it', 'UnknownFilter'],
+      ['a known filter, wrong argument count — same raise', 'FilterArity'],
       ['raises, and the deploy converter rejects the changeset', 'JsonLiteralQuoteStyle'],
       ['renders an empty page body', 'MissingContentForLayout'],
       ['a declared contract was violated', 'MissingRenderPartialArguments'],
@@ -103,6 +104,7 @@ describe('Unit: blocksWrite', () => {
     // Pinned exactly: adding or removing an entry is a contract change to the write
     // gate and must be a deliberate edit here, not a side effect elsewhere.
     expect([...BLOCKING_CHECKS].sort()).toEqual([
+      'FilterArity',
       'GraphQLCheck',
       'GraphQLVariablesCheck',
       'InvalidHashAssignTarget',
@@ -137,6 +139,23 @@ describe('Unit: blocksWrite', () => {
   it('blocks the JSON literal quote style, which is fatal at runtime AND on deploy', () => {
     expect(BLOCKING_CHECKS.has('JsonLiteralQuoteStyle')).toBe(true);
     expect(blocksWrite([at('JsonLiteralQuoteStyle')])).toBe(true);
+  });
+
+  /**
+   * TASK-19.1 AC#5. `InvalidHashAssignTarget` used to be justified only by a shared
+   * "Runtime errors on execution" comment — the same comment that measurement
+   * disproved for `ReservedVariableName`. It was then probed on its own: `hash_assign`
+   * against a number, string, boolean or range each raises `HashAssignTagError`, while
+   * the object form it permits renders HTTP 200. So it stays, on its own evidence
+   * rather than a neighbour's.
+   *
+   * It does over-report on filter-produced arrays (TASK-27). That is a precision bug
+   * in the check, not grounds to de-block: removing it would approve the number,
+   * string and boolean cases that genuinely raise.
+   */
+  it('blocks the hash_assign target error, on its own measured evidence', () => {
+    expect(BLOCKING_CHECKS.has('InvalidHashAssignTarget')).toBe(true);
+    expect(blocksWrite([at('InvalidHashAssignTarget')])).toBe(true);
   });
 
   it('still reports a de-escalated finding as non-blocking, including the new member', () => {

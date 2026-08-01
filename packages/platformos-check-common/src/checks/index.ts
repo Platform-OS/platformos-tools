@@ -22,6 +22,7 @@ import { TranslationKeyExists } from './translation-key-exists';
 import { UnclosedHTMLElement } from './unclosed-html-element';
 import { UndefinedObject } from './undefined-object';
 import { UniqueDocParamNames } from './unique-doc-param-names';
+import { FilterArity } from './filter-arity';
 import { UnknownFilter } from './unknown-filter';
 import { UnrecognizedRenderPartialArguments } from './unrecognized-render-partial-arguments';
 import { UnusedAssign } from './unused-assign';
@@ -67,6 +68,7 @@ export const allChecks: (
   UnclosedHTMLElement,
   UndefinedObject,
   UniqueDocParamNames,
+  FilterArity,
   UnknownFilter,
   UnrecognizedRenderPartialArguments,
   UnusedAssign,

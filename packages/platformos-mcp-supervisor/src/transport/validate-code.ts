@@ -99,7 +99,8 @@ Pass EITHER one file OR several — never both.
 
 Sending several together is faster AND more accurate: they can reference each
 other, so the new partial above resolves. Validated one at a time, the page would
-be reported as rendering a missing partial.
+be reported as rendering a missing partial. List each file at most once — the same
+file twice is refused, because only one of the two could be checked.
 
 Returns, for one file:
   { "status": "ok" | "warning" | "error" | "not_applicable",

@@ -65,6 +65,19 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // platformOS raises on an unknown filter rather than ignoring it.
   'UnknownFilter',
 
+  // A KNOWN filter applied with the wrong number of arguments. Same runtime failure
+  // class as `UnknownFilter` above — `Liquid::ArgumentError`, page 500 — and the
+  // asymmetry of blocking one but not the other is what the evaluation flagged.
+  //
+  // Admitted on measurement, not on the argument above: the arity data is generated
+  // from the runtime's own complaints (`scripts/verify-filter-arity.mjs`), and the
+  // check was swept over 8 real projects / ~11k liquid files, producing 2 offenses,
+  // BOTH verified true positives (one being `null | hash_merge`, which raises
+  // "given 1, expected 2"), and 0 false positives. A filter with no measured arity
+  // produces nothing, so the vocabulary gaps that made `UnknownFilter` expensive
+  // cannot make this one refuse working code.
+  'FilterArity',
+
   // A single-quoted key or value inside a `{% assign %}` JSON literal. Measured:
   // `{% assign o = {'k': 'v'} %}` raises `Liquid syntax error: Invalid JSON in
   // assign: expected ':', got '''`, and `pos-cli deploy --dry-run` REJECTS — which
@@ -77,13 +90,18 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   'GraphQLCheck',
   'GraphQLVariablesCheck',
 
-  // Runtime error on execution.
+  // Runtime error on execution — MEASURED, unlike the `ReservedVariableName` that
+  // used to share this justification. `hash_assign` against a number, string,
+  // boolean or range each raises `HashAssignTagError` ("x is 5, expected Hash or
+  // Array"), while the object case it permits renders HTTP 200. So the check models
+  // a genuine runtime failure and belongs here.
   //
-  // NOT independently verified against a live instance. It shares this
-  // justification with `ReservedVariableName`, which was measured and turned out
-  // NOT to raise; that makes the shared reasoning unreliable rather than wrong, so
-  // this entry is kept (removing it on suspicion would be the same unmeasured
-  // guess in the other direction) and flagged for measurement — TASK-19.1 AC#5.
+  // It does over-report in one narrow case: it does not model filter RETURN types,
+  // so `{% assign a = '' | split: ',' %}{% hash_assign a[0] = 'v' %}` is typed as a
+  // string and reported, although the runtime accepts an Array with a numeric index.
+  // That is a precision bug in the check rather than a reason to stop blocking on it
+  // — the alternative is approving the number/string/boolean cases that do raise.
+  // Tracked separately; see TASK-27.
   'InvalidHashAssignTarget',
 
   // --- The two deliberate exceptions to the membership rule. ---

@@ -743,4 +743,41 @@ describe('server instructions', () => {
     // most likely to get wrong by assuming error => blocked.
     expect(SERVER_INSTRUCTIONS).toContain('must_fix_before_write is false');
   });
+
+  it('does NOT tell an agent a malformed request is unfixable', () => {
+    // `internal_error` covers two very different things, and three of its cases are
+    // the CALLER's mistake: both input forms, neither, or one file listed twice.
+    // The old wording — "a bug in the validator; retrying will not help" — told an
+    // agent to give up on a request it could fix by deduplicating.
+    expect(SERVER_INSTRUCTIONS).not.toContain('retrying will not help');
+    expect(SERVER_INSTRUCTIONS).toContain('is yours\n                       to fix');
+  });
+
+  it('states the once-per-file rule, which the server enforces by refusing', () => {
+    // `validate/batch-coherence.ts` declines a request naming one file twice, so the
+    // rule has to be findable BEFORE the agent trips it.
+    expect(SERVER_INSTRUCTIONS).toContain('List each file at most once');
+    expect(TOOL_TEXT.VALIDATE_CODE_DESCRIPTION).toContain('List each file at most once');
+  });
+
+  it('says columns are UTF-16 code units, which is not inferable', () => {
+    // Verified behaviour: an emoji advances the column by 2. An agent counting code
+    // points misplaces every column after one.
+    expect(SERVER_INSTRUCTIONS).toContain('UTF-16 code units');
+  });
+
+  it('scopes the ordering claim to each list rather than across all three', () => {
+    // `assembleResult` sorts, THEN partitions, so concatenating errors + warnings +
+    // infos does not walk the file in order. The old wording implied it did.
+    expect(SERVER_INSTRUCTIONS).toContain('WITHIN ITSELF');
+  });
+
+  it('explains that a computing blast radius is not "nothing depends on this"', () => {
+    // Zeroed dependents during the graph build read exactly like a real answer.
+    expect(SERVER_INSTRUCTIONS).toContain('NOT a claim that nothing depends');
+  });
+
+  it('names filter arity among what is checked, now that it blocks', () => {
+    expect(SERVER_INSTRUCTIONS).toContain('wrong number\n            of arguments');
+  });
 });

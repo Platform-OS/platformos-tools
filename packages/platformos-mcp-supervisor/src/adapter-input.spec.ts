@@ -122,9 +122,17 @@ describe('Unit: fileApplicability', () => {
     });
 
     it('reports the PROJECT-RELATIVE path even when given an absolute one', () => {
-      expect(applicable(join(PROJECT, 'app/notes.txt'))).toEqual(
-        unsupported(join('app', 'notes.txt')),
-      );
+      // Forward slashes, spelled literally rather than built with `join`: the reason
+      // string is agent-facing, and an agent that sent `app/notes.txt` must get that
+      // spelling back on every platform. Building the expectation with `join` made it
+      // agree with whatever the host does, so it passed on POSIX while asserting
+      // `app\notes.txt` on Windows — the opposite of the contract.
+      //
+      // Note this assertion cannot FAIL on POSIX if the separator handling regresses,
+      // because there is nothing to convert here. What actually guards that is
+      // check-common's `path.spec.ts`, which runs the conversion over Windows-shaped
+      // input on any host; removing `normalize`'s backslash replace fails it on Linux.
+      expect(applicable(join(PROJECT, 'app/notes.txt'))).toEqual(unsupported('app/notes.txt'));
     });
   });
 

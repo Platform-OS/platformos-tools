@@ -29,13 +29,16 @@ write, not after writing. This is the primary quality gate. If you are changing 
 send them together in a single call (see the tool's \`files\` parameter): files in
 one call can reference each other, so a partial you are creating alongside its
 caller resolves correctly. Sent one at a time, that same edit is reported broken.
+List each file at most once — a changeset cannot hold two versions of one file, so a
+request that names the same file twice is refused rather than guessed at.
 Skipping this tool is the #1 cause of broken platformOS code.
 
 HOW TO READ THE RESULT
 
 must_fix_before_write
-  true  -> Do NOT write the file. It will not work: it does not parse, or it
-           references something that does not exist.
+  true  -> Do NOT write the file. It will not parse, it will raise at runtime, or
+           the deploy converter will reject it — and a converter rejection fails the
+           WHOLE changeset, not just this file.
   false -> Nothing BLOCKING was found. This is not a statement that the code is
            correct, only that no known-fatal problem was detected. Keep your own
            judgement.
@@ -50,17 +53,29 @@ status
     ignored          - excluded by the project's .platformos-check.yml
     too_large        - above the size limit; split the file
     timed_out        - validation was abandoned; retrying may work
-    internal_error   - a bug in the validator; retrying will not help
+    internal_error   - your REQUEST was malformed, or the validator hit a bug; the
+                       reason text says which. A malformed request — both input
+                       forms at once, neither, or one file listed twice — is yours
+                       to fix and worth retrying once fixed.
 
 errors / warnings / infos
-  Every finding, ordered by line then column. Note that errors[] can be non-empty
-  while must_fix_before_write is false: some errors are real problems that do not
-  stop the file working (an argument a partial ignores, a missing image dimension).
-  Fix them when you can; they do not block the write.
+  Each list is ordered by line then column WITHIN ITSELF; the three are not one
+  ordered sequence, so concatenating them does not walk the file in order. Columns
+  count UTF-16 code units, so an emoji advances the column by 2.
+  Note that errors[] can be non-empty while must_fix_before_write is false: some
+  errors are real problems that do not stop the file working (an argument a partial
+  ignores, a missing asset, a missing image dimension). Fix them when you can; they
+  do not block the write.
+
+impact
+  Which other files depend on this one. \`status: computing\` means the project graph
+  is still being built — early in a session on a large project — and its zeroed
+  counts are NOT a claim that nothing depends on the file.
 
 WHAT IS ACTUALLY CHECKED
-  Liquid  - syntax, unknown filters and tags, missing partials/assets, render
-            arguments against {% doc %}, layout correctness, and more.
+  Liquid  - syntax, unknown filters and tags, filters called with the wrong number
+            of arguments, missing partials/assets, render arguments against
+            {% doc %}, layout correctness, and more.
   GraphQL - operations validated against the project schema.
   YAML    - translation files only, and YAML SYNTAX IS NOT VALIDATED. A clean
             result for a .yml file does not mean it parses. Verify those yourself.

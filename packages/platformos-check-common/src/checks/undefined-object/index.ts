@@ -21,7 +21,7 @@ import {
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
-import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
+import { isGloballyAccessibleObject, isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 import { isPage } from '../../path';
 import yaml from 'js-yaml';
 
@@ -234,16 +234,9 @@ async function globalObjects(platformosDocset: PlatformOSDocset, relativePath: s
   const objects = await platformosDocset.objects();
   const contextualObjects = getContextualObjects(relativePath);
 
-  const globalObjects = objects.filter(({ access, name }) => {
-    return (
-      contextualObjects.includes(name) ||
-      !access ||
-      access.global === true ||
-      access.template.length > 0
-    );
-  });
-
-  return globalObjects;
+  return objects.filter(
+    (object) => contextualObjects.includes(object.name) || isGloballyAccessibleObject(object),
+  );
 }
 
 function getContextualObjects(relativePath: string): string[] {

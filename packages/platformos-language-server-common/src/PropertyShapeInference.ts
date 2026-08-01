@@ -8,7 +8,11 @@ import {
   getNamedType,
   GraphQLOutputType,
 } from 'graphql';
-import { parseJSON, isError, buildGraphQLSchema } from '@platformos/platformos-check-common';
+import { parseJSON, isError } from '@platformos/platformos-check-common';
+// This package's own builder, NOT check-common's: the schema is inspected below
+// with this package's `graphql` predicates, and the two must come from the same
+// module record. See `graphqlSchema.ts`.
+import { buildGraphQLSchema } from './graphqlSchema';
 import {
   JsonHashLiteral,
   JsonArrayLiteral,

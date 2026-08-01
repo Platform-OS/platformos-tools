@@ -77,10 +77,23 @@ describe('Unit: check() with the `only` option', () => {
     );
   });
 
-  it('visits everything when the option is omitted or empty', async () => {
+  it('visits nothing when told to visit an empty list of files', async () => {
+    // `[]` is taken literally rather than meaning "everything" — a caller that
+    // computes the list must decide for itself what an empty result means.
+    expect(await checkOnly([])).toEqual([]);
+  });
+
+  it('visits everything when `only` is explicitly undefined, which `[]` must not do', async () => {
+    // The other half of the rule above. `undefined` and `[]` are the two ways a
+    // caller can fail to name a file, and they mean opposite things. The guard
+    // must key on absence, not emptiness: an `!only?.length` style test collapses
+    // them and silently lints the WHOLE project when asked for nothing.
     const everything = await check(APP);
 
-    expect(sorted(await check(APP, undefined, {}, {}, {}))).toEqual(sorted(everything));
+    expect(sorted(await check(APP, undefined, {}, {}, { only: undefined }))).toEqual(
+      sorted(everything),
+    );
+    expect(everything).not.toEqual([]);
   });
 
   it('returns no offenses when told to visit a file that is not part of the app', async () => {
@@ -91,12 +104,8 @@ describe('Unit: check() with the `only` option', () => {
     const everything = await check(APP);
     const knownUris = Object.keys(APP).map(uri);
 
-    // No offense may carry a uri outside the app, and in particular none may be
-    // attributed to a file other than the one that produced it.
+    // No offense may carry a uri outside the app. That every offense belongs to the
+    // file that produced it is covered by the per-file equality tests above.
     expect(everything.filter((offense) => !knownUris.includes(offense.uri))).toEqual([]);
-    for (const relativePath of Object.keys(APP)) {
-      const perFile = await checkOnly([uri(relativePath)]);
-      expect(perFile.filter((offense) => offense.uri !== uri(relativePath))).toEqual([]);
-    }
   });
 });

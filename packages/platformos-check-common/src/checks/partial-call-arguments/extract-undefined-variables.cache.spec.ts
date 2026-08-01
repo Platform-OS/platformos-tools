@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 
-import { extractUndefinedVariables } from './extract-undefined-variables';
+import {
+  clearUndefinedVariablesCache,
+  extractUndefinedVariables,
+} from './extract-undefined-variables';
 
 // Spy on the real parser so "how many times was this source parsed?" is
 // observable. Everything else about the parser stays real. `vi.mock` is hoisted
@@ -15,6 +18,13 @@ vi.mock('@platformos/liquid-html-parser', async (importOriginal) => {
 const parseCount = () => vi.mocked(toLiquidHtmlAST).mock.calls.length;
 
 describe('Unit: extractUndefinedVariables memoization', () => {
+  // The cache is module-global, so every test here starts from a cold one.
+  // Without this, a test that happens to use the same source as an earlier one
+  // would see 0 parses and fail as though the memoization were broken.
+  beforeEach(() => {
+    clearUndefinedVariablesCache();
+  });
+
   it('parses a given source once, however many call sites ask about it', () => {
     const source = '{{ title }}{{ subtitle }}';
     const before = parseCount();

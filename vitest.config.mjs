@@ -13,18 +13,19 @@ export default defineConfig({
     exclude: CI
       ? [...configDefaults.exclude, '**/dist/**', ...ciExclude]
       : [...configDefaults.exclude, '**/dist/**'],
-    // Spec files must NOT run in parallel: `config/load-config.spec.ts` installs
-    // mock packages into this package's REAL `node_modules` to exercise sibling
-    // extension discovery, so a concurrently running spec sees them appear and
-    // vanish mid-run ("Error loading …platformos-check-global-extension").
+    // Spec files must run one at a time. That is not a preference here:
+    // `config/load-config.spec.ts` installs mock packages into this package's REAL
+    // `node_modules` to exercise sibling extension discovery, so a concurrently
+    // running spec would see them appear and vanish mid-run ("Error loading
+    // …platformos-check-global-extension").
     //
-    // These options are TOP-LEVEL under vitest 4 — `poolOptions.forks.{maxForks,
-    // minForks}` was removed, and bare `test.forks` before that was silently
-    // ignored, so this intent has now been expressed wrongly twice. If the
-    // deprecation banner returns, the serialization is off again.
-    // `fileParallelism: false` is the direct statement of the requirement (it
-    // pins workers to 1 by itself); TASK-12.11 removes the need for it by making
-    // extension discovery hermetic, which restores the ~20% CI parallelism win.
+    // `fileParallelism` is what enforces that; `pool`/`isolate` are spelled out
+    // because they carry the same intent and are only Vitest 4 defaults. They must
+    // stay top-level `test` options — the `poolOptions.forks` / bare `test.forks`
+    // spellings this replaced are accepted silently and do nothing.
+    //
+    // TASK-12.11 removes the need for this by making extension discovery hermetic,
+    // which restores the ~20% CI parallelism this gives up.
     pool: 'forks',
     fileParallelism: false,
     isolate: true,

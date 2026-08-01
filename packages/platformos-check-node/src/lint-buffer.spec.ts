@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { URI } from 'vscode-uri';
 
 import { lintBuffer } from './index';
 import { Workspace, makeTempWorkspace } from './test/test-helpers';
@@ -38,7 +37,7 @@ describe('Unit: lintBuffer', () => {
           },
         },
       });
-      root = URI.parse(workspace.rootUri).fsPath;
+      root = workspace.root;
       configPath = path.join(root, '.platformos-check.yml');
     });
 
@@ -82,7 +81,7 @@ describe('Unit: lintBuffer', () => {
           },
         },
       });
-      root = URI.parse(workspace.rootUri).fsPath;
+      root = workspace.root;
       configPath = path.join(root, '.platformos-check.yml');
     });
 

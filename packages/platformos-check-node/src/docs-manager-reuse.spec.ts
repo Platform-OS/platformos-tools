@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
-import { URI } from 'vscode-uri';
 
 import { appCheckRun, lintBuffer, resetPlatformOSLiquidDocsManager, updateDocs } from './index';
 import { Workspace, makeTempWorkspace } from './test/test-helpers';
@@ -59,7 +58,7 @@ describe('Integration: docs manager reuse across lint runs', () => {
         },
       },
     });
-    root = URI.parse(workspace.rootUri).fsPath;
+    root = workspace.root;
     configPath = path.join(root, '.platformos-check.yml');
     filePath = path.join(root, 'app/views/partials/card.liquid');
   });
@@ -76,7 +75,7 @@ describe('Integration: docs manager reuse across lint runs', () => {
     expect(constructions).toHaveLength(1);
   });
 
-  it('routes docset diagnostics to the current run’s log sink, not the first run’s', async () => {
+  it('replays the docset’s diagnostics to each run, and never writes to a finished run’s sink', async () => {
     const earlierRunLog: string[] = [];
     const laterRunLog: string[] = [];
 
@@ -87,6 +86,23 @@ describe('Integration: docs manager reuse across lint runs', () => {
       configPath,
       log: (message) => earlierRunLog.push(message),
     });
+
+    // One manager, built with a FORWARDING sink rather than the first run's logger
+    // captured forever. Whatever it had already reported by then (a degraded docset
+    // explains itself exactly once, since every loader is memoized) was replayed to
+    // that run — possibly nothing, when the docset loaded cleanly.
+    expect(constructions).toHaveLength(1);
+    const alreadyReported = [...earlierRunLog];
+
+    // A diagnostic emitted between runs is not delivered to the finished run's sink
+    // behind its back...
+    constructions[0]('probe');
+
+    expect(earlierRunLog).toEqual(alreadyReported);
+
+    // ...it is replayed to the next run instead. Without the replay, only the
+    // process's FIRST run — for the MCP supervisor a `lintBuffer` call with no `log`
+    // at all — ever learns why the docset is reporting valid code as unknown.
     await lintBuffer({
       root,
       filePath,
@@ -95,18 +111,7 @@ describe('Integration: docs manager reuse across lint runs', () => {
       log: (message) => laterRunLog.push(message),
     });
 
-    // Still one manager, and it was built with a FORWARDING sink rather than run
-    // one's logger captured forever...
-    expect(constructions).toHaveLength(1);
-
-    // ...so what it logs now lands in the latest run's sink, and the earlier run's
-    // sink is not written to behind its back.
-    const earlierBefore = earlierRunLog.length;
-    const laterBefore = laterRunLog.length;
-    constructions[0]('probe');
-
-    expect(earlierRunLog).toHaveLength(earlierBefore);
-    expect(laterRunLog.slice(laterBefore)).toEqual(['probe']);
+    expect(laterRunLog).toEqual([...alreadyReported, 'probe']);
   });
 
   it('builds a fresh manager after an explicit reset, so a changed docset is re-read', async () => {

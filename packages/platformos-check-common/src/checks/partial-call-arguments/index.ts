@@ -4,6 +4,7 @@ import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
 import { relative } from '../../path';
 import { memo } from '../../utils/memo';
+import { isGloballyAccessibleObject } from '../utils';
 import { extractUndefinedVariables } from './extract-undefined-variables';
 
 export const PartialCallArguments: LiquidCheckDefinition = {
@@ -27,24 +28,25 @@ export const PartialCallArguments: LiquidCheckDefinition = {
     const locator = new DocumentsLocator(context.fs);
 
     /**
-     * Names that are always in scope inside a partial, so they must not be
-     * reported as missing arguments. Computed once per checked file rather than
-     * once per call site: `objects()` is memoized upstream, but the filtering
-     * pass over every documented object was not.
+     * The globally accessible documented objects, which are in scope inside every
+     * partial and so must not be reported as missing arguments.
      *
-     * The array is shared with every call site, so callers that need to extend it
-     * must copy first.
+     * The filtering pass is memoized — `objects()` is memoized upstream, but the
+     * scan over every documented object was re-run at every call site, and a
+     * partial rendered from dozens of places pays it dozens of times.
      */
-    const globalObjectNames = memo(async (): Promise<string[]> => {
-      if (!context.platformosDocset) return [];
-
-      const objects = await context.platformosDocset.objects();
-      return objects
-        .filter(
-          (obj) => !obj.access || obj.access.global === true || obj.access.template.length > 0,
-        )
-        .map((obj) => obj.name);
+    const documentedGlobalNames = memo(async (): Promise<readonly string[]> => {
+      const objects = (await context.platformosDocset?.objects()) ?? [];
+      return objects.filter(isGloballyAccessibleObject).map((obj) => obj.name);
     });
+
+    /**
+     * A fresh array each time, so callers are free to extend it — and must be given
+     * their own. `extractUndefinedVariables` keys its cache on these names, so one
+     * call site pushing onto a shared array would corrupt both the next caller's
+     * scope and that cache key.
+     */
+    const globalObjectNames = async (): Promise<string[]> => [...(await documentedGlobalNames())];
 
     const validate = async (
       nodeType: DocumentType,
@@ -85,12 +87,10 @@ export const PartialCallArguments: LiquidCheckDefinition = {
       } else {
         // No @doc — infer required vs optional from undefined variables in the source.
         // Variables used with `| default` are treated as optional.
-        // Copy before extending: the memoized list is shared across call sites.
-        const inScopeNames = [...(await globalObjectNames())];
+        const inScopeNames = await globalObjectNames();
+        // `app` is not a documented object, so it never comes back from objects().
         if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
-          if (!inScopeNames.includes('app')) {
-            inScopeNames.push('app');
-          }
+          inScopeNames.push('app');
         }
 
         const { required: requiredVars, optional: optionalVars } = extractUndefinedVariables(

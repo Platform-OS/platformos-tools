@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-31 11:59'
+updated_date: '2026-08-01 03:43'
 labels:
   - bug
   - mcp-supervisor
@@ -66,14 +67,15 @@ Severity is NOT changed — a dead argument stays an `error` in `errors[]`, it j
 - `validate_files`' batch roll-up must use the same rule, so the two tools cannot disagree.
 - The duplicate `PartialCallArguments` / `UnrecognizedRenderPartialArguments` reporting is real but is a check-common concern touching the LSP and CLI; file it separately rather than widening this change.
 
-## Acceptance criteria
-
-- [ ] A dead/unknown argument reports in `errors[]` but yields `must_fix_before_write: false`
-- [ ] A missing partial, missing asset, unknown filter and syntax error each still yield `must_fix_before_write: true`
-- [ ] An unknown/unrecognized check code defaults to NON-blocking, asserted explicitly
-- [ ] `status` is unchanged by this (still `error` when any error is present) — the gate and the status are separate signals
-- [ ] `validate_files` uses the identical rule; a batch blocks only when some file genuinely blocks
-- [ ] The blocking set is documented with the membership rule, and every entry is justified
-- [ ] Verified end to end against the real server on the reproduction above
-- [ ] check-common severities are NOT changed — LSP and CLI behaviour identical
+## Acceptance Criteria
+<!-- AC:BEGIN -->
+- [ ] #1 A dead/unknown argument reports in `errors[]` but yields `must_fix_before_write: false`
+- [ ] #2 A missing partial, unknown filter and syntax error each still yield `must_fix_before_write: true`. (`MissingAsset` was originally listed here; TASK-19.1 measured it against a live instance — the page renders HTTP 200 and the deploy accepts — so it must NOT block.)
+- [ ] #3 An unknown/unrecognized check code defaults to NON-blocking, asserted explicitly
+- [ ] #4 `status` is unchanged by this (still `error` when any error is present) — the gate and the status are separate signals
+- [ ] #5 The batch form uses the identical rule; a batch blocks only when some file genuinely blocks
+- [ ] #6 The blocking set is documented with the membership rule, and every entry is justified
+- [ ] #7 Verified end to end against the real server on the reproduction above
+- [ ] #8 check-common severities are NOT changed — LSP and CLI behaviour identical
 <!-- SECTION:DESCRIPTION:END -->
+<!-- AC:END -->

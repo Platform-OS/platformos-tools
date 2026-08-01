@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import nodePath from 'node:path';
-import { URI } from 'vscode-uri';
 
 import {
   isLayout,
@@ -41,7 +40,7 @@ describe('Unit: graph-cache-store (persisted graph encode/decode)', () => {
 
   beforeEach(async () => {
     root = await mkdtemp(nodePath.join(tmpdir(), 'pos-graph-store-'));
-    rootUri = path.normalize(URI.file(root).toString());
+    rootUri = path.toUri(root);
     await write('app/views/pages/index.liquid', "{% render 'card' %}");
     await write('app/views/partials/card.liquid', '<div>{{ title }}</div>');
     const entryPoints = await recursiveReadDirectory(

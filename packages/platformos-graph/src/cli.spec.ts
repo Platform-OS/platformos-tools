@@ -232,8 +232,8 @@ describe('platformos-graph CLI: buildSerializedFileDependencies', () => {
 
   it('throws for a file that is not part of the app graph', async () => {
     const missing = fsPathOf('app/views/partials/nonexistent.liquid');
-    const missingUri = path.normalize(URI.file(missing));
-    const rootUri = path.normalize(URI.file(skeletonPath));
+    const missingUri = path.toUri(missing);
+    const rootUri = path.toUri(skeletonPath);
 
     const error = await buildSerializedFileDependencies(skeletonPath, missing).catch((e) => e);
     expect(error).toBeInstanceOf(Error);
@@ -259,7 +259,7 @@ describe('platformos-graph CLI: project-root validation', () => {
 
   it('throws instead of emitting an empty graph for a non-platformOS directory', async () => {
     const dir = nodePath.resolve('no-such-project', 'sub');
-    const startUri = path.normalize(URI.file(dir));
+    const startUri = path.toUri(dir);
 
     const error = await buildSerializedGraph(dir, emptyFs).catch((e) => e);
     expect(error).toBeInstanceOf(Error);

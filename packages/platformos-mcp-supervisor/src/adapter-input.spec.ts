@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, parse } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -205,6 +205,14 @@ describe('Unit: toAbsoluteFilePath', () => {
   });
 
   it('normalizes `..` segments when joining', () => {
-    expect(toAbsoluteFilePath(PROJECT, '../../../etc/passwd')).toEqual('/etc/passwd');
+    // Expressed against the filesystem ROOT rather than a literal `/etc/passwd`:
+    // this resolves with the host's own separator, so on Windows the answer is
+    // `\etc\passwd`. Hard-coding the POSIX spelling asserted the platform, not the
+    // normalization this test is about.
+    const filesystemRoot = parse(PROJECT).root;
+
+    expect(toAbsoluteFilePath(PROJECT, '../../../etc/passwd')).toEqual(
+      join(filesystemRoot, 'etc', 'passwd'),
+    );
   });
 });

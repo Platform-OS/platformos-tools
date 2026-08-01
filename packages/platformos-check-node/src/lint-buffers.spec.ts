@@ -3,8 +3,27 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URI } from 'vscode-uri';
 
-import { AppCache, lintBuffer, lintBuffers, type LintBuffersResult } from './index';
+import {
+  AppCache,
+  lintBuffer,
+  lintBuffers,
+  path as uriPath,
+  type LintBuffersResult,
+} from './index';
 import { Workspace, makeTempWorkspace } from './test/test-helpers';
+
+/**
+ * The key `lintBuffers` reports results under, built through the SAME conversion
+ * production uses.
+ *
+ * It must be `toUri`, never `URI.file(...).toString()`: the latter percent-encodes
+ * the drive colon, so on Windows it yields `file:///c%3A/...` against production's
+ * `file:///c:/...`. The two are identical on POSIX, which is exactly why the wrong
+ * spelling passed locally and failed on Windows CI — and failed misleadingly,
+ * because `.get(wrongKey) ?? []` reports "no offenses" rather than "no such key".
+ */
+const keyFor = (root: string, relativePath: string) =>
+  uriPath.toUri(path.join(root, ...relativePath.split('/')));
 
 /**
  * TASK-17: `lintBuffers` lints N buffers in ONE pass over the project.
@@ -25,8 +44,7 @@ describe('Integration: lintBuffers', () => {
   let root: string;
   let configPath: string;
 
-  const uriOf = (relativePath: string) =>
-    URI.file(path.join(root, ...relativePath.split('/'))).toString();
+  const uriOf = (relativePath: string) => keyFor(root, relativePath);
 
   const absolute = (relativePath: string) => path.join(root, ...relativePath.split('/'));
 
@@ -253,8 +271,7 @@ describe('Integration: lintBuffers reports what it did NOT check', () => {
   let root: string;
   let configPath: string;
 
-  const uriIn = (relativePath: string) =>
-    URI.file(path.join(root, ...relativePath.split('/'))).toString();
+  const uriIn = (relativePath: string) => keyFor(root, relativePath);
   const abs = (relativePath: string) => path.join(root, ...relativePath.split('/'));
 
   beforeEach(async () => {

@@ -90,7 +90,7 @@ export type AppSourceCode = LiquidSourceCode | JSONSourceCode | GraphQLSourceCod
 export async function toSourceCode(absolutePath: string): Promise<AppSourceCode | undefined> {
   try {
     const source = await fs.readFile(absolutePath, 'utf8');
-    return commonToLazySourceCode(pathUtils.normalize(URI.file(absolutePath)), source);
+    return commonToLazySourceCode(pathUtils.toUri(absolutePath), source);
   } catch (e) {
     return undefined;
   }
@@ -239,11 +239,21 @@ async function lintApp(
   overlays?: ReadonlyMap<UriString, string>,
 ): Promise<Offense[]> {
   const platformOSLiquidDocsManager = getPlatformOSLiquidDocsManager();
-  const rootUri = URI.file(root).toString();
+  const rootUri = pathUtils.toUri(root);
 
   const docDefinitions = new Map(
     app.map((file) => [
-      path.relative(rootUri, file.uri),
+      // check-common's URI-aware `relative`, NOT `node:path.relative`, and NOT
+      // `URI.file(root).toString()` for the root. Both of those worked on POSIX by
+      // coincidence and broke on Windows, where they disagree with the lookup side
+      // twice over: `.toString()` percent-encodes the drive colon (`c%3A` vs `c:`)
+      // while every `file.uri` is built with `pathUtils.normalize`, and
+      // `node:path.relative` returns `app\views\x.liquid` while the consumer
+      // (`PartialCallArguments`) looks up `relative(locatedFile, rootUri)` — forward
+      // slashes. A key that never matches means `getDocDefinition` silently returns
+      // undefined, so a partial's declared `{% doc %}` params are invisible and
+      // `MissingRenderPartialArguments` — a BLOCKING check — never fires.
+      pathUtils.relative(file.uri, rootUri),
       memo(async (): Promise<DocDefinition | undefined> => {
         const ast = file.ast;
         if (!isLiquidHtmlNode(ast)) {
@@ -415,7 +425,7 @@ export interface LintBufferParams {
  */
 export async function lintBuffer(params: LintBufferParams): Promise<Offense[]> {
   const { root, filePath, content, ...rest } = params;
-  const uri = pathUtils.normalize(URI.file(filePath));
+  const uri = pathUtils.toUri(filePath);
   const { offenses } = await lintBuffers({ root, buffers: [{ filePath, content }], ...rest });
   // An ignored buffer yields no offenses, which is what `check()` would have done
   // anyway — the distinction is only meaningful to callers that ASK for it via
@@ -491,7 +501,7 @@ export async function lintBuffers(params: LintBuffersParams): Promise<LintBuffer
   // otherwise overlay twice and double every offense for it.
   const requested = new Map<UriString, string>();
   for (const buffer of buffers) {
-    requested.set(pathUtils.normalize(URI.file(buffer.filePath)), buffer.content);
+    requested.set(pathUtils.toUri(buffer.filePath), buffer.content);
   }
 
   const offensesByUri = new Map<UriString, Offense[]>();
@@ -580,7 +590,7 @@ export async function getApp(config: Config, cache?: AppCache): Promise<App> {
   const keep = new Set<string>();
   const sourceCodes = await Promise.all(
     paths.map(async (filePath): Promise<AppSourceCode | undefined> => {
-      const uri = pathUtils.normalize(URI.file(filePath));
+      const uri = pathUtils.toUri(filePath);
       keep.add(uri);
       const fingerprint = await fileFingerprint(filePath);
       if (fingerprint === undefined) return undefined; // vanished between glob and stat

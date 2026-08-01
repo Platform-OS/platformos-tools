@@ -86,11 +86,9 @@ export async function validateBuffers(
   // the config. Folding its answer in here keeps ONE config load and one source of
   // truth for "is this file part of the app".
   if (lint !== TIMED_OUT) {
-    const rootUri = pathUtils.normalize(pathUtils.URI.file(ctx.projectDir));
+    const rootUri = pathUtils.toUri(ctx.projectDir);
     for (const key of lint.ignored) {
-      const absolute = pathUtils.normalize(
-        pathUtils.URI.file(toAbsoluteFilePath(ctx.projectDir, key)),
-      );
+      const absolute = pathUtils.toUri(toAbsoluteFilePath(ctx.projectDir, key));
       declined.set(key, ignoredByProjectConfig(pathUtils.relative(absolute, rootUri)));
     }
   }

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
-import { URI } from 'vscode-uri';
 import {
   Offense,
   SourceCodeType,
@@ -15,7 +14,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { offenseToDiagnostic } from '../../diagnostics/offenseToDiagnostic';
 
 describe('Unit: ApplySuggestionProvider', () => {
-  const uri = path.normalize(URI.file('/path/to/app/views/partials/file.liquid'));
+  const uri = path.toUri('/path/to/app/views/partials/file.liquid');
   const contents = `
     {% assign x = 1 %}
     <script src="2.js"></script>

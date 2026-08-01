@@ -24,14 +24,13 @@ describe('Unit: blocksWrite', () => {
       ['does not parse', 'JSONSyntaxError'],
       ['invalid JSON', 'ValidJSON'],
       ['broken reference', 'MissingPartial'],
-      ['broken reference', 'MissingAsset'],
       ['platformOS raises on it', 'UnknownFilter'],
+      ['raises, and the deploy converter rejects the changeset', 'JsonLiteralQuoteStyle'],
       ['renders an empty page body', 'MissingContentForLayout'],
       ['a declared contract was violated', 'MissingRenderPartialArguments'],
       ['the query fails when executed', 'GraphQLCheck'],
       ['the query fails when executed', 'GraphQLVariablesCheck'],
       ['runtime error', 'InvalidHashAssignTarget'],
-      ['runtime error', 'ReservedVariableName'],
     ])('%s: %s', (_why, check) => {
       expect(blocksWrite([at(check)])).toBe(true);
     });
@@ -47,7 +46,9 @@ describe('Unit: blocksWrite', () => {
       ['resolves to nil', 'UnknownProperty'],
       ['doc hygiene, no runtime effect', 'UniqueDocParamNames'],
       ['doc hygiene, no runtime effect', 'ValidDocParamTypes'],
-      ['style only', 'JsonLiteralQuoteStyle'],
+      // Both measured against a live instance: the page renders and returns HTTP 200.
+      ['the asset 404s, the page is fine', 'MissingAsset'],
+      ['visibly wrong, still a working page', 'ReservedVariableName'],
       ['performance advice', 'ImgWidthAndHeight'],
       ['performance advice', 'ParserBlockingScript'],
     ])('%s: %s', (_why, check) => {
@@ -106,15 +107,42 @@ describe('Unit: blocksWrite', () => {
       'GraphQLVariablesCheck',
       'InvalidHashAssignTarget',
       'JSONSyntaxError',
+      'JsonLiteralQuoteStyle',
       'LiquidHTMLSyntaxError',
-      'MissingAsset',
       'MissingContentForLayout',
       'MissingPartial',
       'MissingRenderPartialArguments',
-      'ReservedVariableName',
       'UnknownFilter',
       'ValidJSON',
     ]);
+  });
+
+  /**
+   * TASK-19.1. Three entries were measured against a live instance and found wrong.
+   * These pin the corrections individually, so a future edit that "restores" one has
+   * to argue with the evidence rather than silently reverting it.
+   *
+   * `MissingAsset`: `{{ 'no_such.css' | asset_url }}` renders, page HTTP 200, deploy
+   * accepted — `asset_url` is string construction and never resolves the asset.
+   * `ReservedVariableName`: `{% assign blank = 'oops' %}` renders `[]`, page HTTP 200.
+   * `JsonLiteralQuoteStyle`: `{% assign o = {'k': 'v'} %}` raises `Invalid JSON in
+   * assign` AND is rejected by `--dry-run`, failing the whole changeset.
+   */
+  it('does not block the two findings measured to render a working page', () => {
+    expect(BLOCKING_CHECKS.has('MissingAsset')).toBe(false);
+    expect(BLOCKING_CHECKS.has('ReservedVariableName')).toBe(false);
+    expect(blocksWrite([at('MissingAsset'), at('ReservedVariableName')])).toBe(false);
+  });
+
+  it('blocks the JSON literal quote style, which is fatal at runtime AND on deploy', () => {
+    expect(BLOCKING_CHECKS.has('JsonLiteralQuoteStyle')).toBe(true);
+    expect(blocksWrite([at('JsonLiteralQuoteStyle')])).toBe(true);
+  });
+
+  it('still reports a de-escalated finding as non-blocking, including the new member', () => {
+    // The gate reads severity as well as code, so a project that downgrades
+    // `JsonLiteralQuoteStyle` in its config is respected exactly like any other member.
+    expect(blocksWrite([at('JsonLiteralQuoteStyle', 'warning')])).toBe(false);
   });
 
   it('does NOT contain the dead-argument checks — the bug this fixes', () => {

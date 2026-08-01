@@ -19,7 +19,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { path as pathUtils } from '@platformos/platformos-check-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
@@ -49,8 +49,12 @@ beforeAll(async () => {
       `Failed to build the package for the worker test:\n${e.stdout?.toString() ?? ''}\n${e.stderr?.toString() ?? ''}`,
     );
   }
+  // `file://` URL rather than a bare absolute path: vitest's module runner happens to
+  // resolve the latter, but a drive-letter specifier is read as a URL scheme by plain
+  // Node, so the bare form is a Windows hazard that only stays hidden while this runs
+  // under vite.
   worker = (await import(
-    resolve(PACKAGE_ROOT, 'dist', 'graph-cache', 'build-in-worker.js')
+    pathToFileURL(resolve(PACKAGE_ROOT, 'dist', 'graph-cache', 'build-in-worker.js')).href
   )) as unknown as WorkerBuilder;
 
   projectDir = mkdtempSync(join(tmpdir(), 'mcp-supervisor-worker-'));
@@ -67,7 +71,7 @@ beforeAll(async () => {
   write('app/views/pages/index.liquid', "{% render 'card' %}");
   write('app/views/pages/about.liquid', "{% render 'card' %}");
   write('app/views/layouts/theme.liquid', '<html>{{ content_for_layout }}</html>');
-  rootUri = pathUtils.normalize(pathUtils.URI.file(projectDir));
+  rootUri = pathUtils.toUri(projectDir);
 }, 180_000);
 
 afterAll(async () => {
@@ -127,9 +131,7 @@ describe('Integration: building the project graph on a worker thread', () => {
     // A root that is a FILE, not a directory: the directory walk fails inside the
     // worker, and the message must reach the caller rather than an opaque worker
     // error. Proves the posted-failure path, not just the happy path.
-    const fileAsRoot = pathUtils.normalize(
-      pathUtils.URI.file(join(projectDir, 'app', 'views', 'pages', 'index.liquid')),
-    );
+    const fileAsRoot = pathUtils.toUri(join(projectDir, 'app', 'views', 'pages', 'index.liquid'));
 
     await expect(worker.buildAppGraphInWorker(fileAsRoot)).rejects.toThrow(
       /ENOTDIR|not a directory/i,

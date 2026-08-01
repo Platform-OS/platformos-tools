@@ -3108,6 +3108,11 @@ input GeoPropertyFilterInput {
   distance in km
   """
   distance_in_km: Float
+
+  """
+  how to order results by the computed distance from <:center>
+  """
+  sort: GeoSortOrderEnum = ASC
 }
 
 input GeoQuery {
@@ -3139,6 +3144,23 @@ input GeoRadiusPropertyFilterInput {
   property name with value for radius distance. Property has to be of float type. Value has to be `km` unit.
   """
   radius_in_km_from_property: String
+}
+
+enum GeoSortOrderEnum {
+  """
+  order results by distance from <:center>, closest first (default; matches the implicit ordering applied historically)
+  """
+  ASC
+
+  """
+  order results by distance from <:center>, farthest first
+  """
+  DESC
+
+  """
+  do not order results by distance; ordering is controlled solely by the `sort` argument of the query, if any
+  """
+  NONE
 }
 
 """

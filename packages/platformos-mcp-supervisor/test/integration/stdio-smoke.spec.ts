@@ -397,7 +397,7 @@ describe('Integration: the project graph is warmed at server start', () => {
 
     // Start from a genuinely cold cache: the path is derived from the (unique) temp
     // root, so removing it cannot disturb any other project's cache.
-    warmCachePath = defaultGraphCachePath(pathUtils.normalize(pathUtils.URI.file(warmProjectDir)));
+    warmCachePath = defaultGraphCachePath(pathUtils.toUri(warmProjectDir));
     rmSync(warmCachePath, { force: true });
 
     warmTransport = new StdioClientTransport({

@@ -39,6 +39,7 @@ import {
   type ValidateAdapters,
 } from '../validate/validate-buffers.js';
 import { MAX_BATCH_BYTES, MAX_BATCH_FILES, batchTooLarge } from '../validate/batch-bounds.js';
+import { collidingBufferPaths } from '../validate/batch-coherence.js';
 import { assembleNotApplicableResult } from '../result/assemble.js';
 
 /** A non-blank path. Blank is malformed input, refused at the protocol boundary. */
@@ -177,18 +178,22 @@ export async function runValidateCode(
     isBatch ? `validate_code: ${buffers.length} file(s)` : `validate_code: ${buffers[0].filePath}`,
   );
 
-  // A batch is a new way to hand the server unbounded work, so it carries its own
-  // caps on top of the per-buffer size bound.
-  const overBounds = isBatch ? batchTooLarge(buffers) : undefined;
-  if (overBounds) {
-    ctx.log(`validate_code: refused (${overBounds.code}) — ${overBounds.reason}`);
+  // A batch is a new way to hand the server unbounded work, AND a new way to send a
+  // request that contradicts itself. Neither is possible with a single buffer, so
+  // both refusals are request-level and belong here, before any work starts. First
+  // refusal wins; the cheaper, content-only check runs first.
+  const refusal = isBatch
+    ? (batchTooLarge(buffers) ?? collidingBufferPaths(ctx.projectDir, buffers))
+    : undefined;
+  if (refusal) {
+    ctx.log(`validate_code: refused (${refusal.code}) — ${refusal.reason}`);
     return {
       must_fix_before_write: false,
       files: buffers.map((buffer) => ({
         file_path: buffer.filePath,
-        result: assembleNotApplicableResult(overBounds),
+        result: assembleNotApplicableResult(refusal),
       })),
-      next_step: overBounds.reason,
+      next_step: refusal.reason,
     };
   }
 

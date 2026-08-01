@@ -18,7 +18,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -72,7 +72,11 @@ beforeAll(() => {
   writeFileSync(
     wrapperPath,
     [
-      `import { startServer } from ${JSON.stringify(DIST_INDEX)};`,
+      // A `file://` URL, NOT the bare path: an ESM specifier starting with a Windows
+      // drive letter is read as a URL scheme, so `import ... from "C:\\...\\index.js"`
+      // fails with ERR_UNSUPPORTED_ESM_URL_SCHEME and the wrapper dies before the
+      // server boots — which surfaced here as "MCP error -32000: Connection closed".
+      `import { startServer } from ${JSON.stringify(pathToFileURL(DIST_INDEX).href)};`,
       `await startServer({ projectDir: ${JSON.stringify(projectDir)} });`,
       `setTimeout(() => {`,
       `  Promise.reject(new Error('deliberate unawaited background rejection'));`,

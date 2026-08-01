@@ -2,7 +2,6 @@ import nodePath from 'node:path';
 import fs from 'node:fs/promises';
 import { findRoot, makeFileExists, path } from '@platformos/platformos-check-common';
 import { AbstractFileSystem, FileStat, FileTuple, FileType } from '@platformos/platformos-common';
-import { URI } from 'vscode-uri';
 import { buildAppGraph } from './graph/build';
 import { serializeAppGraph } from './graph/serialize';
 import { Reference, SerializableGraph } from './types';
@@ -72,7 +71,7 @@ export interface SerializableFileDependencies {
  */
 async function resolveProjectRoot(root: string, fs: AbstractFileSystem): Promise<string> {
   const absolute = nodePath.isAbsolute(root) ? root : nodePath.resolve(process.cwd(), root);
-  const startUri = path.normalize(URI.file(absolute));
+  const startUri = path.toUri(absolute);
 
   const rootUri = await findRoot(startUri, makeFileExists(fs));
   if (!rootUri) {
@@ -93,7 +92,7 @@ async function resolveProjectRoot(root: string, fs: AbstractFileSystem): Promise
  */
 function resolveFileUri(rootUri: string, file: string): string {
   if (nodePath.isAbsolute(file)) {
-    return path.normalize(URI.file(file));
+    return path.toUri(file);
   }
   return path.join(rootUri, ...file.split(/[\\/]+/).filter(Boolean));
 }

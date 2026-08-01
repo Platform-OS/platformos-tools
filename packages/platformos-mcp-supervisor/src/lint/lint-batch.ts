@@ -91,7 +91,7 @@ export async function runBatchLint(
   // Re-key by the caller's string. `lintBuffers` normalizes to a URI, so match on
   // the same normalization rather than string-comparing paths.
   for (const [key, absolute] of absoluteByKey) {
-    const uri = pathUtils.normalize(pathUtils.URI.file(absolute));
+    const uri = pathUtils.toUri(absolute);
     if (result.ignored.has(uri)) {
       ignored.add(key);
       continue;

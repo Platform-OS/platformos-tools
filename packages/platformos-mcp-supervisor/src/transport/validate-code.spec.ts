@@ -387,6 +387,88 @@ describe('validate_code: bounded work', () => {
     expect(result.must_fix_before_write).toBe(false);
   });
 
+  /**
+   * TASK-22. Results are keyed by the caller's `file_path` string, but buffers are
+   * overlaid and deduplicated by normalized URI (last one wins). Two entries naming
+   * one file therefore used to lint ONE buffer and report its verdict for BOTH — so
+   * the losing buffer was never validated yet came back with a status, and reversing
+   * the argument order flipped which one was lied about.
+   *
+   * This is the eval's exact reproduction (FINDINGS.md F-13, group `X-dup-keys`): a
+   * broken buffer and a clean one under the same path returned `status: "ok"` for
+   * both, i.e. a false approval manufactured with no check involved at all.
+   */
+  it.each([
+    ['broken buffer first', '{{ x | no_such_filter }}', '<p>clean</p>'],
+    ['clean buffer first', '<p>clean</p>', '{{ x | no_such_filter }}'],
+  ])('refuses two entries naming the same file — %s', async (_order, first, second) => {
+    const files = [
+      { file_path: PARTIAL, content: first },
+      { file_path: PARTIAL, content: second },
+    ];
+
+    const result = batch(
+      await runValidateCode(ctx(), { files }, adaptersFor({ [PARTIAL]: [diagnostic('X')] })),
+    );
+
+    // Every entry is declined, and NONE is reported as checked-and-clean.
+    expect(result.files.map((e) => e.result.status)).toEqual(['not_applicable', 'not_applicable']);
+    expect(result.files.map((e) => e.result.not_applicable_reason)).toEqual([
+      'internal_error',
+      'internal_error',
+    ]);
+    expect(result.must_fix_before_write).toBe(false);
+    expect(result.next_step).toContain(PARTIAL);
+  });
+
+  it('refuses aliased spellings of one file, which collide only after normalization', async () => {
+    const files = [
+      { file_path: PARTIAL, content: '{{ x | no_such_filter }}' },
+      { file_path: `/srv/app/${PARTIAL}`, content: '<p>clean</p>' },
+    ];
+
+    const result = batch(await runValidateCode(ctx(), { files }, adaptersFor()));
+
+    expect(result.files.map((e) => e.result.not_applicable_reason)).toEqual([
+      'internal_error',
+      'internal_error',
+    ]);
+  });
+
+  it('never reaches the lint for a self-contradictory request', async () => {
+    // The refusal is decidable from the request alone, so it must cost nothing —
+    // and, more importantly, no buffer may be linted when we will not report its
+    // result honestly.
+    const lint = vi.fn();
+
+    await runValidateCode(
+      ctx(),
+      {
+        files: [
+          { file_path: PARTIAL, content: 'a' },
+          { file_path: PARTIAL, content: 'b' },
+        ],
+      },
+      { ...adaptersFor(), lint },
+    );
+
+    expect(lint).not.toHaveBeenCalled();
+  });
+
+  it('still validates a batch that names each file once', async () => {
+    // The guard must not cost the legitimate case, including the mixed
+    // relative/absolute spelling the caller-string keying exists to support.
+    const files = [
+      { file_path: PAGE, content: 'a' },
+      { file_path: `/srv/app/${PARTIAL}`, content: 'b' },
+    ];
+
+    const result = batch(await runValidateCode(ctx(), { files }, adaptersFor()));
+
+    expect(result.files.map((e) => e.result.status)).toEqual(['ok', 'ok']);
+    expect(result.files.map((e) => e.file_path)).toEqual([PAGE, `/srv/app/${PARTIAL}`]);
+  });
+
   it('returns a determinate timed_out result when the lint never settles', async () => {
     vi.useFakeTimers();
     try {

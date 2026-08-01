@@ -98,12 +98,20 @@ export function fileApplicability(projectDir: string, filePath: string): FileApp
     };
   }
 
-  if (!isSupportedSourceFile(pathUtils.normalize(pathUtils.URI.file(absolute)))) {
+  const uri = pathUtils.toUri(absolute);
+
+  if (!isSupportedSourceFile(uri)) {
+    // Shown with forward slashes on EVERY platform. `relativeToRoot` above comes from
+    // `node:path.relative`, which is right for the containment decision but yields
+    // `app\notes.txt` on Windows — echoing a separator back to the agent that it did
+    // not send, for a path it has to recognize as its own. check-common's `relative`
+    // is URI-based and forward-slash by construction.
+    const displayPath = pathUtils.relative(uri, pathUtils.toUri(projectDir));
     return {
       applicable: false,
       code: 'unsupported_type',
       reason:
-        `\`${relativeToRoot}\` is not a platformOS source file, so there are no checks that ` +
+        `\`${displayPath}\` is not a platformOS source file, so there are no checks that ` +
         `apply to it. Validation covers Liquid in a recognized platformOS directory, ` +
         `\`.graphql\` operations, and translation / model \`.yml\`. Nothing was checked — ` +
         `writing this file is your call, not a validated pass.`,

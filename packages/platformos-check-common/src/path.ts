@@ -58,6 +58,29 @@ export function fsPath(uri: UriString | URI): string {
   return asUri(uri).fsPath;
 }
 
+/**
+ * A filesystem path -> the canonical `UriString` this codebase keys on. The inverse
+ * of {@link fsPath}, and the ONLY correct spelling of that conversion.
+ *
+ * `URI.file(p).toString()` is NOT equivalent and must never be used for a key: it
+ * percent-encodes, so a Windows drive colon becomes `file:///c%3A/...` while
+ * everything built through here is `file:///c:/...`. On POSIX the two are identical,
+ * which is precisely what makes the difference dangerous — it is invisible until the
+ * code reaches Windows, and then it surfaces as a `Map.get` that silently misses.
+ *
+ * That is not hypothetical. Before this helper existed the conversion was hand-rolled
+ * at ~26 call sites, and three of them picked the encoding spelling: the `lintBuffers`
+ * result keys, the `getDocDefinition` map root, and a graph test helper. The first
+ * reported "no offenses" for files that had them; the second made every partial's
+ * declared `{% doc %}` params invisible on Windows, so `MissingRenderPartialArguments`
+ * — a check the MCP supervisor BLOCKS writes on — could never fire there.
+ *
+ * One name for the conversion is what keeps that from happening a fourth time.
+ */
+export function toUri(fsPath: string): UriString {
+  return normalize(URI.file(fsPath));
+}
+
 function asUri(uri: UriString | URI): URI {
   return URI.isUri(uri) ? uri : URI.parse(uri);
 }

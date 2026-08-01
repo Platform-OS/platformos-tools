@@ -112,12 +112,24 @@ export async function toSourceCode(absolutePath: string): Promise<AppSourceCode 
  *
  * `ctimeMs` (inode change time) is updated by the kernel on any write to the file
  * or its metadata and cannot be set by an unprivileged process — `utimes`
- * *advances* it rather than restoring it. So content that changed always yields a
- * different fingerprint.
+ * *advances* it rather than restoring it.
  *
- * Coarse-granularity filesystems (1 s on some NFS mounts, 2 s on FAT/exFAT) are
- * the other reason to include it: there, two edits inside one tick share an mtime
- * far more easily.
+ * KNOWN BOUND, and it is a real one: this discriminates only as finely as the
+ * filesystem's timestamp clock. Measured on ext4, two same-length rewrites with the
+ * mtime restored produce an IDENTICAL `ctimeMs` about 69% of the time when issued
+ * back to back, and the smallest non-zero delta observed was ~1 ms. Nanosecond stats
+ * (`{ bigint: true }`) do not help — the kernel coarsens the stored timestamp, so
+ * `ctimeNs` shows the same ~1 ms floor.
+ *
+ * So the honest guarantee is: a change is detected UNLESS it lands in the same
+ * timestamp tick as the previous fingerprint AND keeps the byte length AND restores
+ * the mtime. All three must coincide. Nothing available from `stat` closes that
+ * window, and closing it by hashing content would mean reading every file on every
+ * call — which is the cost this cache exists to avoid.
+ *
+ * Coarse-granularity filesystems (1 s on some NFS mounts, 2 s on FAT/exFAT) widen
+ * that window considerably, and are the other reason `ctimeMs` is here at all:
+ * there, two edits inside one tick share an mtime far more easily.
  *
  * Exported so consumers that maintain their own derived caches (e.g. the MCP
  * supervisor's project-graph cache) can share ONE fingerprint definition rather

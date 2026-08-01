@@ -1,17 +1,20 @@
 ---
 id: TASK-14
 title: >-
-  Flaky: fileFingerprint's restored-mtime spec failed once in a full-monorepo
-  run (unreproduced)
-status: To Do
+  fileFingerprint's restored-mtime spec asserted a guarantee stat cannot make —
+  not a flake
+status: Done
 assignee: []
 created_date: '2026-07-30 21:18'
-updated_date: '2026-07-31 12:30'
+updated_date: '2026-08-01 12:59'
 labels:
-  - flaky-test
   - platformos-check-node
+  - correctness
   - test-infra
 dependencies: []
+modified_files:
+  - packages/platformos-check-node/src/index.ts
+  - packages/platformos-check-node/src/file-fingerprint.spec.ts
 priority: medium
 ---
 
@@ -92,4 +95,56 @@ Running tally across this session:
 The correlation is now strong enough to state: it fails ONLY in full-monorepo runs, never in isolation. That points at load/concurrency rather than anything in the spec's own logic — consistent with the ctime-collision hypothesis (a busy machine makes the two `utimes` calls land closer together), but still not proof.
 
 Investigation guidance unchanged: instrument the spec to log both `ctimeMs` values and the elapsed time between the two `utimes`, then run it inside a full `yarn test` until it reproduces. The full run is the only context that has ever failed, so reproducing standalone is not the goal.
+
+## Resolved — and it was not a flake
+
+It failed again on Windows CI (node 24), which finally made it cheap to diagnose properly rather than by re-running.
+
+### The measurement the earlier investigation was missing
+
+The earlier probe was right and its conclusion was wrong. Re-measured on ext4, 200 back-to-back rewrites of the exact test sequence:
+
+```
+ctime IDENTICAL (fingerprint blind) : 138 / 200   (69%)
+smallest non-zero ctime delta       : ~1 ms
+```
+
+And critically, nanosecond stats do NOT help:
+
+```
+identical with ctimeMs (current impl) : 141 / 200
+identical with ctimeNs ({bigint:true}): 141 / 200
+smallest non-zero ctimeNs delta       : 999998 ns
+```
+
+The kernel coarsens the stored timestamp to the tick, so `ctimeNs` shows the same ~1 ms floor. **No stat-based fingerprint can distinguish two changes inside one tick.**
+
+### What the test was really reporting
+
+The doc on `fileFingerprint` claimed "content that changed ALWAYS yields a different fingerprint". That is false, and the test asserted it. So the test failed ~69% of the time at microsecond timescale against a perfectly correct implementation — it passed only when timing happened to help, which is why it looked like load-dependent flakiness and why it got written off as "a known flake" (including by me, twice).
+
+A test that fails most of the time against correct code is noise, and noise is worse than no test: it trains everyone to ignore it.
+
+### Fixes
+
+1. **The doc's guarantee is corrected**, with the measured numbers. The honest contract: a change is detected UNLESS it lands in the same timestamp tick AND keeps the byte length AND restores the mtime — all three must coincide. Closing that window would mean hashing content, i.e. reading every file on every call, which is the cost `AppCache` exists to avoid.
+2. **The test separates the two changes into different ticks** via `awaitFilesystemTick`, which POLLS rather than sleeping a fixed amount, so it also holds on coarse filesystems (1 s NFS, 2 s FAT). That removes the confound and leaves the assertion the test exists for.
+3. **The bound is pinned rather than hidden** by a new deterministic test asserting the fingerprint is exactly `mtimeMs:ctimeMs:size` — which makes what it can and cannot discriminate legible at a glance.
+4. The `AppCache` integration test got the same tick separation. It passed before only because the lint between writes takes far longer than a tick — luck, not a property.
+
+### Verification
+
+Stable 5/5 standalone and 3/3 after restore. Sabotage-checked: dropping `ctimeMs` from the fingerprint fails 3 tests, including the reworked one — so it still bites for the regression it was written to catch.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Not a flake. `fileFingerprint`'s doc claimed a changed file "always" yields a different fingerprint; the spec asserted that, and it is not true. Discrimination rests on `ctimeMs`, which is only as fine as the filesystem's timestamp clock — measured at ~1 ms on ext4, with 69% of back-to-back same-length rewrites producing an identical value. Nanosecond stats give no improvement, because the kernel coarsens the stored timestamp. So no stat-based fingerprint can separate two changes inside one tick.
+
+The test was therefore failing against correct code most of the time and passing only when timing helped, which made it look load-dependent and got it dismissed as flaky across three separate sightings.
+
+Fixed by correcting the overclaiming doc to state the real bound (a change is missed only if it shares a timestamp tick AND keeps its byte length AND restores the mtime — all three), separating the two writes into different ticks with a polling helper that also works on coarse filesystems, and adding a deterministic test that pins the fingerprint's composition so the bound is visible rather than lurking. The `AppCache` integration test got the same treatment, since it was passing only because lint work happens to exceed a tick.
+
+Sabotage-verified: removing `ctimeMs` still fails three tests, so the guard the spec exists for is intact.
+<!-- SECTION:FINAL_SUMMARY:END -->

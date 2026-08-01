@@ -133,9 +133,18 @@ async function probe({ url, email, token }, name, content) {
   };
 }
 
+/**
+ * Every name the docs already cover: top-level entries AND the aliases they declare.
+ *
+ * Aliases must be in here. They are not top-level entries in `filters.json`, but
+ * `expandAliases` promotes each one to a real filter entry, so a candidate matching an
+ * alias is already handled and would be dead weight here. Excluding only `name` let
+ * such a candidate through the generator and straight into a spec that rejects it —
+ * the generator would have produced output its own test fails.
+ */
 const documentedNames = async () => {
   const docs = JSON.parse(await readFile(DOCS_FILTERS, 'utf8'));
-  return new Set(docs.map((filter) => filter.name));
+  return new Set(docs.flatMap((filter) => [filter.name, ...(filter.aliases ?? [])]));
 };
 
 function render(verified, { url }, generatedAt) {

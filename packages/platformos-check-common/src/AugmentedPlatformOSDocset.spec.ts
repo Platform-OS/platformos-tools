@@ -1,5 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
+import { UNDOCUMENTED_FILTERS } from './undocumented-filters';
 import { PlatformOSDocset } from './types';
 
 describe('Module: AugmentedPlatformOSDocset', async () => {
@@ -55,10 +56,20 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
   });
 
   describe('filters', async () => {
-    it('should return filters with undocumented filters', async () => {
+    it('should return exactly the undocumented filters when the docset has none', async () => {
+      // This mock's `filters()` returns [], so everything here comes from the
+      // undocumented list — which makes the composition exactly assertable.
+      //
+      // It used to assert `length >= 10`, a threshold standing in for the 13
+      // hand-typed entries of the day. That hid what it was really checking: when the
+      // list was regenerated from a live instance and 12 fictional filters were
+      // dropped, the failure read as "expected at least 10, got 6" rather than naming
+      // the change. Comparing against the list itself pins the WIRING (official +
+      // aliases + undocumented, each as a `{ name }` entry) and lets
+      // `undocumented-filters.spec.ts` own the contents.
       const filters = await platformosDocset.filters();
 
-      expect(filters).to.have.length.greaterThanOrEqual(10);
+      expect(filters).toEqual(UNDOCUMENTED_FILTERS.map((name) => ({ name })));
     });
 
     it('should return valid filter entries', async () => {

@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-07-31 12:26'
-updated_date: '2026-08-01 11:27'
+updated_date: '2026-08-01 11:47'
 labels:
   - bug
   - check-common
@@ -77,12 +77,11 @@ Do NOT add runtime verification to the linter itself — network calls from a br
 - [x] #2 `UnknownFilter` now flags `push` and the other 11
 - [x] #3 `h` and genuinely documented filters are still accepted (no over-correction)
 - [x] #4 The surviving list documents how it was verified and how to re-verify
-- [x] #5 No test depended on the removed entries (checked: the `weight` hits in the LSP completion specs are a filter PARAMETER named `weight`, unrelated)
+- [x] #5 Tests that depended on the removed entries are updated: `AugmentedPlatformOSDocset.spec.ts` asserted `filters.length >= 10`, a threshold standing in for the 13 hand-typed entries, and had to be rewritten to assert the composition exactly. (The `weight` hits in the LSP completion specs are a filter PARAMETER named `weight`, unrelated.)
 - [x] #6 check-common, LSP and CLI suites all still pass
 <!-- SECTION:DESCRIPTION:END -->
+
 <!-- AC:END -->
-
-
 
 ## Implementation Notes
 
@@ -134,6 +133,30 @@ sum / where / find / find_index / has / h   must_fix=false   (were blocked)
 push + the other 11 fictional               must_fix=true    UnknownFilter (were approved)
 no_such_filter_xyz (control)                must_fix=true    UnknownFilter
 ```
+
+## Correction: AC#5 was checked off prematurely
+
+I recorded "no test depended on the removed entries" on the strength of an `ls` that returned nothing. It returned nothing because the shell's working directory was still inside `packages/platformos-check-common` from running the generator, so the repo-relative path did not resolve — I read a path error as proof of absence.
+
+`AugmentedPlatformOSDocset.spec.ts` did exist (since `8182bfd`), and its first filters test asserted `expect(filters).to.have.length.greaterThanOrEqual(10)` against a mock whose own `filters()` returns `[]` — so the assertion was entirely about the undocumented list, and 13 entries silently satisfied a floor of 10. With 6 it fails. Caught by CI (linux/node 24) and by the local full suite, which was still running when I reported status.
+
+Rewritten to assert the composition exactly — `expect(filters).toEqual(UNDOCUMENTED_FILTERS.map((name) => ({ name })))` — which pins the wiring (official + aliases + undocumented, each as a `{ name }` entry) while leaving the CONTENTS pinned by `undocumented-filters.spec.ts`. The threshold form was also the anti-pattern the repo's own test guidance forbids: it turned a meaningful change into "expected at least 10, got 6" instead of naming what moved.
+
+Re-searched properly afterwards with absolute paths: the only other hit for any removed name is `weight` in `FilterNamedParameterCompletionProvider.spec.ts`, where it is a filter PARAMETER in a local mock — unrelated.
+
+## Generator/spec disagreement, found while explaining the mechanism
+
+The generator excluded only top-level `filter.name` from `filters.json`, but `undocumented-filters.spec.ts` rejects any entry matching a documented name OR alias. A candidate that happened to be an alias (`t`, `any`, `compact`, `detect`, ...) would therefore pass the generator's exclusion, render fine on the instance (aliases work), be emitted — and then fail the spec. The generator could produce output its own test rejects.
+
+Fixed so both use one rule: `docs.flatMap((filter) => [filter.name, ...(filter.aliases ?? [])])`.
+
+Verified rather than assumed: `t` and `any` were temporarily added as candidates and both now report `skip — already in filters.json`, with the emitted list still exactly 6. Generator restored afterwards; regenerating produced a byte-identical `undocumented-filters.ts`.
+
+Latent rather than live — no current candidate is an alias — but it is exactly the generator/spec drift this task exists to remove.
+
+## Final verification
+
+Full monorepo suite: **306 files, 2930 tests, 0 failures**. Type-check, build and prettier clean.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

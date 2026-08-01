@@ -5,7 +5,8 @@ import { AppCache } from '@platformos/platformos-check-node';
 
 import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code.js';
 import { SERVER_INSTRUCTIONS } from './instructions.js';
-import { IMPACT_DEADLINE_MS, LINT_DEADLINE_MS, type SupervisorContext } from '../context.js';
+import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
+import { MIN_LINT_DEADLINE_MS, lintDeadlineMs } from '../cost-model.js';
 import { MAX_BUFFER_BYTES } from '../adapter-input.js';
 import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from '../validate/batch-bounds.js';
 import { GraphCache } from '../graph-cache/graph-cache.js';
@@ -478,12 +479,64 @@ describe('validate_code: bounded work', () => {
         { lint: () => new Promise(() => {}), impact: async () => COMPUTED },
       );
 
-      await vi.advanceTimersByTimeAsync(LINT_DEADLINE_MS + 1);
+      await vi.advanceTimersByTimeAsync(MIN_LINT_DEADLINE_MS + 1);
       const result = single(await pending);
 
       expect(result.not_applicable_reason).toEqual('timed_out');
       // A timeout is OUR failure, not a verdict on the file — it must not block.
       expect(result.must_fix_before_write).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives a large batch the LONGER deadline its size earns, not the floor', async () => {
+    // The bug this closes: a fixed 60 s deadline against a cap that admitted ~115 s
+    // of work, so the worst legal batch timed out — returning `timed_out` for EVERY
+    // file, which is no validation at all, silently. The deadline now scales with
+    // the bytes admitted, so being still-running at the floor is CORRECT here.
+    const big = 'x'.repeat(100 * 1024);
+    const files = [
+      { file_path: PAGE, content: big },
+      { file_path: PARTIAL, content: big },
+    ];
+    const earned = lintDeadlineMs(2 * 100 * 1024);
+    expect(earned).toBeGreaterThan(MIN_LINT_DEADLINE_MS);
+
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const pending = runValidateCode(
+        ctx(),
+        { files },
+        {
+          lint: () => new Promise(() => {}),
+          impact: async () => COMPUTED,
+        },
+      ).then((value) => {
+        settled = true;
+        return value;
+      });
+
+      await vi.advanceTimersByTimeAsync(MIN_LINT_DEADLINE_MS + 1);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(earned - MIN_LINT_DEADLINE_MS);
+      const result = batch(await pending);
+
+      expect(result.files.map((entry) => entry.result.not_applicable_reason)).toEqual([
+        'timed_out',
+        'timed_out',
+      ]);
+      // The message must quote the deadline actually applied, not the floor — it is
+      // the only place the caller can see how long it was held.
+      expect(
+        result.files.map((entry) =>
+          entry.result.next_step?.startsWith(
+            `Validation exceeded ${Math.round(earned / 1000)} s and was abandoned`,
+          ),
+        ),
+      ).toEqual([true, true]);
     } finally {
       vi.useRealTimers();
     }
@@ -509,7 +562,7 @@ describe('validate_code: bounded work', () => {
         },
       );
 
-      await vi.advanceTimersByTimeAsync(LINT_DEADLINE_MS + 1);
+      await vi.advanceTimersByTimeAsync(MIN_LINT_DEADLINE_MS + 1);
       await pending;
 
       rejectLint(new Error('too late to matter'));
@@ -526,7 +579,7 @@ describe('validate_code: bounded work', () => {
   });
 
   it('caps a stalled impact at ITS deadline, far below the lint deadline', async () => {
-    expect(IMPACT_DEADLINE_MS).toBeLessThan(LINT_DEADLINE_MS);
+    expect(IMPACT_DEADLINE_MS).toBeLessThan(MIN_LINT_DEADLINE_MS);
 
     vi.useFakeTimers();
     try {

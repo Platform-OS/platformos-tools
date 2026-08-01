@@ -169,7 +169,7 @@ describe('Unit: bufferTooLarge', () => {
     expect(declined?.code).toEqual('too_large');
     expect(declined?.reason).toEqual(
       'The buffer is 128 KiB, above the 128 KiB limit this server will validate, so it was ' +
-        'refused before parsing. Liquid validation costs about 61 ms per KiB and the parser stops ' +
+        'refused before parsing. Liquid validation costs about 75 ms per KiB and the parser stops ' +
         'completing at all a few MiB out, so checking this would risk hanging the server rather ' +
         'than answering. Nothing was checked — consider splitting the file, which is almost ' +
         'certainly worth doing at this size regardless.',

@@ -10,6 +10,7 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 
 import { isSupportedSourceFile, path as pathUtils } from '@platformos/platformos-check-common';
 
+import { LINT_MS_PER_KIB } from './cost-model.js';
 import type { Declined } from './result/types.js';
 
 export interface AdapterInput {
@@ -146,10 +147,19 @@ export function fileApplicability(projectDir: string, filePath: string): FileApp
  * CST->AST recursion, and 4 MiB produced a native V8 abort.
  *
  * 128 KiB keeps the worst LEGAL buffer at ~7 s isolated (roughly 15 s under
- * contention with a graph build), comfortably inside `LINT_DEADLINE_MS`, while
- * still admitting 1.7x the largest real source file found across local projects
- * (a 76 KiB icon-sprite partial). A Liquid template past this size is pathological
- * on its own terms, and the refusal says so.
+ * contention with a graph build), comfortably inside the deadline it is granted,
+ * while still admitting 1.7x the largest real source file found across local
+ * projects (a 76 KiB icon-sprite partial). A Liquid template past this size is
+ * pathological on its own terms, and the refusal says so.
+ *
+ * This bound is NOT derived from `cost-model.ts` — it is the older, independent
+ * measurement, and it answers a different question: how large a SINGLE file may be
+ * before the parser itself becomes the problem, which is a property of the parser
+ * rather than of any deadline. It is nonetheless checked against the model, and the
+ * two agree: `lintDeadlineMs(MAX_BUFFER_BYTES)` is exactly `MIN_LINT_DEADLINE_MS`,
+ * so a maximal single buffer sits precisely at the floor the model would have
+ * granted it anyway. `cost-model.spec.ts` pins that agreement, so the two stop
+ * being independent numbers that happen to be compatible today.
  *
  * WHY THE BOUND IS THE REAL GUARD, NOT THE DEADLINE. Verified end to end: a
  * deadline cannot interrupt a synchronous parse, and the timer cannot even FIRE
@@ -178,7 +188,8 @@ export function bufferTooLarge(content: string): Declined | undefined {
       `The buffer is ${Math.round(bytes / 1024)} KiB, above the ${Math.round(
         MAX_BUFFER_BYTES / 1024,
       )} KiB limit this server will validate, so it was refused before parsing. ` +
-      `Liquid validation costs about 61 ms per KiB and the parser stops completing at all a few ` +
+      `Liquid validation costs about ${LINT_MS_PER_KIB} ms per KiB and the parser stops ` +
+      `completing at all a few ` +
       `MiB out, so checking this would risk hanging the server rather than answering. Nothing ` +
       `was checked — consider splitting the file, which is almost certainly worth doing at this ` +
       `size regardless.`,

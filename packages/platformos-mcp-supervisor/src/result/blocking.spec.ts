@@ -21,8 +21,6 @@ describe('Unit: blocksWrite', () => {
   describe('blocks on findings that mean the file will not work', () => {
     it.each([
       ['does not parse', 'LiquidHTMLSyntaxError'],
-      ['does not parse', 'JSONSyntaxError'],
-      ['invalid JSON', 'ValidJSON'],
       ['broken reference', 'MissingPartial'],
       ['platformOS raises on it', 'UnknownFilter'],
       ['a known filter, wrong argument count — same raise', 'FilterArity'],
@@ -108,14 +106,25 @@ describe('Unit: blocksWrite', () => {
       'GraphQLCheck',
       'GraphQLVariablesCheck',
       'InvalidHashAssignTarget',
-      'JSONSyntaxError',
       'JsonLiteralQuoteStyle',
       'LiquidHTMLSyntaxError',
       'MissingContentForLayout',
       'MissingPartial',
       'MissingRenderPartialArguments',
       'UnknownFilter',
-      'ValidJSON',
+    ]);
+  });
+
+  it('does not block the two codes NO accepted buffer can ever produce', () => {
+    // Removed on reachability, not on severity — both are `SourceCodeType.JSON`
+    // checks, and this server never routes a JSON-typed file to anything. They are
+    // pinned here rather than merely deleted because they READ as obviously
+    // belonging: "the file does not parse" is the strongest membership argument in
+    // the file, and it was true of the checks and irrelevant to this server.
+    // `blocking-emission.spec.ts` holds the behavioural proof.
+    expect([BLOCKING_CHECKS.has('ValidJSON'), BLOCKING_CHECKS.has('JSONSyntaxError')]).toEqual([
+      false,
+      false,
     ]);
   });
 

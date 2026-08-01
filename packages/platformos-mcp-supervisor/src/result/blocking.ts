@@ -39,6 +39,19 @@
  * deploy-wide rejection. A plausible-sounding justification in this file is worth
  * nothing; run the code.
  *
+ * AND MEASURE THE CHECK THROUGH THIS SERVER, not through `check()`. A member has to
+ * clear two independent bars, and only the first is about the check:
+ *
+ *   1. the diagnostic means the file is broken  — measured against a live instance;
+ *   2. a buffer THIS SERVER accepts can produce it at all.
+ *
+ * Two more of the original twelve failed the SECOND bar while passing the first
+ * (`ValidJSON`, `JSONSyntaxError` — see the exclusions below). That failure is
+ * invisible from inside check-common, where both work perfectly, and invisible on
+ * the wire, where a dead member and a clean file are byte-identical. Every member is
+ * therefore driven end to end by `blocking-emission.spec.ts`; adding one here
+ * without a fixture there fails the suite, which is the point.
+ *
  * Severity is deliberately NOT changed. A dead argument stays an `error` in
  * `errors[]` and keeps `status: 'error'`; it just no longer gates the write. That
  * keeps check-common untouched — the language server and CLI behave exactly as
@@ -56,8 +69,6 @@
 export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // Does not parse. Nothing downstream can be trusted about the file at all.
   'LiquidHTMLSyntaxError',
-  'JSONSyntaxError',
-  'ValidJSON',
 
   // Broken reference: the target does not exist, so the render fails at runtime.
   'MissingPartial',
@@ -125,6 +136,34 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
 
 /**
  * NOT in the set, and deliberately so — recorded because each looks severe:
+ *
+ * - `ValidJSON` and `JSONSyntaxError` — REMOVED because they are UNREACHABLE, which
+ *   is a different reason from every other entry here and the only one that is a
+ *   defect in this file rather than a judgement. Both declare
+ *   `type: SourceCodeType.JSON`, and check-common runs a check only against files of
+ *   its own type. This server admits only what `isSupportedSourceFile` accepts —
+ *   `.liquid`, `.graphql`, `.yml`/`.yaml` — and those parse as `LiquidHtml`,
+ *   `GraphQL` and `YAML`. No buffer that reaches the gate has ever been parsed as
+ *   JSON, so neither code could ever appear in a diagnostic and both were promising
+ *   coverage the input filter forecloses. A `.json` buffer is declined
+ *   `unsupported_type` before any check runs, which is honest — an entry here
+ *   claiming to catch it was not.
+ *
+ *   Note what this is NOT: the checks work. They fire correctly under `check()` and
+ *   for the CLI and language server, which do lint standalone JSON. Nothing about
+ *   them changed and nothing needs fixing in check-common. If this server ever
+ *   admits `.json`, re-add both — `blocking-emission.spec.ts` will demand a fixture,
+ *   and it holds the proof of why one could not be written before.
+ *
+ *   AND THEY WERE NOT WRONG WHEN WRITTEN, which is the part worth remembering.
+ *   `toSourceCode` types any unrecognized extension as JSON, so before the
+ *   applicability gate existed EVERY path was JSON-linted — `/etc/passwd` came back
+ *   `ValidJSON: Expected a JSON object, array or literal` with
+ *   `must_fix_before_write: true` (see `adapter-input.ts`). These two entries were
+ *   load-bearing then. The gate that fixed that made them unreachable, and nothing
+ *   connected the two edits. A member can be orphaned by a correct change somewhere
+ *   else, silently, which is the general lesson and the reason the emission suite
+ *   runs the whole pipeline rather than the checks.
  *
  * - `PartialCallArguments` reports TWO different things under one code: an unknown
  *   (dead) argument, and a missing required one. There is no structured

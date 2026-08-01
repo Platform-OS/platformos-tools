@@ -28,25 +28,19 @@ export interface SupervisorContext {
  * call is WORSE than none — the agent gets `not_applicable` and no validation at
  * all, silently, rather than a slightly late answer.
  *
- * Sized against measurement of the worst LEGAL input, on an idle box and under
- * load, because the second is what sets the real margin:
+ * NO LONGER A CONSTANT, and no longer defined here: it is a function of how many
+ * bytes the request admitted, derived alongside the byte caps in `cost-model.ts`.
+ * It lived here as `LINT_DEADLINE_MS = 60_000` while one worst-case buffer was the
+ * only input worth sizing against; a batch cap that had to fit inside it — and did
+ * not — is what made the relationship worth writing down as arithmetic. Read that
+ * module before changing any of it.
  *
- *   ```
- *   buffer at MAX_BUFFER_BYTES (128 KiB)   ~10 s idle   ~23 s under load
- *   cold first call, 162-file project      ~0.8 s idle   ~1.6 s under load
- *   ```
+ * `lintDeadlineMs(MAX_BUFFER_BYTES)` is still exactly 60 s, so every single-file
+ * call behaves as it did.
  *
- * 30 s left only 1.3x headroom over that loaded worst case, so a legal file on a
- * busy machine could have produced a false `timed_out`. 60 s restores ~2.6x.
- *
- * Raising it costs very little, because this deadline CANNOT fire during a
- * synchronous parse anyway (the event loop is blocked — verified: a 400 KiB buffer
- * returned after 45 s against a 30 s deadline). Its real job is ASYNC stalls — a
- * wedged fs call, a hung graph lookup — and those do not correlate with buffer
- * size, so a higher value trades nothing for removing the false-timeout risk. The
- * `MAX_BUFFER_BYTES` bound, not this, is what keeps CPU-bound work finite.
+ * Deliberately NOT re-exported from here. Two import paths for one number is how
+ * the caps drifted apart in the first place; `cost-model.js` is the only home.
  */
-export const LINT_DEADLINE_MS = 60_000;
 
 /**
  * Deadline for the blast radius. Much tighter than the lint's because a graph

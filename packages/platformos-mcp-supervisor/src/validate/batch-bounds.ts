@@ -3,10 +3,10 @@
  *
  * The per-buffer bound (`MAX_BUFFER_BYTES`) is not enough on its own: a batch is a
  * new way to hand the server unbounded work, and N individually-legal buffers add
- * up. At the measured ~61 ms/KiB, a request has to be bounded in total, not just
- * per file.
+ * up. At the measured `LINT_MS_PER_KIB`, a request has to be bounded in total, not
+ * just per file.
  */
-import { MAX_BUFFER_BYTES } from '../adapter-input.js';
+import { LINT_MS_PER_KIB, MAX_LINT_DEADLINE_MS, maxBytesWithin } from '../cost-model.js';
 import type { Declined } from '../result/types.js';
 import type { BufferToValidate } from './validate-buffers.js';
 
@@ -22,11 +22,18 @@ export const MAX_BATCH_FILES = 50;
 /**
  * Most total bytes in one request.
  *
- * Set to four worst-case single buffers, so a batch can never cost more than a
- * handful of legal single calls. Without it, 50 files just under `MAX_BUFFER_BYTES`
- * would be ~6 MiB — minutes of parsing.
+ * DERIVED, not chosen: the largest request whose scaled deadline still fits inside
+ * the ceiling the server is willing to wait (see `cost-model.ts`). Without any cap,
+ * 50 files just under `MAX_BUFFER_BYTES` would be ~6 MiB — minutes of parsing.
+ *
+ * It was previously `4 * MAX_BUFFER_BYTES`, a round multiple that inherited none of
+ * the deadline reasoning `MAX_BUFFER_BYTES` itself was derived from. That held only
+ * while throughput did; when `FilterArity` added per-node work the cap admitted a
+ * batch that could not finish inside the deadline, and every file in such a request
+ * comes back `timed_out` — unchecked, silently. Deriving it means the next change
+ * to the cost model moves this too, and the spec fails if it stops fitting.
  */
-export const MAX_BATCH_BYTES = 4 * MAX_BUFFER_BYTES;
+export const MAX_BATCH_BYTES = maxBytesWithin(MAX_LINT_DEADLINE_MS);
 
 /**
  * A refusal when the request exceeds its file-count or total-byte cap, else
@@ -56,8 +63,9 @@ export function batchTooLarge(buffers: readonly BufferToValidate[]): Declined | 
       reason:
         `The request totals ${Math.round(bytes / 1024)} KiB, above the ${Math.round(
           MAX_BATCH_BYTES / 1024,
-        )} KiB limit. Validation costs about 61 ms per KiB, so checking this would take minutes. ` +
-        `Nothing was checked — split it into smaller batches.`,
+        )} KiB limit. Validation costs about ${LINT_MS_PER_KIB} ms per KiB, so checking this ` +
+        `would take longer than this server will wait. Nothing was checked — split it into ` +
+        `smaller batches.`,
     };
   }
 

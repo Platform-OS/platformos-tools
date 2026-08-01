@@ -27,7 +27,8 @@ import {
   ignoredByProjectConfig,
   toAbsoluteFilePath,
 } from '../adapter-input.js';
-import { IMPACT_DEADLINE_MS, LINT_DEADLINE_MS, type SupervisorContext } from '../context.js';
+import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
+import { lintDeadlineMs } from '../cost-model.js';
 import { TIMED_OUT, withDeadline } from '../deadline.js';
 import { runImpact } from '../impact/impact.js';
 import { runBatchLint, type BatchBuffer, type BatchLintResult } from '../lint/lint-batch.js';
@@ -75,10 +76,15 @@ export async function validateBuffers(
 
   const { declined, lintable } = partition(ctx.projectDir, buffers);
 
+  // Computed ONCE and threaded to both the timer and the message that reports it.
+  // Deriving it twice would let the two disagree about the deadline a caller was
+  // actually held to, and the message is the only place a caller can see it.
+  const lintDeadline = lintDeadlineMs(admittedBytes(lintable));
+
   // Concurrently: the lint is the long pole and impact must hide behind it. Running
   // these in sequence added the whole blast-radius cost (~142 ms) to every call.
   const [lint, impacts] = await Promise.all([
-    lintWithDeadline(ctx, adapters, lintable),
+    lintWithDeadline(ctx, adapters, lintable, lintDeadline),
     impactWithDeadline(ctx, adapters, lintable),
   ]);
 
@@ -98,7 +104,7 @@ export async function validateBuffers(
   return new Map(
     buffers.map((buffer) => [
       buffer.filePath,
-      resultFor(buffer.filePath, declined, diagnostics, impacts),
+      resultFor(buffer.filePath, declined, diagnostics, impacts, lintDeadline),
     ]),
   );
 }
@@ -150,22 +156,34 @@ type DiagnosticsByFile = Map<string, ValidateCodeDiagnostic[]>;
  *
  * The deadline is a backstop against an async stall, NOT cancellation: a
  * synchronous parse blocks the event loop and the timer cannot even fire during it
- * (see `deadline.ts`). What bounds CPU-bound work is `MAX_BUFFER_BYTES`.
+ * (see `deadline.ts`). What bounds CPU-bound work is `MAX_BUFFER_BYTES` and
+ * `MAX_BATCH_BYTES`.
+ *
+ * It is sized from the bytes ACTUALLY ADMITTED — the lintable ones, after the
+ * declined buffers were dropped — because those are the only ones the lint will
+ * spend time on. Charging a request for a 200 KiB buffer that was refused unread
+ * would grant a deadline for work nobody is doing.
  */
 async function lintWithDeadline(
   ctx: SupervisorContext,
   adapters: ValidateAdapters,
   lintable: BatchBuffer[],
+  deadline: number,
 ): Promise<BatchLintResult | typeof TIMED_OUT> {
   if (lintable.length === 0) return { diagnostics: new Map(), ignored: new Set() };
 
   const work = adapters.lint({ projectDir: ctx.projectDir, buffers: lintable }, ctx.appCache);
-  const outcome = await withDeadline(work, LINT_DEADLINE_MS);
+  const outcome = await withDeadline(work, deadline);
   if (outcome !== TIMED_OUT) return outcome;
 
   observeAbandoned(ctx, work, 'lint');
-  ctx.log(`validate_code: lint exceeded ${LINT_DEADLINE_MS} ms`);
+  ctx.log(`validate_code: lint exceeded ${deadline} ms`);
   return TIMED_OUT;
+}
+
+/** Total UTF-8 bytes handed to the lint — what the deadline is sized against. */
+function admittedBytes(lintable: readonly BatchBuffer[]): number {
+  return lintable.reduce((total, buffer) => total + Buffer.byteLength(buffer.content, 'utf8'), 0);
 }
 
 /**
@@ -231,6 +249,7 @@ function resultFor(
   declined: ReadonlyMap<string, Declined>,
   diagnostics: DiagnosticsByFile | typeof TIMED_OUT,
   impacts: ReadonlyMap<string, ValidateCodeImpact>,
+  lintDeadline: number,
 ): ValidateCodeResult {
   const refusal = declined.get(filePath);
   if (refusal) return assembleNotApplicableResult(refusal);
@@ -239,7 +258,7 @@ function resultFor(
     return assembleNotApplicableResult({
       code: 'timed_out',
       reason:
-        `Validation exceeded ${Math.round(LINT_DEADLINE_MS / 1000)} s and was abandoned, so ` +
+        `Validation exceeded ${Math.round(lintDeadline / 1000)} s and was abandoned, so ` +
         `nothing conclusive was checked for \`${filePath}\`. Treat this as "unknown", not as a ` +
         `verdict on the file. Retrying — with fewer files, if this was a batch — may succeed.`,
     });

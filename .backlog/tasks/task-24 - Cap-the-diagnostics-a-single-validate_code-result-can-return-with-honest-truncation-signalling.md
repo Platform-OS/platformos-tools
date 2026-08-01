@@ -6,16 +6,20 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-01 02:59'
+updated_date: '2026-08-01 20:15'
 labels:
   - mcp-supervisor
   - agent-surface
 dependencies: []
 references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS.md
+  - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS-ROUND3.md
 modified_files:
   - packages/platformos-mcp-supervisor/src/result/assemble.ts
   - packages/platformos-mcp-supervisor/src/result/types.ts
-priority: medium
+  - packages/platformos-mcp-supervisor/src/transport/instructions.ts
+  - packages/platformos-mcp-supervisor/src/transport/validate-code.ts
+priority: high
 ---
 
 ## Description
@@ -56,4 +60,39 @@ Note that a file with thousands of offences is nearly always a file with a small
 - [ ] #6 The interaction with batches is decided and tested — whether the cap is per file, per request, or both
 - [ ] #7 Diagnostics remain ordered by line then column within each bucket, so the retained head is the top of the file
 - [ ] #8 The tool description and server instructions state the cap and what a truncated result means
+- [ ] #9 The cap is stated in TOKENS or bytes of serialized payload, not only in diagnostic count — the count is a proxy and the constraint being defended is the agent's context window
+- [ ] #10 The batch case is bounded as a REQUEST, not only per file: 4 legal buffers currently multiply to 1.3 MiB, so a per-file cap alone leaves the worst case ~4x the intended bound
+- [ ] #11 A pinned measurement of the worst legal single call and the worst legal batch, before and after, so the bound is demonstrated rather than asserted
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+MEASURED 2026-08-01 against the current build, through the real pipeline. The recorded 276 KiB figure is stale and understates this by more than 2x. Buffer filled with a single repeated offending construct (`{{ 'a' | no_such_filter_xyz }}`), sized to the caps:
+
+| Request | Diagnostics | Payload | ~tokens @ 4 B |
+|---|---|---|---|
+| 1 file at MAX_BUFFER_BYTES (128 KiB) | 4 228 errors | **634 KiB** | **~162 000** |
+| 4 files at MAX_BATCH_BYTES (266 KiB) | 8 784 | **1 313 KiB** | **~336 000** |
+
+So one legal `validate_code` call can return more tokens than most context windows hold, and the supervisor is designed to be called before EVERY write. This is the common path, not an edge case.
+
+The shape of the problem is worth stating plainly: every dimension of the REQUEST is now bounded — buffer bytes, batch files, batch bytes, and since TASK-23 the deadline is derived from the bytes admitted. The RESPONSE is the one unbounded dimension left, and it is ~5x the input it came from. A 266 KiB request producing a 1.3 MiB answer is the inversion that makes this the highest-value remaining item on the agent surface.
+
+IMPLEMENTATION CONSTRAINT, sharpened. The existing note that silent truncation is worse than a large payload is right, and there is now a concrete precedent for how to satisfy it: `blocking-emission.spec.ts` and `cost-model.spec.ts` both assert RELATIONSHIPS rather than values, and the truncation signal should be pinned the same way — `returned <= cap`, `total >= returned`, and `must_fix_before_write` computed from the pre-truncation set. The last of those is the one that must be sabotage-verified: a case whose ONLY blocking error sorts beyond the cap has to still block. That is the single assertion standing between a cap and a false approval.
+
+OPEN QUESTION worth resolving early, because it changes the design: does the MCP stdio transport or a typical client impose its own frame or message limit? A 1.3 MiB JSON-RPC frame may already be failing somewhere before it reaches the model, in which case the current behaviour is not 'large payload' but 'call fails', and the truncation work is a correctness fix rather than an ergonomics one. Not measured.
+
+OPEN QUESTION ABOVE IS NOW RESOLVED — the transport is not the limit, so this stays an AGENT-SURFACE task and not a correctness one. Drove the real stdio bin with the official MCP SDK client (same path as `test/integration/stdio-smoke.spec.ts`), worst legal batch:
+
+```
+DELIVERED over stdio
+  frame bytes  1,344,856
+  diagnostics  8,784
+  elapsed      14,610 ms
+```
+
+A 1.28 MiB JSON-RPC frame is delivered intact, parses, and carries every diagnostic. Nothing upstream truncates or rejects it. So the payload reaches the model in full, and the damage is entirely context-window consumption rather than a failed call — which is worse in one specific way: there is no error to notice. The agent simply loses most of its working context to one tool result and has no signal that anything unusual happened.
+
+That also removes one design option: a cap cannot be justified as 'the transport would drop it anyway'. It is a deliberate ergonomics judgement about how much of an agent's context one call may spend, and the constant needs to carry that rationale rather than a technical limit.
+<!-- SECTION:NOTES:END -->

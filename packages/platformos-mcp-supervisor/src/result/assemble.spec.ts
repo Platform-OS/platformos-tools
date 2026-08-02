@@ -33,7 +33,7 @@ describe('Unit: assembleResult', () => {
     const warning = diag({ severity: 'warning', check: 'W' });
     const info = diag({ severity: 'info', check: 'I' });
 
-    expect(assembleResult([error, warning, info], 'full')).toEqual({
+    expect(assembleResult([error, warning, info])).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
@@ -47,7 +47,7 @@ describe('Unit: assembleResult', () => {
     const error = diag({ severity: 'error' });
     const warning = diag({ severity: 'warning' });
 
-    expect(assembleResult([error, warning], 'full')).toEqual({
+    expect(assembleResult([error, warning])).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'error',
       must_fix_before_write: true,
@@ -60,7 +60,7 @@ describe('Unit: assembleResult', () => {
     const warning = diag({ severity: 'warning' });
     const info = diag({ severity: 'info' });
 
-    expect(assembleResult([warning, info], 'full')).toEqual({
+    expect(assembleResult([warning, info])).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'warning',
       must_fix_before_write: false,
@@ -70,27 +70,17 @@ describe('Unit: assembleResult', () => {
   });
 
   it('derives status = ok with an empty envelope for no diagnostics', () => {
-    expect(assembleResult([], 'full')).toEqual({
+    expect(assembleResult([])).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
     });
   });
 
-  it('returns the same result for `full` and `quick` — the mode is reserved and does nothing yet', () => {
-    const diagnostics = [
-      diag({ severity: 'error' }),
-      diag({ severity: 'warning' }),
-      diag({ severity: 'info' }),
-    ];
-
-    expect(assembleResult(diagnostics, 'quick')).toEqual(assembleResult(diagnostics, 'full'));
-  });
-
   it('derives status = ok for infos only', () => {
     const info = diag({ severity: 'info' });
 
-    expect(assembleResult([info], 'quick')).toEqual({
+    expect(assembleResult([info])).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,

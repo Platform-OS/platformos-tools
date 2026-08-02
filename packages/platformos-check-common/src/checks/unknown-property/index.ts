@@ -53,7 +53,7 @@ export const UnknownProperty: LiquidCheckDefinition = {
     const ast = context.file.ast;
     if (isError(ast)) return {};
 
-    const locator = new DocumentsLocator(context.fs);
+    const locator = new DocumentsLocator(context.fs, context.app);
     const rootUri = URI.parse(context.config.rootUri);
 
     // Cache for GraphQL schema

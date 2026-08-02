@@ -1,4 +1,4 @@
-import { FixApplicator, Offense, SourceCodeType, App } from '../types';
+import { appFiles, FixApplicator, Offense, SourceCodeType, App } from '../types';
 import { WithRequired } from '../utils/types';
 import { createCorrector } from './correctors';
 import { flattenFixes } from './utils';
@@ -21,7 +21,7 @@ export async function autofix(sourceCodes: App, offenses: Offense[], applyFixes:
 
   const promises = [];
 
-  for (const sourceCode of sourceCodes) {
+  for (const sourceCode of appFiles(sourceCodes)) {
     const sourceCodeOffenses = fixableOffenses.filter((offense) => offense.uri === sourceCode.uri);
 
     if (sourceCodeOffenses.length === 0) {

@@ -6,6 +6,7 @@ import {
   DidChangeWatchedFilesNotification,
   DidRenameFilesNotification,
   FileChangeType,
+  InitializeRequest,
   PublishDiagnosticsNotification,
   DefinitionRequest,
 } from 'vscode-languageserver';
@@ -85,6 +86,45 @@ describe('Module: server', () => {
     connection.setup();
     await flushAsync();
     expect(logger).toHaveBeenCalledWith("[SERVER] Let's roll!");
+  });
+
+  /**
+   * The two globs the client filters on before it tells us anything. Both are
+   * `SOURCE_FILE_GLOB`, so the extensions match what the linter walks — the
+   * literals below are spelled out on purpose, so a change to the source
+   * extensions shows up here as a diff rather than as a tautology.
+   */
+  it('asks the client to report renames of every source file, plus assets', async () => {
+    const result: any = await connection.triggerRequest(InitializeRequest.method, {
+      capabilities: {},
+      initializationOptions: {},
+    });
+
+    expect(result.capabilities.workspace.fileOperations).toEqual({
+      didRename: {
+        filters: [
+          { pattern: { glob: '**/*.{liquid,yml,graphql}' } },
+          { pattern: { glob: '**/assets/*' } },
+        ],
+      },
+    });
+  });
+
+  it('watches every source file, plus css', async () => {
+    connection.setup({ workspace: { didChangeWatchedFiles: { dynamicRegistration: true } } });
+    await flushAsync();
+
+    const registrations = connection.spies.sendRequest.mock.calls
+      .filter(([method]: any[]) => method === 'client/registerCapability')
+      .flatMap(([, params]: any[]) => params.registrations)
+      .filter((registration: any) => registration.method === 'workspace/didChangeWatchedFiles')
+      .map((registration: any) => registration.registerOptions);
+
+    expect(registrations).toEqual([
+      {
+        watchers: [{ globPattern: '**/*.{liquid,yml,graphql}' }, { globPattern: '**/*.css' }],
+      },
+    ]);
   });
 
   it('should debounce calls to runChecks', async () => {

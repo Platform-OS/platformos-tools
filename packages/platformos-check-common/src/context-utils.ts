@@ -1,15 +1,23 @@
 import { load } from 'js-yaml';
-import {
-  AbstractFileSystem,
-  FileTuple,
-  FileType,
-  RouteTable,
-  TranslationProvider,
-  UriString,
-} from '@platformos/platformos-common';
+import { AbstractFileSystem, RouteTable, TranslationProvider } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { join } from './path';
-import { SourceCodeType, App, Translations } from './types';
+import { App, appFiles, SourceCodeType, Translations } from './types';
+
+/**
+ * The contents of an OPEN editor buffer for `uri`, or `undefined` when the file's
+ * authoritative contents are whatever is on disk.
+ *
+ * A version is what makes a file a buffer — that is the language-server
+ * convention the whole toolchain shares, and `undefined` means "on disk". Keying
+ * on it rather than on "is this file in the app object" is also what keeps
+ * translations correct once files load lazily: an unloaded on-disk file has no
+ * contents to offer, and forcing a read to find that out would defeat the point.
+ */
+function openBufferSource(app: App, uri: string): string | undefined {
+  const file = appFiles(app).find((sourceCode) => sourceCode.uri === uri);
+  return file === undefined || file.version === undefined ? undefined : file.source;
+}
 
 /**
  * Returns a function that loads and merges ALL translation files for a given
@@ -33,8 +41,7 @@ export const makeGetTranslationsForBase = (fs: AbstractFileSystem, app: App) => 
   return (translationBaseUri: string, locale: string): Promise<Translations> => {
     const key = `${translationBaseUri}::${locale}`;
     if (!cache.has(key)) {
-      const contentOverride = (uri: string): string | undefined =>
-        app.find((sc) => sc.type === SourceCodeType.YAML && sc.uri === uri)?.source;
+      const contentOverride = (uri: string): string | undefined => openBufferSource(app, uri);
 
       cache.set(
         key,
@@ -99,12 +106,14 @@ async function getDefaultTranslations(
   app: App,
   rootUri: string,
 ): Promise<Translations> {
+  const defaultLocaleUri = join(rootUri, 'app/translations/en.yml');
   try {
-    const bufferTranslations = getDefaultTranslationsFromBuffer(app);
-    if (bufferTranslations) return bufferTranslations;
-    const defaultLocaleFile = await getDefaultLocaleFile(fs, rootUri);
-    if (!defaultLocaleFile) return {};
-    const yamlContent = await fs.readFile(defaultLocaleFile);
+    // An unsaved edit to the reference locale file is what the rest of the run
+    // should be checked against, so it wins over the copy on disk.
+    const yamlContent =
+      openBufferSource(app, defaultLocaleUri) ??
+      ((await getDefaultLocaleFile(fs, rootUri)) && (await fs.readFile(defaultLocaleUri)));
+    if (!yamlContent) return {};
     const data = load(yamlContent) as Record<string, any>;
     if (!data || typeof data !== 'object') return {};
     // YAML translation files wrap content under the locale key: { en: { hello: 'Hello' } }
@@ -116,45 +125,46 @@ async function getDefaultTranslations(
   }
 }
 
-/** It might be that you have an open buffer, we prefer translations from there if available */
-function getDefaultTranslationsFromBuffer(app: App): Translations | undefined {
-  const defaultTranslationsSourceCode = app.find(
-    (sourceCode) => sourceCode.type === SourceCodeType.YAML && sourceCode.uri.endsWith('/en.yml'),
-  );
-  if (!defaultTranslationsSourceCode) return undefined;
-  try {
-    const data = load(defaultTranslationsSourceCode.source) as Record<string, any>;
-    if (!data || typeof data !== 'object') return undefined;
-    const localeKey = Object.keys(data)[0];
-    return (localeKey && data[localeKey]) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
+/**
+ * The run's `getRouteTable`: at most one table per run, produced the first time a
+ * check asks for one.
+ *
+ * The laziness is the point, not a detail. Every page in the project has to be read
+ * to know its route — whole-project I/O that no amount of lazy parsing avoids — and
+ * `MissingPage` is the only check that consumes it. On real projects 3-13% of Liquid
+ * files contain an `<a href>` or `<form action>` at all, so a run that resolves the
+ * table up front does that I/O for nothing nine times out of ten.
+ */
 export function makeGetRouteTable(
   fs: AbstractFileSystem,
   rootUri: string,
-  existingTable?: RouteTable,
+  existing?: RouteTable | (() => Promise<RouteTable>),
 ): () => Promise<RouteTable> {
-  const table = existingTable ?? new RouteTable(fs);
-  let buildPromise: Promise<RouteTable> | null = null;
+  let tablePromise: Promise<RouteTable> | null = null;
   return () => {
-    if (!buildPromise) {
-      if (table.isBuilt()) {
-        buildPromise = Promise.resolve(table);
-      } else {
-        buildPromise = table
-          .build(URI.parse(rootUri))
-          .then(() => table)
-          .catch((err) => {
-            buildPromise = null;
-            throw err;
-          });
-      }
+    if (!tablePromise) {
+      tablePromise = resolveRouteTable(fs, rootUri, existing).catch((err) => {
+        tablePromise = null;
+        throw err;
+      });
     }
-    return buildPromise;
+    return tablePromise;
   };
+}
+
+async function resolveRouteTable(
+  fs: AbstractFileSystem,
+  rootUri: string,
+  existing?: RouteTable | (() => Promise<RouteTable>),
+): Promise<RouteTable> {
+  // A provider owns making its own table current, so it is asked rather than built
+  // from: check-node's reconciles a process-level table against the pages on disk,
+  // which a `build()` here would throw away and redo.
+  if (typeof existing === 'function') return existing();
+
+  const table = existing ?? new RouteTable(fs);
+  if (!table.isBuilt()) await table.build(URI.parse(rootUri));
+  return table;
 }
 
 function cached<T>(fn: () => Promise<T>): () => Promise<T>;
@@ -164,41 +174,4 @@ function cached<T>(fn: (...args: any[]) => Promise<T>): (...args: any[]) => Prom
     if (!cachedPromise) cachedPromise = fn(...args);
     return cachedPromise;
   };
-}
-
-export async function recursiveReadDirectory(
-  fs: AbstractFileSystem,
-  uri: string,
-  filter: (fileTuple: FileTuple) => boolean,
-): Promise<UriString[]> {
-  let allFiles: FileTuple[];
-  try {
-    allFiles = await fs.readDirectory(uri);
-  } catch (err: any) {
-    if (err?.code === 'ENOENT') return [];
-    throw err;
-  }
-  const files = allFiles.filter((ft) => !isIgnored(ft) && (isDirectory(ft) || filter(ft)));
-
-  const results = await Promise.all(
-    files.map((ft) => {
-      if (isDirectory(ft)) {
-        return recursiveReadDirectory(fs, ft[0], filter);
-      } else {
-        return Promise.resolve([ft[0]]);
-      }
-    }),
-  );
-
-  return results.flat();
-}
-
-export function isDirectory([_, type]: FileTuple) {
-  return type === FileType.Directory;
-}
-
-const ignoredFolders = ['.git', 'node_modules', 'dist', 'build', 'tmp', 'vendor'];
-
-function isIgnored([uri, type]: FileTuple) {
-  return type === FileType.Directory && ignoredFolders.some((folder) => uri.endsWith(folder));
 }

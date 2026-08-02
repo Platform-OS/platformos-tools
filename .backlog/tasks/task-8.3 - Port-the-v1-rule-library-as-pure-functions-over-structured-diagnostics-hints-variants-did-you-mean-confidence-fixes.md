@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:56'
+updated_date: '2026-08-01 21:00'
 labels: []
 dependencies:
   - TASK-8.1
@@ -52,3 +53,15 @@ This is the bulk of `validate_code`'s "tool for LLM" value: variant hints, did-y
 - [ ] #4 Agent fixes are produced by executing the Offense Fixer through a StringCorrector to FixDescription[] and mapping to the agent Fix shape, not by regenerating edits
 - [ ] #5 Confidence is assigned statically; no analytics/case-base machinery is reintroduced
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Do not port the `OrphanedPartial` rules (2026-08-01)
+
+v1's rule library has `suppressOrphanedPartial` and `verifyOrphanedPartialOnDisk`,
+and the legacy architecture doc lists `OrphanedPartial` among the warnings a result
+must survive. The check no longer exists — removed with the `singleFileOnly`
+partition, see TASK-29 — so both rules have nothing to act on, and any v1-parity
+baseline that contains an `OrphanedPartial` diagnostic is a deliberate diff.
+<!-- SECTION:NOTES:END -->

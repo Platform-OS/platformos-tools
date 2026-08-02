@@ -25,7 +25,7 @@ export const nodeFileSystem: AbstractFileSystem = {
   async readDirectory(uri: string): Promise<FileTuple[]> {
     const entries = await fs.readdir(path.fsPath(uri), { withFileTypes: true });
     return entries.map((entry) => [
-      path.join(uri, entry.name),
+      path.childUri(uri, entry.name),
       entry.isDirectory() ? FileType.Directory : FileType.File,
     ]);
   },

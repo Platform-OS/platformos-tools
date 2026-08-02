@@ -1,3 +1,4 @@
+import { getTranslationBase, PlatformOSFileType } from '@platformos/platformos-common';
 import {
   YAMLCheckDefinition,
   JSONNode,
@@ -23,27 +24,16 @@ function getLocaleFromAst(ast: JSONNode | Error): string | null {
   return firstProp.key.value || null;
 }
 
-/**
- * Extracts the translations base directory from a relative file path.
- *
- * e.g. `app/translations/pt-BR.yml`           → `app/translations`
- *      `app/translations/pt-BR/validation.yml` → `app/translations`
- *      `modules/x/public/translations/en.yml`  → `modules/x/public/translations`
- *
- * Returns `null` if the path doesn't contain a `/translations/` segment.
- */
-function getTranslationRelativeBase(relativePath: string): string | null {
-  const idx = relativePath.lastIndexOf('/translations/');
-  if (idx === -1) return null;
-  return relativePath.substring(0, idx + '/translations'.length);
-}
-
 export const MatchingTranslations: YAMLCheckDefinition = {
   meta: {
     code: 'MatchingTranslations',
     name: 'Translation files should have the same keys',
     docs: {
-      description: 'TODO',
+      description:
+        'Every key in the default `en` locale should exist in each other locale, and ' +
+        'no locale should define a key `en` does not. A key missing from a locale falls ' +
+        'back to showing the key itself, and a key only that locale has is dead weight ' +
+        'nothing will ever look up.',
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/matching-translations',
     },
@@ -65,7 +55,7 @@ export const MatchingTranslations: YAMLCheckDefinition = {
     const ast = file.ast;
 
     // ── Guard: only lint translation files ────────────────────────────────
-    const isTranslationFile = relativePath.includes('/translations/');
+    const isTranslationFile = context.fileType(fileUri) === PlatformOSFileType.Translation;
 
     // The locale is always the first top-level key in the YAML file (e.g. `en`,
     // `pt-BR`). platformOS resolves locale from content, not from the file path.
@@ -76,7 +66,7 @@ export const MatchingTranslations: YAMLCheckDefinition = {
     }
 
     // ── Derive scope (translation base URI) ──────────────────────────────
-    const relativeBase = getTranslationRelativeBase(relativePath);
+    const relativeBase = getTranslationBase(relativePath);
     if (!relativeBase) return {};
 
     const translationBaseUri = context.toUri(relativeBase);

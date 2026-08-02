@@ -2,7 +2,15 @@ import { LiquidHtmlNode, NodeTypes as LiquidHtmlNodeTypes } from '@platformos/li
 
 import { Schema, Settings } from './types/schema-prop-factory';
 
-import { AbstractFileSystem, RouteTable, UriString } from '@platformos/platformos-common';
+import {
+  AbstractFileSystem,
+  App as AppModel,
+  AppFile,
+  PlatformOSFileType,
+  RouteTable,
+  SourceCodeType,
+  UriString,
+} from '@platformos/platformos-common';
 import { JSONCorrector, StringCorrector } from './fixes';
 
 import {
@@ -29,7 +37,30 @@ export const isPropertyNode = (node?: ASTNode): node is PropertyNode => node?.ty
 export const isValueNode = (node?: ASTNode): node is ValueNode => node?.type === 'Value';
 export const isLiteralNode = (node?: ASTNode): node is LiteralNode => node?.type === 'Literal';
 
-export type App = SourceCode<SourceCodeType>[];
+/**
+ * The files a check run can see.
+ *
+ * Either an {@link AppModel} — the lazy object model that reads and parses only
+ * what somebody asks for — or a plain array of sources that are already parsed.
+ * The array form is what callers who build their own files pass (a fixture, an
+ * editor's open documents); {@link appFiles} collapses both to one code path at
+ * the boundary, so nothing downstream branches on it.
+ */
+export type App = AppModel | SourceCode<SourceCodeType>[];
+
+export type { AppModel, AppFile };
+
+/**
+ * The files of an {@link App}, whichever form it arrived in.
+ *
+ * An {@link AppFile} is structurally a `SourceCode` — same `uri` / `type` /
+ * `source` / `ast` / `version` — but its `ast` is typed `unknown` because
+ * `platformos-common` sits below the parsers that produce ASTs. The cast is where
+ * that knowledge is re-attached, and it is the only place it happens.
+ */
+export function appFiles(app: App): SourceCode<SourceCodeType>[] {
+  return Array.isArray(app) ? app : (app.sourceCodes() as unknown as SourceCode<SourceCodeType>[]);
+}
 
 export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
   ? {
@@ -43,14 +74,20 @@ export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
       source: string;
       /** The AST representation of the file, or an Error instance when the file is unparseable */
       ast: AST[T] | Error;
+      /**
+       * Reads `source` into memory, for a file whose contents are not there yet.
+       *
+       * Present on {@link AppFile}, absent on sources that were built eagerly and
+       * are therefore already loaded. A consumer that intends to read `source` or
+       * `ast` of a file it did not build must await this first.
+       */
+      load?: () => Promise<void>;
+      /** `source` if it is already in memory, `undefined` on an unloaded {@link AppFile}. */
+      loadedSource?: string;
     }
   : never;
-export enum SourceCodeType {
-  JSON = 'JSON',
-  LiquidHtml = 'LiquidHtml',
-  GraphQL = 'GraphQL',
-  YAML = 'YAML',
-}
+
+export { SourceCodeType };
 
 export type LiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml>;
 export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
@@ -370,16 +407,29 @@ export interface Dependencies {
   getDocDefinition?: (relativePath: string) => Promise<DocDefinition | undefined>;
 
   /**
-   * Get references to a file (which files reference this file)
-   * Returns an empty array if no files reference this file
+   * The run's RouteTable, or a provider that produces it on first use.
+   *
+   * A table (e.g. the LSP's, kept current by file events) is reused instead of
+   * building a new one per run. A PROVIDER is for a caller whose table costs
+   * something to make current — check-node reconciles a process-level table
+   * against the pages on disk — and is called only if a check actually asks for
+   * routes, which no check does unless the file under it links somewhere.
    */
-  getReferences?: (uri: string) => Promise<Reference[]>;
+  routeTable?: RouteTable | (() => Promise<RouteTable>);
+}
 
+/** What {@link check} adds to the {@link Dependencies} a caller injects. */
+export interface DerivedDependencies {
   /**
-   * Optional pre-built RouteTable. When provided (e.g. by the LSP),
-   * the check pipeline reuses it instead of building a new one per run.
+   * The run's {@link AppModel}, when it was given one.
+   *
+   * `check` fills this in so checks can resolve a `{% render %}` /
+   * `{% graphql %}` / `{% asset %}` name through the app's index — an O(1) lookup
+   * — instead of `stat`-ing candidate directories in order, which cost ~40,000
+   * `stat` calls per whole-project run on a 400-partial project. Hand it to
+   * `DocumentsLocator`; it falls back to the walk when this is absent.
    */
-  routeTable?: RouteTable;
+  app?: AppModel;
 }
 
 export type ValidateJSON = (
@@ -389,7 +439,7 @@ export type ValidateJSON = (
 
 export type IsValidSchema = (uri: string, jsonString: string) => Promise<boolean>;
 
-export interface AugmentedDependencies extends Dependencies {
+export interface AugmentedDependencies extends Dependencies, DerivedDependencies {
   fileExists: (uri: UriString) => Promise<boolean>;
   fileSize: (uri: UriString) => Promise<number>;
   getDefaultLocale: () => Promise<string>;
@@ -411,6 +461,17 @@ type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeTyp
       report(problem: Problem<T>): void;
       toRelativePath(uri: UriString): RelativePath;
       toUri(relativePath: RelativePath): UriString;
+      /**
+       * What the platform does with the file at `uri`, or `undefined` when it is not
+       * part of the app — anchored at `config.rootUri`.
+       *
+       * Checks must classify through this rather than by calling `getFileType(uri)`
+       * with a bare URI, which cannot be anchored and so answers a different question:
+       * `seed/post_import/app/migrations/x.liquid` contains `app/migrations/` and is
+       * not a migration. Defaults to the file being checked, which is what almost
+       * every caller wants.
+       */
+      fileType(uri?: UriString): PlatformOSFileType | undefined;
       file: SourceCode<T>;
       validateJSON?: ValidateJSON;
     }

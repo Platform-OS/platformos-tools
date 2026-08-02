@@ -58,9 +58,6 @@ MissingRenderPartialArguments:
 NestedGraphQLQuery:
   enabled: true
   severity: 1
-OrphanedPartial:
-  enabled: true
-  severity: 1
 ParserBlockingScript:
   enabled: true
   severity: 0

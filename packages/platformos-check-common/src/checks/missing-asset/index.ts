@@ -20,7 +20,7 @@ export const MissingAsset: LiquidCheckDefinition = {
   },
 
   create(context) {
-    const documentsLocator = new DocumentsLocator(context.fs);
+    const documentsLocator = new DocumentsLocator(context.fs, context.app);
     return {
       async LiquidVariable(node) {
         if (node.filters.length === 0 || node.filters[0].name !== 'asset_url') {

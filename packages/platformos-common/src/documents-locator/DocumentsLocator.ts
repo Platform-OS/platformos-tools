@@ -1,6 +1,15 @@
 import yaml from 'js-yaml';
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
-import { getAppPaths, getModulePaths, parseModulePrefix, PlatformOSFileType } from '../path-utils';
+import { App } from '../app';
+import {
+  getAppPaths,
+  getFixedFilePath,
+  getModulePaths,
+  nameToCreationPath,
+  nameToPaths,
+  parseModulePrefix,
+  PlatformOSFileType,
+} from '../path-utils';
 import { URI, Utils } from 'vscode-uri';
 
 export type DocumentType =
@@ -12,6 +21,13 @@ export type DocumentType =
   | 'asset'
   | 'theme_render_rc';
 
+/** Which platformOS file type each resolvable reference kind points at. */
+const FILE_TYPE_BY_DOCUMENT_TYPE = {
+  partial: PlatformOSFileType.Partial,
+  graphql: PlatformOSFileType.GraphQL,
+  asset: PlatformOSFileType.Asset,
+} as const satisfies Record<'partial' | 'graphql' | 'asset', PlatformOSFileType>;
+
 /**
  * Load theme_search_paths from app/config.yml.
  * Returns null if the file doesn't exist, is malformed, or has no valid theme_search_paths.
@@ -22,7 +38,12 @@ export async function loadSearchPaths(
   rootUri: URI,
 ): Promise<string[] | null> {
   try {
-    const configUri = Utils.joinPath(rootUri, 'app/config.yml').toString();
+    // Where the config file lives is this package's own knowledge; spelling the path
+    // here would be a second copy of it inside the package that defines it.
+    const configUri = Utils.joinPath(
+      rootUri,
+      getFixedFilePath(PlatformOSFileType.InstanceConfig)!,
+    ).toString();
     const content = await fs.readFile(configUri);
     const config = yaml.load(content) as Record<string, unknown> | null;
     const paths = config?.theme_search_paths;
@@ -39,7 +60,15 @@ export async function loadSearchPaths(
 const MAX_DYNAMIC_PATH_EXPANSIONS = 100;
 
 export class DocumentsLocator {
-  constructor(private readonly fs: AbstractFileSystem) {}
+  /**
+   * @param fs used to `stat` candidate paths when no {@link App} can answer.
+   * @param app when given, resolves names through its per-type index instead —
+   *   O(1) and no I/O. See {@link locateFile}.
+   */
+  constructor(
+    private readonly fs: AbstractFileSystem,
+    private readonly app?: App,
+  ) {}
 
   private async isFile(path: string): Promise<boolean> {
     try {
@@ -50,36 +79,48 @@ export class DocumentsLocator {
   }
 
   private getSearchPaths(type: 'partial' | 'graphql' | 'asset', moduleName?: string): string[] {
-    const fileType: PlatformOSFileType = {
-      partial: PlatformOSFileType.Partial,
-      graphql: PlatformOSFileType.GraphQL,
-      asset: PlatformOSFileType.Asset,
-    }[type];
+    const fileType = FILE_TYPE_BY_DOCUMENT_TYPE[type];
 
     return moduleName ? getModulePaths(fileType, moduleName) : getAppPaths(fileType);
   }
 
+  /**
+   * Resolve `fileName` to a concrete URI.
+   *
+   * With an {@link App} in hand this is an index lookup: `AppFile#name` IS the
+   * logical name a `render` / `function` / `graphql` / `asset` reference spells, and
+   * the index orders candidates by `getAppPaths`/`getModulePaths` position — the
+   * same order the walk below tries them in — so the two cannot disagree about
+   * which file wins. That matters: the walk costs one `stat` per candidate per CALL
+   * SITE, measured at ~40,000 `stat` calls per whole-project run for 400 distinct
+   * partials.
+   *
+   * It falls back to walking the candidate paths when the app has no answer, which
+   * covers two real cases: a caller with no app (the language server's own
+   * providers), and file types the app does not contain — assets in particular,
+   * since the lint's glob only collects Liquid, GraphQL and YAML. Without the
+   * fallback those would resolve to "missing".
+   *
+   * The one intentional difference: a file that exists only as an unsaved buffer is
+   * found by the index and not by the walk. That is the behaviour a pre-write check
+   * wants — a partial you just created resolves.
+   */
   private async locateFile(
     rootUri: URI,
     fileName: string,
     type: 'partial' | 'graphql' | 'asset',
   ): Promise<string | undefined> {
-    const parsed = parseModulePrefix(fileName);
-    const searchPaths = this.getSearchPaths(type, parsed.isModule ? parsed.moduleName : undefined);
+    const fileType = FILE_TYPE_BY_DOCUMENT_TYPE[type];
 
-    let targetFile = parsed.key;
-    if (type === 'partial') {
-      targetFile += '.liquid';
-    } else if (type === 'graphql') {
-      targetFile += '.graphql';
-    }
+    const indexed = this.app?.find(fileType, fileName);
+    if (indexed) return indexed.uri;
 
-    for (const basePath of searchPaths) {
-      const uri = Utils.joinPath(rootUri, basePath, targetFile).toString();
-
-      if (await this.isFile(uri)) {
-        return uri;
-      }
+    // Candidate paths — including which extension each type resolves with — come from
+    // `nameToPaths`, the proven inverse of `pathToName`. Composing them here is what
+    // let this and `platformos-graph` disagree about where an asset lives.
+    for (const candidate of nameToPaths(fileType, fileName)) {
+      const uri = Utils.joinPath(rootUri, candidate).toString();
+      if (await this.isFile(uri)) return uri;
     }
 
     return undefined;
@@ -259,36 +300,34 @@ export class DocumentsLocator {
    * Returns undefined for theme_render_rc (ambiguous search path) and asset.
    */
   locateDefault(rootUri: URI, nodeName: DocumentType, fileName: string): string | undefined {
-    const parsed = parseModulePrefix(fileName);
-
-    let basePath: string;
-    let ext: string;
-
     switch (nodeName) {
+      // Which directory a new file goes in — `views/partials` for a render,
+      // `lib` for a function, both being Partials — is expressed as an index into
+      // FILE_TYPE_DIRS rather than as a path spelled here.
       case 'render':
       case 'include':
       case 'background':
-        basePath = parsed.isModule
-          ? `modules/${parsed.moduleName}/public/views/partials`
-          : 'app/views/partials';
-        ext = '.liquid';
-        break;
+        return this.creationUri(rootUri, PlatformOSFileType.Partial, fileName, 0);
       case 'function':
-        basePath = parsed.isModule ? `modules/${parsed.moduleName}/public/lib` : 'app/lib';
-        ext = '.liquid';
-        break;
+        return this.creationUri(rootUri, PlatformOSFileType.Partial, fileName, 1);
       case 'graphql':
-        basePath = parsed.isModule ? `modules/${parsed.moduleName}/public/graphql` : 'app/graphql';
-        ext = '.graphql';
-        break;
+        return this.creationUri(rootUri, PlatformOSFileType.GraphQL, fileName, 0);
       case 'theme_render_rc': // ambiguous — multiple search paths, no single canonical location
       case 'asset': // no canonical creation path
         return undefined;
       default:
         return undefined;
     }
+  }
 
-    return Utils.joinPath(rootUri, basePath, parsed.key + ext).toString();
+  private creationUri(
+    rootUri: URI,
+    fileType: PlatformOSFileType,
+    fileName: string,
+    dirIndex: number,
+  ): string | undefined {
+    const path = nameToCreationPath(fileType, fileName, dirIndex);
+    return path ? Utils.joinPath(rootUri, path).toString() : undefined;
   }
 
   /**

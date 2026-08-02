@@ -16,9 +16,9 @@ import {
   LiquidSourceCode,
   Offense,
   recommended,
+  SourceCode,
   SourceCodeType,
   StringCorrector,
-  App,
   toSourceCode,
   YAMLSourceCode,
 } from '../index';
@@ -30,7 +30,13 @@ export { JSONCorrector, StringCorrector };
 
 const rootUri = path.normalize('file:/');
 
-export function getApp(appDesc: MockApp): App {
+/**
+ * Fixtures are handed to `check()` as already-parsed sources rather than as an
+ * `AppModel`, because a fixture path is frequently just `file.liquid` — the model
+ * only holds files that live in a recognized platformOS directory, so it would
+ * drop them.
+ */
+export function getApp(appDesc: MockApp): SourceCode<SourceCodeType>[] {
   return Object.entries(appDesc)
     .map(([relativePath, source]) => toSourceCode(toUri(relativePath), source))
     .filter((x): x is LiquidSourceCode | JSONSourceCode | YAMLSourceCode => x !== undefined);
@@ -44,6 +50,7 @@ export async function check(
   options: CheckOptions = {},
 ): Promise<Offense[]> {
   const app = getApp(appDesc);
+  const checkOptions: CheckOptions = { ...options };
   const config: Config = {
     settings: { ...checkSettings },
     checks,
@@ -124,7 +131,7 @@ export async function check(
     },
   };
 
-  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies }, options);
+  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies }, checkOptions);
 }
 
 export async function runLiquidCheck(

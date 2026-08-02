@@ -135,4 +135,61 @@ describe('Integration: validate_code over stdio', () => {
       ],
     });
   });
+
+  /**
+   * `mode` was a real input once and agents may still send it. The SDK validates
+   * against the shape and drops what is not in it, so an old call still works — which
+   * is the only reason removing the parameter is safe.
+   */
+  it('ignores a retired argument instead of rejecting the call', async () => {
+    const args = {
+      file_path: 'app/views/layouts/application.liquid',
+      content: '<html><body><header>Site</header></body></html>',
+    };
+
+    expect(await validateCode({ ...args, mode: 'full' })).toEqual(await validateCode(args));
+  });
+
+  const DIRECTORY_STRUCTURE =
+    'Directory structure: https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure';
+
+  it('tells the agent when it did not check the file, instead of reporting it clean', async () => {
+    const result = await validateCode({
+      file_path: 'scripts/helper.liquid',
+      content: '<html><body><header>Site</header></body></html>',
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      next_step:
+        'NOT VALIDATED, AND LIKELY MISPLACED: this is a platformOS source file outside every ' +
+        'subtree the platform deploys (app/, marketplace_builder/, modules/*/public/, ' +
+        'modules/*/private/). Nothing checked it, and nothing will load it either — a partial, ' +
+        'page or query here is dead code. Move it under one of those directories unless it is ' +
+        `deliberately a fixture or a build input. ${DIRECTORY_STRUCTURE}`,
+    });
+  });
+
+  /**
+   * A file that is not a platformOS source is often not meant to be one, so it gets
+   * the directory rule and a link rather than "move it under app/".
+   */
+  it('does not tell the agent to move a file that was never meant to be platformOS code', async () => {
+    const result = await validateCode({
+      file_path: 'src/components/Widget.jsx',
+      content: 'export const Widget = () => null;\n',
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      next_step:
+        'NOT VALIDATED: this is not a platformOS source file, so there is nothing to check. ' +
+        'The platform deploys app/, marketplace_builder/, modules/*/public/, ' +
+        `modules/*/private/ only. ${DIRECTORY_STRUCTURE}`,
+    });
+  });
 });

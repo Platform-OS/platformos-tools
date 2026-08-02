@@ -6,19 +6,26 @@ import {
   LiquidSourceCode,
   Offense,
   App,
+  appFiles,
   toSourceCode as commonToSourceCode,
   check as coreCheck,
   extractDocDefinition,
   filePathSupportsLiquidDoc,
   isIgnored,
-  isKnownLiquidFile,
-  isKnownGraphQLFile,
-  isKnownYAMLFile,
   memo,
   path as pathUtils,
+  sourceParsers,
   UriString,
   YAMLSourceCode,
 } from '@platformos/platformos-check-common';
+import {
+  App as AppModel,
+  APP_SOURCE_SUBTREES,
+  Parsers,
+  SOURCE_FILE_EXTENSIONS,
+  SOURCE_FILE_GLOB,
+  walkAppSourceFiles,
+} from '@platformos/platformos-common';
 import {
   PlatformOSLiquidDocsManager,
   downloadPlatformOSLiquidDocs,
@@ -28,18 +35,25 @@ import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URI } from 'vscode-uri';
-import { glob } from 'glob';
 import normalize from 'normalize-path';
 
 import { autofix } from './autofix';
 import { findConfigPath, loadConfig as resolveConfig } from './config';
 import { NodeFileSystem } from './NodeFileSystem';
+import { getSharedRouteTable, resetRouteTable, warmRouteTable } from './route-table';
+import { getSharedApp, resetSharedApp } from './shared-app';
 import { fileURLToPath } from 'node:url';
 
 export * from '@platformos/platformos-check-common';
+// Where an app file can live, and which extensions this toolchain parses, for an
+// embedder that has to EXPLAIN a path it cannot lint. Re-exported rather than
+// respelled: both facts have one home.
+export { APP_SOURCE_SUBTREES, sourceCodeTypeOf } from '@platformos/platformos-common';
 export * from './config/types';
 export { NodeFileSystem };
 export { runBackfillDocsCLI } from './backfill-docs';
+export { resetRouteTable, warmRouteTable };
+export { resetSharedApp };
 /**
  * Download the latest platformOS liquid docs over the local docset, then
  * {@link resetPlatformOSLiquidDocsManager} so the next lint run reads them.
@@ -108,7 +122,7 @@ export async function appCheckRun(
  */
 async function lintApp(
   root: string,
-  app: App,
+  app: AppModel,
   config: Config,
   log: (message: string) => void = () => {},
   only?: UriString[],
@@ -116,15 +130,20 @@ async function lintApp(
   const platformOSLiquidDocsManager = getPlatformOSLiquidDocsManager();
   const rootUri = URI.file(root).toString();
 
+  // One memo per file, built without touching any of them: the `load()` is INSIDE
+  // the memo body, so a file only gets read and parsed if some check actually
+  // resolves a `{% render %}` / `{% function %}` to it. Awaiting the load at map
+  // time instead would load the whole project and undo the point of the model.
   const docDefinitions = new Map(
-    app.map((file) => [
+    appFiles(app).map((file) => [
       path.relative(rootUri, file.uri),
       memo(async (): Promise<DocDefinition | undefined> => {
-        const ast = file.ast;
-        if (!isLiquidHtmlNode(ast)) {
+        if (!filePathSupportsLiquidDoc(file.uri, rootUri)) {
           return undefined;
         }
-        if (!filePathSupportsLiquidDoc(file.uri)) {
+        await file.load?.();
+        const ast = file.ast;
+        if (!isLiquidHtmlNode(ast)) {
           return undefined;
         }
         return extractDocDefinition(file.uri, ast);
@@ -141,6 +160,13 @@ async function lintApp(
         platformosDocset: platformOSLiquidDocsManager,
         jsonValidationSet: platformOSLiquidDocsManager,
         getDocDefinition: async (relativePath) => docDefinitions.get(relativePath)?.(),
+        // A provider, not a table: reconciling one costs a `stat` of every page in the
+        // project, and only `MissingPage` on a file that actually links somewhere needs
+        // it. `check` calls this at most once per run, and only if a check asks — so a
+        // run over Liquid with no `<a href>`/`<form action>` touches no page at all.
+        // The call lands while `lintBuffer`'s overlay is still in place, which is what
+        // lets the buffer's own frontmatter define its own route.
+        routeTable: () => getSharedRouteTable(config.rootUri, app),
       },
       { only },
     ),
@@ -261,15 +287,46 @@ export interface LintBufferParams {
 }
 
 /**
+ * What {@link lintBuffer} did with the file it was given.
+ *
+ * `checked` is the only status whose empty `offenses` means "no problems found".
+ * The other three mean the file was not looked at, and each has a different
+ * remedy, which is why they are not one `skipped` flag.
+ */
+export type LintBufferStatus =
+  /** The checks ran. `offenses` is the complete answer for this buffer. */
+  | 'checked'
+  /** The project's `.platformos-check.yml` `ignore` list covers this path. */
+  | 'excluded-by-config'
+  /** The path is not under `app/`, `marketplace_builder/` or `modules/<name>/(public|private)/`, so it is not part of the app. */
+  | 'not-an-app-file'
+  /** An app file the toolchain has no parser or checks for — an asset (`.js`, `.css`, an image). */
+  | 'not-a-source-file';
+
+export interface LintBufferResult {
+  status: LintBufferStatus;
+  /** The buffer file's offenses. Always empty unless `status` is `checked`. */
+  offenses: Offense[];
+}
+
+/**
  * Lint a single in-memory buffer in the context of its on-disk project.
  *
  * This is the typed seam the MCP supervisor lints through — NOT an LSP, NOT a
  * subprocess. The on-disk project is loaded so cross-file checks
- * (`MissingPartial`, `MissingPage`, `OrphanedPartial`, …) resolve against real
+ * (`MissingPartial`, `MissingPage`, `TranslationKeyExists`, …) resolve against real
  * files, and the buffer under edit is overlaid in memory so the UNSAVED content
  * is what gets linted and cross-referenced. Returns the structured
  * check-common `Offense[]` for the buffer's file, with `fix` / `suggest` and all
  * typed fields preserved end to end (no message-string round-trip).
+ *
+ * **It also says whether it checked the file at all.** Three kinds of path are
+ * never linted — one the config excludes, one outside the app's subtrees, one
+ * that is an asset rather than a source — and each used to come back as an empty
+ * `Offense[]`, which is exactly what a clean file returns. For `pos-cli check`
+ * that is harmless; for a caller that asked "is this file OK before I write it?"
+ * it is the wrong answer given confidently. {@link LintBufferStatus} is that
+ * distinction, and `offenses` is empty for all three.
  *
  * `filePath` must be absolute. When it already exists in the project its
  * on-disk `SourceCode` is replaced by the buffer; when it is new (not yet
@@ -284,34 +341,65 @@ export interface LintBufferParams {
  * every file in the project on every call, is what dominates the latency a caller
  * actually sees.
  */
-export async function lintBuffer(params: LintBufferParams): Promise<Offense[]> {
+export async function lintBuffer(params: LintBufferParams): Promise<LintBufferResult> {
   const { root, filePath, content, configPath, log = () => {} } = params;
-  const { app, config } = await getAppAndConfig(root, configPath);
+  const config = await loadConfig(configPath, root);
   const uri = pathUtils.normalize(URI.file(filePath));
-  const overlaidApp = overlayBuffer(app, uri, content);
-  return lintApp(root, overlaidApp, config, log, [uri]);
+
+  // Asked before the app is even walked, because a file the config excludes is one
+  // no amount of project context would change the answer for. Both shapes are
+  // tested: `getApp` matches the `ignore` patterns against the filesystem path and
+  // `check()` against the URI, and a file either one excludes is a file no check
+  // will visit.
+  if (isIgnored(uri, config) || isIgnored(normalize(fileURLToPath(uri)), config)) {
+    return notChecked('excluded-by-config');
+  }
+
+  const app = await getApp(config);
+  // Overlaying is a mutation of the one file rather than a rebuilt array: the
+  // buffer's source replaces whatever was on disk (adding the file when it is not
+  // saved yet), and the version marks it as a buffer so translation lookups and
+  // any other "prefer unsaved content" path pick it up.
+  const onDisk = app.has(uri);
+  const file = app.setSource(uri, content, BUFFER_VERSION);
+  // `undefined` means the path is in no platformOS directory, so the model has
+  // nothing to add and there is nothing to undo either.
+  if (!file) return notChecked('not-an-app-file');
+
+  try {
+    // Classified, but nothing parses it: `check()` iterates the source types, so an
+    // asset is never visited however many checks are enabled.
+    if (file.type === undefined) return notChecked('not-a-source-file');
+
+    return { status: 'checked', offenses: await lintApp(root, app, config, log, [uri]) };
+  } finally {
+    // The app outlives this call, so the overlay must not: unsaved content is true
+    // for the duration of the request that supplied it and nothing longer. A file
+    // that exists goes back to reading from disk; one that does not exist yet
+    // leaves the app entirely, as it would never have been in it.
+    if (onDisk) app.invalidate(uri);
+    else app.remove([uri]);
+  }
+}
+
+function notChecked(status: LintBufferStatus): LintBufferResult {
+  return { status, offenses: [] };
 }
 
 /**
- * Return a copy of `app` with the `SourceCode` for `uri` replaced by one built
- * from `content`, appending it when the file is not already present.
+ * The version stamped on the buffer `lintBuffer` overlays.
+ *
+ * `undefined` means "these are the contents on disk" throughout the toolchain, so
+ * an in-memory buffer must carry a number for the code that prefers unsaved
+ * content over the filesystem to see it. The value itself is not meaningful —
+ * nothing here syncs versions with a client.
  */
-function overlayBuffer(app: App, uri: string, content: string): App {
-  const overlay = commonToSourceCode(uri, content);
-  let replaced = false;
-  const next = app.map((file) => {
-    if (file.uri !== uri) return file;
-    replaced = true;
-    return overlay;
-  });
-  if (!replaced) next.push(overlay);
-  return next;
-}
+const BUFFER_VERSION = 0;
 
 export async function getAppAndConfig(
   root: string,
   configPath?: string,
-): Promise<{ app: App; config: Config }> {
+): Promise<{ app: AppModel; config: Config }> {
   const config = await loadConfig(configPath, root);
   const app = await getApp(config);
   return {
@@ -320,50 +408,82 @@ export async function getAppAndConfig(
   };
 }
 
-export async function getApp(config: Config): Promise<App> {
-  // On windows machines - the separator provided by path.join is '\'
-  // however the glob function fails silently since '\' is used to escape glob charater
-  // as mentioned in the documentation of node-glob
+/**
+ * The parsers the {@link AppModel} in this runtime parses with.
+ *
+ * The mapping itself is check-common's `sourceParsers`, not a copy of it: the
+ * language server builds `App`s too, and a second spelling of "how a `.liquid`
+ * file becomes an AST" is a second thing to keep in step. The alias stays because
+ * embedders import it by name.
+ */
+export const nodeParsers: Parsers = sourceParsers;
 
-  // the path is normalised and '\' are replaced with '/' and then passed to the glob function
-  let normalizedGlob = getAppFilesPathPattern(config.rootUri);
+/**
+ * The app for `config`: walk the project, reconcile the process's {@link AppModel}
+ * with what the walk found, and read NOTHING.
+ *
+ * The files are {@link AppModel} files, so each one reads its source on the first
+ * `load()` and parses on the first `ast`. A `validate_code` call visits one file
+ * and lazily reaches ~9 more through `{% render %}` / `{% doc %}` resolution, so
+ * on a 1400-file project this parses about 0.7% of it. Before the model this
+ * function read and parsed all 1400 on every call — 3.6-5.8 s of work whose
+ * results were discarded, and the source of the 400-650 MB RSS peaks, since the
+ * ASTs became garbage immediately.
+ *
+ * The app itself is shared per process and reconciled per call rather than rebuilt
+ * (see `shared-app.ts`), because building it was what a warm call still spent most
+ * of its time on once the walk was pruned. What the walk finds is never cached: a
+ * file added, edited or deleted between two calls is reflected in the next one.
+ *
+ * A parse error is still surfaced as a captured `Error` on that file's `ast` — now
+ * produced when the file is first read rather than up front, which is why an
+ * unparseable file nobody visits no longer costs anything at all.
+ */
+export async function getApp(config: Config): Promise<AppModel> {
+  const paths = await getAppFilePaths(config);
+  return getSharedApp(config.rootUri, paths, nodeParsers);
+}
 
-  const paths = await glob(normalizedGlob, { absolute: true }).then((result) =>
-    result
-      // Normalize backslashes to forward slashes so that isKnownLiquidFile() and
-      // isIgnored() regex/minimatch patterns (which use forward slashes) work on Windows.
-      .map(normalize)
-      .filter((filePath) => {
-        // Global ignored paths should not be part of the app
-        if (isIgnored(filePath, config)) return false;
-        // Only lint .liquid files that belong to a recognized platformOS directory.
-        // Generator templates, build artifacts, etc. are excluded.
-        if (filePath.endsWith('.liquid') && !isKnownLiquidFile(filePath)) return false;
-        // Only lint .graphql files that belong to a recognized platformOS GraphQL directory.
-        // Schema files, generator templates (e.g. ERB .graphql), etc. are excluded.
-        if (filePath.endsWith('.graphql') && !isKnownGraphQLFile(filePath)) return false;
-        // Only lint .yml/.yaml files that belong to a recognized platformOS YAML
-        // directory (translations, custom model types, etc.). Config files like
-        // config.yml or .platformos-check.yml are excluded.
-        if (
-          (filePath.endsWith('.yml') || filePath.endsWith('.yaml')) &&
-          !isKnownYAMLFile(filePath)
-        ) {
-          return false;
-        }
-        return true;
-      }),
+/**
+ * Every path in the project that COULD be a platformOS source, as a URI.
+ *
+ * Candidates, not app files. Which of them the app actually contains is
+ * `parseAppPath`'s answer and `App.fromPaths` asks it — this function deliberately
+ * knows nothing about the platformOS directory structure, because a second opinion
+ * about what `app/lib/smses/x.liquid` is can only ever disagree with the first.
+ * The one filter left is LOCAL knowledge: the user's configured `ignore`.
+ *
+ * Path work only — no `stat`, no read — but the WALK is the cost, and walking the
+ * whole repository to then discard most of it is what made it expensive: `getApp`
+ * took 345 ms on arabbank and 1371 ms on Accala-MP, nearly all of it in
+ * `node_modules` trees that contribute zero files to the app.
+ *
+ * The walk is {@link walkAppSourceFiles}, the same one the graph build and the
+ * language server's preload use — a `readdir` recursion over `APP_SOURCE_SUBTREES`
+ * rather than a `glob` of the equivalent patterns. Same paths, file for file, on
+ * arabbank, Accala-MP and pos-module-community; 10-25% faster, because a walk
+ * filters by extension as it enumerates instead of matching a pattern per path.
+ */
+async function getAppFilePaths(config: Config): Promise<UriString[]> {
+  const uris = await walkAppSourceFiles(NodeFileSystem, config.rootUri, ([uri]) =>
+    SOURCE_FILE_EXTENSIONS.some((extension) => uri.endsWith(extension)),
   );
-  const sourceCodes = await Promise.all(paths.map(toSourceCode));
-  return sourceCodes.filter(
-    (x): x is LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode =>
-      x !== undefined,
+
+  return uris.filter(
+    // Global ignored paths should not be part of the app. The patterns are matched
+    // against the FILESYSTEM path, forward-slashed for Windows, which is the shape
+    // `isIgnored` has always been given here.
+    (uri) => !isIgnored(normalize(fileURLToPath(uri)), config),
   );
 }
 
-export function getAppFilesPathPattern(rootUri: string) {
-  return normalize(path.join(fileURLToPath(rootUri), '**/*.{liquid,graphql,yml,yaml}'));
-}
+// `getAppFilesPathPatterns` was here, kept "for consumers that need PATTERNS rather
+// than a walk, i.e. file watchers". It had none: not pos-cli, which uses only
+// `allChecks`, `appCheckRun`, `autofix`, `loadConfig` and `updateDocs`, and not the
+// language server, whose watcher builds its own globs from `SOURCE_FILE_GLOB`. Its
+// only caller was its own spec. A watcher that wants the patterns should build them
+// from `APP_SOURCE_SUBTREES` and `SOURCE_FILE_GLOB` in `platformos-common`, which is
+// all this did.
 
 /** @deprecated Use appCheckRun instead */
 export const runCheck = appCheckRun;

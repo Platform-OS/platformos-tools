@@ -1,6 +1,6 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isLayout } from '../../path';
+import { PlatformOSFileType } from '../../path';
 
 /**
  * Ensures every layout outputs `{{ content_for_layout }}`.
@@ -39,7 +39,7 @@ export const MissingContentForLayout: LiquidCheckDefinition = {
 
   create(context) {
     // Scope to layout files only; pages/partials/etc. must not be flagged.
-    if (!isLayout(context.file.uri)) return {};
+    if (context.fileType() !== PlatformOSFileType.Layout) return {};
 
     let referencesContentForLayout = false;
     // Start index of the `</body>` closing tag, captured from the AST so the

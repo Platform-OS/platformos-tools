@@ -3,8 +3,11 @@ import { LiquidCheckDefinition, RelativePath, Severity, SourceCodeType } from '.
 import {
   containsLiquid,
   FRONTMATTER_ASSOCIATION_DIRS,
+  getAppDirPath,
   getFrontmatterSchema,
-  getFileType,
+  getModuleDirPaths,
+  nameToPaths,
+  parseModulePrefix,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
 import { doesFileExist } from '../../utils/file-utils';
@@ -62,7 +65,7 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
         // Absolute offset of the first character of yamlBody in source
         const bodyOffset = leadingLen + firstNewline + 1;
 
-        const fileType = getFileType(file.uri);
+        const fileType = context.fileType(file.uri);
         const schema = getFrontmatterSchema(fileType);
         if (!schema) return;
 
@@ -292,14 +295,18 @@ async function checkNotificationArray(
  * Tries both `{base}.liquid` and `{base}.html.liquid` since layout files may
  * carry a format extension (e.g. `application.html.liquid`).
  */
+/**
+ * Whether `candidate` exists.
+ *
+ * The format-suffixed spellings (`application.html.liquid` for `layout: application`)
+ * are already among the candidates `nameToPaths` returns, so this no longer probes a
+ * second spelling of its own — doing both would look for `application.html.html.liquid`.
+ */
 async function layoutFileExists(
   context: Parameters<LiquidCheckDefinition['create']>[0],
-  base: string,
+  candidate: string,
 ): Promise<boolean> {
-  return (
-    (await doesFileExist(context, `${base}.liquid` as RelativePath)) ||
-    (await doesFileExist(context, `${base}.html.liquid` as RelativePath))
-  );
+  return doesFileExist(context, candidate as RelativePath);
 }
 
 async function checkLayoutExists(
@@ -307,18 +314,14 @@ async function checkLayoutExists(
   entry: { absStart: number; absEnd: number },
   context: Parameters<LiquidCheckDefinition['create']>[0],
 ) {
-  let exists: boolean;
-
-  if (layoutName.startsWith('modules/')) {
-    // modules/{mod}/rest → modules/{mod}/{public,private}/views/layouts/{rest}.{html.}liquid
-    const match = layoutName.match(/^modules\/([^/]+)\/(.+)$/);
-    if (!match) return;
-    const [, mod, rest] = match;
-    exists =
-      (await layoutFileExists(context, `modules/${mod}/public/views/layouts/${rest}`)) ||
-      (await layoutFileExists(context, `modules/${mod}/private/views/layouts/${rest}`));
-  } else {
-    exists = await layoutFileExists(context, `app/views/layouts/${layoutName}`);
+  // Which paths a `layout:` value can mean comes from platformos-common's name→path
+  // mapping, so this and the language server's go-to-definition resolve the same file.
+  let exists = false;
+  for (const candidate of nameToPaths(PlatformOSFileType.Layout, layoutName)) {
+    if (await layoutFileExists(context, candidate)) {
+      exists = true;
+      break;
+    }
   }
 
   if (!exists) {

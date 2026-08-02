@@ -49,7 +49,7 @@ describe('Unit: getDefaultLocale', () => {
       expect(await getDefaultTranslations()).to.eql({});
     });
 
-    it('should prefer translations from the in-memory app buffer over the filesystem', async () => {
+    it('should prefer translations from an open editor buffer over the filesystem', async () => {
       const fs: AbstractFileSystem = new MockFileSystem(
         {
           'app/translations/en.yml': 'en:\n  beverage: coffee\n',
@@ -57,11 +57,13 @@ describe('Unit: getDefaultLocale', () => {
         'platformos-vfs:/',
       );
 
-      // Simulate an open buffer with different content
+      // A version is what makes a file an open buffer rather than a copy of what
+      // is on disk — see openBufferSource in context-utils.
       const { toSourceCode } = await import('./to-source-code');
       const bufferedSourceCode = toSourceCode(
         'platformos-vfs:/app/translations/en.yml',
         'en:\n  beverage: tea\n',
+        3,
       );
 
       const getDefaultTranslations = makeGetDefaultTranslations(
@@ -70,6 +72,24 @@ describe('Unit: getDefaultLocale', () => {
         'platformos-vfs:/',
       );
       expect(await getDefaultTranslations()).to.eql({ beverage: 'tea' });
+    });
+
+    it('should read from the filesystem for a file that is only on disk, not open', async () => {
+      const fs: AbstractFileSystem = new MockFileSystem(
+        {
+          'app/translations/en.yml': 'en:\n  beverage: coffee\n',
+        },
+        'platformos-vfs:/',
+      );
+
+      const { toSourceCode } = await import('./to-source-code');
+      const onDisk = toSourceCode(
+        'platformos-vfs:/app/translations/en.yml',
+        'en:\n  beverage: stale\n',
+      );
+
+      const getDefaultTranslations = makeGetDefaultTranslations(fs, [onDisk], 'platformos-vfs:/');
+      expect(await getDefaultTranslations()).to.eql({ beverage: 'coffee' });
     });
   });
 });

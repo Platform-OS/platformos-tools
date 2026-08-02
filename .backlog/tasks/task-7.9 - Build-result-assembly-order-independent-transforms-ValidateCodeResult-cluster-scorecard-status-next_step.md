@@ -47,7 +47,7 @@ Implement `result/`: compose enriched diagnostics + advisories into the typed `V
 Implemented a MINIMAL slice of result assembly to support the lint-only `validate_code`.
 
 ### Done
-- `src/result/assemble.ts`: PURE `assembleResult(diagnostics, mode) -> ValidateCodeResult`. Buckets diagnostics by severity into errors/warnings/infos; derives `status` (error>warning>ok) and `must_fix_before_write` (minimal rule: any error blocks). Imports ONLY `./types` — no engine, no I/O — so the task-7.1 purity guard is trivially satisfied.
+- `src/result/assemble.ts`: PURE `assembleResult(diagnostics) -> ValidateCodeResult`. (It took a `mode` argument when this landed; `mode` was removed on 2026-08-01 — see TASK-12.5.) Buckets diagnostics by severity into errors/warnings/infos; derives `status` (error>warning>ok) and `must_fix_before_write` (minimal rule: any error blocks). Imports ONLY `./types` — no engine, no I/O — so the task-7.1 purity guard is trivially satisfied.
 - `src/result/assemble.spec.ts` (5): severity bucketing, status derivation, must_fix, ok-on-empty/infos-only, and asserts the deferred fields stay empty/null.
 
 ### NOT yet done (full 7.9 scope)

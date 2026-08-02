@@ -7,6 +7,11 @@ import {
   type AbstractFileSystem,
   type DocumentsLocator,
   FileType,
+  getAppPaths,
+  getFileType,
+  getModulePaths,
+  MODULE_ROOTS,
+  PlatformOSFileType,
 } from '@platformos/platformos-common';
 import { CompletionItem, CompletionParams } from 'vscode-languageserver';
 import { URI, Utils } from 'vscode-uri';
@@ -108,6 +113,16 @@ export class CompletionsProvider {
       }
     }
 
+    // Classification needs the project root, and finding a file's root is an async
+    // walk only the server can do — so the providers that classify take this rather
+    // than calling an unanchored `getFileType(uri)`.
+    const fileTypeForURI = findAppRootURI
+      ? async (uri: string) => {
+          const rootUri = await findAppRootURI(uri);
+          return rootUri ? getFileType(uri, rootUri) : undefined;
+        }
+      : undefined;
+
     this.providers = [
       new HtmlTagCompletionProvider(),
       new HtmlAttributeCompletionProvider(documentManager),
@@ -120,9 +135,9 @@ export class CompletionsProvider {
       new PartialCompletionProvider(getPartialNamesForURI),
       new RenderPartialParameterCompletionProvider(getDocDefinitionForURI),
       new FilterNamedParameterCompletionProvider(platformosDocset),
-      new LiquidDocTagCompletionProvider(),
-      new LiquidDocParamTypeCompletionProvider(platformosDocset),
-      new FrontmatterKeyCompletionProvider(layoutNames, authPolicyNames),
+      new LiquidDocTagCompletionProvider(findAppRootURI),
+      new LiquidDocParamTypeCompletionProvider(platformosDocset, findAppRootURI),
+      new FrontmatterKeyCompletionProvider(layoutNames, authPolicyNames, fileTypeForURI),
     ];
   }
 
@@ -179,34 +194,26 @@ async function listLiquidFilesRecursively(fs: AbstractFileSystem, dirUri: URI): 
 async function listLayoutNames(fs: AbstractFileSystem, root: URI): Promise<string[]> {
   const names: string[] = [];
 
-  // App layouts: app/views/layouts/**/*.liquid
-  const appLayoutsDir = Utils.joinPath(root, 'app', 'views', 'layouts');
-  const appBase = appLayoutsDir.toString() + '/';
-  for (const uri of await listLiquidFilesRecursively(fs, appLayoutsDir)) {
-    const rel = uri.startsWith(appBase) ? uri.slice(appBase.length) : uri;
-    names.push(rel.replace(/\.liquid$/, ''));
+  // App layouts. Where those live is platformos-common's business.
+  for (const layoutDir of getAppPaths(PlatformOSFileType.Layout)) {
+    const dir = Utils.joinPath(root, layoutDir);
+    const base = dir.toString() + '/';
+    for (const uri of await listLiquidFilesRecursively(fs, dir)) {
+      const rel = uri.startsWith(base) ? uri.slice(base.length) : uri;
+      names.push(rel.replace(/\.liquid$/, ''));
+    }
   }
 
-  // Module layouts from both modules/ and app/modules/ (overwrites).
-  // Both are reported as modules/{mod}/{rest} — the Set below deduplicates them.
-  for (const modulesRoot of ['modules', 'app/modules'] as const) {
-    let moduleEntries: [string, FileType][] = [];
-    try {
-      moduleEntries = await fs.readDirectory(Utils.joinPath(root, modulesRoot).toString());
-    } catch {
-      /* directory does not exist */
-    }
-
-    for (const [modDirUri, modType] of moduleEntries) {
-      if (modType !== FileType.Directory) continue;
-      const modName = modDirUri.replace(/\/$/, '').split('/').at(-1)!;
-      for (const visibility of ['public', 'private'] as const) {
-        const layoutsDir = Utils.joinPath(URI.parse(modDirUri), visibility, 'views', 'layouts');
-        const base = layoutsDir.toString() + '/';
-        for (const uri of await listLiquidFilesRecursively(fs, layoutsDir)) {
-          const rest = uri.startsWith(base) ? uri.slice(base.length) : uri;
-          names.push(`modules/${modName}/${rest.replace(/\.liquid$/, '')}`);
-        }
+  // Module layouts. `getModulePaths` covers both `modules/` and `app/modules/`
+  // (overwrites) and both access levels; each is reported as modules/{mod}/{rest}, so
+  // the Set below deduplicates an overwrite against its original.
+  for (const modName of await listModuleNames(fs, root)) {
+    for (const layoutDir of getModulePaths(PlatformOSFileType.Layout, modName)) {
+      const dir = Utils.joinPath(root, layoutDir);
+      const base = dir.toString() + '/';
+      for (const uri of await listLiquidFilesRecursively(fs, dir)) {
+        const rest = uri.startsWith(base) ? uri.slice(base.length) : uri;
+        names.push(`modules/${modName}/${rest.replace(/\.liquid$/, '')}`);
       }
     }
   }
@@ -214,8 +221,28 @@ async function listLayoutNames(fs: AbstractFileSystem, root: URI): Promise<strin
   return [...new Set(names)].sort();
 }
 
+/** The module names present under either module root. */
+async function listModuleNames(fs: AbstractFileSystem, root: URI): Promise<string[]> {
+  const names = new Set<string>();
+
+  for (const modulesRoot of MODULE_ROOTS) {
+    let entries: [string, FileType][] = [];
+    try {
+      entries = await fs.readDirectory(Utils.joinPath(root, modulesRoot).toString());
+    } catch {
+      continue; // directory does not exist
+    }
+    for (const [uri, type] of entries) {
+      if (type !== FileType.Directory) continue;
+      names.add(uri.replace(/\/$/, '').split('/').at(-1)!);
+    }
+  }
+
+  return [...names];
+}
+
 async function listAuthPolicyNames(fs: AbstractFileSystem, root: URI): Promise<string[]> {
-  const dir = Utils.joinPath(root, 'app', 'authorization_policies');
+  const dir = Utils.joinPath(root, getAppPaths(PlatformOSFileType.Authorization)[0]);
   let entries: [string, FileType][] = [];
   try {
     entries = await fs.readDirectory(dir.toString());

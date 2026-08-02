@@ -1,6 +1,17 @@
-import { expect, describe, it } from 'vitest';
+import { expect, describe, it, vi, beforeEach } from 'vitest';
+import { Minimatch } from 'minimatch';
 import { isIgnored } from './ignore';
 import { UriString, CheckDefinition, Config, SourceCodeType } from './types';
+
+vi.mock('minimatch', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('minimatch')>();
+  return {
+    ...actual,
+    Minimatch: vi.fn(function (pattern: string) {
+      return new actual.Minimatch(pattern);
+    }),
+  };
+});
 
 const checkDef: CheckDefinition = {
   meta: {
@@ -18,6 +29,10 @@ const checkDef: CheckDefinition = {
 };
 
 describe('Function: isIgnored', () => {
+  beforeEach(() => {
+    vi.mocked(Minimatch).mockClear();
+  });
+
   it('should return false when no ignore patterns are provided', () => {
     const result = isIgnored(
       toUri('app/views/partials/foo.liquid'),
@@ -173,6 +188,60 @@ describe('Function: isIgnored', () => {
     );
 
     expect(result).toBe(true);
+  });
+
+  it('should compile each pattern exactly once per config, however many paths it is asked about', () => {
+    const sharedConfig = config({
+      checkIgnore: ['app/views/partials/*.liquid'],
+      globalIgnore: ['modules/common-styling/**'],
+    });
+
+    const results = Array.from({ length: 50 }, (_, i) =>
+      isIgnored(toUri(`app/views/pages/page-${i}.liquid`), sharedConfig, checkDef),
+    );
+
+    expect(results).toEqual(Array.from({ length: 50 }, () => false));
+    expect(vi.mocked(Minimatch).mock.calls).toEqual([
+      ['**/app/views/partials/*.liquid'],
+      ['**/modules/common-styling/**'],
+    ]);
+  });
+
+  it('should compile the check-less and the per-check pattern sets separately, each once', () => {
+    const sharedConfig = config({
+      checkIgnore: ['app/views/partials/*.liquid'],
+      globalIgnore: ['modules/common-styling/**'],
+    });
+
+    const results = [
+      isIgnored(toUri('app/views/partials/foo.liquid'), sharedConfig),
+      isIgnored(toUri('app/views/partials/foo.liquid'), sharedConfig, checkDef),
+      isIgnored(toUri('app/views/partials/foo.liquid'), sharedConfig),
+      isIgnored(toUri('app/views/partials/foo.liquid'), sharedConfig, checkDef),
+    ];
+
+    expect(results).toEqual([false, true, false, true]);
+    expect(vi.mocked(Minimatch).mock.calls).toEqual([
+      ['**/modules/common-styling/**'],
+      ['**/app/views/partials/*.liquid'],
+      ['**/modules/common-styling/**'],
+    ]);
+  });
+
+  it('should compile a different config on its own', () => {
+    const first = config({ checkIgnore: [], globalIgnore: ['app/views/pages/**'] });
+    const second = config({ checkIgnore: [], globalIgnore: ['app/views/layouts/**'] });
+
+    const results = [
+      isIgnored(toUri('app/views/pages/index.liquid'), first),
+      isIgnored(toUri('app/views/pages/index.liquid'), second),
+    ];
+
+    expect(results).toEqual([true, false]);
+    expect(vi.mocked(Minimatch).mock.calls).toEqual([
+      ['**/app/views/pages/**'],
+      ['**/app/views/layouts/**'],
+    ]);
   });
 });
 

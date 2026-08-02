@@ -360,4 +360,207 @@ describe('Module: runChecks', () => {
       });
     });
   });
+  describe('publishing across the app', () => {
+    /**
+     * A run triggered by one file still visits every file in the app and still
+     * publishes for each one, so an offense that no longer exists is cleared rather
+     * than left on screen.
+     */
+    const aUri = path.join(rootUri, 'app', 'views', 'pages', 'a.liquid');
+    const bUri = path.join(rootUri, 'app', 'views', 'pages', 'b.liquid');
+
+    function makeRunChecksWithFs(
+      fileSystem: MockFileSystem,
+      checks: LiquidCheckDefinition[] | typeof allChecks,
+    ) {
+      return makeRunChecks(documentManager, diagnosticsManager, {
+        fs: fileSystem,
+        loadConfig: async () => ({ settings: {}, checks, rootUri }),
+        platformosDocset: {
+          graphQL: async () => null,
+          filters: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          tags: async () => [],
+        },
+        jsonValidationSet: {
+          schemas: async () => [],
+        },
+      });
+    }
+
+    beforeEach(() => {
+      fs = new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/a.liquid': `{{ 'x' | filter }}`,
+          'app/views/pages/b.liquid': `{{ 'y' | filter }}`,
+        },
+        rootUri,
+      );
+      runChecks = makeRunChecksWithFs(fs, [LiquidFilter]);
+      documentManager.open(aUri, `{{ 'x' | filter }}`, 0);
+      documentManager.open(bUri, `{{ 'y' | filter }}`, 0);
+    });
+
+    it('clears the diagnostics of a file that no longer offends after another file is edited', async () => {
+      await runChecks([aUri]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith(
+        expect.objectContaining({ uri: bUri, diagnostics: [expect.anything()] }),
+      );
+
+      // B is fixed, A is edited. Editing A must still republish B — as empty.
+      documentManager.change(bUri, 'no filters here', 1);
+      documentManager.change(aUri, `{{ 'x' | filter }}{{ 'z' | filter }}`, 1);
+      connection.sendDiagnostics.mockClear();
+
+      await runChecks([aUri]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: bUri,
+        version: 1,
+        diagnostics: [],
+      });
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith(
+        expect.objectContaining({ uri: aUri, version: 1 }),
+      );
+    });
+  });
+  /**
+   * Two ways a cross-file diagnostic can silently vanish once the workspace is
+   * loaded LAZILY, both found by driving the real language server over a
+   * 2700-file project rather than by a unit test. Each is pinned here with the
+   * discriminator that tells the two code paths apart.
+   *
+   * `PartialCallArguments` resolves the target's parameters two ways:
+   *
+   *  - through `{% doc %}`, which reaches the partial via `getDocDefinition` →
+   *    `documentManager.get(uri)`, so it needs the partial to be a DOCUMENT;
+   *  - by INFERRING them from undefined variables in the partial's source, read
+   *    through `context.fs`, which always works.
+   *
+   * The two agree about a missing required parameter, so a test built on one
+   * would pass either way. They disagree about an UNKNOWN one: `{% doc %}` is
+   * the complete parameter list, so an argument it does not declare is an
+   * offense — while the inference path derives the list FROM the source, so
+   * every variable the partial uses is allowed and nothing is reported. That is
+   * the discriminator these use.
+   */
+  describe('cross-file diagnostics while the workspace is still loading', () => {
+    const callerURI = path.join(rootUri, 'app', 'views', 'pages', 'home.liquid');
+    const partialURI = path.join(rootUri, 'app', 'views', 'partials', 'card.liquid');
+    const caller = `{% render 'card', title: 'a', legacy: 'b' %}`;
+    // `legacy` is used by the partial but NOT declared in its `{% doc %}`, so it
+    // is an offense with the doc and invisible without it.
+    const partial = `{% doc %}\n  @param {string} title - the title\n{% enddoc %}{{ title }}{{ legacy }}`;
+
+    const partialCallArguments = allChecks.filter((c) => c.meta.code === 'PartialCallArguments');
+
+    const unknownLegacy = {
+      source: 'platformos-check',
+      code: 'PartialCallArguments',
+      codeDescription: { href: expect.any(String) },
+      message: 'Unknown parameter legacy passed to render call',
+      severity: 1,
+      range: {
+        start: { line: 0, character: 30 },
+        end: { line: 0, character: 41 },
+      },
+    };
+
+    function makeRunChecksOver(fileSystem: MockFileSystem) {
+      return makeRunChecks(documentManager, diagnosticsManager, {
+        fs: fileSystem,
+        loadConfig: async () => ({ settings: {}, checks: partialCallArguments, rootUri }),
+        platformosDocset: {
+          graphQL: async () => null,
+          filters: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          tags: async () => [],
+        },
+        jsonValidationSet: { schemas: async () => [] },
+        includeFilesFromDisk: () => true,
+      });
+    }
+
+    /**
+     * The race. `didOpen` starts `preload` in the BACKGROUND and does not await
+     * it, so the first check of a session can run before the project has been
+     * read — and a partial nobody has read is not a document, so its `{% doc %}`
+     * is not there to be found. It never showed before the App model because
+     * preload took 17 s on a real project and monopolised the event loop, so the
+     * debounced check could not start until it was over.
+     */
+    it('waits for the workspace so the first check of a session sees the doc definition', async () => {
+      const projectFs = new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/home.liquid': caller,
+          'app/views/partials/card.liquid': partial,
+        },
+        rootUri,
+      );
+      documentManager = new DocumentManager(projectFs);
+      runChecks = makeRunChecksOver(projectFs);
+
+      // Exactly what `didOpen` does: record the buffer, check it. Nothing here
+      // has awaited the workspace.
+      documentManager.open(callerURI, caller, 0);
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [unknownLegacy],
+      });
+    });
+
+    /**
+     * The file the workspace could not read. `preload` logs it and carries on,
+     * so it stays in the `App` — classified, with no contents — and
+     * `AppFile.source` THROWS rather than pretending to be `''`.
+     *
+     * Handing that file out as a document is what the old `Map<uri, SourceCode>`
+     * could never do: it only got an entry once the read returned. Here it costs
+     * the whole run — `check` reads `ast` for every file it visits — so ONE
+     * unreadable file means no diagnostics for anything.
+     */
+    it('an unreadable file costs its own diagnostics and nothing else', async () => {
+      const unreadableURI = path.join(rootUri, 'app', 'views', 'partials', 'locked.liquid');
+      const projectFs = new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/home.liquid': caller,
+          'app/views/partials/card.liquid': partial,
+          'app/views/partials/locked.liquid': 'unreadable',
+        },
+        rootUri,
+      );
+      const readFile = projectFs.readFile.bind(projectFs);
+      vi.spyOn(projectFs, 'readFile').mockImplementation(async (uri) => {
+        if (uri === unreadableURI) throw new Error('EACCES: permission denied');
+        return readFile(uri);
+      });
+      documentManager = new DocumentManager(projectFs);
+      runChecks = makeRunChecksOver(projectFs);
+
+      documentManager.open(callerURI, caller, 0);
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [unknownLegacy],
+      });
+      // It is in the app, so nothing pretends it is not there — but it is not a
+      // document, so it is never published for and never read.
+      expect(documentManager.appModel(rootUri).has(unreadableURI)).toBe(true);
+      expect(documentManager.get(unreadableURI)).toBe(undefined);
+      expect(connection.sendDiagnostics).not.toHaveBeenCalledWith(
+        expect.objectContaining({ uri: unreadableURI }),
+      );
+    });
+  });
 });

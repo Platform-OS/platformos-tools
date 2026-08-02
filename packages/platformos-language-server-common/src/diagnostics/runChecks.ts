@@ -3,7 +3,6 @@ import {
   findRoot,
   makeFileExists,
   path,
-  Reference,
   SourceCodeType,
 } from '@platformos/platformos-check-common';
 import { RouteTable } from '@platformos/platformos-common';
@@ -11,7 +10,6 @@ import { RouteTable } from '@platformos/platformos-common';
 import { DocumentManager } from '../documents';
 import { Dependencies } from '../types';
 import { DiagnosticsManager } from './DiagnosticsManager';
-import { AppGraphManager } from '../server/AppGraphManager';
 
 export function makeRunChecks(
   documentManager: DocumentManager,
@@ -21,11 +19,9 @@ export function makeRunChecks(
     loadConfig,
     platformosDocset,
     jsonValidationSet,
-    appGraphManager,
     includeFilesFromDisk,
     getRouteTable,
   }: Pick<Dependencies, 'fs' | 'loadConfig' | 'platformosDocset' | 'jsonValidationSet'> & {
-    appGraphManager?: AppGraphManager;
     includeFilesFromDisk?: () => boolean;
     getRouteTable?: () => RouteTable | undefined;
   },
@@ -49,6 +45,23 @@ export function makeRunChecks(
 
     async function runChecksForRoot(configFileRootUri: string) {
       const config = await loadConfig(configFileRootUri, fs);
+
+      // The cross-file checks are only as good as the app behind them:
+      // `PartialCallArguments` reads the target partial's `{% doc %}` through
+      // `getDocDefinition` below, which finds nothing for a file the workspace has
+      // not loaded yet. Preloading is what loads it, it is memoized per root, and
+      // it is started in the background on `didOpen` — so this usually resolves
+      // immediately and, on the very first check of a session, waits for the read
+      // it would otherwise silently report around.
+      //
+      // Silently, because a missing partial produces no offense rather than a
+      // wrong one: before the App model made the preload cheap it took 17 s on a
+      // 2700-file project and monopolised the event loop, so the first check could
+      // not run until it was over and the race never showed. `preload` reports its
+      // own failures — an unreadable directory must cost the project its cross-file
+      // diagnostics, not all of them.
+      await documentManager.preload(config.rootUri).catch(() => {});
+
       const app = documentManager.app(config.rootUri, includeFilesFromDisk?.());
 
       const appOffenses = await check(app, config, {
@@ -56,11 +69,6 @@ export function makeRunChecks(
         platformosDocset,
         jsonValidationSet,
         routeTable: getRouteTable?.(),
-
-        async getReferences(uri: string): Promise<Reference[]> {
-          if (!appGraphManager) return [];
-          return appGraphManager.getReferences(uri);
-        },
 
         async getDocDefinition(relativePath) {
           const uri = path.join(config.rootUri, relativePath);
@@ -72,7 +80,8 @@ export function makeRunChecks(
 
       // We iterate over the app files (as opposed to offenses) because if
       // there were offenses before, we need to send an empty array to clear
-      // them.
+      // them: every file in the app is visited and published, so an offense that no
+      // longer exists is cleared rather than left on screen.
       for (const sourceCode of app) {
         const sourceCodeOffenses = appOffenses.filter((offense) => offense.uri === sourceCode.uri);
         diagnosticsManager.set(sourceCode.uri, sourceCode.version, sourceCodeOffenses);

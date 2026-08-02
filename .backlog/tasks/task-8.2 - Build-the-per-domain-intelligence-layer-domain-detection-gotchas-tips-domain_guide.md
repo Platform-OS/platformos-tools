@@ -6,9 +6,9 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:56'
+updated_date: '2026-08-01 21:22'
 labels: []
-dependencies:
-  - TASK-7
+dependencies: []
 references:
   - docs/mcp-supervisor/salvage/data/domain-gotchas.yml
   - docs/mcp-supervisor/salvage/data/content-triggers.yml
@@ -30,7 +30,7 @@ Implement the supervisor's per-domain layer as PURE functions over `(AST, struct
 - Domain detection from path: `getDomainFromPath` (pages / partials / layouts / commands / queries / graphql / schema / translations). Reuse check-common/check-node file-type helpers where they overlap; only the platformOS domain mapping is supervisor-specific.
 - Triggered gotchas: `domain-gotchas.yml` with the three trigger forms `always`, `has_check:<Check>`, `uses_tag:<tag>` -> the matching reminders.
 - Domain-scoped content-trigger `tips`: `content-triggers.yml` (regex over file content, scoped by `domains:`), e.g. the `| raw` XSS advisory. Tips are advisory infos; they do NOT contribute to `must_fix_before_write`.
-- The `domain_guide` result field (full mode): the triggered-gotcha bundle for the file's domain.
+- The `domain_guide` result field: the triggered-gotcha bundle for the file's domain. (v1 emitted it in `full` mode only; `mode` was removed on 2026-08-01 — see TASK-12.5 — so it is emitted on every call.)
 - Domain input to the scorecard (the scorecard transform itself lives in result/ task-7.9 / task-8.4; this task supplies the domain + gotcha signal it consumes).
 
 ## Constraints
@@ -48,5 +48,5 @@ Implement the supervisor's per-domain layer as PURE functions over `(AST, struct
 - [ ] #1 Domain detection maps a file path to the correct platformOS domain for all of pages/partials/layouts/commands/queries/graphql/schema/translations, with unit pins
 - [ ] #2 Triggered gotchas fire correctly for each trigger form (always, has_check:X, uses_tag:X) and are scoped to the file's domain
 - [ ] #3 Content-trigger tips fire on content match scoped by domain (incl. the | raw XSS advisory) and never set must_fix_before_write
-- [ ] #4 The domain_guide bundle is produced for full mode; all functions in this layer are pure (task-7.1 purity guard passes)
+- [ ] #4 The domain_guide bundle is produced on every call; all functions in this layer are pure (task-7.1 purity guard passes)
 <!-- AC:END -->

@@ -846,4 +846,55 @@ describe('Module: MissingPage', () => {
       expect(offenses).toHaveLength(0);
     });
   });
+
+  /**
+   * Every page in the project has to be read for the table to know its routes, so a
+   * run that asks for one when it has nothing to look up pays whole-project I/O for
+   * nothing. These pin that it is asked for exactly when a URL needs resolving.
+   */
+  describe('route table laziness', () => {
+    const appFiles = { 'app/views/pages/about.html.liquid': '<h1>About</h1>' };
+
+    async function runWithProvider(sourceCode: string) {
+      const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appFiles });
+      const built = new RouteTable(fs);
+      await built.build((await import('vscode-uri')).URI.parse('file:///'));
+
+      let calls = 0;
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {
+          routeTable: () => {
+            calls += 1;
+            return Promise.resolve(built);
+          },
+        },
+        appFiles,
+      );
+      return { calls, offenses };
+    }
+
+    it('never asks a provider for a table when the file links nowhere', async () => {
+      expect(await runWithProvider('<h1>Hello</h1>{% assign x = 1 %}')).toEqual({
+        calls: 0,
+        offenses: [],
+      });
+    });
+
+    it('never asks a provider for a table when every URL is skipped', async () => {
+      expect(
+        await runWithProvider('<a href="https://example.com">out</a><a href="#top">top</a>'),
+      ).toEqual({ calls: 0, offenses: [] });
+    });
+
+    it('asks a provider exactly once for a file with several links', async () => {
+      const { calls, offenses } = await runWithProvider(
+        '<a href="/about">a</a><a href="/about">b</a><a href="/ghost">c</a>',
+      );
+      expect(calls).toEqual(1);
+      expect(offenses.map((o) => o.message)).toEqual(["No page found for route '/ghost' (GET)"]);
+    });
+  });
 });

@@ -9,13 +9,14 @@ import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../../utils/liquidDoc';
 import { filePathSupportsLiquidDoc } from '@platformos/platformos-check-common';
+import { FindAppRootURI } from '../../internal-types';
 
 export class LiquidDocTagCompletionProvider implements Provider {
-  constructor() {}
+  constructor(private readonly findAppRootURI?: FindAppRootURI) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
-    if (!filePathSupportsLiquidDoc(params.document.uri)) return [];
+    if (!(await this.supportsLiquidDoc(params.document.uri))) return [];
 
     const { node, ancestors } = params.completionContext;
     const parentNode = ancestors.at(-1);
@@ -70,5 +71,17 @@ export class LiquidDocTagCompletionProvider implements Provider {
 
       return item;
     });
+  }
+
+  /**
+   * Whether the file at `uri` is one `{% doc %}` applies to — a partial.
+   *
+   * Needs the project root, which only the server can resolve, so it arrives as an
+   * injected resolver. Without one the provider cannot tell a partial from a page in
+   * some unrelated directory, and offers nothing rather than guessing.
+   */
+  private async supportsLiquidDoc(uri: string): Promise<boolean> {
+    const rootUri = this.findAppRootURI ? await this.findAppRootURI(uri) : undefined;
+    return !!rootUri && filePathSupportsLiquidDoc(uri, rootUri);
   }
 }

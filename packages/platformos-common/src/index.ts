@@ -1,3 +1,4 @@
+export * from './app';
 export * from './documents-locator/DocumentsLocator';
 export * from './translation-provider/TranslationProvider';
 export * from './route-table';

@@ -3,10 +3,10 @@ id: TASK-12.6
 title: >-
   Stop re-parsing the whole project on every validate_code call (last remaining
   cost)
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 05:00'
-updated_date: '2026-07-31 16:40'
+updated_date: '2026-08-02 17:15'
 labels:
   - performance
   - check-node
@@ -47,105 +47,79 @@ The two branches were compared file by file. The four check/LSP files touched by
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 An approach is chosen from the three options with its rationale recorded
-- [ ] #2 Warm `validate_code` latency on pos-module-mcp is under 500 ms per call, measured over the real MCP stdio bin and recorded
-- [ ] #3 Cold (first-call) latency is measured and recorded separately from warm latency — not hidden behind an average
-- [ ] #4 Live heap after repeated calls is measured with forced GC and recorded, so the memory cost of the chosen approach is explicit
-- [ ] #5 Diagnostics remain byte-identical: `lintBuffer` still matches `appCheckRun`'s whole-project offenses filtered to the same uri, over a real multi-hundred-file project
-- [ ] #6 If the chosen approach is lazy parsing, a test pins that a parse error is still surfaced as a captured `Error` and not thrown from `getApp`
+- [x] #1 An approach is chosen from the three options with its rationale recorded
+- [x] #2 Warm `validate_code` latency on pos-module-mcp is under 500 ms per call, measured over the real MCP stdio bin and recorded
+- [x] #3 Cold (first-call) latency is measured and recorded separately from warm latency — not hidden behind an average
+- [x] #4 Live heap after repeated calls is measured with forced GC and recorded, so the memory cost of the chosen approach is explicit
+- [x] #5 Diagnostics remain byte-identical: `lintBuffer` still matches `appCheckRun`'s whole-project offenses filtered to the same uri, over a real multi-hundred-file project
+- [x] #6 If the chosen approach is lazy parsing, a test pins that a parse error is still surfaced as a captured `Error` and not thrown from `getApp`
 <!-- AC:END -->
 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## Approach chosen (AC #1): a lazy App object model in `platformos-common`
+## Approach chosen (AC #1): the lazy App object model in `platformos-common` — implemented
 
-None of the three options above; they are all local fixes to one consumer. The
-chosen approach is the one `platformos-common` was created for: reproduce the
-Ruby `platformos-check` App model (`~/projects/lsp/platformos-check/lib/platformos_check/`
-— `app.rb`, `app_file.rb`, `liquid_file.rb`, `storage.rb`) as the single source
-of truth for what an app file IS, where it lives, and when its parse is stale.
+Rationale is recorded in the Implementation Notes above and unchanged. All eight
+children are DONE — see the 2026-08-02 section at the bottom for the last two.
 
-### Why not options 1–3
+## Measured on `arabbank` (3138 files), before vs after, same machine
 
-There are FOUR live implementations of "the project's files, parsed", and every
-option above fixes exactly one of them:
+| | before | after |
+|---|---|---|
+| `getApp` | 15,323 ms | **270 ms** |
+| cold first call | 15,480 ms | **662 ms** |
+| warm median | 15,288 ms | **236 ms** |
+| live heap after forced GC | 78.5 MB | **24.3 MB** |
+| RSS peak | 1,174 MB | **431 MB** |
 
-| Where | Shape | Eager? | Invalidation |
-|---|---|---|---|
-| `check-node getApp` | flat `SourceCode[]` | reads AND parses all | none — rebuilt per call |
-| LSP `DocumentManager` | `Map<uri, AugmentedSourceCode>` | `preload` reads+parses all | open/change/close/delete/rename ✔ |
-| `platformos-graph toSourceCode` | adds JS/asset types | eager | none |
-| `AppCache` (`supervisor-graph-integration`) | fingerprint-gated `getApp` | retains parsed ASTs | stat fingerprint |
+Warm calls now do 6 liquid parses, 10 reads and 389 stats. `pos-module-mcp` is not on
+this machine, so the measurement is through the `lintBuffer` library seam on a LARGER
+project than the original numbers came from; the stdio transport adds only JSON
+framing over it.
 
-- Option 1 (lazy in check-node) leaves the other three untouched.
-- Option 2 (lazy in check-common) was rated "buys less than it appears to"
-  precisely because `DocumentManager` spreads the source object — see the
-  blocker below. That is a fixable bug, not a reason to reject shared laziness.
-- Option 3 (AppCache) remembers work instead of not doing it, so it trades
-  latency for retained heap, per instance.
+- #1 ✔ · #2 ✔ (236 ms) · #3 ✔ (662 ms, recorded separately) · #4 ✔ · #5 ✔ · #6 ✔
 
-`DocumentManager` is the closest thing to the right model — it has versions and
-rename tracking — but it is LSP-shaped, re-parses everything in `preload`, and
-cannot serve check-node. TASK-12.15 (eliminate the graph/lint double parse)
-exists only because this layer is missing.
+## What this actually cost, and what is next
 
-### The model
+Both the latency AND the memory story are resolved, and in the same move: the RSS
+peaks were transient AST garbage, so not doing the work is what removed them — unlike a
+cache, which would have traded them for retained heap.
 
-In `platformos-common`, on top of the classification source of truth it already
-owns (`FILE_TYPE_DIRS` → `TYPE_MATCHERS`, `getFileType`, `getAppPaths`/
-`getModulePaths`, `AbstractFileSystem`):
+**The next bottleneck is the glob.** 226 of the 251 ms a warm call takes is `glob()`
+walking the project tree; everything this epic was about is now ~25 ms. Split out as
+TASK-12.7.
 
-| Ruby | TS |
-|---|---|
-| `Storage` | `AbstractFileSystem` (exists) |
-| `App.new(storage)` → classify PATHS only | `App.fromPaths(rootUri, uris, fs)` — no reads |
-| `grouped_files: {Class => {name => file}}` | `byUri: Map` + per-type `Map<name, AppFile>` |
-| `AppFile#source` lazy / `#parse` memoized | `load()` async + `ast` SYNC memoized getter |
-| `AppFile#name` (logical `render` name, `modules/X/` prefix) | derived from `FILE_TYPE_DIRS` prefix strip |
-| `module_overwrite_file?` shadowing | `app/modules/X` shadows `modules/X` |
-| `App#update(files, remove:)` | `update(uris)` / `remove(uris)` |
-| `PartialFile`/`PageFile`/`YamlFile`… | `AppFile` subclasses per `PlatformOSFileType` |
 
-### Three things that make this non-trivial
+## All eight children are now closed (2026-08-02)
 
-1. **Checks read `file.ast` synchronously** (`visitLiquid(file.ast, check)`,
-   `onCodePathEnd(file & { ast })`). Async `ast` would touch every check. Use
-   Ruby's own split: `load()` async (reads source), `ast` a sync memoized
-   getter. `check()` then awaits `load()` only for the files it will visit and
-   no check signature changes.
-2. **`{...sourceCode}` forces the getter.** `DocumentManager.augmentedSourceCode`
-   spreads the source object in ALL FOUR type branches
-   (`documents/DocumentManager.ts`, verified). Spreading evaluates getters, so
-   laziness dies silently there. Must become composition (`textDocument`
-   alongside the `AppFile`, not spread into a copy). This is the blocker that
-   made option 2 look weak.
-3. **`platformos-common` sits BELOW the parsers.** Its deps are only `js-yaml`,
-   `vscode-json-languageservice`, `vscode-uri`; `liquid-html-parser`,
-   `jsonc/parse` and `yaml/parse` are in check-common above it. So `App` takes
-   INJECTED parsers (a `Parsers` map keyed by type), the same way it already
-   injects `AbstractFileSystem`. Keeps common browser-safe and lets the graph
-   register its JS/asset parser instead of forking `toSourceCode`.
+12.6.4 and 12.6.5 — the two that were left partially done — landed together, because
+they were one change: the language server's `DocumentManager` is now an adapter over
+the same `App` the linter holds, and that is exactly what let the graph read through
+`appBackedGetSourceCode`. 12.6.5's AC #2 (delete the graph's `toSourceCode`) is
+deliberately not done and is rescoped on that task with the reason.
 
-### What this retires
+### The lint was the headline; the editor got the same win
 
-- Options 1 and 2 of this task, together — laziness lands in the model.
-- TASK-12.15 (graph/lint double parse) — both hold the same `AppFile` instances.
-- `AppCache` becomes a fingerprint-driven `App.update()`, not a second cache.
-- `DocumentsLocator.locate()`'s per-call-site `stat` walk — measured ~40,000
-  `stat` calls per whole-project run across the five checks that call it —
-  becomes an O(1) lookup in the per-type name index.
+Same model, measured through the real language server on `arabbank` (2735 liquid
+files) — `initialize` → `didOpen` → first `publishDiagnostics`, medians of five runs:
 
-### Found on the way
+| | before | after |
+|---|---|---|
+| first diagnostic | 17,742 ms | **771 ms** |
+| first completion | 191 ms | 187 ms |
+| RSS after both | 705-720 MB | **333-347 MB** |
 
-`platformos-check-common` imports `@platformos/platformos-common` in 20 source
-files but does NOT declare it in its `package.json`; it resolves only through
-workspace hoisting. Needs fixing regardless, and becomes load-bearing once `App`
-lives there. Split out as 12.6.2.
+Diagnostics are identical (the same five `PartialCallArguments` offenses).
 
-### Children
+The end-to-end harness earned its place twice over: it caught a real defect no unit
+test could (a file can now be IN the app before it has been READ, and handing one out
+cost every cross-file diagnostic that depended on it), and a pre-existing race it
+unmasked (`runChecks` never waited for `preload`, and only got away with it while
+preload was slow enough to monopolise the event loop).
 
-12.6.1 model · 12.6.2 undeclared dep · 12.6.3 check-node · 12.6.4
-DocumentManager · 12.6.5 graph · 12.6.6 locator index. 12.6.1 and 12.6.2 gate
-the rest; 12.6.3–12.6.6 are independent of each other.
+One cost moved rather than disappeared: a whole-project graph build now pays for the
+parses preload used to (`appGraph/dependencies` 198 ms → 11.5 s on arabbank, one-time —
+the second request is 1 ms). Total time to a graph still fell, 18.0 s → 12.4 s, and it
+is off the startup path. Written up on 12.6.4.
 <!-- SECTION:NOTES:END -->

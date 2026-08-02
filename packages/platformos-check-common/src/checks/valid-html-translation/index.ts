@@ -1,3 +1,4 @@
+import { PlatformOSFileType } from '@platformos/platformos-common';
 import { SourceCodeType, YAMLCheckDefinition, Severity, Problem, LiteralNode } from '../../types';
 import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 
@@ -18,8 +19,7 @@ export const ValidHTMLTranslation: YAMLCheckDefinition = {
 
   create(context) {
     // We ignore yaml files that aren't translation files.
-    const relativePath = context.toRelativePath(context.file.uri);
-    if (!relativePath.includes('/translations/')) return {};
+    if (context.fileType() !== PlatformOSFileType.Translation) return {};
 
     return {
       async Literal(node: LiteralNode) {

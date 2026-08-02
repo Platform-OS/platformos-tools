@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:57'
-updated_date: '2026-06-23 10:33'
+updated_date: '2026-08-01 21:12'
 labels: []
 dependencies:
   - TASK-8.2
@@ -34,13 +34,29 @@ The v1 contract (`CURRENT_SYSTEM_ARCHITECTURE.md` §5.13 / §6; confirmed in the
 ## Scope (each a pure transform; document any genuine ordering)
 - `structural`: the file-level AST snapshot (slug, layout, method, renders_used, graphql refs, filters_used, tags_used, translation_keys, doc_params). Produced from the AST already parsed on the request path; expose as `ValidateCodeStructuralSnapshot`.
 - `parse_error`: the tolerant-parse failure string (null when parse succeeds). The linter still surfaces the underlying syntax error as a diagnostic; this is the separate top-level signal.
-- `tips`: the content-trigger advisories from task-8.2 wired into the result (full mode); advisory only — never affects `must_fix_before_write`.
-- `domain_guide`: the triggered-gotcha bundle from task-8.2 wired into the result (full mode).
+- `tips`: the content-trigger advisories from task-8.2 wired into the result; advisory only — never affects `must_fix_before_write`.
+- `domain_guide`: the triggered-gotcha bundle from task-8.2 wired into the result.
 - Feed `domain` + gotcha signal into the scorecard transform so it is domain-aware (matches v1 `generateScorecard(structural, domain, ...)`).
+
+## Also in scope: a first-class "not checked" outcome
+
+`lintBuffer` distinguishes `checked` from `excluded-by-config`, `not-an-app-file` and
+`not-a-source-file` (TASK-12.24), because an empty result otherwise reads as "this
+file is fine". The handler currently carries that up as PROSE in `next_step`, which
+an agent has to read rather than branch on, while `status` still says `ok`.
+
+The contract should say it in a field: either a `ValidateCodeStatus` value of its own
+or a `not_checked: { reason }`. Whichever, `must_fix_before_write` stays `false` —
+nothing was found, so nothing blocks a write — and the reason must survive into the
+v1-parity baselines as an intentional diff (TASK-8.5), since v1 had no such concept.
 
 ## Constraints
 - Transforms stay pure and order-independent (task-7.9 contract). All inputs (AST, structural, domain bundle, content-trigger tips) are produced upstream and passed in.
-- `quick` mode behaviour for these fields matches v1: tips / domain_guide are full-mode only; structural / parse_error are emitted in both modes.
+- There are no modes to gate these fields on. v1 emitted `tips` / `domain_guide` in
+  `full` only; `mode` was removed on 2026-08-01 (TASK-12.5), so every call gets every
+  field. If a field turns out to be too expensive for a per-write call, that is an
+  argument for making it cheaper or for a new input — not for reviving a depth knob
+  whose one real distinction no longer exists.
 
 ## Out of scope
 - Producing the gotcha/tip data and domain logic (task-8.2).
@@ -49,10 +65,11 @@ The v1 contract (`CURRENT_SYSTEM_ARCHITECTURE.md` §5.13 / §6; confirmed in the
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ValidateCodeResult emits structural (full AST snapshot) and parse_error (null on success) in both quick and full modes, with unit pins
-- [ ] #2 tips and domain_guide are emitted in full mode (and omitted/empty in quick, matching v1); tips never affect must_fix_before_write
-- [ ] #3 The scorecard transform is domain-aware (consumes domain + gotcha signal) as in v1
-- [ ] #4 Each new field is produced by an independent pure transform; any genuinely required ordering is documented with rationale (task-7.9 contract)
+- [ ] #1 The scorecard transform is domain-aware (consumes domain + gotcha signal) as in v1
+- [ ] #2 Each new field is produced by an independent pure transform; any genuinely required ordering is documented with rationale (task-7.9 contract)
+- [ ] #3 tips and domain_guide are emitted on every call, and tips never affect must_fix_before_write
+- [ ] #4 ValidateCodeResult emits structural (full AST snapshot) and parse_error (null on success) on every call, with unit pins
+- [ ] #5 A file that was not checked is distinguishable from a clean one by a FIELD, not only by next_step prose, and must_fix_before_write stays false
 <!-- AC:END -->
 
 ## Implementation Notes

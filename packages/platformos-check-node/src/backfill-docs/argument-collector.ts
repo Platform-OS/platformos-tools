@@ -6,6 +6,7 @@ import {
 } from '@platformos/liquid-html-parser';
 import {
   App,
+  appFiles,
   SourceCodeType,
   visit,
   BasicParamTypes,
@@ -89,8 +90,11 @@ export async function collectPartialUsages(
 ): Promise<Map<string, PartialUsage>> {
   const usageMap = new Map<string, PartialUsage>();
 
-  for (const sourceCode of app) {
+  for (const sourceCode of appFiles(app)) {
     if (sourceCode.type !== SourceCodeType.LiquidHtml) continue;
+    // Backfilling docs is inherently whole-project work, so unlike a lint run this
+    // does want every liquid file read and parsed.
+    await sourceCode.load?.();
     if (!isLiquidHtmlNode(sourceCode.ast)) continue;
 
     const ast = sourceCode.ast;

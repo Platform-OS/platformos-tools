@@ -11,6 +11,7 @@ import {
 import { createDisabledChecksModule } from './disabled-checks';
 import { isIgnored } from './ignore';
 import * as path from './path';
+import { getFileType as commonGetFileType } from '@platformos/platformos-common';
 import {
   AugmentedDependencies,
   Check,
@@ -35,6 +36,7 @@ import {
   SourceCode,
   SourceCodeType,
   App,
+  appFiles,
   UriString,
   ValidateJSON,
   YAMLCheck,
@@ -52,9 +54,18 @@ export * from './fixes';
 export * from './ignore';
 export {
   FILE_TYPE_DIRS,
+  getAppDirPath,
   getAppPaths,
   getFileType,
+  getModuleDirPaths,
   getModulePaths,
+  getTranslationBase,
+  MODULE_ROOTS,
+  nameToCreationPath,
+  nameToPaths,
+  parseAppPath,
+  parseModulePrefix,
+  pathToName,
   isApiCall,
   isAuthorization,
   isEmail,
@@ -107,7 +118,7 @@ export interface CheckOptions {
    *
    * `app` must STILL be the complete project. `getDefaultTranslations`,
    * `getTranslationsForBase` and check-node's `getDocDefinition` are all built from
-   * it, and are how cross-file checks (`MissingPartial`, `OrphanedPartial`,
+   * it, and are how cross-file checks (`MissingPartial`, `MissingPage`,
    * `TranslationKeyExists`, …) resolve the rest of the project. This option
    * narrows what gets VISITED, never what the checks can see.
    *
@@ -132,6 +143,9 @@ export async function check(
   const { rootUri } = config;
   const dependencies: AugmentedDependencies = {
     ...injectedDependencies,
+    // Checks that resolve a name to a file take this and let the App's index answer,
+    // rather than stat-ing candidate directories in order.
+    app: Array.isArray(app) ? undefined : app,
     fileExists: makeFileExists(fs),
     fileSize: makeFileSize(fs),
     getDefaultLocale: makeGetDefaultLocale(fs, rootUri),
@@ -150,6 +164,14 @@ export async function check(
   }
 
   const visitable = filesToVisit(app, options.only);
+
+  // The only place a run pays to read files. Everything visitable is read up
+  // front — in parallel — so that from here on `file.source` and `file.ast` are
+  // synchronous, which is what every check already assumes. Files that are merely
+  // VISIBLE stay unread: a cross-file check that needs one of them awaits its
+  // `load()` at the point it resolves it, and one that never resolves it never
+  // costs a read or a parse.
+  await Promise.all(visitable.map((file) => file.load?.()));
 
   for (const type of Object.values(SourceCodeType)) {
     switch (type) {
@@ -215,7 +237,7 @@ function createContext<T extends SourceCodeType, S extends Schema>(
   file: SourceCode<T>,
   offenses: Offense[],
   config: Config,
-  dependencies: Dependencies,
+  dependencies: AugmentedDependencies,
   validateJSON?: ValidateJSON,
 ): Context<T, S> {
   const checkSettings = config.settings[check.meta.code];
@@ -225,6 +247,12 @@ function createContext<T extends SourceCodeType, S extends Schema>(
     settings: createSettings(checkSettings, check.meta.schema),
     toUri: (relativePath) => path.join(config.rootUri, ...relativePath.split('/')),
     toRelativePath: (uri) => path.relative(uri, config.rootUri),
+    // Anchored at the run's root, so a check cannot reach the unanchored answer.
+    // Files that ARE in the app carry their type already — this reaches for it on
+    // `AppFile` and only re-derives for a URI the app does not contain (a render
+    // target that does not exist, a buffer overlaid from outside).
+    fileType: (uri = file.uri) =>
+      dependencies.app?.get(uri)?.fileType ?? commonGetFileType(uri, config.rootUri),
     report(problem: Problem<T>): void {
       offenses.push({
         type: check.meta.type,
@@ -268,7 +296,7 @@ function createCheck<S extends SourceCodeType>(
   file: SourceCode<S>,
   config: Config,
   offenses: Offense[],
-  dependencies: Dependencies,
+  dependencies: AugmentedDependencies,
   validateJSON?: ValidateJSON,
 ): Check<S> {
   const context = createContext(check, file, offenses, config, dependencies, validateJSON);
@@ -276,14 +304,18 @@ function createCheck<S extends SourceCodeType>(
 }
 
 /** The files a run should visit. Unknown URIs in `only` simply match nothing. */
-function filesToVisit(app: App, only?: UriString[]): App {
-  if (only === undefined) return app;
+function filesToVisit(app: App, only?: UriString[]): SourceCode<SourceCodeType>[] {
+  const files = appFiles(app);
+  if (only === undefined) return files;
 
   const visit = new Set(only);
-  return app.filter((file) => visit.has(file.uri));
+  return files.filter((file) => visit.has(file.uri));
 }
 
-function filesOfType<S extends SourceCodeType>(type: S, sourceCodes: App): SourceCode<S>[] {
+function filesOfType<S extends SourceCodeType>(
+  type: S,
+  sourceCodes: SourceCode<SourceCodeType>[],
+): SourceCode<S>[] {
   return sourceCodes.filter((file): file is SourceCode<S> => file.type === type);
 }
 

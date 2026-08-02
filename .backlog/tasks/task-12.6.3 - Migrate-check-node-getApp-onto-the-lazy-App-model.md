@@ -1,10 +1,10 @@
 ---
 id: TASK-12.6.3
 title: Migrate check-node getApp onto the lazy App model
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 16:41'
-updated_date: '2026-07-31 16:54'
+updated_date: '2026-07-31 18:11'
 labels:
   - performance
   - check-node
@@ -56,48 +56,72 @@ That branch's `AppCache` gates reuse on a per-file stat fingerprint inside `getA
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## The laziness ceiling: ~10 parses, but ~1000 reads
+## Measured on a real 3138-file project (`arabbank`), same machine, same file
 
-Measured/verified on the current branch. Lazy AST removes the parses, but two
-`recommended` checks pull WHOLE-PROJECT data through `dependencies`, and neither
-is an AST cost — so this task alone lands at ~0.3 s, not lower.
+`lintBuffer` on `app/views/pages/faq.liquid`, 20 iterations, node `--expose-gc`.
+Baseline = this branch with the change stashed and rebuilt, so the only difference is
+the App model + the process-level route table (12.6.7).
 
-### What actually needs parsing (the good news)
+| | before | after |
+|---|---|---|
+| `getApp` | **15,323 ms** | **270 ms** |
+| cold (first call) | 15,480 ms | **662 ms** |
+| warm, median | **15,288 ms** | **236 ms** |
+| warm, min / max | 15,136 / 16,399 ms | 223 / 272 ms |
+| live heap after forced GC | 78.5 MB | **24.3 MB** |
+| RSS peak | 1,174 MB | **431 MB** |
 
-| Need | Count on a 1400-file project |
-|---|---|
-| The visited file | 1 |
-| Render/function targets via `getDocDefinition` + `PartialCallArguments` | 9 |
-| **Total liquid ASTs** | **~10 (0.7%)** |
+Offense output identical (1 offense both ways).
 
-### What survives AST laziness
+## Where the remaining 236 ms goes — it is no longer parsing
 
-1. **`MissingPage` → `getRouteTable`** (`recommended: true`). `RouteTable.build()`
-   calls `discoverPageFiles` then `fs.readFile` on EVERY page to read its
-   frontmatter (slug/method/format) — ~170 ms, ~1000 `readFile` on a 1400-file
-   project. This is reads, not liquid ASTs, so laziness does nothing for it.
-   `makeGetRouteTable(fs, rootUri, injectedDependencies.routeTable)` already takes
-   an existing table and the language server passes a persistent one
-   (`startServer.ts`), but **check-node passes none, so it rebuilds per lint run**.
-   Split out as 12.6.7 — do it alongside this task or the target is not reachable.
+Instrumented per warm call on the same project (390 pages):
 
-2. **`OrphanedPartial` → `getReferences`** (`recommended: true`). `getReferences`
-   is wired ONLY in the LSP (`diagnostics/runChecks.ts`); check-node wires neither
-   it nor `routeTable`. So in `validate_code` today the check returns early and
-   reports nothing. Two consequences: laziness is safe right now, AND a
-   recommended diagnostic is silently missing from `validate_code`. Critically,
-   wiring the graph into check-node — which `supervisor-graph-integration` is
-   heading toward — makes "is this partial referenced anywhere?" a whole-project
-   parse and destroys this task's win. See 12.6.8 before wiring it.
+| | count | note |
+|---|---|---|
+| `getApp` (glob + classify) | 226 ms | 0 reads, 0 stats, **0 parses** |
+| `readFile` | 10 | the visited file's render/doc targets |
+| `stat` | 389 | route-table fingerprints, one per page (~20 ms) |
+| **liquid parses** | **6** | 0.2% of the project |
 
-3. `matching-translations` / `TranslationKeyExists` → `getTranslationsForBase` /
-   `getDefaultTranslations` — a handful of YAML files. Not a problem.
+**The next bottleneck is the glob, not the lint.** 226 of 251 ms is `glob()` walking
+the project tree; everything this task was about now costs ~25 ms. A cached path list
+invalidated by a file watcher (or reusing one `App` across calls instead of rebuilding
+it per call) is what would remove it — worth its own task.
 
-### Consequence for this task's target
+## Acceptance criteria
 
-Do not claim the <500 ms AC on parse elimination alone. Measure with the route
-table injected (12.6.7), and state the remaining read cost explicitly. If
-`validate_code`'s primary use case is "validate a file before it is written",
-then the steady-state cost of a warm process should be ~10 parses + 0 rebuilt
-route tables — which needs both this task and 12.6.7.
+- #1 ✔ `lazy-app.spec.ts` spies the injected liquid parser over a 300-partial fixture:
+  `getApp` parses nothing at all, and a `lintBuffer` call parses ≤4 files, all of
+  which are the buffer or a resolved render target.
+- #2 ✔ 236 ms median, under 500 ms. NOTE: measured through the `lintBuffer` library
+  seam, not the MCP stdio bin — `pos-module-mcp` is not on this machine, so `arabbank`
+  (3138 files, larger than the 1400-file project the original numbers came from) was
+  used instead. The stdio transport adds only JSON framing over this.
+- #3 ✔ cold 662 ms recorded separately above.
+- #4 ✔ live heap 24.3 MB after two forced GCs, RSS peak 431 MB, both recorded.
+- #5 ✔ `lazy-app.spec.ts` compares `lintBuffer` against `appCheckRun`'s offenses
+  filtered to the same uri over a 200-partial fixture with MissingPartial,
+  TranslationKeyExists and PartialCallArguments live, and asserts the whole-project
+  run found offenses in OTHER files too (so the comparison is not empty-vs-empty).
+- #6 ✔ a parse error in an unvisited file neither throws from `getApp` nor appears;
+  one in the visited file is still reported.
+- #7 ✔ pinned via a self-render, the one call site whose target is the buffer itself:
+  the buffer's `{% doc %}` params are what the call is checked against, not disk's.
+
+## Implementation notes
+
+- `getApp` → `App.fromPaths(config.rootUri, paths, NodeFileSystem, nodeParsers)`. The
+  glob filtering is unchanged and still path-only.
+- `nodeParsers` is exported from check-node — the one place in this runtime that knows
+  how a file becomes an AST. No JSON parser (JSON is not a platformOS source type).
+- `check()` in check-common awaits `load()` for its `visitable` set only, in parallel,
+  before the per-type loop. Nothing else in the project is read.
+- `docDefinitions` awaits `load()` INSIDE the memo body, not at map time — awaiting at
+  map time would load the whole project and undo the model.
+- `overlayBuffer` is gone: `lintBuffer` now calls `app.setSource(uri, content, 0)`.
+  The version matters — it is what marks the file an unsaved buffer for the code that
+  prefers buffer content over disk (translations, the route table).
+- `AppCache` was not folded in because it does not exist on this branch; the model
+  makes it unnecessary (`App.update(uris)` is the same mechanism).
 <!-- SECTION:NOTES:END -->

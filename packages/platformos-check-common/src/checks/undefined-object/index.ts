@@ -22,7 +22,7 @@ import {
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
 import { isGloballyAccessibleObject, isWithinRawTagThatDoesNotParseItsContents } from '../utils';
-import { isPage } from '../../path';
+import { PlatformOSFileType } from '../../path';
 import yaml from 'js-yaml';
 
 type Scope = { start?: number; end?: number };
@@ -199,12 +199,12 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-        const fileIsPage = isPage(context.file.uri);
+        const fileIsPage = context.fileType() === PlatformOSFileType.Page;
 
         // If no @doc tag and not a page, assume undefined variables are params from caller
         if (!hasDocTag && !fileIsPage) return;
 
-        const objects = await globalObjects(platformosDocset, relativePath);
+        const objects = await globalObjects(platformosDocset, context.fileType());
 
         objects.forEach((obj) => fileScopedVariables.add(obj.name));
 
@@ -230,21 +230,23 @@ export const UndefinedObject: LiquidCheckDefinition = {
   },
 };
 
-async function globalObjects(platformosDocset: PlatformOSDocset, relativePath: string) {
+async function globalObjects(
+  platformosDocset: PlatformOSDocset,
+  fileType: PlatformOSFileType | undefined,
+) {
   const objects = await platformosDocset.objects();
-  const contextualObjects = getContextualObjects(relativePath);
+  const contextualObjects = getContextualObjects(fileType);
 
   return objects.filter(
     (object) => contextualObjects.includes(object.name) || isGloballyAccessibleObject(object),
   );
 }
 
-function getContextualObjects(relativePath: string): string[] {
-  if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
-    return ['app'];
-  }
-
-  return [];
+function getContextualObjects(fileType: PlatformOSFileType | undefined): string[] {
+  // `app` is in scope inside a partial. Which paths ARE partials is
+  // platformos-common's business, never re-derived here — and it needs the project
+  // root to say so, which is why this takes the answer rather than a URI.
+  return fileType === PlatformOSFileType.Partial ? ['app'] : [];
 }
 
 function isDefined(

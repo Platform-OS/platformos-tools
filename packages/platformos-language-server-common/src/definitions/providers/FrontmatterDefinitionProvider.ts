@@ -1,7 +1,11 @@
 import { NodeTypes, YAMLFrontmatter } from '@platformos/liquid-html-parser';
 import {
   FRONTMATTER_ASSOCIATION_DIRS,
+  getAppDirPath,
   getFileType,
+  getModuleDirPaths,
+  nameToPaths,
+  parseModulePrefix,
   type AbstractFileSystem,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
@@ -97,7 +101,9 @@ export class FrontmatterDefinitionProvider implements BaseDefinitionProvider {
     if (cursor <= bodyStart + lastNewline + 1 + colonIndex) return [];
 
     // `layout` / `layout_name` are valid on Page; `layout` / `layout_path` on Email.
-    const fileType = getFileType(uri);
+    // Anchored: which of the two a file is depends on where it sits under its root.
+    const fileRootUri = await this.findAppRootURI(uri);
+    const fileType = fileRootUri ? getFileType(uri, fileRootUri) : undefined;
     const isLayoutKey =
       (fileType === PlatformOSFileType.Page && (key === 'layout' || key === 'layout_name')) ||
       (fileType === PlatformOSFileType.Email && (key === 'layout' || key === 'layout_path'));
@@ -131,31 +137,15 @@ export class FrontmatterDefinitionProvider implements BaseDefinitionProvider {
 
     let targetUri: string | undefined;
 
-    if (layoutName.startsWith('modules/')) {
-      const match = layoutName.match(/^modules\/([^/]+)\/(.+)$/);
-      if (!match) return [];
-      const [, mod, rest] = match;
-
-      // Check app overwrite first (app/modules/{mod}/{visibility}/views/layouts/{rest}.liquid),
-      // then fall back to the original module path (modules/{mod}/{visibility}/...).
-      // Both visibilities are checked for each root before moving to the next.
-      const roots: Array<(v: string) => URI> = [
-        (v) => Utils.joinPath(root, 'app', 'modules', mod, v, 'views', 'layouts', `${rest}.liquid`),
-        (v) => Utils.joinPath(root, 'modules', mod, v, 'views', 'layouts', `${rest}.liquid`),
-      ];
-      outer: for (const makeCandidate of roots) {
-        for (const visibility of ['public', 'private'] as const) {
-          const candidate = makeCandidate(visibility);
-          if (await this.fileExists(candidate.toString())) {
-            targetUri = candidate.toString();
-            break outer;
-          }
-        }
-      }
-    } else {
-      const candidate = Utils.joinPath(root, 'app', 'views', 'layouts', `${layoutName}.liquid`);
-      if (await this.fileExists(candidate.toString())) {
-        targetUri = candidate.toString();
+    // Candidate paths and their order — the app/modules overwrite before the modules
+    // original, public before private — come from platformos-common's name→path
+    // mapping, so go-to-definition lands on the same file the platform, the linter and
+    // the graph resolve.
+    for (const candidate of nameToPaths(PlatformOSFileType.Layout, layoutName)) {
+      const uri = Utils.joinPath(root, candidate).toString();
+      if (await this.fileExists(uri)) {
+        targetUri = uri;
+        break;
       }
     }
 
@@ -192,26 +182,18 @@ export class FrontmatterDefinitionProvider implements BaseDefinitionProvider {
 
     let targetUri: string | undefined;
 
-    if (itemName.startsWith('modules/')) {
-      const match = itemName.match(/^modules\/([^/]+)\/(.+)$/);
-      if (!match) return [];
-      const [, mod, name] = match;
-      const candidates = [
-        Utils.joinPath(root, 'app', 'modules', mod, 'public', appDir, `${name}.liquid`),
-        Utils.joinPath(root, 'app', 'modules', mod, 'private', appDir, `${name}.liquid`),
-        Utils.joinPath(root, 'modules', mod, 'public', appDir, `${name}.liquid`),
-        Utils.joinPath(root, 'modules', mod, 'private', appDir, `${name}.liquid`),
-      ];
-      for (const candidate of candidates) {
-        if (await this.fileExists(candidate.toString())) {
-          targetUri = candidate.toString();
-          break;
-        }
-      }
-    } else {
-      const candidate = Utils.joinPath(root, 'app', appDir, `${itemName}.liquid`);
-      if (await this.fileExists(candidate.toString())) {
-        targetUri = candidate.toString();
+    // `appDir` is a directory NAME (from FRONTMATTER_ASSOCIATION_DIRS) rather than a
+    // file type, so this uses the dir-keyed variants — same candidate ordering.
+    const parsed = parseModulePrefix(itemName);
+    const searchPaths = parsed.isModule
+      ? getModuleDirPaths(appDir, parsed.moduleName)
+      : [getAppDirPath(appDir)];
+
+    for (const searchPath of searchPaths) {
+      const uri = Utils.joinPath(root, searchPath, `${parsed.key}.liquid`).toString();
+      if (await this.fileExists(uri)) {
+        targetUri = uri;
+        break;
       }
     }
 

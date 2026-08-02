@@ -10,7 +10,7 @@ import {
   SourceCodeType,
   UriString,
 } from '@platformos/platformos-check-common';
-import { TranslationProvider, isPage } from '@platformos/platformos-common';
+import { SOURCE_FILE_GLOB, TranslationProvider, isPage } from '@platformos/platformos-common';
 import {
   Connection,
   FileChangeType,
@@ -175,7 +175,6 @@ export function startServer(
       loadConfig,
       platformosDocset,
       jsonValidationSet,
-      appGraphManager,
       includeFilesFromDisk: () => configuration[INCLUDE_FILES_FROM_DISK],
       getRouteTable: () => definitionsProvider.getRouteTable(),
     }),
@@ -281,11 +280,17 @@ export function startServer(
     cssLanguageService.setup(params.capabilities);
     configuration.setup();
 
+    // Which renames the client tells us about. Sources come from
+    // `SOURCE_FILE_GLOB` rather than a list spelled here: this used to be
+    // `'**/*.{liquid,json,graphql}'`, which both listed `json` — never a
+    // platformOS source — and omitted `yml`/`yaml`, so renaming a translation
+    // file never reached `onDidRenameFiles` and its caches went stale. Assets
+    // are matched by directory instead, since they keep their own extension.
     const fileOperationRegistrationOptions: FileOperationRegistrationOptions = {
       filters: [
         {
           pattern: {
-            glob: '**/*.{liquid,json,graphql}',
+            glob: SOURCE_FILE_GLOB,
           },
         },
         {
@@ -354,20 +359,18 @@ export function startServer(
     configuration.registerDidChangeCapability();
     configuration.registerDidChangeWatchedFilesNotification({
       watchers: [
+        // Every platformOS source, from the one list of source extensions. It
+        // subsumes the four narrower patterns this used to hold — `**/*.liquid`,
+        // `**/translations/**/*.yml`, `**/*.graphql` and `**/app/config.yml` —
+        // which between them missed `.yaml` translations and every non-config
+        // YAML source (tables, user profile types, transactable types).
         {
-          globPattern: '**/*.liquid',
+          globPattern: SOURCE_FILE_GLOB,
         },
-        {
-          globPattern: '**/translations/**/*.yml',
-        },
-        {
-          globPattern: '**/*.graphql',
-        },
+        // Not a platformOS source: `.css` is an asset, watched because the CSS
+        // language service answers requests for it.
         {
           globPattern: '**/*.css',
-        },
-        {
-          globPattern: '**/app/config.yml',
         },
       ],
     });
@@ -403,10 +406,24 @@ export function startServer(
     if (await configuration.shouldPreloadOnBoot()) {
       const rootUri = await findAppRootURI(uri);
       if (rootUri) {
-        documentManager.preload(rootUri);
+        // Not awaited: opening a file must not block on the whole workspace loading.
+        documentManager.preloadInBackground(rootUri);
       }
     }
   });
+
+  /**
+   * Whether `uri` is a page, anchored at ITS app root.
+   *
+   * Async because the root is: a workspace can hold several app roots, and which one
+   * a file belongs to is `findAppRootURI`'s answer. That is the price of asking the
+   * question correctly — `isPage(uri)` with no root would call
+   * `seed/post_import/app/views/pages/x.liquid` a page and keep it in the route table.
+   */
+  const isPageFile = async (uri: string): Promise<boolean> => {
+    const rootUri = await findAppRootURI(uri).catch(() => undefined);
+    return !!rootUri && isPage(uri, rootUri);
+  };
 
   connection.onDidChangeTextDocument(async (params) => {
     if (hasUnsupportedDocument(params)) return;
@@ -417,7 +434,7 @@ export function startServer(
     }
     const text = params.contentChanges[0].text;
     documentManager.change(uri, text, version);
-    if (isPage(uri)) {
+    if (await isPageFile(uri)) {
       definitionsProvider.onPageFileChanged(uri, text);
     }
     if (await configuration.shouldCheckOnChange()) {
@@ -579,7 +596,8 @@ export function startServer(
     // incremental updates aren't reliable — files not open in the editor won't get
     // individual onDidChangeTextDocument events. VS Code reports branch-switch changes
     // as FileChangeType.Changed, so we count all change types.
-    const bulkPageChanges = params.changes.filter((c) => isPage(c.uri));
+    const isPageChange = await Promise.all(params.changes.map((c) => isPageFile(c.uri)));
+    const bulkPageChanges = params.changes.filter((_, index) => isPageChange[index]);
     if (bulkPageChanges.length >= BULK_PAGE_CHANGE_THRESHOLD) {
       definitionsProvider.invalidateRouteTable();
     }
@@ -622,8 +640,8 @@ export function startServer(
           appGraphManager.create(change.uri);
           // If a file is created under out feet, we update its contents.
           updates.push(
-            documentManager.changeFromDisk(change.uri).then(() => {
-              if (isPage(change.uri)) {
+            documentManager.changeFromDisk(change.uri).then(async () => {
+              if (await isPageFile(change.uri)) {
                 const doc = documentManager.get(change.uri);
                 if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
               }
@@ -641,14 +659,14 @@ export function startServer(
           // will have the version from the editor.
           if (documentManager.get(change.uri)?.version === undefined) {
             updates.push(
-              documentManager.changeFromDisk(change.uri).then(() => {
-                if (isPage(change.uri)) {
+              documentManager.changeFromDisk(change.uri).then(async () => {
+                if (await isPageFile(change.uri)) {
                   const doc = documentManager.get(change.uri);
                   if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
                 }
               }),
             );
-          } else if (isPage(change.uri)) {
+          } else if (await isPageFile(change.uri)) {
             // File is open in editor but changed externally (e.g. git checkout).
             // The doc manager already has the editor version, but the route table
             // may be stale — update it from whatever the doc manager holds.
@@ -663,7 +681,7 @@ export function startServer(
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
           appGraphManager.delete(change.uri);
-          if (isPage(change.uri)) definitionsProvider.onPageFileDeleted(change.uri);
+          if (await isPageFile(change.uri)) definitionsProvider.onPageFileDeleted(change.uri);
           // If a file is deleted, it's removed from the document manager
           documentManager.delete(change.uri);
           break;

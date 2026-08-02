@@ -7,11 +7,15 @@
     "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
+      "@platformos/liquid-html-parser": ["../liquid-html-parser/src"],
+      "@platformos/platformos-common": ["../platformos-common/src"],
       "@platformos/platformos-check-common": ["../platformos-check-common/src"],
       "@platformos/platformos-check-docs-updater": ["../platformos-check-docs-updater/src"]
     }
   },
   "references": [
+    { "path": "../liquid-html-parser" },
+    { "path": "../platformos-common" },
     { "path": "../platformos-check-common" },
     { "path": "../platformos-check-docs-updater" }
   ]

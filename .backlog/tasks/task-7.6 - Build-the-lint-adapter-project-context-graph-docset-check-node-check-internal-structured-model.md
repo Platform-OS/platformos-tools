@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:01'
-updated_date: '2026-06-23 10:33'
+updated_date: '2026-08-01 20:18'
 labels: []
 dependencies:
   - TASK-7.2
@@ -87,4 +87,18 @@ When enrich (7.7) lands, insert StructuredDiagnostic between lint and the result
 The old `project-fact-graph.ts` / `project-scanner.ts` / `dependency-graph.ts` / `render-flow.ts` are NOT rebuilt here — by principle, all graph/project-structure functionality lives in `platformos-graph` (TASK-9). The supervisor consumes it and adds zero graph/scanner/query code.
 
 Status: the MINIMAL lint adapter (`runLint` via check-node `lintBuffer`, Offense→diagnostic mapping) is already implemented (see prior note). The FULL graph-backed `ProjectContext` (dependents/orphan/reachability/docset feeding enrichment) depends on TASK-9.2 (query API) + TASK-9.3 (per-file self-structural).
+
+## No `getReferences`, no modes — both were removed (2026-08-01)
+
+An earlier note here said this adapter should pass a graph-backed `getReferences` into
+`lintBuffer` to give `validate_code`'s `full` mode meaning. Both ends of that are gone:
+`OrphanedPartial` was the only consumer and was removed after measurement (TASK-29),
+taking `singleFileOnly`, `Dependencies.getReferences`, `lintBuffer`'s `wholeProject`
+and the `mode` parameter with it.
+
+What remains true for this task: `lintBuffer` returns `{ status, offenses }` — the
+status says whether the file was checked at all — and the graph is still worth holding
+here for the project context the enrich stage wants. Use `appBackedGetSourceCode`
+(TASK-12.6.5) so a graph build shares the App model's parsed files instead of
+reparsing the project.
 <!-- SECTION:NOTES:END -->

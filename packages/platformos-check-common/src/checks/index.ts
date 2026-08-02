@@ -15,7 +15,6 @@ import { LiquidHTMLSyntaxError } from './liquid-html-syntax-error';
 import { MatchingTranslations } from './matching-translations';
 import { MissingAsset } from './missing-asset';
 import { MissingPartial } from './missing-partial';
-import { OrphanedPartial } from './orphaned-partial';
 import { ParserBlockingScript } from './parser-blocking-script';
 import { ReservedVariableName } from './reserved-variable-name';
 import { TranslationKeyExists } from './translation-key-exists';
@@ -60,7 +59,6 @@ export const allChecks: (
   MatchingTranslations,
   MissingAsset,
   MissingPartial,
-  OrphanedPartial,
   ParserBlockingScript,
   ReservedVariableName,
   TranslationKeyExists,

@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { path as pathUtils } from '@platformos/platformos-check-common';
+import { Offense, path as pathUtils } from '@platformos/platformos-check-common';
+import { lintBuffer, LintBufferParams } from '../index';
 
 export async function makeTmpFolder() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test-'));
@@ -105,4 +106,21 @@ export async function makeTempWorkspace(structure: Tree): Promise<Workspace> {
     }
     return Promise.all(promises);
   }
+}
+
+/**
+ * `lintBuffer` for a test that is about the OFFENSES, asserting on the way through
+ * that the file was actually checked.
+ *
+ * `lintBuffer` answers with a status as well as offenses, because an empty list
+ * means "clean" only when the status says the checks ran. A test that reads the
+ * offenses and ignores the status would pass just as happily against a file the
+ * config excludes — which is the confusion the status exists to remove.
+ */
+export async function lintBufferOffenses(params: LintBufferParams): Promise<Offense[]> {
+  const result = await lintBuffer(params);
+  if (result.status !== 'checked') {
+    throw new Error(`Expected ${params.filePath} to be checked, but it was ${result.status}`);
+  }
+  return result.offenses;
 }

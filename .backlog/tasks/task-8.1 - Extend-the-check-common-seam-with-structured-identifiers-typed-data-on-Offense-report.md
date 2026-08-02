@@ -6,9 +6,9 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:56'
+updated_date: '2026-08-01 21:22'
 labels: []
-dependencies:
-  - TASK-7
+dependencies: []
 references:
   - packages/platformos-check-common/src/types.ts
   - packages/platformos-check-common/src/checks

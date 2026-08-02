@@ -12,10 +12,12 @@
     ],
     "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
     "paths": {
+      "@platformos/platformos-common": ["../platformos-common/src"],
       "@platformos/platformos-check-common": ["../platformos-check-common/src"]
     }
   },
   "references": [
+    { "path": "../platformos-common" },
     { "path": "../platformos-check-common" }
   ]
 }

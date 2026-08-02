@@ -1,4 +1,10 @@
-import { isLayout, isPage, isPartial, path, UriString } from '@platformos/platformos-check-common';
+import {
+  getFileType,
+  nameToPaths,
+  path,
+  PlatformOSFileType,
+  UriString,
+} from '@platformos/platformos-check-common';
 import {
   AssetModule,
   AppGraph,
@@ -33,53 +39,93 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
     return cache.get(uri)!;
   }
 
-  const relativePath = path.relative(uri, appGraph.rootUri);
-
-  switch (true) {
-    case isLayout(uri):
+  // One anchored classification, not four unanchored ones: a file's type is its
+  // position relative to the project root, and the graph has that root.
+  switch (getFileType(uri, appGraph.rootUri)) {
+    case PlatformOSFileType.Layout:
       return getLayoutModule(appGraph, uri);
 
-    case isPage(uri):
+    case PlatformOSFileType.Page:
       return getPageModule(appGraph, uri);
 
-    case isPartial(uri):
+    case PlatformOSFileType.Partial:
       return getPartialModule(appGraph, path.basename(uri, '.liquid'));
 
-    case relativePath.startsWith('assets') || relativePath.startsWith('modules'):
-      return getAssetModule(appGraph, path.basename(uri));
+    case PlatformOSFileType.Asset:
+      return getAssetModuleByUri(appGraph, uri);
   }
 }
 
-export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule | undefined {
-  const extension = extname(asset);
-
-  const SUPPORTED_ASSET_EXTENSIONS = [
-    ...SUPPORTED_ASSET_IMAGE_EXTENSIONS,
-    'js',
-    'css',
-    'svg',
-    'pdf',
-    'woff',
-    'woff2',
-    'ttf',
-    'eot',
-  ];
-
-  if (!SUPPORTED_ASSET_EXTENSIONS.includes(extension)) {
-    return undefined;
-  }
+/**
+ * Create (or fetch the cached) asset module for an already-resolved URI.
+ *
+ * Preferred over {@link getAssetModule} whenever the file is known, for the same
+ * reason as {@link getPartialModuleByUri}: it does not reconstruct a path from a
+ * name, so a nested or module asset keeps the location it actually has.
+ */
+export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModule | undefined {
+  if (!isSupportedAsset(uri)) return undefined;
 
   return module(appGraph, {
     type: ModuleType.Asset,
     kind: 'unused',
     dependencies: [],
     references: [],
-    uri: path.join(appGraph.rootUri, 'assets', asset),
+    // Normalize to forward slashes — see getPartialModuleByUri.
+    uri: path.normalize(uri),
+  });
+}
+
+const SUPPORTED_ASSET_EXTENSIONS = [
+  ...SUPPORTED_ASSET_IMAGE_EXTENSIONS,
+  'js',
+  'css',
+  'svg',
+  'pdf',
+  'woff',
+  'woff2',
+  'ttf',
+  'eot',
+];
+
+function isSupportedAsset(nameOrUri: string): boolean {
+  return SUPPORTED_ASSET_EXTENSIONS.includes(extname(nameOrUri));
+}
+
+/**
+ * Create (or fetch the cached) asset module for an asset REFERENCE — the string
+ * inside `{{ 'app.js' | asset_url }}`, which may carry a `modules/<name>/` prefix.
+ *
+ * Assets live under the same roots as every other file type: `app/assets/` or
+ * `modules/<name>/{public,private}/assets/`. Those come from platformos-common, so
+ * the graph resolves a reference to the same place the linter and the platform do —
+ * this used to build `<root>/assets/<name>`, which is not a location the platform
+ * deploys from at all, and it dropped any subdirectory via `basename`.
+ *
+ * The FIRST candidate is used as the canonical location, as {@link getPartialModule}
+ * does: this is sync and has no filesystem, so it cannot tell which candidate exists.
+ * Prefer {@link getAssetModuleByUri} when the URI is already known.
+ */
+export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule | undefined {
+  if (!isSupportedAsset(asset)) return undefined;
+
+  const [canonical] = nameToPaths(PlatformOSFileType.Asset, asset);
+  if (!canonical) return undefined;
+
+  return module(appGraph, {
+    type: ModuleType.Asset,
+    kind: 'unused',
+    dependencies: [],
+    references: [],
+    uri: path.join(appGraph.rootUri, canonical),
   });
 }
 
 export function getPartialModule(appGraph: AppGraph, partial: string): LiquidModule {
-  const uri = path.join(appGraph.rootUri, 'app/views/partials', `${partial}.liquid`);
+  // Where a partial lives, and the extension it resolves with, both come from
+  // platformos-common's name→path mapping — never spelled here.
+  const [canonical] = nameToPaths(PlatformOSFileType.Partial, partial);
+  const uri = path.join(appGraph.rootUri, canonical);
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Partial,

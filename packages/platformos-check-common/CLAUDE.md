@@ -99,6 +99,13 @@ Factory functions for the augmented dependency methods:
 - `makeGetTranslationsForBase(fs, app)` — loads and merges YAML translation files; open editor buffers take precedence over filesystem
 - `makeGetDefaultTranslations(fs, app, rootUri)` — loads `app/translations/en.yml`, strips locale root key
 - `makeGetDefaultLocale(fs, rootUri)` — always returns `'en'`
+- `makeGetRouteTable(fs, rootUri, existing?)` — at most one `RouteTable` per run,
+  produced on the first `context.getRouteTable()`. `existing` is either a table (the
+  LSP's, kept current by file events) or a **provider** for a caller whose table costs
+  something to make current (check-node reconciles a process-level one). Knowing a
+  route means reading every page in the project, and `MissingPage` is its only
+  consumer, so a check must ask for it at the point it needs a URL resolved — never in
+  `onCodePathStart`.
 
 ## Testing
 

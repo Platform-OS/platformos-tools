@@ -32,6 +32,31 @@ export function join(rootUri: UriString | URI, ...paths: string[]): string {
   return normalize(Utils.joinPath(asUri(rootUri), ...paths));
 }
 
+/**
+ * `join(dirUri, name)` for ONE directory-entry name, without parsing and
+ * re-serializing the URI.
+ *
+ * A filesystem adapter calls this once per entry of every directory it lists —
+ * hundreds of thousands of times over a project walk, most of them for files the
+ * caller then discards — and `join`'s `URI.parse` + `toString` round trip is most
+ * of what a walk costs. `dirUri` must already be normalized, which is true of
+ * anything that came out of `normalize`, `join` or this function.
+ *
+ * `childUri(dir, name) === join(dir, name)` for every name a `readdir` can return;
+ * `path.spec.ts` pins that against `join` itself rather than restating the rule.
+ */
+export function childUri(dirUri: UriString, name: string): UriString {
+  const base = dirUri.endsWith('/') ? dirUri : `${dirUri}/`;
+  // `toString(true)` leaves a URI path alone except for `#` and `?`, which would
+  // otherwise start a fragment or a query; `normalize` then forward-slashes the
+  // separators Windows produces.
+  return base + (/[#?\\]/.test(name) ? encodeEntryName(name) : name);
+}
+
+function encodeEntryName(name: string): string {
+  return name.replace(/#/g, '%23').replace(/\?/g, '%3F').replace(/\\/g, '/');
+}
+
 export function resolve(uri: UriString | URI, path: string): string {
   return normalize(Utils.resolvePath(asUri(uri), path));
 }

@@ -3,10 +3,10 @@ id: TASK-12.6.8
 title: >-
   Introduce a singleFileOnly check partition (Ruby's single_file guard), default
   on
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-31 16:56'
-updated_date: '2026-07-31 16:57'
+updated_date: '2026-08-01 21:00'
 labels:
   - architecture
   - check-common
@@ -81,37 +81,91 @@ The LSP's `diagnostics/runChecks.ts` deliberately lints the WHOLE app because it
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## Decision: OrphanedPartial is whole-app — pos-cli check only, NOT the LSP
+## Implemented
 
-### Why it is category 3, and MissingPartial is not
+- `CheckDefinition.meta.singleFile?: boolean`, defaulting to `true`, documented as the
+  scope of REPORTING rather than a cost budget.
+- `CheckOptions.singleFileOnly?: boolean`, defaulting to `true`, filtering the check
+  set in `checksOfType` — independently of `CheckOptions.only`, which still filters
+  files.
+- `OrphanedPartial` is the only `singleFile: false` check, with the reasoning in its
+  own doc comment (forward vs reverse question).
+- `appCheckRun` (i.e. `pos-cli check`) passes `singleFileOnly: false`. `lintBuffer` and
+  the language server use the default.
+- `getReferences` is no longer wired in the language server's `runChecks`, and
+  `appGraphManager` was dropped from `makeRunChecks`'s parameters (it is still used for
+  the LSP's own references/dependencies features).
 
-The two checks ask opposite questions, and only one of them needs parsing:
+## AC #2, "explicit classification": a full two-sided partition test
 
-| Check | Question | Needs | Cost |
-|---|---|---|---|
-| `MissingPartial` | FORWARD: does `render 'foo'` resolve to a file? | the path index | O(1), **zero parsing** |
-| `OrphanedPartial` | REVERSE: does any other file render ME? | every file's render/include/function edges | **whole-project parse** |
+`single-file-partition.spec.ts` pins BOTH lists by name and asserts
+`allChecks.length === SINGLE_FILE.length + WHOLE_APP.length`. Adding a check fails the
+test until someone puts it on a side. That is stronger than a per-check `singleFile:
+true` annotation (which reviewers would rubber-stamp) and does not add 36 lines of
+noise to the check definitions.
 
-"Does a partial with this name exist" is free once 12.6.1's `App` has classified the paths — no file content is needed at all. But the reverse direction cannot be answered without having parsed every liquid file to extract its outgoing references. That, not existence, is why `OrphanedPartial` is whole-app.
+## AC #8: MatchingTranslations is single-file — rationale
 
-`platformos-graph` already models both directions (`types.ts`: outgoing references, plus ingoing "references from other modules"), so the expensive part is BUILDING the graph, not querying it. On `supervisor-graph-integration` that build measured ~37 s on a real project.
+It reports on the translation file it is VISITING (`context.file`), comparing that
+file's keys against the aggregated translation set that `getTranslationsForBase`
+returns. It never reports on another file. That is category 2 — single-file report,
+looked-up data — the same shape as `TranslationKeyExists`. Its cost is a handful of
+YAML reads, not a project parse.
 
-### The decision
+## AC #6: no stale diagnostics — structural, and tested
 
-`OrphanedPartial` runs only under `singleFileOnly: false`, i.e. `pos-cli check`. The LSP and `validate_code` use the default and do not run it.
+The LSP still lints the WHOLE app (no `only`) and iterates app FILES rather than
+offenses when publishing, so every file is republished on every run and an offense that
+no longer exists is cleared. `singleFileOnly` changes which CHECKS run, not which files
+are reported on, so the Ruby `diagnostics_manager` per-path merge logic is not needed
+here. Pinned by a test that fixes file B, edits file A, and asserts B is republished
+with `diagnostics: []` at its new version.
 
-### Consequence — this REMOVES a diagnostic the LSP ships today
+## AC #9: documented as a deliberate trade
 
-`getReferences` is currently wired ONLY in the LSP (`diagnostics/runChecks.ts`), which means `OrphanedPartial` works in the editor today and is already inert in check-node. So this decision:
+- `OrphanedPartial.meta.docs.description` now states it runs in whole-project runs
+  only (`pos-cli check` and CI), not in the editor or `validate_code`, and why.
+- `.changeset/lazy-app-model.md` calls the removal out explicitly, names `pos-cli
+  check` as where it still runs, and lists the checks that are NOT affected
+  (`MissingPage`, `MissingPartial`, `MissingAsset`, `TranslationKeyExists`,
+  `PartialCallArguments`, `MatchingTranslations`).
+- STILL TO DO OUTSIDE THIS REPO: the same note on the check's page in
+  `~/projects/pos/platformos-documentation`.
 
-- makes `validate_code`'s existing behaviour correct-by-declaration rather than accidental, AND
-- **removes "This partial is not referenced by any other files" from the editor**, where it currently appears.
+## Ruby's `single_file_end_dependencies`: deliberately not ported
 
-That is intentional, not an oversight: the diagnostic costs a whole-project parse to produce, and a per-keystroke editor path cannot pay it. Call it out in the changelog / check docs so it does not read as a regression — a partial that is genuinely orphaned will now be reported by `pos-cli check` (and CI) instead of in the editor.
+Ruby declares the extra files a check needs in single-file mode. In TypeScript those
+files are reached implicitly and lazily through `getDocDefinition` /
+`PartialCallArguments` — measured at 6 files on a 3138-file project — so an explicit
+declaration would add a maintenance surface for something laziness already gets right.
+Decided, not omitted.
 
-Also drop `getReferences` from the LSP's `runChecks` dependency wiring, or the graph will still be built for a check that no longer consumes it.
+## Test-helper default
 
-### Escape hatch, deliberately not taken now
+`test-helper`'s `check()` defaults to `singleFileOnly: false`: a fixture-wide run
+models a whole-project run, and a spec that names a check explicitly means to run it.
+Specs that exercise the partition pass the flag.
 
-`OrphanedPartial` could rejoin the single-file set if the reverse index became cheap to keep warm — that is exactly TASK-9.15's "warm incremental persisted GraphCache". If that lands, revisit: the check would need `getReferences` wired for the LSP again, backed by an incrementally-maintained index rather than a per-run build. Do NOT re-enable it against a per-run graph build.
+## Acceptance criteria
+
+- #1 ✔ · #2 ✔ · #3 ✔ (all five still report under `singleFileOnly: true`) · #4 ✔
+  (asserted directly, with `getReferences` wired, so it is not incidental) · #5 ✔
+  (`pos-cli check` path passes `false`; suite green) · #6 ✔ · #7 ✔ (pinned on
+  TASK-12.6.3 with a spied parser) · #8 ✔ · #9 ◐ in-repo done, docs repo pending ·
+  #10 ✔
+
+## REVERTED (2026-08-01) — the partition's only member is gone
+
+`OrphanedPartial` was removed (see TASK-29), and it was the sole `singleFile: false`
+check, so the partition had nothing left to separate. `CheckOptions.singleFileOnly`,
+`meta.singleFile` and `Dependencies.getReferences` are deleted; the editor,
+`pos-cli check` and `validate_code` now run the same set of checks.
+
+The reasoning that justified the partition still holds and is worth keeping in mind
+if a whole-app check is ever proposed again: a check that asks what the REST of the
+project says about a file cannot be answered without parsing all of it, and a
+per-keystroke path cannot pay for that. What changed is the evidence about this
+particular check — with the index actually built, it reported 350-465 warnings per
+real project, and a large share were partials invoked by name through dispatchers and
+callbacks, which no static index can see.
 <!-- SECTION:NOTES:END -->

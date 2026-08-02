@@ -1,8 +1,8 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { DocumentsLocator, DocumentType } from '@platformos/platformos-common';
+import { DocumentsLocator, DocumentType, PlatformOSFileType } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
-import { relative } from '../../path';
+import { isPartial, relative } from '../../path';
 import { isGloballyAccessibleObject } from '../utils';
 import { extractUndefinedVariables } from './extract-undefined-variables';
 
@@ -24,7 +24,7 @@ export const PartialCallArguments: LiquidCheckDefinition = {
   },
 
   create(context) {
-    const locator = new DocumentsLocator(context.fs);
+    const locator = new DocumentsLocator(context.fs, context.app);
 
     /**
      * The globally accessible documented objects, which are in scope inside every
@@ -80,7 +80,7 @@ export const PartialCallArguments: LiquidCheckDefinition = {
         // Variables used with `| default` are treated as optional.
         const inScopeNames = await globalObjectNames();
         // `app` is not a documented object, so it never comes back from objects().
-        if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
+        if (context.fileType(locatedFile) === PlatformOSFileType.Partial) {
           inScopeNames.push('app');
         }
 

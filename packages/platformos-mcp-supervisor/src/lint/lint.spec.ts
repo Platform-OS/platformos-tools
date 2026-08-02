@@ -51,7 +51,7 @@ describe('Integration: runLint (lint adapter)', () => {
       content: '<html><body><header>Site</header></body></html>',
     });
 
-    expect(diagnostics).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
+    expect(diagnostics).toEqual({ diagnostics: [MISSING_CONTENT_FOR_LAYOUT] });
   });
 
   it('returns no diagnostics for a clean layout', async () => {
@@ -61,7 +61,7 @@ describe('Integration: runLint (lint adapter)', () => {
       content: '<html><body>{{ content_for_layout }}</body></html>',
     });
 
-    expect(diagnostics).toEqual([]);
+    expect(diagnostics).toEqual({ diagnostics: [] });
   });
 
   it('accepts an absolute file path', async () => {
@@ -74,6 +74,36 @@ describe('Integration: runLint (lint adapter)', () => {
       content: '<html><body></body></html>',
     });
 
-    expect(diagnostics).toEqual([MISSING_CONTENT_FOR_LAYOUT]);
+    expect(diagnostics).toEqual({ diagnostics: [MISSING_CONTENT_FOR_LAYOUT] });
+  });
+
+  /**
+   * The seam distinguishes "checked, nothing wrong" from "not checked", and the
+   * adapter must carry that up rather than flattening both into an empty list.
+   */
+  it('reports a file the project excludes as not checked, not as clean', async () => {
+    writeFileSync(
+      join(projectDir, '.platformos-check.yml'),
+      ['ignore:', '  - app/views/layouts/**', ''].join('\n'),
+      'utf8',
+    );
+
+    const outcome = await runLint({
+      projectDir,
+      filePath: 'app/views/layouts/application.liquid',
+      content: '<html><body><header>Site</header></body></html>',
+    });
+
+    expect(outcome).toEqual({ diagnostics: [], notChecked: 'excluded-by-config' });
+  });
+
+  it('reports a path outside the app subtrees as not checked', async () => {
+    const outcome = await runLint({
+      projectDir,
+      filePath: 'scripts/helper.liquid',
+      content: '<html><body><header>Site</header></body></html>',
+    });
+
+    expect(outcome).toEqual({ diagnostics: [], notChecked: 'not-an-app-file' });
   });
 });

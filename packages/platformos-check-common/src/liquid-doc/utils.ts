@@ -113,8 +113,8 @@ export function isTypeCompatible(expectedType: string, actualType: InferredParam
 /**
  * Checks if the provided file path supports the LiquidDoc tag.
  */
-export function filePathSupportsLiquidDoc(uri: UriString) {
-  return isPartial(uri);
+export function filePathSupportsLiquidDoc(uri: UriString, rootUri: UriString) {
+  return isPartial(uri, rootUri);
 }
 
 /**

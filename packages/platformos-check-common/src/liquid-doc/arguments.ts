@@ -249,7 +249,7 @@ export async function getLiquidDocParams(
 
   // Use DocumentsLocator to find the partial across all platformOS locations,
   // including app/views/partials/, app/lib/, and module paths.
-  const locator = new DocumentsLocator(context.fs);
+  const locator = new DocumentsLocator(context.fs, context.app);
   const fileUri = await locator.locate(URI.parse(context.config.rootUri), 'render', partialName);
   if (!fileUri) return undefined;
 

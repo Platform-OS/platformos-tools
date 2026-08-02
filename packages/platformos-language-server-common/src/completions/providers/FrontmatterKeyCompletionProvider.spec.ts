@@ -15,6 +15,9 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
 
   beforeEach(async () => {
     provider = new CompletionsProvider({
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
       documentManager: new DocumentManager(),
       platformosDocset: mockDocset,
     });
@@ -78,6 +81,9 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
 
   it('completes layout names when getLayoutNamesForURI is provided', async () => {
     const providerWithLayouts = new CompletionsProvider({
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
       documentManager: new DocumentManager(),
       platformosDocset: mockDocset,
       getLayoutNamesForURI: async () => ['application', 'auth', 'modules/community/base'],
@@ -96,6 +102,9 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
     // the original modules/community/public/views/layouts/base.liquid are present,
     // both appear as 'modules/community/base' and Set deduplication yields a single entry.
     const providerWithLayouts = new CompletionsProvider({
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
       documentManager: new DocumentManager(),
       platformosDocset: mockDocset,
       getLayoutNamesForURI: async () => ['modules/community/base'],
@@ -111,6 +120,9 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
 
   it('filters module layout names by modules/ prefix', async () => {
     const providerWithLayouts = new CompletionsProvider({
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
       documentManager: new DocumentManager(),
       platformosDocset: mockDocset,
       getLayoutNamesForURI: async () => ['application', 'auth', 'modules/community/base'],
@@ -136,6 +148,9 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
 
   it('completes auth policy list items when getAuthPolicyNamesForURI is provided', async () => {
     const providerWithPolicies = new CompletionsProvider({
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
       documentManager: new DocumentManager(),
       platformosDocset: mockDocset,
       getAuthPolicyNamesForURI: async () => ['is_authenticated', 'is_admin'],

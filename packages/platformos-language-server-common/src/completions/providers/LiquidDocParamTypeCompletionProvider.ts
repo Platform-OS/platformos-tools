@@ -3,6 +3,7 @@ import { CompletionItem, CompletionItemKind, MarkupKind } from 'vscode-languages
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 import { filePathSupportsLiquidDoc } from '@platformos/platformos-check-common';
+import { FindAppRootURI } from '../../internal-types';
 import {
   getValidParamTypes,
   SupportedDocTagTypes,
@@ -10,11 +11,14 @@ import {
 } from '@platformos/platformos-check-common';
 
 export class LiquidDocParamTypeCompletionProvider implements Provider {
-  constructor(private readonly platformosDocset: PlatformOSDocset) {}
+  constructor(
+    private readonly platformosDocset: PlatformOSDocset,
+    private readonly findAppRootURI?: FindAppRootURI,
+  ) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
-    if (!filePathSupportsLiquidDoc(params.document.uri)) return [];
+    if (!(await this.supportsLiquidDoc(params.document.uri))) return [];
 
     const { node, ancestors } = params.completionContext;
     const parentNode = ancestors.at(-1);
@@ -61,5 +65,17 @@ export class LiquidDocParamTypeCompletionProvider implements Provider {
         documentation,
       };
     });
+  }
+
+  /**
+   * Whether the file at `uri` is one `{% doc %}` applies to — a partial.
+   *
+   * Needs the project root, which only the server can resolve, so it arrives as an
+   * injected resolver. Without one the provider cannot tell a partial from a page in
+   * some unrelated directory, and offers nothing rather than guessing.
+   */
+  private async supportsLiquidDoc(uri: string): Promise<boolean> {
+    const rootUri = this.findAppRootURI ? await this.findAppRootURI(uri) : undefined;
+    return !!rootUri && filePathSupportsLiquidDoc(uri, rootUri);
   }
 }

@@ -4,9 +4,11 @@ title: Add scalar-pattern + ActivityStreams file types
 status: To Do
 assignee: []
 created_date: '2026-05-11 13:02'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-1
+ordinal: 2000
 ---
 
 ## Description

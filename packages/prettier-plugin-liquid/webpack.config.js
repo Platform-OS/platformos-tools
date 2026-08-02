@@ -28,4 +28,10 @@ module.exports = {
   node: {
     __dirname: true,
   },
+  experiments: {
+    // We bundle the compiled `dist/` output. Webpack's built-in TypeScript
+    // support would otherwise resolve imports back to sibling `.ts` sources and
+    // strip them in strip-only mode, which cannot handle `enum`.
+    typescript: false,
+  },
 };

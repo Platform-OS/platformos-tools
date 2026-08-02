@@ -3,6 +3,7 @@ original file
 {{ true }}
 {{ false }}
 {{ nil }}
+{{ null }}
 {{ blank }}
 {{ empty }}
 
@@ -43,6 +44,17 @@ Grammar: liquid.tmLanguage.json
        text.html.liquid meta.object.liquid
         ^^
         text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+>{{ null }}
+ ^^
+ text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.object.liquid
+    ^^^^
+    text.html.liquid meta.object.liquid constant.language.liquid
+        ^
+        text.html.liquid meta.object.liquid
+         ^^
+         text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
 >{{ blank }}
  ^^
  text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid

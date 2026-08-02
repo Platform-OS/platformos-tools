@@ -18,20 +18,36 @@ See the [@platformos/platformos-check-common README](../platformos-check-common)
 `lintBuffer` is the typed seam an embedding tool (e.g. the MCP supervisor) lints
 through — a **direct library call, not an LSP and not a subprocess**. It loads
 the project from disk so cross-file checks (`MissingPartial`, `MissingPage`,
-`OrphanedPartial`, …) resolve against real files, overlays the buffer under edit
+`TranslationKeyExists`, …) resolve against real files, overlays the buffer under edit
 in memory so the **unsaved** content is what gets linted and cross-referenced,
 and returns the structured check-common `Offense[]` for that file with `fix` /
 `suggest` and every typed field intact — no message-string round-trip.
 
+It also reports **whether it checked the file at all**. Three kinds of path are
+never linted, and an empty `offenses` for one of them does not mean the file is
+fine:
+
+| `status` | meaning |
+|---|---|
+| `checked` | The checks ran. `offenses` is the complete answer. |
+| `excluded-by-config` | The project's `.platformos-check.yml` `ignore` list covers this path. |
+| `misplaced-source` | A platformOS source (`.liquid`, `.graphql`, `.yml`) outside every deployed subtree — almost always a mistake. |
+| `not-a-platformos-file` | Not a platformOS source at all: not deployed, and nothing here parses it. |
+| `not-a-source-file` | An app file with no parser or checks — an asset (`.js`, `.css`, an image). |
+
 ```ts
 import { lintBuffer } from '@platformos/platformos-check-node';
 
-const offenses = await lintBuffer({
+const { status, offenses } = await lintBuffer({
   root: '/abs/path/to/project',                 // project root (absolute)
   filePath: '/abs/path/to/project/app/views/pages/contact.liquid', // file under edit (absolute)
   content: editorBufferContents,                // unsaved buffer
   // configPath?: explicit config; resolved from root when omitted
 });
+
+if (status !== 'checked') {
+  // Nothing was validated — say so rather than reporting "no problems".
+}
 
 for (const offense of offenses) {
   offense.check;     // e.g. 'MissingPartial'

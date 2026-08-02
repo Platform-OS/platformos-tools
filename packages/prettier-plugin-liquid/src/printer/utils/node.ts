@@ -34,11 +34,7 @@ export function isPreLikeNode(node: { cssWhitespace: string }) {
 export function hasNoCloseMarker(
   node: LiquidHtmlNode,
 ): node is
-  | HtmlComment
-  | HtmlVoidElement
-  | HtmlSelfClosingElement
-  | HtmlDanglingMarkerClose
-  | HtmlElement {
+  HtmlComment | HtmlVoidElement | HtmlSelfClosingElement | HtmlDanglingMarkerClose | HtmlElement {
   return hasNoChildren(node) || isHtmlDanglingMarkerOpen(node);
 }
 

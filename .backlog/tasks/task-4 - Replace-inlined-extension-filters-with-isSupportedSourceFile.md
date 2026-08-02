@@ -4,9 +4,11 @@ title: Replace inlined extension filters with isSupportedSourceFile
 status: To Do
 assignee: []
 created_date: '2026-05-11 13:10'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-3
+ordinal: 4000
 ---
 
 ## Description

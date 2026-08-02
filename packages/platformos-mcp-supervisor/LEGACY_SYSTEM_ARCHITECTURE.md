@@ -182,6 +182,13 @@ The current pipeline (post our most recent fix) is:
 17.  populateDefaultConfidence           # stamp <check>.unmatched + default conf
 ```
 
+Step 7 (`suppressModuleHelpers`) existed because the docset of the day
+marked `include` deprecated, so `DeprecatedTag` fired on every module
+helper call. It no longer does — `include` is a supported tag, and the
+`can_do_or_*` authorization guards depend on its scope sharing and on
+`{% break %}` stopping the caller — so a rebuild needs neither the
+suppressor nor the diagnostic it suppressed.
+
 Each step emits at most one `pos-supervisor:*Suppressed` info
 diagnostic so the agent sees a single audit line per kind of
 suppression instead of being silently denied.

@@ -108,17 +108,17 @@ describe('Module: LiquidHTMLSyntaxError', () => {
 
     source = `<div><a></b></div>`;
     offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
-    highlights = highlightedOffenses({ 'file.liquid': source }, offenses);
+    highlights = highlightedOffenses({ 'app/views/partials/file.liquid': source }, offenses);
     expect(highlights).to.include('<a></b>');
 
     source = `<div><a>{% endif %}</div>`;
     offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
-    highlights = highlightedOffenses({ 'file.liquid': source }, offenses);
+    highlights = highlightedOffenses({ 'app/views/partials/file.liquid': source }, offenses);
     expect(highlights).to.include('<a>{% endif %}');
 
     source = `<a href=abc ">`;
     offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
-    highlights = highlightedOffenses({ 'file.liquid': source }, offenses);
+    highlights = highlightedOffenses({ 'app/views/partials/file.liquid': source }, offenses);
     expect(highlights).to.include('"');
   });
 });

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import path from 'node:path';
 
-import { appCheckRun, lintBuffer, resetPlatformOSLiquidDocsManager, updateDocs } from './index';
-import { Workspace, makeTempWorkspace } from './test/test-helpers';
+import { appCheckRun, resetPlatformOSLiquidDocsManager, updateDocs } from './index';
+import { Workspace, lintBufferOffenses, makeTempWorkspace } from './test/test-helpers';
 
 /**
  * Records the log sink of every docs manager constructed in this process.
@@ -68,8 +68,8 @@ describe('Integration: docs manager reuse across lint runs', () => {
   });
 
   it('constructs the docs manager once, however many lint runs happen', async () => {
-    await lintBuffer({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
-    await lintBuffer({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
+    await lintBufferOffenses({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
+    await lintBufferOffenses({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
     await appCheckRun(root, configPath);
 
     expect(constructions).toHaveLength(1);
@@ -79,7 +79,7 @@ describe('Integration: docs manager reuse across lint runs', () => {
     const earlierRunLog: string[] = [];
     const laterRunLog: string[] = [];
 
-    await lintBuffer({
+    await lintBufferOffenses({
       root,
       filePath,
       content: "{% assign a = {'a': 5} %}",
@@ -103,7 +103,7 @@ describe('Integration: docs manager reuse across lint runs', () => {
     // ...it is replayed to the next run instead. Without the replay, only the
     // process's FIRST run — for the MCP supervisor a `lintBuffer` call with no `log`
     // at all — ever learns why the docset is reporting valid code as unknown.
-    await lintBuffer({
+    await lintBufferOffenses({
       root,
       filePath,
       content: "{% assign b = {'b': 5} %}",
@@ -115,29 +115,29 @@ describe('Integration: docs manager reuse across lint runs', () => {
   });
 
   it('builds a fresh manager after an explicit reset, so a changed docset is re-read', async () => {
-    await lintBuffer({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
+    await lintBufferOffenses({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
     const before = constructions.length;
 
     resetPlatformOSLiquidDocsManager();
-    await lintBuffer({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
+    await lintBufferOffenses({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
 
     expect(constructions.length).toEqual(before + 1);
   });
 
   it('drops the shared manager when updateDocs refreshes the docset', async () => {
-    await lintBuffer({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
+    await lintBufferOffenses({ root, filePath, content: "{% assign a = {'a': 5} %}", configPath });
     const before = constructions.length;
 
     // Without this reset the process would keep validating against the docset it
     // read BEFORE the download — e.g. reporting a brand-new filter as unknown.
     await updateDocs();
-    await lintBuffer({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
+    await lintBufferOffenses({ root, filePath, content: "{% assign b = {'b': 5} %}", configPath });
 
     expect(constructions.length).toEqual(before + 1);
   });
 
   it('still lints correctly through the shared manager', async () => {
-    const offenses = await lintBuffer({
+    const offenses = await lintBufferOffenses({
       root,
       filePath,
       content: "{% assign a = {'a': 5} %}",

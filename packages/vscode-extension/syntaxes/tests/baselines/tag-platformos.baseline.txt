@@ -1,0 +1,852 @@
+original file
+-----------------------------------
+{% function result = 'modules/core/commands/user/create', email: params.email %}
+{% include 'shared/header', title: page.title %}
+{% include_form 'user_signup', id: current_user.id %}
+{% print current_user.email %}
+{% log result, type: 'debug' %}
+{% export config, namespace: 'app' %}
+{% return result %}
+{% return { "status": 200 } %}
+{% hash_assign object["key"] = 'value' %}
+{% session cart_id = params.cart_id %}
+{% context locale: 'en' %}
+{% sign_in user_id: current_user.id, timeout_in_minutes: 60 %}
+{% redirect_to '/dashboard', status: 302 %}
+{% response_status 404 %}
+{% response_headers '{ "Cache-Control": "max-age=600" }' %}
+{% spam_protection 'recaptcha' %}
+{% theme_render_rc 'shared/header', title: page.title %}
+{% yield 'content' %}
+
+{% background source_name: 'my_job' %}
+  {% function res = 'modules/core/commands/heavy', id: params.id %}
+{% endbackground %}
+
+{% background result = 'modules/core/commands/heavy', id: params.id %}
+
+{% cache 'my-key', expire: 60 %}
+  <p>{{ context.language }}</p>
+{% endcache %}
+
+{% content_for 'head' %}
+  <meta name="robots" content="noindex">
+{% endcontent_for %}
+
+{% try %}
+  {% transaction %}
+    {% function res = 'modules/core/commands/transfer', amount: 10 %}
+    {% if res.error %}
+      {% rollback %}
+    {% endif %}
+  {% endtransaction %}
+{% catch error %}
+  {% log error %}
+{% endtry %}
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{% function result = 'modules/core/commands/user/create', email: params.email %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+            ^
+            text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+             ^^^^^^
+             text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                   ^^^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                        ^
+                                                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                         ^^
+                                                         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                           ^^^^^^
+                                                           text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.other.attribute-name.liquid
+                                                                 ^
+                                                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                                  ^^^^^^
+                                                                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.language.liquid
+                                                                        ^
+                                                                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid punctuation.accessor.liquid
+                                                                         ^^^^^
+                                                                         text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.member.liquid
+                                                                              ^
+                                                                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                                               ^^
+                                                                               text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% include 'shared/header', title: page.title %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid entity.name.tag.render.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+            ^
+            text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+             ^^^^^^^^^^^^^
+             text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                          ^
+                          text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                           ^^
+                           text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                             ^^^^^^
+                             text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid entity.other.attribute-name.liquid
+                                   ^
+                                   text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                                    ^^^^
+                                    text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid variable.language.liquid
+                                        ^
+                                        text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid punctuation.accessor.liquid
+                                         ^^^^^
+                                         text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid variable.other.member.liquid
+                                              ^
+                                              text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                                               ^^
+                                               text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% include_form 'user_signup', id: current_user.id %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+                ^
+                text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                  ^^^^^^^^^^^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                             ^
+                             text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                              ^^
+                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                ^^
+                                text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                                  ^^
+                                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                    ^^^^^^^^^^^^
+                                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.language.liquid
+                                                ^
+                                                text.html.liquid meta.tag.liquid meta.entity.tag.liquid punctuation.accessor.liquid
+                                                 ^^
+                                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.member.liquid
+                                                   ^
+                                                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                    ^^
+                                                    text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% print current_user.email %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+          ^^^^^^^^^^^^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.language.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid punctuation.accessor.liquid
+                       ^^^^^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.member.liquid
+                            ^
+                            text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                             ^^
+                             text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% log result, type: 'debug' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+        ^^^^^^
+        text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+              ^^
+              text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                ^^^^^
+                text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.other.attribute-name.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                       ^^^^^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                            ^
+                            text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                             ^
+                             text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                              ^^
+                              text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% export config, namespace: 'app' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+          ^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+           ^^^^^^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                 ^^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                   ^^^^^^^^^^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.other.attribute-name.liquid
+                             ^
+                             text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                              ^
+                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                               ^^^
+                               text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                  ^
+                                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                   ^
+                                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                    ^^
+                                    text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% return result %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+          ^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+           ^^^^^^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                  ^^
+                  text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% return { "status": 200 } %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+          ^^^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+             ^
+             text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.double.liquid
+              ^^^^^^
+              text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.double.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.double.liquid
+                     ^^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                       ^^^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid constant.numeric.liquid
+                          ^^^
+                          text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                             ^^
+                             text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% hash_assign object["key"] = 'value' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+               ^
+               text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                ^^^^^^
+                text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                      ^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid meta.brackets.liquid punctuation.section.brackets.begin.liquid
+                       ^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid meta.brackets.liquid string.quoted.double.liquid
+                        ^^^
+                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid meta.brackets.liquid string.quoted.double.liquid
+                           ^
+                           text.html.liquid meta.tag.liquid meta.entity.tag.liquid meta.brackets.liquid string.quoted.double.liquid
+                            ^
+                            text.html.liquid meta.tag.liquid meta.entity.tag.liquid meta.brackets.liquid punctuation.section.brackets.end.liquid
+                             ^^^
+                             text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                ^
+                                text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                 ^^^^^
+                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                      ^
+                                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                       ^
+                                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                        ^^
+                                        text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% session cart_id = params.cart_id %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+            ^^^^^^^
+            text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                   ^^^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                      ^^^^^^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.language.liquid
+                            ^
+                            text.html.liquid meta.tag.liquid meta.entity.tag.liquid punctuation.accessor.liquid
+                             ^^^^^^^
+                             text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.member.liquid
+                                    ^
+                                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                     ^^
+                                     text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% context locale: 'en' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+            ^^^^^^
+            text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                  ^^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                     ^^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                       ^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                        ^
+                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                         ^^
+                         text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% sign_in user_id: current_user.id, timeout_in_minutes: 60 %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+            ^^^^^^^
+            text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                   ^^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                     ^^^^^^^^^^^^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.language.liquid
+                                 ^
+                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid punctuation.accessor.liquid
+                                  ^^
+                                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.member.liquid
+                                    ^^
+                                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                      ^^^^^^^^^^^^^^^^^^
+                                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                                                        ^^
+                                                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                          ^^
+                                                          text.html.liquid meta.tag.liquid meta.entity.tag.liquid constant.numeric.liquid
+                                                            ^
+                                                            text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                             ^^
+                                                             text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% redirect_to '/dashboard', status: 302 %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+               ^
+               text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                ^
+                text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                 ^^^^^^^^^^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                           ^
+                           text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                            ^^
+                            text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                              ^^^^^^
+                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                                    ^^
+                                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                      ^^^
+                                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid constant.numeric.liquid
+                                         ^
+                                         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                          ^^
+                                          text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% response_status 404 %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                    ^^^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid constant.numeric.liquid
+                       ^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                        ^^
+                        text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% response_headers '{ "Cache-Control": "max-age=600" }' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                        ^
+                                                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                         ^
+                                                         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                          ^^
+                                                          text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% spam_protection 'recaptcha' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                     ^^^^^^^^^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                              ^
+                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                               ^
+                               text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                ^^
+                                text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% theme_render_rc 'shared/header', title: page.title %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+    ^^^^^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid entity.name.tag.render.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                     ^^^^^^^^^^^^^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                                  ^
+                                  text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid string.quoted.single.liquid
+                                   ^^
+                                   text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                                     ^^^^^^
+                                     text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid entity.other.attribute-name.liquid
+                                           ^
+                                           text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                                            ^^^^
+                                            text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid variable.language.liquid
+                                                ^
+                                                text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid punctuation.accessor.liquid
+                                                 ^^^^^
+                                                 text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid variable.other.member.liquid
+                                                      ^
+                                                      text.html.liquid meta.tag.liquid meta.entity.tag.render.liquid
+                                                       ^^
+                                                       text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% yield 'content' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+          ^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+           ^^^^^^^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                   ^
+                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                    ^^
+                    text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% background source_name: 'my_job' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+              ^^^^^^^^^^^^^^^^^^^^^^^
+              text.html.liquid meta.tag.liquid
+                                     ^^
+                                     text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>  {% function res = 'modules/core/commands/heavy', id: params.id %}
+ ^^
+ text.html.liquid
+   ^^
+   text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+     ^
+     text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+      ^^^^^^^^
+      text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+              ^
+              text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+               ^^^
+               text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                  ^^^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                 ^
+                                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                  ^^
+                                                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                    ^^^
+                                                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.other.attribute-name.liquid
+                                                       ^
+                                                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                        ^^^^^^
+                                                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.language.liquid
+                                                              ^
+                                                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid punctuation.accessor.liquid
+                                                               ^^
+                                                               text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.member.liquid
+                                                                 ^
+                                                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                                  ^^
+                                                                  text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% endbackground %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid
+                  ^^
+                  text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% background result = 'modules/core/commands/heavy', id: params.id %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              text.html.liquid meta.tag.liquid
+                                                                     ^^
+                                                                     text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% cache 'my-key', expire: 60 %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+         ^^^^^^^^^^^^^^^^^^^^^^
+         text.html.liquid meta.tag.liquid
+                               ^^
+                               text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>  <p>{{ context.language }}</p>
+ ^^
+ text.html.liquid
+   ^
+   text.html.liquid meta.tag.structure.p.start.html punctuation.definition.tag.begin.html
+    ^
+    text.html.liquid meta.tag.structure.p.start.html entity.name.tag.html
+     ^
+     text.html.liquid meta.tag.structure.p.start.html punctuation.definition.tag.end.html
+      ^^
+      text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
+        ^
+        text.html.liquid meta.object.liquid
+         ^^^^^^^
+         text.html.liquid meta.object.liquid variable.language.liquid
+                ^
+                text.html.liquid meta.object.liquid punctuation.accessor.liquid
+                 ^^^^^^^^
+                 text.html.liquid meta.object.liquid variable.other.member.liquid
+                         ^
+                         text.html.liquid meta.object.liquid
+                          ^^
+                          text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+                            ^^
+                            text.html.liquid meta.tag.structure.p.end.html punctuation.definition.tag.begin.html
+                              ^
+                              text.html.liquid meta.tag.structure.p.end.html entity.name.tag.html
+                               ^
+                               text.html.liquid meta.tag.structure.p.end.html punctuation.definition.tag.end.html
+>{% endcache %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+            ^
+            text.html.liquid meta.tag.liquid
+             ^^
+             text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% content_for 'head' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+               ^^^^^^^^
+               text.html.liquid meta.tag.liquid
+                       ^^
+                       text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>  <meta name="robots" content="noindex">
+ ^^
+ text.html.liquid
+   ^
+   text.html.liquid meta.tag.metadata.meta.void.html punctuation.definition.tag.begin.html
+    ^^^^
+    text.html.liquid meta.tag.metadata.meta.void.html entity.name.tag.html
+        ^
+        text.html.liquid meta.tag.metadata.meta.void.html
+         ^^^^
+         text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.name.html entity.other.attribute-name.html
+             ^
+             text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.name.html punctuation.separator.key-value.html
+              ^
+              text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.name.html string.quoted.double.html punctuation.definition.string.begin.html
+               ^^^^^^
+               text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.name.html string.quoted.double.html
+                     ^
+                     text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.name.html string.quoted.double.html punctuation.definition.string.end.html
+                      ^
+                      text.html.liquid meta.tag.metadata.meta.void.html
+                       ^^^^^^^
+                       text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.content.html entity.other.attribute-name.html
+                              ^
+                              text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.content.html punctuation.separator.key-value.html
+                               ^
+                               text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.content.html string.quoted.double.html punctuation.definition.string.begin.html
+                                ^^^^^^^
+                                text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.content.html string.quoted.double.html
+                                       ^
+                                       text.html.liquid meta.tag.metadata.meta.void.html meta.attribute.content.html string.quoted.double.html punctuation.definition.string.end.html
+                                        ^
+                                        text.html.liquid meta.tag.metadata.meta.void.html punctuation.definition.tag.end.html
+>{% endcontent_for %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^^^^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid
+                   ^^
+                   text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% try %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+       ^
+       text.html.liquid meta.tag.liquid
+        ^^
+        text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>  {% transaction %}
+ ^^
+ text.html.liquid
+   ^^
+   text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+     ^
+     text.html.liquid meta.tag.liquid
+      ^^^^^^^^^^^
+      text.html.liquid meta.tag.liquid keyword.control.other.liquid
+                 ^
+                 text.html.liquid meta.tag.liquid
+                  ^^
+                  text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>    {% function res = 'modules/core/commands/transfer', amount: 10 %}
+ ^^^^
+ text.html.liquid
+     ^^
+     text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+        ^^^^^^^^
+        text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+                ^
+                text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                 ^^^
+                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                    ^^^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                       ^
+                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                      ^
+                                                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                                                       ^^
+                                                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                         ^^^^^^^
+                                                         text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.other.attribute-name.liquid
+                                                                ^
+                                                                text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                                 ^^
+                                                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid constant.numeric.liquid
+                                                                   ^
+                                                                   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                                                    ^^
+                                                                    text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>    {% if res.error %}
+ ^^^^
+ text.html.liquid
+     ^^
+     text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+       ^
+       text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+        ^^
+        text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid keyword.control.conditional.liquid
+          ^
+          text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+           ^^^
+           text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
+              ^
+              text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid punctuation.accessor.liquid
+               ^^^^^
+               text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.member.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid meta.entity.tag.conditional.liquid
+                     ^^
+                     text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>      {% rollback %}
+ ^^^^^^
+ text.html.liquid
+       ^^
+       text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+          ^^^^^^^^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+                  ^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                   ^^
+                   text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>    {% endif %}
+ ^^^^
+ text.html.liquid
+     ^^
+     text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+       ^
+       text.html.liquid meta.tag.liquid
+        ^^^^^
+        text.html.liquid meta.tag.liquid keyword.control.conditional.liquid
+             ^
+             text.html.liquid meta.tag.liquid
+              ^^
+              text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>  {% endtransaction %}
+ ^^
+ text.html.liquid
+   ^^
+   text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+     ^
+     text.html.liquid meta.tag.liquid
+      ^^^^^^^^^^^^^^
+      text.html.liquid meta.tag.liquid keyword.control.other.liquid
+                    ^
+                    text.html.liquid meta.tag.liquid
+                     ^^
+                     text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% catch error %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+          ^^^^^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+               ^
+               text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                ^^
+                text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>  {% log error %}
+ ^^
+ text.html.liquid
+   ^^
+   text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+     ^
+     text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+      ^^^
+      text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+         ^
+         text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+          ^^^^^
+          text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+               ^
+               text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                ^^
+                text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% endtry %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid
+    ^^^^^^
+    text.html.liquid meta.tag.liquid keyword.control.other.liquid
+          ^
+          text.html.liquid meta.tag.liquid
+           ^^
+           text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid

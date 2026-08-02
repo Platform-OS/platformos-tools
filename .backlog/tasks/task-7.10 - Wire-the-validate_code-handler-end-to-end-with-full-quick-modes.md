@@ -4,12 +4,13 @@ title: Wire the validate_code handler end-to-end with full/quick modes
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:17'
-updated_date: '2026-06-12 13:17'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-7.9
 parent_task_id: TASK-7
 priority: high
+ordinal: 13000
 ---
 
 ## Description

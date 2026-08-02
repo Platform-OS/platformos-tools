@@ -15,8 +15,6 @@
  * TASK-7 build leaves them empty / null.
  */
 
-export type ValidateCodeMode = 'full' | 'quick';
-
 export type ValidateCodeStatus = 'ok' | 'warning' | 'error';
 
 export type ValidateCodeSeverity = 'error' | 'warning' | 'info';
@@ -27,8 +25,6 @@ export interface ValidateCodeParams {
   file_path: string;
   /** The file contents to validate (the in-memory buffer). */
   content: string;
-  /** Depth of analysis. Defaults to `full`. */
-  mode?: ValidateCodeMode;
 }
 
 /**

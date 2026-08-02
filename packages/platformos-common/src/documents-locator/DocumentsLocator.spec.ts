@@ -374,20 +374,18 @@ describe('DocumentsLocator', () => {
       const callCountAfterFirst = readDirSpy.mock.calls.length;
 
       await locator.locateWithSearchPaths(rootUri, 'b', searchPaths);
-      // readDirectory should not be called again for wildcard expansion
-      // (only for locateFile stat calls, not for listSubdirectories)
-      const expansionCalls = readDirSpy.mock.calls.filter(
-        (call: string[]) =>
-          call[0].includes('app/views/partials/theme') && !call[0].includes('.liquid'),
-      );
-      // All expansion readDirectory calls should come from the first invocation
+      // Expansion lists the directory AT the wildcard position (`…/theme` under
+      // each partial search path) to enumerate its subdirectories; resolution
+      // lists the candidate file's parent (`…/theme/custom`). Only the former is
+      // cached expansion work, and none of it may repeat on the second call.
+      const expansionDirs = [
+        'file:///project/app/views/partials/theme',
+        'file:///project/app/lib/theme',
+      ];
       const expansionCallsAfterFirst = readDirSpy.mock.calls
         .slice(callCountAfterFirst)
-        .filter(
-          (call: string[]) =>
-            call[0].includes('app/views/partials/theme') && !call[0].includes('.liquid'),
-        );
-      expect(expansionCallsAfterFirst).toHaveLength(0);
+        .filter((call: string[]) => expansionDirs.includes(call[0]));
+      expect(expansionCallsAfterFirst).toEqual([]);
     });
 
     it('should clear expanded paths cache', async () => {

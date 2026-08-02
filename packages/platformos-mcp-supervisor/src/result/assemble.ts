@@ -9,18 +9,9 @@
  * blocking-warning set, `next_step`, tips, domain_guide, structural) are added
  * in later tasks; they are left empty/null here.
  */
-import type {
-  ValidateCodeDiagnostic,
-  ValidateCodeMode,
-  ValidateCodeResult,
-  ValidateCodeStatus,
-} from './types.js';
+import type { ValidateCodeDiagnostic, ValidateCodeResult, ValidateCodeStatus } from './types.js';
 
-export function assembleResult(
-  diagnostics: ValidateCodeDiagnostic[],
-  // Reserved: `full`/`quick` do not yet change output (no heavier stages exist).
-  _mode: ValidateCodeMode,
-): ValidateCodeResult {
+export function assembleResult(diagnostics: ValidateCodeDiagnostic[]): ValidateCodeResult {
   const errors = diagnostics.filter((d) => d.severity === 'error');
   const warnings = diagnostics.filter((d) => d.severity === 'warning');
   const infos = diagnostics.filter((d) => d.severity === 'info');

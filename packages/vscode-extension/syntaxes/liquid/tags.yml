@@ -1,4 +1,15 @@
 ---
+# The platformOS tag inventory. A bare entry is a standalone tag; a `name: endname`
+# entry is a block tag, and the build derives ALL_BLOCK_OPEN_TAGS / ALL_BLOCK_END_TAGS
+# (folding markers and `keyword.control` scoping) from the pairing.
+#
+# Source of truth: packages/liquid-html-parser/grammar/liquid-html.ohm — `blockName`,
+# `blockNameNotSpecial`, and the `liquidTagRule<…>` / `liquidTagOpenRule<…>` rules.
+# Keep this list in step with the parser: a tag the parser accepts but this file omits
+# still highlights, just with the generic `entity.name.tag.liquid` scope instead of a
+# `keyword.control` one.
+
+# Base Liquid
 - assign
 - break
 - capture: endcapture
@@ -7,25 +18,47 @@
 - continue
 - cycle
 - decrement
+- doc: enddoc
 - echo
 - else
 - elsif
 - for: endfor
-- form: endform
 - if: endif
-- ifchanged
+- ifchanged: endifchanged
 - increment
-- javascript: endjavascript
-- layout
 - liquid
-- paginate: endpaginate
-- raw
-- render
-- schema: endschema
-- section
-- sections
-- style: endstyle
-- stylesheet
-- tablerow
-- unless
+- raw: endraw
+- tablerow: endtablerow
+- unless: endunless
 - when
+
+# platformOS
+- background: endbackground
+- cache: endcache
+- catch
+- content_for: endcontent_for
+- context
+- export
+- form: endform
+- function
+- graphql: endgraphql
+- hash_assign
+- include
+- include_form
+- layout
+- log
+- parse_json: endparse_json
+- print
+- redirect_to
+- render
+- response_headers
+- response_status
+- return
+- rollback
+- session
+- sign_in
+- spam_protection
+- theme_render_rc
+- transaction: endtransaction
+- try: endtry
+- yield

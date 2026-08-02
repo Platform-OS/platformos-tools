@@ -13,11 +13,19 @@ export function levenshtein(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
+/**
+ * Every key a `{{ '…' | t }}` can name.
+ *
+ * A nested MAP contributes its children rather than itself. A LIST does not: `t` returns
+ * the whole list, and `{{ 'app.relationships.type' | t | parse_json }}` is how a project
+ * reads one — descending into it produced `…type.0`, `…type.1` and left the key the
+ * author actually writes looking undefined.
+ */
 export function flattenTranslationKeys(obj: Record<string, any>, prefix = ''): string[] {
   const keys: string[] = [];
   for (const [k, v] of Object.entries(obj)) {
     const full = prefix ? `${prefix}.${k}` : k;
-    if (typeof v === 'object' && v !== null) {
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
       keys.push(...flattenTranslationKeys(v, full));
     } else {
       keys.push(full);

@@ -7,7 +7,16 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
 
   beforeEach(async () => {
     provider = new CompletionsProvider({
-      documentManager: new DocumentManager(),
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
+      documentManager: new DocumentManager(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        async () => '/path/to',
+      ),
       platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
@@ -20,25 +29,25 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
 
   it('offers completions within liquid doc tag for partials', async () => {
     await expect(provider).to.complete(
-      { source: `{% doc %} @█`, relativePath: 'file://app/views/partials/file.liquid' },
+      { source: `{% doc %} @█`, relativePath: 'app/views/partials/file.liquid' },
       ['param', 'example', 'description'],
     );
     await expect(provider).to.complete(
-      { source: `{% doc %} @par█`, relativePath: 'file://app/views/partials/file.liquid' },
+      { source: `{% doc %} @par█`, relativePath: 'app/views/partials/file.liquid' },
       ['param'],
     );
   });
 
   it("does not offer completion if it doesn't start with @", async () => {
     await expect(provider).to.complete(
-      { source: `{% doc %} █`, relativePath: 'file://app/views/partials/file.liquid' },
+      { source: `{% doc %} █`, relativePath: 'app/views/partials/file.liquid' },
       [],
     );
   });
 
   it('does not offer completion if it is not within a doc tag', async () => {
     await expect(provider).to.complete(
-      { source: `{% notdoc %} @█`, relativePath: 'file://app/views/partials/file.liquid' },
+      { source: `{% notdoc %} @█`, relativePath: 'app/views/partials/file.liquid' },
       [],
     );
   });
@@ -50,7 +59,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           source: `{% doc %}
           This is an implicit description
           @█`,
-          relativePath: 'file://app/views/partials/file.liquid',
+          relativePath: 'app/views/partials/file.liquid',
         },
         ['param', 'example', 'description'],
       );
@@ -62,7 +71,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           source: `{% doc %}
           @prompt Text
           @█`,
-          relativePath: 'file://app/views/partials/file.liquid',
+          relativePath: 'app/views/partials/file.liquid',
         },
         ['param', 'example', 'description'],
       );
@@ -72,7 +81,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           source: `{% doc %}
           @description Text
           @█`,
-          relativePath: 'file://app/views/partials/file.liquid',
+          relativePath: 'app/views/partials/file.liquid',
         },
         ['param', 'example', 'description'],
       );
@@ -82,7 +91,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           source: `{% doc %}
           @example Text
           @█`,
-          relativePath: 'file://app/views/partials/file.liquid',
+          relativePath: 'app/views/partials/file.liquid',
         },
         ['param', 'example', 'description'],
       );
@@ -93,7 +102,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
         {
           source: `{% doc %}
           @prompt This is a promptwith @█`,
-          relativePath: 'file://app/views/partials/file.liquid',
+          relativePath: 'app/views/partials/file.liquid',
         },
         [],
       );
@@ -101,7 +110,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
         {
           source: `{% doc %}
           @description This is a description with @█`,
-          relativePath: 'file://app/views/partials/file.liquid',
+          relativePath: 'app/views/partials/file.liquid',
         },
         [],
       );
@@ -110,7 +119,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
         {
           source: `{% doc %}
           @example Here is an example with @`,
-          relativePath: 'file://app/views/partials/file.liquid',
+          relativePath: 'app/views/partials/file.liquid',
         },
         [],
       );

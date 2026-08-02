@@ -1,4 +1,9 @@
-import { LanguageService, TextDocument, getLanguageService } from 'vscode-json-languageservice';
+import {
+  Diagnostic,
+  LanguageService,
+  TextDocument,
+  getLanguageService,
+} from 'vscode-json-languageservice';
 import { Config, Dependencies, IsValidSchema, SchemaDefinition, ValidateJSON } from './types';
 import { indexBy } from './utils';
 
@@ -43,7 +48,7 @@ export class JSONValidator {
     const jsonTextDocument = TextDocument.create(uri, 'json', 0, jsonString);
     const diagnostics = await this.getOffsetDiagnostics(jsonTextDocument);
     return diagnostics.map((diagnostic) => ({
-      message: diagnostic.message,
+      message: Diagnostic.getMessageString(diagnostic),
       startIndex: jsonTextDocument.offsetAt(diagnostic.range.start),
       endIndex: jsonTextDocument.offsetAt(diagnostic.range.end),
     }));

@@ -181,7 +181,7 @@ Grammar: liquid.tmLanguage.json
      ^
      text.html.liquid meta.tag.structure.body.start.html meta.object.liquid
       ^^^^^
-      text.html.liquid meta.tag.structure.body.start.html meta.object.liquid variable.language.liquid
+      text.html.liquid meta.tag.structure.body.start.html meta.object.liquid variable.other.liquid
            ^
            text.html.liquid meta.tag.structure.body.start.html meta.object.liquid punctuation.accessor.liquid
             ^^^^^^^^^^
@@ -202,7 +202,7 @@ Grammar: liquid.tmLanguage.json
         ^
         text.html.liquid meta.tag.structure.body.start.html meta.tag.liquid meta.entity.tag.conditional.liquid
          ^^^^^^^^
-         text.html.liquid meta.tag.structure.body.start.html meta.tag.liquid meta.entity.tag.conditional.liquid variable.language.liquid
+         text.html.liquid meta.tag.structure.body.start.html meta.tag.liquid meta.entity.tag.conditional.liquid variable.other.liquid
                  ^
                  text.html.liquid meta.tag.structure.body.start.html meta.tag.liquid meta.entity.tag.conditional.liquid punctuation.accessor.liquid
                   ^^^^^^^^^^^^^^^^^

@@ -4,9 +4,11 @@ title: Rewrite isSupportedSourceFile to be type-driven
 status: To Do
 assignee: []
 created_date: '2026-05-11 13:09'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-2
+ordinal: 3000
 ---
 
 ## Description

@@ -1,33 +1,13 @@
 <style>
-  /* css comment {{ product.value }} */
+  /* css comment {{ page.title }} */
   :root {
-    --font-family-primary: {{ settings.font_family }};
-    {% if settings.font_family %}
-      --font-family-secondary: {{ settings.font_family_secondary }};
+    --font-family-primary: {{ context.constants.FONT_FAMILY }};
+    {% if context.constants.FONT_FAMILY %}
+      --font-family-secondary: {{ context.constants.FONT_FAMILY_SECONDARY }};
     {% endif %}
   }
 </style>
 
-{% style %}
-  /* css comment {{ product.value }} */
-  :root {
-    --font-family-primary: {{ settings.font_family }};
-    {% if settings.font_family %}
-      --font-family-secondary: {{ settings.font_family_secondary }};
-    {% endif %}
-  }
-{% endstyle %}
-
-{% stylesheet %}
-  /* css comment {{ product.value }} */
-  :root {
-    --font-family-primary: {{ settings.font_family }};
-    {% if settings.font_family %}
-      --font-family-secondary: {{ settings.font_family_secondary }};
-    {% endif %}
-  }
-{% endstylesheet %}
-
-{% style %}
-{%- endstyle %}
+<style>
+</style>
 <img>

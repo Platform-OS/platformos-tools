@@ -47,6 +47,39 @@ describe('extractUndefinedVariables', () => {
     expect(result.optional).to.deep.equal([]);
   });
 
+  /**
+   * A `{% function %}` the parser cannot structure keeps its tag NAME and loses its
+   * markup to a raw string, so reading `markup.name.lookups` off it threw — and the
+   * throw escaped into the visitor, costing the file every offense the caller had not
+   * yet reported. `LiquidHTMLSyntaxError` is what tells the author about the markup.
+   */
+  it('should return rather than throw on a function tag whose markup did not structure', () => {
+    const source = `{% liquid
+      function custom_logo = 'lib/queries/photos/search', photo_type: 'theme_logo' | dig 'results' | first
+    %}`;
+    expect(extractUndefinedVariables(source)).to.deep.equal({
+      required: [],
+      optional: [],
+      selfDefaulted: [],
+      defined: [],
+    });
+  });
+
+  it('should still see the rest of the file after an unstructured function tag', () => {
+    const source = `{% liquid
+      function settings = 'lib/queries/settings/load' | dig 'results'
+      assign title = heading
+      function logo = 'lib/queries/photos/search'
+    %}
+    {{ logo }}`;
+    expect(extractUndefinedVariables(source)).to.deep.equal({
+      required: ['heading'],
+      optional: [],
+      selfDefaulted: [],
+      defined: ['title', 'logo'],
+    });
+  });
+
   it('should handle graphql result variables', () => {
     const source = `{% graphql res = 'my_query' %}{{ res }}`;
     const result = extractUndefinedVariables(source);
@@ -190,6 +223,36 @@ describe('extractUndefinedVariables', () => {
     expect(result.optional).to.deep.equal([]);
   });
 
+  it('should treat the FALLBACK source of a default filter as optional', () => {
+    // `params` is only read when `profile` is missing, so it cannot be required.
+    const source = `{% assign profile = profile | default: params.profile %}{{ profile }}`;
+    const result = extractUndefinedVariables(source);
+    expect(result.required).to.deep.equal([]);
+    expect(result.optional).to.deep.equal(['profile', 'params']);
+  });
+
+  it('should treat a fallback source used across several default filters as optional once', () => {
+    // The real `migrated/layout/header` shape: one `params` hash standing in for every arg.
+    const source = `
+      {% liquid
+        assign profile = profile | default: params.profile
+        assign context = context | default: params.context
+        assign variant = variant | default: params.variant | default: 'default'
+      %}
+      {{ profile }}{{ context }}{{ variant }}
+    `;
+    const result = extractUndefinedVariables(source);
+    expect(result.required).to.deep.equal([]);
+    expect(result.optional).to.deep.equal(['profile', 'params', 'context', 'variant']);
+  });
+
+  it('should not treat the argument of a non-default filter as optional', () => {
+    const source = `{% assign x = x | append: suffix %}{{ x }}`;
+    const result = extractUndefinedVariables(source);
+    expect(result.required).to.deep.equal(['x', 'suffix']);
+    expect(result.optional).to.deep.equal([]);
+  });
+
   it('should not classify a defined variable as optional even when | default is used later', () => {
     // x is defined by the assign, so the later {{ x | default: '' }} does not make x an input
     const source = `{% assign x = 'hello' %}{{ x | default: 'fallback' }}`;
@@ -214,5 +277,57 @@ describe('extractUndefinedVariables', () => {
     const result = extractUndefinedVariables(source);
     expect(result.required).to.deep.equal(['contract', 'field_name']);
     expect(result.optional).to.deep.equal(['key', 'message']);
+  });
+
+  // `selfDefaulted` and `defined` — what the doc-drift checks read
+
+  it('should separate the value a file defaults from the fallback it defaults to', () => {
+    const source = `{% assign profile = profile | default: params.profile %}{{ profile }}`;
+    expect(extractUndefinedVariables(source)).to.deep.equal({
+      required: [],
+      optional: ['profile', 'params'],
+      selfDefaulted: ['profile'],
+      defined: ['profile'],
+    });
+  });
+
+  it('should count an inline | default as self-defaulted and define nothing', () => {
+    const source = `{{ message | default: 'fallback' }}`;
+    expect(extractUndefinedVariables(source)).to.deep.equal({
+      required: [],
+      optional: ['message'],
+      selfDefaulted: ['message'],
+      defined: [],
+    });
+  });
+
+  it('should report a name defined by an assign as defined even when read before it', () => {
+    const source = `{{ title }}{% assign title = 'later' %}`;
+    expect(extractUndefinedVariables(source)).to.deep.equal({
+      required: ['title'],
+      optional: [],
+      selfDefaulted: [],
+      defined: ['title'],
+    });
+  });
+
+  it('should report a loop variable read after its loop as both undefined and defined', () => {
+    const source = `{% for item in items %}{{ item }}{% endfor %}{{ item }}`;
+    expect(extractUndefinedVariables(source)).to.deep.equal({
+      required: ['items', 'item'],
+      optional: [],
+      selfDefaulted: [],
+      defined: ['item', 'forloop'],
+    });
+  });
+
+  it('should report a mutation target as read, and as defined by the file that mutates it', () => {
+    const source = `{% assign basket['fruit'] = 'apple' %}{% hash_assign crate['fruit'] = 'pear' %}{% assign list << 'x' %}`;
+    expect(extractUndefinedVariables(source)).to.deep.equal({
+      required: ['basket', 'crate', 'list'],
+      optional: [],
+      selfDefaulted: [],
+      defined: ['basket', 'crate', 'list'],
+    });
   });
 });

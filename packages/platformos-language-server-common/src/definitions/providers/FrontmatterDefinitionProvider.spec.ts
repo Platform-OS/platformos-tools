@@ -10,8 +10,17 @@ const emailUri = 'file:///project/app/emails/welcome.liquid';
 const formUri = 'file:///project/app/forms/signup.liquid';
 
 function setup(files: Record<string, string>) {
-  const documentManager = new DocumentManager();
   const mockFs = new MockFileSystem(files);
+  // The DocumentManager gets the filesystem, as it does in startServer: layout
+  // resolution goes through the root's `App`, whose miss path reads directories
+  // through the manager's fs.
+  const documentManager = new DocumentManager(
+    mockFs,
+    undefined,
+    undefined,
+    undefined,
+    async () => rootUri,
+  );
   const provider = new FrontmatterDefinitionProvider(documentManager, mockFs, async () => rootUri);
   return { documentManager, provider };
 }

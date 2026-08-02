@@ -386,8 +386,8 @@ describe('detectInvalidAssignSyntax', () => {
   });
 
   // These assertions mirror scenarios from the platformOS runtime test suite
-  // (desksnearme/test/lib/liquify/tags/assign_tag_test.rb) to make sure our
-  // lint-level acceptance aligns with runtime acceptance for common patterns.
+  // (`test/lib/liquify/tags/assign_tag_test.rb`) to make sure our lint-level
+  // acceptance aligns with runtime acceptance for common patterns.
   describe('runtime-alignment scenarios', () => {
     it('accepts JSON literal as default filter argument (matches Liquify behavior)', async () => {
       const sourceCode = `{% assign my_val = null | default: [] %}`;

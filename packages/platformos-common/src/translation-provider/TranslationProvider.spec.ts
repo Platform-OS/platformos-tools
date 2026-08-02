@@ -228,4 +228,118 @@ describe('TranslationProvider', () => {
       expect(result).toBe('Secret Message');
     });
   });
+  /**
+   * A duplicated mapping key is what a real project produces when two people add
+   * the same translation. It is not a reason to discard the file: the platform renders
+   * it, last value winning, and a linter that reads it as EMPTY instead reports every
+   * key in it as undefined — 561 bogus offenses on one real project, in two checks.
+   * `YAMLSyntaxError` is what tells the author about the duplicate itself.
+   */
+  describe('when a translation file has a duplicated mapping key', () => {
+    const duplicated = 'en:\n  greeting:\n    hello: Hello\n    hello: Hi again\n';
+
+    it('reads it, with the last value winning', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/greeting.yml': duplicated,
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(
+        await provider.loadAllTranslationsForBase(
+          URI.parse('file:///project/app/translations'),
+          'en',
+        ),
+      ).toEqual({ greeting: { hello: 'Hi again' } });
+    });
+
+    it('keeps contributing its OTHER keys to the aggregate', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/greeting.yml':
+          'en:\n  greeting:\n    hello: Hello\n    hello: Hi\n    bye: Bye\n',
+        'file:///project/app/translations/en/common.yml': 'en:\n  common:\n    yes: Yes\n',
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(
+        await provider.loadAllTranslationsForBase(
+          URI.parse('file:///project/app/translations'),
+          'en',
+        ),
+      ).toEqual({ greeting: { hello: 'Hi', bye: 'Bye' }, common: { yes: 'Yes' } });
+    });
+
+    it('finds a key defined in it', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/greeting.yml': duplicated,
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(await provider.findTranslationFile(rootUri, 'greeting.hello', 'en')).toEqual([
+        'file:///project/app/translations/en/greeting.yml',
+        'greeting.hello',
+      ]);
+    });
+  });
+
+  /**
+   * A file YAML cannot read AT ALL still has to be a value rather than an exception, the
+   * same contract `AppFile.ast` keeps. When that escaped, one bad file cost a whole
+   * language-server feature for every file in the project: `DocumentLinksProvider`
+   * resolves every `{{ '…' | t }}` through `findTranslationFile`, so the request
+   * rejected and the editor showed NO links at all — including the `render` ones it had
+   * already resolved. Hover and go-to-definition are separate requests and kept working,
+   * which is what made it read as "links stopped being created" rather than as an error.
+   */
+  describe('when a translation file does not parse', () => {
+    const malformed = 'en:\n  greeting:\n    hello: "unterminated\n';
+
+    it('findTranslationFile does not throw, and finds keys in the files that do parse', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/broken.yml': malformed,
+        'file:///project/app/translations/en/common.yml': 'en:\n  common:\n    yes: Yes',
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(await provider.findTranslationFile(rootUri, 'common.yes', 'en')).toEqual([
+        'file:///project/app/translations/en/common.yml',
+        'common.yes',
+      ]);
+    });
+
+    it('findTranslationFile reports the key as not found rather than failing', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/broken.yml': malformed,
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(await provider.findTranslationFile(rootUri, 'greeting.hello', 'en')).toEqual([
+        undefined,
+        undefined,
+      ]);
+    });
+
+    it('translate does not throw', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en.yml': malformed,
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(await provider.translate(rootUri, 'greeting.hello', 'en')).toBe(undefined);
+    });
+
+    it('loadAllTranslationsForBase merges the files that parse and skips the one that does not', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/broken.yml': malformed,
+        'file:///project/app/translations/en/common.yml': 'en:\n  common:\n    yes: Yes',
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(
+        await provider.loadAllTranslationsForBase(
+          URI.parse('file:///project/app/translations'),
+          'en',
+        ),
+      ).toEqual({ common: { yes: 'Yes' } });
+    });
+  });
 });

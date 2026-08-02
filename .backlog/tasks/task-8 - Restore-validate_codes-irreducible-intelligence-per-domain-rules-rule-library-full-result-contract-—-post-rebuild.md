@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:55'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies: []
 references:
@@ -14,6 +15,7 @@ references:
   - docs/mcp-supervisor/salvage
   - packages/platformos-check-common/src/types.ts
 priority: medium
+ordinal: 15000
 ---
 
 ## Description

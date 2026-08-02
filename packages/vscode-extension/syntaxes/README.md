@@ -23,6 +23,8 @@ This repository contains the syntax highlighting rules for platformOS Liquid.
   - ✅ Liquid in HTML
   - ✅ Liquid in JavaScript
   - ✅ Liquid in CSS
+  - ✅ GraphQL in `{% graphql %}` blocks
+  - ✅ JSON in `{% parse_json %}` blocks
 
 ## Development
 

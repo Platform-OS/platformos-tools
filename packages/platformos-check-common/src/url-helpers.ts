@@ -310,6 +310,11 @@ export function tryExtractAssignUrl(
   if (node.type !== NodeTypes.LiquidTag || (node as LiquidTag).name !== NamedTags.assign) {
     return null;
   }
+  // Markup the parser could not structure (`{% assign a = 'x' | dig 'y' %}`, a filter
+  // missing its colon) stays a raw string, and the tag name survives that fallback —
+  // so reading `.lookups` off it threw and took the rest of the file's `MissingPage`
+  // findings with it. `LiquidHTMLSyntaxError` owns the markup itself.
+  if (typeof (node as LiquidTag).markup === 'string') return null;
   const markup = (node as LiquidTagAssign).markup as AssignMarkup;
   if (markup.lookups.length > 0) return null;
   const urlPattern = resolveAssignToUrlPattern(markup);

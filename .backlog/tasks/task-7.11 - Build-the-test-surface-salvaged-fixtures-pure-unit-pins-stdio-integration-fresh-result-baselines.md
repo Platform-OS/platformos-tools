@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:17'
-updated_date: '2026-06-12 13:18'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-7.10
@@ -15,6 +15,7 @@ references:
   - docs/mcp-supervisor/salvage/OLD-parity-spec.ts
 parent_task_id: TASK-7
 priority: high
+ordinal: 14000
 ---
 
 ## Description

@@ -1,5 +1,5 @@
 import { NodeTypes, YAMLFrontmatter } from '@platformos/liquid-html-parser';
-import { getFrontmatterSchema, getFileType } from '@platformos/platformos-common';
+import { getFrontmatterSchema, PlatformOSFileType } from '@platformos/platformos-common';
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver';
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
@@ -7,10 +7,21 @@ import { Provider } from './common';
 export type GetLayoutNamesForURI = (uri: string) => Promise<string[]>;
 export type GetAuthPolicyNamesForURI = (uri: string) => Promise<string[]>;
 
+/**
+ * What the platform does with the file at `uri`, anchored at ITS app root.
+ *
+ * Injected rather than computed here because classifying needs the project root, and
+ * finding a file's root is an async walk up the tree that only the server wires up.
+ * A provider with no resolver cannot tell whether a buffer is even part of an app, so
+ * it offers nothing — the frontmatter keys it would suggest are per-file-type.
+ */
+export type GetFileTypeForURI = (uri: string) => Promise<PlatformOSFileType | undefined>;
+
 export class FrontmatterKeyCompletionProvider implements Provider {
   constructor(
     private readonly getLayoutNamesForURI?: GetLayoutNamesForURI,
     private readonly getAuthPolicyNamesForURI?: GetAuthPolicyNamesForURI,
+    private readonly getFileTypeForURI?: GetFileTypeForURI,
   ) {}
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
@@ -26,7 +37,8 @@ export class FrontmatterKeyCompletionProvider implements Provider {
     );
     if (!frontmatterNode) return [];
 
-    const schema = getFrontmatterSchema(getFileType(params.textDocument.uri));
+    if (!this.getFileTypeForURI) return [];
+    const schema = getFrontmatterSchema(await this.getFileTypeForURI(params.textDocument.uri));
     if (!schema) return [];
 
     // Locate the YAML body within the source: skip the opening "---\n"

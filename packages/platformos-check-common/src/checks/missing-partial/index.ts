@@ -31,7 +31,7 @@ export const MissingPartial: LiquidCheckDefinition<typeof schema> = {
   },
 
   create(context) {
-    const locator = new DocumentsLocator(context.fs);
+    const locator = new DocumentsLocator(context.fs, context.app);
     const rootUri = URI.parse(context.config.rootUri);
     let searchPathsPromise: Promise<string[] | null> | undefined;
 

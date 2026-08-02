@@ -36,15 +36,20 @@ export class PartialRenameHandler implements BaseRenameHandler {
 
   async onDidRenameFiles(params: RenameFilesParams): Promise<void> {
     if (!this.capabilities.hasApplyEditSupport) return;
+    if (params.files.length === 0) return;
+
+    // The root comes first now: whether a path is a partial is its position relative
+    // to it, so the filter cannot run before it is known.
+    const rootUri = await this.findAppRootURI(path.dirname(params.files[0].oldUri));
+    if (!rootUri) return;
+
     const relevantRenames = params.files.filter(
-      (file) => isPartial(file.oldUri) && isPartial(file.newUri),
+      (file) => isPartial(file.oldUri, rootUri) && isPartial(file.newUri, rootUri),
     );
 
     // Only preload if you have something to do (folder renames are not supported)
     if (relevantRenames.length !== 1) return;
     const rename = relevantRenames[0];
-    const rootUri = await this.findAppRootURI(path.dirname(params.files[0].oldUri));
-    if (!rootUri) return;
     await this.documentManager.preload(rootUri);
     const app = this.documentManager.app(rootUri, true);
     const liquidSourceCodes = app.filter(isLiquidSourceCode);

@@ -14,7 +14,12 @@
  */
 import { isAbsolute, join } from 'node:path';
 
-import { lintBuffer, Severity, type Offense } from '@platformos/platformos-check-node';
+import {
+  lintBuffer,
+  Severity,
+  type LintBufferStatus,
+  type Offense,
+} from '@platformos/platformos-check-node';
 
 import type { ValidateCodeDiagnostic, ValidateCodeSeverity } from '../result/types.js';
 
@@ -33,12 +38,28 @@ const SEVERITY: Record<Severity, ValidateCodeSeverity> = {
   [Severity.INFO]: 'info',
 };
 
+export interface LintOutcome {
+  diagnostics: ValidateCodeDiagnostic[];
+  /**
+   * Set when the seam did NOT check the file, with its reason. An agent asked
+   * whether a file is correct, so "no diagnostics" and "nothing was looked at"
+   * cannot arrive as the same answer — see `lintBuffer`'s `LintBufferStatus`.
+   */
+  notChecked?: Exclude<LintBufferStatus, 'checked'>;
+}
+
 /** Lint the buffer and return the mapped diagnostics for the file. */
-export async function runLint(params: RunLintParams): Promise<ValidateCodeDiagnostic[]> {
+export async function runLint(params: RunLintParams): Promise<LintOutcome> {
   const { projectDir, filePath, content } = params;
   const absoluteFilePath = isAbsolute(filePath) ? filePath : join(projectDir, filePath);
-  const offenses = await lintBuffer({ root: projectDir, filePath: absoluteFilePath, content });
-  return offenses.map(toDiagnostic);
+  const { status, offenses } = await lintBuffer({
+    root: projectDir,
+    filePath: absoluteFilePath,
+    content,
+  });
+
+  if (status !== 'checked') return { diagnostics: [], notChecked: status };
+  return { diagnostics: offenses.map(toDiagnostic) };
 }
 
 /**

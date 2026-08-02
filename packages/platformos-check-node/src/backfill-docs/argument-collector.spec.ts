@@ -1,13 +1,31 @@
 import { describe, it, expect } from 'vitest';
-import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
-import { toSourceCode, SourceCodeType } from '@platformos/platformos-check-common';
+import { sourceParsers } from '@platformos/platformos-check-common';
+import { AbstractFileSystem, App } from '@platformos/platformos-common';
 import { collectPartialUsages } from './argument-collector';
+
+const ROOT = 'file:///';
+
+/** Nothing here reads: `App.fromSources` starts every file loaded. */
+const NO_READS = {
+  readFile: async (uri: string) => {
+    throw new Error(`unexpected read of ${uri}`);
+  },
+  readDirectory: async () => {
+    throw new Error('unexpected readDirectory');
+  },
+  stat: async () => {
+    throw new Error('unexpected stat');
+  },
+} satisfies AbstractFileSystem;
+
+const appOf = (sources: Record<string, string>) =>
+  App.fromSources(ROOT, sources, NO_READS, sourceParsers);
 
 describe('Module: argument-collector', () => {
   describe('Unit: collectPartialUsages', () => {
     it('collects arguments from function tags', async () => {
       const source = `{% function result = 'my_partial', name: 'test', count: 42 %}`;
-      const app = [toSourceCode('file:///test.liquid', source)];
+      const app = appOf({ 'app/views/partials/test.liquid': source });
 
       const usages = await collectPartialUsages(app);
 
@@ -23,7 +41,7 @@ describe('Module: argument-collector', () => {
 
     it('collects arguments from render tags', async () => {
       const source = `{% render 'my_partial', title: 'Hello', active: true %}`;
-      const app = [toSourceCode('file:///test.liquid', source)];
+      const app = appOf({ 'app/views/partials/test.liquid': source });
 
       const usages = await collectPartialUsages(app);
 
@@ -37,7 +55,7 @@ describe('Module: argument-collector', () => {
 
     it('collects arguments from include tags', async () => {
       const source = `{% include 'legacy_partial', value: someVar %}`;
-      const app = [toSourceCode('file:///test.liquid', source)];
+      const app = appOf({ 'app/views/partials/test.liquid': source });
 
       const usages = await collectPartialUsages(app);
 
@@ -54,7 +72,7 @@ describe('Module: argument-collector', () => {
         {% function result = 'calc', b: 2 %}
         {% function result = 'calc', a: 3 %}
       `;
-      const app = [toSourceCode('file:///test.liquid', source)];
+      const app = appOf({ 'app/views/partials/test.liquid': source });
 
       const usages = await collectPartialUsages(app);
 
@@ -69,7 +87,7 @@ describe('Module: argument-collector', () => {
         {% function result = 'flex', value: 'string' %}
         {% function result = 'flex', value: 123 %}
       `;
-      const app = [toSourceCode('file:///test.liquid', source)];
+      const app = appOf({ 'app/views/partials/test.liquid': source });
 
       const usages = await collectPartialUsages(app);
 
@@ -79,7 +97,7 @@ describe('Module: argument-collector', () => {
 
     it('skips dynamic partial paths', async () => {
       const source = `{% render partial_name, arg: 'value' %}`;
-      const app = [toSourceCode('file:///test.liquid', source)];
+      const app = appOf({ 'app/views/partials/test.liquid': source });
 
       const usages = await collectPartialUsages(app);
 
@@ -87,10 +105,10 @@ describe('Module: argument-collector', () => {
     });
 
     it('handles multiple files', async () => {
-      const app = [
-        toSourceCode('file:///a.liquid', `{% function r = 'shared', from_a: 1 %}`),
-        toSourceCode('file:///b.liquid', `{% function r = 'shared', from_b: 2 %}`),
-      ];
+      const app = appOf({
+        'app/views/partials/a.liquid': `{% function r = 'shared', from_a: 1 %}`,
+        'app/views/partials/b.liquid': `{% function r = 'shared', from_b: 2 %}`,
+      });
 
       const usages = await collectPartialUsages(app);
 
@@ -105,7 +123,7 @@ describe('Module: argument-collector', () => {
         {% function r = 'partial', func_arg: 1 %}
         {% render 'partial', render_arg: 2 %}
       `;
-      const app = [toSourceCode('file:///test.liquid', source)];
+      const app = appOf({ 'app/views/partials/test.liquid': source });
 
       const usages = await collectPartialUsages(app);
 

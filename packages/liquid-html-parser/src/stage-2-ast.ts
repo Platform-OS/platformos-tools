@@ -419,9 +419,7 @@ export interface LiquidTagConditional<Name> extends LiquidTagNode<
 
 /** The union type of all conditional expression nodes */
 export type LiquidConditionalExpression =
-  | LiquidLogicalExpression
-  | LiquidComparison
-  | LiquidExpression;
+  LiquidLogicalExpression | LiquidComparison | LiquidExpression;
 
 /** Represents `left (and|or) right` conditional expressions */
 export interface LiquidLogicalExpression extends ASTNode<NodeTypes.LogicalExpression> {
@@ -993,11 +991,7 @@ export interface HtmlNodeBase<T> extends ASTNode<T> {
  * ```
  */
 export type AttributeNode =
-  | LiquidNode
-  | AttrSingleQuoted
-  | AttrDoubleQuoted
-  | AttrUnquoted
-  | AttrEmpty;
+  LiquidNode | AttrSingleQuoted | AttrDoubleQuoted | AttrUnquoted | AttrEmpty;
 
 /** `<tag attr='single quoted'>` */
 export interface AttrSingleQuoted extends AttributeNodeBase<NodeTypes.AttrSingleQuoted> {}
@@ -1581,9 +1575,7 @@ function buildAst(
       case ConcreteNodeTypes.AttrUnquoted: {
         const abstractNode: AttrUnquoted | AttrSingleQuoted | AttrDoubleQuoted = {
           type: node.type as unknown as
-            | NodeTypes.AttrSingleQuoted
-            | NodeTypes.AttrDoubleQuoted
-            | NodeTypes.AttrUnquoted,
+            NodeTypes.AttrSingleQuoted | NodeTypes.AttrDoubleQuoted | NodeTypes.AttrUnquoted,
           name: cstToAst(node.name, options) as (TextNode | LiquidVariableOutput)[],
           position: position(node),
           source: node.source,

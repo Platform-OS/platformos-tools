@@ -101,30 +101,47 @@ The parser uses a two-stage approach:
 
 ### Path Handling
 
-On Windows, filesystem paths use backslashes (`\`), but glob patterns, regex matchers, minimatch, and URI-based APIs all expect forward slashes (`/`). Always normalize paths before pattern matching or filtering
+On Windows, filesystem paths use backslashes (`\`), but glob patterns, regex matchers,
+minimatch, and URI-based APIs all expect forward slashes (`/`). A path that reaches a
+comparison in the wrong spelling matches nothing on Windows and everything on Linux, so
+the mistake is invisible until the Windows CI job runs.
 
-**Use `normalize-path`** (already a dependency of `platformos-check-node`) for consistent forward-slash conversion:
+**There are exactly three normalizers, all exported by `@platformos/platformos-common`,
+and no package rolls its own** — `src/os-path.spec.ts` fails the build if one does
+(no `.replace(/\\/g, '/')`, no second `normalize-path`):
+
+| Subject | Use | Result |
+|---|---|---|
+| A filesystem path | `toPosixPath(fsPath)` | `C:\a\b\` → `C:/a/b` |
+| A filesystem path, relative to a directory | `relativePosixPath(fsPath, baseDir)` | `C:\repo\pkg\src\x.ts` in `C:/repo` → `pkg/src/x.ts` |
+| A filesystem path that must become a URI | `uriFromPath(fsPath)` | `C:\a\x.liquid` → `file:///c:/a/x.liquid` |
 
 ```typescript
-import normalize from 'normalize-path';
+import { relativePosixPath, toPosixPath, uriFromPath } from '@platformos/platformos-common';
 
-// Normalize glob results before filtering
-const paths = await glob(pattern, { absolute: true });
-const normalized = paths.map(normalize);
-
-// Normalize before constructing glob patterns
-const globPattern = normalize(path.join(root, '**/*.liquid'));
+const paths = (await glob(pattern, { absolute: true })).map(toPosixPath);
+const globPattern = toPosixPath(path.join(root, '**/*.liquid'));
+const uri = uriFromPath(absoluteFilePath);
 ```
 
-**Do NOT** use manual `.replace(/\\/g, '/')` — use `normalize-path` instead for readability and consistency with pos-cli.
-
-**Key rule**: Any path coming from the filesystem (`glob()`, `path.join()`, `__dirname`, etc.) must be normalized before being passed to:
-- Regex pattern matching (e.g., `isKnownLiquidFile()`, `getFileType()`)
-- minimatch / ignore patterns (e.g., `isIgnored()`)
+**Key rule**: any path coming from the filesystem (`glob()`, `path.join()`, `readdir()`,
+`__dirname`, `os.tmpdir()`) must be normalized before being passed to:
+- Regex pattern matching (e.g. `getFileType()`, `parseAppPath()`)
+- minimatch / ignore patterns (e.g. `isIgnored()`)
 - Glob pattern strings
-- URI comparison or construction
+- URI comparison or construction — via `uriFromPath`, never `URI.file(p).toString()`,
+  which percent-encodes the drive colon (`file:///c%3A/…`) and so compares unequal to
+  every URI an `App`, a walk or a config produced
+- **A `slice`/`startsWith` against another path, in test code included.** Three of the
+  four Windows-only failures this rule was written for were in specs comparing a
+  hand-spelled path to a normalized one.
 
-**Important: `normalize-path` is for filesystem paths only, NOT URIs.** It collapses multiple slashes (e.g., `file:///` becomes `file:/`), which breaks URI semantics. For URI strings (`file://...`), use the `normalize()` function from `platformos-check-common/src/path.ts` which works with `vscode-uri`. For raw backslash replacement in URIs where you can't use the common normalize, use `.replace(/\\/g, '/')`.
+**These are for filesystem paths only, NOT URIs** — `toPosixPath` throws when handed
+one, because collapsing `file:///c:/x` to `file:/c:/x` yields a plausible-looking URI
+for a different location. A URI is normalized by `normalizeUri` (`platformos-common`),
+re-exported as `normalize()` from `platformos-check-common/src/path.ts`; a path of
+unknown provenance (a CLI argument, an `ignore` subject) goes through
+`uriFromPathOrUri`.
 
 ## Test Assertion Guidelines
 

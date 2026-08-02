@@ -4,10 +4,10 @@
   "fileTypes": [
     "liquid"
   ],
-  "foldingStartMarker": "(?x)\n{%\n  -?\n  \\s*\n  (capture|case|comment|for|form|if|javascript|paginate|schema|style)\n  [^(%})]+\n%}\n",
-  "foldingStopMarker": "(?x)\n{%\n  \\s*\n  (endcapture|endcase|endcomment|endfor|endform|endif|endjavascript|endpaginate|endschema|endstyle)\n  [^(%})]+\n%}\n",
+  "foldingStartMarker": "(?x)\n{%\n  -?\n  \\s*\n  (capture|case|comment|doc|for|if|ifchanged|raw|tablerow|unless|background|cache|content_for|form|graphql|parse_json|transaction|try)\n  [^(%})]+\n%}\n",
+  "foldingStopMarker": "(?x)\n{%\n  \\s*\n  (endcapture|endcase|endcomment|enddoc|endfor|endif|endifchanged|endraw|endtablerow|endunless|endbackground|endcache|endcontent_for|endform|endgraphql|endparse_json|endtransaction|endtry)\n  [^(%})]+\n%}\n",
   "injections": {
-    "L:meta.embedded.block.js, L:meta.embedded.block.css, L:meta.embedded.block.html, L:string.quoted": {
+    "L:meta.embedded.block.js, L:meta.embedded.block.css, L:meta.embedded.block.html, L:meta.embedded.block.graphql, L:meta.embedded.block.json, L:string.quoted": {
       "patterns": [
         {
           "include": "#injection"
@@ -33,16 +33,13 @@
           "include": "#comment_block"
         },
         {
-          "include": "#style_codefence"
+          "include": "#graphql_codefence"
         },
         {
-          "include": "#stylesheet_codefence"
+          "include": "#graphql_codefence_without_graphql_grammar"
         },
         {
           "include": "#json_codefence"
-        },
-        {
-          "include": "#javascript_codefence"
         },
         {
           "include": "#object"
@@ -213,159 +210,125 @@
         }
       ]
     },
-    "style_codefence": {
-      "begin": "({%-?)\\s*(style)\\s*(-?%})",
-      "end": "({%-?)\\s*(endstyle)\\s*(-?%})",
+    "graphql_codefence": {
+      "begin": "({%-?)\\s*(graphql)\\b(?![^%]*=)([^%]*?)(-?%})",
+      "end": "({%-?)\\s*(endgraphql)\\s*(-?%})",
       "beginCaptures": {
         "0": {
-          "name": "meta.tag.metadata.style.start.liquid"
+          "name": "meta.tag.metadata.graphql.start.liquid"
         },
         "1": {
           "name": "punctuation.definition.tag.begin.liquid"
         },
         "2": {
-          "name": "entity.name.tag.style.liquid"
+          "name": "entity.name.tag.graphql.liquid"
         },
         "3": {
+          "name": "meta.entity.tag.graphql.liquid"
+        },
+        "4": {
           "name": "punctuation.definition.tag.begin.liquid"
         }
       },
       "endCaptures": {
         "0": {
-          "name": "meta.tag.metadata.style.end.liquid"
+          "name": "meta.tag.metadata.graphql.end.liquid"
         },
         "1": {
           "name": "punctuation.definition.tag.end.liquid"
         },
         "2": {
-          "name": "entity.name.tag.style.liquid"
+          "name": "entity.name.tag.graphql.liquid"
         },
         "3": {
           "name": "punctuation.definition.tag.end.liquid"
         }
       },
-      "name": "meta.block.style.liquid",
-      "contentName": "meta.embedded.block.css",
+      "name": "meta.block.graphql.liquid",
+      "contentName": "meta.embedded.block.graphql",
       "patterns": [
         {
-          "include": "source.css"
+          "include": "source.graphql"
         }
       ]
     },
-    "stylesheet_codefence": {
-      "begin": "({%-?)\\s*(stylesheet)\\s*(-?%})",
-      "end": "({%-?)\\s*(endstylesheet)\\s*(-?%})",
+    "graphql_codefence_without_graphql_grammar": {
+      "begin": "({%-?)\\s*(graphql)\\b(?![^%]*=)([^%]*?)(-?%})",
+      "end": "({%-?)\\s*(endgraphql)\\s*(-?%})",
       "beginCaptures": {
         "0": {
-          "name": "meta.tag.metadata.style.start.liquid"
+          "name": "meta.tag.metadata.graphql.start.liquid"
         },
         "1": {
           "name": "punctuation.definition.tag.begin.liquid"
         },
         "2": {
-          "name": "entity.name.tag.style.liquid"
+          "name": "entity.name.tag.graphql.liquid"
         },
         "3": {
+          "name": "meta.entity.tag.graphql.liquid"
+        },
+        "4": {
           "name": "punctuation.definition.tag.begin.liquid"
         }
       },
       "endCaptures": {
         "0": {
-          "name": "meta.tag.metadata.style.end.liquid"
+          "name": "meta.tag.metadata.graphql.end.liquid"
         },
         "1": {
           "name": "punctuation.definition.tag.end.liquid"
         },
         "2": {
-          "name": "entity.name.tag.style.liquid"
+          "name": "entity.name.tag.graphql.liquid"
         },
         "3": {
           "name": "punctuation.definition.tag.end.liquid"
         }
       },
-      "name": "meta.block.style.liquid",
-      "contentName": "meta.embedded.block.css",
-      "patterns": [
-        {
-          "include": "source.css"
-        }
-      ]
+      "name": "meta.block.graphql.liquid",
+      "contentName": "meta.embedded.block.graphql",
+      "patterns": []
     },
     "json_codefence": {
-      "begin": "({%-?)\\s*(schema)\\s*(-?%})",
-      "end": "({%-?)\\s*(endschema)\\s*(-?%})",
+      "begin": "({%-?)\\s*(parse_json)\\b([^%]*?)(-?%})",
+      "end": "({%-?)\\s*(endparse_json)\\s*(-?%})",
       "beginCaptures": {
         "0": {
-          "name": "meta.tag.metadata.schema.start.liquid"
+          "name": "meta.tag.metadata.parse-json.start.liquid"
         },
         "1": {
           "name": "punctuation.definition.tag.begin.liquid"
         },
         "2": {
-          "name": "entity.name.tag.schema.liquid"
+          "name": "entity.name.tag.parse-json.liquid"
         },
         "3": {
+          "name": "meta.entity.tag.parse-json.liquid"
+        },
+        "4": {
           "name": "punctuation.definition.tag.begin.liquid"
         }
       },
       "endCaptures": {
         "0": {
-          "name": "meta.tag.metadata.schema.end.liquid"
+          "name": "meta.tag.metadata.parse-json.end.liquid"
         },
         "1": {
           "name": "punctuation.definition.tag.end.liquid"
         },
         "2": {
-          "name": "entity.name.tag.schema.liquid"
+          "name": "entity.name.tag.parse-json.liquid"
         },
         "3": {
           "name": "punctuation.definition.tag.end.liquid"
         }
       },
-      "name": "meta.block.schema.liquid",
+      "name": "meta.block.parse-json.liquid",
       "contentName": "meta.embedded.block.json",
       "patterns": [
         {
           "include": "source.json"
-        }
-      ]
-    },
-    "javascript_codefence": {
-      "begin": "({%-?)\\s*(javascript)\\s*(-?%})",
-      "end": "({%-?)\\s*(endjavascript)\\s*(-?%})",
-      "beginCaptures": {
-        "0": {
-          "name": "meta.tag.metadata.javascript.start.liquid"
-        },
-        "1": {
-          "name": "punctuation.definition.tag.begin.liquid"
-        },
-        "2": {
-          "name": "entity.name.tag.javascript.liquid"
-        },
-        "3": {
-          "name": "punctuation.definition.tag.begin.liquid"
-        }
-      },
-      "endCaptures": {
-        "0": {
-          "name": "meta.tag.metadata.javascript.end.liquid"
-        },
-        "1": {
-          "name": "punctuation.definition.tag.end.liquid"
-        },
-        "2": {
-          "name": "entity.name.tag.javascript.liquid"
-        },
-        "3": {
-          "name": "punctuation.definition.tag.end.liquid"
-        }
-      },
-      "name": "meta.block.javascript.liquid",
-      "contentName": "meta.embedded.block.js",
-      "patterns": [
-        {
-          "include": "source.js"
         }
       ]
     },
@@ -390,7 +353,7 @@
       ]
     },
     "tag_injection": {
-      "begin": "(?<!comment %})(?<!comment -%})(?<!comment%})(?<!comment-%})(?<!raw %})(?<!raw -%})(?<!raw%})(?<!raw-%}){%-?(?!-?\\s*(endstyle|endjavascript|endcomment|endraw))",
+      "begin": "(?<!comment %})(?<!comment -%})(?<!comment%})(?<!comment-%})(?<!raw %})(?<!raw -%})(?<!raw%})(?<!raw-%}){%-?(?!-?\\s*(endgraphql|endparse_json|endcomment|endraw))",
       "end": "-?%}",
       "name": "meta.tag.liquid",
       "beginCaptures": {
@@ -430,9 +393,6 @@
           "include": "#tag_for"
         },
         {
-          "include": "#tag_paginate"
-        },
-        {
           "include": "#tag_render"
         },
         {
@@ -470,9 +430,6 @@
         },
         {
           "include": "#tag_for_liquid"
-        },
-        {
-          "include": "#tag_paginate_liquid"
         },
         {
           "include": "#tag_render_liquid"
@@ -600,7 +557,7 @@
     },
     "tag_assign": {
       "name": "meta.entity.tag.liquid",
-      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(assign|echo)\\b",
+      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(assign|echo|export|function|graphql|hash_assign|log|print|return)\\b",
       "beginCaptures": {
         "1": {
           "name": "entity.name.tag.liquid"
@@ -621,7 +578,7 @@
     },
     "tag_assign_liquid": {
       "name": "meta.entity.tag.liquid",
-      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(assign|echo)\\b",
+      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(assign|echo|export|function|graphql|hash_assign|log|print|return)\\b",
       "beginCaptures": {
         "1": {
           "name": "entity.name.tag.liquid"
@@ -642,7 +599,7 @@
     },
     "tag_render": {
       "name": "meta.entity.tag.render.liquid",
-      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(render)\\b",
+      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(render|include|theme_render_rc)\\b",
       "beginCaptures": {
         "1": {
           "name": "entity.name.tag.render.liquid"
@@ -663,7 +620,7 @@
     },
     "tag_render_liquid": {
       "name": "meta.entity.tag.render.liquid",
-      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(render)\\b",
+      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(render|include|theme_render_rc)\\b",
       "beginCaptures": {
         "1": {
           "name": "entity.name.tag.render.liquid"
@@ -685,47 +642,6 @@
     "tag_render_special_keywords": {
       "match": "\\b(with|as|for)\\b",
       "name": "keyword.control.other.liquid"
-    },
-    "tag_paginate": {
-      "name": "meta.entity.tag.paginate.liquid",
-      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(paginate)\\b",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.control.paginate.liquid"
-        }
-      },
-      "end": "(?=%})",
-      "patterns": [
-        {
-          "include": "#tag_paginate_body"
-        }
-      ]
-    },
-    "tag_paginate_liquid": {
-      "name": "meta.entity.tag.paginate.liquid",
-      "begin": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(paginate)\\b",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.control.paginate.liquid"
-        }
-      },
-      "end": "$",
-      "patterns": [
-        {
-          "include": "#tag_paginate_body"
-        }
-      ]
-    },
-    "tag_paginate_body": {
-      "patterns": [
-        {
-          "match": "\\b(by)\\b",
-          "name": "keyword.control.liquid"
-        },
-        {
-          "include": "#value_expression"
-        }
-      ]
     },
     "tag_conditional": {
       "name": "meta.entity.tag.conditional.liquid",
@@ -798,7 +714,7 @@
           }
         },
         {
-          "match": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(endfor|endtablerow|endpaginate)\\b",
+          "match": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(endfor|endtablerow)\\b",
           "captures": {
             "1": {
               "name": "keyword.control.loop.liquid"
@@ -814,7 +730,7 @@
           }
         },
         {
-          "match": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(capture|case|comment|for|form|if|javascript|paginate|schema|style)\\b",
+          "match": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(capture|case|comment|doc|for|if|ifchanged|raw|tablerow|unless|background|cache|content_for|form|graphql|parse_json|transaction|try)\\b",
           "captures": {
             "1": {
               "name": "keyword.control.other.liquid"
@@ -822,7 +738,7 @@
           }
         },
         {
-          "match": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(endcapture|endcase|endcomment|endfor|endform|endif|endjavascript|endpaginate|endschema|endstyle)\\b",
+          "match": "(?:(?:(?<={%)|(?<={%-)|^)\\s*)(endcapture|endcase|endcomment|enddoc|endfor|endif|endifchanged|endraw|endtablerow|endunless|endbackground|endcache|endcontent_for|endform|endgraphql|endparse_json|endtransaction|endtry)\\b",
           "captures": {
             "1": {
               "name": "keyword.control.other.liquid"
@@ -973,7 +889,7 @@
       }
     },
     "language_constant": {
-      "match": "\\b(false|true|nil|blank)\\b|empty(?!\\?)",
+      "match": "\\b(false|true|nil|null|blank)\\b|empty(?!\\?)",
       "name": "constant.language.liquid"
     },
     "attribute": {

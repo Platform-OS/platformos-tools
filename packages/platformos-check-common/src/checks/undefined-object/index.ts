@@ -21,8 +21,9 @@ import {
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType, PlatformOSDocset } from '../../types';
 import { isError, last } from '../../utils';
-import { isGloballyAccessibleObject, isWithinRawTagThatDoesNotParseItsContents } from '../utils';
-import { isPage } from '../../path';
+import { isObjectInScope, isWithinRawTagThatDoesNotParseItsContents } from '../utils';
+import { fileTypeSupportsLiquidDoc } from '../../liquid-doc/utils';
+import { PlatformOSFileType } from '@platformos/platformos-common';
 import yaml from 'js-yaml';
 
 type Scope = { start?: number; end?: number };
@@ -60,6 +61,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
     const fileScopedVariables: Set<string> = new Set();
     const variables: LiquidVariableLookup[] = [];
     let hasDocTag = false;
+    let hasDocParam = false;
 
     function indexVariableScope(variableName: string | null, scope: Scope) {
       if (!variableName) return;
@@ -73,6 +75,7 @@ export const UndefinedObject: LiquidCheckDefinition = {
         const paramName = node.paramName?.value;
         if (paramName) {
           fileScopedVariables.add(paramName);
+          hasDocParam = true;
         }
       },
 
@@ -115,8 +118,8 @@ export const UndefinedObject: LiquidCheckDefinition = {
           });
         }
 
-        if (node.name === 'function') {
-          const fnName = (node.markup as FunctionMarkup).name;
+        if (isLiquidTagFunction(node)) {
+          const fnName = node.markup.name;
           // Only register simple variable names (not hash/array mutations like hash['key'])
           if (fnName.lookups.length === 0 && fnName.name !== null) {
             indexVariableScope(fnName.name, {
@@ -199,14 +202,26 @@ export const UndefinedObject: LiquidCheckDefinition = {
       },
 
       async onCodePathEnd() {
-        const fileIsPage = isPage(context.file.uri);
+        const fileIsPage = context.fileType() === PlatformOSFileType.Page;
 
         // If no @doc tag and not a page, assume undefined variables are params from caller
         if (!hasDocTag && !fileIsPage) return;
 
-        const objects = await globalObjects(platformosDocset, relativePath);
+        const objects = await globalObjects(platformosDocset, context.fileType());
 
         objects.forEach((obj) => fileScopedVariables.add(obj.name));
+
+        /**
+         * `MissingDocParam` owns the undeclared INPUTS of a partial that declares a contract:
+         * a name nothing in the file ever defines is one the caller was meant to pass, and it
+         * reports each such name once, on the partial, as a hole in the doc. What is left here
+         * is the name the file DOES define and reads where that definition does not reach — a
+         * loop variable after its loop, a value read before its `assign` — which no `@param`
+         * would fix. The two conditions are complements, so between them every name still gets
+         * exactly one report.
+         */
+        const missingDocParamOwnsInputs =
+          hasDocParam && fileTypeSupportsLiquidDoc(context.fileType());
 
         variables.forEach((variable) => {
           if (!variable.name) return;
@@ -219,6 +234,8 @@ export const UndefinedObject: LiquidCheckDefinition = {
           );
           if (isVariableDefined) return;
 
+          if (missingDocParamOwnsInputs && !scopedVariables.has(variable.name)) return;
+
           context.report({
             message: `Unknown object '${variable.name}' used.`,
             startIndex: variable.position.start,
@@ -230,21 +247,23 @@ export const UndefinedObject: LiquidCheckDefinition = {
   },
 };
 
-async function globalObjects(platformosDocset: PlatformOSDocset, relativePath: string) {
+async function globalObjects(
+  platformosDocset: PlatformOSDocset,
+  fileType: PlatformOSFileType | undefined,
+) {
   const objects = await platformosDocset.objects();
-  const contextualObjects = getContextualObjects(relativePath);
+  const contextualObjects = getContextualObjects(fileType);
 
   return objects.filter(
-    (object) => contextualObjects.includes(object.name) || isGloballyAccessibleObject(object),
+    (object) => contextualObjects.includes(object.name) || isObjectInScope(object, fileType),
   );
 }
 
-function getContextualObjects(relativePath: string): string[] {
-  if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
-    return ['app'];
-  }
-
-  return [];
+function getContextualObjects(fileType: PlatformOSFileType | undefined): string[] {
+  // `app` is in scope inside a partial. Which paths ARE partials is
+  // platformos-common's business, never re-derived here — and it needs the project
+  // root to say so, which is why this takes the answer rather than a URI.
+  return fileType === PlatformOSFileType.Partial ? ['app'] : [];
 }
 
 function isDefined(
@@ -291,7 +310,7 @@ function isLiquidTag(node?: LiquidHtmlNode): node is LiquidTag {
 }
 
 function isLiquidTagCapture(node: LiquidTag): node is LiquidTagCapture {
-  return node.name === NamedTags.capture;
+  return node.name === NamedTags.capture && typeof node.markup !== 'string';
 }
 
 function isLiquidTagAssign(node: LiquidTag): node is LiquidTagAssign {
@@ -338,6 +357,22 @@ function isLiquidTagBackground(
 
 function isFunctionMarkup(node?: LiquidHtmlNode): node is FunctionMarkup {
   return node?.type === NodeTypes.FunctionMarkup;
+}
+
+/**
+ * A `{% function %}` tag whose markup the parser STRUCTURED.
+ *
+ * The tag name survives the tolerant parser's fallback to a raw markup string
+ * (`… | dig 'results'`, a filter missing its colon), so a name test alone reaches a
+ * string and `markup.name.lookups` throws — which aborted the rest of the file for
+ * this check. `LiquidHTMLSyntaxError` owns telling the author about the markup itself.
+ */
+function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
+  return (
+    node.name === NamedTags.function &&
+    typeof node.markup !== 'string' &&
+    node.markup.type === NodeTypes.FunctionMarkup
+  );
 }
 
 function isLiquidBranchCatch(

@@ -129,7 +129,7 @@ new correctness fixes.
 ## 5. Request flow (`validate_code`)
 
 ```
-input { file_path, content, mode }
+input { file_path, content }
   → lint/      parse + check() with project overlay → StructuredDiagnostic[]   (I/O)
   → enrich/    hints · confidence · agent fixes · see-also                     (pure)
   → advise/    pos-supervisor:* ergonomic advisories                          (pure)
@@ -137,10 +137,11 @@ input { file_path, content, mode }
   → ValidateCodeResult
 ```
 
-`mode` controls depth: `quick` = lint + enrichment; `full` additionally runs
-the heavier ergonomic stages (advisories, clustering, scorecard, guidance).
-The exact per-mode behaviour is defined and documented in the
-`validate_code` handler (TASK-7.10).
+There is no depth knob. A `mode: full | quick` input was specified and then removed:
+the only thing it could select was the linter's whole-project check partition, and
+that went away with `OrphanedPartial`. Every check answers
+for one file, so every call runs the same stages. Unknown arguments are dropped by
+the SDK, so a caller that still sends `mode` is unaffected.
 
 ---
 

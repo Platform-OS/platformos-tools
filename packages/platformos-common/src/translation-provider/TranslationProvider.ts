@@ -95,7 +95,7 @@ export class TranslationProvider {
       const singleFileUri = Utils.joinPath(rootUri, basePath, `${defaultLocale}.yml`).toString();
       const singleContents = await this.readFileIfExists(singleFileUri);
       if (singleContents) {
-        const data = yaml.load(singleContents);
+        const data = this.loadYaml(singleContents);
         if (this.findKeyInYaml(data, defaultLocale, parsed.key)) {
           return [singleFileUri, parsed.key];
         }
@@ -107,7 +107,7 @@ export class TranslationProvider {
       for (const fileUri of ymlFiles) {
         const contents = await this.readFileIfExists(fileUri);
         if (contents) {
-          const data = yaml.load(contents);
+          const data = this.loadYaml(contents);
           if (this.findKeyInYaml(data, defaultLocale, parsed.key)) {
             return [fileUri, parsed.key];
           }
@@ -184,6 +184,35 @@ export class TranslationProvider {
   }
 
   /**
+   * A translation file's YAML, or `undefined` when it does not parse.
+   *
+   * `json: true` is js-yaml's JSON-compatibility mode, and the reason it is on is the
+   * DUPLICATED MAPPING KEY — two translators adding the same key, which every real
+   * project has. Strict js-yaml rejects the whole document for it; the platform renders
+   * it, last value winning, and so does this. Reading such a file as EMPTY instead is
+   * far worse than reading it last-wins: on one real project five of the 39 `en/*.yml`
+   * files had a duplicate, and every key in them looked undefined to both
+   * `MatchingTranslations` and `TranslationKeyExists` — 561 offenses that were not
+   * there. `YAMLSyntaxError` is what tells the author about the duplicate itself.
+   *
+   * A parse failure that survives all that is a VALUE here, never an exception — the
+   * same contract `AppFile.ast` keeps, and for the same reason. When it escaped, one bad
+   * file took out a whole language-server feature for every file in the project:
+   * `DocumentLinksProvider` resolves `{{ '…' | t }}` through
+   * {@link findTranslationFile}, so the request rejected and the editor got NO links at
+   * all — not even the `render` ones it had already resolved. Hover and go-to-definition
+   * kept working, because they are separate requests, which made it look like the links
+   * had simply stopped being produced.
+   */
+  private loadYaml(content: string): unknown {
+    try {
+      return yaml.load(content, { json: true });
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
    * Parses a YAML translation file and returns its contents under the locale
    * key.  Returns `undefined` if the file cannot be parsed or if its first
    * key does not match `expectedLocale` (guards against mis-placed files).
@@ -192,15 +221,11 @@ export class TranslationProvider {
     content: string,
     expectedLocale: string,
   ): Record<string, any> | undefined {
-    try {
-      const data = yaml.load(content) as Record<string, any>;
-      if (!data || typeof data !== 'object') return undefined;
-      const firstKey = Object.keys(data)[0];
-      if (firstKey !== expectedLocale) return undefined;
-      return data[firstKey] ?? undefined;
-    } catch {
-      return undefined;
-    }
+    const data = this.loadYaml(content) as Record<string, any>;
+    if (!data || typeof data !== 'object') return undefined;
+    const firstKey = Object.keys(data)[0];
+    if (firstKey !== expectedLocale) return undefined;
+    return data[firstKey] ?? undefined;
   }
 
   private deepMerge(target: Record<string, any>, source: Record<string, any>): void {
@@ -229,7 +254,7 @@ export class TranslationProvider {
       return undefined;
     }
 
-    let data: any = yaml.load(contents);
+    let data: any = this.loadYaml(contents);
 
     for (const part of [defaultLocale, ...key.split('.')]) {
       data = data?.[part];

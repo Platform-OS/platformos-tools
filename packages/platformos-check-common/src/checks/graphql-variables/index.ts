@@ -57,7 +57,7 @@ export const GraphQLVariablesCheck: LiquidCheckDefinition = {
   },
 
   create(context) {
-    const locator = new DocumentsLocator(context.fs);
+    const locator = new DocumentsLocator(context.fs, context.app);
 
     const validate = async (
       targetFile: string,

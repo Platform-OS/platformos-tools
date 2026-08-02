@@ -184,4 +184,63 @@ describe('DocumentLinksProvider', () => {
       expect(result2[0].target).toBe('file:///project/app/views/partials/theme/new/card.liquid');
     });
   });
+  /**
+   * One malformed translation file must not cost the file every link it has.
+   *
+   * `{{ '…' | t }}` resolves through `TranslationProvider.findTranslationFile`, which
+   * parses the project's translation YAML. When that threw, the whole visit was one
+   * promise, so the rejection took out `textDocument/documentLink` for the entire file:
+   * the `render` link beside it disappeared too, even though it had already resolved.
+   * Hover and go-to-definition are separate requests and kept working, so it read as
+   * "links stopped being created" rather than as an error, which is what made it hard to
+   * place.
+   */
+  describe('when a translation file does not parse', () => {
+    it('still returns the links that do resolve', async () => {
+      const projectRoot = 'file:///path/to/project';
+      const fs = new MockFileSystem(
+        {
+          'path/to/project/app/views/partials/card.liquid': 'a partial',
+          'path/to/project/app/translations/en/greetings.yml':
+            'en:\n  greeting:\n    hello: "unterminated\n',
+        },
+        'file:///',
+      );
+      const provider = makeProvider(documentManager, projectRoot, fs);
+      const uri = 'file:///path/to/project/app/views/pages/index.liquid';
+      documentManager.open(uri, `{% render 'card' %}{{ 'greeting.hello' | t }}`, 1);
+
+      const links = await provider.documentLinks(uri);
+
+      expect(links.map((link) => link.target)).toEqual([
+        'file:///path/to/project/app/views/partials/card.liquid',
+        undefined,
+      ]);
+    });
+
+    it('resolves a key from a file whose only problem is a duplicated key', async () => {
+      // Two translators adding the same key is not a reason to stop linking to it: the
+      // platform renders that file, last value winning, and `YAMLSyntaxError` is what
+      // reports the duplicate.
+      const projectRoot = 'file:///path/to/project';
+      const fs = new MockFileSystem(
+        {
+          'path/to/project/app/views/partials/card.liquid': 'a partial',
+          'path/to/project/app/translations/en/greetings.yml':
+            'en:\n  greeting:\n    hello: Hello\n    hello: Hi again\n',
+        },
+        'file:///',
+      );
+      const provider = makeProvider(documentManager, projectRoot, fs);
+      const uri = 'file:///path/to/project/app/views/pages/index.liquid';
+      documentManager.open(uri, `{% render 'card' %}{{ 'greeting.hello' | t }}`, 1);
+
+      const links = await provider.documentLinks(uri);
+
+      expect(links.map((link) => link.target)).toEqual([
+        'file:///path/to/project/app/views/partials/card.liquid',
+        'file:///path/to/project/app/translations/en/greetings.yml',
+      ]);
+    });
+  });
 });

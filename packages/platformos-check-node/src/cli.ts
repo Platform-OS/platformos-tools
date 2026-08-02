@@ -1,5 +1,6 @@
 import { appCheckRun } from './index';
 import { allChecks } from '@platformos/platformos-check-common';
+import { UnreadableDirectoryError } from '@platformos/platformos-common';
 import { runBackfillDocsCLI } from './backfill-docs';
 import path from 'node:path';
 
@@ -57,7 +58,7 @@ async function runCheck(args: string[]): Promise<void> {
     console.log(JSON.stringify(config, null, 2));
     console.log(
       JSON.stringify(
-        app.map((x) => x.uri),
+        app.sourceCodes().map((file) => file.uri),
         null,
         2,
       ),
@@ -110,4 +111,24 @@ async function main(): Promise<void> {
   await runCheck(args);
 }
 
-main();
+/**
+ * What the user sees when a run fails.
+ *
+ * An {@link UnreadableDirectoryError} is a problem with the PROJECT that has a known
+ * fix, so it gets its sentence and nothing else — a `scandir` stack reads like the
+ * linter crashed, when what happened is that it refused to report on a project it
+ * could only partly see. Anything else is unexpected, and there the stack is the
+ * most useful thing we have; hiding it would trade one bad experience for another.
+ */
+function reportFailure(error: unknown): void {
+  if (error instanceof UnreadableDirectoryError) {
+    console.error(error.message);
+  } else {
+    console.error(error);
+  }
+}
+
+main().catch((error) => {
+  reportFailure(error);
+  process.exit(1);
+});

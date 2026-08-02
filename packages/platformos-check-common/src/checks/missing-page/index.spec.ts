@@ -806,27 +806,7 @@ describe('Module: MissingPage', () => {
   });
 
   describe('route table build behavior', () => {
-    it('builds the route table on demand when an unbuilt table is provided', async () => {
-      const appFiles = {
-        'app/views/pages/about.html.liquid': '<h1>About</h1>',
-      };
-      const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appFiles });
-      const routeTable = new RouteTable(fs);
-      // Do NOT call routeTable.build() — simulates the LSP scenario where the
-      // definition provider passes its route table before it has been built.
-
-      const sourceCode = '<a href="/about">About</a>';
-      const offenses = await runLiquidCheck(
-        MissingPage,
-        sourceCode,
-        'app/views/pages/home.html.liquid',
-        { routeTable },
-        appFiles,
-      );
-      expect(offenses).toHaveLength(0);
-    });
-
-    it('uses routes from a pre-built table without rebuilding', async () => {
+    it('uses routes from a provided table without building a second one', async () => {
       const appFiles = {
         'app/views/pages/contact.html.liquid': '<h1>Contact</h1>',
       };
@@ -840,10 +820,87 @@ describe('Module: MissingPage', () => {
         MissingPage,
         sourceCode,
         'app/views/pages/home.html.liquid',
-        { routeTable },
+        { routeTable: async () => routeTable },
         appFiles,
       );
       expect(offenses).toHaveLength(0);
+    });
+
+    it("trusts the provider's table verbatim: currency is the provider's job", async () => {
+      // `Dependencies.routeTable` is a provider, and a provider OWNS making its
+      // table current — check-common must not `build()` behind its back, which
+      // would throw away and redo check-node's reconciliation. So a provider that
+      // hands over an empty, unbuilt table gets exactly what it asked for: every
+      // route resolves to "missing". The caller that wants build-on-first-use
+      // writes it into its provider, as the language server's runChecks does.
+      const appFiles = {
+        'app/views/pages/about.html.liquid': '<h1>About</h1>',
+      };
+      const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appFiles });
+      const routeTable = new RouteTable(fs);
+
+      const sourceCode = '<a href="/about">About</a>';
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        { routeTable: async () => routeTable },
+        appFiles,
+      );
+      expect(offenses.map((offense) => offense.message)).toEqual([
+        "No page found for route '/about' (GET)",
+      ]);
+    });
+  });
+
+  /**
+   * Every page in the project has to be read for the table to know its routes, so a
+   * run that asks for one when it has nothing to look up pays whole-project I/O for
+   * nothing. These pin that it is asked for exactly when a URL needs resolving.
+   */
+  describe('route table laziness', () => {
+    const appFiles = { 'app/views/pages/about.html.liquid': '<h1>About</h1>' };
+
+    async function runWithProvider(sourceCode: string) {
+      const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appFiles });
+      const built = new RouteTable(fs);
+      await built.build((await import('vscode-uri')).URI.parse('file:///'));
+
+      let calls = 0;
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        sourceCode,
+        'app/views/pages/home.html.liquid',
+        {
+          routeTable: () => {
+            calls += 1;
+            return Promise.resolve(built);
+          },
+        },
+        appFiles,
+      );
+      return { calls, offenses };
+    }
+
+    it('never asks a provider for a table when the file links nowhere', async () => {
+      expect(await runWithProvider('<h1>Hello</h1>{% assign x = 1 %}')).toEqual({
+        calls: 0,
+        offenses: [],
+      });
+    });
+
+    it('never asks a provider for a table when every URL is skipped', async () => {
+      expect(
+        await runWithProvider('<a href="https://example.com">out</a><a href="#top">top</a>'),
+      ).toEqual({ calls: 0, offenses: [] });
+    });
+
+    it('asks a provider exactly once for a file with several links', async () => {
+      const { calls, offenses } = await runWithProvider(
+        '<a href="/about">a</a><a href="/about">b</a><a href="/ghost">c</a>',
+      );
+      expect(calls).toEqual(1);
+      expect(offenses.map((o) => o.message)).toEqual(["No page found for route '/ghost' (GET)"]);
     });
   });
 });

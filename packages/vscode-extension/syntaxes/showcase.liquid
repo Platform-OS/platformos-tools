@@ -1,26 +1,46 @@
+{% graphql people, limit: 10 %}
+  query people($limit: Int) {
+    records(per_page: $limit, filter: { table: { value: "person" } }) {
+      results {
+        id
+        properties
+      }
+    }
+  }
+{% endgraphql %}
+
 <ul>
-  {% for p in products %}
+  {% for person in people.records.results %}
     <li>
-      {% assign product_image = p.featured_image %}
+      {% assign avatar = person.properties.avatar %}
       <img
-        alt="{{ product_image.alt }}"
+        alt="{{ person.properties.name }}"
         src="{{
-          product_image
+          avatar
           | image_url:
             width: 500,
             height: 500
         }}"
-        height="{{ product_image.width }}"
-        width="{{ product_image.width }}"
+        height="500"
+        width="500"
         loading="lazy"
       >
     </li>
   {% endfor %}
 </ul>
+
+The body of a graphql block is a GraphQL document, and a parse_json body is JSON.
+{% parse_json settings %}
+  {
+    "locale": "{{ context.language }}",
+    "page": {{ page.slug | json }}
+  }
+{% endparse_json %}
+
 <script>
   // The drop is highlighted because liquid will render inside the comment.
   // As such, it isn't a "real" comment w.r.t. liquid.
-  // comment {{ product.value }}
+  // comment {{ page.title }}
   function main(arg1) {
     if (condition) {
       {% if condition %}
@@ -30,23 +50,10 @@
   }
 </script>
 
-{% javascript %}
-  // You'll notice that the highlighting works in the `javascript` liquid tag as well!
-  function main(arg1) {
-    if (condition) {
-      {% case fruit %}
-      {% when 'apple' %}
-        const fruit = {{ 'apple' | upcase | reverse | json }}
-      {% when 'banana' %}
-        const fruit = {{ 'banana' | reverse | json }}
-      {% endcase %}
-    }
-  }
-{% endjavascript %}
 <style>
   :root {
-    {% if settings.font_family %}
-      --font-family-secondary: {{ settings.font_family }};
+    {% if context.constants.FONT_FAMILY %}
+      --font-family-secondary: {{ context.constants.FONT_FAMILY }};
     {% endif %}
   }
 
@@ -55,17 +62,6 @@
   }
 </style>
 
-{% style %}
-  .button-primary {
-    width: 100%;
-    height: 100%;
-    {% if settings.button_primary_color %}
-      background-color: {{ settings.button_primary_color | json }};
-    {% else %}
-      background-color: var(--default-color);
-    {% endif %}
-  }
-{% endstyle %}
 {% raw %}
   this should be free form
   {% comment %} does not need to close
@@ -74,8 +70,9 @@
 
 This is content that follows the raw tag.
 The with, as, for and as keywords are highlighted as keywords.
-{% render 'product' with foo as bar %}
+{% render 'person' with foo as bar %}
 {% render 'variant' for elements as element %}
+{% include 'legacy/partial', named: my_variable %}
 
 You can write tags on multiple lines and the highlighting will follow.
 {%
@@ -87,10 +84,10 @@ You can write tags on multiple lines and the highlighting will follow.
 Works pretty well in the liquid tag too.
 {% liquid
   render 'name', named: my_variable, other: 'oranges'
-  render 'name': named: my_variable, other: 'oranges'
   render 'name' with foo as bar
   render 'name' for elements as element
 %}
+
 Control flow tags are keywords and highlight the need to be closed
 {% if condition %}{% endif %}
 {% case fruit %}
@@ -98,10 +95,32 @@ Control flow tags are keywords and highlight the need to be closed
   {% else %}
 {% endcase %}
 
+platformOS block tags are keywords too, and fold.
+{% try %}
+  {% transaction %}
+    {% function person = 'modules/core/commands/person/create', name: params.name %}
+    {% if person.errors %}
+      {% rollback %}
+    {% endif %}
+  {% endtransaction %}
+{% catch error %}
+  {% log error, type: 'error' %}
+{% endtry %}
+
+{% cache 'people-list', expire: 60 %}
+  {% content_for 'head' %}
+    <meta name="robots" content="noindex">
+  {% endcontent_for %}
+{% endcache %}
+
+{% background notify = 'modules/core/commands/notify', id: person.id %}
+
 Single line tags are entities in a different color
 {% assign x = 1 %}
 {% echo x %}
+{% print x %}
 {% cycle 'a', 'b', 'c' %}
+{% return { "status": 200 } %}
 
 The highlighting works in liquid tags too!
 {% liquid

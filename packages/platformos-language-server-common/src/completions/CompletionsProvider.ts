@@ -6,10 +6,9 @@ import {
 import {
   type AbstractFileSystem,
   type DocumentsLocator,
-  FileType,
+  PlatformOSFileType,
 } from '@platformos/platformos-common';
 import { CompletionItem, CompletionParams } from 'vscode-languageserver';
-import { URI, Utils } from 'vscode-uri';
 import { TypeSystem } from '../TypeSystem';
 import { DocumentManager } from '../documents';
 import { FindAppRootURI } from '../internal-types';
@@ -87,26 +86,42 @@ export class CompletionsProvider {
       documentManager,
     );
 
-    // Build layout/policy name callbacks from fs+findAppRootURI when not explicitly provided
+    // Build layout/policy name callbacks from the App when not explicitly provided.
+    // `AppFile.name` IS the completion label: the same `pathToName` that names the
+    // index strips the type directory, the extension AND any response format, so a
+    // layout at `app/views/layouts/1col.html.liquid` is offered as `1col` — the
+    // spelling `layout:` resolves — where a hand-rolled `.replace(/\.liquid$/, '')`
+    // offered `1col.html`, which resolves to nothing. Module files come back as
+    // `modules/<name>/…` from the same derivation, and a Set collapses an
+    // `app/modules/` overwrite onto its original.
     let layoutNames: GetLayoutNamesForURI | undefined = getLayoutNamesForURI;
     let authPolicyNames: GetAuthPolicyNamesForURI | undefined = getAuthPolicyNamesForURI;
 
-    if (fs && findAppRootURI) {
-      if (!layoutNames) {
-        layoutNames = async (uri: string) => {
-          const rootUri = await findAppRootURI(uri);
-          if (!rootUri) return [];
-          return listLayoutNames(fs, URI.parse(rootUri));
-        };
-      }
-      if (!authPolicyNames) {
-        authPolicyNames = async (uri: string) => {
-          const rootUri = await findAppRootURI(uri);
-          if (!rootUri) return [];
-          return listAuthPolicyNames(fs, URI.parse(rootUri));
-        };
-      }
+    if (findAppRootURI) {
+      const namesOfType = async (uri: string, fileType: PlatformOSFileType) => {
+        const rootUri = await findAppRootURI(uri);
+        if (!rootUri) return [];
+        // Memoized per root and started in the background on didOpen, so this
+        // resolves immediately except on the very first completion of a cold
+        // workspace — where waiting for the read is what makes the answer right.
+        // A failed preload leaves whatever the app already holds (open buffers).
+        await documentManager.preload(rootUri).catch(() => {});
+        const names = documentManager
+          .appModel(rootUri)
+          .ofType(fileType)
+          .map((file) => file.name);
+        return [...new Set(names)].sort();
+      };
+
+      layoutNames ??= (uri: string) => namesOfType(uri, PlatformOSFileType.Layout);
+      authPolicyNames ??= (uri: string) => namesOfType(uri, PlatformOSFileType.Authorization);
     }
+
+    // THE classifier: the DocumentManager answers from the AppFile a known root
+    // already classified, and walks for a root only when none is known yet. The
+    // providers that classify take this — one resolver, one meaning of "no root" —
+    // rather than doing their own findAppRootURI-then-classify dance.
+    const fileTypeForURI = (uri: string) => documentManager.fileType(uri);
 
     this.providers = [
       new HtmlTagCompletionProvider(),
@@ -120,9 +135,9 @@ export class CompletionsProvider {
       new PartialCompletionProvider(getPartialNamesForURI),
       new RenderPartialParameterCompletionProvider(getDocDefinitionForURI),
       new FilterNamedParameterCompletionProvider(platformosDocset),
-      new LiquidDocTagCompletionProvider(),
-      new LiquidDocParamTypeCompletionProvider(platformosDocset),
-      new FrontmatterKeyCompletionProvider(layoutNames, authPolicyNames),
+      new LiquidDocTagCompletionProvider(fileTypeForURI),
+      new LiquidDocParamTypeCompletionProvider(platformosDocset, fileTypeForURI),
+      new FrontmatterKeyCompletionProvider(layoutNames, authPolicyNames, fileTypeForURI),
     ];
   }
 
@@ -151,86 +166,4 @@ export class CompletionsProvider {
       return [];
     }
   }
-}
-
-// ── File listing helpers ─────────────────────────────────────────────────────
-
-/** Recursively list .liquid files under a URI directory. Returns full URI strings. */
-async function listLiquidFilesRecursively(fs: AbstractFileSystem, dirUri: URI): Promise<string[]> {
-  let entries: [string, FileType][];
-  try {
-    entries = await fs.readDirectory(dirUri.toString());
-  } catch {
-    return [];
-  }
-
-  const results: string[] = [];
-  for (const [entryUri, entryType] of entries) {
-    if (entryType === FileType.Directory) {
-      const sub = await listLiquidFilesRecursively(fs, URI.parse(entryUri));
-      results.push(...sub);
-    } else if (entryType === FileType.File && entryUri.endsWith('.liquid')) {
-      results.push(entryUri);
-    }
-  }
-  return results;
-}
-
-async function listLayoutNames(fs: AbstractFileSystem, root: URI): Promise<string[]> {
-  const names: string[] = [];
-
-  // App layouts: app/views/layouts/**/*.liquid
-  const appLayoutsDir = Utils.joinPath(root, 'app', 'views', 'layouts');
-  const appBase = appLayoutsDir.toString() + '/';
-  for (const uri of await listLiquidFilesRecursively(fs, appLayoutsDir)) {
-    const rel = uri.startsWith(appBase) ? uri.slice(appBase.length) : uri;
-    names.push(rel.replace(/\.liquid$/, ''));
-  }
-
-  // Module layouts from both modules/ and app/modules/ (overwrites).
-  // Both are reported as modules/{mod}/{rest} — the Set below deduplicates them.
-  for (const modulesRoot of ['modules', 'app/modules'] as const) {
-    let moduleEntries: [string, FileType][] = [];
-    try {
-      moduleEntries = await fs.readDirectory(Utils.joinPath(root, modulesRoot).toString());
-    } catch {
-      /* directory does not exist */
-    }
-
-    for (const [modDirUri, modType] of moduleEntries) {
-      if (modType !== FileType.Directory) continue;
-      const modName = modDirUri.replace(/\/$/, '').split('/').at(-1)!;
-      for (const visibility of ['public', 'private'] as const) {
-        const layoutsDir = Utils.joinPath(URI.parse(modDirUri), visibility, 'views', 'layouts');
-        const base = layoutsDir.toString() + '/';
-        for (const uri of await listLiquidFilesRecursively(fs, layoutsDir)) {
-          const rest = uri.startsWith(base) ? uri.slice(base.length) : uri;
-          names.push(`modules/${modName}/${rest.replace(/\.liquid$/, '')}`);
-        }
-      }
-    }
-  }
-
-  return [...new Set(names)].sort();
-}
-
-async function listAuthPolicyNames(fs: AbstractFileSystem, root: URI): Promise<string[]> {
-  const dir = Utils.joinPath(root, 'app', 'authorization_policies');
-  let entries: [string, FileType][] = [];
-  try {
-    entries = await fs.readDirectory(dir.toString());
-  } catch {
-    return [];
-  }
-
-  return entries
-    .filter(([uri, type]) => type === FileType.File && uri.endsWith('.liquid'))
-    .map(([uri]) =>
-      uri
-        .replace(/\/$/, '')
-        .split('/')
-        .at(-1)!
-        .replace(/\.liquid$/, ''),
-    )
-    .sort();
 }

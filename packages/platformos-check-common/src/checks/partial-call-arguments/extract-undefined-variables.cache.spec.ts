@@ -36,11 +36,13 @@ describe('Unit: extractUndefinedVariables memoization', () => {
     ];
 
     expect(parseCount() - before).toEqual(1);
-    expect(results).toEqual([
-      { required: ['title', 'subtitle'], optional: [] },
-      { required: ['title', 'subtitle'], optional: [] },
-      { required: ['title', 'subtitle'], optional: [] },
-    ]);
+    const analysis = {
+      required: ['title', 'subtitle'],
+      optional: [],
+      selfDefaulted: [],
+      defined: [],
+    };
+    expect(results).toEqual([analysis, analysis, analysis]);
   });
 
   it('re-analyzes when the source changes, so an edited partial is never served stale', () => {
@@ -50,8 +52,13 @@ describe('Unit: extractUndefinedVariables memoization', () => {
     const second = extractUndefinedVariables('{{ title }}{{ author }}');
 
     expect(parseCount() - before).toEqual(2);
-    expect(first).toEqual({ required: ['title'], optional: [] });
-    expect(second).toEqual({ required: ['title', 'author'], optional: [] });
+    expect(first).toEqual({ required: ['title'], optional: [], selfDefaulted: [], defined: [] });
+    expect(second).toEqual({
+      required: ['title', 'author'],
+      optional: [],
+      selfDefaulted: [],
+      defined: [],
+    });
   });
 
   it('re-analyzes when the in-scope global names change for the same source', () => {
@@ -62,8 +69,29 @@ describe('Unit: extractUndefinedVariables memoization', () => {
     const withGlobals = extractUndefinedVariables(source, ['app']);
 
     expect(parseCount() - before).toEqual(2);
-    expect(withoutGlobals).toEqual({ required: ['app', 'widget'], optional: [] });
-    expect(withGlobals).toEqual({ required: ['widget'], optional: [] });
+    expect(withoutGlobals).toEqual({
+      required: ['app', 'widget'],
+      optional: [],
+      selfDefaulted: [],
+      defined: [],
+    });
+    expect(withGlobals).toEqual({
+      required: ['widget'],
+      optional: [],
+      selfDefaulted: [],
+      defined: [],
+    });
+  });
+
+  it('spends no parse at all when the caller already holds the AST of that source', () => {
+    const source = '{{ title }}';
+    const ast = toLiquidHtmlAST(source);
+    const before = parseCount();
+
+    const result = extractUndefinedVariables(source, [], ast);
+
+    expect(parseCount() - before).toEqual(0);
+    expect(result).toEqual({ required: ['title'], optional: [], selfDefaulted: [], defined: [] });
   });
 
   it('hands every caller its own arrays, so one caller cannot corrupt another', () => {
@@ -73,6 +101,6 @@ describe('Unit: extractUndefinedVariables memoization', () => {
     first.required.push('mutated');
     const second = extractUndefinedVariables(source);
 
-    expect(second).toEqual({ required: ['shared'], optional: [] });
+    expect(second).toEqual({ required: ['shared'], optional: [], selfDefaulted: [], defined: [] });
   });
 });

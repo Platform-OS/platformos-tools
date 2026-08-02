@@ -1,6 +1,6 @@
 import { LiquidExpression, LiquidVariable, NodeTypes } from '@platformos/liquid-html-parser';
+import { getFileType, PlatformOSFileType } from '@platformos/platformos-common';
 import { assertNever } from '../utils';
-import { isPartial } from '../path';
 import { ObjectEntry, UriString } from '../types';
 
 /**
@@ -16,6 +16,7 @@ export enum BasicParamTypes {
   Number = 'number',
   Boolean = 'boolean',
   Object = 'object',
+  Array = 'array',
 }
 
 /** Inferred type for null/nil literals — not a valid @param type, only used in type mismatch messages. */
@@ -40,6 +41,8 @@ export function getDefaultValueForType(type: string | null) {
       return '0';
     case BasicParamTypes.Boolean:
       return 'false';
+    case BasicParamTypes.Array:
+      return '[]';
     case BasicParamTypes.Object: // Objects don't have a sensible default value
     default:
       return '';
@@ -67,10 +70,11 @@ export function inferArgumentType(arg: LiquidExpression | LiquidVariable): Infer
       if (arg.value === null) return InferredNull;
       if (arg.value === '') return BasicParamTypes.String;
       return BasicParamTypes.Boolean;
+    case NodeTypes.JsonArrayLiteral:
+      return BasicParamTypes.Array;
     case NodeTypes.Range:
     case NodeTypes.VariableLookup:
     case NodeTypes.JsonHashLiteral:
-    case NodeTypes.JsonArrayLiteral:
       return BasicParamTypes.Object;
     default:
       // This ensures that we have a case for every possible type for arg.value
@@ -99,11 +103,16 @@ export function isNullLiteral(arg: LiquidExpression | LiquidVariable): boolean {
  * Checks if the provided argument type is compatible with the expected type.
  * Makes certain types more permissive:
  * - Boolean accepts any value, since everything is truthy / falsy in Liquid
+ * - Object accepts an array, since it is documented as the generic non-primitive type
  */
 export function isTypeCompatible(expectedType: string, actualType: InferredParamType): boolean {
   const normalizedExpectedType = expectedType.toLowerCase();
 
   if (normalizedExpectedType === BasicParamTypes.Boolean) {
+    return true;
+  }
+
+  if (normalizedExpectedType === BasicParamTypes.Object && actualType === BasicParamTypes.Array) {
     return true;
   }
 
@@ -113,8 +122,18 @@ export function isTypeCompatible(expectedType: string, actualType: InferredParam
 /**
  * Checks if the provided file path supports the LiquidDoc tag.
  */
-export function filePathSupportsLiquidDoc(uri: UriString) {
-  return isPartial(uri);
+export function filePathSupportsLiquidDoc(uri: UriString, rootUri: UriString) {
+  return fileTypeSupportsLiquidDoc(getFileType(uri, rootUri));
+}
+
+/**
+ * Whether `{% doc %}` applies to a file of `fileType` — partials only. The
+ * TYPE-level spelling of {@link filePathSupportsLiquidDoc}, for a caller that
+ * already classified the file (the language server's `DocumentManager.fileType`)
+ * and must not re-derive what it holds.
+ */
+export function fileTypeSupportsLiquidDoc(fileType: PlatformOSFileType | undefined): boolean {
+  return fileType === PlatformOSFileType.Partial;
 }
 
 /**
@@ -134,6 +153,7 @@ export function getValidParamTypes(objectEntries: ObjectEntry[]): Map<string, st
       BasicParamTypes.Object,
       'A generic type used to represent any liquid object or primitive value.',
     ],
+    [BasicParamTypes.Array, 'A generic type used to represent an array of any values.'],
   ]);
 
   objectEntries.forEach((obj) => paramTypes.set(obj.name, obj.summary || obj.description));

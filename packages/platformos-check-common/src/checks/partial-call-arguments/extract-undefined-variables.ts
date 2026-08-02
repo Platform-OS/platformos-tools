@@ -2,6 +2,8 @@ import {
   LiquidHtmlNode,
   LiquidTag,
   LiquidTagAssign,
+  LiquidTagHashAssign,
+  AssignMarkup,
   LiquidTagCapture,
   LiquidTagDecrement,
   LiquidTagFor,
@@ -9,12 +11,11 @@ import {
   LiquidTagTablerow,
   LiquidVariableLookup,
   LiquidVariable,
+  LiquidFilter,
   NamedTags,
   NodeTypes,
   Position,
   FunctionMarkup,
-  LiquidTagHashAssign,
-  HashAssignMarkup,
   LiquidTagGraphQL,
   LiquidTagParseJson,
   LiquidTagBackground,
@@ -26,8 +27,26 @@ import { createBoundedCache } from '../../utils/bounded-cache';
 type Scope = { start?: number; end?: number };
 
 export interface UndefinedVariables {
+  /** Read bare: nothing in the file handles their absence. */
   required: string[];
+  /** Read through `| default`, either as the defaulted value or as a fallback for one. */
   optional: string[];
+  /**
+   * Of `optional`, the names the file defaults ITSELF (`x | default: …`), as opposed to the
+   * ones that merely stand in for another (`… | default: x`). Only the former is evidence
+   * that the file handles a missing `x`: a fallback source is read exactly when the thing it
+   * stands in for is absent, which says nothing about its own absence.
+   */
+  selfDefaulted: string[];
+  /**
+   * Every name the file gives a value to somewhere — `assign`, `capture`, `for`, a
+   * `hash_assign` target, … — whether or not that definition reaches every read of it.
+   * A name that is here AND in `required`/`optional` was read where its definition does not
+   * reach: a scope error rather than a missing input, and `UndefinedObject`'s to report.
+   * This counts as a definition exactly what that check counts, so for a documented partial
+   * the two never both report a name, and never both skip one.
+   */
+  defined: string[];
 }
 
 /**
@@ -62,44 +81,59 @@ export function clearUndefinedVariablesCache(): void {
  * packaged as a standalone synchronous function.
  *
  * Memoized, because callers ask the same question repeatedly: `PartialCallArguments`
- * analyzes the render TARGET at every call site, so a partial rendered from 40
- * places used to be parsed 40 times per lint run (the dominant cost of that
- * check on a real project — ~9.9 s of a 21 s run).
+ * analyzes the render TARGET at every call site, so a partial rendered from 40 places
+ * would otherwise be parsed 40 times per lint run.
  *
- * The analysis is a pure function of `(source, globalObjectNames)`, so both go
- * into the key and a cached entry can never be stale: edited content is simply a
- * different key. Results are copied out, so callers keep owning (and are free to
- * mutate) the arrays they receive, exactly as before.
+ * The analysis is a pure function of `(source, globalObjectNames)`, so both go into the
+ * key and a cached entry can never be stale: edited content is simply a different key.
+ * Results are copied out, so callers keep owning the arrays they receive.
+ *
+ * `parsed` lets a caller that already holds the parse of THIS source — a check asking
+ * about the file it is visiting — spend no second parse on it. It must be the AST of
+ * `source` and of nothing else; it is not part of the cache key, precisely because it
+ * carries no information the source does not.
  */
 export function extractUndefinedVariables(
   source: string,
   globalObjectNames: string[] = [],
+  parsed?: LiquidHtmlNode,
 ): UndefinedVariables {
   const cached = analysisCache(`${globalObjectNames.join(',')}\u0000${source}`, () =>
-    computeUndefinedVariables(source, globalObjectNames),
+    computeUndefinedVariables(source, globalObjectNames, parsed),
   );
 
-  return { required: [...cached.required], optional: [...cached.optional] };
+  return {
+    required: [...cached.required],
+    optional: [...cached.optional],
+    selfDefaulted: [...cached.selfDefaulted],
+    defined: [...cached.defined],
+  };
 }
 
 function computeUndefinedVariables(
   source: string,
   globalObjectNames: string[],
+  parsed?: LiquidHtmlNode,
 ): UndefinedVariables {
   let ast;
   try {
-    ast = toLiquidHtmlAST(source);
+    ast = parsed ?? toLiquidHtmlAST(source);
   } catch {
-    return { required: [], optional: [] };
+    return { required: [], optional: [], selfDefaulted: [], defined: [] };
   }
 
   const scopedVariables: Map<string, Scope[]> = new Map();
   const fileScopedVariables: Set<string> = new Set(globalObjectNames);
-  const variables: LiquidVariableLookup[] = [];
-  const variablesWithDefault: Set<string> = new Set();
+  /** Each USE of a variable — enough of one to place and name it. */
+  const variables: { name: string | null; position: Position }[] = [];
+  const selfDefaultedVariables: Set<string> = new Set();
+  const fallbackSourceVariables: Set<string> = new Set();
+  /** Every name the file gives a value to, including the ones it only mutates. */
+  const definedVariables: Set<string> = new Set();
 
   function indexVariableScope(variableName: string | null, scope: Scope) {
     if (!variableName) return;
+    definedVariables.add(variableName);
     const indexedScope = scopedVariables.get(variableName) ?? [];
     scopedVariables.set(variableName, indexedScope.concat(scope));
   }
@@ -136,14 +170,27 @@ function computeUndefinedVariables(
   }
 
   function handleLiquidTag(node: LiquidTag, _ancestors: LiquidHtmlNode[]) {
-    if (isLiquidTagAssign(node) || isLiquidTagGraphQL(node) || isLiquidTagParseJson(node)) {
-      indexVariableScope(node.markup.name, {
-        start: node.blockStartPosition.end,
-      });
+    if (isLiquidTagHashAssign(node) && node.markup.target.name) {
+      // A mutation READS its target (see `isMutatingAssign`), so the target lookup stays a
+      // use; naming it here only records that the file writes to it somewhere.
+      definedVariables.add(node.markup.target.name);
     }
 
-    if (isLiquidTagHashAssign(node) && node.markup.target.name) {
-      indexVariableScope(node.markup.target.name, {
+    if (isLiquidTagAssign(node)) {
+      if (isMutatingAssign(node.markup)) {
+        // A mutation, not a definition: the backend looks the target up and raises
+        // when it is missing, so this READS the variable.
+        variables.push({ name: node.markup.name, position: node.markup.position });
+        if (node.markup.name) definedVariables.add(node.markup.name);
+      } else {
+        indexVariableScope(node.markup.name, {
+          start: node.blockStartPosition.end,
+        });
+      }
+    }
+
+    if (isLiquidTagGraphQL(node) || isLiquidTagParseJson(node)) {
+      indexVariableScope(node.markup.name, {
         start: node.blockStartPosition.end,
       });
     }
@@ -161,8 +208,8 @@ function computeUndefinedVariables(
       });
     }
 
-    if (node.name === 'function') {
-      const fnName = (node.markup as FunctionMarkup).name;
+    if (isLiquidTagFunction(node)) {
+      const fnName = node.markup.name;
       if (fnName.lookups.length === 0 && fnName.name !== null) {
         indexVariableScope(fnName.name, {
           start: node.position.end,
@@ -216,7 +263,8 @@ function computeUndefinedVariables(
     if (isLiquidTag(parent) && isLiquidTagParseJson(parent)) return;
     if (isFunctionMarkup(parent) && parent.name === node) return;
     if (isLiquidBranchCatch(parent) && parent.markup === node) return;
-    if (isHashAssignMarkup(parent) && parent.target === node) return;
+    // `hash_assign x['k'] = v` READS `x` — the backend looks it up and raises if it
+    // is null — so the target is a use, never a definition.
 
     variables.push(node);
 
@@ -228,7 +276,18 @@ function computeUndefinedVariables(
       parent.expression === node &&
       parent.filters.some((f) => f.name === 'default')
     ) {
-      variablesWithDefault.add(node.name);
+      selfDefaultedVariables.add(node.name);
+    }
+
+    // Detect `... | default: x` — a FALLBACK source cannot be more required than the
+    // thing it stands in for, since it is only read when that thing is missing.
+    if (
+      node.name &&
+      isLiquidFilter(parent) &&
+      parent.name === 'default' &&
+      parent.args.includes(node)
+    ) {
+      fallbackSourceVariables.add(node.name);
     }
   }
 
@@ -238,6 +297,7 @@ function computeUndefinedVariables(
   const seen = new Set<string>();
   const required: string[] = [];
   const optional: string[] = [];
+  const selfDefaulted: string[] = [];
 
   for (const variable of variables) {
     if (!variable.name) continue;
@@ -252,7 +312,10 @@ function computeUndefinedVariables(
 
     if (!isVariableDefined) {
       seen.add(variable.name);
-      if (variablesWithDefault.has(variable.name)) {
+      if (selfDefaultedVariables.has(variable.name)) {
+        optional.push(variable.name);
+        selfDefaulted.push(variable.name);
+      } else if (fallbackSourceVariables.has(variable.name)) {
         optional.push(variable.name);
       } else {
         required.push(variable.name);
@@ -260,11 +323,23 @@ function computeUndefinedVariables(
     }
   }
 
-  return { required, optional };
+  return { required, optional, selfDefaulted, defined: [...definedVariables] };
 }
 
 function isNode(x: any): x is LiquidHtmlNode {
   return x !== null && typeof x === 'object' && typeof x.type === 'string';
+}
+
+/**
+ * Whether an `assign` mutates its target instead of defining it.
+ *
+ * `assign x = v` defines `x`. `assign x['k'] = v`, `assign x.k = v` and
+ * `assign x << v` all go through the backend's `HashAssignable`, which looks `x` up
+ * in the enclosing scopes and raises when it is null — so those need `x` to already
+ * exist, exactly as `hash_assign` does.
+ */
+function isMutatingAssign(markup: AssignMarkup): boolean {
+  return markup.lookups.length > 0 || markup.operator === '<<';
 }
 
 function isDefined(
@@ -295,7 +370,7 @@ function isLiquidTag(node?: LiquidHtmlNode): node is LiquidTag {
 }
 
 function isLiquidTagCapture(node: LiquidTag): node is LiquidTagCapture {
-  return node.name === NamedTags.capture;
+  return node.name === NamedTags.capture && typeof node.markup !== 'string';
 }
 
 function isLiquidTagAssign(node: LiquidTag): node is LiquidTagAssign {
@@ -340,8 +415,21 @@ function isLiquidTagBackground(
   );
 }
 
-function isHashAssignMarkup(node?: LiquidHtmlNode): node is HashAssignMarkup {
-  return node?.type === NodeTypes.HashAssignMarkup;
+/**
+ * A `{% function %}` tag whose markup the parser STRUCTURED.
+ *
+ * The tolerant parser leaves `markup` a raw string when the strict rule fails
+ * (`… | dig 'results'`, a filter missing its colon), and the tag name survives that
+ * fallback — so a name test alone reaches a string and `markup.name.lookups` throws,
+ * which aborted the whole file for whichever check was walking it.
+ * `LiquidHTMLSyntaxError` owns telling the author about the markup itself.
+ */
+function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
+  return (
+    node.name === NamedTags.function &&
+    typeof node.markup !== 'string' &&
+    node.markup.type === NodeTypes.FunctionMarkup
+  );
 }
 
 function isFunctionMarkup(node?: LiquidHtmlNode): node is FunctionMarkup {
@@ -356,4 +444,8 @@ function isLiquidBranchCatch(
 
 function isLiquidVariable(node?: LiquidHtmlNode): node is LiquidVariable {
   return node?.type === NodeTypes.LiquidVariable;
+}
+
+function isLiquidFilter(node?: LiquidHtmlNode): node is LiquidFilter {
+  return node?.type === NodeTypes.LiquidFilter;
 }

@@ -3,10 +3,10 @@ id: TASK-12
 title: >-
   Make validate_code fast enough for in-loop agent use (eliminate redundant
   recompute per call)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-29 03:49'
-updated_date: '2026-07-29 04:39'
+updated_date: '2026-08-03 10:27'
 labels:
   - performance
   - supervisor
@@ -37,7 +37,7 @@ Subtasks are ordered by payoff-per-risk: the two memoizations are pure-function 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Warm steady-state `validate_code` latency on the pos-module-mcp project is under 500 ms per call, measured and recorded
+- [x] #1 Warm steady-state `validate_code` latency on the pos-module-mcp project is under 500 ms per call, measured and recorded
 - [x] #2 Diagnostics returned for a given file+buffer are identical before and after the change set (same checks, messages, positions, severities)
 - [x] #3 No check is disabled, weakened, or skipped to reach the target
 - [x] #4 `yarn test` and `yarn type-check` pass for every touched package
@@ -63,4 +63,36 @@ Correctness evidence, not just unit tests: `lintBuffer` compared against `appChe
 Memory investigated (RSS looked like it was growing: 492 → 550 → 644 MB across calls). It is NOT a leak: with forced GC, post-GC heapUsed plateaus at ~19.2 MB and RSS at ~404 MB, growing 0.5 MB/call. The high RSS is transient garbage — parsing all 162 files on every call allocates hundreds of MB of ASTs that are immediately discarded — plus V8 not returning freed pages. The two new caches account for ~4 MB of live data.
 
 AC #1 (< 500 ms) is NOT met yet: ~5.8 s remains, and it is now almost entirely `getApp` re-reading and re-PARSING every project file on every call (3.6–5.8 s of the total; `check()` itself is 81 ms). See the follow-up subtask for that; it is the last structural piece.
+
+## AC #1 is now met — the epic is closed (2026-08-03)
+
+TASK-12.6 was the last structural piece these notes pointed at ("it is now almost entirely
+`getApp` re-reading and re-PARSING every project file on every call"). With the lazy `App`
+model, the process-shared app, the shared+lazy route table and the anchored walk, warm
+`validate_code` through the real MCP stdio bin is:
+
+| project | app files | warm median (10 calls) | cold 1st call |
+|---|---|---|---|
+| pos-module-community | 947 (1,304 liquid) | **123 ms** (107-168) | 477 ms |
+| a large client project | 3,139 (2,735 liquid) | **99 ms** (85-121) | 795 ms |
+
+against the 19-26 s this card opened with, and the ~5.8 s it stalled at after 12.1-12.4.
+The goal was "warm steady-state under ~300 ms"; the AC said 500 ms. Both are met with room.
+
+`pos-module-mcp`, the project the AC names, is no longer on this machine. Both stand-ins are
+LARGER than it was (it had 1,392 liquid files, 162 after project filtering), so the target is
+not being met on an easier project. Full numbers, methodology, live-heap and RSS figures, and
+the diagnostics-parity evidence are on TASK-12.6 and TASK-12.6.3.
+
+Live heap is unchanged from these notes' 19.2 MB — 20 MB and 23 MB after 100 calls, flat —
+and the transient-AST garbage that put RSS at 404-644 MB is gone rather than cached: 278 MB
+and 341 MB peak, flat across 100 calls. AC #2 (identical diagnostics) was re-verified at this
+scale: `lintBuffer` against `appCheckRun` filtered to the same URI, 40 files per project, 0
+mismatches on every field.
+
+### Children
+
+12.1 GraphQL schema memo · 12.2 partial-analysis memo · 12.3 `CheckOptions.only` · 12.4
+process docset · 12.5 the `mode` contract (dropped) · 12.6 the lazy App model (+ its seven
+children) — all Done. The follow-up work the migration left open is TASK-46.
 <!-- SECTION:NOTES:END -->

@@ -69,11 +69,49 @@ const DOCS_FILTERS = resolve(
 );
 
 /**
- * Docset `return_type.type` spellings that make the check willing to REPORT. Kept in
- * step with `DOCSET_RETURN_TYPES` in the check; `hash` is excluded because it maps to
- * `object`, which reports nothing.
+ * Docset `return_type.type` spelling -> the type the check models, mirroring
+ * `DOCSET_RETURN_TYPES`. `hash` is omitted because it maps to `object`, which reports
+ * nothing, and this table exists to enumerate what DOES report.
+ *
+ * This is a copy of a TypeScript constant, so it can drift. `filter-return-type-sweep.spec.ts`
+ * imports the real `DOCSET_RETURN_TYPES` and `variableTypeOf` and asserts every row
+ * against them, so drift fails a test rather than quietly narrowing the sweep.
  */
-const REPORTING_SPELLINGS = new Set(['string', 'array', 'number', 'boolean']);
+const REPORTING_SPELLINGS = {
+  string: 'string',
+  number: 'number',
+  boolean: 'boolean',
+  array: 'array',
+
+  date: 'date',
+  datetime: 'time',
+  time: 'time',
+  'array of arrays': 'array',
+};
+
+/**
+ * Filters the docset carries NO return-type data for, mirroring `DOCSET_RETURN_TYPE_GAPS`.
+ * Applied only where the field is absent or empty, never over a spelling — same rule as
+ * the check's `variableTypeOf`.
+ */
+const RETURN_TYPE_GAPS = {
+  array_index_of: 'number',
+  new_line_to_br: 'string',
+  nl2br: 'string',
+};
+
+/** True when the docset simply has nothing to say about this filter's return type. */
+function hasNoReturnTypeData(returnType) {
+  if (!returnType || returnType.length === 0) return true;
+  return returnType.length === 1 && returnType[0].type === '';
+}
+
+/** How the docset spells this filter's return type, with the two empty shapes named. */
+function spellingOf(returnType) {
+  if (!returnType || returnType.length === 0) return '(absent)';
+  if (returnType.length > 1) return '(several)';
+  return returnType[0].type;
+}
 
 /** How many probes are in flight at once. Three requests per filter, 138 filters. */
 const CONCURRENCY = 6;
@@ -284,6 +322,25 @@ const INVOCATIONS = (keys) => ({
   uuid: `'' | uuid`,
   videoify: `'https://www.youtube.com/watch?v=abc' | videoify`,
   www_form_encode: `h | www_form_encode`,
+
+  // ── date / datetime / time ────────────────────────────────────────────────
+  // The unit argument is PLURAL. `'day'` and `'hour'` are both rejected with "third
+  // argument must be valid unit", which renders nothing and would make these rows
+  // uninterpretable — the mistake that produced the first draft of this table.
+  to_date: `'2026-01-01' | to_date`,
+  date_add: `'2026-01-01' | to_date | date_add: 1, 'days'`,
+  to_time: `'2026-01-01 10:00:00' | to_time`,
+  add_to_time: `'2026-01-01 10:00:00' | to_time | add_to_time: 1, 'hours'`,
+
+  // ── array of arrays ───────────────────────────────────────────────────────
+  parse_csv: `'a,b\nc,d' | parse_csv`,
+
+  // ── the two docset holes ──────────────────────────────────────────────────
+  // No `return_type` to read, so these are typed by measurement alone. That makes their
+  // rows the ONLY justification `DOCSET_RETURN_TYPE_GAPS` has, and the reason the sweep
+  // covers them rather than trusting the table.
+  array_index_of: `arr | array_index_of: 'b'`,
+  new_line_to_br: `'a<br>b' | new_line_to_br`,
 });
 
 function credentials() {
@@ -356,9 +413,16 @@ function reportingFilters(docs) {
   const byName = new Map();
   for (const filter of [...docs, ...docs.flatMap(aliasEntries)]) {
     const returnType = filter.return_type;
-    if (!returnType || returnType.length !== 1) continue;
-    if (!REPORTING_SPELLINGS.has(returnType[0].type)) continue;
-    byName.set(filter.name, returnType[0].type);
+    const spelling = spellingOf(returnType);
+
+    // Mirrors `variableTypeOf`: the gap table answers ONLY where the docset has no data,
+    // never over a spelling it declines to interpret.
+    const modelled = hasNoReturnTypeData(returnType)
+      ? RETURN_TYPE_GAPS[filter.name]
+      : REPORTING_SPELLINGS[spelling];
+
+    if (!modelled) continue;
+    byName.set(filter.name, { spelling, modelled });
   }
   return byName;
 }
@@ -399,7 +463,7 @@ function aliasInvocation(invocations, alias, parent) {
  * hand, which is how a new spelling gets added and nobody notices the check went blind
  * to a whole group.
  */
-function silentFilters(docs) {
+function silentFilters(docs, reporting) {
   const untypedBySpelling = new Map();
   const hashFilters = new Set();
 
@@ -408,14 +472,9 @@ function silentFilters(docs) {
   // is incomplete without them.
   for (const filter of [...docs, ...docs.flatMap(aliasEntries)]) {
     const returnType = filter.return_type;
-    const spelling =
-      !returnType || returnType.length === 0
-        ? '(absent)'
-        : returnType.length > 1
-          ? '(several)'
-          : returnType[0].type;
+    const spelling = spellingOf(returnType);
 
-    if (REPORTING_SPELLINGS.has(spelling)) continue;
+    if (reporting.has(filter.name)) continue;
     if (spelling === 'hash') {
       hashFilters.add(filter.name);
       continue;
@@ -452,7 +511,8 @@ function renderModule({ rows, silent, reporting, aliasOf, url, generatedAt }) {
         `  {\n` +
         `    name: '${row.name}',\n` +
         (aliasOf.has(row.name) ? `    aliasOf: '${aliasOf.get(row.name)}',\n` : '') +
-        `    docset: '${reporting.get(row.name)}',\n` +
+        `    docsetSpelling: ${JSON.stringify(reporting.get(row.name).spelling)},\n` +
+        `    modelled: '${reporting.get(row.name).modelled}',\n` +
         `    runtimeType: ${row.runtime_type === null ? 'null' : `'${row.runtime_type}'`},\n` +
         `    keyAssign: '${row.key_assign}',\n` +
         `    indexAssign: '${row.index_assign}',\n` +
@@ -512,8 +572,17 @@ export interface FilterReturnTypeMeasurement {
    * miss 25, so the distinction is recorded rather than left to be rediscovered.
    */
   aliasOf?: string;
-  /** The docset \`return_type.type\` this row was swept for. */
-  docset: 'string' | 'array' | 'number' | 'boolean';
+  /**
+   * How the docset spells this filter's return type.
+   *
+   * \`"(absent)"\` and \`""\` are the two DATA HOLES — \`new_line_to_br\` carries no
+   * \`return_type\` and \`array_index_of\` carries one whose \`type\` is empty. Those rows are
+   * typed by measurement alone, through \`DOCSET_RETURN_TYPE_GAPS\`, and are the only
+   * evidence that table has.
+   */
+  docsetSpelling: string;
+  /** The type \`variableTypeOf\` derives from that spelling — what the check acts on. */
+  modelled: 'string' | 'array' | 'number' | 'boolean' | 'date' | 'time';
   /**
    * What \`{{ x | type_of }}\` reported, or null if the invocation did not render.
    *
@@ -574,7 +643,7 @@ ${hashEntries}
 const auth = credentials();
 const docs = JSON.parse(await readFile(DOCS_FILTERS, 'utf8'));
 const reporting = reportingFilters(docs);
-const silent = silentFilters(docs);
+const silent = silentFilters(docs, reporting);
 const invocations = INVOCATIONS(ephemeralKeys());
 
 // Aliases are filled in from their parents before the coverage gate runs, so the gate
@@ -622,11 +691,15 @@ async function worker() {
     }
     const row = rows[index];
     console.log(
-      `${row.invocation_error ? '!! ' : '   '}${name.padEnd(24)} docset=${reporting
+      `${row.invocation_error ? '!! ' : '   '}${name.padEnd(24)} ${reporting
         .get(name)
-        .padEnd(8)} runtime=${String(row.runtime_type).padEnd(26)} key=${row.key_assign.padEnd(
-        10,
-      )} index=${row.index_assign.padEnd(10)} ${(row.invocation_error ?? '').replace(/\s+/g, ' ').slice(0, 90)}`,
+        .spelling.padEnd(16)} -> ${reporting.get(name).modelled.padEnd(8)} runtime=${String(
+        row.runtime_type,
+      ).padEnd(26)} key=${row.key_assign.padEnd(10)} index=${row.index_assign.padEnd(10)} ${(
+        row.invocation_error ?? ''
+      )
+        .replace(/\s+/g, ' ')
+        .slice(0, 90)}`,
     );
   }
 }

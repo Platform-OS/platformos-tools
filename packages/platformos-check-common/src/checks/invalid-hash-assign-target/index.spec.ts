@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { InvalidHashAssignTarget } from './index';
+import { InvalidHashAssignTarget, variableTypeOf } from './index';
 import { check, MockApp, runLiquidCheck } from '../../test';
 import type { PlatformOSDocset } from '../../types';
 
@@ -392,10 +392,16 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
         { name: 'upcase', return_type: [{ type: 'string' }] },
         { name: 'size', return_type: [{ type: 'number' }] },
         { name: 'has', return_type: [{ type: 'boolean' }] },
-        // Ships with NO return_type — the real docset has exactly one such filter.
+        // The two DOCSET DATA HOLES: no `return_type` at all, and one whose `type` is the
+        // empty string. Both are typed through DOCSET_RETURN_TYPE_GAPS from a direct
+        // runtime measurement, because the docset has nothing to map.
         { name: 'new_line_to_br' },
-        // Present, but with a spelling this check deliberately refuses to interpret.
+        { name: 'array_index_of', return_type: [{ type: '' }] },
+        // Spellings the runtime settled, so they are interpreted rather than ignored.
         { name: 'to_time', return_type: [{ type: 'time' }] },
+        { name: 'to_date', return_type: [{ type: 'date' }] },
+        { name: 'parse_csv', return_type: [{ type: 'array of arrays' }] },
+        // Still deliberately uninterpreted: a union is not narrowable by measurement.
         { name: 'first_or_nil', return_type: [{ type: 'string, nil' }] },
       ];
     },
@@ -447,6 +453,39 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
     ).toEqual([]);
   });
 
+  it('says nothing about a NESTED subscript, which is a known and bounded gap', async () => {
+    // AC#5, asserted rather than only commented, so the gap is a recorded behaviour and
+    // not something a later reader has to infer from silence.
+    //
+    // The runtime walks the whole chain and complains about the INTERMEDIATE value —
+    // measured: `x[0]['k']` on an Array of strings raises "x[0] is a, expected Hash or
+    // Array". Answering that needs the type of `x[0]`, and nothing here tracks element
+    // types. The second case is why guessing would be worse than silence: `x['a'][0]`
+    // RENDERS when `x['a']` is a Hash, so "the last subscript must match the container"
+    // is not the rule, and a check built on it would refuse working code.
+    expect([
+      await offensesIn(`{% assign x = '' | split: ',' %}\n{% hash_assign x[0]['k'] = 'v' %}`),
+      await offensesIn(
+        `{% parse_json x %}{"a": {}}{% endparse_json %}\n{% hash_assign x['a'][0] = 'v' %}`,
+      ),
+    ]).toEqual([[], []]);
+  });
+
+  it('still reports the FIRST subscript when a nested one follows it', async () => {
+    // The gap above is bounded to the nesting, not a blanket exemption: `x` is an Array
+    // and the first subscript is a string key, which the runtime refuses regardless of
+    // what comes after. Losing this would turn a bounded gap into a silent one.
+    expect(
+      await offensesIn(`{% assign x = '' | split: ',' %}\n{% hash_assign x['k'][0] = 'v' %}`),
+    ).toEqual([
+      {
+        message: needsIndex('x'),
+        start: { line: 1, character: 15 },
+        end: { line: 1, character: 24 },
+      },
+    ]);
+  });
+
   it('reads the return type of the LAST filter in a chain', async () => {
     // Every earlier filter is input to the next, so only the last one decides.
     expect(
@@ -480,16 +519,119 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
   });
 
   it('treats an UNKNOWN return type as unknown, never as a guess', async () => {
-    // AC#3. Three ways to be unknown, all of which must produce nothing: a filter the
-    // docset does not list at all, one it lists with no `return_type`, and two whose
-    // return type is spelled in a way this check refuses to interpret rather than
-    // resemble-match (`time`, `string, nil`).
+    // Two ways to be unknown, both of which must produce nothing: a filter the docset
+    // does not list at all, and one whose return type is a UNION (`string, nil`). A union
+    // is not narrowable by measurement — the value is a string on one branch and nil on
+    // the other — so it stays unknown by design rather than for want of a probe.
+    //
+    // `time` and "no return_type at all" used to be in this list. Both have since been
+    // settled against the runtime and now report; see the two tests below. That is the
+    // only reason they left, and the sweep re-measures them on every run.
     expect([
       await offensesIn(`{% assign x = 'a' | not_in_the_docset %}\n{% hash_assign x['k'] = 'v' %}`),
-      await offensesIn(`{% assign x = 'a' | new_line_to_br %}\n{% hash_assign x['k'] = 'v' %}`),
-      await offensesIn(`{% assign x = 'a' | to_time %}\n{% hash_assign x['k'] = 'v' %}`),
       await offensesIn(`{% assign x = 'a' | first_or_nil %}\n{% hash_assign x['k'] = 'v' %}`),
-    ]).toEqual([[], [], [], []]);
+    ]).toEqual([[], []]);
+  });
+
+  it('reports a date or time target, with the type named in the message', async () => {
+    // The `date` / `datetime` / `time` narrowing. Measured: `to_date` yields a Date and
+    // `to_time` a Time, and BOTH subscripts raise "expected Hash or Array" — the runtime
+    // complains about the target, so the subscript makes no difference. The message names
+    // the type so the author can see why, rather than being told to convert a Time.
+    expect([
+      await offensesIn(`{% assign x = 'a' | to_time %}\n{% hash_assign x['k'] = 'v' %}`),
+      await offensesIn(`{% assign x = 'a' | to_time %}\n{% hash_assign x[0] = 'v' %}`),
+      await offensesIn(`{% assign x = 'a' | to_date %}\n{% hash_assign x['k'] = 'v' %}`),
+    ]).toEqual([
+      [
+        {
+          message: expectsHashOrArray('x', 'time'),
+          start: { line: 1, character: 15 },
+          end: { line: 1, character: 21 },
+        },
+      ],
+      [
+        {
+          message: expectsHashOrArray('x', 'time'),
+          start: { line: 1, character: 15 },
+          // `x[0]` is four characters where `x['k']` is six — the range covers the whole
+          // subscripted target, so the two cases do not share an end column.
+          end: { line: 1, character: 19 },
+        },
+      ],
+      [
+        {
+          message: expectsHashOrArray('x', 'date'),
+          start: { line: 1, character: 15 },
+          end: { line: 1, character: 21 },
+        },
+      ],
+    ]);
+  });
+
+  it('gives an Array of Arrays the ARRAY remedy, not the Hash one', async () => {
+    // `array of arrays` maps to `array`, so the two Array rules apply unchanged: a key is
+    // wrong and gets the "use a numeric index" remedy, an index is fine and stays silent.
+    // Measured on `parse_csv` both ways — telling an author to convert it to a Hash, or
+    // refusing `x[0]`, would each be a false block.
+    expect([
+      await offensesIn(`{% assign x = 'a' | parse_csv %}\n{% hash_assign x['k'] = 'v' %}`),
+      await offensesIn(`{% assign x = 'a' | parse_csv %}\n{% hash_assign x[0] = 'v' %}`),
+    ]).toEqual([
+      [
+        {
+          message: needsIndex('x'),
+          start: { line: 1, character: 15 },
+          end: { line: 1, character: 21 },
+        },
+      ],
+      [],
+    ]);
+  });
+
+  it('types the two filters the docset has NO return_type for, naming it as a data gap', async () => {
+    // AC#3, and the case that is a data defect rather than a modelling choice.
+    // `new_line_to_br` ships with no `return_type` and `array_index_of` with an empty one;
+    // `data/filters.json` is re-downloaded from documentation.platformos.com on every
+    // build, so the correction cannot live there. Both were measured directly — a String
+    // and an Integer, raising on either subscript — and typed through
+    // DOCSET_RETURN_TYPE_GAPS.
+    expect([
+      await offensesIn(`{% assign x = 'a' | new_line_to_br %}\n{% hash_assign x['k'] = 'v' %}`),
+      await offensesIn(
+        `{% assign x = 'a' | array_index_of: 'b' %}\n{% hash_assign x['k'] = 'v' %}`,
+      ),
+    ]).toEqual([
+      [
+        {
+          message: expectsHashOrArray('x', 'string'),
+          start: { line: 1, character: 15 },
+          end: { line: 1, character: 21 },
+        },
+      ],
+      [
+        {
+          message: expectsHashOrArray('x', 'number'),
+          start: { line: 1, character: 15 },
+          end: { line: 1, character: 21 },
+        },
+      ],
+    ]);
+  });
+
+  it('does NOT let the gap table override a spelling it declines to interpret', async () => {
+    // The rule that keeps DOCSET_RETURN_TYPE_GAPS from becoming a second, quieter mapping
+    // table: it answers only where the docset has NO data. `first_or_nil` carries a
+    // spelling (`string, nil`) this check refuses to interpret, so even if the gap table
+    // named it, the spelling would still win and the result would still be silence.
+    expect([
+      variableTypeOf({ name: 'first_or_nil', return_type: [{ type: 'string, nil' }] }),
+      // A name the gap table DOES hold, but carrying a spelling — the spelling wins.
+      variableTypeOf({ name: 'new_line_to_br', return_type: [{ type: 'string, nil' }] }),
+      variableTypeOf({ name: 'new_line_to_br' }),
+      variableTypeOf({ name: 'array_index_of', return_type: [{ type: '' }] }),
+      variableTypeOf({ name: 'not_a_real_filter' }),
+    ]).toEqual(['untyped', 'untyped', 'string', 'number', 'untyped']);
   });
 
   it('still reports every primitive the runtime raises on', async () => {

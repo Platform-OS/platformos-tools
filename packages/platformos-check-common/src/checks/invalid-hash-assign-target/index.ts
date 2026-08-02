@@ -25,7 +25,16 @@ import { isError } from '../../utils';
  *
  * `untyped` means UNKNOWN, not "no type". Nothing is ever reported for it.
  */
-type VariableType = 'number' | 'string' | 'boolean' | 'object' | 'array' | 'range' | 'untyped';
+type VariableType =
+  | 'number'
+  | 'string'
+  | 'boolean'
+  | 'object'
+  | 'array'
+  | 'range'
+  | 'date'
+  | 'time'
+  | 'untyped';
 
 /**
  * How the target is subscripted — `x['k']` vs `x[0]` vs `x[y]`.
@@ -45,20 +54,88 @@ interface VariableTypeEntry {
 /**
  * Docset `return_type.type` values this check is willing to act on.
  *
- * EXACT MATCH, and everything absent from this table becomes `untyped`. The docset
- * carries twelve distinct spellings across the shipped filters, including `time`,
- * `date`, `datetime`, `'string, nil'`, `'array of arrays'` and an empty string.
- * Mapping those by resemblance would be guessing, and this check refuses writes —
- * a wrong guess here is a refusal of working code. An unrecognised return type
- * costs a missed detection, which is the direction that cannot manufacture a false
- * block.
+ * EXACT MATCH, and everything absent from this table becomes `untyped`. Mapping a
+ * spelling by resemblance would be guessing, and this check refuses writes — a wrong
+ * guess here is a refusal of working code. An unrecognised return type costs a missed
+ * detection, which is the direction that cannot manufacture a false block.
+ *
+ * THE FOUR ENTRIES BELOW THE LINE WERE ADDED FROM MEASUREMENT, NOT FROM THE SPELLING
+ * LOOKING SCALAR-LIKE. Each was rendered on a live instance and its `hash_assign`
+ * outcome recorded for both subscripts, and the falsifier — a `date`- or
+ * `datetime`-typed value that legitimately accepts `hash_assign` — was looked for and
+ * not found:
+ *
+ *   date             to_date, date_add, add_to_date  -> Date,  raises on both subscripts
+ *   datetime         to_time                         -> Time,  raises on both subscripts
+ *   time             add_to_time                     -> Time,  raises on both subscripts
+ *   array of arrays  parse_csv, parse_csv_rc         -> Array, raises on a key,
+ *                                                       RENDERS on an index
+ *
+ * `datetime` and `time` both resolve to `time` because the runtime returns a Time for
+ * both — that is the measurement, not a decision to treat two spellings alike.
+ *
+ * The measurements are recorded in `filter-return-type-oracle.ts` and re-asserted by
+ * `filter-return-type-sweep.spec.ts` for every filter each spelling covers, so a docset
+ * change that invalidates one of these fails a test rather than silently changing what
+ * the server refuses to write.
+ *
+ * Still deliberately ABSENT: `untyped` and `'string, nil'`. Those describe values whose
+ * type depends on the input or is a union with nil, so no single measurement can
+ * establish them and silence remains the only safe reading.
  */
-const DOCSET_RETURN_TYPES: Readonly<Record<string, VariableType>> = {
+export const DOCSET_RETURN_TYPES: Readonly<Record<string, VariableType>> = {
   string: 'string',
   number: 'number',
   boolean: 'boolean',
   array: 'array',
   hash: 'object',
+
+  date: 'date',
+  datetime: 'time',
+  time: 'time',
+  'array of arrays': 'array',
+};
+
+/**
+ * Types for filters the DOCSET HAS NO DATA FOR — a data defect, not a modelling choice.
+ *
+ * `filters.json` carries a `return_type` for every shipped filter but these: `array_index_of`
+ * has one whose `type` is the empty string, and `new_line_to_br` has none at all. There is
+ * nothing to map, so no entry in {@link DOCSET_RETURN_TYPES} can reach them.
+ *
+ * THE REAL FIX IS UPSTREAM AND IS NOT AVAILABLE HERE. `data/filters.json` is re-downloaded
+ * from documentation.platformos.com by the docs-updater's `postbuild`, so a correction
+ * written into that file is reverted by the next build — and would look like the hole was
+ * closed while this check quietly went back to reporting nothing. Until the documentation
+ * API carries the field, the gap is named here instead of being papered over as if it were
+ * a spelling someone chose not to interpret.
+ *
+ * MEASURED, LIKE EVERYTHING ELSE THAT REPORTS: `array_index_of` returns an Integer and
+ * `new_line_to_br` a String, both raising on either subscript. `nl2br` is listed because
+ * `AugmentedPlatformOSDocset.expandAliases` re-emits the entry — missing `return_type`
+ * included — under the alias name, so the alias has the same hole.
+ *
+ * APPLIED ONLY WHERE THE DATA IS GENUINELY MISSING, never to an unrecognised spelling —
+ * see {@link variableTypeOf}. That keeps this narrowly a workaround for absent data
+ * rather than a second, quieter mapping table.
+ */
+export const DOCSET_RETURN_TYPE_GAPS: Readonly<Record<string, VariableType>> = {
+  array_index_of: 'number',
+  new_line_to_br: 'string',
+  nl2br: 'string',
+};
+
+/**
+ * The only part of a docset filter entry any of this reads.
+ *
+ * Structural on purpose, and narrower than the docset's own `ReturnType`: nothing here
+ * looks at `name`, `description` or `array_value` on a return type, so requiring them
+ * would stop a caller passing the shape it actually has — which is exactly what the
+ * shipped `filters.json` and the sweep both do.
+ */
+type FilterTypeSource = {
+  name: string;
+  return_type?: ReadonlyArray<Pick<ReturnType, 'type'>>;
 };
 
 /**
@@ -68,7 +145,7 @@ const DOCSET_RETURN_TYPES: Readonly<Record<string, VariableType>> = {
  * when every branch maps to the same thing, because a union of "string or nil" is
  * not a string for the purpose of refusing a write.
  */
-function toVariableType(returnTypes: ReturnType[] | undefined): VariableType {
+function toVariableType(returnTypes: FilterTypeSource['return_type']): VariableType {
   if (!returnTypes || returnTypes.length === 0) return 'untyped';
 
   const mapped = new Set(returnTypes.map((entry) => DOCSET_RETURN_TYPES[entry.type] ?? 'untyped'));
@@ -76,7 +153,47 @@ function toVariableType(returnTypes: ReturnType[] | undefined): VariableType {
   return mapped.size === 1 ? only : 'untyped';
 }
 
-/** The subscript applied directly to the target variable, if it can be read statically. */
+/** Whether the docset simply has no return-type data for this filter. */
+function hasNoReturnTypeData(returnTypes: FilterTypeSource['return_type']): boolean {
+  if (!returnTypes || returnTypes.length === 0) return true;
+  return returnTypes.length === 1 && returnTypes[0].type === '';
+}
+
+/**
+ * The type a filter produces, as this check models it.
+ *
+ * The docset decides, and {@link DOCSET_RETURN_TYPE_GAPS} fills in ONLY where the docset
+ * has nothing to say at all. The distinction is the point: an unrecognised SPELLING is a
+ * modelling decision this check declines to make, and stays `untyped`; an ABSENT field is
+ * missing data, and is the one case a measured fallback is allowed to answer. Letting the
+ * gap table win over a spelling would turn it into a second mapping table with weaker
+ * rules, which is how the hand-written tables this check used to carry went wrong.
+ */
+export function variableTypeOf(filter: FilterTypeSource): VariableType {
+  if (hasNoReturnTypeData(filter.return_type)) {
+    return DOCSET_RETURN_TYPE_GAPS[filter.name] ?? 'untyped';
+  }
+  return toVariableType(filter.return_type);
+}
+
+/**
+ * The subscript applied directly to the target variable, if it can be read statically.
+ *
+ * ONLY THE FIRST LOOKUP IS MODELLED, and a deeper chain is knowingly out of scope. The
+ * runtime walks the WHOLE chain and complains about the intermediate value — measured:
+ *
+ *   {% assign x = 'a,b' | split: ',' %}{% hash_assign x[0]['k'] = 'v' %}
+ *     -> "x[0] is a, expected Hash or Array"
+ *
+ * Answering that needs the type of `x[0]`, not of `x`, and nothing here tracks element
+ * types. Guessing it is worse than silence in both directions: the same measurement shows
+ * `x['a'][0]` RENDERS when `x['a']` is a Hash, so "the last subscript must match the
+ * container" is not the rule either, and a check built on that assumption would refuse
+ * working code.
+ *
+ * So `x[0]['k']` is a known missed detection, bounded to nested targets, and left alone
+ * deliberately rather than by oversight.
+ */
 function accessorOf(target: LiquidVariableLookup): Accessor {
   const first = target.lookups?.[0];
   if (!first) return 'unknown';
@@ -101,8 +218,12 @@ function offenseMessage(name: string, type: VariableType, accessor: Accessor): s
     case 'string':
     case 'boolean':
     case 'range':
+    case 'date':
+    case 'time':
       // The runtime's complaint here is about the TARGET ("x is 5, expected Hash or
-      // Array"), so the subscript makes no difference to the outcome.
+      // Array"), so the subscript makes no difference to the outcome. `date` and `time`
+      // sit here on the same measured footing as the rest: both were rendered on a live
+      // instance and raise "expected Hash or Array" for a key AND for an index.
       return `Cannot use hash_assign on '${name}', which is a ${type}. hash_assign expects a Hash or an Array.`;
 
     case 'array':
@@ -211,7 +332,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
     const filterReturnTypes = () => {
       returnTypes ??= (async () => {
         const filters = (await context.platformosDocset?.filters()) ?? [];
-        return new Map(filters.map((filter) => [filter.name, toVariableType(filter.return_type)]));
+        return new Map(filters.map((filter) => [filter.name, variableTypeOf(filter)]));
       })();
       return returnTypes;
     };

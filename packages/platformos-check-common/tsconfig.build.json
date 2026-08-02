@@ -1,6 +1,10 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["**/*.spec.ts"],
+  // `*-oracle.ts` files are measured test data — generated against a live instance and
+  // read only by the spec that consumes them. They are excluded for the same reason
+  // `*.spec.ts` is: shipping 40 KB of fixtures in the published package costs every
+  // consumer bytes for something no consumer can call.
+  "exclude": ["**/*.spec.ts", "**/*-oracle.ts"],
   "references": [
     { "path": "../liquid-html-parser/tsconfig.build.json" },
     { "path": "../platformos-common/tsconfig.build.json" }

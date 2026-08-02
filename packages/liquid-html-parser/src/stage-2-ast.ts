@@ -359,21 +359,35 @@ export interface LiquidTagCapture extends LiquidTagNode<NamedTags.capture, Liqui
 export interface LiquidTagCycle extends LiquidTagNode<NamedTags.cycle, CycleMarkup> {}
 
 /** {% cycle [groupName:] arg1, arg2, arg3 %} */
+/**
+ * A tag operand that may carry filters.
+ *
+ * These are the positions the platform's deploy converter ACCEPTS a filter in — measured
+ * with paired dry-runs, filter present then absent. Everywhere else an operand stays a
+ * bare {@link LiquidExpression}, because the converter refuses filters there: index-lookup
+ * interiors, range bounds, condition operands and the `for … in` source. The narrower type
+ * is what keeps those positions honest about what can appear in them.
+ */
+export type FilteredLiquidExpression = LiquidExpression | LiquidVariable;
+
 export interface CycleMarkup extends ASTNode<NodeTypes.CycleMarkup> {
   /** {% cycle groupName: arg1, arg2, arg3 %} */
   groupName: LiquidExpression | null;
   /** {% cycle arg1, arg2, arg3, ... %} */
-  args: LiquidExpression[];
+  args: FilteredLiquidExpression[];
 }
 
 /** https://shopify.dev/docs/api/liquid/tags#case */
-export interface LiquidTagCase extends LiquidTagNode<NamedTags.case, LiquidExpression> {}
+export interface LiquidTagCase extends LiquidTagNode<NamedTags.case, FilteredLiquidExpression> {}
 
 /**
  * {% when expression1, expression2 or expression3 %}
  *   children
  */
-export interface LiquidBranchWhen extends LiquidBranchNode<NamedTags.when, LiquidExpression[]> {}
+export interface LiquidBranchWhen extends LiquidBranchNode<
+  NamedTags.when,
+  FilteredLiquidExpression[]
+> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#form */
 export interface LiquidTagForm extends LiquidTagNode<NamedTags.form, LiquidArgument[]> {}
@@ -563,7 +577,7 @@ export interface LiquidTagRedirectTo extends LiquidTagNode<
 > {}
 export interface LiquidTagResponseHeaders extends LiquidTagNode<
   NamedTags.response_headers,
-  LiquidExpression
+  FilteredLiquidExpression
 > {}
 export interface LiquidTagResponseStatus extends LiquidTagNode<
   NamedTags.response_status,
@@ -587,7 +601,7 @@ export interface LiquidTagTransaction extends LiquidTagNode<
   LiquidNamedArgument[]
 > {}
 export interface LiquidTagTry extends LiquidTagNode<NamedTags.try, string> {}
-export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, LiquidExpression> {}
+export interface LiquidTagYield extends LiquidTagNode<NamedTags.yield, FilteredLiquidExpression> {}
 
 // platformos branch interface
 export interface LiquidBranchCatch extends LiquidBranchNode<
@@ -610,13 +624,13 @@ export interface BackgroundInlineMarkup extends ASTNode<NodeTypes.BackgroundInli
 
 /** {% cache 'key', [...namedArguments] %}...{% endcache %} */
 export interface CacheMarkup extends ASTNode<NodeTypes.CacheMarkup> {
-  key: LiquidExpression;
+  key: FilteredLiquidExpression;
   args: LiquidNamedArgument[];
 }
 
 /** {% log value, [...arguments] %} */
 export interface LogMarkup extends ASTNode<NodeTypes.LogMarkup> {
-  value: LiquidExpression;
+  value: FilteredLiquidExpression;
   args: LiquidArgument[];
 }
 
@@ -634,7 +648,7 @@ export interface ExportMarkup extends ASTNode<NodeTypes.ExportMarkup> {
 
 /** {% redirect_to '/path', [...namedArguments] %} */
 export interface RedirectToMarkup extends ASTNode<NodeTypes.RedirectToMarkup> {
-  url: LiquidExpression;
+  url: FilteredLiquidExpression;
   args: LiquidNamedArgument[];
 }
 
@@ -646,7 +660,7 @@ export interface IncludeFormMarkup extends ASTNode<NodeTypes.IncludeFormMarkup> 
 
 /** {% spam_protection 'version', [...namedArguments] %} */
 export interface SpamProtectionMarkup extends ASTNode<NodeTypes.SpamProtectionMarkup> {
-  version: LiquidExpression;
+  version: FilteredLiquidExpression;
   args: LiquidNamedArgument[];
 }
 
@@ -655,7 +669,7 @@ export interface RenderVariableExpression extends ASTNode<NodeTypes.RenderVariab
   /** {% render 'partial' (for|with) name %} */
   kind: 'for' | 'with';
   /** {% render 'partial' (for|with) name %} */
-  name: LiquidExpression;
+  name: FilteredLiquidExpression;
 }
 
 /** Represents the `as name` expressions in render nodes */
@@ -1915,7 +1929,7 @@ function toNamedLiquidTag(
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: toExpression(node.markup),
+        markup: toFilteredExpression(node.markup),
         children: [],
       };
     }
@@ -1924,7 +1938,7 @@ function toNamedLiquidTag(
       return {
         ...liquidBranchBaseAttributes(node),
         name: node.name,
-        markup: node.markup.map(toExpression),
+        markup: node.markup.map(toFilteredExpression),
       };
     }
 
@@ -2027,7 +2041,7 @@ function toNamedLiquidTag(
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: toExpression(node.markup) as LiquidExpression,
+        markup: toFilteredExpression(node.markup),
       };
     }
 
@@ -2100,7 +2114,7 @@ function toNamedLiquidTag(
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: toExpression(node.markup) as LiquidExpression,
+        markup: toFilteredExpression(node.markup),
       };
     }
 
@@ -2174,7 +2188,7 @@ function toCycleMarkup(node: ConcreteLiquidTagCycleMarkup): CycleMarkup {
   return {
     type: NodeTypes.CycleMarkup,
     groupName: node.groupName ? toExpression(node.groupName) : null,
-    args: node.args.map(toExpression),
+    args: node.args.map(toFilteredExpression),
     position: position(node),
     source: node.source,
   };
@@ -2393,7 +2407,7 @@ function toBackgroundInlineMarkup(
 function toCacheMarkup(node: ConcreteLiquidTagCacheMarkup): CacheMarkup {
   return {
     type: NodeTypes.CacheMarkup,
-    key: toExpression(node.key),
+    key: toFilteredExpression(node.key),
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,
@@ -2403,7 +2417,7 @@ function toCacheMarkup(node: ConcreteLiquidTagCacheMarkup): CacheMarkup {
 function toLogMarkup(node: ConcreteLiquidTagLogMarkup): LogMarkup {
   return {
     type: NodeTypes.LogMarkup,
-    value: toExpression(node.value),
+    value: toFilteredExpression(node.value),
     args: node.args.map(toLiquidArgument),
     position: position(node),
     source: node.source,
@@ -2433,7 +2447,7 @@ function toExportMarkup(node: ConcreteLiquidTagExportMarkup): ExportMarkup {
 function toRedirectToMarkup(node: ConcreteLiquidTagRedirectToMarkup): RedirectToMarkup {
   return {
     type: NodeTypes.RedirectToMarkup,
-    url: toExpression(node.url),
+    url: toFilteredExpression(node.url),
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,
@@ -2453,7 +2467,7 @@ function toIncludeFormMarkup(node: ConcreteLiquidTagIncludeFormMarkup): IncludeF
 function toSpamProtectionMarkup(node: ConcreteLiquidTagSpamProtectionMarkup): SpamProtectionMarkup {
   return {
     type: NodeTypes.SpamProtectionMarkup,
-    version: toExpression(node.version),
+    version: toFilteredExpression(node.version),
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
     position: position(node),
     source: node.source,
@@ -2467,7 +2481,7 @@ function toRenderVariableExpression(
   return {
     type: NodeTypes.RenderVariableExpression,
     kind: node.kind,
-    name: toExpression(node.name),
+    name: toFilteredExpression(node.name),
     position: position(node),
     source: node.source,
   };
@@ -2548,6 +2562,25 @@ function toLiquidVariable(node: ConcreteLiquidVariable): LiquidVariable {
     rawSource: node.rawSource,
     source: node.source,
   };
+}
+
+/**
+ * A tag operand that MAY carry filters — see `liquidFilteredExpression` in the grammar.
+ *
+ * SEPARATE FROM {@link toExpression} on purpose. Widening that one to also return a
+ * LiquidVariable cascaded into roughly twenty consumers, most of them positions where the
+ * platform genuinely REFUSES a filter — index-lookup interiors, range bounds, condition
+ * operands. Confining the widening to the operands that actually accept filters keeps
+ * every other position's type honest about what can appear there.
+ */
+function toFilteredExpression(
+  node: ConcreteLiquidExpression | ConcreteLiquidVariable,
+): LiquidExpression | LiquidVariable {
+  // The grammar only produces a LiquidVariable here when filters are actually present;
+  // a filterless operand arrives as a bare expression and keeps its historical shape.
+  return node.type === ConcreteNodeTypes.LiquidVariable
+    ? toLiquidVariable(node)
+    : toExpression(node);
 }
 
 function toComplexExpression(node: ConcreteComplexLiquidExpression): ComplexLiquidExpression {

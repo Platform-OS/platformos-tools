@@ -214,6 +214,9 @@ function analyzeConditionalExpression(markup: string): ExpressionIssue | null {
   if (tokens.length === 0) return null;
 
   return (
+    // FIRST: the specific, measured explanation beats the general heuristics, which
+    // otherwise describe a filter as either an unknown operator or a truthiness quirk.
+    checkFilterInCondition(tokens) ||
     checkInvalidStartingToken(tokens) ||
     checkTrailingTokensAfterComparison(tokens) ||
     checkLaxParsingIssues(tokens)

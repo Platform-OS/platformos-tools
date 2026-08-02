@@ -587,8 +587,12 @@ function printNode(
     }
 
     case NodeTypes.SpamProtectionMarkup: {
-      const value = path.call((p: any) => print(p), 'value');
-      const doc: Doc = [value];
+      // `version`, not `value` — PRE-EXISTING BUG, found while round-tripping this tag.
+      // The AST field has always been `version`, so `path.call(..., 'value')` handed the
+      // printer `undefined` and prettier CRASHED on every `{% spam_protection %}` tag,
+      // with or without a filter. Verified against the unmodified parser.
+      const version = path.call((p: any) => print(p), 'version');
+      const doc: Doc = [version];
       if (node.args.length > 0) {
         doc.push(
           ',',

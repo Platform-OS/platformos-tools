@@ -1251,6 +1251,26 @@ function toCST<T>(
       locEnd,
       source,
     },
+    // Expression plus optional filters, in the tag operands the platform accepts them in.
+    //
+    // Mapped to the SAME LiquidVariable node `{{ }}` and `{% assign %}` produce, which is
+    // what keeps this change cheap: every parent rule keeps its arity (so no positional
+    // child index below shifts), and the prettier printer already knows how to print it —
+    // `expression` followed by `filters`. Emitting a node the printer did not model would
+    // silently drop the filters when a file is formatted.
+    //
+    // `locEnd` is plain here, unlike `liquidReturnVariable`, because this rule has no
+    // trailing `space* &delim` to exclude from the range.
+    liquidFilteredExpression: 0,
+    liquidExpressionWithFilters: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      rawSource: (tokens: Node[]) => source.slice(locStart(tokens), locEnd(tokens)).trimEnd(),
+      locStart,
+      locEnd,
+      source,
+    },
     liquidTagOpenCache: 0,
     liquidTagCacheMarkup: {
       type: ConcreteNodeTypes.CacheMarkup,

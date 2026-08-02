@@ -195,7 +195,7 @@ Liquid <: Helpers {
   liquidTagHashAssignMarkup = liquidVariableLookup<delimTag> space* "=" space* liquidVariable<delimTag>
 
   liquidTagCycle = liquidTagRule<"cycle", liquidTagCycleMarkup>
-  liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidExpression<delimTag>, argumentSeparator> space*
+  liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidFilteredExpression<delimTag>, argumentSeparator> space*
 
   liquidTagIncrement = liquidTagRule<"increment", variableSegmentAsLookupMarkup>
   liquidTagDecrement = liquidTagRule<"decrement", variableSegmentAsLookupMarkup>
@@ -244,7 +244,7 @@ Liquid <: Helpers {
   liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") argumentSeparatorOptionalComma tagArguments (space* ",")? space*
 
   liquidTagOpenCache = liquidTagOpenRule<"cache", liquidTagCacheMarkup>
-  liquidTagCacheMarkup = liquidExpression<delimTag> renderArguments
+  liquidTagCacheMarkup = liquidFilteredExpression<delimTag> renderArguments
 
   liquidTagOpenParseJson = liquidTagOpenRule<"parse_json", variableSegmentAsLookupMarkup>
 
@@ -257,7 +257,7 @@ Liquid <: Helpers {
   liquidTagCatchMarkup = variableSegmentAsLookup? space*
 
   liquidTagLog = liquidTagRule<"log", liquidTagLogMarkup>
-  liquidTagLogMarkup = liquidExpression<delimTag> liquidTagLogArguments
+  liquidTagLogMarkup = liquidFilteredExpression<delimTag> liquidTagLogArguments
   liquidTagLogArguments = (argumentSeparatorOptionalComma logArguments) (space* ",")? space*
   logArguments = listOf<logArgument<delimTag>, argumentSeparatorOptionalComma>
   logArgument<delim> = namedArgument<delim> | positionalArgument<delim>
@@ -273,7 +273,7 @@ Liquid <: Helpers {
     | liquidComplexExpression<delim>
 
   liquidTagYield = liquidTagRule<"yield", liquidTagYieldMarkup>
-  liquidTagYieldMarkup = liquidExpression<delimTag> space*
+  liquidTagYieldMarkup = liquidFilteredExpression<delimTag> space*
 
   liquidTagSession = liquidTagRule<"session", liquidTagSessionMarkup>
   liquidTagSessionMarkup = variableSegment space* "=" space* liquidVariable<delimTag> space*
@@ -291,13 +291,13 @@ Liquid <: Helpers {
   liquidTagSignInMarkup = tagArguments (space* ",")? space*
 
   liquidTagRedirectTo = liquidTagRule<"redirect_to", liquidTagRedirectToMarkup>
-  liquidTagRedirectToMarkup = liquidExpression<delimTag> renderArguments
+  liquidTagRedirectToMarkup = liquidFilteredExpression<delimTag> renderArguments
 
   liquidTagIncludeForm = liquidTagRule<"include_form", liquidTagIncludeFormMarkup>
   liquidTagIncludeFormMarkup = partialExpression renderArguments
 
   liquidTagSpamProtection = liquidTagRule<"spam_protection", liquidTagSpamProtectionMarkup>
-  liquidTagSpamProtectionMarkup = liquidExpression<delimTag> renderArguments
+  liquidTagSpamProtectionMarkup = liquidFilteredExpression<delimTag> renderArguments
 
   liquidTagThemeRenderRc = liquidTagRule<"theme_render_rc", liquidTagRenderMarkup>
 
@@ -305,14 +305,14 @@ Liquid <: Helpers {
   liquidTagResponseStatusMarkup = (liquidNumber | liquidVariableLookup<delimTag>) space*
 
   liquidTagResponseHeaders = liquidTagRule<"response_headers", liquidTagResponseHeadersMarkup>
-  liquidTagResponseHeadersMarkup = liquidExpression<delimTag> space*
+  liquidTagResponseHeadersMarkup = liquidFilteredExpression<delimTag> space*
 
   liquidTagRollback = liquidTagRule<"rollback", empty>
 
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?
   partialExpression = liquidString<delimTag> | liquidVariableLookup<delimTag>
-  renderVariableExpression = space+ ("for" | "with") space+ liquidExpression<delimTag>
+  renderVariableExpression = space+ ("for" | "with") space+ liquidFilteredExpression<delimTag>
   renderAliasExpression = space+ "as" space+ variableSegment
 
   // Exclude graphql and background from base case since they have special handling
@@ -352,10 +352,10 @@ Liquid <: Helpers {
   liquidTagOpenTablerow = liquidTagOpenRule<"tablerow", liquidTagOpenForMarkup>
 
   liquidTagOpenCase = liquidTagOpenRule<"case", liquidTagOpenCaseMarkup>
-  liquidTagOpenCaseMarkup = liquidExpression<delimTag> space*
+  liquidTagOpenCaseMarkup = liquidFilteredExpression<delimTag> space*
 
   liquidTagWhen = liquidTagRule<"when", liquidTagWhenMarkup>
-  liquidTagWhenMarkup = nonemptyListOf<liquidExpression<delimTag>, whenMarkupSep> space*
+  liquidTagWhenMarkup = nonemptyListOf<liquidFilteredExpression<delimTag>, whenMarkupSep> space*
   whenMarkupSep = space* ("," | "or" ~identifier) space*
 
   liquidTagOpenIf = liquidTagOpenRule<"if", liquidTagOpenConditionalMarkup>
@@ -418,6 +418,33 @@ Liquid <: Helpers {
   // instead of falling back to the other rule:
   // {{ 'string' | some_filter }}
   liquidVariable<delim> = liquidComplexExpression<delim> liquidFilter<delim>* space* &delim
+
+  // Expression plus optional filters, WITHOUT liquidVariable's trailing `space* &delim`
+  // lookahead — so it can be used where more markup follows (arguments, list separators).
+  //
+  // WHY IT EXISTS. Several tag operands bound `liquidExpression`, which has no filters, so
+  // `{% cache 'k' | append: '1' %}` failed the strict markup rule. The parser is tolerant,
+  // so the tag fell back to raw-string markup and `InvalidTagSyntax` reported it — a FALSE
+  // BLOCK on code `pos-cli deploy --dry-run` accepts. Measured with paired dry-runs (filter
+  // present, then absent) for every operand below.
+  //
+  // It produces a LiquidVariable node, the same shape `{{ }}` and `{% assign %}` already
+  // use. That keeps every parent rule's arity unchanged AND means the prettier printer
+  // already knows how to print it — printing `expression` plus `filters`. A rule that
+  // parsed filters the printer did not model would silently DELETE them on format.
+  liquidFilteredExpression<delim> =
+    | liquidExpressionWithFilters<delim>
+    | liquidExpression<delim>
+
+  // `liquidFilter+`, one or more — so an operand with NO filter falls through to the bare
+  // `liquidExpression` above and keeps exactly the CST and AST shape it has always had.
+  // Matching zero filters here instead would wrap every one of these operands in a
+  // LiquidVariable purely because a different tag might carry filters, changing the shape
+  // for every existing file, consumer and fixture to no purpose — measured, it broke 22
+  // stage-2 and 12 stage-1 assertions that were describing correct behaviour.
+  //
+  // Same idiom, and same reason, as `liquidJsonItemVariable` above.
+  liquidExpressionWithFilters<delim> = liquidExpression<delim> liquidFilter<delim>+
 
   liquidExpression<delim> =
     | liquidString<delim>

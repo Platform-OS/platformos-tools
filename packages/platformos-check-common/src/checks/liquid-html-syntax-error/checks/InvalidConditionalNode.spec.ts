@@ -320,13 +320,62 @@ describe('Module: InvalidConditionalBooleanExpression', () => {
     }
   });
 
-  it('should not report an offense for pipe filter expressions', async () => {
-    const testCases = ['{% if wat | something == something %}hello{% endif %}'];
+  it('SHOULD report an offense for a filter in a condition', async () => {
+    // THIS TEST ASSERTED THE OPPOSITE, and the premise was measured false. A filter in a
+    // condition is REJECTED by `pos-cli deploy --dry-run` — which fails the whole
+    // changeset, not just this template — so staying silent was a false approval.
+    //
+    // Adjudicated with paired dry-runs, each construct deployed with the filter and again
+    // without it, so a rejection caused by a bad fixture is distinguishable from one
+    // caused by the filter. All four rejected with the filter, all four accepted without:
+    //
+    //   {% if wat | upcase == 'A' %}          {% if 'a' | upcase == 'A' %}
+    //   {% if wat | upcase %}                 {% unless 'a' | upcase == 'A' %}
+    //
+    // Three of these previously produced NO diagnostic at all; only the truthy form was
+    // caught, and by accident — a heuristic about truthiness fired that never mentioned
+    // filters. Variables and literals behave identically, and so does an UNKNOWN filter
+    // name: the converter refuses the shape, not the filter.
+    const testCases = [
+      '{% if wat | something == something %}hello{% endif %}',
+      "{% if wat | upcase == 'A' %}hello{% endif %}",
+      "{% if 'a' | upcase == 'A' %}hello{% endif %}",
+      '{% if wat | upcase %}hello{% endif %}',
+      "{% unless 'a' | upcase == 'A' %}hello{% endunless %}",
+      "{% if false %}{% elsif 'a' | upcase == 'A' %}hello{% endif %}",
+      "{% if 'A' == 'a' | upcase %}hello{% endif %}",
+    ];
 
     for (const testCase of testCases) {
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
+      expect(offenses, testCase).to.have.length(1);
+      expect(offenses[0].message, testCase).to.contain('Filters are not allowed in a condition');
     }
+  });
+
+  it('offers NO autofix for a filter in a condition', async () => {
+    // The repair needs an {% assign %} on a PRECEDING line, which this corrector cannot
+    // express — it may only replace the markup it was handed. A fix that simply dropped
+    // the filter would silently change what the condition tests, so none is offered.
+    const offenses = await runLiquidCheck(
+      LiquidHTMLSyntaxError,
+      "{% if 'a' | upcase == 'A' %}hello{% endif %}",
+    );
+
+    expect(offenses[0].fix).to.be.undefined;
+  });
+
+  it('still explains || separately, rather than calling it a filter', async () => {
+    // `|` and `||` are distinct tokens — measured — and someone writing `||` is reaching
+    // for JavaScript. Collapsing the two would replace a useful message with a confusing
+    // one.
+    const offenses = await runLiquidCheck(
+      LiquidHTMLSyntaxError,
+      '{% if "a" == "a" || "b" == "b" %}hello{% endif %}',
+    );
+
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.contain("Use 'and'/'or'");
   });
 
   it('should report an offense for misspelled logical operators', async () => {

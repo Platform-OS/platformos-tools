@@ -115,6 +115,87 @@ export const MIN_LINT_DEADLINE_MS = 60_000;
  */
 export const MAX_LINT_DEADLINE_MS = 120_000;
 
+/**
+ * How much of the AGENT'S CONTEXT one `validate_code` answer may spend.
+ *
+ * The only POLICY number in this file besides {@link MAX_LINT_DEADLINE_MS}, and the
+ * one bound here that is not about the server's own work at all. Every dimension of
+ * a REQUEST is bounded — buffer bytes, batch files, batch bytes, and the deadline
+ * derived from them. The RESPONSE was bounded by nothing, and measured at roughly
+ * SIX TIMES the size of the input that produced it:
+ *
+ *   ```
+ *     128 KiB single buffer, all broken   4 228 diagnostics    634 KiB   ~162 000 tokens
+ *     266 KiB batch, all broken           8 784 diagnostics  1 313 KiB   ~336 000 tokens
+ *   ```
+ *
+ * A single legal call could return more tokens than most context windows hold, with
+ * no error and nothing in the payload saying anything unusual had happened. The
+ * transport is not the limit — a 1.28 MiB JSON-RPC frame was measured arriving
+ * intact — so this is a deliberate judgement about spend, not a technical ceiling.
+ *
+ * 8 000 tokens is a few percent of a typical window. It is chosen against the
+ * MEASURED shape of real calls rather than the pathological ones: across the 21
+ * files of the evaluation substrate the median answer is ~45 tokens, the worst is
+ * ~122, and a realistic broken edit costs ~219. At ~153 bytes per diagnostic this
+ * budget holds roughly 200 findings, so every measured real case is three orders of
+ * magnitude below the cap and cannot be touched by it. What the cap defends against
+ * is the tail: one generated or minified file, or one cascading syntax error in a
+ * large partial, quietly consuming most of an agent's working context.
+ */
+export const RESPONSE_TOKEN_BUDGET = 8_000;
+
+/**
+ * Bytes per token, for converting the budget above into something countable.
+ *
+ * An ESTIMATE and deliberately a crude one — this JSON is mostly ASCII prose and
+ * punctuation, where ~4 bytes/token is the usual rule of thumb. The exact tokenizer
+ * is the client's and not ours to know, so the honest move is to state the
+ * assumption here rather than imply a precision the number does not have. Being
+ * wrong by 25% moves the cap between ~150 and ~250 diagnostics, which changes
+ * nothing about which calls it affects.
+ */
+export const BYTES_PER_TOKEN = 4;
+
+/**
+ * The bound actually enforced: serialized bytes of diagnostics one response may
+ * carry, across the WHOLE request rather than per file.
+ *
+ * Per-request because per-file alone leaves the worst case multiplied by the file
+ * count — 50 files each just under a per-file cap is 50x the intended bound, and the
+ * batch form exists precisely so agents send many files at once.
+ */
+export const MAX_RESPONSE_DIAGNOSTIC_BYTES = RESPONSE_TOKEN_BUDGET * BYTES_PER_TOKEN;
+
+/**
+ * What one file costs in a response BEFORE any diagnostics: its status, gate,
+ * `impact` object, empty lists, and — when findings were withheld — the truncation
+ * note.
+ *
+ * Measured, not assumed: a 50-file batch of clean files serializes to 11.4 KiB, or
+ * 234 bytes per file, and the note adds ~150. Held at 512 because this multiplies by
+ * the file count and the fields it covers are the ones most likely to GROW — the
+ * TASK-8 work reintroduces `hint`, `domain_guide` and friends, and a per-file
+ * envelope that quietly doubles would break the bound below without touching the
+ * allocator that enforces it.
+ */
+export const RESPONSE_ENVELOPE_BYTES_PER_FILE = 512;
+
+/**
+ * The whole response bound, stated as arithmetic rather than enforced directly.
+ *
+ * The allocator bounds DIAGNOSTICS, which is the only unbounded dimension; the
+ * envelope is O(files) and already bounded by the batch file cap. Multiplying the two
+ * out is what turns "the big list is capped" into a number a reader can check, and
+ * `validate/response-bound.spec.ts` measures the worst legal request against it.
+ *
+ * Takes the file count rather than importing `MAX_BATCH_FILES`, which lives in
+ * `validate/batch-bounds.ts` and already imports this module.
+ */
+export function maxResponseBytes(fileCount: number): number {
+  return MAX_RESPONSE_DIAGNOSTIC_BYTES + fileCount * RESPONSE_ENVELOPE_BYTES_PER_FILE;
+}
+
 /** KiB in `bytes`, rounded UP — a partial KiB still costs a full unit of work. */
 const kib = (bytes: number): number => Math.ceil(bytes / 1024);
 

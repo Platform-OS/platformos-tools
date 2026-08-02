@@ -115,7 +115,10 @@ For several files:
 must_fix_before_write true means the file will not work — do not write it. false
 means nothing fatal was found, which is not a guarantee of correctness.
 status "not_applicable" means the file was NOT checked (see not_applicable_reason);
-that is neither approval nor refusal.`;
+that is neither approval nor refusal.
+A "truncated" field appears only when a file produced too many findings to return
+in full; it carries the true total per list. The lists keep the top of the file,
+and the verdict above is always computed from ALL findings, not the shortened list.`;
 
 /**
  * The agent-facing prose, exported so tests can pin claims that must not rot. The

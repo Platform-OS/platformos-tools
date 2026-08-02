@@ -69,6 +69,15 @@ errors / warnings / infos
   ignores, a missing asset, a missing image dimension). Fix them when you can; they
   do not block the write.
 
+truncated
+  Present ONLY when a file had so many findings that the lists were shortened to
+  keep the answer a reasonable size; absent means the lists are complete. It gives
+  the true total per affected list, so "returned: 40, total: 900" means 860 more
+  exist. The lists keep the TOP of the file, where a cascade's root cause usually
+  is. status and must_fix_before_write are always computed from ALL findings, never
+  from the shortened list, so a truncated answer is never a softer verdict — fix
+  what is listed and validate again to see the rest.
+
 impact
   Which other files depend on this one. \`status: computing\` means the project graph
   is still being built — early in a session on a large project — and its zeroed

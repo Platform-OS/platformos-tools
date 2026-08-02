@@ -33,6 +33,7 @@ import { TIMED_OUT, withDeadline } from '../deadline.js';
 import { runImpact } from '../impact/impact.js';
 import { runBatchLint, type BatchBuffer, type BatchLintResult } from '../lint/lint-batch.js';
 import { assembleNotApplicableResult, assembleResult } from '../result/assemble.js';
+import { capToBudget } from '../result/response-budget.js';
 import { COMPUTING_IMPACT, UNAVAILABLE_IMPACT } from '../result/impact-states.js';
 import type {
   Declined,
@@ -101,11 +102,17 @@ export async function validateBuffers(
 
   const diagnostics = lint === TIMED_OUT ? TIMED_OUT : lint.diagnostics;
 
-  return new Map(
-    buffers.map((buffer) => [
-      buffer.filePath,
-      resultFor(buffer.filePath, declined, diagnostics, impacts, lintDeadline),
-    ]),
+  // The response bound is applied LAST, to finished results, and that ordering is
+  // deliberate: `resultFor` has already computed `status` and `must_fix_before_write`
+  // from the complete diagnostic set, so the cap can only shorten lists — it has no
+  // way to soften a verdict. See `result/response-budget.ts`.
+  return capToBudget(
+    new Map(
+      buffers.map((buffer) => [
+        buffer.filePath,
+        resultFor(buffer.filePath, declined, diagnostics, impacts, lintDeadline),
+      ]),
+    ),
   );
 }
 

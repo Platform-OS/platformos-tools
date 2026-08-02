@@ -3,10 +3,10 @@ id: TASK-24
 title: >-
   Cap the diagnostics a single validate_code result can return, with honest
   truncation signalling
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 02:59'
-updated_date: '2026-08-02 07:11'
+updated_date: '2026-08-02 10:17'
 labels:
   - mcp-supervisor
   - agent-surface
@@ -52,18 +52,20 @@ Note that a file with thousands of offences is nearly always a file with a small
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A file producing thousands of offences returns a bounded payload, with the bound stated as a named constant carrying its rationale
-- [ ] #2 `must_fix_before_write` is computed from the complete diagnostic set before truncation — asserted by a case whose only blocking error sorts beyond the cap
-- [ ] #3 A truncated result reports the true total for each affected bucket, distinguishable from the number of entries returned
-- [ ] #4 A truncated result is self-describing: an agent reading only the JSON can tell that findings were withheld, without consulting the tool description
-- [ ] #5 An untruncated result carries no truncation fields at all, so their presence is a reliable signal (consistent with the existing decision to drop permanently-empty stubs)
-- [ ] #6 The interaction with batches is decided and tested — whether the cap is per file, per request, or both
-- [ ] #7 Diagnostics remain ordered by line then column within each bucket, so the retained head is the top of the file
-- [ ] #8 The tool description and server instructions state the cap and what a truncated result means
-- [ ] #9 The cap is stated in TOKENS or bytes of serialized payload, not only in diagnostic count — the count is a proxy and the constraint being defended is the agent's context window
-- [ ] #10 The batch case is bounded as a REQUEST, not only per file: 4 legal buffers currently multiply to 1.3 MiB, so a per-file cap alone leaves the worst case ~4x the intended bound
-- [ ] #11 A pinned measurement of the worst legal single call and the worst legal batch, before and after, so the bound is demonstrated rather than asserted
+- [x] #1 A file producing thousands of offences returns a bounded payload, with the bound stated as a named constant carrying its rationale
+- [x] #2 `must_fix_before_write` is computed from the complete diagnostic set before truncation — asserted by a case whose only blocking error sorts beyond the cap
+- [x] #3 A truncated result reports the true total for each affected bucket, distinguishable from the number of entries returned
+- [x] #4 A truncated result is self-describing: an agent reading only the JSON can tell that findings were withheld, without consulting the tool description
+- [x] #5 An untruncated result carries no truncation fields at all, so their presence is a reliable signal (consistent with the existing decision to drop permanently-empty stubs)
+- [x] #6 The interaction with batches is decided and tested — whether the cap is per file, per request, or both
+- [x] #7 Diagnostics remain ordered by line then column within each bucket, so the retained head is the top of the file
+- [x] #8 The tool description and server instructions state the cap and what a truncated result means
+- [x] #9 The cap is stated in TOKENS or bytes of serialized payload, not only in diagnostic count — the count is a proxy and the constraint being defended is the agent's context window
+- [x] #10 The batch case is bounded as a REQUEST, not only per file: 4 legal buffers currently multiply to 1.3 MiB, so a per-file cap alone leaves the worst case ~4x the intended bound
+- [x] #11 A pinned measurement of the worst legal single call and the worst legal batch, before and after, so the bound is demonstrated rather than asserted
 <!-- AC:END -->
+
+
 
 ## Implementation Notes
 
@@ -137,4 +139,41 @@ The figures are slightly higher than the ones recorded above because MAX_BATCH_B
 PRIORITY DELIBERATELY LEFT AT MEDIUM. The round-4 report grades this HIGH. The downgrade recorded above still holds and is not revised: the numbers that look alarming are all tail cases, the common path measures at tens to a couple of hundred tokens, and this produces no wrong answer. What the round-4 grading adds is a fair scheduling observation rather than a severity one -- this is the only item in the group that is wholly owned by the supervisor and has now gone a full cycle untouched while three other things shipped.
 
 The implementation constraint is unchanged and is still the only part that can go badly wrong: must_fix_before_write has to be computed from the complete diagnostic set BEFORE truncation, sabotage-verified with a buffer whose only blocking error sorts beyond the cap. A cap that drops the blocking diagnostic while the gate still reads false converts an ergonomics fix into a false approval, on large inputs, where nobody is looking.
+
+IMPLEMENTED 2026-08-02.
+
+THE DESIGN DECISION THAT MAKES THE DANGEROUS BUG IMPOSSIBLE. The cap runs AFTER assembly, on finished results. `assembleResult` has already computed `status` and `must_fix_before_write` from the complete diagnostic set; `capToBudget` receives those results and can only shorten lists. There is no ordering of operations in which it could soften a verdict, because it never writes one. That is stronger than testing the ordering, and the test exists anyway: 1 000 findings where the ONLY blocking one sorts LAST, budget 500 bytes, blocking error withheld, gate still true.
+
+WHAT IS BOUNDED, and how the budget is spent:
+
+  RESPONSE_TOKEN_BUDGET             8 000 tokens   policy: a few percent of a window
+  BYTES_PER_TOKEN                   4              stated estimate, not a precision claim
+  MAX_RESPONSE_DIAGNOSTIC_BYTES     32 000 bytes   what the allocator enforces
+  RESPONSE_ENVELOPE_BYTES_PER_FILE  512            measured 234 + ~190 note, headroom for TASK-8
+  maxResponseBytes(files)           32 000 + files x 512
+
+Allocation is severity-major (every file's errors before any file's warnings, warnings before infos), then ROUND-ROBIN across files within each severity. A bucket that cannot fit its next entry is CLOSED rather than skipped, so what returns is a contiguous head rather than a scatter — otherwise `returned: 12 of 300` says nothing about WHICH twelve. One error per file is guaranteed whatever the budget: a blocked write with an empty errors list names a problem and then refuses to say what it is.
+
+MEASURED, BEFORE AND AFTER, on this build:
+
+| Request | Before | After |
+|---|---|---|
+| 128 KiB single buffer | 4 228 diagnostics, 634 KiB, ~162 000 tokens | 211 returned of 4 228 reported, 31.6 KiB, ~8 100 tokens |
+| 266 KiB, 4-file batch | 8 784 diagnostics, 1 313 KiB, ~336 000 tokens | 213 returned, 33.5 KiB, ~8 600 tokens |
+| 50-file batch (worst shape) | not previously measured | 59.6 KiB, ~15 000 tokens, every file carrying findings |
+| realistic broken edit | ~219 tokens | UNCHANGED, no truncation field |
+
+The 4-file batch returned 54/53/53/53 across its files rather than the first file consuming everything, which is the round-robin working on a real payload.
+
+SABOTAGE-VERIFIED, each reverted after measuring:
+  A. recompute the gate from the truncated list -> 3 failures, including the false-approval case
+  B. sequential allocation instead of round-robin -> starvation test and the 50-file bound fail
+
+MY OWN FIXTURE ERROR, recorded. The first measurement showed 0 diagnostics in 4 ms and looked like a cheap response; it was a REFUSAL, because the buffer overshot MAX_BUFFER_BYTES by 2 bytes. Exactly the round-4 error shape. The measurement now records `status` so a refused request cannot masquerade as a measured one, and fixtures pad with spaces to an exact byte count rather than with a comment that overshoots.
+
+WHY THE BOUND IS ARITHMETIC RATHER THAN ONE NUMBER: the allocator bounds diagnostics, which was the only unbounded dimension. The per-file envelope is O(files) and already bounded by MAX_BATCH_FILES, so multiplying the two out gives a number a reader can check, and `validate/response-bound.spec.ts` measures the worst legal request against it rather than asserting a byte count that message wording would break.
+
+VERIFIED: 318 test files / 3 120 tests pass, type-check 0 errors, prettier clean.
+
+NOT DONE, deliberately: no batch-level truncation summary. Per-file `truncated` already answers "is this list partial" where an agent reads the list, and a second copy at the envelope level would be a stub on every batch response that did not truncate.
 <!-- SECTION:NOTES:END -->

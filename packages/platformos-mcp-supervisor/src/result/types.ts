@@ -211,6 +211,35 @@ export interface ValidateCodeSignatureRisk {
   unexpected_args: string[];
 }
 
+/** How many entries of one bucket were returned, against how many were found. */
+export interface ValidateCodeBucketTruncation {
+  /** Entries present in this result's list. */
+  returned: number;
+  /** Entries the checks actually produced. Always greater than `returned`. */
+  total: number;
+}
+
+/**
+ * Present exactly when findings were withheld to keep the response bounded.
+ *
+ * ABSENT means nothing was withheld — the lists are complete. That is why this is
+ * optional rather than always emitted with zeroes: an agent cannot distinguish an
+ * always-present field from a meaningful one, and the same reasoning already removed
+ * the permanently-empty stubs elsewhere in this contract.
+ *
+ * Only the affected buckets appear. `note` states the same thing in prose, so an
+ * agent that reads nothing but this JSON still learns that the list is partial —
+ * silent truncation would be a false-completeness bug of exactly the kind this
+ * package spends the most effort avoiding, and strictly worse than a large payload.
+ */
+export interface ValidateCodeTruncation {
+  errors?: ValidateCodeBucketTruncation;
+  warnings?: ValidateCodeBucketTruncation;
+  infos?: ValidateCodeBucketTruncation;
+  /** Plain-language statement of what was withheld and what is still true. */
+  note: string;
+}
+
 /**
  * The full `validate_code` result. Serialized as a single JSON text block over
  * the MCP stdio transport.
@@ -238,6 +267,14 @@ export interface ValidateCodeResult {
    * See {@link NotApplicableReason}.
    */
   not_applicable_reason?: NotApplicableReason;
+  /**
+   * Present only when the response bound withheld findings. See
+   * {@link ValidateCodeTruncation}.
+   *
+   * `status` and `must_fix_before_write` above are computed from the COMPLETE set of
+   * findings, before anything is withheld, so neither is softened by truncation.
+   */
+  truncated?: ValidateCodeTruncation;
 }
 
 /** One file's outcome inside a multi-file {@link ValidateFilesResult}. */

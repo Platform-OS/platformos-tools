@@ -255,9 +255,17 @@ describe('Module: runChecks', () => {
             severity: 1,
             range: {
               // 'fr:\n  hello: bonjour\n  hi: salut'
-              // line 2 starts at offset 21, 'hi: salut' spans offsets 23-31
+              // Line 2 starts at offset 21 and 'hi: salut' occupies offsets 23-31, so
+              // the exclusive end offset is 32 — the length of the source, since the
+              // fixture has no trailing newline.
+              //
+              // This asserted `character: 10` while `getPosition` could not name a
+              // position past the last character: it clamped an end-of-input offset
+              // onto that character, and the range came back one short, highlighting
+              // 'hi: salu'. Every diagnostic ending at end of input was truncated the
+              // same way, in the editor as well as here.
               start: { line: 2, character: 2 },
-              end: { line: 2, character: 10 },
+              end: { line: 2, character: 11 },
             },
           },
         ]),

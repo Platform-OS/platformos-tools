@@ -81,16 +81,22 @@ describe('Module: YAMLSyntaxError', () => {
   });
 
   it('reports an unterminated construct at end of input without running past it', async () => {
-    // `yaml` points one PAST the last character here. An unclamped range would
-    // address a position the file does not have.
+    // `yaml` reports `[length, length + 1]` for an unterminated construct — one PAST
+    // the last character. The parse layer clamps that to the source, and the position
+    // is then the empty last line the trailing newline opens: line 1, character 0.
+    //
+    // This asserted line 0, character 11 until `getPosition` learned to place an
+    // end-of-input offset. It could not name the position after the last character,
+    // so it named the last character instead, putting a whole class of parse errors —
+    // every unterminated construct `yaml` reports — one place early.
     const source = 'name: "oops\n';
 
     expect(await offensesFor({ 'app/schema/a.yml': source })).toEqual([
       {
         check: 'YAMLSyntaxError',
         message: 'Missing closing "quote',
-        start: { line: 0, character: 11 },
-        end: { line: 0, character: 11 },
+        start: { line: 1, character: 0 },
+        end: { line: 1, character: 0 },
       },
     ]);
   });

@@ -77,10 +77,16 @@ export function toYAMLNode(source: string): JSONNode {
 
   if (failures.length > 0) {
     throw new YAMLConvertError(
-      // Clamped to the source, because `yaml` points one PAST the last character
-      // for an unterminated construct — a missing closing quote on the final line
-      // reports at `source.length`. That is a real place to report (end of input),
-      // but an unclamped range would address a position the file does not have.
+      // Clamped to the source. `yaml` reports an unterminated construct as
+      // `[length, length + 1]` — measured, not inferred: a missing closing quote, an
+      // unclosed flow sequence and an unclosed flow map all report that way, with or
+      // without a trailing newline.
+      //
+      // `length` itself is a real position (end of input) and `getPosition` places it
+      // correctly, on the empty last line where an editor puts the caret. It is the
+      // `+ 1` that names nothing, so only the END is actually moved by this clamp.
+      // The resulting range is empty, which is the honest shape for "the file stopped
+      // before it should have": there is no character to underline.
       failures.map((error) => {
         const [start, end] = error.pos;
         const offset = Math.max(0, Math.min(start, source.length));

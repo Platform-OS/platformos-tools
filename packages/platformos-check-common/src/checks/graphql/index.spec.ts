@@ -102,7 +102,15 @@ describe('Module: GraphQLCheck', () => {
   });
 
   it('syntax error offense points to the actual error line, not the whole file', async () => {
-    // unclosed brace on line 3 causes a parse error — graphql-js will report the exact location
+    // An unclosed brace leaves graphql-js reporting `<EOF>`, which it locates on line
+    // 4 — the empty line the trailing newline opens. That is genuinely where the
+    // error is, so the offense sits at line 3 (0-based), character 0.
+    //
+    // This used to assert `end.line < 3`, and passed only because `getPosition`
+    // collapsed an end-of-input offset onto the last CHARACTER, reporting the error a
+    // line early. The intent behind that assertion — the offense must not span the
+    // whole file — is better served by pinning the range outright: a whole-file range
+    // would be 0,0 to 3,0 and this fails on it.
     const query = `{
   hello
   unclosed {
@@ -112,12 +120,22 @@ describe('Module: GraphQLCheck', () => {
     };
 
     const offenses = await check(files, [GraphQLCheck], mockDependencies);
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal('Syntax Error: Expected Name, found <EOF>.');
-    // Offense spans exactly one line (the error line), NOT the whole file
-    expect(offenses[0].start.line).to.equal(offenses[0].end.line);
-    // And that line is not the last line of the file (i.e. not spanning to the end)
-    expect(offenses[0].end.line).to.be.lessThan(3); // file has 4 lines (0-indexed: 0-3)
+
+    expect(
+      offenses.map((offense) => ({
+        check: offense.check,
+        message: offense.message,
+        start: { line: offense.start.line, character: offense.start.character },
+        end: { line: offense.end.line, character: offense.end.character },
+      })),
+    ).toEqual([
+      {
+        check: 'GraphQLCheck',
+        message: 'Syntax Error: Expected Name, found <EOF>.',
+        start: { line: 3, character: 0 },
+        end: { line: 3, character: 0 },
+      },
+    ]);
   });
 
   it('reports no offenses when platformosDocset.graphQL returns null', async () => {

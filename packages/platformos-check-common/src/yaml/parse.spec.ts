@@ -47,16 +47,28 @@ describe('Unit: toYAMLNode failure contract', () => {
     );
   });
 
-  it('never points past the end of the source', () => {
-    // `yaml` reports one PAST the last character for an unterminated construct. An
-    // unclamped range would address a position the file does not have.
-    const source = 'name: "oops\n';
-    const failures = failuresFor(source) ?? [];
+  it('never points past the end of the source, for any unterminated construct', () => {
+    // `yaml` reports `[length, length + 1]` whenever input runs out mid-construct.
+    // `length` is a real position — end of input, which `getPosition` places on the
+    // empty last line — so only the `+ 1` is clamped away, leaving an empty range.
+    //
+    // Every construct that can be left open is covered, with and without a trailing
+    // newline, because this is the shape the comment in `parse.ts` claims and a
+    // single fixture would only demonstrate it for one of them.
+    const sources = [
+      'name: "oops\n',
+      'name: "oops',
+      'name: [1, 2\n',
+      'name: [1, 2',
+      'name: {a: 1\n',
+      'name: {a: 1',
+    ];
 
-    expect(failures.every(({ offset, length }) => offset + length <= source.length)).toBe(true);
-    // Offset 12 IS the source length: the failure is at end of input, and the clamp
-    // keeps it addressable rather than running past.
-    expect(failures).toEqual([{ message: 'Missing closing "quote', offset: 12, length: 0 }]);
+    expect(
+      sources.map((source) =>
+        (failuresFor(source) ?? []).map(({ offset, length }) => [offset, length]),
+      ),
+    ).toEqual(sources.map((source) => [[source.length, 0]]));
   });
 
   it('does NOT treat a multi-document file as a failure', () => {

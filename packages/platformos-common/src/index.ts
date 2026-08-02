@@ -10,3 +10,4 @@ export * from './frontmatter';
 // DocumentsLocator) and are consumed by the graph.
 export * from './graphql-table';
 export * from './schema-table';
+export * from './yaml-load-options';

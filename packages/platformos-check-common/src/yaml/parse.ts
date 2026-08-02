@@ -59,7 +59,21 @@ export function toYAMLNode(source: string): JSONNode {
   // default the library appends ` at line N, column M:` plus a source snippet, and
   // the only way back to a clean message is a regex over English. We report the
   // location structurally instead, so the prose does not need to carry it.
-  const doc = parseDocument(source, { prettyErrors: false });
+  //
+  // `uniqueKeys: false` because a REPEATED KEY IS NOT A PARSE FAILURE HERE. The
+  // library defaults it to `true` and raises `DUPLICATE_KEY`, which reached the
+  // blocking gate and refused writes the platform accepts — measured against
+  // `pos-cli deploy --dry-run`, which takes a duplicated key at the top level, inside
+  // a property, and in a translation file. The last value wins, exactly as `toJS`
+  // resolves it here.
+  //
+  // This one option is the entire distance between what two documents in this repo
+  // promised and what the code did: the check's own docstring says duplicate property
+  // names deploy fine, and the server instructions tell an agent they are not
+  // reported. Both were measured and correct; the library default silently reinstated
+  // the behaviour they rule out, and nothing failed, because nothing asserted the
+  // SILENCE. `duplicate-keys.spec.ts` now does.
+  const doc = parseDocument(source, { prettyErrors: false, uniqueKeys: false });
 
   // `MULTIPLE_DOCS` is NOT a defect in the file. Multi-document YAML is valid YAML;
   // the parser is objecting to being asked for a single document, which is our

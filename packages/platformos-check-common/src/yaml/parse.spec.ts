@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { YAMLConvertError, toYAMLNode } from './parse';
+import type { LiteralNode, ObjectNode } from '../jsonc/types';
 
 /**
  * The FAILURE contract, pinned at the layer that owns it.
@@ -87,6 +88,29 @@ describe('Unit: toYAMLNode failure contract', () => {
         offset: 9,
         length: 1,
       },
+    ]);
+  });
+
+  it('does NOT treat a repeated key as a failure', () => {
+    // `uniqueKeys: false`. The library defaults it to `true` and raises
+    // `DUPLICATE_KEY`, which reached the blocking gate — while the converter accepts
+    // a repeated key and resolves it last-wins.
+    expect(failuresFor('a: 1\na: 2\n')).toEqual(null);
+    expect(failuresFor('top:\n  a: 1\n  a: 2\n')).toEqual(null);
+  });
+
+  it('keeps BOTH pairs of a repeated key in the node tree', () => {
+    // Not cosmetic: suppressing the error must not also drop data. Every property
+    // survives, in source order, so a check walking the tree sees exactly what the
+    // author wrote — and a reader resolving to a single value takes the last, which
+    // is what the platform does.
+    const node = toYAMLNode('a: 1\na: 2\n') as ObjectNode;
+
+    expect(
+      node.children.map((property) => [property.key.value, (property.value as LiteralNode).value]),
+    ).toEqual([
+      ['a', 1],
+      ['a', 2],
     ]);
   });
 

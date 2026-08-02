@@ -1,6 +1,7 @@
 import yaml from 'js-yaml';
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { getAppPaths, getModulePaths, parseModulePrefix, PlatformOSFileType } from '../path-utils';
+import { PLATFORM_YAML_LOAD_OPTIONS } from '../yaml-load-options';
 import { URI, Utils } from 'vscode-uri';
 
 export type DocumentType =
@@ -25,7 +26,10 @@ export async function loadSearchPaths(
   try {
     const configUri = Utils.joinPath(rootUri, 'app/config.yml').toString();
     const content = await fs.readFile(configUri);
-    const config = yaml.load(content) as Record<string, unknown> | null;
+    // A duplicated key must not cost the project its search paths — see
+    // PLATFORM_YAML_LOAD_OPTIONS. The `catch` below would otherwise answer "no
+    // config", silently sending every lookup down the default paths.
+    const config = yaml.load(content, PLATFORM_YAML_LOAD_OPTIONS) as Record<string, unknown> | null;
     const paths = config?.theme_search_paths;
     if (Array.isArray(paths) && paths.length > 0) {
       return paths.map(String);

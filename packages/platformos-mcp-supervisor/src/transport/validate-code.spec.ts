@@ -5,6 +5,7 @@ import { AppCache } from '@platformos/platformos-check-node';
 
 import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code.js';
 import { SERVER_INSTRUCTIONS } from './instructions.js';
+import { BLOCKING_CHECKS } from '../result/blocking.js';
 import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
 import { MIN_LINT_DEADLINE_MS, lintDeadlineMs } from '../cost-model.js';
 import { MAX_BUFFER_BYTES } from '../adapter-input.js';
@@ -797,6 +798,35 @@ describe('server instructions', () => {
 
   it('tells the agent to validate BEFORE writing', () => {
     expect(SERVER_INSTRUCTIONS).toContain('BEFORE writing');
+  });
+
+  it('only advertises specific blocking behaviour that the gate still has', () => {
+    // The instructions single out two constructs as blocking because both are easy
+    // to trip over and one is deploy-fatal. Naming a specific rule is more useful
+    // than "and more" — and more dangerous, because prose outlives the code it
+    // describes. This ties each named claim to the set that has to back it.
+    expect({
+      jsonLiteral: SERVER_INSTRUCTIONS.includes('must use DOUBLE quotes'),
+      hashAssign: SERVER_INSTRUCTIONS.includes('needs a Hash with a key or an Array'),
+      yamlParse: SERVER_INSTRUCTIONS.includes('one that does not parse is reported and blocks'),
+      backedBy: [
+        BLOCKING_CHECKS.has('JsonLiteralQuoteStyle'),
+        BLOCKING_CHECKS.has('InvalidHashAssignTarget'),
+        BLOCKING_CHECKS.has('YAMLSyntaxError'),
+      ],
+    }).toEqual({
+      jsonLiteral: true,
+      hashAssign: true,
+      yamlParse: true,
+      backedBy: [true, true, true],
+    });
+  });
+
+  it('describes the size refusal in terms of BOTH bounds it can come from', () => {
+    // `too_large` used to say "split the file", which is the wrong instruction for a
+    // request that is legal per file and over the batch cap — the caller would shrink
+    // files that were never the problem.
+    expect(SERVER_INSTRUCTIONS).toContain('or the request as a whole');
   });
 
   it('explains that errors[] can be non-empty while the gate is false', () => {

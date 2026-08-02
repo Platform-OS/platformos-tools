@@ -51,7 +51,9 @@ status
     outside_project  - not inside the project this server serves
     unsupported_type - not a file type platformOS lints
     ignored          - excluded by the project's .platformos-check.yml
-    too_large        - above the size limit; split the file
+    too_large        - one buffer, or the request as a whole, is above its size
+                       limit. Split the file, or send fewer files per call — the
+                       reason text says which bound was hit
     timed_out        - validation was abandoned; retrying may work
     internal_error   - your REQUEST was malformed, or the validator hit a bug; the
                        reason text says which. A malformed request — both input
@@ -75,7 +77,11 @@ impact
 WHAT IS ACTUALLY CHECKED
   Liquid  - syntax, unknown filters and tags, filters called with the wrong number
             of arguments, missing partials/assets, render arguments against
-            {% doc %}, layout correctness, and more.
+            {% doc %}, layout correctness, and more. Two that block and are easy to
+            trip over: a JSON literal in {% assign %} must use DOUBLE quotes
+            ({'k': 1} is rejected by the deploy converter, failing the whole
+            changeset), and {% hash_assign %} needs a Hash with a key or an Array
+            with a numeric index — nothing else.
   GraphQL - operations validated against the project schema.
   YAML    - syntax, for model/schema, transactable-type, profile-type and
             translation files: one that does not parse is reported and blocks,

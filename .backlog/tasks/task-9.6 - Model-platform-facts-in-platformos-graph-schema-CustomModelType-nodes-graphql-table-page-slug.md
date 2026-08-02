@@ -41,7 +41,7 @@ Resource/CRUD completeness (old `detectResources`) needs three facts the AppGrap
 
 ## References
 - ADR docs/mcp-supervisor/decisions/004-platform-facts-vs-conventions/README.md
-- Old shape: pos-mcp src/core/project-scanner.js detectResources (git f60bc39)</parameter>
+- Old shape: pos-mcp src/core/project-scanner.js detectResources (git f60bc39)
 <parameter name="acceptanceCriteria">["platformos-graph models schema/CustomModelType files as neutral graph nodes carrying their table name; included in buildAppGraph without breaking existing reachability/orphan semantics", "GraphQLModule exposes its `table` (when declared), sourced by reusing check-common graphql parsing rather than a bespoke regex where possible", "Page modules expose `slug` from frontmatter, reusing check-common parsing (coordinated with TASK-9.3, no duplicate parser)", "NO convention is introduced: no command/query kinds, no pluralize, no resource grouping, no CRUD expectations (enforced by review against ADR 004)", "Additive; graph + check-common + LSP consumers re-verified green; type-check + prettier clean; each new fact has unit pins"]
 <!-- SECTION:DESCRIPTION:END -->
 

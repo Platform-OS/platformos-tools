@@ -27,6 +27,13 @@ import { YAMLConvertError } from '../../yaml/parse';
  * and a schema model would be work with no measured payoff. If that changes, it is
  * a different check — this one answers "does this file parse?" and nothing else.
  *
+ * THAT PARAGRAPH IS ENFORCED, not merely asserted — see `duplicate-keys.spec.ts`. It
+ * was true and untested for one release, during which the `yaml` package's
+ * `uniqueKeys` default quietly turned a duplicated name into a hard refusal to write,
+ * with this comment and the server's agent-facing instructions both still promising
+ * the opposite. A claim about what a check does NOT report needs a test exactly as
+ * much as a claim about what it does.
+ *
  * REPORTS EVERY FAILURE, not just the first, matching `JSONSyntaxError`. The `yaml`
  * parser recovers and keeps going, so a document can carry several independent
  * problems. Measured on realistic malformations (bad indent under a sequence item,

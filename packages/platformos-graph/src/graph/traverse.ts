@@ -14,6 +14,7 @@ import {
   extractGraphqlTables,
   extractRelativePagePath,
   extractSchemaTable,
+  PLATFORM_YAML_LOAD_OPTIONS,
 } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import {
@@ -353,7 +354,11 @@ function isStringLiteral<T extends { type: NodeTypes }>(
 function loadFrontmatter(body: string): Record<string, unknown> | undefined {
   let data: unknown;
   try {
-    data = yaml.load(body);
+    // A duplicated key must not cost this file its edges — see
+    // PLATFORM_YAML_LOAD_OPTIONS. js-yaml's default throws, and the `catch` below
+    // then reports the file as having no frontmatter and no schema at all, which is
+    // how one repeated key silently removes a layout or partial from the graph.
+    data = yaml.load(body, PLATFORM_YAML_LOAD_OPTIONS);
   } catch {
     return undefined;
   }

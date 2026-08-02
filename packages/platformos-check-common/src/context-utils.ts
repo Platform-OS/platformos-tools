@@ -94,6 +94,17 @@ async function getDefaultLocale(_fs: AbstractFileSystem, _rootUri: string): Prom
   return 'en';
 }
 
+/**
+ * A repeated key is not an error: the last value wins and the file still loads.
+ *
+ * `js-yaml` throws `duplicated mapping key` by default, and both readers below
+ * swallow a throw and return `{}`. That turns one duplicated key into "this file has
+ * no translations at all", which is a far larger claim than the file supports. The
+ * decision, and the measurement behind it, is documented once in `yaml/parse.ts`;
+ * `TranslationProvider` carries the same option for the same reason.
+ */
+const PLATFORM_YAML_OPTIONS = { json: true } as const;
+
 async function getDefaultTranslations(
   fs: AbstractFileSystem,
   app: App,
@@ -105,7 +116,7 @@ async function getDefaultTranslations(
     const defaultLocaleFile = await getDefaultLocaleFile(fs, rootUri);
     if (!defaultLocaleFile) return {};
     const yamlContent = await fs.readFile(defaultLocaleFile);
-    const data = load(yamlContent) as Record<string, any>;
+    const data = load(yamlContent, PLATFORM_YAML_OPTIONS) as Record<string, any>;
     if (!data || typeof data !== 'object') return {};
     // YAML translation files wrap content under the locale key: { en: { hello: 'Hello' } }
     const localeKey = Object.keys(data)[0];
@@ -123,7 +134,10 @@ function getDefaultTranslationsFromBuffer(app: App): Translations | undefined {
   );
   if (!defaultTranslationsSourceCode) return undefined;
   try {
-    const data = load(defaultTranslationsSourceCode.source) as Record<string, any>;
+    const data = load(defaultTranslationsSourceCode.source, PLATFORM_YAML_OPTIONS) as Record<
+      string,
+      any
+    >;
     if (!data || typeof data !== 'object') return undefined;
     const localeKey = Object.keys(data)[0];
     return (localeKey && data[localeKey]) ?? undefined;

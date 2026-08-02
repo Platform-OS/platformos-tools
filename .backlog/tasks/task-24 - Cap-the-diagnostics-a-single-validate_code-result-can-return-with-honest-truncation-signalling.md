@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-01 02:59'
-updated_date: '2026-08-01 23:16'
+updated_date: '2026-08-02 07:11'
 labels:
   - mcp-supervisor
   - agent-surface
@@ -123,4 +123,18 @@ CONSEQUENCE FOR PRIORITY — downgraded HIGH to MEDIUM, and the reason is worth 
 That is still worth fixing, and the implementation constraints above are unchanged. It is not worth fixing ahead of anything that produces a wrong ANSWER, which is how the earlier note's numbers made it read. A cap of a few hundred diagnostics would leave every measured real case untouched.
 
 STILL THE ONE THING THAT MATTERS IN THE IMPLEMENTATION, unchanged by the reproportioning: `must_fix_before_write` must be computed from the COMPLETE diagnostic set, before truncation, and that has to be sabotage-verified with a buffer whose only blocking error sorts beyond the cap. A cap that drops the blocking diagnostic while the gate still reads `false` manufactures precisely the false approval this package exists to prevent — and it would do so only on large inputs, which is where nobody is looking.
+
+ROUND-4 RE-MEASURE (2026-08-02). Unchanged and confirmed independently by the round-4 evaluation, over the real stdio transport. It found no truncation logic anywhere in platformos-mcp-supervisor/src, so nothing has landed since the numbers above were taken.
+
+| Request | Diagnostics | Response frame | Amplification |
+|---|---|---|---|
+| 1 file at MAX_BUFFER_BYTES (128 KiB) | 4 519 | 766 KiB | 5.99x |
+| 4 files at MAX_BATCH_BYTES (266 KiB) | 9 392 | 1 588 KiB | 5.97x |
+| 50 files at the byte cap | 9 352 | 1 574 KiB | 5.94x |
+
+The figures are slightly higher than the ones recorded above because MAX_BATCH_BYTES changed and the YAML checks were added, not because the behaviour changed. Amplification is stable at about 6x across every shape tested, which is the useful constant: the request is bounded at 266 KiB and the answer to it is bounded by nothing.
+
+PRIORITY DELIBERATELY LEFT AT MEDIUM. The round-4 report grades this HIGH. The downgrade recorded above still holds and is not revised: the numbers that look alarming are all tail cases, the common path measures at tens to a couple of hundred tokens, and this produces no wrong answer. What the round-4 grading adds is a fair scheduling observation rather than a severity one -- this is the only item in the group that is wholly owned by the supervisor and has now gone a full cycle untouched while three other things shipped.
+
+The implementation constraint is unchanged and is still the only part that can go badly wrong: must_fix_before_write has to be computed from the complete diagnostic set BEFORE truncation, sabotage-verified with a buffer whose only blocking error sorts beyond the cap. A cap that drops the blocking diagnostic while the gate still reads false converts an ergonomics fix into a false approval, on large inputs, where nobody is looking.
 <!-- SECTION:NOTES:END -->

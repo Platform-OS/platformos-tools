@@ -37,7 +37,7 @@ The old `detectResources` resource/CRUD completeness. Per ADR 004 this is CONVEN
 
 ## References
 - ADR docs/mcp-supervisor/decisions/004-platform-facts-vs-conventions/README.md
-- Old impl: pos-mcp src/core/project-scanner.js detectResources (git f60bc39)</parameter>
+- Old impl: pos-mcp src/core/project-scanner.js detectResources (git f60bc39)
 <parameter name="acceptanceCriteria">["Resource/CRUD completeness is implemented as a convention overlay OUTSIDE platformos-graph's neutral model (domain layer for the descriptive map; configurable check for prescriptive warnings) per ADR 004", "Descriptive map groups commands/queries/graphql/pages per table by convention, composing TASK-9.6 platform facts; command/query path roots are configurable, not hardcoded", "Prescriptive completeness warnings are a toggleable check (default-off or advisory), disableable via .platformos-check.yml for apps not using the convention", "platformos-graph contains NO command/query/resource convention; supervisor contains no bespoke graph/scanner logic", "Depends on TASK-9.6; TDD with fixtures; all consumers re-verified green"]
 <!-- SECTION:DESCRIPTION:END -->
 

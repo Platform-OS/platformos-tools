@@ -3,6 +3,13 @@ import { parseModulePrefix } from '../path-utils';
 import { URI, Utils } from 'vscode-uri';
 import yaml from 'js-yaml';
 
+import { PLATFORM_YAML_LOAD_OPTIONS } from '../yaml-load-options';
+
+/**
+ * Every `load` below sits inside a `try`/`catch` that treats a throw as "this file has
+ * no translations", so js-yaml's default made one repeated key empty an entire locale
+ * and every key in it appear missing. See {@link PLATFORM_YAML_LOAD_OPTIONS}.
+ */
 export class TranslationProvider {
   constructor(private readonly fs: AbstractFileSystem) {}
 
@@ -95,7 +102,7 @@ export class TranslationProvider {
       const singleFileUri = Utils.joinPath(rootUri, basePath, `${defaultLocale}.yml`).toString();
       const singleContents = await this.readFileIfExists(singleFileUri);
       if (singleContents) {
-        const data = yaml.load(singleContents);
+        const data = yaml.load(singleContents, PLATFORM_YAML_LOAD_OPTIONS);
         if (this.findKeyInYaml(data, defaultLocale, parsed.key)) {
           return [singleFileUri, parsed.key];
         }
@@ -107,7 +114,7 @@ export class TranslationProvider {
       for (const fileUri of ymlFiles) {
         const contents = await this.readFileIfExists(fileUri);
         if (contents) {
-          const data = yaml.load(contents);
+          const data = yaml.load(contents, PLATFORM_YAML_LOAD_OPTIONS);
           if (this.findKeyInYaml(data, defaultLocale, parsed.key)) {
             return [fileUri, parsed.key];
           }
@@ -193,7 +200,7 @@ export class TranslationProvider {
     expectedLocale: string,
   ): Record<string, any> | undefined {
     try {
-      const data = yaml.load(content) as Record<string, any>;
+      const data = yaml.load(content, PLATFORM_YAML_LOAD_OPTIONS) as Record<string, any>;
       if (!data || typeof data !== 'object') return undefined;
       const firstKey = Object.keys(data)[0];
       if (firstKey !== expectedLocale) return undefined;
@@ -229,7 +236,7 @@ export class TranslationProvider {
       return undefined;
     }
 
-    let data: any = yaml.load(contents);
+    let data: any = yaml.load(contents, PLATFORM_YAML_LOAD_OPTIONS);
 
     for (const part of [defaultLocale, ...key.split('.')]) {
       data = data?.[part];

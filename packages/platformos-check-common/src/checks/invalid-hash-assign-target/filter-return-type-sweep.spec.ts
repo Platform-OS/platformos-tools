@@ -14,6 +14,7 @@ import {
   type RuntimeOutcome,
 } from './filter-return-type-oracle';
 import filtersJson from '../../../../platformos-check-docs-updater/data/filters.json';
+import { UNDOCUMENTED_FILTERS } from '../../undocumented-filters';
 import { runLiquidCheck } from '../../test';
 import type { PlatformOSDocset } from '../../types';
 
@@ -87,8 +88,10 @@ interface DocsetFilter {
  * `filters.json` collapses rather than conflicts.
  *
  * The undocumented filters the augmentation appends carry no `return_type` at all, so
- * they resolve to `untyped` and report nothing; they are covered by
- * `undocumented-filters.spec.ts` and are not part of this population.
+ * they resolve to `untyped` and report nothing. They are NOT part of this population and
+ * are NOT covered by `undocumented-filters.spec.ts` either — that file settles whether
+ * the names exist, not what they return. See the dedicated test below, which names them
+ * and their measured types so the gap is visible rather than assumed away.
  */
 const reportingFromDocset = (): Map<string, string> => {
   const official = filtersJson as DocsetFilter[];
@@ -436,6 +439,47 @@ describe('Sweep: the filters this check deliberately says nothing about', () => 
         'remove_hash_key',
       ],
     });
+  });
+
+  it('records the UNDOCUMENTED filters as a known detection gap, with their measured types', async () => {
+    // A GAP, NOT A DECISION — and the reason it is asserted rather than described.
+    //
+    // `AugmentedPlatformOSDocset` appends `UNDOCUMENTED_FILTERS` as bare `{ name }`
+    // entries: real filters, proven to exist on an instance, but absent from the docs API
+    // and therefore carrying no `return_type`. `variableTypeOf` resolves them to `untyped`
+    // and this check says nothing about any of them.
+    //
+    // Measured on a live instance — five of the six return a type this check WOULD
+    // report on:
+    //
+    //   find        -> Hash      silent is the correct verdict; a Hash is a valid target
+    //   find_index  -> Integer   missed
+    //   h           -> String    missed
+    //   has         -> Boolean   missed
+    //   sum         -> Integer   missed
+    //   where       -> Array     missed (a key subscript raises "expected index")
+    //
+    // Safe direction: a missed detection costs one broken file found later, never a
+    // refusal of working code. But it is a gap, and the population is small and fixed, so
+    // it is pinned here — a new undocumented filter arriving is a new blind spot and
+    // should show up as a failure rather than as continued silence.
+    //
+    // Closing it needs `verify-undocumented-filters.mjs` to record return types alongside
+    // the names, which is a change to a different generated module and not something to
+    // smuggle into this one.
+    expect([...UNDOCUMENTED_FILTERS]).toEqual(['find', 'find_index', 'h', 'has', 'sum', 'where']);
+
+    const reports = await Promise.all(
+      UNDOCUMENTED_FILTERS.flatMap((name) =>
+        [`'k'`, '0'].map(async (subscript) => ({
+          filter: name,
+          subscript,
+          reports: await reportsFor(name, subscript),
+        })),
+      ),
+    );
+
+    expect(reports.filter((entry) => entry.reports)).toEqual([]);
   });
 
   it('separates the Hash-typed filters, which are silent because they are VALID targets', async () => {

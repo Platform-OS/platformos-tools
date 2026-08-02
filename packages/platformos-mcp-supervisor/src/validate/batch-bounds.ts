@@ -32,6 +32,20 @@ export const MAX_BATCH_FILES = 50;
  * batch that could not finish inside the deadline, and every file in such a request
  * comes back `timed_out` — unchecked, silently. Deriving it means the next change
  * to the cost model moves this too, and the spec fails if it stops fitting.
+ *
+ * WHAT THE WORST LEGAL BATCH ACTUALLY COSTS, measured 2026-08-02 with
+ * `scripts/measure-lint-cost.mjs` on an idle Intel i7-6820HQ (see `LINT_MS_PER_KIB`
+ * for the full table):
+ *
+ *   ```
+ *     266 KiB over 4 files    -> 10.7 s against a 119 700 ms earned deadline   (11x)
+ *     266 KiB over 50 files   ->  9.6 s against the same deadline              (12x)
+ *   ```
+ *
+ * Recorded here as a REPRODUCIBLE fact rather than a figure from an external report,
+ * because that is the whole point of deriving the cap: the margin is checkable by
+ * re-running one script, and `cost-model.spec.ts` fails if the ARITHMETIC stops
+ * fitting even when nobody re-runs it.
  */
 export const MAX_BATCH_BYTES = maxBytesWithin(MAX_LINT_DEADLINE_MS);
 

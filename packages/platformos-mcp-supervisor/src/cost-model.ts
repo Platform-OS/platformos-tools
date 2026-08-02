@@ -42,29 +42,72 @@
 /**
  * Wall-clock cost of linting one KiB of buffer, on an idle machine, warm cache.
  *
- * Measured end to end (`lintBuffer` against a real 162-file project), not against
- * the parse alone — every enabled check walks the AST after it:
+ * Measured end to end (`runValidateCode`, the whole request path), not against the parse
+ * alone — every enabled check walks the AST after it, and every offense is then mapped to
+ * a line/character position.
+ *
+ * RE-MEASURED 2026-08-02, and the numbers are reproducible rather than quoted:
+ * `scripts/measure-lint-cost.mjs` builds the project, runs the shapes and prints this
+ * table. Machine: Intel i7-6820HQ @ 2.70GHz, 8 threads, 31 GB, node v25.6.0, idle,
+ * against the script's synthetic 40-partial project.
+ *
+ * WORST of three separate idle runs, each itself a best-of-three — not the best run.
+ * Run-to-run spread was about 10% on the same machine (clean single came in at 44.2, 48.4
+ * and 50.8 ms/KiB), and taking the favourable one would quietly restate a ceiling as an
+ * average:
  *
  *   ```
- *     128 KiB single buffer   ->  7.1 s   (~55 ms/KiB)
- *     508 KiB, 4-file batch   -> 37.8 s   (~74 ms/KiB)
+ *     128 KiB single, clean markup   ->  6.5 s   (50.8 ms/KiB)   <- slowest
+ *     128 KiB single, 4 228 offenses ->  4.6 s   (35.6 ms/KiB)
+ *     266 KiB batch, 4 files         -> 10.7 s   (40.1 ms/KiB)
+ *     266 KiB batch, 50 files        ->  9.6 s   (36.2 ms/KiB)
  *   ```
  *
- * Rounded UP to the worse of the two. The batch figure is the honest one to build
- * on: it is the most recent, it includes the per-node work `FilterArity` added, and
- * it is mildly superlinear, so sizing on the single-buffer rate would under-count
- * exactly the case these bounds exist to contain.
+ * CLEAN MARKUP IS THE SLOWEST SHAPE, which is not what anyone expects and is the reason
+ * the script measures both. Realistic markup — `{% doc %}`, loops, renders, filter chains
+ * — costs more per byte than markup that is one broken filter per line, because parse and
+ * check work dominates and a repeated one-line construct is cheap to walk. Sizing this
+ * constant on the diagnostic-dense shape alone would under-count the COMMON case by a
+ * third.
  *
- * DO NOT LOWER THIS TO MATCH A FASTER MEASUREMENT. It varies by several times with
- * the project and the markup, and it is deliberately set at the SLOWEST observed
- * rate. A separate run of the derived cap against a 21-file project came in at
- * 12-17 ms/KiB across every legal batch shape (4, 8 and 50 files, and two maximal
- * buffers) — four to six times faster than the figure above, and no reason to move
- * it. Cost tracks parse and check work, not bytes: 127 KiB of one repeated
- * character validates roughly 3x faster than 127 KiB of real markup, and a project
- * with more files to resolve references against is slower again. Being wrong FAST
- * here costs a longer wait before a stall is declared; being wrong SLOW admits a
- * request that cannot finish, which returns `timed_out` for every file in it.
+ * DO NOT LOWER THIS TO MATCH A FASTER MEASUREMENT — and the 2026-08-02 re-measurement is
+ * exactly that situation, so it did not move. 50.8 against a modelled 75 is a 32% margin,
+ * and the rule holds for the same reasons it always did: the rate varies by several times
+ * with the project and the markup and is deliberately set at the SLOWEST observed value.
+ * A run against a 21-file project came in at 12-17 ms/KiB across every legal batch shape;
+ * 127 KiB of one repeated character validates roughly 3x faster than real markup; a
+ * project with more files to resolve references against is slower again. One favourable
+ * machine on one project composition is not a reason to shrink every derived bound.
+ * Being wrong FAST costs a longer wait before a stall is declared; being wrong SLOW admits
+ * a request that cannot finish, which returns `timed_out` for every file in it.
+ *
+ * ON THE ROUND-4 "REGRESSION", which is why this was re-measured. An external evaluation
+ * reported throughput falling to 68.5 ms/KiB and named two candidate causes without
+ * isolating either. THE CHANGE WAS ENVIRONMENTAL. The commit BEFORE the position-mapping
+ * fix, measured today with the same script on this machine, runs at 45.4 ms/KiB — a 1.5x
+ * difference from that report with no code change at all between the two numbers, which
+ * matches the report's own caveat that its runs were uncontrolled.
+ *
+ * The position fix is real but NARROW, measured as a paired A/B across the commit
+ * (base, HEAD, base again — the two base runs agreed to within 1%):
+ *
+ *   ```
+ *     dense single buffer   42.1 -> 29.6 ms/KiB   (-29%, -1.58 s)
+ *     clean single buffer   45.4 -> 44.2          (noise)
+ *     266 KiB batch, 4      36.2 -> 37.1          (noise)
+ *     266 KiB batch, 50     26.8 -> 26.8          (unchanged)
+ *   ```
+ *
+ * It buys nothing on either BATCH shape — and those are what {@link MAX_BATCH_BYTES} is
+ * derived from, so the cap's margin was never the thing that improved.
+ *
+ * WHICH CHECK IS EXPENSIVE IS STILL UNKNOWN, and is recorded as unknown rather than
+ * guessed. Per-check attribution by disabling one check at a time was attempted and
+ * abandoned: the measurement noise on this workload is hundreds of milliseconds against
+ * per-check effects of tens, demonstrated by JSON- and YAML-typed checks — which cannot
+ * touch a Liquid buffer — being credited with real costs. The reasoning is kept in
+ * `scripts/measure-lint-cost.mjs` so the same dead end is not walked twice. Answering it
+ * needs per-visitor instrumentation, not subtraction of two noisy totals.
  */
 export const LINT_MS_PER_KIB = 75;
 

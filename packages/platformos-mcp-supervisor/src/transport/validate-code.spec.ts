@@ -794,6 +794,15 @@ describe('server instructions', () => {
     expect(SERVER_INSTRUCTIONS).toContain('one that does not parse is reported and blocks');
     expect(SERVER_INSTRUCTIONS).toContain('The SHAPE of a model');
     expect(SERVER_INSTRUCTIONS).not.toContain('YAML SYNTAX IS NOT VALIDATED');
+
+    // A duplicated key USED to be listed here as not reported, which was true and
+    // measured until `DuplicateYAMLKey` landed. The sentence had to change in the same
+    // commit as the check, because an instruction that overstates what is NOT reported
+    // turns a warning the agent receives into something it was told could not happen.
+    // Both halves are pinned: that it is reported, and that it does not block.
+    expect(SERVER_INSTRUCTIONS).toContain('A key defined TWICE');
+    expect(SERVER_INSTRUCTIONS).toContain('does NOT block');
+    expect(SERVER_INSTRUCTIONS).not.toContain('a duplicated name is not');
   });
 
   it('tells the agent to validate BEFORE writing', () => {

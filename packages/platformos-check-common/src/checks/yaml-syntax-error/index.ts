@@ -27,6 +27,12 @@ import { YAMLConvertError } from '../../yaml/parse';
  * and a schema model would be work with no measured payoff. If that changes, it is
  * a different check — this one answers "does this file parse?" and nothing else.
  *
+ * THAT IS EXACTLY WHAT HAPPENED WITH DUPLICATE KEYS, and the split held. A repeated
+ * key still deploys, so it is still not a syntax error and still not reported here —
+ * but the platform keeps the LAST value, so an earlier one is silently discarded.
+ * `DuplicateYAMLKey` reports that, as a WARNING and outside `BLOCKING_CHECKS`, which
+ * is what keeps a semantic finding off the write gate this check sits on.
+ *
  * THAT PARAGRAPH IS ENFORCED, not merely asserted — see `duplicate-keys.spec.ts`. It
  * was true and untested for one release, during which the `yaml` package's
  * `uniqueKeys` default quietly turned a duplicated name into a hard refusal to write,

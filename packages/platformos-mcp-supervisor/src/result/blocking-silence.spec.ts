@@ -642,4 +642,34 @@ describe('Integration: every blocking check stays silent on input the platform a
       locations.map((filePath) => ({ filePath, blocked: true, errors: ['YAMLSyntaxError'] })),
     );
   }, 120_000);
+
+  it('reports a duplicate key as a non-blocking WARNING, not as silence and not as a block', async () => {
+    // THE DISTINCTION THIS SUITE NOW HAS TO CARRY. The duplicate-key fixtures above
+    // assert `fromCheck: []` for `YAMLSyntaxError` and `blocked: false` — both still
+    // true, and neither says anything about whether some OTHER check speaks up. Once
+    // `DuplicateYAMLKey` landed, "no diagnostic at all" and "no block" stopped being the
+    // same claim, and only the second one is the promise this server makes.
+    //
+    // So the absence of a block is asserted together with the PRESENCE of the advisory.
+    // Asserting only the silence would let the check be deleted without a failure;
+    // asserting only the warning would let it drift onto the write gate.
+    const observed = [];
+    for (const [name, content] of [
+      ['top level', 'name: car\nname: van\n'],
+      ['nested', 'name: car\nproperties:\n  make: ford\n  make: audi\n'],
+    ] as const) {
+      const result = await validate(SCHEMA, content);
+      observed.push({
+        name,
+        blocked: result.must_fix_before_write,
+        errorChecks: [...new Set(result.errors.map((error) => error.check))],
+        warningChecks: [...new Set(result.warnings.map((warning) => warning.check))],
+      });
+    }
+
+    expect(observed).toEqual([
+      { name: 'top level', blocked: false, errorChecks: [], warningChecks: ['DuplicateYAMLKey'] },
+      { name: 'nested', blocked: false, errorChecks: [], warningChecks: ['DuplicateYAMLKey'] },
+    ]);
+  }, 120_000);
 });

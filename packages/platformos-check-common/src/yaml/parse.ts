@@ -64,8 +64,18 @@ export function toYAMLNode(source: string): JSONNode {
   // library defaults it to `true` and raises `DUPLICATE_KEY`, which reached the
   // blocking gate and refused writes the platform accepts — measured against
   // `pos-cli deploy --dry-run`, which takes a duplicated key at the top level, inside
-  // a property, and in a translation file. The last value wins, exactly as `toJS`
-  // resolves it here.
+  // a property, and in a translation file.
+  //
+  // The platform then resolves it LAST-WINS, exactly as `toJS` does here — measured
+  // separately on 2026-08-02 by deploying a translations file with a key repeated at
+  // both levels and reading the values back through `liquid_exec`. That is called out
+  // as its own measurement because this comment previously asserted it in the same
+  // breath as the `--dry-run` result, which only ever established that the file is
+  // ACCEPTED. Acceptance and resolution are different claims and only one of them had
+  // been measured.
+  //
+  // Accepting the key does not make the discarded value harmless: `DuplicateYAMLKey`
+  // reports it as a non-blocking warning. Silence here is about PARSING, not approval.
   //
   // This one option is the entire distance between what two documents in this repo
   // promised and what the code did: the check's own docstring says duplicate property

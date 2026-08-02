@@ -9,6 +9,7 @@ import {
 import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedTag } from './deprecated-tag';
 import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
+import { DuplicateYAMLKey } from './duplicate-yaml-key';
 import { ImgWidthAndHeight } from './img-width-and-height';
 import { JSONSyntaxError } from './json-syntax-error';
 import { LiquidHTMLSyntaxError } from './liquid-html-syntax-error';
@@ -56,6 +57,7 @@ export const allChecks: (
   DeprecatedTag,
   DuplicateFunctionArguments,
   DuplicateRenderPartialArguments,
+  DuplicateYAMLKey,
   ImgWidthAndHeight,
   JSONSyntaxError,
   LiquidHTMLSyntaxError,

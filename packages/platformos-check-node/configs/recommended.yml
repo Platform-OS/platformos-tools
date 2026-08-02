@@ -15,6 +15,9 @@ DuplicateFunctionArguments:
 DuplicateRenderPartialArguments:
   enabled: true
   severity: 1
+DuplicateYAMLKey:
+  enabled: true
+  severity: 1
 FilterArity:
   enabled: true
   severity: 0

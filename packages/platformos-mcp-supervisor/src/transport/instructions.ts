@@ -95,9 +95,11 @@ WHAT IS ACTUALLY CHECKED
   YAML    - syntax, for model/schema, transactable-type, profile-type and
             translation files: one that does not parse is reported and blocks,
             because the deploy converter rejects it and takes the whole changeset
-            with it. Translation CONTENT is checked as well. The SHAPE of a model
-            schema is not — an unknown property or a duplicated name is not
-            reported, because the platform accepts both.
+            with it. Translation CONTENT is checked as well. A key defined TWICE in
+            the same mapping is reported as a warning and does NOT block: the file
+            deploys, the last value wins, and the earlier one is silently discarded.
+            The SHAPE of a model schema is not checked — an unknown property is not
+            reported, because the platform accepts it.
 
 Coverage is per project: checks can be enabled, disabled or ignored in the
 project's .platformos-check.yml, so a clean result reflects that project's

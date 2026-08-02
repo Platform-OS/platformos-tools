@@ -69,6 +69,21 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
       // `undocumented-filters.spec.ts` own the contents.
       const filters = await platformosDocset.filters();
 
+      // THIS ASSERTION IS THE LANGUAGE SERVER BOUNDARY. `startServer.ts` builds this same
+      // `AugmentedPlatformOSDocset`, so whatever shape appears here is what the LSP's
+      // `TypeSystem` consumes — and `docsetEntryReturnType` defaults a filter with no
+      // `return_type` to `'string'`.
+      //
+      // Adding `return_type` to these entries would therefore retype them for completions
+      // and hover (`sum` -> number, `where` -> array, `find` -> hash, `has` -> boolean).
+      // That is very likely an IMPROVEMENT, but `TypeSystem.spec.ts` injects a mock docset
+      // and would not catch a regression, so the change cannot be verified where it lands.
+      //
+      // The measured types live in `UNDOCUMENTED_FILTER_RETURN_TYPES` instead, consumed
+      // only by `InvalidHashAssignTarget`. Keeping the entries bare makes the LSP delta
+      // provably zero — same code path, same input — rather than probably fine. If you
+      // want the LSP improvement, do it as its own change with tests that drive the real
+      // augmented docset, and expect this assertion to change with it.
       expect(filters).toEqual(UNDOCUMENTED_FILTERS.map((name) => ({ name })));
     });
 

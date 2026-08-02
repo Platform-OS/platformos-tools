@@ -136,6 +136,19 @@ const filterNames = async () => {
   const source = await readFile(UNDOCUMENTED, 'utf8');
   const undocumented = [...source.matchAll(/^\s*'([a-z0-9_]+)',$/gim)].map((m) => m[1]);
 
+  // SCRAPING A SOURCE FILE IS BRITTLE, so it fails loudly instead of quietly. This regex
+  // depends on how `verify-undocumented-filters.mjs` formats its output; if that module
+  // ever emits a different shape, matching nothing would silently drop `sum`, `where`,
+  // `find`, `find_index`, `has` and `h` from FILTER_ARITY — and a missing arity is a
+  // check that stops reporting, which no test would notice. The file always has entries,
+  // so zero means the parse broke rather than the list being empty.
+  if (undocumented.length === 0) {
+    throw new Error(
+      `Extracted no names from ${UNDOCUMENTED}. Its format probably changed — fix this ` +
+        `parser rather than regenerating arities without the undocumented filters.`,
+    );
+  }
+
   return [...new Set([...documented, ...undocumented])].sort();
 };
 

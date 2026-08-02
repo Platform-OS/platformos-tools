@@ -154,6 +154,70 @@ whole-value equality assertion over several partial ones.
   asserting the boolean/`null` outcome is fine — don't over-pin an internal
   payload consumers don't depend on.
 
+### Silence needs a test, and a control
+
+A check that must **not** report is making a promise exactly as strong as one
+that must. Four evaluation rounds found the same failure repeatedly: prose said
+"duplicates are not reported", no test asserted it, and the code did the
+opposite for a whole release while the suite stayed green. **Prose cannot fail.**
+
+- Every "must stay silent" case is paired with a **control that must still
+  fire**. A suppression wide enough to hide a real defect passes every
+  "nothing was reported" assertion ever written.
+- Make sure the silence is caused by the code under test, not by the fixture.
+  A "we ignore unparseable files" test whose fixture contains nothing to report
+  passes with the guard deleted — assert that the thing *is* findable by other
+  means, so neither half is vacuous.
+
+### Sabotage before you trust a test
+
+Break the code deliberately and confirm the test fails. If nothing fails, the
+test is decorative. This has caught three vacuous tests and a rule that no real
+input could exercise — when precedence between two tables could not be
+distinguished by any real data, the ordering had to be asserted directly.
+
+### Measure; don't infer, and keep claims separate
+
+- Prefer a runtime oracle over reasoning about what a library or platform
+  "obviously" does. `1` and `"1"` are one key in a JS object and two in a Ruby
+  Hash; guessing either way produces a false report.
+- **Two claims must not ride in one sentence.** "The converter accepts a
+  duplicate key and resolves it last-wins" was written from a measurement of
+  *acceptance* only, and the resolution half went unmeasured in three files
+  until someone deployed a probe. If a sentence asserts two things, either
+  measure both or attribute each separately.
+- When a benchmark surprises you, suspect the benchmark. Include a control that
+  **cannot** be affected by what you're measuring — a JSON-typed check timed
+  against a Liquid buffer should cost nothing, and if it doesn't, the number is
+  the method's error bar.
+
+### Generated files
+
+`src/filter-arity.ts`, `src/undocumented-filters.ts` and the
+`*-oracle.ts` fixtures are produced by `scripts/verify-*.mjs` against a live
+instance and committed. When touching them:
+
+- Regenerating an unchanged instance must produce a **byte-identical** file —
+  format the output inside the generator, not afterwards.
+- A generator that parses another generated file must **fail loudly** when it
+  extracts nothing; a silently-empty list drops data no test will miss.
+- Never hand-edit. `data/filters.json` in particular is re-downloaded by the
+  docs-updater's `postbuild`, so edits there are reverted by the next build.
+- Test-only fixtures (`*-oracle.ts`) are excluded from `tsconfig.build.json` —
+  they must not ship in `dist`.
+
+### Adding a check
+
+- Register it in `src/checks/index.ts`, then **regenerate the factory configs**
+  (`node packages/platformos-check-node/scripts/generate-factory-configs.js`) or
+  `all.yml` / `recommended.yml` will not list it.
+- Blocking is not severity. `blocksWrite` requires severity `error` **and**
+  membership of `BLOCKING_CHECKS`, so a new check is non-blocking by default —
+  keep it that way unless the platform genuinely rejects the file.
+- If the check changes what the MCP server reports, update
+  `transport/instructions.ts` in the **same** change; its claims are pinned by
+  `validate-code.spec.ts` precisely so they cannot rot.
+
 ## Development Workflows
 
 ### Online Store Web Integration

@@ -441,45 +441,71 @@ describe('Sweep: the filters this check deliberately says nothing about', () => 
     });
   });
 
-  it('records the UNDOCUMENTED filters as a known detection gap, with their measured types', async () => {
-    // A GAP, NOT A DECISION — and the reason it is asserted rather than described.
+  it('covers the UNDOCUMENTED filters too, each behaving as its measured type', async () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the change is the point.
     //
     // `AugmentedPlatformOSDocset` appends `UNDOCUMENTED_FILTERS` as bare `{ name }`
     // entries: real filters, proven to exist on an instance, but absent from the docs API
-    // and therefore carrying no `return_type`. `variableTypeOf` resolves them to `untyped`
-    // and this check says nothing about any of them.
+    // and so carrying no `return_type`. Every one resolved to `untyped`, and this check
+    // said nothing about any of them — five of the six being types it WOULD report on.
+    // That was a real blind spot on names an agent reaches for by habit from Shopify
+    // Liquid, and it was pinned here as a known gap rather than left invisible.
     //
-    // Measured on a live instance — five of the six return a type this check WOULD
-    // report on:
+    // `verify-undocumented-filters.mjs` now measures each one's return type in the same
+    // pass that proves it exists, and `variableTypeOf` resolves it. So the assertion flips
+    // from "nothing is reported" to the exact per-filter behaviour:
     //
-    //   find        -> Hash      silent is the correct verdict; a Hash is a valid target
-    //   find_index  -> Integer   missed
-    //   h           -> String    missed
-    //   has         -> Boolean   missed
-    //   sum         -> Integer   missed
-    //   where       -> Array     missed (a key subscript raises "expected index")
+    //   find        -> hash     silent, and CORRECTLY so — a Hash is a valid target
+    //   find_index  -> number   reports on both subscripts
+    //   h           -> string   reports on both subscripts
+    //   has         -> boolean  reports on both subscripts
+    //   sum         -> number   reports on both subscripts
+    //   where       -> array    reports on a KEY, silent on an index
     //
-    // Safe direction: a missed detection costs one broken file found later, never a
-    // refusal of working code. But it is a gap, and the population is small and fixed, so
-    // it is pinned here — a new undocumented filter arriving is a new blind spot and
-    // should show up as a failure rather than as continued silence.
-    //
-    // Closing it needs `verify-undocumented-filters.mjs` to record return types alongside
-    // the names, which is a change to a different generated module and not something to
-    // smuggle into this one.
+    // `find` staying silent is what keeps this honest: a blanket "they all report now"
+    // would be wrong, and would mean the type was never really consulted.
     expect([...UNDOCUMENTED_FILTERS]).toEqual(['find', 'find_index', 'h', 'has', 'sum', 'where']);
 
     const reports = await Promise.all(
       UNDOCUMENTED_FILTERS.flatMap((name) =>
         [`'k'`, '0'].map(async (subscript) => ({
-          filter: name,
-          subscript,
+          filter: `${name}[${subscript === '0' ? 'index' : 'key'}]`,
           reports: await reportsFor(name, subscript),
         })),
       ),
     );
 
-    expect(reports.filter((entry) => entry.reports)).toEqual([]);
+    expect(reports).toEqual([
+      { filter: 'find[key]', reports: false },
+      { filter: 'find[index]', reports: false },
+      { filter: 'find_index[key]', reports: true },
+      { filter: 'find_index[index]', reports: true },
+      { filter: 'h[key]', reports: true },
+      { filter: 'h[index]', reports: true },
+      { filter: 'has[key]', reports: true },
+      { filter: 'has[index]', reports: true },
+      { filter: 'sum[key]', reports: true },
+      { filter: 'sum[index]', reports: true },
+      { filter: 'where[key]', reports: true },
+      { filter: 'where[index]', reports: false },
+    ]);
+  });
+
+  it('gives an undocumented Array filter the INDEX remedy, not the Hash one', async () => {
+    // AC#3's "correct remedy for each". `where` returns an Array, so a key subscript must
+    // get "use a numeric index" — the same wording every documented Array filter gets.
+    // Telling an author to convert it to a Hash would be wrong advice on working code,
+    // and is exactly what a type-blind "it reports now" implementation would produce.
+    const offenses = await runLiquidCheck(
+      InvalidHashAssignTarget,
+      `{% assign x = 'a' | where: 'k', 1 %}\n{% hash_assign x['k'] = 'v' %}`,
+      'file.liquid',
+      { platformosDocset: docset },
+    );
+
+    expect(offenses.map((offense) => offense.message)).toEqual([
+      `Cannot use hash_assign on 'x' with a string key, because it is an Array. Use a numeric index instead.`,
+    ]);
   });
 
   it('separates the Hash-typed filters, which are silent because they are VALID targets', async () => {

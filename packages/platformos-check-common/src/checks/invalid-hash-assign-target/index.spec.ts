@@ -634,6 +634,27 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
     ]).toEqual(['untyped', 'untyped', 'string', 'number', 'untyped']);
   });
 
+  it('does NOT let the UNDOCUMENTED types override a spelling either', async () => {
+    // The same precedence rule for the second measured fallback, and it needs its own
+    // test for a reason worth writing down: NO undocumented filter carries a docset
+    // `return_type`, because being absent from the docset is what makes it undocumented.
+    // So the ordering cannot be distinguished by any real input — inverting it in the
+    // source changed nothing and every test still passed.
+    //
+    // A rule no data can exercise is a rule that quietly stops holding. These calls
+    // construct the collision directly: a name the undocumented map DOES hold, handed a
+    // spelling the check declines to interpret. The spelling has to win, or the map has
+    // become a second mapping table with weaker rules.
+    expect([
+      variableTypeOf({ name: 'where', return_type: [{ type: 'string, nil' }] }),
+      variableTypeOf({ name: 'sum', return_type: [{ type: 'hash' }] }),
+      // ...and with no spelling to defer to, the measurement answers.
+      variableTypeOf({ name: 'where' }),
+      variableTypeOf({ name: 'sum' }),
+      variableTypeOf({ name: 'find' }),
+    ]).toEqual(['untyped', 'object', 'array', 'number', 'object']);
+  });
+
   it('still reports every primitive the runtime raises on', async () => {
     // AC#4. The fix must not trade one false block for false approvals; these four
     // were all confirmed raising `HashAssignTagError`.

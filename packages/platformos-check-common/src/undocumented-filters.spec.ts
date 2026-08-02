@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import filtersJson from '../../platformos-check-docs-updater/data/filters.json';
 import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
-import { UNDOCUMENTED_FILTERS } from './undocumented-filters';
+import { UNDOCUMENTED_FILTERS, UNDOCUMENTED_FILTER_RETURN_TYPES } from './undocumented-filters';
 import type { PlatformOSDocset } from './types';
 
 /** Only the two fields these tests read; the docs payload carries many more. */
@@ -30,6 +30,37 @@ describe('Unit: UNDOCUMENTED_FILTERS', () => {
     // must be a deliberate edit HERE, made after re-running the generator — never a
     // quiet append to the array.
     expect([...UNDOCUMENTED_FILTERS]).toEqual(['find', 'find_index', 'h', 'has', 'sum', 'where']);
+  });
+
+  it('types every filter it lists, and lists every filter it types', () => {
+    // THE DRIFT GUARD. The names and the measured return types are two exports of one
+    // generated file, and two parallel structures describing one population is exactly
+    // how a list and its metadata fall out of step — a filter added to one and forgotten
+    // in the other would silently go untyped, which is invisible because untyped is also
+    // the safe default.
+    //
+    // Both are emitted from the same pass in `verify-undocumented-filters.mjs`, so this
+    // asserts that pass rather than the transcription. A filter the generator could not
+    // MEASURE is legitimately absent from the types map, so this test failing means
+    // either a probe is missing or the two halves were edited by hand.
+    expect(Object.keys(UNDOCUMENTED_FILTER_RETURN_TYPES).sort()).toEqual(
+      [...UNDOCUMENTED_FILTERS].sort(),
+    );
+  });
+
+  it('records the measured return type of each, in the docset spelling', () => {
+    // Pinned whole, for the same reason the name list is: each of these changes what
+    // `InvalidHashAssignTarget` refuses to write. `find` returning a hash is the one that
+    // must stay SILENT — a Hash is a valid hash_assign target — so it is as load-bearing
+    // as the five that report.
+    expect(UNDOCUMENTED_FILTER_RETURN_TYPES).toEqual({
+      find: 'hash',
+      find_index: 'number',
+      h: 'string',
+      has: 'boolean',
+      sum: 'number',
+      where: 'array',
+    });
   });
 
   it('contains none of the 12 fictional filters that used to be hardcoded', () => {

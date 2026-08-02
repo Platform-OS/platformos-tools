@@ -11,6 +11,9 @@ To learn more about our release practices, please read [our releasing documentat
 ## Theme Check
 - [Writing your own check](./platformos-check-common/writing-your-own-check)
 
+## platformOS platform behaviour
+- [platformOS gotchas](./platformos-gotchas.md) — runtime and deploy-converter behaviours measured against a live instance while building the MCP supervisor
+
 We encourage you to explore these documents to better understand the capabilities and usage of each tool.
 
 ## Contributing

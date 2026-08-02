@@ -7,7 +7,7 @@
 // what the instance actually returned.
 //
 // Instance:  https://fk-docs.ps-01-platformos.com
-// Generated: 2026-08-01
+// Generated: 2026-08-02
 
 /**
  * Filters that work in platformOS but are missing from the official docs.
@@ -39,3 +39,45 @@ export const UNDOCUMENTED_FILTERS: readonly string[] = [
   // rendered "[{&quot;k&quot;:1}]"
   'where',
 ];
+
+/**
+ * What each undocumented filter RETURNS, in the docset's own spelling.
+ *
+ * WHY THIS IS A SECOND EXPORT AND NOT A FIELD ON THE LIST ABOVE. The list is fed to
+ * {@link AugmentedPlatformOSDocset} as bare `{ name }` entries, and that docset is built
+ * by the LANGUAGE SERVER too (`startServer.ts`). Attaching `return_type` there would
+ * retype these filters for LSP completions and hover — from the `'string'` default that
+ * `docsetEntryReturnType` currently applies, to their real types. That is probably an
+ * improvement, but the language server's own tests inject a MOCK docset and would not
+ * catch a regression, so the change cannot be verified where it lands.
+ *
+ * Keeping the list byte-identical means the LSP delta is provably zero rather than
+ * probably fine: same code path, same input. Improving LSP typing from this data is
+ * worth doing on its own terms, with tests that drive the real augmented docset.
+ *
+ * Consumed only by `InvalidHashAssignTarget`, which resolves it exactly like
+ * `DOCSET_RETURN_TYPE_GAPS`: only where the docset has no data of its own, never over a
+ * spelling it has declined to interpret.
+ *
+ * MEASURED BY BEHAVIOUR. Each spelling was chosen from what `hash_assign` actually did
+ * to the value — a key subscript, then an index — because that is what the check acts on.
+ * The runtime class only names the scalar; it is frequently not the plain thing the docs
+ * would call it.
+ *
+ * A filter ABSENT from this map is untyped downstream and produces no diagnostic, which
+ * is exactly the silence it had before this map existed.
+ */
+export const UNDOCUMENTED_FILTER_RETURN_TYPES: Readonly<Record<string, string>> = {
+  // Hash; accepts both subscripts
+  find: 'hash',
+  // Integer; both subscripts raise
+  find_index: 'number',
+  // String; both subscripts raise
+  h: 'string',
+  // Boolean; both subscripts raise
+  has: 'boolean',
+  // Integer; both subscripts raise
+  sum: 'number',
+  // Array; key raises, index renders
+  where: 'array',
+};

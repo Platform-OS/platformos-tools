@@ -13,6 +13,7 @@ import {
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import type { ReturnType } from '../../types/platformos-liquid-docs';
 import { isError } from '../../utils';
+import { UNDOCUMENTED_FILTER_RETURN_TYPES } from '../../undocumented-filters';
 
 /**
  * What a variable holds, as far as this check can tell.
@@ -162,18 +163,37 @@ function hasNoReturnTypeData(returnTypes: FilterTypeSource['return_type']): bool
 /**
  * The type a filter produces, as this check models it.
  *
- * The docset decides, and {@link DOCSET_RETURN_TYPE_GAPS} fills in ONLY where the docset
- * has nothing to say at all. The distinction is the point: an unrecognised SPELLING is a
- * modelling decision this check declines to make, and stays `untyped`; an ABSENT field is
- * missing data, and is the one case a measured fallback is allowed to answer. Letting the
- * gap table win over a spelling would turn it into a second mapping table with weaker
- * rules, which is how the hand-written tables this check used to carry went wrong.
+ * THE DOCSET DECIDES FIRST, ALWAYS. Two measured fallbacks fill in behind it, and both
+ * apply ONLY where the docset has nothing to say at all. The distinction is the point: an
+ * unrecognised SPELLING is a modelling decision this check declines to make and stays
+ * `untyped`; an ABSENT field is missing data, which is the one case a measurement is
+ * allowed to answer. Letting either fallback win over a spelling would turn it into a
+ * second mapping table with weaker rules, which is how the hand-written tables this check
+ * used to carry went wrong.
+ *
+ * The two fallbacks are separate because their PROVENANCE differs, and collapsing them
+ * would lose which problem is being worked around:
+ *
+ *   {@link DOCSET_RETURN_TYPE_GAPS}          the docset HAS the filter, and its
+ *                                            `return_type` is empty or absent
+ *   `UNDOCUMENTED_FILTER_RETURN_TYPES`       the docset does not have the filter at all;
+ *                                            `AugmentedPlatformOSDocset` injects it as a
+ *                                            bare `{ name }` from `undocumented-filters.ts`
+ *
+ * The gap table is consulted first only because it is the narrower population; no name
+ * appears in both, and `undocumented-filters.spec.ts` asserts that.
  */
 export function variableTypeOf(filter: FilterTypeSource): VariableType {
-  if (hasNoReturnTypeData(filter.return_type)) {
-    return DOCSET_RETURN_TYPE_GAPS[filter.name] ?? 'untyped';
-  }
-  return toVariableType(filter.return_type);
+  if (!hasNoReturnTypeData(filter.return_type)) return toVariableType(filter.return_type);
+
+  const gap = DOCSET_RETURN_TYPE_GAPS[filter.name];
+  if (gap) return gap;
+
+  // Measured against the runtime by `verify-undocumented-filters.mjs`, and expressed in
+  // the docset's own spelling so it resolves through the SAME table as everything else
+  // rather than introducing a second vocabulary.
+  const undocumented = UNDOCUMENTED_FILTER_RETURN_TYPES[filter.name];
+  return undocumented ? (DOCSET_RETURN_TYPES[undocumented] ?? 'untyped') : 'untyped';
 }
 
 /**

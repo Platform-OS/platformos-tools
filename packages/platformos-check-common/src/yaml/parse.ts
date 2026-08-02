@@ -1,4 +1,5 @@
 import { isMap, isScalar, isSeq, isPair, parseDocument } from 'yaml';
+import { normalizeLoneCarriageReturns } from './line-breaks';
 import type { Pair, Scalar, YAMLMap, YAMLSeq } from 'yaml';
 import type {
   ArrayNode,
@@ -83,7 +84,13 @@ export function toYAMLNode(source: string): JSONNode {
   // reported. Both were measured and correct; the library default silently reinstated
   // the behaviour they rule out, and nothing failed, because nothing asserted the
   // SILENCE. `duplicate-keys.spec.ts` now does.
-  const doc = parseDocument(source, { prettyErrors: false, uniqueKeys: false });
+  // A LONE `\r` IS A LINE BREAK TO THE PLATFORM AND NOT TO THIS PARSER, so it is
+  // normalized first — see `line-breaks.ts`. One byte for one byte, so every offset
+  // below is still an offset into the caller's original source.
+  const doc = parseDocument(normalizeLoneCarriageReturns(source), {
+    prettyErrors: false,
+    uniqueKeys: false,
+  });
 
   // `MULTIPLE_DOCS` is NOT a defect in the file. Multi-document YAML is valid YAML;
   // the parser is objecting to being asked for a single document, which is our

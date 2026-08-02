@@ -91,6 +91,23 @@ describe('Module: DuplicateYAMLKey', () => {
     ]);
   });
 
+  it('reports the YAML 1.1 boolean family, which the platform collapses', async () => {
+    // ROUND 5 FOUND THIS SILENT, and the silence was DOCUMENTED as correct: "YAML 1.2
+    // resolves `yes` to a string and `true` to a boolean, so they are different keys."
+    // True of npm `yaml`. False of the platform — Psych is a YAML 1.1 implementation and
+    // resolves BOTH to boolean `true`, so `{true=>"b"}` has size 1 and the `yes:` value
+    // is silently discarded. Exactly the data loss this check exists to report.
+    expect([
+      (await offensesFor('yes: a\ntrue: b\n')).length,
+      (await offensesFor('on: a\ntrue: b\n')).length,
+      (await offensesFor('off: a\nfalse: b\n')).length,
+      // 1.1 octal: `014` is 12, so this collides too. Also missed before.
+      (await offensesFor('014: a\n12: b\n')).length,
+      // ...while `on:` and `off:` are different booleans and must NOT collide.
+      (await offensesFor('on: a\noff: b\n')).length,
+    ]).toEqual([1, 1, 1, 1, 0]);
+  });
+
   it('reports a duplicate whose entries have no value', async () => {
     // `a:` twice is still a key written twice. There is no value to lose, but the author
     // wrote something that does nothing, which is the same defect.
@@ -121,9 +138,28 @@ describe('Module: DuplicateYAMLKey', () => {
       expect(await offensesFor('1: a\n"1": b\n')).toEqual([]);
     });
 
-    it('says nothing about scalars that resolve to different types', async () => {
-      // YAML 1.2 resolves `yes` to a string and `true` to a boolean.
-      expect(await offensesFor('yes: a\ntrue: b\n')).toEqual([]);
+    it('says nothing about a number key and a FLOAT key at the same value', async () => {
+      // `1` and `1.0` are numerically equal and are still two keys: Ruby's Hash uses
+      // `eql?`, and `1.eql?(1.0)` is false. Measured — `{1=>'x', 1.0=>'y'}` has size 2.
+      //
+      // JS has one number type, so an identity built from `typeof` + `String()` made
+      // these identical and reported a duplicate that does not exist. Round 5 found it.
+      expect(await offensesFor('1: x\n1.0: y\n')).toEqual([]);
+    });
+
+    it('says nothing about tokens the two parsers resolve differently', async () => {
+      // The UNCOMPARABLE set, asserted as behaviour. Each of these is a spelling where
+      // npm `yaml` and Psych disagree, so comparing it to anything risks a false
+      // positive — `y` is a boolean to npm and a string to Psych, `1e3` a number to npm
+      // and a string to Psych, `.inf` carries a null VALUE in npm which would collide
+      // with a real `null:` key.
+      expect([
+        await offensesFor('y: a\ntrue: b\n'),
+        await offensesFor('1e3: a\n1000: b\n'),
+        await offensesFor('.inf: a\nnull: b\n'),
+        await offensesFor('0X10: a\n16: b\n'),
+        await offensesFor('1:30: a\n5400: b\n'),
+      ]).toEqual([[], [], [], [], []]);
     });
 
     it('says nothing about repeated merge keys', async () => {

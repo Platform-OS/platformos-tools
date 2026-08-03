@@ -460,6 +460,62 @@ describe('Integration: every blocking check can actually block', () => {
     );
   });
 
+  /**
+   * The instructions promise two things about duplicate YAML keys, and this pins BOTH against
+   * the real pipeline so neither can drift into prose that is no longer true.
+   *
+   * The strong promise — a key repeated with the SAME spelling is always reported — only became
+   * true in TASK-51. Before it, `identityOf` returned no identity for 11 token shapes, so
+   * `.inf: 1` twice was silent while the platform kept one key and discarded a value.
+   *
+   * The bounded promise is the control: four spellings are measured NOT to be detected, so the
+   * instructions say look-alike detection is not exhaustive. Asserting only the first half would
+   * let that qualifier be deleted as redundant.
+   */
+  it('reports a duplicate YAML key with the same spelling, without blocking', async () => {
+    const previouslyMissed = ['y', '0X10', '1e3', '.inf', '.nan', '1:30', '2026-01-01'];
+
+    const verdicts = [];
+    for (const token of previouslyMissed) {
+      const result = await validate(
+        'app/translations/en.yml',
+        `en:\n  ${token}: x\n  ${token}: y\n`,
+      );
+      verdicts.push({
+        blocked: result.must_fix_before_write,
+        warnings: [...new Set(result.warnings.map((warning) => warning.check))],
+      });
+    }
+
+    expect(verdicts).toEqual(
+      previouslyMissed.map(() => ({ blocked: false, warnings: ['DuplicateYAMLKey'] })),
+    );
+  });
+
+  it('stays silent on the look-alike pairs it cannot decide, which is why the instructions say so', async () => {
+    // Each is ONE key to Psych and TWO to npm `yaml`, with no reconciliation available — `1:30`
+    // is 5400 to Ruby and 90 here, and a quoted spelling is indistinguishable from a plain one
+    // by source text. Reported as a gap in the instructions rather than guessed at, because a
+    // duplicate claimed where the platform keeps two keys invites deleting a working key.
+    const undecidable: Array<[string, string]> = [
+      ['1:30', '5400'],
+      ['"0X10"', '0X10'],
+      ['"1e3"', '1e3'],
+      ['"y"', 'y'],
+    ];
+
+    const warnings = [];
+    for (const [first, second] of undecidable) {
+      const result = await validate(
+        'app/translations/en.yml',
+        `en:\n  ${first}: x\n  ${second}: y\n`,
+      );
+      warnings.push(result.warnings.map((warning) => warning.check));
+    }
+
+    expect(warnings).toEqual(undecidable.map(() => []));
+  });
+
   it('routes no supported file type to the JSON checks, which is WHY those two were removed', () => {
     // The cause behind the two results above, asserted structurally so it does not
     // rest on two hand-picked paths. Every extension `isSupportedSourceFile` admits,

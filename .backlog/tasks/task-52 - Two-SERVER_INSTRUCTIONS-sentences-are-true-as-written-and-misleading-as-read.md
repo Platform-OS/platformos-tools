@@ -1,9 +1,10 @@
 ---
 id: TASK-52
 title: Two SERVER_INSTRUCTIONS sentences are true as written and misleading as read
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-03 11:15'
+updated_date: '2026-08-03 16:43'
 labels:
   - mcp-supervisor
   - agent-surface

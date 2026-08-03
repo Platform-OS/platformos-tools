@@ -96,14 +96,12 @@ WHAT IS ACTUALLY CHECKED
             rejected by the converter, so {% if a | upcase == 'A' %} and
             {% for x in list | reverse %} must {% assign %} the filtered value
             first and then test or iterate that.
-            A filter ANYWHERE ELSE in a platformOS tag — an operand like
-            {% cache 'k' | upcase %} or an argument like {% log 'm', t: x | upcase %}
-            — does not block, but it is reported as a warning because the platform
-            IGNORES it: the tag markup is parsed by its own scanner, so the value
-            arrives unfiltered. Filters apply only where the whole value is a Liquid
-            variable: {{ }}, {% assign %}, {% echo %}, {% print %}, {% return %},
-            {% session %}, and a trailing filter on {% function %}/{% graphql %},
-            which filters the RESULT.
+            A filter anywhere else in a platformOS tag — operand or argument, e.g.
+            {% cache 'k' | upcase %} — warns but does not block: the platform
+            IGNORES it, so the value arrives unfiltered. Filters apply only where
+            the whole value is a Liquid variable ({{ }}, assign, echo, print,
+            return, session) plus a trailing filter on function/graphql, which
+            filters the RESULT.
   GraphQL - operations validated against the project schema.
   YAML    - syntax, for model/schema, transactable-type, profile-type and
             translation files: one that does not parse is reported and blocks,
@@ -113,6 +111,8 @@ WHAT IS ACTUALLY CHECKED
             deploys, the last value wins, and the earlier one is silently discarded.
             Two keys that merely LOOK different can still be ONE key, because the
             platform reads YAML 1.1: yes:/true:, 014:/12: and null:/~: each collide.
+            A repeat of the SAME spelling is always reported; look-alike detection
+            is not exhaustive, so silence there does not prove two keys are distinct.
             The SHAPE of a model schema is not checked — an unknown property is not
             reported, because the platform accepts it.
 

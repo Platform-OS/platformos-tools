@@ -803,6 +803,20 @@ describe('server instructions', () => {
     expect(SERVER_INSTRUCTIONS).toContain('A key defined TWICE');
     expect(SERVER_INSTRUCTIONS).toContain('does NOT block');
     expect(SERVER_INSTRUCTIONS).not.toContain('a duplicated name is not');
+
+    // AND that look-alike detection is bounded. The `yes:`/`true:` examples above sit under
+    // "WHAT IS ACTUALLY CHECKED", so naming three collisions without qualifying the rest
+    // reads as a coverage claim. It is not one: four spellings are MEASURED not to be
+    // detected (`1:30`/`5400`, and the quoted-vs-plain forms of `0X10`, `1e3`, `y` — see
+    // `duplicate-keys.spec.ts`, which pins that list exactly). An agent that treats silence
+    // there as proof the keys are distinct has been misled by us.
+    //
+    // The strong half is stated alongside it, because it is the part worth relying on: a key
+    // repeated with the SAME spelling is always reported. That became true in TASK-51 and is
+    // asserted against the real pipeline in `blocking-emission.spec.ts`.
+    const collapsedYaml = SERVER_INSTRUCTIONS.replace(/\s+/g, ' ');
+    expect(collapsedYaml).toContain('look-alike detection is not exhaustive');
+    expect(collapsedYaml).toContain('SAME spelling is always reported');
   });
 
   it('tells the agent to validate BEFORE writing', () => {
@@ -899,10 +913,16 @@ describe('server instructions', () => {
     //
     // Behaviour is pinned in check-common's `filter-without-effect/index.spec.ts` and end to
     // end in `blocking-emission.spec.ts`; this pins that the agent is TOLD all three.
+    // Substrings are chosen to survive a REWRAP. An earlier version of this pinned
+    // `'the platform\n            IGNORES it'`, which encoded the line breaks and would have
+    // failed on a reflow that changed nothing about the claim — a test that fails for the
+    // wrong reason trains people to edit the test.
+    const collapsed = SERVER_INSTRUCTIONS.replace(/\s+/g, ' ');
+
     expect({
-      rejected: SERVER_INSTRUCTIONS.includes('FILTER INSIDE A CONDITION'),
-      ignored: SERVER_INSTRUCTIONS.includes('the platform\n            IGNORES it'),
-      applied: SERVER_INSTRUCTIONS.includes('Filters apply only where the whole value is'),
+      rejected: collapsed.includes('FILTER INSIDE A CONDITION'),
+      ignored: collapsed.includes('IGNORES it, so the value arrives unfiltered'),
+      applied: collapsed.includes('Filters apply only where the whole value is a Liquid variable'),
       // The blocking half must really block, and the ignored half must NOT.
       blockingBackedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
       warningNotBlocking: BLOCKING_CHECKS.has('FilterWithoutEffect'),

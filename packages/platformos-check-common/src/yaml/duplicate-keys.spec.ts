@@ -23,16 +23,28 @@ import { PSYCH_KEY_IDENTITY } from './psych-key-identity';
 
 /** Tokens Ruby's safe loader refused to resolve — no identity to compare against. */
 const RESOLVABLE = Object.entries(PSYCH_KEY_IDENTITY).filter(
-  ([, identity]) => identity.klass !== 'ERROR' && identity.klass !== 'UNEXPECTED',
+  ([, identity]) => identity.group !== undefined,
 );
 
-/** Whether Psych ends up with ONE key for these two tokens. */
-const psychCollides = (a: string, b: string): boolean => {
-  const left = PSYCH_KEY_IDENTITY[a];
-  const right = PSYCH_KEY_IDENTITY[b];
-  // Ruby Hash uses `eql?`, which is class-sensitive: 1 and 1.0 are `==` but not `eql?`.
-  return left.klass === right.klass && left.value === right.value;
-};
+/**
+ * Whether Psych ends up with ONE key for these two tokens.
+ *
+ * A LOOKUP OF A MEASURED FACT, not a derivation. The generator loads an actual two-key
+ * document per pair and records the equivalence class, so this asks the question the check has
+ * to answer rather than modelling it.
+ *
+ * It used to compare `klass` plus `inspect`, and that was wrong in both directions available:
+ *
+ *   signed zero   `"-0.0" !== "0.0"` as strings, while a Ruby Hash collapses them because
+ *                 `(-0.0).eql?(0.0)` is true. Latent only because no signed zero was in the
+ *                 corpus; there are three now.
+ *   NaN           object identity would ALSO have been wrong here, in the other direction:
+ *                 two separately-parsed NaN objects are not `eql?`, yet `.nan` twice really
+ *                 does collapse to one key. Any proxy for the measurement disagrees with the
+ *                 measurement somewhere, which is why there is no longer a proxy.
+ */
+const psychCollides = (a: string, b: string): boolean =>
+  PSYCH_KEY_IDENTITY[a].group === PSYCH_KEY_IDENTITY[b].group;
 
 /** Whether THIS implementation reports a duplicate for a two-key document. */
 const weReport = (a: string, b: string): boolean =>
@@ -47,7 +59,10 @@ describe('Sweep: key identity against Ruby Psych', () => {
 
     for (const [a] of RESOLVABLE) {
       for (const [b] of RESOLVABLE) {
-        if (a === b) continue;
+        // The DIAGONAL IS INCLUDED. `a === b` is a real document — the same key written
+        // twice — and skipping it is what hid a missed detection in 11 tokens. It is also a
+        // soundness case: a token must never be reported against itself unless Psych really
+        // does collapse it, which for a repeatable merge key it does not.
         if (weReport(a, b) && !psychCollides(a, b)) {
           falsePositives.push(
             `${a} + ${b} — Psych: ${PSYCH_KEY_IDENTITY[a].klass}(${PSYCH_KEY_IDENTITY[a].value}) vs ` +
@@ -72,21 +87,47 @@ describe('Sweep: key identity against Ruby Psych', () => {
 
     for (const [a] of RESOLVABLE) {
       for (const [b] of RESOLVABLE) {
-        if (a >= b) continue;
+        // `a > b` skips the mirror of each pair but KEEPS the diagonal. The previous `a >= b`
+        // skipped `a === b` as well, which is how the pin below came to read as an exhaustive
+        // bound while saying nothing about the most ordinary duplicate there is: one key
+        // written twice. Eleven tokens were missed inside that blind spot.
+        if (a > b) continue;
         if (psychCollides(a, b) && !weReport(a, b)) missed.push(`${a} + ${b}`);
       }
     }
 
-    // ONE pair, across 3 540. The exclusion set is far cheaper than it looks, and this
-    // number is the reason to state it rather than assume it: a first draft of this
-    // assertion predicted six missed pairs, reasoning that everything in UNCOMPARABLE
-    // must be a lost detection. Five of those six do not collide in Psych EITHER — an
-    // uppercase `0X10` is the string "0X10" to Ruby, `1e3` is the string "1e3", `y` is
-    // the string "y" — so declining to compare them costs nothing at all.
+    // FOUR pairs, across 5 476 — and the number is stated because the previous version of this
+    // assertion was NARROWER THAN IT READ. It skipped `a === b`, so it said nothing about the
+    // most ordinary duplicate there is: one key written twice. Eleven tokens were missed inside
+    // that blind spot, each of them in UNCOMPARABLE and therefore never compared to anything,
+    // including itself. `.inf: 1` twice is one key on the platform with a value discarded.
     //
-    // Only the YAML 1.1 sexagesimal is a genuine trade: Psych reads `1:30` as 5400 and
-    // npm as 90, so the two really do name one key and this cannot tell.
-    expect(missed.sort()).toEqual(['1:30 + 5400']);
+    // Two earlier drafts of this pin were also wrong, in opposite directions, which is why the
+    // sweep exists rather than a list of examples:
+    //
+    //   predicted SIX missed pairs, reasoning that everything in UNCOMPARABLE must be a lost
+    //   detection. Five of the six do not collide in Psych either — `0X10` is the String
+    //   "0X10" to Ruby, `1e3` is "1e3" — so declining to compare them costs nothing.
+    //
+    //   then predicted ONE, which held only because the corpus contained no odd-cased boolean.
+    //   Adding `TrUe`, `oN`, `yEs`, `.Inf` and `.NaN` exposed 33 real missed pairs at once,
+    //   all from Psych resolving those case-insensitively while npm's 1.1 mode does not.
+    //   Those are now RESOLVED the way Psych resolves them, not documented as a gap.
+    //
+    // What remains is FOUR pairs, each for a stated reason.
+    //
+    // `1:30 + 5400` is a genuine trade: Psych reads the YAML 1.1 sexagesimal as 5400 and npm
+    // as 90, so the two really do name one key and nothing available here can tell.
+    //
+    // The three quoted/plain pairs are PRE-EXISTING and were merely invisible until the quoted
+    // spellings were added to the corpus. Verified against HEAD: `source` excludes the
+    // delimiters, so `"0X10"` matched the same UNCOMPARABLE pattern as the plain `0X10` and
+    // BOTH returned no identity, so the pair was never compared. They are missed detections in
+    // the SAFE direction, and closing them would mean encoding "Psych resolves this token to
+    // the literal String" for each family — a bigger change than this task, and one the
+    // soundness sweep would have to re-earn. Pinned so the gap is a stated fact rather than a
+    // silence.
+    expect(missed.sort()).toEqual(['"0X10" + 0X10', '"1e3" + 1e3', '"y" + y', '1:30 + 5400']);
   });
 
   it('agrees with Psych that these DO collide', async () => {
@@ -142,12 +183,15 @@ describe('Sweep: key identity against Ruby Psych', () => {
     const total = Object.keys(PSYCH_KEY_IDENTITY).length;
     const refused = total - RESOLVABLE.length;
 
-    expect({ total, refused, pairsSwept: RESOLVABLE.length * (RESOLVABLE.length - 1) }).toEqual({
-      total: 61,
+    // The DIAGONAL counts: `n * n`, not `n * (n - 1)`. The old formula excluded it, matching a
+    // sweep that excluded it, so the two agreed with each other and neither described the real
+    // coverage.
+    expect({ total, refused, pairsSwept: RESOLVABLE.length * RESOLVABLE.length }).toEqual({
+      total: 75,
       // Ruby's safe loader refuses to build a Date; that is a fact about the loader, not
       // about key identity, so timestamps are excluded rather than guessed at.
       refused: 1,
-      pairsSwept: 3540,
+      pairsSwept: 5476,
     });
   });
 });

@@ -3,9 +3,10 @@ id: TASK-51
 title: >-
   The duplicate-key sweep skips the diagonal, so the same key spelled twice is
   missed for 11 tokens — and psychCollides has a latent signed-zero flaw
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-03 11:14'
+updated_date: '2026-08-03 14:28'
 labels:
   - check-common
   - yaml

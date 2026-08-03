@@ -57,14 +57,30 @@ const TOKENS = [
   // floats — distinct from integers to Ruby even at the same numeric value
   '1.0', '1.00', '-1.0', '1e3', '1.5', '.inf', '-.inf', '.nan',
 
+  // SIGNED ZERO. Added because the spec's own collision predicate got this backwards: it
+  // compared `inspect` strings, under which "-0.0" != "0.0", while a Ruby Hash collapses
+  // them because `(-0.0).eql?(0.0)` is true. The flaw was latent purely because no signed
+  // zero was in the corpus, so it is in the corpus now.
+  '-0.0', '0.0', '+0.0',
+
+  // ODD-CASED spellings. Psych's boolean and float resolution is case-insensitive well
+  // beyond the three spellings the 1.1 spec lists, and npm's 1.1 mode is not: it leaves
+  // these as strings. Probed because the final eval found them collapsing in Psych.
+  'TrUe', 'oN', 'yEs', '.Inf', '.NaN',
+
   // sexagesimal, a 1.1-only form
   '1:30', '90',
 
   // nulls
   'null', 'Null', 'NULL', '~', 'nil',
 
-  // quoted — always strings, and the control for every unquoted case above
+  // quoted — always strings, and the control for every unquoted case above. The QUOTED
+  // spellings of uncomparable tokens are here on purpose: `source` excludes the delimiters,
+  // so nothing but the scalar's TYPE distinguishes `".inf"` from `.inf`, and those are a
+  // String and a Float to Psych. Without these in the corpus that stayed a latent false
+  // positive.
   "'true'", "'yes'", "'1'", '"1"', '"yes"', '"null"',
+  '".inf"', '"0X10"', '"1e3"', '"y"', '"1:30"', '"TrUe"',
 
   // timestamps and ordinary strings
   '2026-01-01', 'abc', 'a b', 'title', 'en',
@@ -88,29 +104,98 @@ function resolveWithPsych(tokens) {
   // was consumed by the wrong language and every token silently resolved to the literal
   // text `#{tok}`. All 61 answers came back identical, which is the only reason it was
   // noticed at all.
+  // TWO questions are asked, and the second one is the one that matters.
+  //
+  // The RESOLUTION (class + inspect) is kept for diagnostics only — it makes a failing
+  // assertion readable.
+  //
+  // The COLLISION GROUP is measured by loading an actual two-key document and asking whether
+  // the Hash collapsed, which is literally the question the check has to answer. It replaces
+  // a predicate in the spec that compared class + `inspect` and got signed zero backwards.
+  //
+  // Object identity would NOT be a safe proxy here, which is why this is measured per pair
+  // rather than derived: two separately-parsed NaN objects are not `eql?`, yet
+  // `.nan: x\n.nan: y` collapses to one key. The proxy and the reality disagree, so only the
+  // reality is recorded.
+  //
+  // Groups are built by scanning for the first EARLIER token a token collides with, then the
+  // result is checked for transitivity — if collision were not transitive, group ids would be
+  // a lie and the generator fails loudly rather than emitting one.
   const script = `
     require 'yaml'
     require 'json'
+
+    def resolve(tok)
+      h = YAML.load(tok + ": v\\n")
+      if h.is_a?(Hash) && h.size == 1
+        k = h.keys.first
+        { 'klass' => k.class.name, 'value' => k.inspect }
+      else
+        { 'klass' => 'UNEXPECTED', 'value' => h.inspect }
+      end
+    rescue => e
+      { 'klass' => 'ERROR', 'value' => e.class.name }
+    end
+
+    def collides?(a, b)
+      h = YAML.load(a + ": x\\n" + b + ": y\\n")
+      h.is_a?(Hash) && h.size == 1
+    rescue
+      nil
+    end
+
     out = {}
-    TOKENS.each do |tok|
-      begin
-        h = YAML.load(tok + ": v\\n")
-        if h.is_a?(Hash) && h.size == 1
-          k = h.keys.first
-          out[tok] = { 'klass' => k.class.name, 'value' => k.inspect }
-        else
-          out[tok] = { 'klass' => 'UNEXPECTED', 'value' => h.inspect }
+    TOKENS.each { |tok| out[tok] = resolve(tok) }
+
+    comparable = TOKENS.reject { |t| %w[ERROR UNEXPECTED].include?(out[t]['klass']) }
+
+    # first earlier token each one collides with, else itself
+    rep = {}
+    comparable.each_with_index do |tok, i|
+      rep[tok] = tok
+      comparable[0...i].each do |earlier|
+        if collides?(earlier, tok)
+          rep[tok] = rep[earlier]
+          break
         end
-      rescue => e
-        out[tok] = { 'klass' => 'ERROR', 'value' => e.class.name }
       end
     end
-    puts JSON.generate(out)
+
+    # TRANSITIVITY CHECK. Same group must imply collision and vice versa, or the group ids
+    # do not describe what was measured.
+    violations = []
+    comparable.combination(2) do |a, b|
+      measured = collides?(a, b)
+      grouped = rep[a] == rep[b]
+      violations << [a, b, measured, grouped] if measured != grouped
+    end
+
+    ids = {}
+    comparable.each { |tok| ids[rep[tok]] ||= ids.size }
+    comparable.each { |tok| out[tok]['group'] = ids[rep[tok]] }
+
+    puts JSON.generate({ 'tokens' => out, 'violations' => violations })
   `;
 
   const preamble = `TOKENS = ${JSON.stringify(tokens)}\n`;
-  const stdout = execFileSync('ruby', ['-e', preamble + script], { encoding: 'utf8' });
-  return JSON.parse(stdout);
+  const stdout = execFileSync('ruby', ['-e', preamble + script], {
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  const { tokens: resolved, violations } = JSON.parse(stdout);
+
+  if (violations.length > 0) {
+    console.error(
+      'Psych collision is NOT transitive over this corpus, so a per-token group id cannot\n' +
+        'describe it. Refusing to emit a misleading oracle. Disagreeing pairs:\n' +
+        violations
+          .map(([a, b, measured, grouped]) => `  ${a} + ${b}: measured=${measured} grouped=${grouped}`)
+          .join('\n'),
+    );
+    process.exit(1);
+  }
+
+  return resolved;
 }
 
 function rubyVersion() {
@@ -121,11 +206,14 @@ function rubyVersion() {
 
 function renderModule(resolved, version, generatedAt) {
   const entries = Object.entries(resolved)
-    .map(([token, { klass, value }]) => {
-      // The IDENTITY is class plus value: two keys collide iff Ruby produces equal
-      // objects, and `1` / `1.0` are equal numerically but not `eql?`, which is what a
-      // Hash uses.
-      return `  ${JSON.stringify(token)}: { klass: ${JSON.stringify(klass)}, value: ${JSON.stringify(value)} },`;
+    .map(([token, { klass, value, group }]) => {
+      // `group` is the MEASURED equivalence class: two tokens share one iff a document
+      // containing both as keys collapses to a single entry. `klass` and `value` are carried
+      // for diagnostics only — deriving collision from them is what got signed zero wrong.
+      const fields =
+        `klass: ${JSON.stringify(klass)}, value: ${JSON.stringify(value)}` +
+        (group === undefined ? '' : `, group: ${group}`);
+      return `  ${JSON.stringify(token)}: { ${fields} },`;
     })
     .join('\n');
 
@@ -146,6 +234,14 @@ export interface PsychKeyIdentity {
   klass: string;
   /** \`inspect\` output, so \`1\` and \`1.0\` are distinguishable and quoting is visible. */
   value: string;
+  /**
+   * MEASURED equivalence class. Two tokens share a group iff Ruby collapses a document that
+   * uses both as keys into a single entry — which is the question the duplicate-key check
+   * has to answer, asked directly rather than derived from \`klass\`/\`value\`.
+   *
+   * Absent when Ruby refused the token, since an unresolvable key has no class to be in.
+   */
+  group?: number;
 }
 
 /**

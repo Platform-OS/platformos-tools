@@ -1,4 +1,4 @@
-import { isMap, isScalar, isSeq, parseDocument, type Node, type Pair } from 'yaml';
+import { isMap, isScalar, isSeq, parseDocument, Scalar, type Node, type Pair } from 'yaml';
 
 import { normalizeLoneCarriageReturns } from './line-breaks';
 import { reconcileFlowScalarContinuations } from './flow-scalar-continuations';
@@ -73,15 +73,22 @@ export interface DuplicateKey {
 const MERGE_KEY = '<<';
 
 /**
- * Source spellings where npm `yaml` and Psych are MEASURED to disagree, and which are
- * therefore never compared to anything.
+ * Source spellings where npm `yaml` and Psych are MEASURED to disagree, so the resolved value
+ * cannot be trusted.
+ *
+ * These are no longer dropped entirely. They get a RAW identity keyed on the source text, so a
+ * token still collides with an identical spelling of itself — see {@link identityOf}. Two
+ * byte-identical keys are one key under any parser, so the disagreement that puts a token here
+ * simply does not arise when it is compared against itself. Returning nothing meant `.inf: 1`
+ * twice went unreported for 11 tokens.
  *
  * Every entry is a measurement, not a precaution. Left in, each one produces a false
  * positive — the expensive direction:
  *
- *   `y` `Y` `n` `N`   npm 1.1 resolves these to booleans; Psych leaves them STRINGS. A
- *                     document with `y:` and `true:` would be reported as a duplicate
- *                     the platform does not have.
+ *   `y` `Y` `n` `N`   npm 1.1 resolves these to booleans; Psych leaves them STRINGS, and
+ *                     keeps `y:` and `Y:` as TWO keys — measured, so the case is NOT folded
+ *                     for them. A document with `y:` and `true:` would otherwise be reported
+ *                     as a duplicate the platform does not have.
  *   `1e3` and kin     Psych does not treat unquoted scientific notation as a number at
  *                     all — it is the String "1e3" — while npm resolves it to 1000, so
  *                     `1e3:` and `1000:` would look like a collision.
@@ -103,9 +110,44 @@ const UNCOMPARABLE: readonly RegExp[] = [
   /^[-+]?(\d[\d_]*)?\.?\d+[eE][-+]?\d+$/,
   /^[-+]?0X/,
   /^[-+]?\d[\d_]*(:[0-5]?\d)+$/,
-  /^[-+]?\.(inf|Inf|INF|nan|NaN|NAN)$/,
+  // Case-INSENSITIVE, because Psych's is — measured: `.inf`, `.Inf`, `.INF` and `.iNf` are
+  // all Float. The previous spelling listed three casings, so a fourth fell through to npm's
+  // resolution instead of being excluded.
+  /^[-+]?\.(inf|nan)$/i,
   /^\d{4}-\d{2}-\d{2}/,
 ];
+
+/**
+ * Psych's boolean spellings, which are CASE-INSENSITIVE over the whole word.
+ *
+ * MEASURED, and deliberately not the YAML 1.1 spec's list, which is wrong in both directions
+ * for this parser:
+ *
+ *   `TrUe` `tRUE` `truE` `FaLsE` `yEs` `nO` `oN` `oFf`   all resolve to booleans in Psych.
+ *                                                        npm's 1.1 mode leaves them STRINGS,
+ *                                                        so `TrUe:` and `true:` were one key
+ *                                                        on the platform and two here — a
+ *                                                        silently discarded value.
+ *   `y` `Y` `n` `N`                                      STRINGS in Psych, despite the spec
+ *                                                        listing them as booleans. They stay
+ *                                                        in {@link UNCOMPARABLE}.
+ *
+ * QUOTED SPELLINGS NEVER REACH THESE PATTERNS, and not for the reason it first appears. A
+ * quoted key's `source` EXCLUDES its delimiters — measured — so `"yes"` arrives as the bare
+ * text `yes` and would match. What keeps it out is the scalar-TYPE guard above, which returns
+ * a String identity before any of this runs. Reasoning from the source text instead reported
+ * `yes:` and `"yes":` as one key, which Psych keeps as two.
+ */
+const PSYCH_TRUE = /^(true|yes|on)$/i;
+const PSYCH_FALSE = /^(false|no|off)$/i;
+
+/**
+ * Uncomparable spellings whose CASE does not change the key, so a raw identity folds it.
+ *
+ * Only the inf/nan family. Measured, and the reason this is not applied to everything that
+ * reaches the raw identity: `.inf` and `.Inf` are ONE key to Psych, while `y` and `Y` are TWO.
+ */
+const CASE_FOLDED_RAW = /^[-+]?\.(inf|nan)$/i;
 
 /**
  * Whether the source text spells a FLOAT rather than an integer.
@@ -139,7 +181,51 @@ function identityOf(pair: Pair): string | undefined {
   // two merge keys started reporting as a duplicate.
   if (source === MERGE_KEY) return undefined;
 
-  if (UNCOMPARABLE.some((pattern) => pattern.test(source))) return undefined;
+  // A QUOTED OR BLOCK SCALAR IS A STRING ON BOTH SIDES, and none of the plain-scalar reasoning
+  // below applies to it. This has to be decided by the scalar's TYPE, not by looking for quotes
+  // in `source` — measured, `source` EXCLUDES the delimiters, so `"yes"` arrives here as the
+  // bare text `yes`, indistinguishable from the plain `yes` that Psych resolves to a boolean.
+  //
+  // Getting this wrong is a FALSE POSITIVE, which is the expensive direction: a first version
+  // of the boolean handling below reasoned that "a quoted key's source includes its quotes" and
+  // immediately reported `yes:` and `"yes":` as one key, which Psych keeps as two. It also
+  // repairs a latent case that predates this change — `".inf"` would have shared an identity
+  // with the plain `.inf`, and those are a String and a Float to Psych.
+  if (pair.key.type !== undefined && pair.key.type !== Scalar.PLAIN) {
+    return `string ${String(pair.key.value)}`;
+  }
+
+  // IDENTICAL SOURCE TEXT NEEDS NO RESOLUTION, which is why an uncomparable token still gets
+  // an identity rather than being dropped.
+  //
+  // {@link UNCOMPARABLE} exists because npm `yaml` and Psych resolve these spellings
+  // DIFFERENTLY, so comparing one against a different spelling risks a false positive. That
+  // argument does not apply to a token compared against ITSELF: the same bytes resolve to the
+  // same object under any one parser, so two byte-identical keys are one key on every
+  // platform, deterministically. Returning `undefined` here meant `.inf: 1` twice in one
+  // mapping went unreported — Psych keeps `{Infinity => 2}`, a value silently discarded —
+  // along with 10 other tokens.
+  //
+  // Prefixed so it can never alias a RESOLVED identity: `raw 1e3` and `number int 1000` are
+  // different strings, which is correct, because Psych reads `1e3` as the String "1e3" and
+  // keeps two keys. So the raw identity is not merely sound, it is silent in exactly the
+  // cases where returning `undefined` was silent, and reports the one case it could not.
+  // Case is folded for the inf/nan family ONLY, and the boundary is measured in both
+  // directions rather than applied uniformly:
+  //
+  //   `.inf` + `.Inf`   ONE key   -> must share an identity, so the case is folded
+  //   `y` + `Y`         TWO keys  -> folding them would be a FALSE POSITIVE, so case is kept
+  //   `-.inf` + `.inf`  TWO keys  -> the sign is significant, so it survives the fold
+  //
+  // Folding everything reaching this branch would have looked tidier and been wrong.
+  if (UNCOMPARABLE.some((pattern) => pattern.test(source))) {
+    const canonical = CASE_FOLDED_RAW.test(source) ? source.toLowerCase() : source;
+    return `raw ${canonical}`;
+  }
+
+  // Resolved the way PSYCH resolves it, not the way npm does — see PSYCH_TRUE/PSYCH_FALSE.
+  if (PSYCH_TRUE.test(source)) return 'boolean true';
+  if (PSYCH_FALSE.test(source)) return 'boolean false';
 
   const value = pair.key.value;
 

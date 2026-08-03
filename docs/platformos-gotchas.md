@@ -163,9 +163,20 @@ implement the 1.1 spec's full boolean set. Reading the spec gives the wrong answ
   `on:` and `oN:`. Likewise `.Inf:` and `.INF:` are both `Float::INFINITY` and collide
   with `.inf:`; `.NAN:` collides with `.nan:`. Any list of "the boolean spellings"
   short enough to write down is wrong.
+- **`.nan:` twice is ONE key, yet two NaN objects are not `eql?`.** So even *object
+  identity* is not a safe proxy for what a document does:
+  `YAML.load(".nan: x\n.nan: y").size == 1`, while `(0.0/0.0).eql?(0.0/0.0)` is `false`.
+  Every proxy for the question disagrees with the question somewhere. Load the two-key
+  document and read `.size`.
+- **A parser's "source text" may exclude the quotes.** In npm `yaml`, `"yes"` has
+  `source: 'yes'` — identical to the plain `yes` that Psych resolves to a boolean. The
+  only reliable discriminator is the scalar's *type* (`QUOTE_DOUBLE` vs `PLAIN`).
+  Deciding from source text reports `yes:` and `"yes":` as one key, which Psych keeps as
+  two.
 
-Compare keys by **resolved type and value under the platform's parser**, never by
-source text and never by your own parser's resolution.
+Compare keys by **what the platform's parser does with a document containing both**,
+never by source text, never by your own parser's resolution, and never by a proxy for
+Ruby's equality.
 
 ### A multi-line quoted scalar may be indented at or below its own key
 

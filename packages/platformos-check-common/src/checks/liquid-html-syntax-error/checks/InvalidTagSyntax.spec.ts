@@ -317,6 +317,72 @@ describe('Module: InvalidTagSyntax', () => {
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
       expect(syntaxOffenses).toHaveLength(0);
     });
+
+    /**
+     * TASK-48. Every tag the grammar declares as taking no markup, in every spelling.
+     *
+     * `rollback` was missing from `TAGS_WITHOUT_MARKUP` while that list was maintained by
+     * hand, so this check refused a valid tag with a self-refuting message — "Invalid syntax
+     * for tag 'rollback' Expected syntax: rollback" — and `LiquidHTMLSyntaxError` BLOCKS, so
+     * there was no way for an author or an agent to proceed.
+     *
+     * Measured against `liquid_exec`: `{% rollback %}` parses in every spelling. The raise it
+     * produces is SEMANTIC — "rollback performed outside of transaction" on its own,
+     * `ActiveRecord::Rollback` inside a transaction, which is the tag doing its job. A
+     * `{% no_such_tag_xyz %}` control confirms the probe does surface real syntax errors.
+     *
+     * The list is now derived from the grammar (see `grammar.spec.ts`), so this asserts the
+     * BEHAVIOUR that derivation buys rather than restating the list.
+     */
+    const NO_MARKUP_SPELLINGS: Array<[label: string, source: string]> = [
+      ['rollback, bare', `{% rollback %}`],
+      ['rollback, no spaces', `{%rollback%}`],
+      ['rollback, whitespace control', `{%- rollback -%}`],
+      ['rollback, inside a transaction', `{% transaction %}{% rollback %}{% endtransaction %}`],
+      ['rollback, inside a liquid tag', `{% liquid\n  rollback %}`],
+      ['try', `{% try %}x{% endtry %}`],
+      ['break', `{% for i in array %}{% break %}{% endfor %}`],
+      ['continue', `{% for i in array %}{% continue %}{% endfor %}`],
+      ['else', `{% if true %}a{% else %}b{% endif %}`],
+      ['comment', `{% comment %}x{% endcomment %}`],
+      ['raw', `{% raw %}x{% endraw %}`],
+      ['doc', `{% doc %}x{% enddoc %}`],
+    ];
+
+    for (const [label, sourceCode] of NO_MARKUP_SPELLINGS) {
+      it(`does not report ${label}`, async () => {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+        expect(offenses.filter((o) => o.message.includes('Invalid syntax for tag'))).toEqual([]);
+      });
+    }
+
+    it('does not report stray markup on a no-markup tag, because the platform ignores it', async () => {
+      // Measured rather than assumed, and it corrected my own expectation. I predicted
+      // `{% rollback something %}` would be refused, so exempting the tag looked like it
+      // traded a false block for a false approval. It does not: the platform IGNORES trailing
+      // markup on these tags. `{% rollback something %}` raises `ActiveRecord::Rollback`
+      // exactly like the clean form — the rollback happens — and `{% break something %}`,
+      // `{% continue junk %}` and `{% else junk %}` all render.
+      //
+      // So `rollback` now behaves exactly like the four tags that were already exempt, which
+      // have always accepted stray markup silently. Pinned because the reasoning is
+      // counter-intuitive and the next reader will assume this is a hole.
+      const withStrayMarkup = [
+        `{% rollback something %}`,
+        `{% for i in array %}{% break something %}{% endfor %}`,
+        `{% for i in array %}{% continue junk %}{% endfor %}`,
+      ];
+
+      const reported = await Promise.all(
+        withStrayMarkup.map(async (source) =>
+          (await runLiquidCheck(LiquidHTMLSyntaxError, source)).filter((o) =>
+            o.message.includes('Invalid syntax for tag'),
+          ),
+        ),
+      );
+
+      expect(reported).toEqual(withStrayMarkup.map(() => []));
+    });
   });
 
   describe('tags with whitespace-trimming delimiters', () => {

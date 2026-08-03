@@ -40,17 +40,19 @@ syntactic and fires before the other two are even considered.
 
 The failure is `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax:
 hash_assign hash[key] = value`, raised at **parse** time — so the template cannot be
-rendered *and* the deploy converter rejects it, taking the whole changeset. Note this is
-the one place in Liquid where `h['k']` and `h.k` are **not** interchangeable; everywhere
-else they are the same lookup.
+rendered *and* the deploy converter rejects it, taking the whole changeset. Measuring only
+the converter understates it.
 
 Only the *last* subscript matters, which is easy to get wrong in both directions:
 `h.a['b']` works and `h['a'].b` does not.
 
-**This bites formatters.** `prettier-plugin-liquid` used to normalise `h['k']` to `h.k`
-here, exactly as it correctly does everywhere else — silently turning a working file into
-one that cannot be parsed, with no error at any layer. If you write tooling that
-regenerates Liquid from an AST, this position needs a special case.
+This is the **one place in Liquid** where `h['k']` and `h.k` are not interchangeable —
+everywhere else they are the same lookup — so it is a rule you will violate by habit.
+
+**And it bites formatters hardest.** Any tool that normalises `h['k']` to `h.k`, which is
+the conventional Liquid style, silently converts a working file into one that cannot be
+parsed, with no error at any layer. `prettier-plugin-liquid` did exactly that until this
+was found. If you regenerate Liquid from an AST, this position needs a special case.
 
 ### Rules 1 and 2 — the container type and the subscript kind
 
@@ -88,24 +90,6 @@ the obvious inverse rule does **not** hold:
 
 So "the last subscript must match the container" is false. Anything modelling
 nested targets needs real element types, not a heuristic.
-
-### The target must be written with **brackets**. Dot access is a converter rejection
-
-This is a *syntax* rule, separate from every type rule above, and it is enforced by
-the converter rather than the runtime — so it fails the whole changeset.
-
-```liquid
-{% hash_assign h['k']      = 1 %}   ✅
-{% hash_assign h['a']['b'] = 1 %}   ✅
-{% hash_assign h.k         = 1 %}   ❌ Liquid syntax error: Syntax Error in 'hash_assign'
-{% hash_assign h.a.b       = 1 %}   ❌  - Valid syntax: hash_assign hash[key] = value
-```
-
-Everywhere else in Liquid `h.k` and `h['k']` are interchangeable, so this is a rule
-you will violate by habit. Note the trap it sets for tooling: **any formatter that
-normalises `h['k']` to `h.k` — which is the conventional Liquid style, and which
-`prettier-plugin-liquid` does — silently converts a working file into a
-whole-changeset deploy failure.** See §11.
 
 ### `hash_assign` does not convert the target
 
@@ -428,7 +412,37 @@ fine; a cyclic fragment spread is correctly rejected.
 
 ---
 
-## 8. Multi-file changes must be validated together
+## 8. Tags that take no markup — and one that raises anyway
+
+Five tags are declared as taking no markup at all: `break`, `continue`, `else`, `try` and
+**`rollback`**. Two things about them are easy to get wrong.
+
+**Trailing text is silently ignored, not rejected.** `{% rollback something %}` behaves
+exactly like `{% rollback %}`, and `{% break something %}` renders. The platform never
+reads it, so tooling that regenerates Liquid from an AST will drop it — harmlessly, since
+nothing depends on it.
+
+**`{% rollback %}` parses everywhere and RAISES outside a transaction.** This is the trap:
+
+```liquid
+{% rollback %}                                        parses ✅  raises at runtime ❌
+                                                      "rollback performed outside of transaction"
+
+{% transaction %}{% rollback %}{% endtransaction %}   parses ✅  works ✅
+                                                      raises ActiveRecord::Rollback, which IS the rollback
+```
+
+So a linter must not refuse `{% rollback %}` on syntax grounds — it is valid Liquid. Whether
+it is *usable* depends on an enclosing `{% transaction %}`, which is a semantic question and
+a separate one. `platformos-check` deliberately does not report the outside-a-transaction
+case today; that is a known gap, not a judgement that the code is fine.
+
+Note also that `ActiveRecord::Rollback` surfacing from `liquid_exec` is **success**, not a
+syntax error. Scoring any raise as a failure would mark the working case broken.
+
+---
+
+## 9. Multi-file changes must be validated together
 
 A partial created in the same changeset as its caller does not exist on disk yet.
 Validated file-by-file, the caller is reported as rendering a missing partial —
@@ -436,7 +450,7 @@ a false block on a coherent change. Overlay every buffer at once.
 
 ---
 
-## 9. Filter arity is only knowable from the runtime
+## 10. Filter arity is only knowable from the runtime
 
 `filters.json` cannot answer it: of 167 filters, 123 carry a `parameters[]`
 array, **zero** mark any parameter `required`, and `slice`/`replace` carry no
@@ -460,7 +474,7 @@ A whole group of named arguments collapses into a **single** trailing hash:
 
 ---
 
-## 10. Translations
+## 11. Translations
 
 - Missing key renders literally as `translation missing: en.some.key` — it does
   not raise and does not render empty.
@@ -471,7 +485,7 @@ A whole group of named arguments collapses into a **single** trailing hash:
 
 ---
 
-## 11. Operational gotchas
+## 12. Operational gotchas
 
 - **`data/filters.json` is re-downloaded on every build.** The docs-updater's
   `postbuild` fetches it from `documentation.platformos.com`. Editing it locally
@@ -549,7 +563,7 @@ direction. Check which build each one is loading before comparing their output �
 
 ---
 
-## 12. What is *not* validated, and must not be assumed
+## 13. What is *not* validated, and must not be assumed
 
 - The **shape** of a model schema. An unknown property deploys fine.
 - Nested `hash_assign` subscripts (`x[0]['k']`) — a known, bounded gap.

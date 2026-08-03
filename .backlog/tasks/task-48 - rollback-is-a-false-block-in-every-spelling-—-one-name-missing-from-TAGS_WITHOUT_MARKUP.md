@@ -3,9 +3,10 @@ id: TASK-48
 title: >-
   {% rollback %} is a false block in every spelling — one name missing from
   TAGS_WITHOUT_MARKUP
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-03 11:13'
+updated_date: '2026-08-03 13:17'
 labels:
   - liquid-html-parser
   - false-block

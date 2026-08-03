@@ -1,5 +1,75 @@
 import { expect, it, describe } from 'vitest';
-import { placeholderGrammars, strictGrammars, tolerantGrammars } from './grammar';
+import {
+  placeholderGrammars,
+  strictGrammars,
+  tolerantGrammars,
+  TAGS_WITHOUT_MARKUP,
+} from './grammar';
+
+/**
+ * TASK-48. `TAGS_WITHOUT_MARKUP` is derived from the grammar rather than hand-listed, and this
+ * pins the derivation.
+ *
+ * WHY PINNED BY NAME rather than "the list is non-empty". The first attempt at the derivation
+ * used `Object.keys(rules)` and returned an EMPTY list — Ohm chains grammars through the
+ * prototype, so `StrictLiquidHTML.rules` has only two own keys and inherits the rest. An empty
+ * list is silently catastrophic here: `InvalidTagSyntax` would refuse `{% else %}`,
+ * `{% break %}`, `{% continue %}` and `{% try %}` on every use, and `UnknownTag` builds its
+ * known-tag vocabulary from this same list. A test asserting only "not empty" would have
+ * caught that; one asserting the exact names also catches a derivation that grows or shrinks
+ * for the wrong reason.
+ */
+describe('Unit: TAGS_WITHOUT_MARKUP', () => {
+  it('derives exactly the tags the grammar declares as taking no markup', () => {
+    // `rollback` is the name that was missing while this list was maintained by hand — every
+    // spelling of `{% rollback %}` was refused by a BLOCKING check on a tag the platform
+    // parses fine. The four alongside it were already exempt, which is what localised the
+    // defect to the list rather than to the fallback logic.
+    expect([...TAGS_WITHOUT_MARKUP].sort()).toEqual([
+      'break',
+      'comment',
+      'continue',
+      'doc',
+      'else',
+      'raw',
+      'rollback',
+      'try',
+    ]);
+  });
+
+  it('agrees across all three grammar modes, so no mode carries a different vocabulary', () => {
+    // The derivation reads `strictGrammars`. The tolerant and placeholder grammars override
+    // other rules, and a divergence here would mean a tag exempt in one mode and refused in
+    // another — the sort of thing that shows up only in the editor, or only on deploy.
+    const emptyMarkupTagsOf = (grammar: { rules: unknown }) => {
+      const rules = grammar.rules as Record<string, any>;
+      const names = new Set<string>();
+      for (const ruleName in rules) {
+        const body = rules[ruleName]?.body;
+        if (!body || !['liquidTagRule', 'liquidTagOpenRule'].includes(body.ruleName)) continue;
+        const args = body.args;
+        if (args?.length !== 2) continue;
+        if (args[1]?.ruleName === 'empty' && typeof args[0]?.obj === 'string')
+          names.add(args[0].obj);
+      }
+      return [...names].sort();
+    };
+
+    const expected = ['break', 'continue', 'else', 'rollback', 'try'];
+    expect(emptyMarkupTagsOf(strictGrammars.LiquidHTML)).toEqual(expected);
+    expect(emptyMarkupTagsOf(tolerantGrammars.LiquidHTML)).toEqual(expected);
+    expect(emptyMarkupTagsOf(placeholderGrammars.LiquidHTML)).toEqual(expected);
+  });
+
+  it('is not vacuous: a tag that DOES take markup is absent', () => {
+    // The control. A derivation matching every `liquidTagRule` regardless of its markup
+    // argument would satisfy the assertions above by containing them, and would then exempt
+    // every tag in the language from `InvalidTagSyntax`.
+    for (const takesMarkup of ['assign', 'render', 'if', 'for', 'cache', 'log']) {
+      expect(TAGS_WITHOUT_MARKUP).not.toContain(takesMarkup);
+    }
+  });
+});
 
 describe('Unit: liquidHtmlGrammar', () => {
   const grammars = [

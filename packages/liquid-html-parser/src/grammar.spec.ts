@@ -1,5 +1,6 @@
 import { expect, it, describe } from 'vitest';
 import {
+  BLOCKS,
   placeholderGrammars,
   strictGrammars,
   tolerantGrammars,
@@ -67,6 +68,65 @@ describe('Unit: TAGS_WITHOUT_MARKUP', () => {
     // every tag in the language from `InvalidTagSyntax`.
     for (const takesMarkup of ['assign', 'render', 'if', 'for', 'cache', 'log']) {
       expect(TAGS_WITHOUT_MARKUP).not.toContain(takesMarkup);
+    }
+  });
+});
+
+/**
+ * TASK-56. `BLOCKS` is derived from the grammar's `blockName` rule, and `UnknownTag` builds
+ * its known-tag vocabulary from it — so a name missing here is reported as an unknown tag,
+ * which `LiquidHTMLSyntaxError` raises at ERROR severity and the MCP supervisor BLOCKS.
+ *
+ * Nothing pinned this list before, which is how `try_rc` went missing: the platform
+ * registers it against the same handler as `try`, and both `{% try_rc %}` and its close tag
+ * were refused. The same derivation shape as `TAGS_WITHOUT_MARKUP` above, and the same
+ * failure mode — it reads Ohm's rule internals, so it can quietly return the wrong thing.
+ */
+describe('Unit: BLOCKS', () => {
+  it('derives exactly the block tag names the grammar declares', () => {
+    expect([...BLOCKS].sort()).toEqual([
+      'background',
+      'cache',
+      'capture',
+      'case',
+      'content_for',
+      'for',
+      'form',
+      'graphql',
+      'if',
+      'ifchanged',
+      'parse_json',
+      'tablerow',
+      'transaction',
+      'try',
+      'try_rc',
+      'unless',
+    ]);
+  });
+
+  it('lists try_rc BEFORE try, because `blockName` is an ordered choice', () => {
+    // Not cosmetic, and not assertable from the parse of a WELL-FORMED document — both
+    // orderings accept `{% try_rc %}…{% endtry_rc %}` in the tolerant grammar, so no
+    // fixture distinguishes them. What the wrong order breaks is the STRICT grammar, where
+    // `try` matches first and then fails on the leftover `_rc`.
+    //
+    // Asserted directly for exactly that reason: when precedence between two alternatives
+    // cannot be distinguished by real input, the ordering itself is the contract.
+    //
+    // Membership is asserted first because `indexOf` returns -1 for an absent name, and -1
+    // is less than every real index — so the ordering check alone would PASS if `try_rc`
+    // were removed entirely, which is the very regression this file exists to catch.
+    expect(BLOCKS).toContain('try_rc');
+    expect(BLOCKS).toContain('try');
+    expect(BLOCKS.indexOf('try_rc')).toBeLessThan(BLOCKS.indexOf('try'));
+  });
+
+  it('is not vacuous: a non-block tag is absent', () => {
+    // The control. A derivation that swept up every quoted name in the grammar would
+    // satisfy the assertion above by containing it, and would then let `{% endassign %}`
+    // through as a legitimate close tag.
+    for (const notABlock of ['assign', 'echo', 'render', 'log', 'return', 'context']) {
+      expect(BLOCKS).not.toContain(notABlock);
     }
   });
 });

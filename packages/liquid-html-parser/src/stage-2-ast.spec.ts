@@ -1398,6 +1398,47 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
+      it('should parse try_rc, the alias, with the same branch structure as try', () => {
+        // TASK-56. The platform registers `try_rc` against the same handler as `try`, and
+        // both were absent from our vocabulary, so `{% try_rc %}` and `{% endtry_rc %}` were
+        // each reported as unknown tags — a BLOCK on code the platform runs.
+        //
+        // The close-tag spelling is MEASURED, not derived from the canonical name:
+        // `{% try_rc %}…{% endtry %}` is rejected by the runtime with "'endtry' is not a
+        // valid delimiter for try_rc tags. use endtry_rc".
+        //
+        // Asserted as EQUIVALENCE to `try` rather than against a hand-written shape. That is
+        // the actual contract — it is the same tag under a second name — and it means a
+        // future change to how branched tags are built cannot leave the alias behind.
+        for (const { toAST, expectPath, expectPosition } of testCases) {
+          const canonical = toAST(`{% try %}content{% catch err %}{% log err %}{% endtry %}`);
+          ast = toAST(`{% try_rc %}content{% catch err %}{% log err %}{% endtry_rc %}`);
+
+          expectPath(ast, 'children.0.name').to.equal('try_rc');
+          expectPosition(ast, 'children.0');
+
+          // Everything except the name and the source offsets must match.
+          const shape = (node: any): any =>
+            node && typeof node === 'object'
+              ? {
+                  type: node.type,
+                  name: node.name === 'try' || node.name === 'try_rc' ? '<try>' : node.name,
+                  children: (node.children ?? []).map(shape),
+                }
+              : node;
+
+          expect(shape((ast as any).children[0])).to.deep.equal(
+            shape((canonical as any).children[0]),
+          );
+        }
+      });
+
+      it('should not treat try_rc as a block when its close tag is missing', () => {
+        // The paired control. Teaching the grammar a new block name must not make an
+        // unterminated one acceptable — that would trade a false block for a false approval.
+        expect(() => toLiquidHtmlAST(`{% try_rc %}content`)).to.throw();
+      });
+
       it('should parse the log tag', () => {
         for (const { toAST, expectPath, expectPosition } of testCases) {
           ast = toAST(`{% log 'hello world' %}`);

@@ -352,6 +352,8 @@ Liquid <: Helpers {
     | "cache"
     | "parse_json"
     | "transaction"
+    // `try_rc` BEFORE `try`: an ordered choice would match `try` and then choke on `_rc`.
+    | "try_rc"
     | "try"
     ) endOfIdentifier
 
@@ -608,6 +610,16 @@ Liquid <: Helpers {
     | "content_for"
     | "parse_json"
     | "transaction"
+    // `try_rc` is an alias the platform registers against the same handler as `try`, and
+    // it is a BLOCK, so its close tag must be recognised too. Measured, because the
+    // delimiter does NOT follow the canonical name: `{% try_rc %}…{% endtry %}` is
+    // rejected with "'endtry' is not a valid delimiter for try_rc tags. use endtry_rc",
+    // while `{% try_rc %}…{% endtry_rc %}` renders. Listing it in the docset alone could
+    // never fix this — `{% endtry_rc %}` would still be reported as an unknown tag, which
+    // BLOCKS (TASK-56).
+    //
+    // `try_rc` BEFORE `try`: an ordered choice would match `try` and then choke on `_rc`.
+    | "try_rc"
     | "try"
     ) endOfIdentifier
 

@@ -1137,9 +1137,20 @@ interface ASTBuildOptions {
   mode: 'strict' | 'tolerant' | 'completion';
 }
 
+/**
+ * Tags whose body is divided into branches by a sub-tag (`else`, `elsif`, `when`, `catch`).
+ *
+ * `try_rc` is here for the same reason it is in the grammar's `blockName`: the platform
+ * registers it against the same handler as `try`, so it takes `{% catch %}` too. Measured
+ * — `{% try_rc %}a{% catch e %}b{% endtry_rc %}` renders. Adding it to `blockName` alone
+ * made that input THROW ("Attempting to open LiquidBranch 'catch' before LiquidTag
+ * 'try_rc' was closed"), which `LiquidHTMLSyntaxError` reports and the supervisor blocks —
+ * so a half-done alias trades one false block for another.
+ */
 export function isBranchedTag(node: LiquidHtmlNode) {
   return (
-    node.type === NodeTypes.LiquidTag && ['if', 'for', 'unless', 'case', 'try'].includes(node.name)
+    node.type === NodeTypes.LiquidTag &&
+    ['if', 'for', 'unless', 'case', 'try', 'try_rc'].includes(node.name)
   );
 }
 

@@ -372,4 +372,124 @@ layout: 'modules/community/blank'
       expect(reported).toEqual(unrelated.map(() => []));
     });
   });
+
+  /**
+   * TASK-56 — the SAME defect as `{% layout %}` above, in the opposite direction.
+   *
+   * `layout` was a tag we accepted and the platform lacks: a false approval that fails the
+   * whole changeset. These eight are tags the platform REGISTERS and we refused. Because
+   * `LiquidHTMLSyntaxError` is ERROR severity and the MCP supervisor treats it as blocking,
+   * each was an unappealable refusal — the agent could not write working code at all.
+   *
+   * WHY A PROBE COULD NEVER HAVE FOUND THESE. `eval/tag-vocabulary-sweep.mjs` asks the
+   * runtime about names WE carry, so it can only find tags we wrongly accept; there is
+   * nothing to enumerate in the other direction. The platform's own `register_tag` registry
+   * answers both at once, and diffing it against our vocabulary surfaced all eight
+   * immediately. See `src/registered-tags.ts`.
+   *
+   * MEASURED ON THE RUNTIME TOO, not just read off the registry. Each of the eight was run
+   * through `/api/app_builder/liquid_exec`, and each failed for its OWN reason — a missing
+   * argument, a partial that does not exist, a query name that does not resolve — never
+   * with `Unknown tag`. That message is the discriminator: a bare `{% tag %}` fixture is
+   * EXPECTED to fail for a tag that exists, and that failure is not evidence of absence.
+   */
+  describe('registered platformOS tags the official docs omit', () => {
+    // Spelled as an author would write them, not bare, so a fixture that fails to parse
+    // for an unrelated reason cannot masquerade as a pass.
+    const REGISTERED_FORMS: Array<[label: string, source: string]> = [
+      ['context_rc', `{% context_rc language: 'de' %}`],
+      ['execute_query', `{% execute_query 'my_query' %}`],
+      ['function_rc', `{% function_rc result = 'my_partial' %}`],
+      ['query_graph', `{% query_graph 'my_query' %}`],
+      ['render_form', `{% render_form 'my_form' %}`],
+      ['return_rc', `{% return_rc my_value %}`],
+      ['sign_in_rc', `{% sign_in_rc user_id: 1 %}`],
+      ['try_rc', `{% try_rc %}body{% endtry_rc %}`],
+    ];
+
+    for (const [label, sourceCode] of REGISTERED_FORMS) {
+      it(`does not report ${label}`, async () => {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+
+        expect(offenses.filter((o) => o.message.includes('Unknown tag'))).toEqual([]);
+      });
+    }
+
+    it('reports NOTHING at all for them, not merely no unknown-tag offense', async () => {
+      // The filter used above would hide a different offense landing on the same tag —
+      // `InvalidTagSyntax`, say, which fires on a KNOWN tag whose markup will not parse.
+      // These tags have no grammar rule, so their markup is a raw string, and a check that
+      // treated raw markup as broken would re-block every one of them under a new message.
+      const reported = await Promise.all(
+        REGISTERED_FORMS.map(async ([, source]) =>
+          (await runLiquidCheck(LiquidHTMLSyntaxError, source)).map((o) => o.message),
+        ),
+      );
+
+      expect(reported).toEqual(REGISTERED_FORMS.map(() => []));
+    });
+
+    it('accepts try_rc as a BLOCK, including its close tag and its catch branch', async () => {
+      // `try_rc` is the one the docset could not fix on its own. It is an alias of `try`,
+      // and `try` is a block, so `{% endtry_rc %}` had to become recognisable too —
+      // otherwise listing `try_rc` as a known tag would leave the close tag reported as
+      // unknown and the file still blocked.
+      //
+      // The delimiter is MEASURED, not assumed to follow the canonical name:
+      // `{% try_rc %}…{% endtry %}` is rejected by the platform with "'endtry' is not a
+      // valid delimiter for try_rc tags. use endtry_rc".
+      const forms = [
+        `{% try_rc %}body{% endtry_rc %}`,
+        `{% try_rc %}body{% catch err %}handled{% endtry_rc %}`,
+        `{% liquid\n  try_rc\n    echo 'body'\n  catch err\n    echo 'handled'\n  endtry_rc\n%}`,
+      ];
+
+      const reported = await Promise.all(
+        forms.map(async (source) =>
+          (await runLiquidCheck(LiquidHTMLSyntaxError, source)).map((o) => o.message),
+        ),
+      );
+
+      expect(reported).toEqual(forms.map(() => []));
+    });
+
+    it('still blocks a tag that is genuinely unknown', async () => {
+      // AC#2's control, and the reason the fix is a vocabulary correction rather than a
+      // suppression. Every "nothing was reported" assertion above would also pass if
+      // `UnknownTag` had simply been switched off.
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, `{% no_such_tag_zzz %}`);
+
+      expect(offenses.map((o) => o.message)).toEqual(["Unknown tag 'no_such_tag_zzz'"]);
+    });
+
+    it('still blocks a close tag with no matching open tag', async () => {
+      // The paired control for the `try_rc` block change. Teaching the grammar a new block
+      // name must not make stray `end` tags acceptable — `{% endtry_rc %}` on its own is
+      // as broken as it ever was.
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, `{% endtry_rc %}`);
+
+      expect(offenses).not.toEqual([]);
+    });
+
+    it('still blocks a near-miss spelling of a registered tag', async () => {
+      // The names added are close to real ones, and a fix that matched loosely — by
+      // prefix, or by stripping an `_rc` suffix — would accept these too. Each is a typo an
+      // author would actually make.
+      const typos = [`{% context_r %}`, `{% render_forms 'f' %}`, `{% execute_queries 'q' %}`];
+
+      const reported = await Promise.all(
+        typos.map(async (source) =>
+          (await runLiquidCheck(LiquidHTMLSyntaxError, source))
+            .filter((o) => o.message.includes('Unknown tag'))
+            .map((o) => o.message),
+        ),
+      );
+
+      expect(reported).toEqual([
+        ["Unknown tag 'context_r'"],
+        ["Unknown tag 'render_forms'"],
+        ["Unknown tag 'execute_queries'"],
+      ]);
+    });
+  });
 });

@@ -441,6 +441,47 @@ against our vocabulary found eight of those at once.
 `{% rollback %}` goes the other way and is more permissive than it looks: it deploys
 bare, outside any `{% transaction %}`.
 
+### …and eight tags platformOS HAS that the docs do not list
+
+The gap runs both ways, and this direction is worse: the tooling **refuses** working code,
+and a refusal from the write gate cannot be overridden.
+
+`data/tags.json` is generated from `@tag_name` YARD annotations in the platform source. An
+annotation names a tag **once**, so every additional name the platform registers against the
+same handler class is invisible to the docs — and two names on one handler are not similar
+tags, they are *the same tag under two spellings*:
+
+| Registered name | Same handler as | Registry says |
+|---|---|---|
+| `context_rc` | `context` | — |
+| `function_rc` | `function` | `# TODO: remove` |
+| `return_rc` | `return` | `# TODO: remove` |
+| `sign_in_rc` | `sign_in` | `# TODO: remove` |
+| `try_rc` | `try` | — |
+| `render_form` | `include_form` | `For semi-backwards compatibility` |
+| `execute_query` | *(its own class)* | — undocumented, not deprecated |
+| `query_graph` | *(subclass of `ExecuteQueryTag`)* | — undocumented, not deprecated |
+
+Two traps in reading that table:
+
+- **`_rc` does not mean deprecated.** Three of the five are marked `TODO: remove`;
+  `context_rc` and `try_rc` are not marked at all. Deriving deprecation from the suffix is
+  inference dressed as measurement, and `render_form` — deprecated with no `_rc` at all —
+  is the counter-example in the other direction.
+- **`try_rc` needs `endtry_rc`, not `endtry`.** Measured: `{% try_rc %}…{% endtry %}` is
+  rejected with `'endtry' is not a valid delimiter for try_rc tags. use endtry_rc`. An alias
+  of a block tag is a block tag, and its delimiter follows the *alias*.
+
+`{% execute_query %}` and `{% query_graph %}` resolve a **stored** query by name through
+`Graph::QueryResolver`, which is the mechanism `{% graphql %}` superseded. They still work;
+nothing in the source marks them deprecated, so nothing should claim they are.
+
+Regenerate this from the registry rather than editing a list by hand:
+
+```bash
+node packages/platformos-check-common/scripts/verify-registered-tags.mjs --repo /path/to/platform-repo
+```
+
 ---
 
 ## 7. GraphQL: the converter enforces the full validation rules, not just the schema

@@ -1,0 +1,17 @@
+{% try_rc %}
+  {% log 'body' %}
+{% endtry_rc %}
+
+{%try_rc%}{% log 'tight' %}{%endtry_rc%}
+
+{% try_rc %}
+  {% log 'body' %}
+{% catch err %}
+  {% log err %}
+{% endtry_rc %}
+
+{% try %}
+  {% log 'canonical' %}
+{% catch err %}
+  {% log err %}
+{% endtry %}

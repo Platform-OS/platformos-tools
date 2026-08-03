@@ -3,9 +3,10 @@ id: TASK-56
 title: >-
   Eight registered platformOS tags are FALSE BLOCKS — UnknownTag refuses tags
   the platform ships
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-03 17:43'
+updated_date: '2026-08-03 19:13'
 labels:
   - check-common
   - liquid-html-parser
@@ -17,6 +18,27 @@ references:
     /home/ecgtheow/Work/desksnearme-release-candidate/config/initializers/liquid_view.rb
   - >-
     packages/platformos-check-common/src/checks/liquid-html-syntax-error/checks/UnknownTag.ts
+modified_files:
+  - packages/platformos-check-common/scripts/verify-registered-tags.mjs
+  - packages/platformos-check-common/src/registered-tags.ts
+  - packages/platformos-check-common/src/registered-tags.spec.ts
+  - packages/platformos-check-common/src/undocumented-tags.ts
+  - packages/platformos-check-common/src/undocumented-tags.spec.ts
+  - packages/platformos-check-common/src/AugmentedPlatformOSDocset.ts
+  - packages/platformos-check-common/src/AugmentedPlatformOSDocset.spec.ts
+  - packages/platformos-check-common/src/checks/deprecated-tag/index.spec.ts
+  - >-
+    packages/platformos-check-common/src/checks/liquid-html-syntax-error/checks/UnknownTag.spec.ts
+  - >-
+    packages/platformos-check-common/src/checks/liquid-html-syntax-error/index.spec.ts
+  - packages/liquid-html-parser/grammar/liquid-html.ohm
+  - packages/liquid-html-parser/src/stage-2-ast.ts
+  - packages/liquid-html-parser/src/stage-2-ast.spec.ts
+  - packages/liquid-html-parser/src/grammar.spec.ts
+  - packages/prettier-plugin-liquid/src/test/liquid-tag-try-rc/index.liquid
+  - packages/prettier-plugin-liquid/src/test/liquid-tag-try-rc/fixed.liquid
+  - packages/prettier-plugin-liquid/src/test/liquid-tag-try-rc/index.spec.ts
+  - docs/platformos-gotchas.md
 priority: high
 ---
 
@@ -74,9 +96,162 @@ A registered tag in the table above that `liquid_exec` answers `Unknown tag` for
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 None of the eight registered tags is reported as an unknown tag, and none of them blocks
-- [ ] #2 A genuinely unknown tag still blocks — {% no_such_tag_zzz %} as the control, so the fix is not a blanket disabling of UnknownTag
-- [ ] #3 The _rc question is settled by reading Liquify::Tags::* rather than inferred from the names, and the decision is recorded
-- [ ] #4 The tag vocabulary is derived from or verified against the platform's register_tag registry, not hand-maintained, and data/tags.json is NOT edited because postbuild reverts it
-- [ ] #5 The sweep that found these is repeatable, so a tag added to the platform later shows up as a diff rather than as a user report
+- [x] #1 None of the eight registered tags is reported as an unknown tag, and none of them blocks
+- [x] #2 A genuinely unknown tag still blocks — {% no_such_tag_zzz %} as the control, so the fix is not a blanket disabling of UnknownTag
+- [x] #3 The _rc question is settled by reading Liquify::Tags::* rather than inferred from the names, and the decision is recorded
+- [x] #4 The tag vocabulary is derived from or verified against the platform's register_tag registry, not hand-maintained, and data/tags.json is NOT edited because postbuild reverts it
+- [x] #5 The sweep that found these is repeatable, so a tag added to the platform later shows up as a diff rather than as a user report
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## What changed
+
+The eight registered tags no longer block. The vocabulary is now DERIVED from the
+platform's `register_tag` registry instead of being the union of two lists that are each
+incomplete in the same direction.
+
+1. **`scripts/verify-registered-tags.mjs`** (new) — transcribes the registry into
+   `src/registered-tags.ts`: 33 entries of `{ name, handler, comment?, precedingComment? }`.
+   A faithful transcription and nothing more; all interpretation happens downstream.
+2. **`src/registered-tags.ts`** (new, generated) — the vocabulary.
+3. **`src/undocumented-tags.ts`** (new) — the derivation: which registered names the docset
+   lacks, which are aliases, which the registry marks as going away.
+4. **`AugmentedPlatformOSDocset.tags()`** — now `documented ∪ undocumentedTagEntries(documented)`.
+   The hand-maintained `undocumentedTags = ['elsif', 'ifchanged', 'when']` moved into the new
+   module, where it is labelled as the population that CANNOT be derived (not registered —
+   they come from the Liquid gem or a block's `unknown_tag` hook) and must be probe-verified.
+5. **Grammar** — `try_rc` added to `blockName` and `blockNameNotSpecial`, plus `isBranchedTag`.
+
+## AC#3 — the `_rc` question, settled from the source
+
+The registry answers it better than `Liquify::Tags::*` does, because **identity is the
+handler class**: every `_rc` name is registered against the SAME Ruby class as its canonical
+form. `context_rc` → `ContextTag`, `try_rc` → `TryTag`, and so on. They are not similar
+tags; they are one tag under two spellings. `render_form` → `IncludeFormTag` is the same
+relationship without an `_rc` suffix.
+
+`execute_query` and `query_graph` are NOT aliases — own classes (`QueryGraphTag` is a
+subclass of `ExecuteQueryTag` overriding only error rendering). They resolve a *stored* query
+via `Graph::QueryResolver`, the mechanism `{% graphql %}` superseded. Nothing marks them
+deprecated, so nothing claims they are.
+
+**Why they were missing from the docs at all** — measured, not assumed: `tags.json` is
+generated from `@tag_name` YARD annotations, and `ExecuteQueryTag`/`QueryGraphTag` carry no
+annotation while `TryTag` carries `@tag_name try` only. One annotation per class, so every
+extra registered spelling is invisible to the docs generator.
+
+**Deprecation is read from the registry's own comment, never from the name.** Three `_rc`
+names carry `# TODO: remove`; `context_rc` and `try_rc` carry nothing. Treating `_rc` as
+"deprecated" would have been inference dressed as measurement, and wrong for two of five.
+Those four get `deprecated: true` and a `deprecation_reason` quoting the registry verbatim,
+so `DeprecatedTag` — a WARNING, non-blocking — tells the author to move without refusing
+them. The remaining aliases get a `summary` stating the alias fact and no deprecation claim.
+
+## `try_rc` forced the grammar change
+
+Docset injection alone could not satisfy AC#1. `try` is a block, so its alias is a block,
+and `{% endtry_rc %}` would still have been reported as an unknown tag. The docset cannot
+teach a close tag — nor should it, since a stray `{% endtry_rc %}` must stay an error.
+
+The delimiter was MEASURED rather than derived from the canonical name:
+`{% try_rc %}…{% endtry %}` is rejected with *"'endtry' is not a valid delimiter for try_rc
+tags. use endtry_rc"*.
+
+Adding it to `blockName` alone was NOT enough and would have traded one false block for
+another: `{% try_rc %}a{% catch e %}b{% endtry_rc %}` then THREW *"Attempting to open
+LiquidBranch 'catch' before LiquidTag 'try_rc' was closed"* — also a `LiquidHTMLSyntaxError`,
+also blocking. `isBranchedTag` needed the alias too. Ordered choice matters: `try_rc` is
+listed BEFORE `try`, or the alternation matches `try` and chokes on `_rc`.
+
+Printer verified: all eleven affected forms round-trip byte-identically and idempotently
+under the plugin's own Prettier 2.8.8, and a `liquid-tag-try-rc` fixture pins it with the
+canonical `try` in the same file as the control.
+
+## AC#4 — not hand-maintained, and `data/tags.json` untouched
+
+The gap is computed at RUNTIME against the injected docset rather than baked in at build
+time. `data/tags.json` is re-downloaded by the docs-updater's `postbuild`, so a gap computed
+against a snapshot would go stale precisely when the docs GAIN a tag — silently, and in the
+direction that keeps a redundant entry alive. This also means the CLI and the language server
+get the same answer from whatever docset each was given.
+
+## AC#5 — repeatable, as a diff
+
+`node scripts/verify-registered-tags.mjs --repo /path/to/platform-repo`. A tag the platform
+adds or removes appears as a diff in the generated file and fails `registered-tags.spec.ts`,
+which pins the name list whole. Four shape assertions refuse to write a plausible-but-wrong
+file, all four sabotage-verified: quotes reformatted → "extracted NOTHING"; most
+registrations removed → "only 5 tags"; all handlers collapsed to one class → "only 1 distinct
+handler"; a required anchor tag absent → named. None wrote output. Regeneration is
+byte-identical and Prettier-clean (formatted inside the generator, including its
+quote-choice and 100-column wrapping rules).
+
+`eval/tag-vocabulary-sweep.mjs` now points at the generator and keeps only the direction it
+alone covers.
+
+## Tests, and the sabotages
+
+- `registered-tags.spec.ts` (5) — the transcription, including the alias groups everything
+  derives from and the registry comments read from BOTH placements. `render_form`'s note is
+  on the line ABOVE its registration; an extraction reading only trailing comments would
+  have produced a plausible file in which the one genuinely-superseded alias looked unmarked.
+- `undocumented-tags.spec.ts` (9) — the derivation, pinned whole against the real
+  `tags.json`, plus the uneven `_rc` split as the control and `render_form` as the case that
+  distinguishes handler-based from name-based canonical resolution.
+- `UnknownTag.spec.ts` (+13) — the eight silent, and FOUR controls: a genuinely unknown tag,
+  a stray close tag, three near-miss typos (`context_r`, `render_forms`, `execute_queries`),
+  and an assertion that NOTHING is reported rather than merely no unknown-tag offense —
+  which would have hidden `InvalidTagSyntax` re-blocking them under a new message.
+- `deprecated-tag/index.spec.ts` (+4) — the alias warning, its severity, and two silences.
+- `grammar.spec.ts` (+3) — `BLOCKS` was pinned by NOTHING despite feeding `UnknownTag`;
+  that gap is how `try_rc` went missing. Now pinned whole, with the ordering asserted
+  directly (no real input distinguishes it) and membership asserted first, because
+  `indexOf` returns -1 for an absent name and -1 is less than every real index — the
+  ordering check alone would have passed with `try_rc` deleted.
+- `stage-2-ast.spec.ts` (+2) — `try_rc` asserted as EQUIVALENT to `try` rather than against
+  a hand-written shape, plus an unterminated-block control.
+- `AugmentedPlatformOSDocset.spec.ts` — replaced `length >= 3` and a `deep.include`; the
+  threshold would have stayed green whether one name or thirty were added, and green if the
+  registry half were dropped entirely.
+
+Sabotages, each biting in the right place: removing the docset spread → 9 failures;
+removing `try_rc` from the grammar → 3 (the `try_rc` ones only); reverting `isBranchedTag` →
+exactly 1 (the catch branch).
+
+## Deliberately NOT changed
+
+- **`transport/instructions.ts`** — no claim there became false. "unknown filters and tags"
+  is still what is checked, and the new warning explains itself in its own message
+  ("use `{% include_form %}` instead"). The instructions are spent every session; a sentence
+  that changes no decision is not worth its tokens.
+- **The supervisor** — `blocking.spec.ts` already pins "an unrecognized check code is
+  non-blocking" and "a blocking code with non-error severity does not block", which covers
+  `DeprecatedTag` generically. Nothing to add; the layer stays thin.
+- **`hash_assign`** — the registry says `# DEPRECATED: Use {% assign %} instead` and the
+  docs do not. Injection only fills GAPS, so the documented entry wins and behaviour is
+  unchanged. Deliberate: warning on every existing `hash_assign` is a defensible
+  improvement but a different change, and it would land on a tag with a whole check family
+  built around it. Worth a task.
+
+## Verification
+
+Per-package (the combined run keeps getting killed in this environment): parser 301/301,
+platformos-common 286/286, graph 109/109, check-common 1343/1343, LSP 478/478, prettier
+141/141, supervisor 390/390, check-node 156/156, check-browser 1/1. Build clean,
+`yarn type-check` clean, `format:check` clean.
+
+One encoded-defect test updated: `index.spec.ts` pins Ohm's verbatim "expected one of" token
+list, which now legitimately contains `try_rc`. Commented as an encoded defect rather than a
+contract, so the next vocabulary change knows why it is there.
+
+## Found while doing this — TASK-57 (High)
+
+`{% ensure %}` inside `{% try %}` renders on the platform (`"ac"`) and we report
+`Unknown tag 'ensure'` — a ninth false block. It comes from `TryTag#unknown_tag`, so it is
+registered NOWHERE: invisible to the probe sweep AND to the registry. Filed separately
+rather than smuggled in here, because the cheap fix (add it to the hand-verified list) would
+model it as a flat sibling instead of a branch and would accept it OUTSIDE `try`, where the
+platform genuinely answers `Unknown tag` — trading a false block for a false approval.
+<!-- SECTION:NOTES:END -->

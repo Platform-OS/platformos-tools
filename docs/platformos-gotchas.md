@@ -197,6 +197,34 @@ the platform and one long line to a 1.2 parser, which reports
 file in all four YAML types. Note that `parseDocument(source, { version: '1.1' })`
 does **not** fix this: the option changes scalar resolution, not line-break lexing.
 
+### A quoted string may be continued at ANY indentation, including column 0
+
+The second consequence of the same 1.1-vs-1.2 split, and a much more likely one to hit
+than a stray `\r`, because it is what a translator does with a long string:
+
+```yaml
+en:
+  greeting: "Hello
+  world"            # aligned with the key   -> "Hello world"
+  farewell: "Bye
+world"              # column 0              -> "Bye world"
+```
+
+YAML **1.2 requires the continuation to be indented deeper than its key**; Psych does not
+care. So a 1.2 parser reports `Missing closing "quote` on a file the converter accepts.
+
+Two traps for anyone writing tooling here:
+
+- **The error code is not diagnostic.** npm `yaml` reports `MISSING_CHAR` for this *and*
+  for a genuinely unterminated quote, an unquoted multi-line value, and bad block
+  indentation. Suppressing the code trades one false block for several false approvals.
+- **Folding matters.** The value is *not* the raw text: YAML collapses the break and the
+  continuation's leading whitespace to a single space, so `"trailing  \n  x"` is
+  `"trailing x"`. Reconstructing the string by joining lines gives the wrong value.
+
+Neither `version: '1.1'` nor `strict: false` changes any of this — measured, all four
+combinations.
+
 ### Other YAML that is legal and must not be refused
 
 Multi-document files, complex keys (`? [a, b]`), flow collections, `.inf`/`.nan`,

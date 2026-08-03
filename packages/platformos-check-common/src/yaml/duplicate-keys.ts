@@ -1,6 +1,7 @@
 import { isMap, isScalar, isSeq, parseDocument, type Node, type Pair } from 'yaml';
 
 import { normalizeLoneCarriageReturns } from './line-breaks';
+import { reconcileFlowScalarContinuations } from './flow-scalar-continuations';
 
 /**
  * Find keys a YAML mapping defines more than once.
@@ -182,11 +183,29 @@ export function findDuplicateKeys(source: string): DuplicateKey[] {
   //
   // Lone carriage returns are normalized for the same reason `toYAMLNode` does it: the
   // platform treats them as line breaks and this parser does not.
-  const doc = parseDocument(normalizeLoneCarriageReturns(source), {
+  const options = {
     prettyErrors: false,
     uniqueKeys: false,
-    version: '1.1',
-  });
+    version: '1.1' as const,
+  };
+  const normalized = normalizeLoneCarriageReturns(source);
+  const doc = parseDocument(normalized, options);
+
+  // A QUOTED SCALAR CONTINUED AT OR BELOW ITS KEY'S INDENTATION does not parse under YAML 1.2
+  // — see `flow-scalar-continuations.ts`. This parse is SEPARATE from `toYAMLNode`'s because
+  // it needs 1.1 scalar resolution for key identity, so it needs the reconciliation
+  // separately too: without it a duplicate key anywhere in such a file was silently missed,
+  // which is a coverage gap the false-block fix would otherwise have left behind.
+  //
+  // The reconciliation is byte-for-byte, so every range reported below is still an offset
+  // into the caller's original source. Scalar VALUES are not re-folded here, unlike in
+  // `toYAMLNode`: this function only ever compares KEYS, and a multi-line quoted key would
+  // land in `UNCOMPARABLE` on its source text long before folding could matter.
+  const reconciled =
+    doc.errors.filter((error) => error.code !== 'MULTIPLE_DOCS').length > 0
+      ? reconcileFlowScalarContinuations(normalized, options)
+      : null;
+  const contents = reconciled ? reconciled.doc.contents : doc.contents;
 
   const found: DuplicateKey[] = [];
 
@@ -230,7 +249,7 @@ export function findDuplicateKeys(source: string): DuplicateKey[] {
     }
   };
 
-  visit(doc.contents);
+  visit(contents);
 
   return found.sort((a, b) => a.discardedStart - b.discardedStart);
 }

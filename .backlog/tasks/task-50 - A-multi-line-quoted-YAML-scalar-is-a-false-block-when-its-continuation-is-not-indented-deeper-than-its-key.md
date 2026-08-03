@@ -3,9 +3,10 @@ id: TASK-50
 title: >-
   A multi-line quoted YAML scalar is a false block when its continuation is not
   indented deeper than its key
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-08-03 11:14'
+updated_date: '2026-08-03 13:51'
 labels:
   - check-common
   - false-block

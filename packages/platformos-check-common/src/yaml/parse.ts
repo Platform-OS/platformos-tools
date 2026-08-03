@@ -1,5 +1,10 @@
 import { isMap, isScalar, isSeq, isPair, parseDocument } from 'yaml';
 import { normalizeLoneCarriageReturns } from './line-breaks';
+import {
+  foldedScalarValue,
+  reconcileFlowScalarContinuations,
+  spansReconciledBreak,
+} from './flow-scalar-continuations';
 import type { Pair, Scalar, YAMLMap, YAMLSeq } from 'yaml';
 import type {
   ArrayNode,
@@ -87,10 +92,9 @@ export function toYAMLNode(source: string): JSONNode {
   // A LONE `\r` IS A LINE BREAK TO THE PLATFORM AND NOT TO THIS PARSER, so it is
   // normalized first — see `line-breaks.ts`. One byte for one byte, so every offset
   // below is still an offset into the caller's original source.
-  const doc = parseDocument(normalizeLoneCarriageReturns(source), {
-    prettyErrors: false,
-    uniqueKeys: false,
-  });
+  const options = { prettyErrors: false, uniqueKeys: false };
+  const normalized = normalizeLoneCarriageReturns(source);
+  const doc = parseDocument(normalized, options);
 
   // `MULTIPLE_DOCS` is NOT a defect in the file. Multi-document YAML is valid YAML;
   // the parser is objecting to being asked for a single document, which is our
@@ -105,6 +109,21 @@ export function toYAMLNode(source: string): JSONNode {
   // syntax error in document two, not alongside it — so nothing is lost that this
   // could have caught, and the alternative trades a silent gap for a false refusal.
   const failures = doc.errors.filter((error) => error.code !== 'MULTIPLE_DOCS');
+
+  // A QUOTED SCALAR MAY BE CONTINUED AT OR BELOW ITS KEY'S INDENTATION on the platform, and
+  // not in YAML 1.2 — the second dialect mismatch, see `flow-scalar-continuations.ts`. Only
+  // attempted once the 1.2 parse has already failed, so a valid file pays nothing, and it
+  // returns null unless the reconciled bytes parse cleanly, so a genuinely broken file still
+  // reports its ORIGINAL errors below rather than a reconciled guess.
+  const reconciled =
+    failures.length > 0 ? reconcileFlowScalarContinuations(normalized, options) : null;
+
+  if (reconciled) {
+    return convertNode(reconciled.doc.contents as any, source, {
+      breaks: reconciled.breaks,
+      options,
+    }) as JSONNode;
+  }
 
   if (failures.length > 0) {
     throw new YAMLConvertError(
@@ -137,23 +156,53 @@ export function toYAMLNode(source: string): JSONNode {
   return convertNode(doc.contents as any, source) as JSONNode;
 }
 
-function convertNode(node: any, source: string): JSONNode {
-  if (isMap(node)) return convertMap(node, source);
-  if (isSeq(node)) return convertSeq(node, source);
-  if (isScalar(node)) return convertScalar(node);
+/**
+ * What a reconciled parse needs in order to report honest scalar VALUES.
+ *
+ * Present only when `reconcileFlowScalarContinuations` did something. Offsets are valid in
+ * both sources because the substitution is one byte for one byte, so `source` is always the
+ * caller's original.
+ */
+interface Reconciled {
+  /** Offsets of the line breaks that were replaced by spaces. */
+  breaks: readonly number[];
+  /** The same options the document was parsed with, so folding matches. */
+  options: { prettyErrors: boolean; uniqueKeys: boolean };
+}
+
+function convertNode(node: any, source: string, reconciled?: Reconciled): JSONNode {
+  if (isMap(node)) return convertMap(node, source, reconciled);
+  if (isSeq(node)) return convertSeq(node, source, reconciled);
+  if (isScalar(node)) return convertScalar(node, source, reconciled);
   return { type: 'Literal', value: null, raw: 'null', loc: loc(0, 0) } as LiteralNode;
 }
 
-function convertMap(node: YAMLMap, source: string): ObjectNode {
+/**
+ * The value this scalar would have on the platform, when reconciliation changed how it reads.
+ *
+ * `undefined` for every scalar a reconciliation did not touch — which is all of them in a file
+ * that parsed normally — so the ordinary path keeps the parser's own value untouched.
+ */
+function reconciledValue(
+  source: string,
+  start: number,
+  end: number,
+  reconciled?: Reconciled,
+): unknown {
+  if (!reconciled || !spansReconciledBreak(reconciled.breaks, start, end)) return undefined;
+  return foldedScalarValue(source, start, end, reconciled.options);
+}
+
+function convertMap(node: YAMLMap, source: string, reconciled?: Reconciled): ObjectNode {
   const [start, end] = getRange(node);
   return {
     type: 'Object',
-    children: node.items.map((pair) => convertPair(pair as Pair<any, any>, source)),
+    children: node.items.map((pair) => convertPair(pair as Pair<any, any>, source, reconciled)),
     loc: loc(start, end),
   };
 }
 
-function convertPair(pair: Pair<any, any>, source: string): PropertyNode {
+function convertPair(pair: Pair<any, any>, source: string, reconciled?: Reconciled): PropertyNode {
   const key = pair.key as Scalar;
   const value = pair.value;
 
@@ -163,17 +212,19 @@ function convertPair(pair: Pair<any, any>, source: string): PropertyNode {
 
   return {
     type: 'Property',
-    key: convertIdentifier(key),
+    key: convertIdentifier(key, source, reconciled),
     value: value
-      ? (convertNode(value, source) as ValueNode)
+      ? (convertNode(value, source, reconciled) as ValueNode)
       : ({ type: 'Literal', value: null, raw: 'null', loc: loc(keyEnd, keyEnd) } as LiteralNode),
     loc: loc(keyStart, pairEnd),
   };
 }
 
-function convertIdentifier(node: Scalar): IdentifierNode {
+function convertIdentifier(node: Scalar, source: string, reconciled?: Reconciled): IdentifierNode {
   const [start, end] = getRange(node);
-  const value = String(node.value ?? '');
+  // A KEY can be a multi-line quoted scalar too, so it gets the same repair as a value.
+  const repaired = reconciledValue(source, start, end, reconciled);
+  const value = String((repaired !== undefined ? repaired : node.value) ?? '');
   return {
     type: 'Identifier',
     value,
@@ -182,9 +233,14 @@ function convertIdentifier(node: Scalar): IdentifierNode {
   };
 }
 
-function convertScalar(node: Scalar): LiteralNode {
+function convertScalar(node: Scalar, source: string, reconciled?: Reconciled): LiteralNode {
   const [start, end] = getRange(node);
-  const value = node.value as string | number | boolean | null;
+  const repaired = reconciledValue(source, start, end, reconciled);
+  const value = (repaired !== undefined ? repaired : node.value) as
+    | string
+    | number
+    | boolean
+    | null;
   return {
     type: 'Literal',
     value,
@@ -193,11 +249,11 @@ function convertScalar(node: Scalar): LiteralNode {
   };
 }
 
-function convertSeq(node: YAMLSeq, source: string): ArrayNode {
+function convertSeq(node: YAMLSeq, source: string, reconciled?: Reconciled): ArrayNode {
   const [start, end] = getRange(node);
   return {
     type: 'Array',
-    children: node.items.map((item) => convertNode(item, source) as ValueNode),
+    children: node.items.map((item) => convertNode(item, source, reconciled) as ValueNode),
     loc: loc(start, end),
   };
 }

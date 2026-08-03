@@ -880,4 +880,29 @@ describe('server instructions', () => {
   it('names filter arity among what is checked, now that it blocks', () => {
     expect(SERVER_INSTRUCTIONS).toContain('wrong number\n            of arguments');
   });
+
+  it('states BOTH halves of the filter rule, which is a rule and not a symmetry', () => {
+    // Filters are accepted where the platform parses a full Liquid VARIABLE and refused
+    // where it parses a bare EXPRESSION — measured per operand against `--dry-run`,
+    // because it follows each Ruby tag's own markup parsing rather than anything an
+    // agent could infer. Stating only the blocking half would leave an agent avoiding
+    // eleven constructs that are fine; stating only the permissive half would let it
+    // write a condition the converter rejects, which fails the whole changeset.
+    //
+    // Behaviour for both halves is pinned end to end in `blocking-emission.spec.ts`;
+    // this pins that the agent is TOLD, and that the blocking half is really blocking.
+    expect({
+      refused: SERVER_INSTRUCTIONS.includes('FILTER INSIDE A CONDITION'),
+      accepted: SERVER_INSTRUCTIONS.includes('A filter in a tag OPERAND is fine'),
+      backedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
+    }).toEqual({ refused: true, accepted: true, backedBy: true });
+  });
+
+  it('names the YAML DIALECT, because key identity is not inferable without it', () => {
+    // The linter parses YAML 1.2 (npm `yaml`); the platform parses YAML 1.1 (Ruby
+    // Psych). An agent that reads `yes:` and `true:` as two keys — which they are in
+    // every JS parser it has ever seen — writes a file that silently loses a value.
+    expect(SERVER_INSTRUCTIONS).toContain('YAML 1.1');
+    expect(SERVER_INSTRUCTIONS).toContain('can still be ONE key');
+  });
 });

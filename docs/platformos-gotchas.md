@@ -83,15 +83,50 @@ result conclusive rather than a fallback.
 **Consequence:** the file works and the earlier value is gone with no error
 anywhere. Worth a warning; never worth blocking.
 
-### Two YAML keys that *look* duplicated but are not
+### The platform reads YAML **1.1**, and your parser almost certainly reads 1.2
 
-| YAML | Why it is two keys |
+This is the single highest-yield sentence in this document. Ruby Psych/libyaml
+implements YAML **1.1**; npm `yaml`, PyYAML's 1.1-but-not-quite, and every
+JS-flavoured intuition you have are not it. Three separate defects in this repo — a
+false block, a false positive, and a documented silence whose stated reason was
+wrong — all fell out of nobody having written it down.
+
+**Keys that look different and are ONE key** (measured, Psych 5.3.1):
+
+| YAML | Resolves to |
 |---|---|
-| `1:` and `"1":` | a number and a string. Distinct Ruby Hash keys — though `JSON.parse`-style JS objects collapse them, so a naive JS comparison reports a duplicate that isn't one |
-| `yes:` and `true:` | YAML 1.2 resolves `yes` to a **string** and `true` to a **boolean** |
-| `<<:` twice | merge keys, repeatable under YAML 1.1 semantics |
+| `yes:` and `true:` | both boolean `true` — the second value silently wins |
+| `TRUE:` and `true:` | both boolean `true` |
+| `014:` and `12:` | YAML 1.1 **octal** — both `Integer(12)` |
+| `null:` and `~:` | both `nil` |
+| `+1:` and `1:` | both `Integer(1)` |
+| `0x10:` and `16:` | both `Integer(16)` |
+| `1:30:` and `5400:` | YAML 1.1 **sexagesimal** — both `Integer(5400)` |
 
-Compare keys by **resolved type and value**, never by source text.
+**Keys that look the same and are TWO keys:**
+
+| YAML | Why |
+|---|---|
+| `1:` and `"1":` | a number and a string. One key in a JS object, two in a Ruby Hash |
+| `1:` and `1.0:` | `Integer(1)` and `Float(1.0)`. Ruby Hash uses `eql?`, which is class-sensitive: `1.eql?(1.0)` is **false** |
+| `on:` and `off:` | both booleans, different values |
+| `y:` and `n:` | **strings** in Psych, despite the YAML 1.1 spec listing them as booleans |
+| `<<:` twice | merge keys, repeatable |
+
+That last row is why this has to be **measured** rather than derived: Psych does not
+implement the 1.1 spec's full boolean set. Reading the spec gives the wrong answer.
+
+Compare keys by **resolved type and value under the platform's parser**, never by
+source text and never by your own parser's resolution.
+
+### A lone `\r` is a line break to the platform and not to npm `yaml`
+
+YAML 1.1 lists a bare carriage return as a line break; 1.2 does not. So
+`a: 1\rb: 2\n` — one stray CR pasted into an ordinary LF file — is two mappings to
+the platform and one long line to a 1.2 parser, which reports
+`Nested mappings are not allowed in compact mappings`. The converter accepts the
+file in all four YAML types. Note that `parseDocument(source, { version: '1.1' })`
+does **not** fix this: the option changes scalar resolution, not line-break lexing.
 
 ### Other YAML that is legal and must not be refused
 
@@ -168,7 +203,54 @@ Single-quoted JSON is a **converter rejection**, so it fails the whole changeset
 
 ---
 
-## 5. Multi-file changes must be validated together
+## 5. Where a filter is allowed is a rule, not a symmetry
+
+Filters are accepted wherever the platform parses a full Liquid **Variable**, and
+refused wherever it parses a bare **Expression**. That follows each Ruby tag's own
+markup parsing, so it is not derivable from what looks consistent — every row below
+was settled with `pos-cli deploy --dry-run`, each construct deployed with the filter
+and again without it so a bad fixture is distinguishable from a real refusal.
+
+**Accepted:**
+
+```liquid
+{% cache 'k' | append: '1' %}…{% endcache %}
+{% log 'msg' | upcase %}
+{% yield 'slot' | upcase %}
+{% redirect_to '/p' | append: '/x' %}
+{% spam_protection 'x' | downcase %}
+{% response_headers '{}' | upcase %}
+{% render 'p' with 'a' | upcase %}
+{% render 'p' for 'a,b' | split: ',' %}
+{% case 'a' | upcase %}{% when 'A' | downcase %}…{% endcase %}
+{% cycle 'a' | upcase, 'b' %}
+```
+
+Named-argument values, hash-pair values and `session` take one too.
+
+**Refused — and a refusal here is a converter rejection that fails the whole
+changeset, not a runtime error on one page:**
+
+```liquid
+{% if 'a' | upcase == 'A' %}          ❌   both sides of a comparison, too
+{% unless 'a' | upcase == 'A' %}      ❌
+{% elsif 'a' | upcase == 'A' %}       ❌
+{% for i in 'a,b' | split: ',' %}     ❌   the `in` source
+{% for i in (1..'3' | plus: 0) %}     ❌   a range bound
+{% assign x = a['k' | upcase] %}      ❌   an index-lookup interior
+```
+
+The repair is always the same: `{% assign %}` the filtered value on a preceding
+line, then test or iterate the assigned variable.
+
+**The runtime is not the oracle for this.** `/api/app_builder/liquid_exec` accepts
+every construct above, including all six the converter rejects — verified with
+controls proving it does report real syntax errors. For a syntax question the
+converter is the only authority.
+
+---
+
+## 6. Multi-file changes must be validated together
 
 A partial created in the same changeset as its caller does not exist on disk yet.
 Validated file-by-file, the caller is reported as rendering a missing partial —
@@ -176,7 +258,7 @@ a false block on a coherent change. Overlay every buffer at once.
 
 ---
 
-## 6. Filter arity is only knowable from the runtime
+## 7. Filter arity is only knowable from the runtime
 
 `filters.json` cannot answer it: of 167 filters, 123 carry a `parameters[]`
 array, **zero** mark any parameter `required`, and `slice`/`replace` carry no
@@ -200,7 +282,7 @@ A whole group of named arguments collapses into a **single** trailing hash:
 
 ---
 
-## 7. Translations
+## 8. Translations
 
 - Missing key renders literally as `translation missing: en.some.key` — it does
   not raise and does not render empty.
@@ -211,7 +293,7 @@ A whole group of named arguments collapses into a **single** trailing hash:
 
 ---
 
-## 8. Operational gotchas
+## 9. Operational gotchas
 
 - **`data/filters.json` is re-downloaded on every build.** The docs-updater's
   `postbuild` fetches it from `documentation.platformos.com`. Editing it locally
@@ -233,7 +315,7 @@ A whole group of named arguments collapses into a **single** trailing hash:
 
 ---
 
-## 9. What is *not* validated, and must not be assumed
+## 10. What is *not* validated, and must not be assumed
 
 - The **shape** of a model schema. An unknown property deploys fine.
 - Nested `hash_assign` subscripts (`x[0]['k']`) — a known, bounded gap.

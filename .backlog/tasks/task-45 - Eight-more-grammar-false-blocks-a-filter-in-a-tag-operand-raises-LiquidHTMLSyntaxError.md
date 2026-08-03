@@ -3,10 +3,10 @@ id: TASK-45
 title: >-
   Eight more grammar false blocks: a filter in a tag operand raises
   LiquidHTMLSyntaxError
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-02 18:15'
-updated_date: '2026-08-02 19:38'
+updated_date: '2026-08-02 22:08'
 labels:
   - liquid-html-parser
   - false-block
@@ -16,10 +16,17 @@ references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS-ROUND5.md
   - packages/liquid-html-parser/grammar/liquid-html.ohm
 modified_files:
+  - packages/liquid-html-parser/grammar/liquid-html.ohm
+  - packages/liquid-html-parser/src/stage-1-cst.ts
+  - packages/liquid-html-parser/src/stage-2-ast.ts
   - >-
     packages/platformos-check-common/src/checks/liquid-html-syntax-error/checks/InvalidConditionalNode.ts
   - >-
     packages/platformos-check-common/src/checks/liquid-html-syntax-error/checks/InvalidConditionalNode.spec.ts
+  - >-
+    packages/platformos-check-common/src/checks/liquid-html-syntax-error/filters-in-tag-operands.spec.ts
+  - packages/platformos-check-common/src/checks/unclosed-html-element/index.ts
+  - packages/prettier-plugin-liquid/src/printer/printer-liquid-html.ts
 priority: high
 ---
 
@@ -78,12 +85,12 @@ A converter rejection of any of the eight when the filter is present but not whe
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 All eight constructs parse without a diagnostic, matching --dry-run
-- [ ] #2 The two constructs the converter REJECTS (index-lookup interior, range bound) still block — the fix must not trade false blocks for false approvals
-- [ ] #3 The four correct if/unless/for/elsif refusals from N-02 are re-verified as still refusing
-- [ ] #4 A RULE is stated for which operands accept filters and which do not, derived from converter behaviour rather than from grammar symmetry
-- [ ] #5 Every N-02 and round-5 construct is a fixture, so the adjudication is repeatable rather than a table in a report
-- [ ] #6 Both grammar files are updated together and asserted not to diverge
+- [x] #1 All eight constructs parse without a diagnostic, matching --dry-run
+- [x] #2 The two constructs the converter REJECTS (index-lookup interior, range bound) still block — the fix must not trade false blocks for false approvals
+- [x] #3 The four correct if/unless/for/elsif refusals from N-02 are re-verified as still refusing
+- [x] #4 A RULE is stated for which operands accept filters and which do not, derived from converter behaviour rather than from grammar symmetry
+- [x] #5 Every N-02 and round-5 construct is a fixture, so the adjudication is repeatable rather than a table in a report
+- [x] #6 Both grammar files are updated together and asserted not to diverge
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -156,4 +163,42 @@ So the grammar, both CST/AST stages and the printer must land together. `ohm-js`
 ## Verification for this pass
 
 322 test files / 3173 tests pass, type-check clean, prettier clean, build clean.
+
+## DELIVERED this pass: the 11 false blocks
+
+The five-layer fix landed together, exactly as the previous pass said it had to.
+
+**Grammar.** One new rule pair, swapped into the ten operands that accept filters:
+
+```ohm
+liquidFilteredExpression<delim> =
+  | liquidExpressionWithFilters<delim>
+  | liquidExpression<delim>
+
+liquidExpressionWithFilters<delim> = liquidExpression<delim> liquidFilter<delim>+
+```
+
+`liquidFilter+`, NOT `liquidFilter*` — measured, not chosen. With `*` the filterless form still matches the first alternative and every operand gets wrapped in a `LiquidVariable`, which broke 22 stage-2 and 12 stage-1 assertions. With `+` the alternation falls through to the bare expression and the change costs ZERO fixture edits. The refusing positions (conditions, `for … in`, range bounds, index-lookup interiors) were left binding `liquidExpression`, so AC#2 and AC#3 hold by construction rather than by a guard.
+
+**Stage 1** maps `liquidExpressionWithFilters` onto the existing `ConcreteLiquidVariable` shape — the same node `{{ }}` and `{% assign %}` already produce.
+
+**Stage 2** gained `FilteredLiquidExpression = LiquidExpression | LiquidVariable` and `toFilteredExpression`, applied to exactly the ten widened operands. Widening `toExpression` itself was tried first and cascaded into ~20 unrelated consumers; scoping it to the new helper keeps the blast radius at the operands that actually changed.
+
+**Printer — the data-loss trap is closed.** Because the wrapper reuses the SAME `LiquidVariable` the printer already prints, all eleven constructs round-trip through `prettier-plugin-liquid` unchanged. Fixing this also surfaced a PRE-EXISTING crash: `SpamProtectionMarkup` printed `path.call(…, 'value')` against a node whose field is `version`, so the printer threw on EVERY `spam_protection` tag, filter or not. Fixed.
+
+**LSP delta is zero by construction** — no language-server file is touched, and the widened types are accepted where they were previously refused.
+
+## AC#6 rested on a false premise — corrected
+
+"Both grammar files are updated together and asserted not to diverge" cannot be done and does not need to be. `grammar/liquid-html.ohm.js` is **gitignored** (`packages/liquid-html-parser/.gitignore:7`) and **generated** from the `.ohm` source by `build/shims.js` on `prebuild:ts`. There is one grammar file under version control; divergence is not a reachable state. An early attempt to hand-regenerate the `.js` produced a corrupt file, which is how this was found. AC#6 is satisfied by the generation step, not by an equality assertion.
+
+## Fixtures (AC#5)
+
+`filters-in-tag-operands.spec.ts` pins the whole adjudication: 11 accepted operands, 10 filterless CONTROLS (a grammar change wide enough to accept anything would satisfy the first group alone), and 6 that must keep blocking.
+
+## Verification
+
+Full suite green after a clean rebuild: **323 test files / 3192 tests, exit 0**; `yarn build` 0 errors; `format:check` clean.
+
+One earlier full run reported 22 failures in `stage-2-ast.spec.ts` and one other file. Diagnosed rather than assumed: it ran against stale generated grammar artefacts — the same specs pass in isolation and pass in the full suite after `yarn build`. Nothing was changed to make them pass.
 <!-- SECTION:NOTES:END -->

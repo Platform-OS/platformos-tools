@@ -91,6 +91,39 @@ The parser uses a two-stage approach:
 1. **Stage 1 (CST)**: Concrete Syntax Tree using Ohm.js grammar
 2. **Stage 2 (AST)**: Abstract Syntax Tree with semantic information
 
+**The parser is TOLERANT, so a failed rule is not a rejection.** When a known tag's
+strict markup rule does not match, nothing throws — the markup is kept as a raw
+**string** and a check (`InvalidTagSyntax`) reports it. Absence of a throw is
+therefore not evidence the grammar accepts something; inspect `typeof node.markup`.
+Conversely, a grammar that starts accepting a construct stage 2 does not model does
+not degrade gracefully: `toExpression` hits `assertNever` and **throws**.
+
+### Changing the grammar
+
+A grammar change is never only a grammar change. Five layers move together, and
+skipping the last one loses the author's code:
+
+1. `grammar/liquid-html.ohm` — the ONLY grammar file under version control.
+   `grammar/liquid-html.ohm.js` is **gitignored and generated** by `build/shims.js`
+   on `prebuild:ts`. Never hand-edit or hand-regenerate it.
+2. `stage-1-cst.ts` — new rules need a mapping; positional child indices shift.
+3. `stage-2-ast.ts` — widen the narrowest thing that works. Widening a shared helper
+   such as `toExpression` cascades into ~20 consumers; a dedicated
+   `toFilteredExpression` applied to the operands that actually changed does not.
+4. `prettier-plugin-liquid` — **the data-loss trap.** The printer REGENERATES source
+   from the AST, so anything the AST does not carry is deleted from the author's file
+   on the next format, silently. A construct whose markup is a raw string survives
+   formatting today precisely because the printer emits raw strings verbatim; the
+   moment it parses, the printer must know how to print it. Prefer reusing a node the
+   printer already handles over inventing one.
+5. The language server must not regress. Widened types are accepted where narrower
+   ones were required, so a widening is safe by construction — verify, do not assume.
+
+Prefer `+` over `*` for an optional-looking suffix in an alternation. `liquidFilter*`
+matches the filterless form too, so every operand gets wrapped in a needless node and
+dozens of existing fixtures change; `liquidFilter+` falls through to the bare
+alternative and costs zero fixture edits. Measure this rather than reasoning about it.
+
 ### Test Setup
 
 - Test framework: Vitest with single-fork isolation
@@ -190,17 +223,34 @@ distinguished by any real data, the ordering had to be asserted directly.
   **cannot** be affected by what you're measuring — a JSON-typed check timed
   against a Liquid buffer should cost nothing, and if it doesn't, the number is
   the method's error bar.
+- **"We both read YAML" is not agreement — name the DIALECT.** This repo parses
+  YAML 1.2 (npm `yaml`); the platform parses YAML 1.1 (Ruby Psych). That one
+  unwritten sentence produced three separate defects in three directions — a false
+  block, a false positive, and a documented silence whose stated *reason* was
+  wrong. The same applies to Liquid: `liquid-html-parser` is a Shopify fork and
+  platformOS is not Shopify. Wherever a checker and its target implement the same
+  format independently, run the differential rather than reasoning about the spec.
+- **A documented silence can be right in behaviour and wrong in justification.**
+  Fixing the comment matters as much as fixing the code: the next person reasons
+  from the comment, and a confident false premise propagates further than a bug.
 
 ### Generated files
 
-`src/filter-arity.ts`, `src/undocumented-filters.ts` and the
-`*-oracle.ts` fixtures are produced by `scripts/verify-*.mjs` against a live
-instance and committed. When touching them:
+`src/filter-arity.ts`, `src/undocumented-filters.ts`, `src/yaml/psych-key-identity.ts`
+and the `*-oracle.ts` fixtures are produced by `scripts/verify-*.mjs` against a live
+instance (or a live Ruby) and committed. `grammar/liquid-html.ohm.js` is generated
+too, but by the build rather than a script — see "Changing the grammar".
+When touching them:
 
 - Regenerating an unchanged instance must produce a **byte-identical** file —
   format the output inside the generator, not afterwards.
 - A generator that parses another generated file must **fail loudly** when it
   extracts nothing; a silently-empty list drops data no test will miss.
+- **A generator that can return a UNIFORM answer needs a shape assertion.** The
+  Psych oracle was first built with `#{'#{tok}'}` — interpolation consumed by the
+  wrong language — so all 61 tokens resolved to the literal string `#{tok}`. The
+  output was plausible, committed, and entirely fictitious. Build the foreign-language
+  snippet by concatenation, and assert the result is not degenerate.
 - Never hand-edit. `data/filters.json` in particular is re-downloaded by the
   docs-updater's `postbuild`, so edits there are reverted by the next build.
 - Test-only fixtures (`*-oracle.ts`) are excluded from `tsconfig.build.json` —

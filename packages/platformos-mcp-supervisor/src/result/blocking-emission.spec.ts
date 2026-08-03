@@ -373,6 +373,76 @@ describe('Integration: every blocking check can actually block', () => {
     });
   }
 
+  /**
+   * The server instructions name filters-in-conditions as a blocking construct and
+   * filters-in-tag-operands as explicitly NOT reported. Both halves are pinned HERE,
+   * through the real pipeline, because prose cannot fail.
+   *
+   * The pairing is the point. A gate wide enough to block every `|` in a tag would
+   * satisfy the first table on its own, and a grammar wide enough to accept every `|`
+   * would satisfy the second on its own. Only running both catches a fix that traded
+   * one direction for the other — which is exactly what the naive fix here does.
+   *
+   * Both tables were settled against `pos-cli deploy --dry-run`, each construct
+   * deployed with the filter and again without it. The refusals are converter
+   * REJECTIONS, which fail the whole changeset rather than one file.
+   */
+  const FILTER_REFUSED_BY_THE_CONVERTER = [
+    "{% if 'a' | upcase == 'A' %}y{% endif %}\n",
+    "{% unless 'a' | upcase == 'A' %}y{% endunless %}\n",
+    "{% if false %}n{% elsif 'a' | upcase == 'A' %}y{% endif %}\n",
+    "{% for i in 'a,b' | split: ',' %}{{ i }}{% endfor %}\n",
+  ];
+
+  const FILTER_ACCEPTED_BY_THE_CONVERTER = [
+    "{% cache 'k' | append: '1' %}x{% endcache %}\n",
+    "{% log 'msg' | upcase %}\n",
+    "{% yield 'slot' | upcase %}\n",
+    "{% redirect_to '/p' | append: '/x' %}\n",
+    "{% case 'a' | upcase %}{% when 'A' %}y{% endcase %}\n",
+    "{% cycle 'a' | upcase, 'b' %}\n",
+  ];
+
+  it('blocks a filter inside a condition, exactly as the instructions claim', async () => {
+    const verdicts = [];
+    for (const content of FILTER_REFUSED_BY_THE_CONVERTER) {
+      const result = await validate(PAGE, content);
+      verdicts.push({
+        blocked: result.must_fix_before_write,
+        errors: [...new Set(result.errors.map((error) => error.check))],
+      });
+    }
+
+    // WHAT THIS DOES AND DOES NOT PROVE, measured by sabotage rather than assumed.
+    // The block here is OVER-DETERMINED: deleting `checkFilterInCondition` leaves it
+    // green (a truthiness heuristic fires instead, with a worse message), and widening
+    // the grammar to accept these leaves it green too (stage 2 then throws on a shape
+    // its mapping does not model). So this pins the CLAIM the instructions make — these
+    // constructs block — and not which rule produces it. The rule's own identity and
+    // wording are pinned in check-common's `InvalidConditionalNode.spec.ts`.
+    expect(verdicts).toEqual(
+      FILTER_REFUSED_BY_THE_CONVERTER.map(() => ({
+        blocked: true,
+        errors: ['LiquidHTMLSyntaxError'],
+      })),
+    );
+  });
+
+  it('says NOTHING about a filter in a tag operand, exactly as the instructions claim', async () => {
+    // The control for the test above, and a false block if it ever fails: the
+    // converter accepts every one of these, and a write gate the agent cannot
+    // override is the most expensive thing this server can get wrong.
+    const verdicts = [];
+    for (const content of FILTER_ACCEPTED_BY_THE_CONVERTER) {
+      const result = await validate(PAGE, content);
+      verdicts.push({ blocked: result.must_fix_before_write, errors: result.errors });
+    }
+
+    expect(verdicts).toEqual(
+      FILTER_ACCEPTED_BY_THE_CONVERTER.map(() => ({ blocked: false, errors: [] })),
+    );
+  });
+
   it('routes no supported file type to the JSON checks, which is WHY those two were removed', () => {
     // The cause behind the two results above, asserted structurally so it does not
     // rest on two hand-picked paths. Every extension `isSupportedSourceFile` admits,

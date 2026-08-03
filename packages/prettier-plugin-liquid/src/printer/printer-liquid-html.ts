@@ -548,8 +548,12 @@ function printNode(
       const variables = path.map((p: any) => print(p), 'variables');
       const doc: Doc = [join(', ', variables)];
       if (node.namespace) {
+        // `namespace` is a NamedArgument, which prints its OWN `name: value`. Prefixing a
+        // literal 'namespace: ' here emitted it twice — `{% export x, namespace: 'n' %}` was
+        // rewritten to `{% export x, namespace: namespace: 'n' %}`, which does not parse.
+        // Pre-existing and independent of filters: the filterless form corrupted identically.
         const ns = path.call((p: any) => print(p), 'namespace');
-        doc.push(',', line, 'namespace: ', ns);
+        doc.push(',', line, ns);
       }
       return doc;
     }
@@ -719,6 +723,51 @@ function printNode(
       if (node.name) {
         doc.push(node.name);
       }
+
+      /**
+       * Bracket notation is LOAD-BEARING in a `hash_assign` TARGET, so the "prefer direct
+       * access" normalisation below must not apply there.
+       *
+       * MEASURED on a live instance, not inferred. The platform requires the final subscript
+       * to be a bracket:
+       *
+       *   {% hash_assign h['k'] = 'V' %}    assigns      {% hash_assign h.k     = 'V' %}  RAISES
+       *   {% hash_assign h["k"] = 'V' %}    assigns      {% hash_assign h.a.b   = 'V' %}  RAISES
+       *   {% hash_assign h.a['b'] = 'V' %}  assigns      {% hash_assign h['a'].b = 'V' %} RAISES
+       *   {% hash_assign h[k] = 'V' %}      assigns
+       *   {% hash_assign h[0] = 'V' %}      assigns
+       *
+       * The raise is `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax:
+       * hash_assign hash[key] = value`, at PARSE time — so a rewritten file does not merely
+       * fail to deploy, it cannot be parsed, and a converter rejection takes the WHOLE
+       * changeset. Without this guard the printer turned `h['k']` into `h.k` on every format:
+       * valid code silently rewritten into undeployable code, with no error at any layer.
+       *
+       * EVERY lookup in the target is printed as a bracket, not only the last one. Only the
+       * last is load-bearing — `h.a['b']` is accepted — so this also normalises `h.a['b']` to
+       * `h['a']['b']` and an author's invalid `h.k` to `h['k']`. Both are deliberate: the
+       * output is uniformly the one spelling that is always valid, and leaving a mixed
+       * `h.a['b']` would invite the next reader to tidy away the one bracket doing the work.
+       *
+       * WHY NOT PRESERVE EACH LOOKUP'S ORIGINAL NOTATION, which would be the gentler fix. The
+       * only available signal is that `dotLookup` builds a `String` node with no `single`
+       * field while a bracket lookup sets one — and `LiquidString.single` is declared
+       * `boolean`, NOT optional. So that distinction is a pre-existing type violation rather
+       * than a contract: nothing stops the parser from filling `single` in on dot lookups as a
+       * tidy-up, and this printer would then silently start emitting dots in targets and
+       * reintroduce the syntax error. Preserving notation needs an explicit typed signal on
+       * the node first; until then, always-brackets depends on nothing fragile.
+       *
+       * `path.getParentNode()` rather than the augmented `node.parentNode`: the augmentation
+       * types `parentNode` as `ParentNode`, which by construction only covers nodes that can
+       * HAVE children, and a `HashAssignMarkup` is not one. The print-time parent is exactly
+       * the question being asked here, so this is the right API rather than a cast around a
+       * type that is deliberately narrow.
+       */
+      const printParent = path.getParentNode() as { type?: string; target?: unknown } | null;
+      const isHashAssignTarget =
+        printParent?.type === NodeTypes.HashAssignMarkup && printParent.target === node;
+
       const lookups: Doc[] = path.map((lookupPath, index) => {
         const lookup = lookupPath.getValue() as LiquidExpression;
         switch (lookup.type) {
@@ -727,7 +776,12 @@ function printNode(
             // We prefer direct access
             // (for everything but stuff with dashes and stuff that starts with a number)
             const isGlobalStringLookup = index === 0 && !node.name;
-            if (!isGlobalStringLookup && /^\D/.test(value) && /^[a-z0-9_]+\??$/i.test(value)) {
+            if (
+              !isHashAssignTarget &&
+              !isGlobalStringLookup &&
+              /^\D/.test(value) &&
+              /^[a-z0-9_]+\??$/i.test(value)
+            ) {
               return ['.', value];
             }
             return ['[', print(lookupPath), ']'];

@@ -881,21 +881,55 @@ describe('server instructions', () => {
     expect(SERVER_INSTRUCTIONS).toContain('wrong number\n            of arguments');
   });
 
-  it('states BOTH halves of the filter rule, which is a rule and not a symmetry', () => {
-    // Filters are accepted where the platform parses a full Liquid VARIABLE and refused
-    // where it parses a bare EXPRESSION — measured per operand against `--dry-run`,
-    // because it follows each Ruby tag's own markup parsing rather than anything an
-    // agent could infer. Stating only the blocking half would leave an agent avoiding
-    // eleven constructs that are fine; stating only the permissive half would let it
-    // write a condition the converter rejects, which fails the whole changeset.
+  it('states all THREE outcomes for a filter, because there are three and not two', () => {
+    // A filter in a platformOS tag has three distinct fates, and an agent told only two of
+    // them draws the wrong conclusion about the third:
     //
-    // Behaviour for both halves is pinned end to end in `blocking-emission.spec.ts`;
-    // this pins that the agent is TOLD, and that the blocking half is really blocking.
+    //   condition (if/unless/elsif, for … in)  converter REJECTS -> blocks
+    //   any other tag operand or argument      converter accepts, runtime IGNORES -> warns
+    //   {{ }}, assign, echo, print, return,    applied
+    //   session, function/graphql result
+    //
+    // The middle row is the one that was wrong here before. The text used to say a filter in
+    // a tag OPERAND "is fine", naming ten tags — which invited exactly the generalisation
+    // that gets an author into trouble, because the filter parses and then does nothing.
+    // Measured against liquid_exec over 15 positions with 5 positive controls; the decisive
+    // probe is `{% case 'a' | upcase %}` with `{% when 'A' %}` and `{% when 'a' %}`, where
+    // the UNFILTERED branch wins.
+    //
+    // Behaviour is pinned in check-common's `filter-without-effect/index.spec.ts` and end to
+    // end in `blocking-emission.spec.ts`; this pins that the agent is TOLD all three.
     expect({
-      refused: SERVER_INSTRUCTIONS.includes('FILTER INSIDE A CONDITION'),
-      accepted: SERVER_INSTRUCTIONS.includes('A filter in a tag OPERAND is fine'),
+      rejected: SERVER_INSTRUCTIONS.includes('FILTER INSIDE A CONDITION'),
+      ignored: SERVER_INSTRUCTIONS.includes('the platform\n            IGNORES it'),
+      applied: SERVER_INSTRUCTIONS.includes('Filters apply only where the whole value is'),
+      // The blocking half must really block, and the ignored half must NOT.
+      blockingBackedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
+      warningNotBlocking: BLOCKING_CHECKS.has('FilterWithoutEffect'),
+    }).toEqual({
+      rejected: true,
+      ignored: true,
+      applied: true,
+      blockingBackedBy: true,
+      warningNotBlocking: false,
+    });
+  });
+
+  it('states the hash_assign BRACKET rule, which is a parse error and not a type error', () => {
+    // Two independent requirements share this tag, and the instructions have to carry both.
+    // The type rule (Hash takes a key, Array takes an index) is `InvalidHashAssignTarget`.
+    // The NOTATION rule is a `Liquid::SyntaxError` at parse time — measured, with the value
+    // read back: h['k'], h["k"], h.a['b'], h[k], h[0] all assign, while h.k, h.a.b and
+    // h['a'].b cannot be parsed. Only the LAST subscript matters, which is why the example
+    // names an accepted dot (`h.a['b']`) as well as a refused one.
+    //
+    // Behaviour lives in `InvalidHashAssignTargetSyntax.spec.ts`; this pins that the agent is
+    // told, and that the rule is carried by a check that BLOCKS.
+    expect({
+      stated: SERVER_INSTRUCTIONS.includes('must end in a BRACKET'),
+      showsAnAcceptedDot: SERVER_INSTRUCTIONS.includes("h.a['b'] are fine"),
       backedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
-    }).toEqual({ refused: true, accepted: true, backedBy: true });
+    }).toEqual({ stated: true, showsAnAcceptedDot: true, backedBy: true });
   });
 
   it('names the YAML DIALECT, because key identity is not inferable without it', () => {

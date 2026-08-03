@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-08-02 18:15'
-updated_date: '2026-08-02 22:08'
+updated_date: '2026-08-03 11:58'
 labels:
   - liquid-html-parser
   - false-block
@@ -201,4 +201,34 @@ liquidExpressionWithFilters<delim> = liquidExpression<delim> liquidFilter<delim>
 Full suite green after a clean rebuild: **323 test files / 3192 tests, exit 0**; `yarn build` 0 errors; `format:check` clean.
 
 One earlier full run reported 22 failures in `stage-2-ast.spec.ts` and one other file. Diagnosed rather than assumed: it ran against stale generated grammar artefacts — the same specs pass in isolation and pass in the full suite after `yarn build`. Nothing was changed to make them pass.
+
+## CORRECTION (TASK-47): the "rule" recorded above is wrong about the RUNTIME
+
+The rule this task recorded — *"filters are accepted wherever the platform parses a full Liquid Variable, and refused wherever it parses a bare Expression"* — was derived from `pos-cli deploy --dry-run` acceptance ALONE. That measures deployability. It says nothing about whether the filter is applied, and the two are not the same thing. Rule 9, in the methodology this repo wrote, exists for exactly this: one sentence carried two claims and only one was measured.
+
+Measured against `/api/app_builder/liquid_exec` while doing TASK-47 — 15 positions, 5 positive controls, each probe paired with a filterless control that renders clean:
+
+| position | converter | runtime |
+|---|---|---|
+| `{{ }}`, `assign`, `echo`, `print`, `return`, `session` | accepts | **applies the filter** |
+| `function`/`graphql` trailing filter | accepts | **applies** — it filters the RESULT |
+| **the ten operands this task widened** | accepts | **silently IGNORES the filter** |
+
+Decisive probe, directly observable rather than inferred from an error:
+
+```liquid
+{% case 'a' | upcase %}{% when 'A' %}APPLIED{% when 'a' %}IGNORED{% endcase %}
+```
+
+renders **`IGNORED`**. `{% case %}` is one of the ten this task shipped.
+
+Mechanism: Ruby Liquid parses these markups with its own scanner, and `TagAttributes` captures `QuotedFragment`, which explicitly excludes `|`.
+
+### What that means for what this task shipped
+
+Removing the false block was right — the converter accepts these and the file deploys. But shipping them **silent** traded an unappealable false block for a silent approval of dead code: the author writes a filter, the tool says nothing, and the filter never runs.
+
+TASK-47 closes that half. `FilterWithoutEffect` (severity WARNING, deliberately NOT in `BLOCKING_CHECKS`) now reports all 27 positions — these ten plus the 17 argument-value positions — with one rule instead of two. The behaviour of this task's ten operands is unchanged except that they now carry a warning.
+
+AC#4 of this task should be read as superseded: the rule it states is correct about the converter and incomplete about the runtime. The corrected three-way rule is in `docs/platformos-gotchas.md` §5 and in `FilterWithoutEffect`'s file comment.
 <!-- SECTION:NOTES:END -->

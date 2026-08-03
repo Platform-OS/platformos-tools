@@ -390,7 +390,7 @@ export interface LiquidBranchWhen extends LiquidBranchNode<
 > {}
 
 /** https://shopify.dev/docs/api/liquid/tags#form */
-export interface LiquidTagForm extends LiquidTagNode<NamedTags.form, LiquidArgument[]> {}
+export interface LiquidTagForm extends LiquidTagNode<NamedTags.form, LiquidTagArgument[]> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#for */
 export interface LiquidTagFor extends LiquidTagNode<NamedTags.for, ForMarkup> {}
@@ -581,7 +581,7 @@ export interface LiquidTagResponseHeaders extends LiquidTagNode<
 > {}
 export interface LiquidTagResponseStatus extends LiquidTagNode<
   NamedTags.response_status,
-  LiquidNumber | LiquidVariableLookup
+  LiquidNumber | LiquidVariableLookup | LiquidVariable
 > {}
 export interface LiquidTagReturn extends LiquidTagNode<NamedTags.return, LiquidVariable | null> {}
 // Note: LiquidVariable.expression may be a JsonHashLiteral or JsonArrayLiteral (return { ... })
@@ -631,7 +631,7 @@ export interface CacheMarkup extends ASTNode<NodeTypes.CacheMarkup> {
 /** {% log value, [...arguments] %} */
 export interface LogMarkup extends ASTNode<NodeTypes.LogMarkup> {
   value: FilteredLiquidExpression;
-  args: LiquidArgument[];
+  args: LiquidTagArgument[];
 }
 
 /** {% session name = value [| filter] %} */
@@ -781,6 +781,20 @@ export interface LiquidFilter extends ASTNode<NodeTypes.LiquidFilter> {
 
 /** Represents the union type of positional and named arguments */
 export type LiquidArgument = LiquidExpression | LiquidNamedArgument;
+
+/**
+ * A TAG argument, which unlike a FILTER argument may carry filters.
+ *
+ * `{% log 'm', 't' | upcase %}` parses because the deploy converter accepts it, so refusing
+ * it would be an unappealable false block on a file that deploys. The filter is DEAD CODE —
+ * measured, the runtime silently ignores it — and `FilterWithoutEffect` reports that.
+ *
+ * Deliberately SEPARATE from `LiquidArgument` rather than a widening of it: `LiquidArgument`
+ * is also `LiquidFilter.args`, where a nested filter cannot occur (the grammar's
+ * `arguments<delim>` is filterless by construction), and widening it would weaken that type
+ * for every consumer to describe a state it can never reach.
+ */
+export type LiquidTagArgument = LiquidArgument | LiquidVariable;
 
 /** Named arguments are the ones used in kwargs, such as `name: value` or `name: value | filter` */
 export interface LiquidNamedArgument extends ASTNode<NodeTypes.NamedArgument> {
@@ -1891,7 +1905,7 @@ function toNamedLiquidTag(
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: node.markup.map(toLiquidArgument),
+        markup: node.markup.map(toTagArgument),
         children: [],
       };
     }
@@ -2106,7 +2120,10 @@ function toNamedLiquidTag(
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: toExpression(node.markup) as LiquidNumber | LiquidVariableLookup,
+        markup: toFilteredExpression(node.markup) as
+          | LiquidNumber
+          | LiquidVariableLookup
+          | LiquidVariable,
       };
     }
 
@@ -2418,7 +2435,7 @@ function toLogMarkup(node: ConcreteLiquidTagLogMarkup): LogMarkup {
   return {
     type: NodeTypes.LogMarkup,
     value: toFilteredExpression(node.value),
-    args: node.args.map(toLiquidArgument),
+    args: node.args.map(toTagArgument),
     position: position(node),
     source: node.source,
   };
@@ -2701,6 +2718,26 @@ function toLiquidArgument(node: ConcreteLiquidArgument): LiquidArgument {
     }
     default: {
       return toExpression(node);
+    }
+  }
+}
+
+/**
+ * A TAG argument, where a positional value may carry filters — see `LiquidTagArgument`.
+ *
+ * Separate from `toLiquidArgument` on purpose. That one is still used for FILTER arguments,
+ * whose grammar cannot produce a `LiquidVariable`, and routing them through here would hand
+ * `toFilteredExpression` a case it can never see. Sending a filtered value to
+ * `toLiquidArgument` instead does not degrade gracefully: `toExpression` hits `assertNever`
+ * and THROWS, which is how this was found.
+ */
+function toTagArgument(node: ConcreteLiquidArgument | ConcreteLiquidVariable): LiquidTagArgument {
+  switch (node.type) {
+    case ConcreteNodeTypes.NamedArgument: {
+      return toNamedArgument(node);
+    }
+    default: {
+      return toFilteredExpression(node);
     }
   }
 }

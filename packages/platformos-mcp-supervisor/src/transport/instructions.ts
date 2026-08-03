@@ -90,12 +90,20 @@ WHAT IS ACTUALLY CHECKED
             to trip over: a JSON literal in {% assign %} must use DOUBLE quotes
             ({'k': 1} is rejected by the deploy converter, failing the whole
             changeset); {% hash_assign %} needs a Hash with a key or an Array with
-            a numeric index — nothing else; and a FILTER INSIDE A CONDITION is
+            a numeric index — nothing else — and its target must end in a BRACKET
+            subscript, so h['k'] and h.a['b'] are fine but h.k and h['a'].b cannot
+            be parsed at all; and a FILTER INSIDE A CONDITION is
             rejected by the converter, so {% if a | upcase == 'A' %} and
             {% for x in list | reverse %} must {% assign %} the filtered value
-            first and then test or iterate that. A filter in a tag OPERAND is fine
-            and is NOT reported — cache, log, yield, redirect_to, response_headers,
-            spam_protection, render's with/for, case, when and cycle each take one.
+            first and then test or iterate that.
+            A filter ANYWHERE ELSE in a platformOS tag — an operand like
+            {% cache 'k' | upcase %} or an argument like {% log 'm', t: x | upcase %}
+            — does not block, but it is reported as a warning because the platform
+            IGNORES it: the tag markup is parsed by its own scanner, so the value
+            arrives unfiltered. Filters apply only where the whole value is a Liquid
+            variable: {{ }}, {% assign %}, {% echo %}, {% print %}, {% return %},
+            {% session %}, and a trailing filter on {% function %}/{% graphql %},
+            which filters the RESULT.
   GraphQL - operations validated against the project schema.
   YAML    - syntax, for model/schema, transactable-type, profile-type and
             translation files: one that does not parse is reported and blocks,

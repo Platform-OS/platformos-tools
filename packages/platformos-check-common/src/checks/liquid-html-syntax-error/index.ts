@@ -16,6 +16,7 @@ import { detectInvalidPipeSyntax } from './checks/InvalidPipeSyntax';
 import { detectUnknownTag } from './checks/UnknownTag';
 import { detectInvalidTagSyntax } from './checks/InvalidTagSyntax';
 import { detectInvalidOutputPush } from './checks/InvalidOutputPush';
+import { detectInvalidHashAssignTargetSyntax } from './checks/InvalidHashAssignTargetSyntax';
 import { isWithinRawTagThatDoesNotParseItsContents } from '../utils';
 
 type LineColPosition = {
@@ -95,6 +96,10 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
             detectInvalidEchoValue(node),
             detectInvalidLoopRange(node),
             detectInvalidLoopArguments(node, tags),
+            detectInvalidHashAssignTargetSyntax(node),
+            // A `hash_assign` target ending in dot access. Reported here rather than in
+            // `InvalidHashAssignTarget` because it is a PARSE error whatever the container
+            // holds, and that check necessarily stays silent when it cannot infer a type.
           ].filter(Boolean) as Problem<SourceCodeType.LiquidHtml>[];
 
           // Fixers for `detectConditionalNodeUnsupportedParenthesis` and `detectInvalidConditionalNode` consume

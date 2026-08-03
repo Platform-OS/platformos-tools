@@ -21,6 +21,9 @@ DuplicateYAMLKey:
 FilterArity:
   enabled: true
   severity: 0
+FilterWithoutEffect:
+  enabled: true
+  severity: 1
 GraphQLCheck:
   enabled: true
   severity: 0

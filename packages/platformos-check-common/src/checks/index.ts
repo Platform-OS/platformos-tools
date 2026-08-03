@@ -24,6 +24,7 @@ import { UnclosedHTMLElement } from './unclosed-html-element';
 import { UndefinedObject } from './undefined-object';
 import { UniqueDocParamNames } from './unique-doc-param-names';
 import { FilterArity } from './filter-arity';
+import { FilterWithoutEffect } from './filter-without-effect';
 import { UnknownFilter } from './unknown-filter';
 import { UnrecognizedRenderPartialArguments } from './unrecognized-render-partial-arguments';
 import { UnusedAssign } from './unused-assign';
@@ -72,6 +73,7 @@ export const allChecks: (
   UndefinedObject,
   UniqueDocParamNames,
   FilterArity,
+  FilterWithoutEffect,
   UnknownFilter,
   UnrecognizedRenderPartialArguments,
   UnusedAssign,

@@ -428,18 +428,35 @@ describe('Integration: every blocking check can actually block', () => {
     );
   });
 
-  it('says NOTHING about a filter in a tag operand, exactly as the instructions claim', async () => {
-    // The control for the test above, and a false block if it ever fails: the
-    // converter accepts every one of these, and a write gate the agent cannot
-    // override is the most expensive thing this server can get wrong.
+  it('does not BLOCK a filter in a tag operand, but does warn that it has no effect', async () => {
+    // The control for the test above, in both halves.
+    //
+    // NOT BLOCKED is the false-block half: the converter accepts every one of these, and a
+    // write gate the agent cannot override is the most expensive thing this server can get
+    // wrong. `errors` must stay empty, because a non-blocking ERROR would still be reported
+    // to the agent as something it must deal with.
+    //
+    // WARNED is the other half, and it is why asserting silence alone was not enough. The
+    // runtime IGNORES the filter — measured, 15 positions, `{% case 'a' | upcase %}` matching
+    // its unfiltered branch being decisive — so approving these without a word would ship
+    // code that does not do what its author wrote. Asserting only `errors: []` would pass
+    // just as happily if `FilterWithoutEffect` were deleted.
     const verdicts = [];
     for (const content of FILTER_ACCEPTED_BY_THE_CONVERTER) {
       const result = await validate(PAGE, content);
-      verdicts.push({ blocked: result.must_fix_before_write, errors: result.errors });
+      verdicts.push({
+        blocked: result.must_fix_before_write,
+        errors: result.errors,
+        warnings: [...new Set(result.warnings.map((warning) => warning.check))],
+      });
     }
 
     expect(verdicts).toEqual(
-      FILTER_ACCEPTED_BY_THE_CONVERTER.map(() => ({ blocked: false, errors: [] })),
+      FILTER_ACCEPTED_BY_THE_CONVERTER.map(() => ({
+        blocked: false,
+        errors: [],
+        warnings: ['FilterWithoutEffect'],
+      })),
     );
   });
 

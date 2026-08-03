@@ -1,0 +1,18 @@
+{% assign h = '{"a":{}}' | parse_json %}
+{% assign arr = '1,2' | split: ',' %}
+{% assign k = 'kk' %}
+
+{% hash_assign h['k'] = 1 %}
+{% hash_assign h["k"] = 1 %}
+{% hash_assign h['a']['b'] = 1 %}
+{% hash_assign h.a['b'] = 1 %}
+{% hash_assign h['k-1'] = 1 %}
+{% hash_assign h[0] = 1 %}
+{% hash_assign h[k] = 1 %}
+{% hash_assign arr[0] = 1 %}
+{% hash_assign h [ 'spaced' ] = 1 %}
+
+{{ h['k'] }}
+{% assign x = h['k'] %}
+{% if h['k'] == 1 %}{{ h['k'] }}{% endif %}
+{% echo h['k'] %}

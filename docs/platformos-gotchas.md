@@ -20,8 +20,41 @@ dry-run oracle outranks the runtime one *for syntax only*.
 
 ## 1. `hash_assign` is stricter than "it needs an object"
 
-The runtime enforces **two** rules, not one: the target must be a Hash or an
-Array, **and the subscript must match the container**.
+The runtime enforces **three** rules, and they fail at different times. Rule zero is
+syntactic and fires before the other two are even considered.
+
+### Rule 0 — the target must end in a BRACKET subscript
+
+```liquid
+{% hash_assign h['k']   = 'v' %}   ✅
+{% hash_assign h["k"]   = 'v' %}   ✅
+{% hash_assign h.a['b'] = 'v' %}   ✅   a dot is fine when it is not the LAST subscript
+{% hash_assign h[k]     = 'v' %}   ✅   variable key
+{% hash_assign h[0]     = 'v' %}   ✅
+{% hash_assign h['k-1'] = 'v' %}   ✅
+
+{% hash_assign h.k      = 'v' %}   ❌
+{% hash_assign h.a.b    = 'v' %}   ❌
+{% hash_assign h['a'].b = 'v' %}   ❌
+```
+
+The failure is `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax:
+hash_assign hash[key] = value`, raised at **parse** time — so the template cannot be
+rendered *and* the deploy converter rejects it, taking the whole changeset. Note this is
+the one place in Liquid where `h['k']` and `h.k` are **not** interchangeable; everywhere
+else they are the same lookup.
+
+Only the *last* subscript matters, which is easy to get wrong in both directions:
+`h.a['b']` works and `h['a'].b` does not.
+
+**This bites formatters.** `prettier-plugin-liquid` used to normalise `h['k']` to `h.k`
+here, exactly as it correctly does everywhere else — silently turning a working file into
+one that cannot be parsed, with no error at any layer. If you write tooling that
+regenerates Liquid from an AST, this position needs a special case.
+
+### Rules 1 and 2 — the container type and the subscript kind
+
+The target must be a Hash or an Array, **and the subscript must match the container**.
 
 ```liquid
 {% assign x = 'a,b' | split: ',' %}
@@ -55,6 +88,24 @@ the obvious inverse rule does **not** hold:
 
 So "the last subscript must match the container" is false. Anything modelling
 nested targets needs real element types, not a heuristic.
+
+### The target must be written with **brackets**. Dot access is a converter rejection
+
+This is a *syntax* rule, separate from every type rule above, and it is enforced by
+the converter rather than the runtime — so it fails the whole changeset.
+
+```liquid
+{% hash_assign h['k']      = 1 %}   ✅
+{% hash_assign h['a']['b'] = 1 %}   ✅
+{% hash_assign h.k         = 1 %}   ❌ Liquid syntax error: Syntax Error in 'hash_assign'
+{% hash_assign h.a.b       = 1 %}   ❌  - Valid syntax: hash_assign hash[key] = value
+```
+
+Everywhere else in Liquid `h.k` and `h['k']` are interchangeable, so this is a rule
+you will violate by habit. Note the trap it sets for tooling: **any formatter that
+normalises `h['k']` to `h.k` — which is the conventional Liquid style, and which
+`prettier-plugin-liquid` does — silently converts a working file into a
+whole-changeset deploy failure.** See §11.
 
 ### `hash_assign` does not convert the target
 
@@ -116,8 +167,42 @@ wrong — all fell out of nobody having written it down.
 That last row is why this has to be **measured** rather than derived: Psych does not
 implement the 1.1 spec's full boolean set. Reading the spec gives the wrong answer.
 
+**Two traps in the "is it one key" test itself**, both measured against
+`Psych.safe_load(…).size`, which is the only trustworthy way to ask:
+
+- **`-0.0:` and `0.0:` are ONE key**, even though `-0.0.inspect != 0.0.inspect`.
+  `Float#eql?` is value-based, so signed zeros collapse — unlike the `Integer`/`Float`
+  split one row above, where the *classes* differ. Comparing keys by class plus
+  `inspect` gets this exactly backwards.
+- **Psych's boolean resolution is case-insensitive well beyond the spec's three
+  spellings.** `TrUe:` is boolean `true`, and collides with `true:`, `TRUE:`, `yes:`,
+  `on:` and `oN:`. Likewise `.Inf:` and `.INF:` are both `Float::INFINITY` and collide
+  with `.inf:`; `.NAN:` collides with `.nan:`. Any list of "the boolean spellings"
+  short enough to write down is wrong.
+
 Compare keys by **resolved type and value under the platform's parser**, never by
 source text and never by your own parser's resolution.
+
+### A multi-line quoted scalar may be indented at or below its own key
+
+Another 1.1-vs-1.2 lexer divergence, and a more likely one to hit than the stray CR
+because it is something a human writes on purpose:
+
+```yaml
+en:
+  greeting: "Hello
+  world"          # continuation aligned with the KEY, not deeper
+```
+
+Psych loads this as `{"en" => {"greeting" => "Hello world"}}` and the converter accepts
+it. A YAML 1.2 parser requires a flow scalar's continuation to be indented *more* than
+its parent and reports `Missing closing " quote`. Both quote styles behave the same, and
+column-0 continuation is accepted too. Indent the continuation by one more space than
+the key and every parser agrees.
+
+**The control that separates this from a real error:** an *unquoted* multi-line value
+(`a: x` / newline / `y`) is rejected by Psych as well. It is specifically the quoted
+form that is legal.
 
 ### A lone `\r` is a line break to the platform and not to npm `yaml`
 
@@ -203,15 +288,54 @@ Single-quoted JSON is a **converter rejection**, so it fails the whole changeset
 
 ---
 
-## 5. Where a filter is allowed is a rule, not a symmetry
+## 5. A filter in a tag has THREE possible fates, not two
 
-Filters are accepted wherever the platform parses a full Liquid **Variable**, and
-refused wherever it parses a bare **Expression**. That follows each Ruby tag's own
-markup parsing, so it is not derivable from what looks consistent — every row below
-was settled with `pos-cli deploy --dry-run`, each construct deployed with the filter
-and again without it so a bad fixture is distinguishable from a real refusal.
+This section said "accepted" and "refused" for a long time, and it was wrong in the most
+expensive way available: **accepted by the converter is not the same as applied by the
+runtime.** Measuring only `--dry-run` answers "does this deploy", never "does this do
+anything". Two claims, one sentence — and only one of them had been measured.
 
-**Accepted:**
+| Fate | Where | What it costs you |
+|---|---|---|
+| **Rejected** | a condition — `if`/`unless`/`elsif`, either side of a comparison, `for … in`, a range bound, an index-lookup interior | converter rejection, fails the **whole changeset** |
+| **Silently ignored** | every other platformOS tag operand or argument value | the file deploys and renders, and your filter **does nothing** |
+| **Applied** | `{{ }}`, `{% assign %}`, `{% echo %}`, `{% print %}`, `{% return %}`, `{% session %}`, and a trailing filter on `{% function %}` / `{% graphql %}` (which filters the RESULT) | works as written |
+
+**How the middle row was established.** `no_such_filter_xyz` raises
+`Liquid::UndefinedFilter` wherever the runtime evaluates it, so a construct that renders
+clean proves the filter was never seen. 15 positions measured against
+`/api/app_builder/liquid_exec`, each paired with a filterless control that renders clean,
+plus 5 positive controls where the same probe **does** raise. A second lens agreed: a
+wrong-arity real filter (`| upcase: 1, 2, 3`), which raises `Liquid::ArgumentError` in
+`{{ }}`, is also silent in a tag operand.
+
+The decisive one needs no error at all — it is directly observable:
+
+```liquid
+{% case 'a' | upcase %}{% when 'A' %}FILTER APPLIED{% when 'a' %}FILTER IGNORED{% endcase %}
+```
+
+renders **`FILTER IGNORED`**.
+
+**Why.** Ruby Liquid parses these markups with its own scanner, and `TagAttributes`
+captures `QuotedFragment`, which explicitly **excludes `|`**. The platform never sees the
+filter as part of the value. That is also why the boundary is *which position inside the
+tag*, not which tag: the applying positions are the ones where the platform parses the
+whole value as a Liquid variable.
+
+**So the repair is the same for both failing rows** — `{% assign %}` the filtered value on
+a preceding line and pass the assigned variable:
+
+```liquid
+{% assign key = 'k' | append: '1' %}
+{% cache key %}…{% endcache %}
+```
+
+`platformos-check` reports the middle row as a **`FilterWithoutEffect` warning**: it must
+not block, because the file deploys and renders, but silence would let you ship a template
+that does something other than what it says.
+
+**Accepted by the converter, and silently ignored at runtime:**
 
 ```liquid
 {% cache 'k' | append: '1' %}…{% endcache %}
@@ -226,7 +350,27 @@ and again without it so a bad fixture is distinguishable from a real refusal.
 {% cycle 'a' | upcase, 'b' %}
 ```
 
-Named-argument values, hash-pair values and `session` take one too.
+**Argument values parse the same way** — named, positional and hash-pair alike, in every
+tag that has arguments. Each was deployed with the filter and again without it, and each
+is equally ignored at runtime:
+
+```liquid
+{% render 'p', v: 'a' | upcase %}            {% log 'm', type: 't' | upcase %}
+{% log 'm', 'x' | upcase %}                  {% cache 'k', expire: 60 | plus: 1 %}
+{% include_form 'p', v: 'a' | upcase %}      {% sign_in user_id: 1 | plus: 0 %}
+{% background source_name: 'x' | upcase %}   {% redirect_to '/p', status: 301 | plus: 0 %}
+{% spam_protection 'r', v: 'a' | upcase %}   {% context k: 'a' | upcase %}
+{% transaction isolation: 'a' | upcase %}    {% form k: 'a' | upcase %}
+{% theme_render_rc 'p', v: 'a' | upcase %}   {% render 'p', filter: type: 'a' | upcase %}
+{% export x, namespace: 'n' | upcase %}      {% session k = 'a' | upcase %}
+{% response_status 200 | plus: 0 %}
+```
+
+One exception worth knowing, because it is the only place the two readings compete:
+`{% function res = 'p', arg: 3 | dig: 'results' %}`. Here the trailing filter belongs to
+the function's **result**, and it really is applied — same shape as `{% return %}`. The
+same holds for `{% graphql %}`. So a filter after the last argument of those two tags is
+not dead code.
 
 **Refused — and a refusal here is a converter rejection that fails the whole
 changeset, not a runtime error on one page:**
@@ -243,14 +387,48 @@ changeset, not a runtime error on one page:**
 The repair is always the same: `{% assign %}` the filtered value on a preceding
 line, then test or iterate the assigned variable.
 
-**The runtime is not the oracle for this.** `/api/app_builder/liquid_exec` accepts
-every construct above, including all six the converter rejects — verified with
-controls proving it does report real syntax errors. For a syntax question the
-converter is the only authority.
+**Neither oracle answers this alone, which is the whole lesson.**
+`/api/app_builder/liquid_exec` accepts every construct above, including all six the
+converter rejects — verified with controls proving it does report real syntax errors. So
+for *does it deploy*, the converter is the only authority. But the converter cannot tell
+you whether the filter runs, and reading its acceptance as approval is what produced the
+wrong version of this section. Ask both questions, and name which oracle answered which.
 
 ---
 
-## 6. Multi-file changes must be validated together
+## 6. Tags Shopify Liquid taught you that platformOS does not have
+
+Editor tooling for platformOS is forked from Shopify's, so a tag can be highlighted,
+parsed and autocompleted while the platform has never heard of it. The converter is the
+only authority, and its refusal fails the **whole changeset**.
+
+| Construct | What the converter says |
+|---|---|
+| `{% layout 'application' %}` | `Unknown tag 'layout'` — platformOS chooses a layout from **frontmatter** (`layout: application`), never from a tag. Swept all 46 tag names the parser knows: this is the only one the platform does not implement |
+| `{% content_for 'slot' %}` | `'content_for' tag was never closed` — it is a **block** tag here. `{% content_for 'slot' %}…{% endcontent_for %}` deploys |
+
+`{% rollback %}` goes the other way and is more permissive than it looks: it deploys
+bare, outside any `{% transaction %}`.
+
+---
+
+## 7. GraphQL: the converter enforces the full validation rules, not just the schema
+
+Three things many GraphQL servers tolerate are hard rejections here — each confirmed by
+deploying the file, twice:
+
+```graphql
+query q($limit: Int!, $unused: Int) { … }   ❌ a declared, unused variable
+fragment unused on X { … }                  ❌ a declared, unused fragment
+```
+
+A document containing **only** fragments and no operation is rejected too. Fragments,
+nested fragments, inline fragments, aliases, `@include`/`@skip` and `__typename` are all
+fine; a cyclic fragment spread is correctly rejected.
+
+---
+
+## 8. Multi-file changes must be validated together
 
 A partial created in the same changeset as its caller does not exist on disk yet.
 Validated file-by-file, the caller is reported as rendering a missing partial —
@@ -258,7 +436,7 @@ a false block on a coherent change. Overlay every buffer at once.
 
 ---
 
-## 7. Filter arity is only knowable from the runtime
+## 9. Filter arity is only knowable from the runtime
 
 `filters.json` cannot answer it: of 167 filters, 123 carry a `parameters[]`
 array, **zero** mark any parameter `required`, and `slice`/`replace` carry no
@@ -282,7 +460,7 @@ A whole group of named arguments collapses into a **single** trailing hash:
 
 ---
 
-## 8. Translations
+## 10. Translations
 
 - Missing key renders literally as `translation missing: en.some.key` — it does
   not raise and does not render empty.
@@ -293,7 +471,7 @@ A whole group of named arguments collapses into a **single** trailing hash:
 
 ---
 
-## 9. Operational gotchas
+## 11. Operational gotchas
 
 - **`data/filters.json` is re-downloaded on every build.** The docs-updater's
   `postbuild` fetches it from `documentation.platformos.com`. Editing it locally
@@ -313,9 +491,65 @@ A whole group of named arguments collapses into a **single** trailing hash:
   `String`, `Integer`, `Float`, `Boolean`, `Array`, `Hash`, `Date`, `Time`,
   `Range`, `null`.
 
+### `pos-cli deploy --dry-run` fails intermittently, and the failure looks like a rejection
+
+Roughly one probe in fifteen came back without `Dry run completed` and **without any
+Liquid error in the output**. Three separate constructs were scored as converter
+rejections on the first pass and came back ACCEPTED 2/2 and 3/3 on re-probe — one of
+them would have inverted a finding.
+
+If you are using the dry run as an oracle, **require a positive error message**, not
+merely the absence of the success line, and repeat every rejection. Treating "did not
+succeed" as "was refused" silently manufactures findings.
+
+### Formatting platformOS Liquid can break it
+
+`prettier-plugin-liquid` regenerates source from the AST rather than editing text, so
+anything the AST does not carry is deleted on the next format — in the author's own
+file, with no error at any layer. Measured across all 46 tag names and 112 constructs
+on plugin 0.0.17 under prettier 2.8.8 and 3.8.1: exactly one construct comes back
+changed in a way that matters, and it is the `hash_assign` bracket-to-dot rewrite in
+§1, which turns a working file into a whole-changeset deploy failure.
+
+Two related traps worth knowing:
+
+- The plugin ships two printers and picks between them from the prettier version **it**
+  resolves, not the one you called. Inside a workspace checkout where the plugin has its
+  own `prettier` devDependency, it can hand prettier 2's doc builders to prettier 3 and
+  crash with `Unexpected doc.type 'concat'` — an artefact of the checkout, not of the
+  published package.
+- The printer inserts and moves whitespace-control markers (`-%}`, `{{-`) freely to
+  preserve rendering while it reflows. That is intended; a diff that treats it as
+  corruption will bury the one change that is real.
+
+### `pos-cli check` and the MCP supervisor are NOT the same linter
+
+They share a codebase lineage and nothing else at runtime. `pos-cli` resolves published
+npm packages under its own `node_modules`; the supervisor runs whatever build it was
+pointed at. Measured on the current machine, the CLI loads
+`platformos-check-common@0.0.20` / `liquid-html-parser@0.0.18` and the supervisor loads
+`0.0.19` / `0.0.17` — the CLI's copies carry the **higher version number and different
+content**, including ~40 Shopify theme checks (`app-block-*`, `valid-schema`,
+`settings_schema`) that the platformOS tree does not have, and missing three that it
+does (`yaml-syntax-error`, `duplicate-yaml-key`, `filter-arity`).
+
+Consequences, all measured by running the same buffer through both:
+
+- **`pos-cli check` does not check YAML syntax at all.** An unterminated quote, a
+  tab-indented mapping and a bad indent in a schema or translations file are all silent
+  — and all three are hard converter rejections that fail the whole changeset.
+- **It misses a filter in an `{% if %}` or `{% unless %}` condition**, which the
+  converter rejects. It does catch the `{% for … in %}` and index-lookup forms.
+- **It still reports filters in `cache`/`log`/`yield`/`redirect_to` operands as syntax
+  errors**, which the converter accepts.
+
+So a green `pos-cli check` is not the same claim as a green supervisor run, in either
+direction. Check which build each one is loading before comparing their output —
+`readlink -f node_modules/@platformos/platformos-check-common` answers it in one line.
+
 ---
 
-## 10. What is *not* validated, and must not be assumed
+## 12. What is *not* validated, and must not be assumed
 
 - The **shape** of a model schema. An unknown property deploys fine.
 - Nested `hash_assign` subscripts (`x[0]['k']`) — a known, bounded gap.

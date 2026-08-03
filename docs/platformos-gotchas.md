@@ -422,12 +422,20 @@ wrong version of this section. Ask both questions, and name which oracle answere
 ## 6. Tags Shopify Liquid taught you that platformOS does not have
 
 Editor tooling for platformOS is forked from Shopify's, so a tag can be highlighted,
-parsed and autocompleted while the platform has never heard of it. The converter is the
-only authority, and its refusal fails the **whole changeset**.
+parsed and autocompleted while the platform has never heard of it. Its refusal fails the
+**whole changeset**.
+
+**The authoritative answer is not a probe — it is the platform's tag registry.**
+`config/initializers/liquid_view.rb` in the platform repo is the only non-test file calling
+`register_tag`, and it lists platformOS's 33 tag additions directly (Liquid's own built-ins
+come from the gem). Reading it answers "does this tag exist" in **both** directions, which no
+amount of probing does: a probe can tell you a tag you use is rejected, but it cannot tell you
+about a tag the platform ships and your tooling has never heard of. Diffing that registry
+against our vocabulary found eight of those at once.
 
 | Construct | What the converter says |
 |---|---|
-| `{% layout 'application' %}` | `Unknown tag 'layout'` — platformOS chooses a layout from **frontmatter** (`layout: application`), never from a tag. Swept all 46 tag names the parser knows: this is the only one the platform does not implement |
+| `{% layout 'application' %}` | `Unknown tag 'layout'` — platformOS chooses a layout from **frontmatter** (`layout: application`), never from a tag. Confirmed three ways: `--dry-run`, `liquid_exec`, and its absence from `register_tag`. A real 113-file marketplace uses the frontmatter form 11 times and the tag zero times |
 | `{% content_for 'slot' %}` | `'content_for' tag was never closed` — it is a **block** tag here. `{% content_for 'slot' %}…{% endcontent_for %}` deploys |
 
 `{% rollback %}` goes the other way and is more permissive than it looks: it deploys

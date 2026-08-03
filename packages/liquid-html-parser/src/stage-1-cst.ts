@@ -349,7 +349,6 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagDecrement
   | ConcreteLiquidTagElsif
   | ConcreteLiquidTagInclude
-  | ConcreteLiquidTagLayout
   | ConcreteLiquidTagLiquid
   | ConcreteLiquidTagRender
   | ConcreteLiquidTagFunction
@@ -394,10 +393,6 @@ export interface ConcreteLiquidTagIncrement extends ConcreteLiquidTagNode<
 export interface ConcreteLiquidTagDecrement extends ConcreteLiquidTagNode<
   NamedTags.decrement,
   ConcreteLiquidVariableLookup
-> {}
-export interface ConcreteLiquidTagLayout extends ConcreteLiquidTagNode<
-  NamedTags.layout,
-  ConcreteLiquidExpression
 > {}
 
 export interface ConcreteLiquidTagLiquid extends ConcreteLiquidTagNode<
@@ -1058,7 +1053,6 @@ function toCST<T>(
     liquidTagFunction: 0,
     liquidTagGraphQL: 0,
     liquidTagInclude: 0,
-    liquidTagLayout: 0,
     liquidTagRule: {
       type: ConcreteNodeTypes.LiquidTag,
       name: 3,
@@ -1090,7 +1084,6 @@ function toCST<T>(
     },
 
     liquidTagEchoMarkup: 0,
-    liquidTagLayoutMarkup: 0,
     liquidTagAssignMarkup: {
       type: ConcreteNodeTypes.AssignMarkup,
       name: (tokens: Node[]) => tokens[0].children[0].sourceString,

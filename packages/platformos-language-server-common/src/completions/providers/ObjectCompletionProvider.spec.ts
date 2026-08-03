@@ -109,11 +109,18 @@ describe('Module: ObjectCompletionProvider', async () => {
     );
   });
 
+  it('offers no completion inside {% layout %}, which platformOS does not implement', async () => {
+    // `['{% layout non█ %}', 'none']` used to sit in the contextual-variables table below.
+    // Completing it walked an author into `Unknown tag 'layout'`, which the converter rejects
+    // and which fails the WHOLE changeset (TASK-44). The layout name belongs in frontmatter,
+    // where `FrontmatterKeyCompletionProvider` completes it.
+    await expect(provider, '{% layout non█ %}').to.complete('{% layout non█ %}', []);
+  });
+
   it('should complete contextual variables', async () => {
     const contexts: [string, string][] = [
       ['{% for p in context.posts %}{{ for█ }}{% endfor %}', 'forloop'],
       ['{% tablerow p in context.posts %}{{ tablerow█ }}{% endtablerow %}', 'tablerowloop'],
-      ['{% layout non█ %}', 'none'],
       ['{% increment var %}{{ var█ }}', 'var'],
       ['{% decrement var %}{{ var█ }}', 'var'],
       ['{% assign var = 1 %}{{ var█ }}', 'var'],

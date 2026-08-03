@@ -87,7 +87,10 @@ describe('Module: UnknownTag', () => {
         `{% cycle "a", "b", "c" %}`,
         `{% break %}`,
         `{% continue %}`,
-        `{% layout 'application' %}`,
+        // `{% layout %}` was here, and it encoded the TASK-44 false approval: this list asserts
+        // that a tag is NOT reported, so including a tag the platform rejects made the defect
+        // a requirement. It is now covered by the `{% layout %}` describe block below, which
+        // asserts the opposite.
         `{% render 'partial' %}`,
         `{% include 'partial' %}`,
       ];
@@ -288,6 +291,85 @@ layout: 'modules/community/blank'
       const unknownTagOffenses = offenses.filter((o) => o.message.includes('Unknown tag'));
       expect(unknownTagOffenses).toHaveLength(1);
       expect(unknownTagOffenses[0].message).toBe("Unknown tag 'unknown_tag'");
+    });
+  });
+
+  /**
+   * TASK-44. `{% layout %}` was a deploy-wide FALSE APPROVAL.
+   *
+   * The grammar carried a dedicated rule for it — Shopify inheritance that came along with the
+   * fork — so the parser accepted it, no check objected, and the supervisor answered
+   * `status: ok, must_fix_before_write: false`. The converter REJECTS it with
+   * `Unknown tag 'layout'`, and a converter rejection fails the WHOLE changeset, so an agent
+   * told "write this" took every other file in the deploy down with it.
+   *
+   * Confirmed by two independent oracles: `pos-cli deploy --dry-run` (round 5) and
+   * `/api/app_builder/liquid_exec` (re-measured here), in every form — with an argument,
+   * `none`, bare, and inside `{% liquid %}`. Controls render, so the probes are sound.
+   *
+   * BOUNDED BY MEASUREMENT, not by the report. `eval/tag-vocabulary-sweep.mjs` runs all 50 tag
+   * names the grammar carries against the runtime: `layout` is the ONLY one the platform answers
+   * `Unknown tag` for. `ifchanged` was the other suspect — present in the grammar, absent from
+   * the docset — and it renders, so it is not a second defect.
+   */
+  describe('{% layout %}, which platformOS does not implement', () => {
+    const LAYOUT_FORMS: Array<[label: string, source: string]> = [
+      ['with an argument', `{% layout 'application' %}`],
+      ['with none', `{% layout none %}`],
+      ['bare', `{% layout %}`],
+      ['whitespace-trimmed', `{%- layout 'application' -%}`],
+      ['inside a liquid tag', `{% liquid\n  layout 'application' %}`],
+    ];
+
+    for (const [label, sourceCode] of LAYOUT_FORMS) {
+      it(`reports layout ${label}`, async () => {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+
+        expect(offenses.filter((o) => o.message.includes('Unknown tag'))).toHaveLength(1);
+      });
+    }
+
+    it('tells the author what platformOS wants instead, not merely that the tag is unknown', async () => {
+      // AC#2. "Unknown tag 'layout'" is accurate and useless — the author knows what they
+      // wrote, and it reads like a typo rather than a missing feature. The remedy is measured:
+      // platformOS selects a layout from page frontmatter.
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, `{% layout 'application' %}`);
+      const unknown = offenses.filter((o) => o.message.includes('Unknown tag'));
+
+      expect(unknown.map((o) => o.message)).toEqual([
+        "Unknown tag 'layout'. platformOS has no layout tag — it selects a layout from the " +
+          'page frontmatter instead, e.g. `layout: application`.',
+      ]);
+    });
+
+    it('does not attach that hint to an unrelated unknown tag', async () => {
+      // The control. A hint appended unconditionally would satisfy the assertion above while
+      // telling an author who mistyped `{% redirect_too %}` to go and edit their frontmatter.
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, `{% redirect_too '/x' %}`);
+      const unknown = offenses.filter((o) => o.message.includes('Unknown tag'));
+
+      expect(unknown.map((o) => o.message)).toEqual(["Unknown tag 'redirect_too'"]);
+    });
+
+    it('leaves the layout CONCEPT alone — only the tag is gone', async () => {
+      // `{{ content_for_layout }}` is an object and renders fine; `{% content_for %}` is a real
+      // platformOS block tag; frontmatter is not this check's business. Removing the tag must not
+      // have caught any of them.
+      const unrelated = [
+        `{{ content_for_layout }}`,
+        `{% content_for 'slot' %}x{% endcontent_for %}`,
+        `---\nlayout: application\n---\n<p>hi</p>`,
+      ];
+
+      const reported = await Promise.all(
+        unrelated.map(async (source) =>
+          (await runLiquidCheck(LiquidHTMLSyntaxError, source)).filter((o) =>
+            o.message.includes('Unknown tag'),
+          ),
+        ),
+      );
+
+      expect(reported).toEqual(unrelated.map(() => []));
     });
   });
 });

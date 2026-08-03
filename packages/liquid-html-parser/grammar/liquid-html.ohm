@@ -79,7 +79,6 @@ Liquid <: Helpers {
     | liquidTagElsif
     | liquidTagInclude
     | liquidTagIncrement
-    | liquidTagLayout
     | liquidTagLiquid
     | liquidTagRender
     | liquidTagFunction
@@ -202,8 +201,15 @@ Liquid <: Helpers {
   liquidTagOpenCapture = liquidTagOpenRule<"capture", variableSegmentAsLookupMarkup>
   variableSegmentAsLookupMarkup = variableSegmentAsLookup space*
 
-  liquidTagLayout = liquidTagRule<"layout", liquidTagLayoutMarkup>
-  liquidTagLayoutMarkup = liquidExpression<delimTag> space*
+  // NO `layout` TAG. platformOS does not implement one — measured, `Unknown tag 'layout'` from
+  // both `pos-cli deploy --dry-run` and `liquid_exec`, and a converter rejection fails the WHOLE
+  // changeset. It is Shopify inheritance that came along with the fork. platformOS selects a
+  // layout from FRONTMATTER (`layout: application`), never from a tag.
+  //
+  // Carrying a rule for it made the parser accept a file the platform rejects, with no check
+  // objecting: a deploy-wide FALSE APPROVAL. Removing it lets `UnknownTag` report it, which is
+  // what every other tag the platform lacks already gets. `eval/tag-vocabulary-sweep.mjs` sweeps
+  // all 50 grammar tag names against the runtime; `layout` is the only one missing.
 
   // We'll black hole the statement and switch parser in the cst builder
   // We do this because it's technically the same grammar (with minor redefinitions)

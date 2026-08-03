@@ -102,8 +102,6 @@ describe('Unit: liquidHtmlGrammar', () => {
         expectMatchSucceeded(`{%- form 'form-type'-%}`).to.be.true;
         expectMatchSucceeded(`{%- # a comment -%}`).to.be.true;
         expectMatchSucceeded(`{%- include 'layout' -%}`).to.be.true;
-        expectMatchSucceeded(`{%- layout 'full-width' -%}`).to.be.true;
-        expectMatchSucceeded(`{%- layout none -%}`).to.be.true;
         expectMatchSucceeded(`{% render 'filename' for array as item %}`).to.be.true;
         expectMatchSucceeded(`{% assign variable_name = value %}`).to.be.true;
         expectMatchSucceeded(`{% render "product", %}`).to.be.true;
@@ -173,6 +171,37 @@ describe('Unit: liquidHtmlGrammar', () => {
           return expect(match.succeeded(), text);
         }
       });
+    });
+
+    /**
+     * TASK-44. `{% layout %}` is not a platformOS tag, so the grammar must treat it exactly as
+     * it treats any name it has never heard of — no better and no worse.
+     *
+     * Two assertions that used to live in the list above claimed `{%- layout 'full-width' -%}`
+     * and `{%- layout none -%}` parse. They did, via a DEDICATED rule, and that encoded a
+     * deploy-wide FALSE APPROVAL: the parser accepted a file the converter rejects with
+     * `Unknown tag 'layout'` — failing the WHOLE changeset — and no check objected. Measured
+     * against both `--dry-run` and `liquid_exec`; platformOS selects a layout from FRONTMATTER
+     * (`layout: application`), never from a tag.
+     *
+     * Asserted as an EQUIVALENCE against a control name rather than as a fixed expectation per
+     * mode. The modes genuinely differ — the strict grammar has no base case, so an unknown tag
+     * fails to match there while the tolerant and placeholder grammars accept it and let
+     * `UnknownTag` report it — and pinning those three booleans by hand would just re-encode
+     * today's behaviour. What matters is that `layout` is not special, which is what a control
+     * can say and a literal cannot.
+     */
+    it('treats {% layout %} exactly like a tag it has never heard of', () => {
+      const CONTROL = 'no_such_tag_zzz';
+
+      for (const { mode, grammar } of grammars) {
+        for (const shape of [`{%- NAME 'x' -%}`, `{% NAME 'x' %}`, `{%- NAME none -%}`]) {
+          const layout = grammar.LiquidHTML.match(shape.replace('NAME', 'layout'), 'Node');
+          const unknown = grammar.LiquidHTML.match(shape.replace('NAME', CONTROL), 'Node');
+
+          expect(layout.succeeded(), `${mode}: ${shape}`).to.equal(unknown.succeeded());
+        }
+      }
     });
 
     it('should parse or not parse {% liquid %} lines', () => {

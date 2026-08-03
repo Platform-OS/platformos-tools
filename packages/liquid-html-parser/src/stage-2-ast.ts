@@ -240,7 +240,6 @@ export type LiquidTagNamed =
   | LiquidTagIf
   | LiquidTagInclude
   | LiquidTagIncrement
-  | LiquidTagLayout
   | LiquidTagLiquid
   | LiquidTagRender
   | LiquidTagFunction
@@ -473,9 +472,6 @@ export interface LiquidTagGraphQL extends LiquidTagNode<
 
 /** https://shopify.dev/docs/api/liquid/tags#include */
 export interface LiquidTagInclude extends LiquidTagNode<NamedTags.include, RenderMarkup> {}
-
-/** https://shopify.dev/docs/api/liquid/tags#layout */
-export interface LiquidTagLayout extends LiquidTagNode<NamedTags.layout, LiquidExpression> {}
 
 /** https://shopify.dev/docs/api/liquid/tags#liquid */
 export interface LiquidTagLiquid extends LiquidTagNode<NamedTags.liquid, LiquidStatement[]> {}
@@ -1890,14 +1886,6 @@ function toNamedLiquidTag(
         ...liquidTagBaseAttributes(node),
         name: node.name,
         markup: toGraphQLMarkup(node.markup),
-      };
-    }
-
-    case NamedTags.layout: {
-      return {
-        ...liquidTagBaseAttributes(node),
-        name: node.name,
-        markup: toExpression(node.markup) as LiquidString,
       };
     }
 

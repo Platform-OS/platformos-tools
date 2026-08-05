@@ -19,7 +19,7 @@ foldingStopMarker: |
   %}
 
 injections:
-  "L:meta.embedded.block.js, L:meta.embedded.block.css, L:meta.embedded.block.html, L:string.quoted":
+  "L:meta.embedded.block.js, L:meta.embedded.block.css, L:meta.embedded.block.html, L:meta.embedded.block.graphql, L:meta.embedded.block.json, L:string.quoted":
     patterns:
       - include: '#injection'
 

@@ -8,7 +8,13 @@
  */
 import { isAbsolute, join, relative, sep } from 'node:path';
 
-import { isSupportedSourceFile, path as pathUtils } from '@platformos/platformos-check-common';
+import { path as pathUtils } from '@platformos/platformos-check-common';
+import {
+  APP_SOURCE_SUBTREES,
+  getFileType,
+  PlatformOSFileType,
+  sourceCodeTypeOf,
+} from '@platformos/platformos-common';
 
 import { LINT_MS_PER_KIB } from './cost-model.js';
 import type { Declined } from './result/types.js';
@@ -58,7 +64,7 @@ export type FileApplicability = { applicable: true } | ({ applicable: false } & 
  * rather than an `ok` or an `error`: the only honest answer is "not mine to
  * judge", which neither blocks nor approves the write.
  *
- * TWO INDEPENDENT RULES, in order:
+ * THREE INDEPENDENT RULES, in order (each documented at its own branch below):
  *
  * 1. CONTAINMENT. The resolved path must lie strictly inside `projectDir`.
  *    Checked on the `relative()` result rather than by string prefix, because a
@@ -71,14 +77,11 @@ export type FileApplicability = { applicable: true } | ({ applicable: false } & 
  *    contents anyway — so no symlink resolution is attempted (that would be I/O
  *    on the request path for no gain).
  *
- * 2. SUPPORTED TYPE. Reuses check-common's `isSupportedSourceFile`, which was
- *    verified to agree with check-node's App-membership filter
- *    (`getAppFilePaths`) on every case: `.liquid` in a recognized directory,
- *    `.graphql`, and translation/model `.yml`, with asset partials
- *    (`.css/.js/.scss.liquid`) and standalone `.json` excluded. Sharing the
- *    predicate is what keeps the gate from drifting away from what the linter
- *    would actually have looked at — if lint would not have visited the file,
- *    saying so beats inventing a diagnostic about it.
+ * 2. NOT AN ASSET. Assets are deployed and served, never read.
+ *
+ * 3. SUPPORTED TYPE. Reuses platformos-common's `sourceCodeTypeOf`, so the gate cannot
+ *    drift away from what the linter would actually have looked at — if lint would not
+ *    have visited the file, saying so beats inventing a diagnostic about it.
  */
 export function fileApplicability(projectDir: string, filePath: string): FileApplicability {
   const absolute = toAbsoluteFilePath(projectDir, filePath);
@@ -101,25 +104,58 @@ export function fileApplicability(projectDir: string, filePath: string): FileApp
 
   const uri = pathUtils.toUri(absolute);
 
-  if (!isSupportedSourceFile(uri)) {
-    // Shown with forward slashes on EVERY platform. `relativeToRoot` above comes from
-    // `node:path.relative`, which is right for the containment decision but yields
-    // `app\notes.txt` on Windows — echoing a separator back to the agent that it did
-    // not send, for a path it has to recognize as its own. check-common's `relative`
-    // is URI-based and forward-slash by construction.
-    const displayPath = pathUtils.relative(uri, pathUtils.toUri(projectDir));
-    return {
-      applicable: false,
-      code: 'unsupported_type',
-      reason:
-        `\`${displayPath}\` is not a platformOS source file, so there are no checks that ` +
-        `apply to it. Validation covers Liquid in a recognized platformOS directory, ` +
-        `\`.graphql\` operations, and translation / model \`.yml\`. Nothing was checked — ` +
-        `writing this file is your call, not a validated pass.`,
-    };
+  // 2. AN ASSET IS NEVER JUDGED — decided by the TYPE, not by whether some parser happens
+  //    to accept the extension. `platformos-common` states the rule plainly ("Nothing
+  //    reads an asset, so the only question about one is whether it exists"), and this
+  //    server's own coverage table declares the whole `Asset` type not admitted.
+  //
+  //    The gate did not use to enforce it, and the result was a FALSE BLOCK, measured:
+  //    `app/assets/x.liquid` holding `{% if unclosed` came back `must_fix_before_write:
+  //    true` with `LiquidHTMLSyntaxError`, because a bare `.liquid` has no response format
+  //    so `sourceCodeTypeOf` falls back to `html.liquid` and hands it to the Liquid parser.
+  //    Exactly backwards: `app/assets/theme.css.liquid` — the asset form the platform DOES
+  //    process — was exempt, while the one it serves as bytes was blocking writes on the
+  //    syntax of a language nothing there evaluates.
+  //
+  //    Trading it the other way is the right direction under this package's own severity
+  //    ranking: a false block on a legitimate asset write is worse than losing detection
+  //    on a file the platform never parses. If the platform turns out to render Liquid in
+  //    `assets/` after all, this becomes a missed detection instead — the milder failure —
+  //    and the fix is upstream in classification rather than here.
+  //
+  //    NOTE the narrow scope. This corrects the WRITE GATE only. `check` on a whole
+  //    project still reports on `app/assets/*.liquid`, because `sourceCodeTypeOf` types it
+  //    as Liquid for every consumer; making assets typeless everywhere touches the lint
+  //    CLI, the language server and the graph, and is filed separately.
+  const rootUri = pathUtils.toUri(projectDir);
+  if (getFileType(uri, rootUri) === PlatformOSFileType.Asset) {
+    return { applicable: false, ...assetNotLinted(displayPathOf(uri, projectDir)) };
+  }
+
+  // 3. SUPPORTED TYPE — extension-only, and deliberately NOT the anchored
+  //    `isSupportedSourceFile(uri, root)`: this asks "is this a type we parse at all", and
+  //    a `.liquid` in an undeployed subtree IS one. Anchoring here would answer
+  //    `unsupported_type` for it — "not a platformOS source", the opposite of the truth —
+  //    where check-node's classifier says `misplaced-source` and the agent needs to hear
+  //    THAT. See `NotApplicableReason`.
+  if (sourceCodeTypeOf(uri) === undefined) {
+    return { applicable: false, ...notPlatformOSFile(displayPathOf(uri, projectDir)) };
   }
 
   return { applicable: true };
+}
+
+/**
+ * A path as the agent should SEE it: project-relative, forward slashes on every
+ * platform.
+ *
+ * `node:path.relative` is right for the containment decision above but yields
+ * `app\notes.txt` on Windows — echoing back a separator the agent never sent, for a
+ * path it has to recognize as its own. check-common's `relative` is URI-based and
+ * forward-slash by construction.
+ */
+function displayPathOf(uri: string, projectDir: string): string {
+  return pathUtils.relative(uri, pathUtils.toUri(projectDir));
 }
 
 /**
@@ -211,5 +247,115 @@ export function ignoredByProjectConfig(relativePath: string): Declined {
       `\`${relativePath}\` is excluded by the \`ignore\` list in this project's ` +
       `\`.platformos-check.yml\`, so no check ran against it. Nothing was checked — this is not ` +
       `a pass. Remove it from \`ignore\` if you want this file validated.`,
+  };
+}
+
+/**
+ * The subtrees the platform deploys from, as prose.
+ *
+ * DERIVED, never spelled out. An earlier draft of the messages below hand-wrote
+ * "`app/` (or `modules/<name>/public/` …)", which is a copy of a list that lives in
+ * `platformos-common` and would have gone quietly stale the first time a subtree was
+ * added — while continuing to sound authoritative to the agent reading it.
+ */
+const DEPLOYED = APP_SOURCE_SUBTREES.map((subtree) => `${subtree}/`).join(', ');
+
+/**
+ * Where an agent can read the whole rule rather than infer it from one message.
+ *
+ * A URL is the crudest form of the `hint` / `see_also` enrichment the result contract
+ * reserves (`ValidateCodeDiagnostic`) — those fields hang off a diagnostic, and "the file
+ * is in the wrong place" produces none. Making documentation links first-class is
+ * separate work; until then the pointer goes in the prose, because an agent that guesses
+ * at the directory structure keeps guessing.
+ */
+const DIRECTORY_STRUCTURE =
+  'Directory structure: ' +
+  'https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure';
+
+/**
+ * The refusal for a path that is not a platformOS source at all.
+ *
+ * ROUTINE, and the prose is deliberately mild: a project legitimately holds README
+ * files, `.jsx` components, CI config and build output, none of which are platformOS
+ * sources and none of which are MEANT to be. This must never advise moving the file
+ * anywhere — see {@link misplacedSource}, which is the opposite advice, and which exists
+ * precisely so this one can stay neutral.
+ *
+ * Reached from TWO places asking the same question of the same predicate: this server's
+ * pre-lint gate ({@link fileApplicability}, which spends no I/O on a file it will not
+ * judge) and check-node's `not-a-platformos-file` classification. One factory, so the two
+ * cannot describe the same situation differently.
+ */
+export function notPlatformOSFile(relativePath: string): Declined {
+  return {
+    code: 'unsupported_type',
+    reason:
+      `\`${relativePath}\` is not a platformOS source file, so there is nothing to check. ` +
+      `The platform deploys ${DEPLOYED} only. Nothing was checked — writing this file is ` +
+      `your call, not a validated pass. ${DIRECTORY_STRUCTURE}`,
+  };
+}
+
+/**
+ * The refusal for an ASSET: an app file the toolchain has no parser for.
+ *
+ * The same machine-readable code as {@link notPlatformOSFile} — an agent does not act
+ * differently on the two, and two codes with one remedy is a branch nobody can take — but
+ * its own prose, because the two situations are not the same fact. An asset IS part of
+ * the app and is deployed; it simply is not a source. Saying "not a platformOS file"
+ * about `app/assets/logo.png` would be false, and a message an author can tell is false
+ * is a message they stop reading.
+ */
+export function assetNotLinted(relativePath: string): Declined {
+  return {
+    code: 'unsupported_type',
+    reason:
+      `\`${relativePath}\` is an asset, not a source file the linter understands — it ` +
+      `checks Liquid, GraphQL and YAML — so no check ran against it. The file is still ` +
+      `deployed and served; there is simply nothing here to validate. Nothing was ` +
+      `checked, which is not the same as a pass.`,
+  };
+}
+
+/**
+ * The refusal for a real platformOS source sitting where the platform will never load it.
+ *
+ * THE OPPOSITE ADVICE FROM {@link notPlatformOSFile}, which is the whole reason the two
+ * are separate codes. This file IS something the toolchain parses — a partial, a page, a
+ * query — but it is outside every subtree the platform deploys, so it is dead code: it
+ * will not be served, and nothing that renders by name will find it. An agent told merely
+ * "unsupported type" files that under "fine, not my problem" and moves on, which is
+ * exactly wrong here.
+ *
+ * IT DOES NOT BLOCK THE WRITE, deliberately: someone may be authoring a module, a
+ * generator template or a fixture on purpose, and this server cannot know. `not_applicable`
+ * states the honest thing — nothing was checked — while the prose carries the warning.
+ * Making it block would turn a guess about intent into a veto, and a write gate that
+ * vetoes legitimate work gets switched off.
+ *
+ * NOT `status: 'warning'` either, tempting as it reads: `warning` in this contract means
+ * "the file WAS checked and something objected". Nothing checked this file, and claiming
+ * otherwise is the false approval the whole `not_applicable` status exists to prevent.
+ *
+ * KNOWN OVER-BROAD FOR `.yml`, and preserved as-is rather than quietly narrowed. The
+ * classification behind it treats any parseable extension outside the deployed subtrees
+ * as misplaced, and while a stray `.liquid` really is almost always a mistake, a stray
+ * `.yml` usually is not — a repository's CI, container and linter configs are all `.yml`,
+ * including this toolchain's own `.platformos-check.yml`. Those get told "likely
+ * misplaced", which is wrong advice, though never a block. Narrowing it means deciding
+ * which extensions carry a platformOS signal at the point where classification happens
+ * (check-node), not papering over it here; filed as its own change rather than folded
+ * into a merge.
+ */
+export function misplacedSource(relativePath: string): Declined {
+  return {
+    code: 'misplaced_source',
+    reason:
+      `\`${relativePath}\` is a platformOS source file outside every subtree the platform ` +
+      `deploys (${DEPLOYED}). Nothing checked it, and nothing will load it either — a ` +
+      `partial, page or query here is dead code. Move it under one of those directories ` +
+      `unless it is deliberately a fixture or a build input. This is neither a pass nor a ` +
+      `block. ${DIRECTORY_STRUCTURE}`,
   };
 }

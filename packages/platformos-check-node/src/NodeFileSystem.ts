@@ -13,8 +13,14 @@ export const NodeFileSystem: AbstractFileSystem = {
   async readDirectory(uri: string): Promise<FileTuple[]> {
     // console.error('fs/readDirectory', uri);
     const files = await fs.readdir(path.fsPath(uri), { withFileTypes: true });
+    // `childUri`, not `join`: this runs once per entry of every directory a walk
+    // opens — ~30 000 times on a real project, for entries the caller mostly throws
+    // away — and `join`'s parse/serialize round trip was a third of the walk.
     return files.map((file) => {
-      return [path.join(uri, file.name), file.isDirectory() ? FileType.Directory : FileType.File];
+      return [
+        path.childUri(uri, file.name),
+        file.isDirectory() ? FileType.Directory : FileType.File,
+      ];
     });
   },
 
@@ -25,6 +31,9 @@ export const NodeFileSystem: AbstractFileSystem = {
       return {
         type: stats.isDirectory() ? FileType.Directory : FileType.File,
         size: stats.size,
+        mtimeMs: stats.mtimeMs,
+        // Same syscall, one more field — see `FileStat.ctimeMs` for why a cache needs it.
+        ctimeMs: stats.ctimeMs,
       };
     } catch (e) {
       throw new Error(`Failed to get file stat: ${e}`);

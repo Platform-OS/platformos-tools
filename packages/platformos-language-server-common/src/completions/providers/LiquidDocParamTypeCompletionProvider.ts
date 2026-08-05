@@ -2,7 +2,8 @@ import { NodeTypes } from '@platformos/liquid-html-parser';
 import { CompletionItem, CompletionItemKind, MarkupKind } from 'vscode-languageserver';
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
-import { filePathSupportsLiquidDoc } from '@platformos/platformos-check-common';
+import { FileTypeForURI } from '../../internal-types';
+import { makeSupportsLiquidDoc } from '../../utils/uri';
 import {
   getValidParamTypes,
   SupportedDocTagTypes,
@@ -10,11 +11,18 @@ import {
 } from '@platformos/platformos-check-common';
 
 export class LiquidDocParamTypeCompletionProvider implements Provider {
-  constructor(private readonly platformosDocset: PlatformOSDocset) {}
+  private readonly supportsLiquidDoc: (uri: string) => Promise<boolean>;
+
+  constructor(
+    private readonly platformosDocset: PlatformOSDocset,
+    fileTypeForURI?: FileTypeForURI,
+  ) {
+    this.supportsLiquidDoc = makeSupportsLiquidDoc(fileTypeForURI);
+  }
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
-    if (!filePathSupportsLiquidDoc(params.document.uri)) return [];
+    if (!(await this.supportsLiquidDoc(params.document.uri))) return [];
 
     const { node, ancestors } = params.completionContext;
     const parentNode = ancestors.at(-1);

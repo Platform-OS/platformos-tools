@@ -200,25 +200,30 @@ describe('Module: UnknownTag', () => {
   describe('tags known via docset', () => {
     it('should not report tags from the docset', async () => {
       const sourceCode = `{% custom_docset_tag %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode, 'file.liquid', {
-        platformosDocset: {
-          async filters() {
-            return [];
-          },
-          async objects() {
-            return [];
-          },
-          async liquidDrops() {
-            return [];
-          },
-          async tags() {
-            return [{ name: 'custom_docset_tag' }];
-          },
-          async graphQL() {
-            return null;
+      const offenses = await runLiquidCheck(
+        LiquidHTMLSyntaxError,
+        sourceCode,
+        'app/views/partials/file.liquid',
+        {
+          platformosDocset: {
+            async filters() {
+              return [];
+            },
+            async objects() {
+              return [];
+            },
+            async liquidDrops() {
+              return [];
+            },
+            async tags() {
+              return [{ name: 'custom_docset_tag' }];
+            },
+            async graphQL() {
+              return null;
+            },
           },
         },
-      });
+      );
       const unknownTagOffenses = offenses.filter((o) => o.message.includes('Unknown tag'));
       expect(unknownTagOffenses).toHaveLength(0);
     });

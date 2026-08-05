@@ -154,7 +154,7 @@ const reportsFor = async (name: string, subscript: string): Promise<boolean> => 
 
   const shapes = await Promise.all(
     [`${assign}${hashAssign}`, `${assign}\n${hashAssign}`].map((source) =>
-      runLiquidCheck(InvalidHashAssignTarget, source, 'file.liquid', {
+      runLiquidCheck(InvalidHashAssignTarget, source, 'app/views/partials/file.liquid', {
         platformosDocset: docset,
       }),
     ),
@@ -499,7 +499,7 @@ describe('Sweep: the filters this check deliberately says nothing about', () => 
     const offenses = await runLiquidCheck(
       InvalidHashAssignTarget,
       `{% assign x = 'a' | where: 'k', 1 %}\n{% hash_assign x['k'] = 'v' %}`,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       { platformosDocset: docset },
     );
 

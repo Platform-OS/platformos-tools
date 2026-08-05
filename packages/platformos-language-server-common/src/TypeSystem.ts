@@ -26,21 +26,24 @@ import {
   FilterEntry,
   ObjectEntry,
   ReturnType,
+  ShapeAnalyzer,
+  ShapeAnalyzerDeps,
   SourceCodeType,
   PlatformOSDocset,
   path,
   BasicParamTypes,
+  buildLookupPath,
+  createShapeAnalyzer,
   getValidParamTypes,
+  inferShapeFromJSONString,
+  lookupPropertyPath,
   parseParamType,
 } from '@platformos/platformos-check-common';
 import { findLast, memo } from './utils';
 import { visit } from '@platformos/platformos-check-common';
 import {
   PropertyShape,
-  inferShapeFromJSONString,
   inferShapeFromJsonLiteral,
-  inferShapeFromGraphQL,
-  mergeShapes,
   shapeToTypeString,
   shapeToJSONPlaceholder,
 } from './PropertyShapeInference';
@@ -267,12 +270,7 @@ interface TypeRange {
 
   /** The type of the variable */
   type:
-    | PseudoType
-    | ArrayType
-    | ShapeType
-    | UnionType
-    | LazyVariableType
-    | LazyDeconstructedExpression;
+    PseudoType | ArrayType | ShapeType | UnionType | LazyVariableType | LazyDeconstructedExpression;
 
   /**
    * The range may be one of two things:
@@ -372,8 +370,23 @@ async function buildSymbolsTable(
   objectMap?: ObjectMap,
   filtersMap?: FiltersMap,
 ): Promise<SymbolsTable> {
-  // Track shapes for hash_assign merging
-  const variableShapes: Map<string, { shape: PropertyShape; rangeEnd: number }[]> = new Map();
+  // ONE answer to "what shape does this variable have", shared with `UnknownProperty`.
+  // Do not track shapes here as well; a second copy drifts.
+  //
+  // Fed first, in source order, so the pass below can ask it about any position.
+  const analyzer = createShapeAnalyzer({
+    ...shapeAnalyzerDeps(graphqlSchema, fs, documentsLocator, rootUri),
+    // The docset half of the answer, which no diagnostic needs: `context.current_user`
+    // has properties because the docset says so, not because this file assigned it.
+    resolveExternalShape: (read, position) => externalShape(read, position),
+  });
+  const externalShape = resolveExpressionShape(analyzer, seedSymbolsTable, objectMap);
+
+  await visit<SourceCodeType.LiquidHtml, void>(partialAst, {
+    async LiquidTag(node, ancestors) {
+      await analyzer.handleLiquidTag(node, ancestors);
+    },
+  });
 
   const typeRanges = await visit<SourceCodeType.LiquidHtml, TypeRange | TypeRange[]>(partialAst, {
     // {% assign x = foo.x | filter %}
@@ -381,161 +394,24 @@ async function buildSymbolsTable(
     // {% assign x = {a: 1, b: "hello"} %}
     // {% assign x["key"] = value %}
     // {% assign arr << item %}
-    async AssignMarkup(node) {
-      const effectiveValue = node.value as LiquidVariable;
-      const effectiveOperator = node.operator;
-      const expression = effectiveValue.expression;
-      let valueShape: PropertyShape | undefined;
+    async AssignMarkup(node, ancestors) {
+      const value = node.value as LiquidVariable;
+      const shape = analyzer.shapeAt(node.name, afterTag(ancestors));
 
-      // Resolver for variable references inside JSON literals
-      const resolveExpr = resolveExpressionShape(
-        node.position.start,
-        variableShapes,
-        seedSymbolsTable,
-        objectMap,
-      );
-
-      // Case 1: JSON literal expression
-      if (
-        expression.type === NodeTypes.JsonHashLiteral ||
-        expression.type === NodeTypes.JsonArrayLiteral
-      ) {
-        valueShape = inferShapeFromJsonLiteral(expression, resolveExpr);
+      if (shape) {
+        return { identifier: node.name, type: shapeType(shape), range: [node.position.end] };
       }
 
-      // Case 2: parse_json / to_hash filter on a string
-      if (!valueShape) {
-        const hasParseJsonFilter = effectiveValue.filters?.some(
-          (f: { name: string }) => f.name === 'parse_json' || f.name === 'to_hash',
-        );
-        if (hasParseJsonFilter) {
-          let jsonString: string | undefined;
-          if (expression.type === NodeTypes.String) {
-            jsonString = expression.value;
-          }
-          if (!jsonString && effectiveValue.filters) {
-            const defaultFilter = effectiveValue.filters.find(
-              (f: { name: string }) => f.name === 'default',
-            );
-            if (
-              defaultFilter &&
-              defaultFilter.args &&
-              defaultFilter.args.length > 0 &&
-              defaultFilter.args[0].type === NodeTypes.String
-            ) {
-              jsonString = defaultFilter.args[0].value;
-            }
-          }
-          if (jsonString) {
-            valueShape = inferShapeFromJSONString(jsonString) ?? undefined;
-          }
-        }
+      // A write THROUGH the name — `x['k'] = v`, `x << v` — says nothing about the type
+      // of `x` itself, so the right-hand side is not its type either.
+      if (node.lookups.length > 0 || node.operator === '<<') {
+        return { identifier: node.name, type: Untyped, range: [node.position.end] };
       }
 
-      // Case 3: Infer primitive shape for << and LHS lookup scenarios
-      if (
-        !valueShape &&
-        ((node.lookups && node.lookups.length > 0) || effectiveOperator === '<<')
-      ) {
-        if (expression.type === NodeTypes.String) {
-          valueShape = { kind: 'primitive', primitiveType: 'string' };
-        } else if (expression.type === NodeTypes.Number) {
-          valueShape = { kind: 'primitive', primitiveType: 'number' };
-        } else if (expression.type === NodeTypes.LiquidLiteral) {
-          if (expression.value === null) {
-            valueShape = { kind: 'primitive', primitiveType: 'null' };
-          } else if (typeof expression.value === 'boolean') {
-            valueShape = { kind: 'primitive', primitiveType: 'boolean' };
-          }
-        }
-      }
-
-      // Handle lookups on the LHS (assign x["key"] = value)
-      if (node.lookups && node.lookups.length > 0) {
-        const lookupPath = getAssignLookupPath(node.lookups);
-        if (lookupPath && lookupPath.length > 0) {
-          const existingShapes = variableShapes.get(node.name) || [];
-          const existingShapeEntry = findLastApplicableShape(existingShapes, node.position.start);
-
-          let baseShape: PropertyShape;
-          if (existingShapeEntry) {
-            baseShape = existingShapeEntry.shape;
-          } else {
-            let existingType: PseudoType | ArrayType | ShapeType | UnionType | undefined;
-            if (seedSymbolsTable[node.name]) {
-              for (const tr of seedSymbolsTable[node.name]) {
-                if (tr.range[0] < node.position.start) {
-                  if (typeof tr.type !== 'string' && tr.type.kind === 'shape') {
-                    existingType = tr.type;
-                  }
-                }
-              }
-            }
-            baseShape =
-              existingType && isShapeType(existingType)
-                ? existingType.shape
-                : { kind: 'object', properties: new Map() };
-          }
-
-          const newShape = mergeNestedPropertyIntoShape(
-            baseShape,
-            lookupPath,
-            valueShape ?? { kind: 'primitive' },
-          );
-
-          if (!variableShapes.has(node.name)) variableShapes.set(node.name, []);
-          variableShapes.get(node.name)!.push({ shape: newShape, rangeEnd: node.position.end });
-
-          return {
-            identifier: node.name,
-            type: shapeType(newShape),
-            range: [node.position.end],
-          };
-        }
-      }
-
-      // Handle << operator (array append), including explicit form (assign a = source << value)
-      if (effectiveOperator === '<<') {
-        const itemShape: PropertyShape = valueShape ?? { kind: 'primitive' };
-        const existingShapes = variableShapes.get(node.name) || [];
-        const existingShapeEntry = findLastApplicableShape(existingShapes, node.position.start);
-
-        let arrayShape: PropertyShape;
-        if (existingShapeEntry?.shape.kind === 'array') {
-          const existing = existingShapeEntry.shape.itemShape;
-          arrayShape = {
-            kind: 'array',
-            itemShape: existing ? mergeShapes(existing, itemShape) : itemShape,
-          };
-        } else {
-          arrayShape = { kind: 'array', itemShape };
-        }
-
-        if (!variableShapes.has(node.name)) variableShapes.set(node.name, []);
-        variableShapes.get(node.name)!.push({ shape: arrayShape, rangeEnd: node.position.end });
-
-        return {
-          identifier: node.name,
-          type: shapeType(arrayShape),
-          range: [node.position.end],
-        };
-      }
-
-      // Simple assignment with shape (JSON literal or parse_json)
-      if (valueShape) {
-        if (!variableShapes.has(node.name)) variableShapes.set(node.name, []);
-        variableShapes.get(node.name)!.push({ shape: valueShape, rangeEnd: node.position.end });
-        return {
-          identifier: node.name,
-          type: shapeType(valueShape),
-          range: [node.position.end],
-        };
-      }
-
-      // Default: lazy variable type
+      // No shape: the docset decides, through the filters and lookups on the value.
       return {
         identifier: node.name,
-        type: lazyVariable(effectiveValue, node.position.start),
+        type: lazyVariable(value, node.position.start),
         range: [node.position.end],
       };
     },
@@ -596,267 +472,73 @@ async function buildSymbolsTable(
       // necessary — it could not fire again. platformOS selects a layout from FRONTMATTER, and
       // `FrontmatterKeyCompletionProvider` already completes layout NAMES there, which is where
       // the help belongs.
-      // {% parse_json x %}{"a": 1}{% endparse_json %}
-      else if (isLiquidTagParseJson(node)) {
-        const variableName = node.markup.name;
-        if (variableName && node.children) {
-          const resolveExprAtTag = resolveExpressionShape(
-            node.position.start,
-            variableShapes,
-            seedSymbolsTable,
-            objectMap,
+      // Everything that assigns a SHAPE — `{% parse_json %}`, `{% graphql %}` (inline
+      // and file-based), `{% hash_assign %}`, `{% function %}` — is one question now,
+      // asked of the analyzer that already walked this file.
+      else if (
+        isLiquidTagParseJson(node) ||
+        isLiquidTagGraphQL(node) ||
+        isLiquidTagHashAssign(node) ||
+        isLiquidTagFunction(node)
+      ) {
+        const identifier = shapeTargetName(node);
+        if (!identifier) return;
+
+        // Where the value starts being current, which is also where the analyzer
+        // recorded the write — so ask it one character later.
+        const rangeStart = node.blockEndPosition?.end ?? node.position.end;
+        const shape = analyzer.shapeAt(identifier, rangeStart + 1);
+        if (shape) {
+          return { identifier, type: shapeType(shape), range: [rangeStart] };
+        }
+
+        // A `{% parse_json %}` body with a `{{ … | json }}` in it is a document the
+        // analyzer refuses to read, because a tolerant JSON parser reads it one key
+        // short of the truth and a diagnostic must not act on that. Completion and
+        // hover CAN: substituting a placeholder per interpolation gives the keys.
+        if (isLiquidTagParseJson(node)) {
+          const interpolated = parseJsonBodyShape(node, (expr) =>
+            externalShape(expr, node.position.start),
           );
-          const textContent = node.children
-            .map((child) => {
-              if (child.type === NodeTypes.TextNode) return (child as TextNode).value;
-              if (child.type === NodeTypes.LiquidVariableOutput) {
-                const variable = (child as LiquidVariableOutput).markup;
-                if (typeof variable === 'string') return 'null';
-                const lastFilter = variable.filters?.at(-1);
-                if (lastFilter?.name === 'json') {
-                  return shapeToJSONPlaceholder(resolveExprAtTag(variable.expression));
-                }
-                return 'null';
-              }
-              return 'null';
-            })
-            .join('');
-          const shape = inferShapeFromJSONString(textContent);
-          if (shape) {
-            // Track shape for potential hash_assign merging
-            if (!variableShapes.has(variableName)) {
-              variableShapes.set(variableName, []);
-            }
-            variableShapes.get(variableName)!.push({
-              shape,
-              rangeEnd: node.blockEndPosition?.end ?? node.position.end,
-            });
-
-            return {
-              identifier: variableName,
-              type: shapeType(shape),
-              range: [node.blockEndPosition?.end ?? node.position.end],
-            };
-          }
-        }
-      }
-      // {% graphql result %}...{% endgraphql %} (inline)
-      else if (isLiquidTagGraphQL(node) && isGraphQLInlineMarkup(node.markup)) {
-        const markup = node.markup;
-        if (node.children) {
-          const textContent = node.children
-            .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
-            .map((c) => c.value)
-            .join('');
-          const shape = inferShapeFromGraphQL(textContent, graphqlSchema);
-          if (shape) {
-            // Track shape for potential hash_assign merging
-            if (!variableShapes.has(markup.name)) {
-              variableShapes.set(markup.name, []);
-            }
-            variableShapes.get(markup.name)!.push({
-              shape,
-              rangeEnd: node.blockEndPosition?.end ?? node.position.end,
-            });
-
-            return {
-              identifier: markup.name,
-              type: shapeType(shape),
-              range: [node.blockEndPosition?.end ?? node.position.end],
-            };
-          }
-        }
-      }
-      // {% graphql result = 'file' %} (file-based)
-      else if (isLiquidTagGraphQL(node) && isGraphQLFileMarkup(node.markup)) {
-        const markup = node.markup;
-        if (fs && documentsLocator && rootUri && isLiquidString(markup.graphql)) {
-          const graphqlFile = markup.graphql.value;
-          try {
-            const located = await documentsLocator.locate(
-              URI.parse(rootUri),
-              'graphql',
-              graphqlFile,
-            );
-            if (located) {
-              const content = await fs.readFile(located);
-              const shape = inferShapeFromGraphQL(content, graphqlSchema);
-              if (shape) {
-                // Track shape for potential hash_assign merging
-                if (!variableShapes.has(markup.name)) {
-                  variableShapes.set(markup.name, []);
-                }
-                variableShapes.get(markup.name)!.push({
-                  shape,
-                  rangeEnd: node.position.end,
-                });
-
-                return {
-                  identifier: markup.name,
-                  type: shapeType(shape),
-                  range: [node.position.end],
-                };
-              }
-            }
-          } catch {
-            // File read error - skip
-          }
-        }
-      }
-      // {% hash_assign x['key'] = value %}
-      else if (isLiquidTagHashAssign(node)) {
-        const markup = node.markup;
-        const variableName = markup.target.name;
-        if (!variableName) return;
-
-        const lookupPath = getHashAssignLookupPath(markup);
-
-        // Determine value shape - check if value is a JSON string with parse_json filter
-        let valueShape: PropertyShape | undefined;
-        if (markup.value.expression.type === NodeTypes.String) {
-          const hasParseJsonFilter = markup.value.filters.some(
-            (f) => f.name === 'parse_json' || f.name === 'to_hash',
-          );
-          if (hasParseJsonFilter) {
-            valueShape = inferShapeFromJSONString(markup.value.expression.value) ?? undefined;
+          if (interpolated) {
+            return { identifier, type: shapeType(interpolated), range: [rangeStart] };
           }
         }
 
-        // Check for existing type - first in variableShapes, then in seedSymbolsTable
-        const existingShapes = variableShapes.get(variableName) || [];
-        const existingShapeEntry = findLastApplicableShape(existingShapes, node.position.start);
-
-        // Check seedSymbolsTable for existing type if not in variableShapes
-        let existingType: PseudoType | ArrayType | ShapeType | UnionType | undefined;
-        if (!existingShapeEntry && seedSymbolsTable[variableName]) {
-          const typeRanges = seedSymbolsTable[variableName];
-          // Find the most recent type before this position
-          for (const tr of typeRanges) {
-            if (tr.range[0] < node.position.start) {
-              // Resolve lazy types
-              if (typeof tr.type === 'string') {
-                existingType = tr.type;
-              } else if (
-                tr.type.kind === 'shape' ||
-                tr.type.kind === 'array' ||
-                tr.type.kind === 'union'
-              ) {
-                existingType = tr.type;
-              }
-            }
-          }
-        }
-
-        // Check if hash_assign is being applied to a non-object type (error case)
-        const nonObjectTypes = ['number', 'string', 'boolean'];
-        if (!existingShapeEntry && existingType) {
-          if (typeof existingType === 'string' && nonObjectTypes.includes(existingType)) {
-            // Can't hash_assign to a primitive - this is an error
-            // Return undefined to not change the type (let a check rule report the error)
-            return;
-          }
-          if (isArrayType(existingType)) {
-            // Can't hash_assign to an array - this is an error
-            return;
-          }
-        }
-
-        if (lookupPath && lookupPath.length > 0) {
-          // Nested property assignment: {% hash_assign a['key'] = value %}
-          let baseShape: PropertyShape;
-          if (existingShapeEntry) {
-            baseShape = existingShapeEntry.shape;
-          } else if (existingType && isShapeType(existingType)) {
-            baseShape = existingType.shape;
-          } else {
-            baseShape = { kind: 'object', properties: new Map() };
-          }
-
-          const newShape = mergeNestedPropertyIntoShape(
-            baseShape,
-            lookupPath,
-            valueShape ?? { kind: 'primitive' },
-          );
-
-          // Track the new shape
-          if (!variableShapes.has(variableName)) {
-            variableShapes.set(variableName, []);
-          }
-          variableShapes.get(variableName)!.push({ shape: newShape, rangeEnd: node.position.end });
-
-          return {
-            identifier: variableName,
-            type: shapeType(newShape),
-            range: [node.position.end],
-          };
-        } else if (valueShape) {
-          // Direct assignment: {% hash_assign a = value %} (works like assign)
-          if (!variableShapes.has(variableName)) {
-            variableShapes.set(variableName, []);
-          }
-          variableShapes
-            .get(variableName)!
-            .push({ shape: valueShape, rangeEnd: node.position.end });
-
-          return {
-            identifier: variableName,
-            type: shapeType(valueShape),
-            range: [node.position.end],
-          };
-        }
-      }
-      // {% function result = 'partial/path', args... %}
-      else if (isLiquidTagFunction(node)) {
-        const markup = node.markup;
-        let returnType: PseudoType | ArrayType | ShapeType | UnionType | undefined;
+        // A `{% function %}` whose callee returns something the analyzer cannot shape —
+        // a documented object, a string, one type per branch — still has a type.
         if (
+          isLiquidTagFunction(node) &&
           fs &&
           documentsLocator &&
           rootUri &&
           objectMap &&
-          filtersMap &&
-          isLiquidString(markup.partial)
+          filtersMap
         ) {
-          const partialPath = markup.partial.value;
-          try {
-            returnType = await inferFunctionReturnType(
-              partialPath,
-              fs,
-              documentsLocator,
-              rootUri,
-              seedSymbolsTable,
-              liquidDrops,
-              graphqlSchema,
-              processingFiles,
-              objectMap,
-              filtersMap,
-            );
-          } catch {
-            // File read/parse error - returnType stays undefined
-          }
+          const returnType = isLiquidString(node.markup.partial)
+            ? await inferFunctionReturnType(
+                node.markup.partial.value,
+                fs,
+                documentsLocator,
+                rootUri,
+                seedSymbolsTable,
+                liquidDrops,
+                graphqlSchema,
+                processingFiles,
+                objectMap,
+                filtersMap,
+              ).catch(() => undefined)
+            : undefined;
+          // A function result is in scope whatever it holds, so it is named either way.
+          return { identifier, type: returnType ?? Untyped, range: [rangeStart] };
         }
 
-        // For hash/array targets like function hash['key'] = 'partial', skip type tracking
-        const fnVarName = markup.name.name;
-        if (!fnVarName || markup.name.lookups.length > 0) return;
-
-        // Track shape for potential hash_assign merging
-        if (returnType && isShapeType(returnType)) {
-          if (!variableShapes.has(fnVarName)) {
-            variableShapes.set(fnVarName, []);
-          }
-          variableShapes.get(fnVarName)!.push({
-            shape: returnType.shape,
-            rangeEnd: node.position.end,
-          });
-        }
-
-        // Always add function variable to symbolsTable, using Untyped as fallback
-        return {
-          identifier: fnVarName,
-          type: returnType ?? Untyped,
-          range: [node.position.end],
-        };
+        // A `{% parse_json %}` whose body is not JSON at all names nothing — there is no
+        // value to put in scope. Every other tag here holds SOMETHING, so it is named
+        // untyped rather than left out.
+        return isLiquidTagParseJson(node)
+          ? undefined
+          : { identifier, type: Untyped, range: [rangeStart] };
       }
     },
   });
@@ -1019,9 +701,12 @@ function inferLiquidDocParamType(node: LiquidDocParamNode, liquidDrops: ObjectEn
 
   let transformedParamType;
 
-  // BasicParamTypes.Object does not map to any specific type in the type system.
+  // Neither `object` nor `array` names an item type the type system can use — `array` is
+  // already the array of unknowns that the `[]` suffix would produce.
   if (type === BasicParamTypes.Object) {
     transformedParamType = Untyped;
+  } else if (type === BasicParamTypes.Array) {
+    return arrayType(Untyped);
   } else {
     transformedParamType = type;
   }
@@ -1305,17 +990,19 @@ function resolvedTypeToShape(
         return { kind: 'primitive', primitiveType: 'number' };
       case 'boolean':
         return { kind: 'primitive', primitiveType: 'boolean' };
-      case Untyped:
-      case Unknown:
-        return undefined;
       default:
-        return { kind: 'primitive' };
+        // A documented object — `product`, `context` — has no shape: it has an ENTRY,
+        // with properties and documentation a shape cannot carry. Calling it a primitive,
+        // as this did, made every caller stop resolving and show "any" instead.
+        return undefined;
     }
   }
   if (isShapeType(type)) return type.shape;
   if (isArrayType(type)) {
+    // An array OF a documented object is in the same position as the object itself: an
+    // array shape with an unknown item hides the entry that `x.first.` completes from.
     const itemShape = resolvedTypeToShape(type.valueType);
-    return { kind: 'array', itemShape };
+    return itemShape ? { kind: 'array', itemShape } : undefined;
   }
   return undefined;
 }
@@ -1462,16 +1149,6 @@ function isLiquidTagGraphQL(
   return node.name === NamedTags.graphql && typeof node.markup !== 'string';
 }
 
-function isGraphQLInlineMarkup(
-  markup: GraphQLMarkup | GraphQLInlineMarkup,
-): markup is GraphQLInlineMarkup {
-  return markup.type === NodeTypes.GraphQLInlineMarkup;
-}
-
-function isGraphQLFileMarkup(markup: GraphQLMarkup | GraphQLInlineMarkup): markup is GraphQLMarkup {
-  return markup.type === NodeTypes.GraphQLMarkup;
-}
-
 function isLiquidString(node: LiquidString | LiquidVariableLookup): node is LiquidString {
   return node.type === NodeTypes.String;
 }
@@ -1480,8 +1157,18 @@ function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: H
   return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
 }
 
+/**
+ * A `{% function %}` whose markup the parser STRUCTURED. The tag name survives the
+ * tolerant parser's fallback to a raw markup string, so a name test alone reaches a
+ * string and `markup.name.name` throws — the defect that cost `PartialCallArguments`
+ * the rest of a file in check-common.
+ */
 function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
-  return node.name === NamedTags.function && typeof node.markup !== 'string';
+  return (
+    node.name === NamedTags.function &&
+    typeof node.markup !== 'string' &&
+    node.markup.type === NodeTypes.FunctionMarkup
+  );
 }
 
 export function isUnionType(
@@ -1635,138 +1322,173 @@ export function typeToDisplayString(type: PseudoType | ArrayType | ShapeType | U
 }
 
 /**
- * Extract the lookup path from assign lookups.
- * For {% assign a["key1"]["key2"] = value %}, returns ['key1', 'key2']
+ * The position just past the tag being visited — where the analyzer recorded the write
+ * that tag performs, so a query one character later reads the NEW value rather than the
+ * one it replaced.
  */
-function getAssignLookupPath(lookups: LiquidExpression[]): string[] | undefined {
-  const path: string[] = [];
-  for (const lookup of lookups) {
-    if (lookup.type === NodeTypes.String) {
-      path.push(lookup.value);
-    } else if (lookup.type === NodeTypes.Number) {
-      path.push(`${lookup.value}`);
-    } else {
-      return undefined;
-    }
+function afterTag(ancestors: LiquidHtmlNode[]): number {
+  const tag = findLast(ancestors, (node) => node.type === NodeTypes.LiquidTag) as
+    LiquidTag | undefined;
+  if (!tag) return 0;
+  return (tag.blockEndPosition?.end ?? tag.position.end) + 1;
+}
+
+/** The variable a shape-assigning tag writes to, however that tag spells its target. */
+function shapeTargetName(node: LiquidTag): string | undefined {
+  if (isLiquidTagHashAssign(node)) return node.markup.target.name ?? undefined;
+  if (isLiquidTagFunction(node)) {
+    // `{% function hash['key'] = 'partial' %}` writes into a hash; the analyzer tracks
+    // that under the hash's own name, and there is no new variable to name here.
+    return node.markup.name.lookups.length > 0 ? undefined : (node.markup.name.name ?? undefined);
   }
-  return path.length > 0 ? path : undefined;
+  if (typeof node.markup === 'string') return undefined;
+  return (node.markup as { name?: string }).name ?? undefined;
 }
 
 /**
- * Extract the lookup path from a hash_assign target.
- * For {% hash_assign a['key1']['key2'] = value %}, returns ['key1', 'key2']
- */
-function getHashAssignLookupPath(markup: HashAssignMarkup): string[] | undefined {
-  const path: string[] = [];
-
-  for (const lookup of markup.target.lookups) {
-    if (lookup.type === NodeTypes.String) {
-      path.push(lookup.value);
-    } else if (lookup.type === NodeTypes.Number) {
-      path.push(`${lookup.value}`);
-    } else {
-      // Dynamic lookup - can't determine statically
-      return undefined;
-    }
-  }
-
-  return path.length > 0 ? path : undefined;
-}
-
-/**
- * Merge a nested property into a shape following a path.
- * For path ['a', 'b'] and valueShape, creates/updates shape.a.b = valueShape
- */
-function mergeNestedPropertyIntoShape(
-  shape: PropertyShape,
-  path: string[],
-  valueShape: PropertyShape,
-): PropertyShape {
-  if (path.length === 0) {
-    return valueShape;
-  }
-
-  const [key, ...rest] = path;
-
-  if (shape.kind !== 'object') {
-    // Convert to object
-    const properties = new Map<string, PropertyShape>();
-    if (rest.length === 0) {
-      properties.set(key, valueShape);
-    } else {
-      properties.set(
-        key,
-        mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape),
-      );
-    }
-    return { kind: 'object', properties };
-  }
-
-  const newProperties = new Map(shape.properties);
-  if (rest.length === 0) {
-    newProperties.set(key, valueShape);
-  } else {
-    const existingNested = newProperties.get(key) || { kind: 'object', properties: new Map() };
-    newProperties.set(key, mergeNestedPropertyIntoShape(existingNested, rest, valueShape));
-  }
-  return { kind: 'object', properties: newProperties };
-}
-
-/**
- * Resolve a LiquidExpression to a PropertyShape using accumulated variable shapes,
- * the seed symbols table, and optionally the docset object map.
+ * The shape of a `{% parse_json %}` body that INTERPOLATES a value, by standing a JSON
+ * placeholder in for each `{{ … | json }}`.
  *
- * Returns a resolver function that takes a LiquidExpression and returns a PropertyShape
- * or undefined.
+ * The analyzer refuses this document — a tolerant parser reads it one key short of the
+ * truth, and `UnknownProperty` would report the missing key. Hover and completion have
+ * no such stake: the keys are worth having even when one value is a guess.
+ */
+function parseJsonBodyShape(
+  node: LiquidTag & { children?: LiquidHtmlNode[] },
+  resolveExpression: (read: LiquidVariableLookup) => PropertyShape | undefined,
+): PropertyShape | undefined {
+  const children = node.children ?? [];
+  if (!children.some((child) => child.type === NodeTypes.LiquidVariableOutput)) return undefined;
+
+  const body = children
+    .map((child) => {
+      if (child.type === NodeTypes.TextNode) return (child as TextNode).value;
+      if (child.type === NodeTypes.LiquidVariableOutput) {
+        const variable = (child as LiquidVariableOutput).markup;
+        if (typeof variable === 'string') return 'null';
+        const isJson = variable.filters?.at(-1)?.name === 'json';
+        return isJson && variable.expression.type === NodeTypes.VariableLookup
+          ? shapeToJSONPlaceholder(resolveExpression(variable.expression))
+          : 'null';
+      }
+      return 'null';
+    })
+    .join('');
+
+  return inferShapeFromJSONString(body);
+}
+
+/**
+ * What the shape analyzer needs from this package: the `.graphql` documents and partials
+ * a tag names, resolved the way every other language server feature resolves them.
+ *
+ * Without a filesystem — the type system is constructible without one — the reads fail
+ * and the analyzer treats a file-based `{% graphql %}` or `{% function %}` as an
+ * assignment of unknown structure, which is what this file did before it had an
+ * analyzer at all.
+ */
+function shapeAnalyzerDeps(
+  graphqlSchema: string | undefined,
+  fs: AbstractFileSystem | undefined,
+  documentsLocator: DocumentsLocator | undefined,
+  rootUri: string | undefined,
+): ShapeAnalyzerDeps {
+  const locate = async (kind: 'graphql' | 'function', name: string) => {
+    if (!fs || !documentsLocator || !rootUri) return undefined;
+    try {
+      return (await documentsLocator.locate(URI.parse(rootUri), kind, name)) ?? undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const readContent = async (uri: string) => {
+    if (!fs) return undefined;
+    try {
+      return await fs.readFile(uri);
+    } catch {
+      return undefined;
+    }
+  };
+
+  return {
+    async readGraphQL(name) {
+      const uri = await locate('graphql', name);
+      if (!uri) return undefined;
+      const content = await readContent(uri);
+      return content === undefined ? undefined : { uri, content };
+    },
+
+    async readPartial(name) {
+      const uri = await locate('function', name);
+      if (!uri) return undefined;
+      const source = await readContent(uri);
+      if (source === undefined) return undefined;
+      try {
+        return { uri, source, ast: toLiquidHtmlAST(source) };
+      } catch {
+        return undefined;
+      }
+    },
+
+    readContent,
+
+    async getSchema() {
+      return graphqlSchema;
+    },
+  };
+}
+
+/**
+ * What the DOCSET knows about a read the analyzer could not resolve.
+ *
+ * `{ "user": context.current_user }` is a shape only because `context` is a documented
+ * object with documented properties — nothing in the file assigns it. This is the one
+ * piece of shape knowledge that belongs to the editor rather than to the checks, and it
+ * reaches the analyzer as its `resolveExternalShape` seam.
+ *
+ * The analyzer is consulted FIRST for the base name, so a variable the file assigns wins
+ * over a global of the same name, exactly as it does at runtime.
  */
 function resolveExpressionShape(
-  atPosition: number,
-  variableShapes: Map<string, { shape: PropertyShape; rangeEnd: number }[]>,
-  seedSymbolsTable: Record<string, TypeRange[]>,
-  objectMap?: Record<string, ObjectEntry>,
-): (expr: LiquidExpression | ComplexLiquidExpression) => PropertyShape | undefined {
-  return (expr) => {
-    if (expr.type !== NodeTypes.VariableLookup || !expr.name) return undefined;
+  analyzer: ShapeAnalyzer,
+  seedSymbolsTable: SymbolsTable,
+  objectMap?: ObjectMap,
+): (read: LiquidVariableLookup, position: number) => PropertyShape | undefined {
+  return (read, position) => {
+    if (!read.name) return undefined;
 
-    // Look up the variable's shape from already-processed assignments
-    const shapes = variableShapes.get(expr.name);
-    const shapeEntry = shapes ? findLastApplicableShape(shapes, atPosition) : undefined;
-    let shape: PropertyShape | undefined = shapeEntry?.shape;
-
-    // Track the current PseudoType (docset object name) for objectMap-based property resolution
+    let shape = analyzer.shapeAt(read.name, position);
+    /** The docset object the read is standing on, while it still is one. */
     let pseudoType: string | undefined;
 
-    // Fall back to seedSymbolsTable
-    if (!shape && !pseudoType && seedSymbolsTable[expr.name]) {
-      for (const tr of seedSymbolsTable[expr.name]) {
-        if (tr.range[0] < atPosition) {
-          if (typeof tr.type !== 'string' && tr.type.kind === 'shape') {
-            shape = tr.type.shape;
-          } else if (typeof tr.type === 'string') {
-            pseudoType = tr.type;
-            shape = resolvedTypeToShape(tr.type);
-          } else if (tr.type.kind === 'array') {
-            shape = resolvedTypeToShape(tr.type);
-          }
+    if (!shape) {
+      for (const typeRange of seedSymbolsTable[read.name] ?? []) {
+        if (typeRange.range[0] >= position) continue;
+        if (typeof typeRange.type === 'string') {
+          pseudoType = typeRange.type;
+          shape = resolvedTypeToShape(typeRange.type);
+        } else if (typeRange.type.kind === 'shape') {
+          shape = typeRange.type.shape;
+        } else if (typeRange.type.kind === 'array') {
+          shape = resolvedTypeToShape(typeRange.type);
         }
       }
     }
 
     if (!shape && !pseudoType) return undefined;
 
-    // Resolve lookups (e.g. a.x or a["key"])
-    for (const lookup of expr.lookups) {
-      // PseudoType resolution via objectMap (e.g. context.current_user where context is a docset type)
+    for (const lookup of read.lookups) {
+      // e.g. `context.current_user`, where the property's type comes from the docset.
       if (pseudoType !== undefined && objectMap) {
         if (lookup.type !== NodeTypes.String) return undefined;
-        const propType = inferPseudoTypePropertyType(pseudoType, lookup, objectMap);
-        // inferPseudoTypePropertyType returns PseudoType | ArrayType (string or { kind: 'array' })
-        if (typeof propType === 'string') {
-          pseudoType = propType;
-          shape = resolvedTypeToShape(propType);
-        } else if (isArrayType(propType)) {
+        const propertyType = inferPseudoTypePropertyType(pseudoType, lookup, objectMap);
+        if (typeof propertyType === 'string') {
+          pseudoType = propertyType;
+          shape = resolvedTypeToShape(propertyType);
+        } else if (isArrayType(propertyType)) {
           pseudoType = undefined;
-          shape = resolvedTypeToShape(propType);
+          shape = resolvedTypeToShape(propertyType);
         } else {
           return undefined;
         }
@@ -1774,48 +1496,25 @@ function resolveExpressionShape(
       }
 
       if (!shape) return undefined;
+      pseudoType = undefined;
 
-      if (shape.kind === 'object' && lookup.type === NodeTypes.String && shape.properties) {
-        const prop = shape.properties.get(lookup.value);
-        if (prop) {
-          pseudoType = undefined;
-          shape = prop;
-        } else {
-          return undefined;
-        }
-      } else if (shape.kind === 'array') {
-        if (
-          lookup.type === NodeTypes.Number ||
-          (lookup.type === NodeTypes.String &&
-            (lookup.value === 'first' || lookup.value === 'last'))
-        ) {
-          pseudoType = undefined;
-          shape = shape.itemShape;
-          if (!shape) return undefined;
-        } else {
-          return undefined;
-        }
-      } else {
-        return undefined;
-      }
+      const path = buildLookupPath([lookup]);
+      if (!path) return undefined;
+      const result = lookupPropertyPath(shape, path);
+      if (result.error || !result.shape) return undefined;
+      shape = result.shape;
     }
+
+    // A documented object is a TYPE, not a shape. Flattening `context` or a `product`
+    // into a shape says only "some value" — while COSTING the caller the docset entry it
+    // would otherwise have resolved, which is where the hover text and the property list
+    // come from. Declining loses nothing: an unresolved read and a flattened one present
+    // identically.
+    if (pseudoType !== undefined && !PRIMITIVE_PSEUDO_TYPES.has(pseudoType)) return undefined;
 
     return shape;
   };
 }
 
-/**
- * Find the last applicable shape for a variable at a given position
- */
-function findLastApplicableShape(
-  shapes: { shape: PropertyShape; rangeEnd: number }[],
-  position: number,
-): { shape: PropertyShape; rangeEnd: number } | undefined {
-  let result: { shape: PropertyShape; rangeEnd: number } | undefined;
-  for (const entry of shapes) {
-    if (entry.rangeEnd < position) {
-      result = entry;
-    }
-  }
-  return result;
-}
+/** The pseudo-types that ARE a shape, rather than a name the docset describes. */
+const PRIMITIVE_PSEUDO_TYPES = new Set<string>(['string', 'number', 'boolean']);

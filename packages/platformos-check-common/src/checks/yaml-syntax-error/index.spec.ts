@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { YAMLSyntaxError } from './index';
-import { check, MockApp } from '../../test';
+import { DuplicateYAMLKey } from '../duplicate-yaml-key';
+import { check, MockApp, runYAMLCheck } from '../../test';
 
 /**
  * The gap this closes: a malformed `.yml` used to produce NO diagnostic at all, in
@@ -139,5 +140,99 @@ describe('Module: YAMLSyntaxError', () => {
         (offense) => offense.message,
       ),
     ).toEqual(['Flow sequence in block collection must be sufficiently indented and end with a ]']);
+  });
+});
+
+/**
+ * Cases carried over from the independently-written second implementation of this check
+ * (master's, TASK-58/59 era). They are kept because each one is a MEASUREMENT, not a
+ * preference — the message shape, the terminator, and the multi-problem file were all
+ * measured against real projects.
+ *
+ * The three duplicate-key cases from that implementation are deliberately NOT carried
+ * over, and their absence is asserted below instead. That implementation reported
+ * `DUPLICATE_KEY` at severity ERROR from a check that is in `BLOCKING_CHECKS` — and the
+ * converter ACCEPTS a duplicated key (`pos-cli deploy --dry-run`, measured at the top
+ * level, inside a property and in a translation file). Blocking a write the platform
+ * would take is the failure mode this whole check was scoped to avoid.
+ */
+describe('Module: YAMLSyntaxError (message shape and document structure)', () => {
+  const messagesOf = async (source: string) =>
+    (await runYAMLCheck(YAMLSyntaxError, source, 'app/translations/en.yml')).map(
+      (offense) => offense.message,
+    );
+
+  it('reports nothing for a file YAML reads cleanly', async () => {
+    expect(await messagesOf('en:\n  hello: Hello\n')).toEqual([]);
+  });
+
+  it("reports the parser's complaint without its trailing line/column suffix", async () => {
+    // The position travels structurally on the offense, so the prose must not repeat it.
+    expect(await messagesOf('en:\n\thello: Hi\n')).toEqual(['Tabs are not allowed as indentation']);
+  });
+
+  it('reports an unterminated string', async () => {
+    expect(await messagesOf('en:\n  hello: "unterminated\n')).toEqual(['Missing closing "quote']);
+  });
+
+  /**
+   * A `---` terminator is what half the world's YAML generators emit, and Ruby reads such
+   * a file as one document plus an empty one. Reporting it cost 88 offenses on one real
+   * project — 83 model schemas, the instance config and three translation files — for
+   * nothing.
+   */
+  it('does not report a trailing document terminator', async () => {
+    expect(await messagesOf('---\nen:\n  hello: Hello\n---\n')).toEqual([]);
+  });
+
+  it('reports every complaint about a file nothing else will lint, not just the first', async () => {
+    // Every other YAML reader declines a file the parser complains about, so this is the
+    // only diagnostic such a file gets — it has to name each problem.
+    expect(await messagesOf('pt-BR:\n  hello: :\n  bad yaml')).toEqual([
+      'Nested mappings are not allowed in compact mappings',
+      'Implicit map keys need to be followed by map values',
+    ]);
+  });
+});
+
+/**
+ * The SILENCE this check promises, with the control that makes it non-vacuous.
+ *
+ * A duplicated key is not a syntax error: the converter accepts the file and the platform
+ * resolves it last-wins (both measured — see `toYAMLNode`). Reporting it HERE would put a
+ * false block on a write the platform would take, because this check is an ERROR and is in
+ * `BLOCKING_CHECKS`. The discarded value is still a real defect, which is why the control
+ * matters: `DuplicateYAMLKey` reports it as a non-blocking WARNING.
+ */
+describe('Module: YAMLSyntaxError (duplicate keys belong to DuplicateYAMLKey)', () => {
+  const DUPLICATED = 'en:\n  hello: Hello\n  hello: Hi\n';
+
+  it('does not report a duplicated mapping key', async () => {
+    expect(await runYAMLCheck(YAMLSyntaxError, DUPLICATED, 'app/translations/en.yml')).toEqual([]);
+  });
+
+  it('stays silent even when the file also ends with a document terminator', async () => {
+    expect(
+      await runYAMLCheck(
+        YAMLSyntaxError,
+        '---\nen:\n  hello: Hello\n  hello: Hi\n---\n',
+        'app/translations/en.yml',
+      ),
+    ).toEqual([]);
+  });
+
+  it('CONTROL: the same file is not silent overall — DuplicateYAMLKey reports it', async () => {
+    const offenses = await runYAMLCheck(DuplicateYAMLKey, DUPLICATED, 'app/translations/en.yml');
+
+    expect(offenses.map((offense) => ({ check: offense.check, message: offense.message }))).toEqual(
+      [
+        {
+          check: 'DuplicateYAMLKey',
+          message:
+            "Duplicate key 'hello': this value is discarded because the same key is defined " +
+            'again on line 3, and the platform keeps the last one.',
+        },
+      ],
+    );
   });
 });

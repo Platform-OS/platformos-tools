@@ -10,7 +10,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
 import { path } from '@platformos/platformos-check-common';
-import { AppCache } from '@platformos/platformos-check-node';
 
 import {
   buildAppGraphInWorker,
@@ -86,10 +85,10 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
     .catch((error: unknown) => {
       log(`project graph warm-up failed: ${error instanceof Error ? error.message : error}`);
     });
-  // One never-stale parsed-project cache per server, so repeated lint calls reuse
-  // the parsed project instead of re-parsing it (the dominant per-call cost).
-  const appCache = new AppCache();
-  const context: SupervisorContext = { projectDir: opts.projectDir, graphCache, appCache, log };
+  // No parsed-project cache is constructed here. check-node owns one lazy `App` per
+  // project at process level and reconciles it per call, so reuse is not this server's
+  // to arrange — and cannot be forgotten on a call path that skips passing it.
+  const context: SupervisorContext = { projectDir: opts.projectDir, graphCache, log };
 
   // `instructions` reaches the model with the tool list. Without them an agent has
   // only the tool description to go on, and has to invent a reading of the result —

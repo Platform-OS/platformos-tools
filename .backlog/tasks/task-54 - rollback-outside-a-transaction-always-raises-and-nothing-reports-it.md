@@ -4,6 +4,7 @@ title: '{% rollback %} outside a transaction always raises, and nothing reports 
 status: To Do
 assignee: []
 created_date: '2026-08-03 13:46'
+updated_date: '2026-08-04 12:48'
 labels:
   - check-common
   - missed-detection
@@ -13,6 +14,7 @@ references:
   - >-
     packages/platformos-check-common/src/checks/liquid-html-syntax-error/checks/InvalidTagSyntax.ts
 priority: low
+ordinal: 53000
 ---
 
 ## Description

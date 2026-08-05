@@ -43,11 +43,7 @@ export interface AppGraph {
 export type AppModule = LiquidModule | AssetModule | GraphQLModule | SchemaModule;
 
 export type FileSourceCode =
-  | LiquidSourceCode
-  | JSONSourceCode
-  | GraphQLSourceCode
-  | YAMLSourceCode
-  | AssetSourceCode;
+  LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode | AssetSourceCode;
 
 export interface SerializableGraph {
   rootUri: UriString;
@@ -126,7 +122,7 @@ export interface GraphQLModule extends IAppModule<ModuleType.GraphQL> {
 
 /**
  * A custom model type / schema file (`custom_model_types`/`model_schemas`/
- * `schema` dirs — `PlatformOSFileType.CustomModelType`). A platform primitive,
+ * `schema` dirs — `PlatformOSFileType.Table`). A platform primitive,
  * modeled as a neutral graph node. A leaf node — schema files have no outgoing
  * platformOS dependencies — and not render-reachable, so it is discovered and
  * added explicitly during a full `buildAppGraph` (never an entry point).

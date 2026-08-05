@@ -21,6 +21,28 @@ export enum FileType {
 export interface FileStat {
   type: FileType;
   size: number;
+  /**
+   * Last-modification time in milliseconds, for filesystems that have one.
+   *
+   * `undefined` means the filesystem cannot say — an in-memory or virtual one —
+   * which callers must read as "cannot tell whether this changed", not as
+   * "unchanged".
+   */
+  mtimeMs?: number;
+  /**
+   * Inode-change time in milliseconds, for filesystems that have one.
+   *
+   * Distinct from {@link mtimeMs} in the one way that matters to a cache: `mtime` is
+   * settable from userland (`utimes`) and this is not — any write moves it and nothing
+   * can put it back. A tool that restores an mtime after writing, or a same-length
+   * replacement, is therefore invisible to `mtime`/`size` alone. See check-node's
+   * `fingerprintOf`, which is the only consumer.
+   *
+   * OPTIONAL, and no implementation is obliged to answer: a virtual or in-memory
+   * filesystem has no such concept, and the consumer degrades to `mtime`/`size` rather
+   * than demanding it. `undefined` therefore means "cannot say", never "unchanged".
+   */
+  ctimeMs?: number;
 }
 
 /** A vscode-uri string */

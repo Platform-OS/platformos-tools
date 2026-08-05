@@ -91,7 +91,7 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
           "bracket access — hash_assign h['key'] = value, not hash_assign h.key = value. " +
           'platformOS raises Liquid::SyntaxError when parsing the dot form, so the file ' +
           'cannot be deployed or rendered.',
-        uri: 'file:///file.liquid',
+        uri: 'file:///app/views/partials/file.liquid',
         severity: 0,
         type: 'LiquidHtml',
         // The TARGET is highlighted, not the whole tag: that is the part to change.

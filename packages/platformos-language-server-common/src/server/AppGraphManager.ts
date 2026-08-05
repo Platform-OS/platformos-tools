@@ -1,7 +1,9 @@
 import { path, SourceCodeType } from '@platformos/platformos-check-common';
 import { AbstractFileSystem } from '@platformos/platformos-common';
 import {
+  appBackedGetSourceCode,
   buildAppGraph,
+  FileSourceCode,
   IDependencies as GraphDependencies,
   Location,
   toSourceCode,
@@ -35,7 +37,17 @@ export class AppGraphManager {
     }
 
     if (!this.graphs.has(rootUri)) {
-      this.graphs.set(rootUri, this.buildAppGraph(rootUri));
+      this.graphs.set(
+        rootUri,
+        // A rejected promise left in the map would replay the same failure for the
+        // rest of the session, including after the user has fixed its cause — the
+        // build awaits `preload`, which is exactly the kind of failure that gets
+        // fixed and retried (an unreadable directory, a `chmod` away).
+        this.buildAppGraph(rootUri).catch((error) => {
+          this.graphs.delete(rootUri);
+          throw error;
+        }),
+      );
     }
 
     return this.graphs.get(rootUri);
@@ -152,20 +164,44 @@ export class AppGraphManager {
 
     // Delete existing graph to force rebuild
     this.graphs.delete(rootUri);
-    await this.getAppGraphForURI(rootUri);
+    try {
+      await this.getAppGraphForURI(rootUri);
+    } catch (error) {
+      // Nothing awaits this queue — it is driven by file-watcher events — so an
+      // escaping rejection is an unhandled one, which takes the server down. The
+      // rebuild failed, so there is no graph to announce; the cause has already
+      // been reported by whatever raised it.
+      console.error('Failed to rebuild the app graph', error);
+      return;
+    }
     this.connection.sendNotification(AppGraphDidUpdateNotification.type, { uri: rootUri });
   }, 500);
 
+  /**
+   * The graph's entry points, taken from the app rather than rediscovered.
+   *
+   * `buildAppGraph` walks the project itself when it is given none, and classifies
+   * every path it finds — the same walk and the same classification `preload` just
+   * did, repeated on the 500 ms debounce after every file event for the life of the
+   * session. The `App` is the authoritative answer already: pages and layouts are
+   * the entry points because they are what the platform requests directly, and
+   * Liquid is the only source that can reference another file.
+   */
   private buildAppGraph = async (rootUri: string, entryPoints?: string[]) => {
     const { documentManager } = this;
     await documentManager.preload(rootUri);
 
-    const dependencies = this.graphDependencies();
+    const app = documentManager.appModel(rootUri);
+    entryPoints ??= [...app.pages(), ...app.layouts()]
+      .filter((file) => file.type === SourceCodeType.LiquidHtml)
+      .map((file) => file.uri);
+
+    const dependencies = this.graphDependencies(rootUri);
     const graph = await buildAppGraph(rootUri, dependencies, entryPoints);
     return graph;
   };
 
-  private getSourceCode = async (uri: string) => {
+  private getSourceCode = async (uri: string): Promise<FileSourceCode> => {
     const doc = this.documentManager.get(uri);
     if (doc) return doc;
 
@@ -173,8 +209,27 @@ export class AppGraphManager {
     return toSourceCode(uri, source);
   };
 
-  private graphDependencies(): GraphDependencies {
-    const { fs, getSourceCode } = this;
-    return { fs, getSourceCode };
+  /**
+   * The graph reads its files THROUGH the app the language server already holds.
+   *
+   * Without this the two halves of this process each build their own source code
+   * for the same file: the checks parse the `App`'s `AppFile`, the graph parses a
+   * copy of it. `appBackedGetSourceCode` hands the graph the very same file
+   * objects, so each one is read once and parsed once for both — including the
+   * `.js` and image assets, which are in the app as nodes with no `SourceCodeType`
+   * and are parsed by the graph's own entries in `languageServerParsers`.
+   *
+   * The fallback covers what the app does not contain: a URI outside the project,
+   * and a file that is not a platformOS source at all.
+   */
+  private graphDependencies(rootUri: string): GraphDependencies {
+    const { fs } = this;
+    return {
+      fs,
+      getSourceCode: appBackedGetSourceCode(
+        this.documentManager.appModel(rootUri),
+        this.getSourceCode,
+      ),
+    };
   }
 }

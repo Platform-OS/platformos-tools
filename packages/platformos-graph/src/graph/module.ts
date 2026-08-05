@@ -1,4 +1,5 @@
-import { isLayout, isPage, isPartial, path, UriString } from '@platformos/platformos-check-common';
+import { path, UriString } from '@platformos/platformos-check-common';
+import { getFileType, nameToPaths, PlatformOSFileType } from '@platformos/platformos-common';
 import {
   AssetModule,
   AppGraph,
@@ -34,22 +35,51 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
     return cache.get(uri)!;
   }
 
-  switch (true) {
-    case isLayout(uri):
+  // One anchored classification, not four unanchored ones: a file's type is its
+  // position relative to the project root, and the graph has that root.
+  switch (getFileType(uri, appGraph.rootUri)) {
+    case PlatformOSFileType.Layout:
       return getLayoutModule(appGraph, uri);
 
-    case isPage(uri):
+    case PlatformOSFileType.Page:
       return getPageModule(appGraph, uri);
 
-    case isPartial(uri):
-      // Key every entry point by its OWN resolved URI (like the layout/page
-      // factories above), NOT a path rebuilt from the basename — the latter
-      // forced every partial into `app/views/partials/<basename>.liquid`,
-      // mis-keying `lib/` and nested partials (e.g. `app/lib/can/x.liquid`) and
-      // splitting them from the same file resolved as an edge target (which comes
-      // through getPartialModuleByUri).
+    case PlatformOSFileType.Partial:
+      // The URI is already resolved, so it is used as-is. Reducing it to a
+      // `basename` and rebuilding a path from that loses any subdirectory and any
+      // module prefix — `app/views/partials/ui/card.liquid` came back as
+      // `app/views/partials/card.liquid`, a node for a file that need not exist,
+      // and `app/lib/can/x.liquid` was split from the same file resolved as an
+      // edge target (which comes through getPartialModuleByUri).
       return getPartialModuleByUri(appGraph, uri);
+
+    case PlatformOSFileType.Asset:
+      return getAssetModuleByUri(appGraph, uri);
   }
+}
+
+/**
+ * Create (or fetch the cached) asset module for an already-resolved URI.
+ *
+ * Preferred over {@link getAssetModule} whenever the file is known, for the same
+ * reason as {@link getPartialModuleByUri}: it does not reconstruct a path from a
+ * name, so a nested or module asset keeps the location it actually has.
+ *
+ * Gated on {@link isSupportedAsset} HERE rather than at each call site, so a new
+ * caller cannot forget the gate and mint an Asset node for a value that is not an
+ * asset file.
+ */
+export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModule | undefined {
+  if (!isSupportedAsset(uri)) return undefined;
+
+  return module(appGraph, {
+    type: ModuleType.Asset,
+    kind: 'unused',
+    // Normalize to forward slashes — see getPartialModuleByUri.
+    uri: path.normalize(uri),
+    dependencies: [],
+    references: [],
+  });
 }
 
 /** File extensions the graph treats as assets (the `asset_url` edge gate). */
@@ -66,26 +96,42 @@ const SUPPORTED_ASSET_EXTENSIONS = [
 ];
 
 /**
- * Whether `name` refers to a supported asset file (by extension). The gate for
- * creating an asset edge, preserving the graph's historical behavior of ignoring
- * an `asset_url`-family filter applied to a value that is not an asset file.
+ * Whether `nameOrUri` refers to a supported asset file (by extension).
+ *
+ * The single gate for admitting an asset, whether the subject is a reference (the
+ * string inside `{{ 'app.js' | asset_url }}`) or a resolved URI. It preserves the
+ * graph's historical behavior of ignoring an `asset_url`-family filter applied to
+ * a value that is not an asset file. Exported so the traversal can skip the
+ * filesystem probe for a non-asset value BEFORE resolving it; the module
+ * factories gate on it again, so neither layer depends on the other remembering.
  */
-export function isSupportedAssetFile(name: string): boolean {
-  return SUPPORTED_ASSET_EXTENSIONS.includes(extname(name));
+export function isSupportedAsset(nameOrUri: string): boolean {
+  return SUPPORTED_ASSET_EXTENSIONS.includes(extname(nameOrUri));
 }
 
 /**
- * Create (or fetch the cached) Asset module for an ALREADY-RESOLVED asset URI —
- * used for `asset_url`/`asset_img_url`/`inline_asset_content` targets whose URI is
- * resolved canonically by `DocumentsLocator` (`'asset'` type: `app/assets`, module
- * `public/assets`). A leaf node. Normalizes the URI — see
- * {@link getPartialModuleByUri} for why DocumentsLocator URIs must be normalized.
+ * Create (or fetch the cached) asset module for an asset REFERENCE — the string
+ * inside `{{ 'app.js' | asset_url }}`, which may carry a `modules/<name>/` prefix.
+ *
+ * Assets live under the same roots as every other file type: `app/assets/` or
+ * `modules/<name>/{public,private}/assets/`. Those come from platformos-common, so the
+ * graph resolves a reference to the same place the linter and the platform do.
+ *
+ * The FIRST candidate is used as the canonical location: this is sync and has no
+ * filesystem, so it cannot tell which candidate exists. Prefer
+ * {@link getAssetModuleByUri} — the traversal resolves through `DocumentsLocator`,
+ * which can.
  */
-export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModule {
+export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule | undefined {
+  if (!isSupportedAsset(asset)) return undefined;
+
+  const [canonical] = nameToPaths(PlatformOSFileType.Asset, asset);
+  if (!canonical) return undefined;
+
   return module(appGraph, {
     type: ModuleType.Asset,
     kind: 'unused',
-    uri: path.normalize(uri),
+    uri: path.join(appGraph.rootUri, canonical),
     dependencies: [],
     references: [],
   });
@@ -93,21 +139,24 @@ export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModul
 
 /**
  * Create (or fetch the cached) Liquid Partial module for an ALREADY-RESOLVED
- * full URI — used for `{% function %}` / `{% include %}` targets whose URI is
- * resolved canonically by `DocumentsLocator` (which handles lib paths, module
- * prefixes, and extensions). It keys the node by that URI verbatim (normalized),
- * never reconstructing a path from a name. Commands/queries/lib helpers are all
- * `Partial` kind, consistent with check-common's file-type classification.
+ * full URI — used for `{% render %}` / `{% include %}` / `{% function %}` /
+ * `{% background %}` targets whose URI is resolved canonically by
+ * `DocumentsLocator` (which handles lib paths, module prefixes, and extensions).
+ * It keys the node by that URI verbatim (normalized), never reconstructing a path
+ * from a name: partials have two search roots (`views/partials`, `lib`) and two
+ * extensions, so a name-derived path is a guess, and guessing split a `lib/`
+ * partial into two nodes. Commands/queries/lib helpers are all `Partial` kind,
+ * consistent with check-common's file-type classification.
  */
 export function getPartialModuleByUri(appGraph: AppGraph, uri: string): LiquidModule {
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Partial,
-    // Normalize so a node keyed here matches the same file keyed by any other
-    // factory (they all normalize their stored URI): DocumentsLocator returns
-    // `Utils.joinPath(...).toString()` unnormalized, which on Windows keeps
-    // backslashes and would break key/edge matching against the normalized URIs
-    // used everywhere else.
+    // Normalize to forward slashes so module keys match the rest of the graph
+    // (getAssetModule builds its URI via path.join, which normalizes).
+    // DocumentsLocator returns `Utils.joinPath(...).toString()` unnormalized,
+    // which on Windows keeps backslashes and breaks key/edge matching against the
+    // normalized URIs everywhere else.
     uri: path.normalize(uri),
     dependencies: [],
     references: [],
@@ -171,9 +220,9 @@ export function getLayoutModule(
  * Create (or fetch the cached) Layout module for an already-resolved layout URI
  * — used for the frontmatter `layout:` association edge, whose target is
  * resolved by `DocumentsLocator` (`'layout'` type: `app/views/layouts`, module
- * prefixes, `.html.liquid`/`.liquid`). Unlike {@link getLayoutModule} (which
- * takes a known on-disk entry-point URI), this normalizes the URI — see
- * {@link getPartialModuleByUri} for why DocumentsLocator URIs must be normalized.
+ * prefixes, `.html.liquid`/`.liquid`). Distinct from {@link getLayoutModule} only
+ * in that the latter accepts the `string | false | undefined` a frontmatter read
+ * yields; both normalize, so both key the same node.
  */
 export function getLayoutModuleByUri(appGraph: AppGraph, uri: string): LiquidModule {
   return module(appGraph, {

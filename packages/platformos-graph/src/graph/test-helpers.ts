@@ -1,5 +1,5 @@
 import { memoize, path as pathUtils } from '@platformos/platformos-check-common';
-import { AbstractFileSystem } from '@platformos/platformos-common';
+import { AbstractFileSystem, uriFromPath } from '@platformos/platformos-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
 import { vi } from 'vitest';
 import { URI } from 'vscode-uri';
@@ -13,7 +13,7 @@ export function makeGetSourceCode(fs: AbstractFileSystem) {
   }, identity);
 }
 
-export const fixturesRoot = pathUtils.join(URI.file(__dirname), ...'../../fixtures'.split('/'));
+export const fixturesRoot = pathUtils.join(uriFromPath(__dirname), ...'../../fixtures'.split('/'));
 export const skeleton = pathUtils.join(fixturesRoot, 'skeleton');
 
 export function getDependencies(fs: AbstractFileSystem = NodeFileSystem) {

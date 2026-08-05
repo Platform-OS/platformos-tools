@@ -17,7 +17,10 @@ describe('Module: ImgWidthAndHeight', () => {
     expect(offenses[1].message).to.equal('Missing width attribute on img tag');
     expect(offenses[2].message).to.equal('Missing width and height attributes on img tag');
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights).to.eql([
       '<img src="example2.jpg" width="100">',
       '<img src="example3.jpg" height="100">',
@@ -36,7 +39,10 @@ describe('Module: ImgWidthAndHeight', () => {
     expect(offenses).to.have.lengthOf(1);
     expect(offenses[0].message).to.equal('Missing width and height attributes on img tag');
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights).to.eql(['<img src="example.jpg">']);
   });
 
@@ -50,7 +56,10 @@ describe('Module: ImgWidthAndHeight', () => {
     expect(offenses).to.have.lengthOf(1);
     expect(offenses[0].message).to.equal('Missing height attribute on img tag');
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights).to.eql(['<img src="example.jpg" width="100">']);
   });
 
@@ -64,7 +73,10 @@ describe('Module: ImgWidthAndHeight', () => {
     expect(offenses).to.have.lengthOf(1);
     expect(offenses[0].message).to.equal('Missing width attribute on img tag');
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights).to.eql(['<img src="example.jpg" height="100">']);
   });
 

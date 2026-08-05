@@ -122,6 +122,15 @@ export interface Access {
   global: boolean;
   parents: Parent[];
   template: string[];
+
+  /**
+   * The ONE kind of app file the object exists in, spelled in platformOS's snake_case
+   * (`api_call`). `data` and `response` are api_call objects: `global` is true because
+   * they need no parent, not because they are in scope everywhere.
+   *
+   * Null or absent means the object is not restricted to a single file type.
+   */
+  app_file_type?: string | null;
 }
 
 export interface Parent {

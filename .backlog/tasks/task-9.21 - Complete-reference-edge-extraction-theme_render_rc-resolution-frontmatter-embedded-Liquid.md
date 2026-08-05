@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-03 07:38'
+updated_date: '2026-08-04 12:48'
 labels:
   - platformos-graph
   - edges
@@ -18,6 +19,7 @@ references:
   - packages/platformos-check-common/src/types.ts
 parent_task_id: TASK-9
 priority: low
+ordinal: 32000
 ---
 
 ## Description

@@ -5,11 +5,9 @@ import { createBoundedCache } from './bounded-cache';
  * Build a `GraphQLSchema` from SDL, reusing the previous result while the SDL is
  * unchanged.
  *
- * The platformOS SDL is ~300 KB and `buildSchema` costs 45-85 ms on it. Both
- * GraphQL-aware checks used to pay that repeatedly within a single lint run —
- * `GraphQLCheck` once per `.graphql` file, `UnknownProperty` once per
- * `{% graphql %}` site — which on a real project is seconds of pure recompute
- * plus a schema-sized allocation thrown away each time.
+ * The platformOS SDL is ~300 KB and `buildSchema` costs 45-85 ms on it, which both
+ * GraphQL-aware checks would otherwise pay per `.graphql` file and per `{% graphql %}`
+ * site — seconds of pure recompute on a real project.
  *
  * ONE entry is enough: the docset hands the same SDL to every check for the whole
  * life of the process, so a second entry could only ever be dead weight.

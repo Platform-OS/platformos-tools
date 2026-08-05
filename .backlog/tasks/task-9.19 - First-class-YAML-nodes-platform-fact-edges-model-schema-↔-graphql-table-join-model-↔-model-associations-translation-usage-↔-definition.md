@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-03 06:51'
+updated_date: '2026-08-04 12:48'
 labels:
   - platformos-graph
   - mcp-supervisor
@@ -29,6 +30,7 @@ references:
   - docs/mcp-supervisor/decisions/004-platform-facts-vs-conventions
 parent_task_id: TASK-9
 priority: medium
+ordinal: 30000
 ---
 
 ## Description

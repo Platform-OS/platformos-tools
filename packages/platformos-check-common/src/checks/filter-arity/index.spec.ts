@@ -20,7 +20,7 @@ import { check, MockApp } from '../../test';
  * construction rather than by a second hand-typed opinion.
  */
 const offensesFor = (liquid: string) => {
-  const app: MockApp = { 'file.liquid': liquid };
+  const app: MockApp = { 'app/views/partials/file.liquid': liquid };
   return check(app, [FilterArity]);
 };
 

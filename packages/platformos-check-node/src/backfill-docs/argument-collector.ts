@@ -5,7 +5,7 @@ import {
   LiquidNamedArgument,
 } from '@platformos/liquid-html-parser';
 import {
-  App,
+  AppModel,
   SourceCodeType,
   visit,
   BasicParamTypes,
@@ -83,14 +83,23 @@ function parseUsageKey(key: string): { partialPath: string; tagType: TagType } {
  * Collect all partial usages from an app by visiting function, render, and include tags.
  */
 export async function collectPartialUsages(
-  app: App,
+  app: AppModel,
   verbose: boolean = false,
   log: (message: string) => void = console.log,
 ): Promise<Map<string, PartialUsage>> {
   const usageMap = new Map<string, PartialUsage>();
 
-  for (const sourceCode of app) {
-    if (sourceCode.type !== SourceCodeType.LiquidHtml) continue;
+  // Backfilling docs is inherently whole-project work, so unlike a lint run this
+  // does want every liquid file read and parsed. Reading them CONCURRENTLY is the
+  // only way it stays affordable: awaiting `load()` inside the loop below serializes
+  // one round trip per file, which on a 3100-file project is seconds of latency for
+  // reads that have nothing to do with each other.
+  const liquidFiles = app
+    .sourceCodes()
+    .filter((sourceCode) => sourceCode.type === SourceCodeType.LiquidHtml);
+  await Promise.all(liquidFiles.map((sourceCode) => sourceCode.load()));
+
+  for (const sourceCode of liquidFiles) {
     if (!isLiquidHtmlNode(sourceCode.ast)) continue;
 
     const ast = sourceCode.ast;

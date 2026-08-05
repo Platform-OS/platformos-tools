@@ -1,6 +1,8 @@
 import { path as pathUtils, SourceCodeType } from '@platformos/platformos-check-common';
+import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { assert, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { buildAppGraph } from '../index';
+import { toSourceCode } from '../toSourceCode';
 import { Dependencies, LiquidModuleKind, ModuleType, AppGraph } from '../types';
 import { getDependencies, skeleton } from './test-helpers';
 
@@ -115,6 +117,55 @@ describe('Module: index', () => {
           { target: p('app/assets/app.js'), type: 'direct', kind: 'asset' },
           { target: p('app/assets/app.css'), type: 'direct', kind: 'asset' },
           { target: p('app/views/partials/header.liquid'), type: 'direct', kind: 'render' },
+        ]);
+      });
+    });
+
+    /**
+     * Entry points come from an ANCHORED walk of the app subtrees, so what a
+     * directory is CALLED never decides whether the graph can see it. The walk this
+     * replaced skipped any directory ending in `vendor`, `build`, `tmp` or `dist`,
+     * which lost every page under `app/views/pages/vendor/**` — a real section of a
+     * real site — while still descending into `tmp/app/views/pages/`, which the
+     * platform does not deploy at all.
+     */
+    describe('entry points on a project with app directories named like build output', () => {
+      const projectRoot = 'file:///project';
+      const u = (part: string) => `${projectRoot}/${part}`;
+
+      let graph: AppGraph;
+
+      beforeEach(async () => {
+        const fs = new MockFileSystem(
+          {
+            'app/views/pages/vendor/index.liquid': `{% render 'vendor/card' %}`,
+            'app/views/pages/build/status.liquid': `ok`,
+            'app/views/partials/vendor/card.liquid': `a card`,
+            'tmp/app/views/pages/scratch.liquid': `not deployed`,
+            'node_modules/some-pkg/app/views/pages/decoy.liquid': `not ours`,
+            'dist/app/views/pages/bundled.liquid': `build output`,
+          },
+          projectRoot,
+        );
+
+        graph = await buildAppGraph(projectRoot, {
+          fs,
+          getSourceCode: async (uri: string) => toSourceCode(uri, await fs.readFile(uri)),
+        });
+      });
+
+      it('finds the pages under vendor/ and build/, and nothing outside the app subtrees', () => {
+        expect(graph.entryPoints.map((entry) => entry.uri).sort()).toEqual([
+          u('app/views/pages/build/status.liquid'),
+          u('app/views/pages/vendor/index.liquid'),
+        ]);
+      });
+
+      it('traverses them, so a partial under vendor/ is a graph node with a reference', () => {
+        const card = graph.modules[u('app/views/partials/vendor/card.liquid')];
+        assert(card);
+        expect(card.references.map((reference) => reference.source.uri)).toEqual([
+          u('app/views/pages/vendor/index.liquid'),
         ]);
       });
     });

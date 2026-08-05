@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { AppCache } from '@platformos/platformos-check-node';
-
 import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code.js';
 import { SERVER_INSTRUCTIONS } from './instructions.js';
 import { BLOCKING_CHECKS } from '../result/blocking.js';
@@ -11,6 +9,7 @@ import { MIN_LINT_DEADLINE_MS, lintDeadlineMs } from '../cost-model.js';
 import { MAX_BUFFER_BYTES } from '../adapter-input.js';
 import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from '../validate/batch-bounds.js';
 import { GraphCache } from '../graph-cache/graph-cache.js';
+import type { LintNotCheckedStatus } from '../lint/lint-batch.js';
 import type { ValidateAdapters } from '../validate/validate-buffers.js';
 import type {
   NotApplicableReason,
@@ -32,7 +31,6 @@ import type {
 const ctx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
   projectDir: '/srv/app',
   graphCache: new GraphCache({ rootUri: 'file:///srv/app' }),
-  appCache: new AppCache(),
   log,
 });
 
@@ -53,7 +51,7 @@ const adaptersFor = (
 ): Partial<ValidateAdapters> => ({
   lint: async ({ buffers }) => ({
     diagnostics: new Map(buffers.map((b) => [b.filePath, byFile[b.filePath] ?? []])),
-    ignored: new Set<string>(),
+    notChecked: new Map(),
   }),
   impact: async () => COMPUTED,
 });
@@ -118,7 +116,7 @@ describe('validate_code: the single-file form', () => {
         {
           lint: async ({ buffers }) => ({
             diagnostics: new Map(buffers.map((b) => [b.filePath, [warning]])),
-            ignored: new Set<string>(),
+            notChecked: new Map(),
           }),
           impact: async () => {
             throw new Error('boom');
@@ -181,7 +179,7 @@ describe('validate_code: the multi-file form', () => {
           sawBuffers = buffers.length;
           return {
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
-            ignored: new Set<string>(),
+            notChecked: new Map(),
           };
         },
         impact: async () => COMPUTED,
@@ -264,7 +262,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
           calls.push('lint');
           return {
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
-            ignored: new Set<string>(),
+            notChecked: new Map(),
           };
         },
         impact: async () => {
@@ -294,7 +292,10 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
     const result = await validateOne('{% if %}{{ unclosed', {
       // The LINT seam reports this — it holds the config. There is no separate
       // ignore adapter to stub, which is the point: one source of truth.
-      lint: async () => ({ diagnostics: new Map(), ignored: new Set([PAGE]) }),
+      lint: async () => ({
+        diagnostics: new Map(),
+        notChecked: new Map<string, LintNotCheckedStatus>([[PAGE, 'excluded-by-config']]),
+      }),
       impact: async () => COMPUTED,
     });
 
@@ -312,7 +313,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
       {
         lint: async () => {
           linted = true;
-          return { diagnostics: new Map(), ignored: new Set<string>() };
+          return { diagnostics: new Map(), notChecked: new Map() };
         },
         impact: async () => COMPUTED,
       },
@@ -340,7 +341,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
           passes++;
           return {
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
-            ignored: new Set<string>(),
+            notChecked: new Map(),
           };
         },
         impact: async () => COMPUTED,
@@ -359,7 +360,7 @@ describe('validate_code: bounded work', () => {
         calls.push('lint');
         return {
           diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
-          ignored: new Set<string>(),
+          notChecked: new Map(),
         };
       },
       impact: async () => COMPUTED,
@@ -590,7 +591,7 @@ describe('validate_code: bounded work', () => {
         {
           lint: async ({ buffers }) => ({
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
-            ignored: new Set<string>(),
+            notChecked: new Map(),
           }),
           impact: () => new Promise(() => {}),
         },
@@ -626,7 +627,7 @@ describe('validate_code: bounded work', () => {
           await lintGate;
           return {
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
-            ignored: new Set<string>(),
+            notChecked: new Map(),
           };
         },
         impact: async () => {

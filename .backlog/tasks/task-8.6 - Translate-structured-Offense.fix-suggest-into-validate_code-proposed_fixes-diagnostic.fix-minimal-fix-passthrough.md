@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-02 15:00'
+updated_date: '2026-08-04 12:48'
 labels:
   - mcp-supervisor
   - fixes
@@ -18,6 +19,7 @@ references:
   - packages/platformos-mcp-supervisor/src/result/types.ts
 parent_task_id: TASK-8
 priority: high
+ordinal: 28000
 ---
 
 ## Description

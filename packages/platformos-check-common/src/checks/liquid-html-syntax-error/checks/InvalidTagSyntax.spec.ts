@@ -91,6 +91,35 @@ describe('Module: InvalidTagSyntax', () => {
       expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'function'");
     });
 
+    /**
+     * The three shapes real projects actually write. Each leaves `markup` a raw string —
+     * the parser falls back to the base case rather than failing — so this check is the
+     * ONLY thing that tells the author the tag is broken. Every other check guards on the
+     * markup type and skips it silently.
+     */
+    it.each([
+      [
+        'filter without its colon',
+        `{% liquid\n  function logo = 'lib/queries/photos/search', photo_type: 'theme_logo' | dig 'results' | first\n%}`,
+      ],
+      [
+        'stray colon after the partial name',
+        `{% liquid\n  function min_price = 'theme/simple/price': amount_cents: gt_price\n%}`,
+      ],
+      [
+        'truncated lookup',
+        `{% liquid\n  function shipping = 'lib/queries/load', organization: item.owner.\n%}`,
+      ],
+    ])(
+      'should report a function tag whose markup did not structure: %s',
+      async (_shape, source) => {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+        expect(offenses.map((offense) => offense.message)).toEqual([
+          "Invalid syntax for tag 'function'",
+        ]);
+      },
+    );
+
     it('should not report valid function with nested multi-line hash argument', async () => {
       const sourceCode = `{% liquid
   function res = 'path/to/function',
@@ -405,25 +434,30 @@ describe('Module: InvalidTagSyntax', () => {
   describe('docset syntax hint', () => {
     it('should include syntax hint from docset when available', async () => {
       const sourceCode = `{% render %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode, 'file.liquid', {
-        platformosDocset: {
-          async filters() {
-            return [];
-          },
-          async objects() {
-            return [];
-          },
-          async liquidDrops() {
-            return [];
-          },
-          async tags() {
-            return [{ name: 'render', syntax: "{% render 'partial' %}" }];
-          },
-          async graphQL() {
-            return null;
+      const offenses = await runLiquidCheck(
+        LiquidHTMLSyntaxError,
+        sourceCode,
+        'app/views/partials/file.liquid',
+        {
+          platformosDocset: {
+            async filters() {
+              return [];
+            },
+            async objects() {
+              return [];
+            },
+            async liquidDrops() {
+              return [];
+            },
+            async tags() {
+              return [{ name: 'render', syntax: "{% render 'partial' %}" }];
+            },
+            async graphQL() {
+              return null;
+            },
           },
         },
-      });
+      );
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
       expect(syntaxOffenses).toHaveLength(1);
       expect(syntaxOffenses[0].message).toContain("Expected syntax: {% render 'partial' %}");

@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:56'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-7
@@ -15,6 +16,7 @@ references:
   - packages/platformos-mcp-supervisor/CURRENT_SYSTEM_ARCHITECTURE.md
 parent_task_id: TASK-8
 priority: high
+ordinal: 17000
 ---
 
 ## Description

@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-30 11:30'
-updated_date: '2026-06-30 11:30'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-9.6
@@ -14,6 +14,7 @@ references:
   - docs/mcp-supervisor/decisions/004-platform-facts-vs-conventions/README.md
 parent_task_id: TASK-9
 priority: low
+ordinal: 25000
 ---
 
 ## Description

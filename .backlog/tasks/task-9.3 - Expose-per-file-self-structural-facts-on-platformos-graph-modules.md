@@ -4,7 +4,7 @@ title: Expose per-file self-structural facts on platformos-graph modules
 status: Done
 assignee: []
 created_date: '2026-06-23 10:33'
-updated_date: '2026-06-30 14:35'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-9.1
@@ -13,6 +13,7 @@ references:
     docs/mcp-supervisor/decisions/003-graph-backed-structural-enrichment/README.md
 parent_task_id: TASK-9
 priority: low
+ordinal: 23000
 ---
 
 ## Description

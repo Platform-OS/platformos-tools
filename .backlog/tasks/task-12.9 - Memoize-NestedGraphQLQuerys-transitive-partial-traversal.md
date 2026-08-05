@@ -4,12 +4,14 @@ title: Memoize NestedGraphQLQuery's transitive partial traversal
 status: To Do
 assignee: []
 created_date: '2026-07-29 21:42'
+updated_date: '2026-08-04 12:48'
 labels:
   - performance
   - check-common
 dependencies: []
 parent_task_id: TASK-12
 priority: medium
+ordinal: 41000
 ---
 
 ## Description

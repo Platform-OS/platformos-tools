@@ -1,12 +1,11 @@
+import { UriString } from '@platformos/platformos-check-common';
 import {
-  recursiveReadDirectory as findAllFiles,
   getFileType,
-  isLayout,
-  isPage,
-  path,
   PlatformOSFileType,
-  UriString,
-} from '@platformos/platformos-check-common';
+  SourceCodeType,
+  sourceCodeTypeOf,
+  walkAppSourceFiles,
+} from '@platformos/platformos-common';
 import { IDependencies, AppGraph, AppModule, GraphBuildOptions } from '../types';
 import { augmentDependencies } from './augment';
 import { getModule, getSchemaModule } from './module';
@@ -33,31 +32,43 @@ export async function buildAppGraph(
 ): Promise<AppGraph> {
   const deps = augmentDependencies(rootUri, ideps);
 
-  // Schema/custom-model-type files are platform nodes but are NOT render-reachable
-  // (nothing renders them), so they never appear via edge traversal. On a full
-  // build, discover them as standalone leaf nodes — never entry points, so
+  // Table (schema / custom-model-type) files are platform nodes but are NOT
+  // render-reachable — nothing renders them — so they never appear via edge traversal. On
+  // a full build they are discovered as standalone leaf nodes, never entry points, so
   // reachability/orphan semantics for the render graph are unaffected.
   let schemaUris: UriString[] = [];
 
-  // An explicit entryPoints scope is built verbatim (e.g. a scoped LSP rebuild);
-  // the default full build (`entryPoints === undefined`) also discovers
-  // standalone schema nodes. Branching on the parameter directly lets the
-  // compiler narrow it to a defined list below.
+  // An explicit entryPoints scope is built verbatim (e.g. a scoped LSP rebuild); the
+  // default full build (`entryPoints === undefined`) also discovers standalone Table
+  // nodes. Branching on the parameter directly lets the compiler narrow it below.
   if (entryPoints === undefined) {
-    // A SINGLE directory sweep yields both the render entry points
-    // (pages + layouts) and the standalone schema nodes, partitioned by
-    // extension below — avoiding a second full-tree walk.
-    const discovered = await findAllFiles(deps.fs, rootUri, ([uri]) => {
-      // Layouts wrap all page content; pages are directly requested — both are
-      // entry points.
-      if (uri.endsWith('.liquid')) return isLayout(uri) || isPage(uri);
-      if (uri.endsWith('.yml') || uri.endsWith('.yaml')) {
-        return getFileType(uri) === PlatformOSFileType.CustomModelType;
+    // ONE sweep yields both populations, partitioned by SourceCodeType below, so the
+    // tree is walked once. `walkAppSourceFiles` is anchored on APP_SOURCE_SUBTREES: the
+    // walk it replaces started at the root and skipped directories by NAME, which both
+    // dropped `app/views/pages/vendor/**` (a live site section — 137 files on one real
+    // project) and admitted `tmp/app/views/partials/x.liquid`.
+    const discovered = await walkAppSourceFiles(deps.fs, rootUri, ([uri]) => {
+      // Root-ANCHORED classification. The unanchored `getFileType(uri)` this used to call
+      // matched a known directory anywhere in the path, so
+      // `seed/post_import/app/migrations/x.liquid` classified as a Migration while being
+      // correctly absent from the lint's app.
+      const fileType = getFileType(uri, rootUri);
+
+      // A GRAPH-domain restriction, not a second answer to "what is a source file":
+      // Liquid is the only source that can reference another file, so a non-Liquid entry
+      // point would have no edges to traverse. Which extensions ARE Liquid still comes
+      // from platformos-common, never spelled here — which is also why the `.yml`/`.yaml`
+      // tests that used to partition this sweep are gone: `.yaml` is not a platformOS
+      // extension at all, so spelling it here promised coverage the platform never had.
+      if (sourceCodeTypeOf(uri) === SourceCodeType.LiquidHtml) {
+        // Layouts wrap all page content; pages are directly requested — both are entry points.
+        return fileType === PlatformOSFileType.Layout || fileType === PlatformOSFileType.Page;
       }
-      return false;
+      return fileType === PlatformOSFileType.Table;
     });
-    entryPoints = discovered.filter((uri) => uri.endsWith('.liquid'));
-    schemaUris = discovered.filter((uri) => uri.endsWith('.yml') || uri.endsWith('.yaml'));
+
+    entryPoints = discovered.filter((uri) => sourceCodeTypeOf(uri) === SourceCodeType.LiquidHtml);
+    schemaUris = discovered.filter((uri) => sourceCodeTypeOf(uri) !== SourceCodeType.LiquidHtml);
   }
 
   const graph: AppGraph = {

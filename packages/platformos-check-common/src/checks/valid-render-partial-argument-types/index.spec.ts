@@ -28,13 +28,24 @@ describe('Module: ValidRenderPartialParamTypes', () => {
         invalidValues: [],
       },
       {
+        // `object` is the generic non-primitive type, so it accepts an array too.
         type: 'object',
-        validValues: ['product', '(1..3)'],
+        validValues: ['product', '(1..3)', '[1, 2]', '[]'],
         invalidValues: [
           { value: "'hello'", actualType: BasicParamTypes.String },
           { value: '123', actualType: BasicParamTypes.Number },
           { value: 'true', actualType: BasicParamTypes.Boolean },
           { value: 'empty', actualType: BasicParamTypes.String },
+        ],
+      },
+      {
+        type: 'array',
+        validValues: ['[1, 2]', '["a", "b"]', '[]', 'product'],
+        invalidValues: [
+          { value: "'hello'", actualType: BasicParamTypes.String },
+          { value: '123', actualType: BasicParamTypes.Number },
+          { value: 'true', actualType: BasicParamTypes.Boolean },
+          { value: '(1..3)', actualType: BasicParamTypes.Object },
         ],
       },
     ];

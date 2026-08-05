@@ -47,6 +47,7 @@
     "@platformos/platformos-check-common": "0.0.19",
     "@platformos/platformos-check-docs-updater": "0.0.19",
     "@platformos/platformos-check-node": "0.0.19",
+    "@platformos/platformos-common": "0.0.17",
     "@platformos/platformos-graph": "0.0.19",
     "zod": "^3.23.8"
   },

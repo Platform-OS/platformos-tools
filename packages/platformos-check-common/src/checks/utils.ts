@@ -7,6 +7,7 @@ import {
   AttrSingleQuoted,
   AttrDoubleQuoted,
   AttrUnquoted,
+  FunctionMarkup,
   LiquidHtmlNode,
   LiquidBranch,
   LiquidLiteralValues,
@@ -14,7 +15,13 @@ import {
   LiquidTagTablerow,
   LiquidTag,
   LoopNamedTags,
+  NamedTags,
+  RenderMarkup,
 } from '@platformos/liquid-html-parser';
+import {
+  isObjectInScope as isObjectAccessInScope,
+  PlatformOSFileType,
+} from '@platformos/platformos-common';
 import { LiquidHtmlNodeOfType as NodeOfType, ObjectEntry } from '../types';
 
 /**
@@ -101,6 +108,53 @@ export function isLiquidString(node: LiquidHtmlNode): node is NodeOfType<NodeTyp
   return node.type === NodeTypes.String;
 }
 
+/**
+ * The tags that carry a call-site markup. `render`, `include` and `theme_render_rc` all
+ * parse to a `RenderMarkup`, `function` to a `FunctionMarkup`, and every one of them is
+ * also a `DocumentType` — so one answer both words the message and resolves the target.
+ *
+ * Written as literals rather than enum members because `DocumentType` is a union of string
+ * literals and a string enum member is not assignable to one; `satisfies` ties the list to
+ * `NamedTags` anyway, so a tag the parser renames fails to compile here.
+ */
+const CALL_SITE_TAGS = [
+  'render',
+  'include',
+  'theme_render_rc',
+  'function',
+] as const satisfies readonly `${NamedTags}`[];
+
+/** The tag a call site was written with. Every value is also a `DocumentType`. */
+export type CallSiteTag = (typeof CALL_SITE_TAGS)[number];
+
+/**
+ * Which tag a call site actually spells.
+ *
+ * The parser gives `{% include %}`, `{% render %}` and `{% theme_render_rc %}` the same
+ * `RenderMarkup` node, so the name is only on the enclosing `LiquidTag` — which a visitor
+ * already receives as `ancestors.at(-1)`. A check that skips this tells the author of an
+ * `include` about a "render tag" they did not write, and — since `include` runs the partial
+ * in the CALLER'S scope — may be reporting something that is not wrong at all.
+ *
+ * The tag's own name is the answer, so a tag added to the list above needs nothing here.
+ */
+export function callSiteTag(
+  node: RenderMarkup | FunctionMarkup,
+  ancestors: LiquidHtmlNode[],
+): CallSiteTag {
+  const tag = ancestors.at(-1);
+  if (isNodeOfType(NodeTypes.LiquidTag, tag) && isCallSiteTag(tag.name)) return tag.name;
+
+  // Unreachable while the parser keeps each markup under the tag that produced it. The node
+  // type still separates the two families, which is the most that can be said without the
+  // tag — and better than naming a tag the author may not have written.
+  return node.type === NodeTypes.FunctionMarkup ? 'function' : 'render';
+}
+
+function isCallSiteTag(name: string): name is CallSiteTag {
+  return (CALL_SITE_TAGS as readonly string[]).includes(name);
+}
+
 export function isLoopScopedVariable(variableName: string, ancestors: LiquidHtmlNode[]) {
   return ancestors.some(
     (ancestor) =>
@@ -128,14 +182,19 @@ export function isWithinRawTagThatDoesNotParseItsContents(ancestors: LiquidHtmlN
 }
 
 /**
- * Whether a documented object is in scope everywhere, and so must never be
- * reported as an undefined variable or a missing partial argument.
+ * Whether a documented object is in scope inside a file of `fileType`, and so must never
+ * be reported as an undefined variable or a missing partial argument.
  *
- * Shared by `UndefinedObject` and `PartialCallArguments` so the two agree when the
- * docset's `access` shape changes. Note that contextual names (e.g. `app` inside a
- * partial) are NOT covered here: they are not documented objects at all, so each
- * check adds them separately.
+ * The RULE is platformOS's, so it lives in `platformos-common` alongside the file types it
+ * is expressed in; this wrapper only unpacks an `ObjectEntry`. Shared by `UndefinedObject`,
+ * `PartialCallArguments` and `UnrecognizedRenderPartialArguments`.
+ *
+ * Contextual names (e.g. `app` inside a partial) are NOT covered: they are not documented
+ * objects at all, so each check adds them separately.
  */
-export function isGloballyAccessibleObject({ access }: ObjectEntry): boolean {
-  return !access || access.global === true || access.template.length > 0;
+export function isObjectInScope(
+  { access }: ObjectEntry,
+  fileType: PlatformOSFileType | undefined,
+): boolean {
+  return isObjectAccessInScope(access, fileType);
 }

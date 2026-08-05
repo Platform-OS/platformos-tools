@@ -4,6 +4,7 @@ title: project_map tool — graph-backed discovery + resource overlay (orientati
 status: To Do
 assignee: []
 created_date: '2026-07-01 21:14'
+updated_date: '2026-08-04 12:48'
 labels:
   - mcp-supervisor
   - platformos-graph
@@ -20,6 +21,7 @@ references:
   - SUPERVISOR-GRAPH-INTEGRATION.md
 parent_task_id: TASK-9
 priority: high
+ordinal: 26000
 ---
 
 ## Description

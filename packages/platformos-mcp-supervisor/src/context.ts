@@ -6,19 +6,25 @@
  * batch path had to import them from a sibling tool, which meant renaming anything
  * there silently broke the other — a dependency with no reason to exist.
  */
-import type { AppCache } from '@platformos/platformos-check-node';
-
 import type { GraphCache } from './graph-cache/graph-cache.js';
 import type { Logger } from './logger.js';
 
-/** Per-server context threaded into every handler. */
+/**
+ * Per-server context threaded into every handler.
+ *
+ * NO `appCache` HERE ANY MORE, and its absence is the point. This server used to
+ * construct one and thread it through every lint call, because check-node's project
+ * model was eager — it parsed every file on every call, so a caller that wanted the work
+ * reused had to own the cache and remember to pass it. check-node now keeps ONE lazy
+ * `App` per project at process level and reconciles it per call, which is both faster and
+ * strictly safer: a cache nobody has to remember to pass is a cache no call path can
+ * forget. Do not reintroduce a handle here — see check-node's "Process-level state".
+ */
 export interface SupervisorContext {
   /** Absolute project root that buffers are validated against. */
   projectDir: string;
   /** Never-stale, background-built project graph — the blast-radius source. */
   graphCache: GraphCache;
-  /** Never-stale parsed-project cache — reused across lint calls so the project isn't re-parsed each time. */
-  appCache: AppCache;
   log: Logger;
 }
 

@@ -1,4 +1,5 @@
 import { describe, beforeEach, it, expect } from 'vitest';
+import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
 
@@ -10,12 +11,23 @@ const mockDocset = {
   tags: async () => [],
 };
 
+/**
+ * A manager wired the way startServer wires it: it carries the root finder, so
+ * `DocumentManager.fileType` — THE classifier every provider uses — can answer
+ * for buffers under the fixture root before any app has been preloaded.
+ */
+const makeDocumentManager = (fs?: ConstructorParameters<typeof DocumentManager>[0]) =>
+  new DocumentManager(fs, undefined, undefined, undefined, async () => '/path/to');
+
 describe('Module: FrontmatterKeyCompletionProvider', async () => {
   let provider: CompletionsProvider;
 
   beforeEach(async () => {
     provider = new CompletionsProvider({
-      documentManager: new DocumentManager(),
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
+      documentManager: makeDocumentManager(),
       platformosDocset: mockDocset,
     });
   });
@@ -78,7 +90,10 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
 
   it('completes layout names when getLayoutNamesForURI is provided', async () => {
     const providerWithLayouts = new CompletionsProvider({
-      documentManager: new DocumentManager(),
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
+      documentManager: makeDocumentManager(),
       platformosDocset: mockDocset,
       getLayoutNamesForURI: async () => ['application', 'auth', 'modules/community/base'],
     });
@@ -96,7 +111,10 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
     // the original modules/community/public/views/layouts/base.liquid are present,
     // both appear as 'modules/community/base' and Set deduplication yields a single entry.
     const providerWithLayouts = new CompletionsProvider({
-      documentManager: new DocumentManager(),
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
+      documentManager: makeDocumentManager(),
       platformosDocset: mockDocset,
       getLayoutNamesForURI: async () => ['modules/community/base'],
     });
@@ -109,9 +127,59 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
     );
   });
 
+  /**
+   * The default (no `getLayoutNamesForURI` override) reads names off the root's
+   * `App`, and `AppFile.name` strips the response format along with the extension.
+   * The hand-rolled walk this replaced stripped only `.liquid`, so a layout at
+   * `1col.html.liquid` was offered as `1col.html` — a spelling `layout:` resolves
+   * to nothing — and the module branch had the same bug in its own copy.
+   */
+  it('offers a format-carrying layout under its resolvable name, app and module alike', async () => {
+    const fs = new MockFileSystem({
+      'path/to/app/views/layouts/1col.html.liquid': '{{ content }}',
+      'path/to/modules/community/public/views/layouts/base.html.liquid': '{{ content }}',
+    });
+    const appBackedProvider = new CompletionsProvider({
+      findAppRootURI: async () => '/path/to',
+      documentManager: makeDocumentManager(fs),
+      platformosDocset: mockDocset,
+    });
+
+    await expect(appBackedProvider).to.complete(
+      {
+        source: `---\nlayout: █\n---\n{{ content }}`,
+        relativePath: 'app/views/pages/test.html.liquid',
+      },
+      ['1col', 'modules/community/base'],
+    );
+  });
+
+  it('offers authorization policies off the App by default, module policies included', async () => {
+    const fs = new MockFileSystem({
+      'path/to/app/authorization_policies/is_admin.liquid': 'true',
+      'path/to/modules/community/public/authorization_policies/is_member.liquid': 'true',
+    });
+    const appBackedProvider = new CompletionsProvider({
+      findAppRootURI: async () => '/path/to',
+      documentManager: makeDocumentManager(fs),
+      platformosDocset: mockDocset,
+    });
+
+    await expect(appBackedProvider).to.complete(
+      {
+        source: `---\nauthorization_policies:\n  - █\n---\n{{ content }}`,
+        relativePath: 'app/views/pages/test.html.liquid',
+      },
+      ['is_admin', 'modules/community/is_member'],
+    );
+  });
+
   it('filters module layout names by modules/ prefix', async () => {
     const providerWithLayouts = new CompletionsProvider({
-      documentManager: new DocumentManager(),
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
+      documentManager: makeDocumentManager(),
       platformosDocset: mockDocset,
       getLayoutNamesForURI: async () => ['application', 'auth', 'modules/community/base'],
     });
@@ -124,7 +192,7 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
     );
   });
 
-  it('returns no layout completions when getLayoutNamesForURI is not configured', async () => {
+  it('returns no layout completions when the workspace has no layouts to offer', async () => {
     await expect(provider).to.complete(
       {
         source: `---\nlayout: █\n---\n{{ content }}`,
@@ -136,7 +204,10 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
 
   it('completes auth policy list items when getAuthPolicyNamesForURI is provided', async () => {
     const providerWithPolicies = new CompletionsProvider({
-      documentManager: new DocumentManager(),
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
+      documentManager: makeDocumentManager(),
       platformosDocset: mockDocset,
       getAuthPolicyNamesForURI: async () => ['is_authenticated', 'is_admin'],
     });

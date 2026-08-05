@@ -1,0 +1,35 @@
+{% graphql people = 'my/query', limit: 10 %}
+{% graphql people = 'my/query' %}
+
+{% graphql products, limit: 10 %}
+  query products($limit: Int) {
+    records(per_page: $limit, filter: { table: { value: "product" } }) {
+      results {
+        id
+        properties
+      }
+    }
+  }
+{% endgraphql %}
+
+{% graphql result %}
+  query {
+    records {
+      total_entries
+    }
+  }
+{% endgraphql %}
+
+{% graphql dynamic %}
+  query {
+    records {
+      results {
+        {{ context.constants.FIELD }}
+      }
+    }
+  }
+{% endgraphql %}
+
+{% graphql empty %}
+{%- endgraphql %}
+<img>

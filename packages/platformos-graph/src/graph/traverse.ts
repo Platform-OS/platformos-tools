@@ -1,6 +1,7 @@
 import yaml from 'js-yaml';
 import { LiquidNamedArgument, NamedTags, NodeTypes } from '@platformos/liquid-html-parser';
 import {
+  extractGraphqlTables,
   isTranslationKeyUsage,
   SourceCodeType,
   UriString,
@@ -11,7 +12,6 @@ import {
   containsLiquid,
   DocumentsLocator,
   effectivePageSlug,
-  extractGraphqlTables,
   extractRelativePagePath,
   extractSchemaTable,
   PLATFORM_YAML_LOAD_OPTIONS,
@@ -37,7 +37,7 @@ import {
   getGraphQLModuleByUri,
   getLayoutModuleByUri,
   getPartialModuleByUri,
-  isSupportedAssetFile,
+  isSupportedAsset,
 } from './module';
 
 /** A resolved outgoing reference: the target graph node + its call-site range + kind (+ named-arg names). */
@@ -174,15 +174,20 @@ export async function resolveLiquidReferences(
         if (parentNode.expression.type !== NodeTypes.String) return;
         if (parentNode.filters[0] !== node) return;
         const asset = parentNode.expression.value;
-        if (!isSupportedAssetFile(asset)) return; // ignore non-asset values (unchanged gate)
+        // Skip a non-asset value before paying for the filesystem probe below.
+        // Not the only gate: `getAssetModuleByUri` applies the same predicate, so
+        // neither layer relies on the other remembering.
+        if (!isSupportedAsset(asset)) return;
         // Resolve through DocumentsLocator (`'asset'`: app/assets, module
         // public/assets) — not a hard-coded base — so the target matches the
         // real on-disk location, with the canonical `app/assets/<name>` as the
         // fallback for an unresolved asset.
         const uri = await documentsLocator.locateOrDefault(rootUri, 'asset', asset);
         if (!uri) return;
+        const target = getAssetModuleByUri(appGraph, uri);
+        if (!target) return; // resolution changed the extension — no asset node
         return {
-          target: getAssetModuleByUri(appGraph, uri),
+          target,
           sourceRange: [parentNode.position.start, parentNode.position.end],
           kind: 'asset',
         };

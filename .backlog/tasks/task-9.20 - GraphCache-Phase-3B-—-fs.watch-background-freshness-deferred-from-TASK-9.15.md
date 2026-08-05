@@ -4,6 +4,7 @@ title: GraphCache Phase 3B — fs.watch background freshness (deferred from TASK
 status: To Do
 assignee: []
 created_date: '2026-07-03 07:37'
+updated_date: '2026-08-04 12:48'
 labels:
   - mcp-supervisor
   - performance
@@ -15,6 +16,7 @@ references:
   - SUPERVISOR-GRAPH-INTEGRATION.md
 parent_task_id: TASK-9
 priority: low
+ordinal: 31000
 ---
 
 ## Description

@@ -245,6 +245,103 @@ describe('Integration: validate_code over stdio', () => {
       },
     });
   });
+
+  /**
+   * `mode` was a real input once and agents may still send it. The SDK validates
+   * against the shape and drops what is not in it, so an old call still works — which
+   * is the only reason removing the parameter is safe.
+   */
+  it('ignores a retired argument instead of rejecting the call', async () => {
+    const args = {
+      file_path: 'app/views/layouts/application.liquid',
+      content: '<html><body><header>Site</header></body></html>',
+    };
+
+    expect(await validateCode({ ...args, mode: 'full' })).toEqual(await validateCode(args));
+  });
+
+  const DIRECTORY_STRUCTURE =
+    'Directory structure: https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure';
+
+  /**
+   * "Not checked" is a STATUS, not a sentence buried in prose.
+   *
+   * These two cases previously came back `status: 'ok'` with the explanation in
+   * `next_step`, because the contract had nowhere else to put it — a stopgap this code
+   * said so at the time. `not_applicable` plus a machine-readable
+   * `not_applicable_reason` is that missing place: an agent branches on the reason
+   * without parsing English, and `ok` goes back to meaning what it claims, "checked and
+   * nothing objected". Reporting an unchecked file as `ok` is the exact false approval a
+   * write gate must never produce.
+   *
+   * `impact` is `not_applicable` too, for the same underlying reason, so its zeroed
+   * `dependents` can never be misread as a measured "nothing depends on this".
+   *
+   * The messages are asserted as whole literal strings rather than by calling the
+   * factories that build them. This is the outermost test there is — a real server over
+   * a real stdio pipe — and importing the implementation's wording would make it agree
+   * with itself by construction.
+   */
+  const NOT_APPLICABLE_IMPACT = {
+    scope: 'direct',
+    status: 'not_applicable',
+    dependents: { total: 0, by_kind: {}, sample: [] },
+  };
+
+  it('tells the agent a misplaced source was not checked, instead of reporting it clean', async () => {
+    const result = await validateCode({
+      file_path: 'scripts/helper.liquid',
+      content: '<html><body><header>Site</header></body></html>',
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'not_applicable',
+      not_applicable_reason: 'misplaced_source',
+      // NOT blocked. The file is very likely a mistake, but "likely" is a guess about
+      // intent — a fixture or generator template lives here legitimately — and a gate
+      // that vetoes legitimate work on a guess gets switched off.
+      must_fix_before_write: false,
+      impact: NOT_APPLICABLE_IMPACT,
+      next_step:
+        '`scripts/helper.liquid` is a platformOS source file outside every subtree the ' +
+        'platform deploys (app/, marketplace_builder/, modules/*/public/, ' +
+        'modules/*/private/). Nothing checked it, and nothing will load it either — a ' +
+        'partial, page or query here is dead code. Move it under one of those directories ' +
+        'unless it is deliberately a fixture or a build input. This is neither a pass nor ' +
+        `a block. ${DIRECTORY_STRUCTURE}`,
+    });
+  });
+
+  /**
+   * A file that is not a platformOS source is usually not meant to be one, so it gets
+   * the directory rule and a link rather than "move it under app/".
+   *
+   * THE CONTROL FOR THE CASE ABOVE, and the reason the two reasons are separate codes at
+   * all: same status, same non-blocking verdict, opposite advice. A single collapsed
+   * "unsupported type" answer would tell the author of `scripts/helper.liquid` nothing,
+   * and telling the author of a `.jsx` component to move it under `app/` would be worse
+   * than telling them nothing.
+   */
+  it('does not tell the agent to move a file that was never meant to be platformOS code', async () => {
+    const result = await validateCode({
+      file_path: 'src/components/Widget.jsx',
+      content: 'export const Widget = () => null;\n',
+    });
+
+    expect(result).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'not_applicable',
+      not_applicable_reason: 'unsupported_type',
+      must_fix_before_write: false,
+      impact: NOT_APPLICABLE_IMPACT,
+      next_step:
+        '`src/components/Widget.jsx` is not a platformOS source file, so there is nothing ' +
+        'to check. The platform deploys app/, marketplace_builder/, modules/*/public/, ' +
+        'modules/*/private/ only. Nothing was checked — writing this file is your call, ' +
+        `not a validated pass. ${DIRECTORY_STRUCTURE}`,
+    });
+  });
 });
 
 /**

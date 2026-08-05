@@ -247,16 +247,53 @@ describe('DocumentsLocator', () => {
       expect(result).toBe('file:///project/app/views/layouts/application.html.liquid');
     });
 
-    it('should prefer .html.liquid over .liquid when both exist', async () => {
+    it('resolves a layout deterministically when BOTH spellings exist, which the platform treats as one view', async () => {
+      // THIS TEST USED TO ASSERT A PRECEDENCE THE PLATFORM DOES NOT DEFINE. It required
+      // `.html.liquid` to win over `.liquid`, which read like a platform rule and is not one.
+      //
+      // Measured in the platform source (`desksnearme`):
+      //   - `LiquidViewConverter.build_default_values` defaults `format` to `'html'`, so a
+      //     bare `application.liquid` is an `html` view just like `application.html.liquid`;
+      //   - `LiquidPathParser#parse` strips the format extension
+      //     (`path.basename(".#{format}")`), so BOTH files produce
+      //     `path: 'views/layouts/application'`.
+      // The two spellings are therefore the SAME `InstanceView` identity — a project holding
+      // both is in an ambiguous state, not one with a documented winner. (Worth its own check;
+      // this resolver is not the place to invent an answer.)
+      //
+      // So what is actually pinned here is what a resolver owes its callers regardless:
+      // a deterministic answer, and one of the two real files rather than a third path or
+      // `undefined`. Which one is `formatRank`'s business, asserted where that rule lives.
       const fs = createMockFileSystem({
         'file:///project/app/views/layouts/application.html.liquid': 'html',
         'file:///project/app/views/layouts/application.liquid': 'plain',
       });
       const locator = new DocumentsLocator(fs);
 
-      const result = await locator.locate(rootUri, 'layout', 'application');
+      const first = await locator.locate(rootUri, 'layout', 'application');
+      const again = await locator.locate(rootUri, 'layout', 'application');
 
-      expect(result).toBe('file:///project/app/views/layouts/application.html.liquid');
+      expect([
+        'file:///project/app/views/layouts/application.liquid',
+        'file:///project/app/views/layouts/application.html.liquid',
+      ]).toContain(first);
+      expect(again).toBe(first);
+    });
+
+    it('resolves a layout that exists ONLY as the legacy .html.liquid', async () => {
+      // The control, and the case that actually occurs: arabbank ships
+      // `application.html.liquid` with no `application.liquid` beside it. A resolver that
+      // only knew `.liquid` would report every page's layout missing.
+      const fs = createMockFileSystem({
+        'file:///project/app/views/layouts/application.html.liquid': 'html',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      expect(await locator.locate(rootUri, 'layout', 'application')).toBe(
+        'file:///project/app/views/layouts/application.html.liquid',
+      );
+      // ...and a name with no file behind it still fails, so the above is not permissiveness.
+      expect(await locator.locate(rootUri, 'layout', 'no_such_layout')).toBeUndefined();
     });
 
     it('should locate a module layout', async () => {
@@ -554,20 +591,18 @@ describe('DocumentsLocator', () => {
       const callCountAfterFirst = readDirSpy.mock.calls.length;
 
       await locator.locateWithSearchPaths(rootUri, 'b', searchPaths);
-      // readDirectory should not be called again for wildcard expansion
-      // (only for locateFile stat calls, not for listSubdirectories)
-      const expansionCalls = readDirSpy.mock.calls.filter(
-        (call: string[]) =>
-          call[0].includes('app/views/partials/theme') && !call[0].includes('.liquid'),
-      );
-      // All expansion readDirectory calls should come from the first invocation
+      // Expansion lists the directory AT the wildcard position (`…/theme` under
+      // each partial search path) to enumerate its subdirectories; resolution
+      // lists the candidate file's parent (`…/theme/custom`). Only the former is
+      // cached expansion work, and none of it may repeat on the second call.
+      const expansionDirs = [
+        'file:///project/app/views/partials/theme',
+        'file:///project/app/lib/theme',
+      ];
       const expansionCallsAfterFirst = readDirSpy.mock.calls
         .slice(callCountAfterFirst)
-        .filter(
-          (call: string[]) =>
-            call[0].includes('app/views/partials/theme') && !call[0].includes('.liquid'),
-        );
-      expect(expansionCallsAfterFirst).toHaveLength(0);
+        .filter((call: string[]) => expansionDirs.includes(call[0]));
+      expect(expansionCallsAfterFirst).toEqual([]);
     });
 
     it('should clear expanded paths cache', async () => {

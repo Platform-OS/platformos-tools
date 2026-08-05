@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-06-24 11:11'
-updated_date: '2026-07-03 07:38'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-9.1
@@ -19,6 +19,7 @@ references:
     packages/platformos-check-common/src/checks/missing-content-for-layout/index.ts
 parent_task_id: TASK-9
 priority: low
+ordinal: 24000
 ---
 
 ## Description

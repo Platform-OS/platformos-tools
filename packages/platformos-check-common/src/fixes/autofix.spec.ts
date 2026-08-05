@@ -1,19 +1,24 @@
 import { expect, describe, it } from 'vitest';
-import { autofix, prettyJSON } from '../test';
+import { autofix } from '../test';
 import { Offense, SourceCodeType } from '../types';
 
 describe('Module: autofix', () => {
   it('should apply a list of all safe changes', async () => {
+    // Two files of two different source types, so this covers autofix picking the
+    // right corrector per file as well as applying the fixes. JSON is not one of
+    // them: a platformOS app has no JSON source, so no `.json` file is ever in the
+    // app for autofix to reach. `JSONCorrector` is covered directly in
+    // `correctors/json-corrector.spec.ts`.
     const mockApp = {
-      'a.liquid': 'Banana world',
-      'b.json': prettyJSON({ a: 'b' }),
+      'app/views/partials/a.liquid': 'Banana world',
+      'app/graphql/b.graphql': 'query { id }',
     };
 
     const offenses: Offense[] = [
       {
         type: SourceCodeType.LiquidHtml,
         fix: (corrector) => corrector.insert(2, 'nanana'),
-        uri: 'file:///a.liquid',
+        uri: 'file:///app/views/partials/a.liquid',
         check: 'Mock Check',
         message: 'Mock check message',
         severity: 0,
@@ -30,7 +35,7 @@ describe('Module: autofix', () => {
             },
           },
         ],
-        uri: 'file:///a.liquid',
+        uri: 'file:///app/views/partials/a.liquid',
         check: 'Mock Check',
         message: 'Mock check message',
         severity: 0,
@@ -38,12 +43,9 @@ describe('Module: autofix', () => {
         end: { line: 0, character: 0, index: 0 },
       },
       {
-        type: SourceCodeType.JSON,
-        fix: (corrector) => {
-          corrector.add('a.b.c', 'c');
-          corrector.add('a.b.d', 'd');
-        },
-        uri: 'file:///b.json',
+        type: SourceCodeType.GraphQL,
+        fix: (corrector) => corrector.insert(8, 'name '),
+        uri: 'file:///app/graphql/b.graphql',
         check: 'Mock Check',
         message: 'Mock check message',
         severity: 0,
@@ -51,16 +53,16 @@ describe('Module: autofix', () => {
         end: { line: 0, character: 0, index: 0 },
       },
       {
-        type: SourceCodeType.JSON,
+        type: SourceCodeType.GraphQL,
         suggest: [
           {
             message: 'unsafe change',
             fix: (corrector) => {
-              corrector.remove('a.b');
+              corrector.remove(0, 5);
             },
           },
         ],
-        uri: 'file:///b.json',
+        uri: 'file:///app/graphql/b.graphql',
         check: 'Mock Check',
         message: 'Mock check message',
         severity: 0,
@@ -70,16 +72,9 @@ describe('Module: autofix', () => {
     ];
 
     const fixed = await autofix(mockApp, offenses);
-    expect(fixed['a.liquid']).to.eql('Bananananana world');
-    expect(fixed['b.json']).to.eql(
-      prettyJSON({
-        a: {
-          b: {
-            c: 'c',
-            d: 'd',
-          },
-        },
-      }),
-    );
+    expect(fixed).to.eql({
+      'app/views/partials/a.liquid': 'Bananananana world',
+      'app/graphql/b.graphql': 'query { name id }',
+    });
   });
 });

@@ -41,10 +41,25 @@ const unsupported = (relativePath: string) => ({
   applicable: false as const,
   code: 'unsupported_type' as const,
   reason:
-    `\`${relativePath}\` is not a platformOS source file, so there are no checks that apply to ` +
-    `it. Validation covers Liquid in a recognized platformOS directory, \`.graphql\` operations, ` +
-    `and translation / model \`.yml\`. Nothing was checked — writing this file is your call, not ` +
-    `a validated pass.`,
+    `\`${relativePath}\` is not a platformOS source file, so there is nothing to check. The ` +
+    `platform deploys app/, marketplace_builder/, modules/*/public/, modules/*/private/ only. ` +
+    `Nothing was checked — writing this file is your call, not a validated pass. Directory ` +
+    `structure: https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure`,
+});
+
+/**
+ * An ASSET is refused for a different reason and says so. It IS part of the app and IS
+ * deployed — there is simply no source in it to check — so the "not a platformOS source
+ * file, the platform deploys app/ only" message above would be false about it.
+ */
+const asset = (relativePath: string) => ({
+  applicable: false as const,
+  code: 'unsupported_type' as const,
+  reason:
+    `\`${relativePath}\` is an asset, not a source file the linter understands — it checks ` +
+    `Liquid, GraphQL and YAML — so no check ran against it. The file is still deployed and ` +
+    `served; there is simply nothing here to validate. Nothing was checked, which is not the ` +
+    `same as a pass.`,
 });
 
 describe('Unit: fileApplicability', () => {
@@ -108,17 +123,80 @@ describe('Unit: fileApplicability', () => {
       ['standalone json', 'app/pos-modules.json'],
       ['ruby', 'script/deploy.rb'],
       ['no extension at all', 'Makefile'],
-      // Liquid, but not in a directory platformOS recognizes — check-node's own
-      // App-membership filter drops these too.
-      ['unclassified liquid', 'scripts/helper.liquid'],
-      // Asset partials are excluded by both this gate and check-node's filter.
-      ['a css asset partial', 'app/assets/site.css.liquid'],
-      ['a js asset partial', 'app/assets/app.js.liquid'],
-      // config.yml is a project config file, not a YAML *source*.
-      ['project config yaml', 'app/config.yml'],
-      ['the check config itself', '.platformos-check.yml'],
     ])('%s', (_label, filePath) => {
       expect(applicable(filePath)).toEqual(unsupported(filePath));
+    });
+
+    /**
+     * REFUSED BY TYPE, not by extension, and this is the branch that fixes a measured
+     * FALSE BLOCK. A bare `.liquid` has no response format, so `sourceCodeTypeOf` falls
+     * back to `html.liquid` and hands `app/assets/x.liquid` to the Liquid parser: the
+     * write gate returned `must_fix_before_write: true` with `LiquidHTMLSyntaxError` for a
+     * file the platform serves as bytes. Exactly backwards, since `theme.css.liquid` — the
+     * asset form the platform DOES process — was exempt all along.
+     *
+     * `platformos-common` states the rule this now enforces: nothing reads an asset.
+     */
+    it.each([
+      ['an image', 'app/assets/logo.png'],
+      ['a stylesheet', 'app/assets/site.css'],
+      ['a css asset partial', 'app/assets/site.css.liquid'],
+      ['a js asset partial', 'app/assets/app.js.liquid'],
+      ['an asset manifest', 'app/assets/manifest.json'],
+      // THE CASE THAT WAS BLOCKING WRITES. A parser accepts it; the platform does not
+      // evaluate it. Sabotage check: revert the `Asset` branch in `fileApplicability` and
+      // only this row fails, because it is the only one a parser claims.
+      ['a bare liquid file the parser would accept', 'app/assets/x.liquid'],
+      ['a nested bare liquid file', 'app/assets/nested/deep/w.liquid'],
+      // Legacy spelling of the same directory, so the rule cannot be half-applied.
+      ['a marketplace_builder asset', 'marketplace_builder/assets/x.liquid'],
+    ])('refuses %s as an asset, never as a source', (_label, filePath) => {
+      expect(applicable(filePath)).toEqual(asset(filePath));
+    });
+
+    /**
+     * THE LINE THIS GATE DRAWS, and the three cases that show it is drawn deliberately.
+     *
+     * The gate asks ONE question — "is this a type we parse at all?" — from the extension
+     * and nothing else. It does NOT ask whether the path is somewhere the platform
+     * deploys, even though it easily could: `isSupportedSourceFile(uri, root)` answers
+     * exactly that and is one import away.
+     *
+     * Using it here would collapse two different situations into one wrong answer.
+     * `scripts/helper.liquid` IS a platformOS source; it is just in the wrong place, and
+     * the useful thing to tell its author is "nothing will ever load this", not "this is
+     * not a platformOS file". check-node already distinguishes the two where the
+     * classification happens (`misplaced-source` vs `not-a-platformos-file`), so the gate
+     * admits anything parseable and lets the lint say which it is. `validate-buffers.ts`
+     * turns that answer into the advice, and `stdio-smoke.spec.ts` pins both messages
+     * end to end.
+     *
+     * The consequence is that being ADMITTED here means "worth asking about", not
+     * "will be linted" — three of these four are still never checked.
+     */
+    it.each([
+      // Liquid outside every deployed subtree: admitted here, then reported as
+      // `misplaced_source` by the lint, which is the answer that helps.
+      ['unclassified liquid', 'scripts/helper.liquid'],
+      // A REAL platformOS source under master's classification — `PlatformOSFileType`
+      // gained `InstanceConfig` (`app/config.yml`) and `UserSchema` (`app/user.yml`) as
+      // fixed-path singletons. This case used to sit in the declined list above with the
+      // comment "a project config file, not a YAML *source*", which is now simply false:
+      // it is checked, and `file-type-coverage.spec.ts` pins that something examines it.
+      ['the app config singleton', 'app/config.yml'],
+      ['the user schema singleton', 'app/user.yml'],
+      // KNOWN WRONG ADVICE, admitted here on purpose rather than special-cased.
+      // A `.yml` at the project root is parseable, so this gate lets it through and the
+      // lint calls it `misplaced-source` — telling the author of this toolchain's OWN
+      // config file that it is "likely misplaced". Every repository's CI, container and
+      // linter configs are `.yml` and hit the same thing. It never blocks a write, and
+      // narrowing it means deciding which extensions carry a platformOS signal at the
+      // point of classification, in check-node — not bolting an exception onto this gate.
+      // Asserted so the behaviour is recorded rather than discovered, and so the fix
+      // has a test to flip.
+      ['the check config itself', '.platformos-check.yml'],
+    ])('admits %s, leaving the verdict to the lint', (_label, filePath) => {
+      expect(applicable(filePath)).toEqual({ applicable: true });
     });
 
     it('reports the PROJECT-RELATIVE path even when given an absolute one', () => {

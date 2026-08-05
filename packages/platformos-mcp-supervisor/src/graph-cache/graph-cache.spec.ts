@@ -624,9 +624,20 @@ describe('GraphCache: scoped source walk (Phase 3A — platformOS roots only)', 
     // enumeration passes to readDirectory)…
     const appRoot = path.join(rootUri, 'app');
     expect([...walked].filter((dir) => dir === appRoot)).toEqual([appRoot]);
-    // …but NEVER the non-platformOS subtree, and never the project root itself.
+    // …but NEVER the non-platformOS subtree. That is the whole contract: `react-app/` is
+    // SEEN (it is an entry of the root) and never descended into, however large it is.
     expect([...walked].filter((dir) => dir.includes('/react-app'))).toEqual([]);
-    expect([...walked].filter((dir) => dir === rootUri)).toEqual([]);
+    // The project root IS listed, exactly once, and that is not a whole-tree walk.
+    // `walkAppSourceFiles` establishes which of `APP_SOURCE_SUBTREES` exist by listing
+    // their PARENT rather than probing each one, because every `AbstractFileSystem`
+    // implementation reports a missing directory differently — and most projects have
+    // neither `marketplace_builder/` nor `modules/`. One non-recursive readdir of the root
+    // replaces four failed stats, and it is what makes the anchored walk cheap.
+    //
+    // Asserted positively rather than deleted: this used to demand the root was never read
+    // at all, which was true of the older probe-based walk. Dropping the line would leave
+    // nothing pinning either design.
+    expect([...walked].filter((dir) => dir === rootUri)).toEqual([rootUri]);
     // The stray .liquid under react-app/ is not a graph node (never enumerated).
     expect(graph.modules[uri('react-app/src/components/Widget.liquid')]).toBeUndefined();
   }, 20000);

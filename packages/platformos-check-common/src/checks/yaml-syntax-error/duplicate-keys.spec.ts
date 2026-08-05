@@ -37,9 +37,18 @@ describe('Module: YAMLSyntaxError — duplicate keys are accepted, as the platfo
   const NESTED_DUPLICATE = 'name: car\nproperties:\n  make: ford\n  make: audi\n';
 
   /**
-   * Every admitted YAML file type, in both extensions. `isSupportedSourceFile` accepts
-   * `.yml` and `.yaml`, and every YAML fixture in this repo used `.yml` until now — so
-   * the second spelling was an untested path through the same gate.
+   * Every admitted YAML file type. ONE extension, because there is only one:
+   * `REFERENCE_EXTENSIONS` excludes `.yaml` deliberately — every YAML model in the backend
+   * anchors `\.yml\z` (`translation.rb:7`, `custom_model_type.rb:12`,
+   * `instance_profile_type.rb:7`, `transactable_type.rb:7`,
+   * `activity_streams/handler.rb:7`), so `app/translations/en.yaml` is never deployed.
+   * That exclusion is owned and tested by `platformos-common`'s `path-utils.spec.ts`; it
+   * is not re-asserted here.
+   *
+   * This loop USED to run over `['yml', 'yaml']`, on the premise that the second spelling
+   * was "an untested path through the same gate". There is no such path, so the `.yaml`
+   * half asserted silence over an app containing NOTHING — a suppression test that could
+   * not fail. It passed for exactly as long as `getApp` tolerated a path it dropped.
    */
   const EVERY_YAML_LOCATION = [
     'app/schema/a',
@@ -50,18 +59,16 @@ describe('Module: YAMLSyntaxError — duplicate keys are accepted, as the platfo
     'app/translations/en',
   ];
 
-  const appWith = (content: string, extension: 'yml' | 'yaml'): MockApp =>
-    Object.fromEntries(EVERY_YAML_LOCATION.map((path) => [`${path}.${extension}`, content]));
+  const appWith = (content: string): MockApp =>
+    Object.fromEntries(EVERY_YAML_LOCATION.map((path) => [`${path}.yml`, content]));
 
-  for (const extension of ['yml', 'yaml'] as const) {
-    it(`says nothing about a top-level duplicate in any admitted .${extension} file`, async () => {
-      expect(await offensesFor(appWith(TOP_LEVEL_DUPLICATE, extension))).toEqual([]);
-    });
+  it('says nothing about a top-level duplicate in any admitted YAML file', async () => {
+    expect(await offensesFor(appWith(TOP_LEVEL_DUPLICATE))).toEqual([]);
+  });
 
-    it(`says nothing about a duplicate nested inside a property in any admitted .${extension} file`, async () => {
-      expect(await offensesFor(appWith(NESTED_DUPLICATE, extension))).toEqual([]);
-    });
-  }
+  it('says nothing about a duplicate nested inside a property in any admitted YAML file', async () => {
+    expect(await offensesFor(appWith(NESTED_DUPLICATE))).toEqual([]);
+  });
 
   it('still reports a genuine syntax error in a file that ALSO has a duplicate key', async () => {
     // The control for the two assertions above. Suppressing `DUPLICATE_KEY` must not

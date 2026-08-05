@@ -1,13 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  isLayout,
-  isPage,
-  isPartial,
-  path,
-  recursiveReadDirectory,
-  UriString,
-} from '@platformos/platformos-check-common';
+import { path, UriString } from '@platformos/platformos-check-common';
 import { MockFileSystem, type MockApp } from '@platformos/platformos-check-common/dist/test';
 
 import {
@@ -15,6 +8,7 @@ import {
   buildAppGraph,
   deserializeAppGraph,
   dependentsOf,
+  enumerateEdgeSources,
   serializeAppGraph,
   type AppGraph,
 } from '../index';
@@ -47,8 +41,7 @@ describe('Unit: deserializeAppGraph (persistence load half)', () => {
     delete files[rel];
   };
 
-  const entryPoints = (): Promise<UriString[]> =>
-    recursiveReadDirectory(fs, rootUri, ([u]) => isLayout(u) || isPage(u) || isPartial(u));
+  const entryPoints = (): Promise<UriString[]> => enumerateEdgeSources(fs, rootUri);
 
   const buildFull = async (): Promise<AppGraph> =>
     buildAppGraph(rootUri, { fs }, await entryPoints());

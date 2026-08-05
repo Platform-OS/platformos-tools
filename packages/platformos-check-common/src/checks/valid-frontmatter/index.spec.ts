@@ -655,12 +655,16 @@ describe('ValidFrontmatter', () => {
   // ── Unrecognized file type ────────────────────────────────────────────────
 
   describe('unknown file type', () => {
-    it('skips files in unknown directories', async () => {
+    // Was `some/random/path/file.liquid`, which is in no platformOS directory and so
+    // is in no app — nothing checks it, and the case proved nothing about this check.
+    // A migration IS in the app, is Liquid, and has no entry in FRONTMATTER_SCHEMAS,
+    // which is the early return this is actually about.
+    it('skips a file whose type has no frontmatter schema', async () => {
       const offenses = await check(
-        { 'some/random/path/file.liquid': `---\nfoo: bar\n---\n{{ content }}` },
+        { 'app/migrations/20240101_seed.liquid': `---\nfoo: bar\n---\n{{ content }}` },
         [ValidFrontmatter],
       );
-      expect(offenses).to.have.length(0);
+      expect(offenses).to.eql([]);
     });
   });
 });

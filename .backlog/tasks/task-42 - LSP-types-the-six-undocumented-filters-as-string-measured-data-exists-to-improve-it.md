@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-02 17:06'
+updated_date: '2026-08-04 12:48'
 labels:
   - language-server
   - docset
@@ -15,6 +16,7 @@ references:
   - packages/platformos-check-common/src/AugmentedPlatformOSDocset.spec.ts
   - packages/platformos-check-common/src/undocumented-filters.ts
 priority: low
+ordinal: 51000
 ---
 
 ## Description

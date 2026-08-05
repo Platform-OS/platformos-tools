@@ -9,7 +9,10 @@ describe('Module: UnknownFilter', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toBe("Unknown filter 'unknown_filter' used.");
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights[0]).to.eql('| unknown_filter');
   });
 
@@ -19,7 +22,10 @@ describe('Module: UnknownFilter', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toBe("Unknown filter 'bar' used.");
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights[0]).to.eql('| bar');
   });
 
@@ -29,7 +35,10 @@ describe('Module: UnknownFilter', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).toBe("Unknown filter 'bar' used.");
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights[0]).to.eql('| bar');
   });
 

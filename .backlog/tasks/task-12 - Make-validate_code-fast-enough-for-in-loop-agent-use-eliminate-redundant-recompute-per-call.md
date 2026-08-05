@@ -3,10 +3,10 @@ id: TASK-12
 title: >-
   Make validate_code fast enough for in-loop agent use (eliminate redundant
   recompute per call)
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-29 03:49'
-updated_date: '2026-07-29 21:44'
+updated_date: '2026-08-03 10:27'
 labels:
   - performance
   - supervisor
@@ -64,7 +64,14 @@ Memory investigated (RSS looked like it was growing: 492 → 550 → 644 MB acro
 
 AC #1 (< 500 ms) is NOT met yet: ~5.8 s remains, and it is now almost entirely `getApp` re-reading and re-PARSING every project file on every call (3.6–5.8 s of the total; `check()` itself is 81 ms). See the follow-up subtask for that; it is the last structural piece.
 
-## Branch split (2026-07-29)
+## Branch split (2026-07-29) — SUPERSEDED, kept for the numbers
+
+Retained through the TASK-60 merge because it holds measurements nothing else records, but
+read it as history: it predates the lazy `App` model, and three of its claims are no longer
+true. `AppCache` and `fileFingerprint` do not exist any more (the cache became a
+process-level shared `App`, reconciled per call); TASK-12.8's lazy parse landed AS TASK-12.6
+rather than superseding it; and TASK-12.5 was dropped, not decided. The closing note below
+is the current state.
 
 The work now lives on two branches with a deliberate boundary:
 
@@ -84,4 +91,40 @@ AC#1 is checked on the basis of the graph branch's warm figure. Read it with the
 7. TASK-12.10 — re-key the analysis cache on uri+fingerprint (low; measured as adequate today)
 
 TASK-9.16 was closed as delivered by TASK-12.3 — same `{ only: [uri] }` design, with its spike/audit/equivalence criteria satisfied and the evidence recorded there.
+
+## AC #1 is now met — the epic is closed (2026-08-03)
+
+TASK-12.6 was the last structural piece these notes pointed at ("it is now almost entirely
+`getApp` re-reading and re-PARSING every project file on every call"). With the lazy `App`
+model, the process-shared app, the shared+lazy route table and the anchored walk, warm
+`validate_code` through the real MCP stdio bin is:
+
+| project | app files | warm median (10 calls) | cold 1st call |
+|---|---|---|---|
+| pos-module-community | 947 (1,304 liquid) | **123 ms** (107-168) | 477 ms |
+| a large client project | 3,139 (2,735 liquid) | **99 ms** (85-121) | 795 ms |
+
+against the 19-26 s this card opened with, and the ~5.8 s it stalled at after 12.1-12.4.
+The goal was "warm steady-state under ~300 ms"; the AC said 500 ms. Both are met with room.
+
+`pos-module-mcp`, the project the AC names, is no longer on this machine. Both stand-ins are
+LARGER than it was (it had 1,392 liquid files, 162 after project filtering), so the target is
+not being met on an easier project. Full numbers, methodology, live-heap and RSS figures, and
+the diagnostics-parity evidence are on TASK-12.6 and TASK-12.6.3.
+
+Live heap is unchanged from these notes' 19.2 MB — 20 MB and 23 MB after 100 calls, flat —
+and the transient-AST garbage that put RSS at 404-644 MB is gone rather than cached: 278 MB
+and 341 MB peak, flat across 100 calls. AC #2 (identical diagnostics) was re-verified at this
+scale: `lintBuffer` against `appCheckRun` filtered to the same URI, 40 files per project, 0
+mismatches on every field.
+
+### Children
+
+12.1 GraphQL schema memo · 12.2 partial-analysis memo · 12.3 `CheckOptions.only` · 12.4
+process docset · 12.5 the `mode` contract (dropped) · 12.6 the lazy App model (+ its seven
+children) — all Done. The follow-up work the migration left open is TASK-46.
+
+Both notes above are kept side by side deliberately: 0.9–1.0 s warm (graph branch, eager
+parse) and 99–123 ms warm (lazy `App`) are each real, on different architectures, and the
+pair is the only record of what the lazy model actually bought.
 <!-- SECTION:NOTES:END -->

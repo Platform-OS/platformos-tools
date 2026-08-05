@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-03 16:39'
+updated_date: '2026-08-04 12:48'
 labels:
   - check-common
   - yaml
@@ -16,6 +17,7 @@ references:
   - packages/platformos-check-common/src/yaml/duplicate-keys.ts
   - packages/platformos-check-common/src/yaml/psych-key-identity.ts
 priority: medium
+ordinal: 54000
 ---
 
 ## Description

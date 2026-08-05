@@ -1,19 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  isLayout,
-  isPage,
-  isPartial,
-  path,
-  recursiveReadDirectory,
-  UriString,
-} from '@platformos/platformos-check-common';
+import { path, UriString } from '@platformos/platformos-check-common';
 import { MockFileSystem, type MockApp } from '@platformos/platformos-check-common/dist/test';
 
 import {
   applyFileChange,
   buildAppGraph,
   dependentsOf,
+  enumerateEdgeSources,
   serializeAppGraph,
   type AppGraph,
   type FileChangeKind,
@@ -51,8 +45,7 @@ describe('Unit: applyFileChange (incremental graph update)', () => {
   };
 
   /** The edge-source liquid files — the cache's build entry points. */
-  const entryPoints = (): Promise<UriString[]> =>
-    recursiveReadDirectory(fs, rootUri, ([u]) => isLayout(u) || isPage(u) || isPartial(u));
+  const entryPoints = (): Promise<UriString[]> => enumerateEdgeSources(fs, rootUri);
 
   /** A from-scratch full build over the current source state (the reference graph). */
   const buildFull = async (): Promise<AppGraph> =>

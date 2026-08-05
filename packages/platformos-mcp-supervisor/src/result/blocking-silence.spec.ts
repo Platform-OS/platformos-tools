@@ -4,7 +4,6 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { path as pathUtils } from '@platformos/platformos-check-common';
-import { AppCache } from '@platformos/platformos-check-node';
 
 import { BLOCKING_CHECKS } from './blocking.js';
 import type { ValidateCodeResult } from './types.js';
@@ -477,7 +476,6 @@ describe('Integration: every blocking check stays silent on input the platform a
     const ctx: SupervisorContext = {
       projectDir,
       graphCache: new GraphCache({ rootUri: pathUtils.toUri(projectDir) }),
-      appCache: new AppCache(),
       log: () => {},
     };
     return (await runValidateCode(ctx, { file_path: filePath, content })) as ValidateCodeResult;

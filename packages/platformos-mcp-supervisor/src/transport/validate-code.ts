@@ -25,6 +25,7 @@
  */
 import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { getAppPaths, PlatformOSFileType } from '@platformos/platformos-common';
 
 import type { SupervisorContext } from '../context.js';
 import type {
@@ -60,12 +61,38 @@ const content = z.string();
  * Typed as `ZodRawShape` (not the inferred literal shape) so `registerTool` does not
  * instantiate excessively deeply over the schema (TS2589 under zod 3.25).
  */
+/**
+ * An example path of each kind, for the agent-facing prose below.
+ *
+ * DERIVED from `platformos-common`'s tables, not spelled out. Two reasons, and the
+ * second is the one that made this worth the indirection:
+ *
+ * 1. These strings are copied. They are the shape an agent imitates when it invents a
+ *    path, so an example naming a directory the platform stopped accepting teaches the
+ *    mistake — quietly, and to every caller.
+ * 2. `platformos-common` owns every platformOS directory name, and
+ *    `app/directory-knowledge.spec.ts` fails the build on a second copy anywhere else.
+ *    That guard has an empty exemption list on purpose. An example path is documentation
+ *    rather than classification, so exempting it would have been defensible and is still
+ *    the wrong trade: deriving it costs one lookup and cannot go stale, and the file
+ *    already derives its deployed-subtree list the same way.
+ *
+ * The first entry of `getAppPaths` is the canonical directory for the type; the rest are
+ * legacy aliases, which are exactly what an example should not suggest.
+ */
+const exampleOf = (type: PlatformOSFileType, name: string) =>
+  `${getAppPaths(type)[0]}/${name}.liquid`;
+
+const EXAMPLE_PARTIAL = exampleOf(PlatformOSFileType.Partial, 'card');
+const EXAMPLE_PAGE = exampleOf(PlatformOSFileType.Page, 'home');
+const EXAMPLE_PROMO = exampleOf(PlatformOSFileType.Partial, 'promo');
+
 export const VALIDATE_CODE_INPUT: ZodRawShape = {
   file_path: filePath
     .optional()
     .describe(
       'Path of the file to validate, absolute or relative to the project root ' +
-        '(e.g. "app/views/partials/card.liquid"). Pair with `content`.',
+        `(e.g. "${EXAMPLE_PARTIAL}"). Pair with \`content\`.`,
     ),
   content: content
     .optional()
@@ -86,14 +113,14 @@ const DESCRIPTION = `Validate platformOS Liquid, GraphQL and YAML code BEFORE wr
 Pass EITHER one file OR several — never both.
 
   One file:
-    { "file_path": "app/views/partials/card.liquid",
+    { "file_path": "${EXAMPLE_PARTIAL}",
       "content": "<div>{{ title }}</div>" }
 
   Several files (use this whenever one change touches more than one file):
     { "files": [
-        { "file_path": "app/views/pages/home.liquid",
+        { "file_path": "${EXAMPLE_PAGE}",
           "content": "{% render 'promo' %}" },
-        { "file_path": "app/views/partials/promo.liquid",
+        { "file_path": "${EXAMPLE_PROMO}",
           "content": "<div>Promo</div>" }
       ] }
 

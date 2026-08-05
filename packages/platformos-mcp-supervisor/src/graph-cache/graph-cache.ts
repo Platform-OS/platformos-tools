@@ -48,7 +48,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { path, type UriString } from '@platformos/platformos-check-common';
-import { fileFingerprint, NodeFileSystem } from '@platformos/platformos-check-node';
+import {
+  fingerprintOf,
+  isKnownFingerprint,
+  NodeFileSystem,
+} from '@platformos/platformos-check-node';
 import type { AbstractFileSystem } from '@platformos/platformos-common';
 import {
   applyFileChange,
@@ -62,8 +66,7 @@ import { decodeCacheFile, encodeCacheFile, type Fingerprint } from './graph-cach
 
 /** The result of asking the cache for a usable graph. */
 export type GraphLookup =
-  | { graph: AppGraph }
-  | { graph: null; reason: 'recomputing' | 'unavailable' };
+  { graph: AppGraph } | { graph: null; reason: 'recomputing' | 'unavailable' };
 
 export interface GraphCacheOptions {
   /** Normalized project root as a `file://` URI. */
@@ -127,12 +130,19 @@ async function writeFileAtomic(filePath: string, contents: string): Promise<void
 
 /**
  * Real disk fingerprint: every edge-source liquid file → its per-file identity.
- * Reuses check-node's exported {@link fileFingerprint} — the SAME
- * `mtimeMs:ctimeMs:size` definition its `AppCache` uses — so the two never-stale
- * caches (lint's parsed project + this graph) can never disagree on what
- * "changed" means. A file that
- * vanished between the walk and the stat yields `undefined` and is omitted; the
- * next scan reconciles.
+ *
+ * Reuses check-node's exported {@link fingerprintOf} — the SAME `mtime:ctime:size`
+ * definition its shared `App` and shared `RouteTable` revalidate against — so the
+ * never-stale caches in this process can never disagree about what "changed" means. It
+ * takes a URI, which is what this cache already holds, so nothing converts to a
+ * filesystem path and back on the way in.
+ *
+ * A file whose state cannot be established — in practice one that vanished between the
+ * enumeration and the stat — fails {@link isKnownFingerprint} and is OMITTED rather than
+ * recorded. Recording it would be the worse of the two: the "cannot tell" value equals
+ * itself, so two scans that both failed to read a file would compare equal and report it
+ * unchanged forever. Omission instead reconciles it as `deleted` on this scan and `added`
+ * on the first scan that can read it, which is the truth in both directions.
  */
 async function computeFingerprintFromDisk(
   rootUri: UriString,
@@ -142,8 +152,8 @@ async function computeFingerprintFromDisk(
   const fingerprint: Fingerprint = new Map();
   await Promise.all(
     uris.map(async (uri) => {
-      const identity = await fileFingerprint(path.fsPath(uri));
-      if (identity !== undefined) fingerprint.set(uri, identity);
+      const identity = await fingerprintOf(uri);
+      if (isKnownFingerprint(identity)) fingerprint.set(uri, identity);
     }),
   );
   return fingerprint;

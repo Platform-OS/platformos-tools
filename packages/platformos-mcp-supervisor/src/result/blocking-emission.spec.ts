@@ -5,11 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   SourceCodeType,
-  isSupportedSourceFile,
   path as pathUtils,
   toSourceCode,
 } from '@platformos/platformos-check-common';
-import { AppCache } from '@platformos/platformos-check-node';
+// From `platformos-common`, not check-common, which no longer re-exports it: that package
+// is the single owner of what a path IS, and an import line here says which layer owns
+// the fact (`identity-ownership.spec.ts` fails on a re-export growing back).
+import { isSupportedSourceFile } from '@platformos/platformos-common';
 
 import { BLOCKING_CHECKS } from './blocking.js';
 import type { ValidateCodeResult } from './types.js';
@@ -137,17 +139,25 @@ const EMITS: Record<string, EmissionFixture> = {
   },
 
   MissingRenderPartialArguments: {
-    // `PartialCallArguments` fires on the same call site and is deliberately NOT
-    // blocking; `blocking.ts` relies on exactly this pairing to argue that the
-    // blocking half of that check is independently covered. Stated so the pairing
-    // is observed rather than assumed.
+    // A DOCUMENTED partial: the `{% doc %}` block is an explicit contract, and this
+    // blocking check owns it ALONE. `PartialCallArguments` deliberately does not fire
+    // here — it covers only partials with no contract, inferring required params from
+    // undefined variables in the source — so one mistake produces one finding.
+    //
+    // The absence matters, because `blocking.ts` argues that leaving
+    // `PartialCallArguments` non-blocking is safe. The argument used to be "both fire
+    // together, so the blocking half is covered"; it is now "the documented case is
+    // covered by a BLOCKING check and this code never sees it". Asserting the exact
+    // error list is what makes that claim observed rather than restated: the control
+    // that `PartialCallArguments` still fires at all lives immediately below, so the
+    // silence here cannot come from a check that simply stopped working.
     project: {
       'app/views/partials/card.liquid':
         '{% doc %}\n  @param title {string} Title\n{% enddoc %}\n{{ title }}\n',
     },
     filePath: PAGE,
     content: "{% render 'card' %}\n",
-    errors: ['MissingRenderPartialArguments', 'PartialCallArguments'],
+    errors: ['MissingRenderPartialArguments'],
   },
 
   YAMLSyntaxError: {
@@ -273,7 +283,6 @@ describe('Integration: every blocking check can actually block', () => {
     const ctx: SupervisorContext = {
       projectDir,
       graphCache: new GraphCache({ rootUri: pathUtils.toUri(projectDir) }),
-      appCache: new AppCache(),
       log: () => {},
     };
     // Real adapters: this is the same call path the MCP handler takes.
@@ -319,6 +328,41 @@ describe('Integration: every blocking check can actually block', () => {
       });
     });
   }
+
+  /**
+   * THE CONTROL for the silence in the `MissingRenderPartialArguments` fixture.
+   *
+   * That fixture asserts `PartialCallArguments` does NOT fire for a DOCUMENTED partial,
+   * and `blocking.ts` leans on the ownership split to argue that leaving the code
+   * non-blocking is safe. An assertion that something does not fire is worth nothing on
+   * its own — a check that had silently stopped working entirely would satisfy it — so
+   * this proves the same code still fires on the case it does own, from the same
+   * pipeline, and still does not gate the write.
+   *
+   * Two facts in one assertion on purpose, because either alone is misleading: it FIRES
+   * (so the silence above is about ownership, not breakage) and it does NOT BLOCK (so
+   * the entry in the non-blocking list is real behaviour rather than a list membership).
+   */
+  it('PartialCallArguments still fires for an UNDOCUMENTED partial, and does not block', async () => {
+    // No `{% doc %}` block, so the required param is INFERRED from the undefined
+    // variable the partial reads. That inference is exactly why the code must not gate a
+    // write: it is a heuristic, and the runtime failure it predicts is a nil value.
+    write({ 'app/views/partials/bare.liquid': '{{ title }}\n' });
+
+    const result = await validate(PAGE, "{% render 'bare' %}\n");
+
+    expect({
+      blocked: result.must_fix_before_write,
+      status: result.status,
+      errors: [...new Set(result.errors.map((error) => error.check))].sort(),
+    }).toEqual({
+      blocked: false,
+      // Still an `error` in the list — de-escalation of the GATE, not suppression of
+      // the finding. The agent is told; it is simply not stopped.
+      status: 'error',
+      errors: ['PartialCallArguments'],
+    });
+  });
 
   it('records which fixtures actually exercise tag adjacency', () => {
     // Not an exemption list — an OBSERVATION, pinned so it cannot drift silently.
@@ -518,20 +562,42 @@ describe('Integration: every blocking check can actually block', () => {
 
   it('routes no supported file type to the JSON checks, which is WHY those two were removed', () => {
     // The cause behind the two results above, asserted structurally so it does not
-    // rest on two hand-picked paths. Every extension `isSupportedSourceFile` admits,
-    // paired with the type check-common parses it as — JSON appears nowhere.
+    // rest on two hand-picked paths: every extension `isSupportedSourceFile` admits,
+    // paired with the type check-common parses it as.
+    //
+    // JSON appears exactly once, and only against `false`. `toSourceCode` DOES fall back
+    // to JSON for an unrecognised extension — that is an editor fallback for the language
+    // server's `DocumentManager`, which holds every open buffer including real `.json`
+    // files — so the invariant this test states cannot be "JSON never appears". It is the
+    // conjunction: nothing the server ADMITS parses as JSON, and anything that would
+    // parse as JSON is declined before a check runs.
+    //
+    // `isSupportedSourceFile` is ANCHORED in master and takes the root, because a known
+    // directory name is not enough on its own: `seed/post_import/app/migrations/x.liquid`
+    // is not a migration. Passing the root is what makes each answer below a claim about
+    // a path IN a project rather than about a substring.
+    const rootUri = 'file:///p';
     const samples = [
       'file:///p/app/views/pages/index.liquid',
       'file:///p/app/graphql/get_thing.graphql',
       'file:///p/app/translations/en.yml',
+      'file:///p/app/model_schemas/thing.yml',
+      // THE NEGATIVE CONTROL, and not a hypothetical: `.yaml` reads as a YAML file to
+      // every human and is not a platformOS extension — every YAML model on the backend
+      // anchors `\.yml\z`. So it is refused, and it is also the one sample that reaches
+      // the JSON fallback. A fixture list of nothing but `true` rows could not tell the
+      // two halves of the invariant apart.
       'file:///p/app/model_schemas/thing.yaml',
     ];
 
-    expect(samples.map((uri) => [isSupportedSourceFile(uri), toSourceCode(uri, '').type])).toEqual([
+    expect(
+      samples.map((uri) => [isSupportedSourceFile(uri, rootUri), toSourceCode(uri, '').type]),
+    ).toEqual([
       [true, SourceCodeType.LiquidHtml],
       [true, SourceCodeType.GraphQL],
       [true, SourceCodeType.YAML],
       [true, SourceCodeType.YAML],
+      [false, SourceCodeType.JSON],
     ]);
   });
 });

@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-02 17:06'
+updated_date: '2026-08-04 12:48'
 labels:
   - docset
   - upstream
@@ -16,6 +17,7 @@ references:
     packages/platformos-check-common/src/checks/invalid-hash-assign-target/index.ts
   - packages/platformos-check-common/src/undocumented-filters.ts
 priority: low
+ordinal: 50000
 ---
 
 ## Description

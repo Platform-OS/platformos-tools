@@ -464,7 +464,7 @@ describe('Graph traversal: asset edges (asset_url resolves under app/assets)', (
   });
 });
 
-describe('Graph traversal: schema/CustomModelType nodes (full-build discovery)', () => {
+describe('Graph traversal: schema/Table nodes (full-build discovery)', () => {
   const rootUri = pathUtils.join(fixturesRoot, 'schema-nodes');
   const p = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
   let graph: AppGraph;

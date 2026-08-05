@@ -6,7 +6,7 @@ original file
 {{ variable['about-us'].title }}
 {{ variable['about-us']['title'] }}
 {{ col.empty? }}
-{{ all_products }}
+{{ context }}
 
 -----------------------------------
 
@@ -132,17 +132,17 @@ Grammar: liquid.tmLanguage.json
               text.html.liquid meta.object.liquid
                ^^
                text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
->{{ all_products }}
+>{{ context }}
  ^^
  text.html.liquid meta.object.liquid punctuation.definition.tag.begin.liquid
    ^
    text.html.liquid meta.object.liquid
-    ^^^^^^^^^^^^
+    ^^^^^^^
     text.html.liquid meta.object.liquid variable.language.liquid
-                ^
-                text.html.liquid meta.object.liquid
-                 ^^
-                 text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
+           ^
+           text.html.liquid meta.object.liquid
+            ^^
+            text.html.liquid meta.object.liquid punctuation.definition.tag.end.liquid
 >
  ^
  text.html.liquid

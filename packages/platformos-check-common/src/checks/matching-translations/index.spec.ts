@@ -218,6 +218,131 @@ describe('Module: MatchingTranslations', async () => {
     });
   });
 
+  /**
+   * `moto:` with nothing after it is a key whose value is nil, and real projects have
+   * them — a translator left the text out. `typeof null === 'object'`, so walking the
+   * reference set recurses into it and throws, which costs EVERY file in that locale
+   * scope its offenses. The key exists, it just has no text, so it counts on both sides.
+   */
+  describe('a key with no value', () => {
+    it('should treat it as a key the locale must have, not as a nested object', async () => {
+      const app = {
+        'app/translations/en.yml': 'en:\n  hello: Hello\n  moto:\n',
+        'app/translations/pt-BR.yml': 'pt-BR:\n  hello: Olá\n',
+      };
+
+      const offenses = await check(app, [MatchingTranslations]);
+
+      expect(offenses.map((offense) => offense.message)).to.deep.equal([
+        "The translation for 'moto' is missing",
+      ]);
+    });
+
+    it('should accept it as covering the en key it stands for', async () => {
+      const app = {
+        'app/translations/en.yml': 'en:\n  hello: Hello\n  moto: Ride\n',
+        'app/translations/pt-BR.yml': 'pt-BR:\n  hello: Olá\n  moto:\n',
+      };
+
+      const offenses = await check(app, [MatchingTranslations]);
+
+      expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+    });
+
+    it('should still report it when the en locale has no such key', async () => {
+      const app = {
+        'app/translations/en.yml': 'en:\n  hello: Hello\n',
+        'app/translations/pt-BR.yml': 'pt-BR:\n  hello: Olá\n  moto:\n',
+      };
+
+      const offenses = await check(app, [MatchingTranslations]);
+
+      expect(offenses.map((offense) => offense.message)).to.deep.equal([
+        "A translation for 'moto' does not exist in the en locale",
+      ]);
+    });
+
+    it('should keep checking the rest of a scope whose reference set has one', async () => {
+      // The throw was in the shared reference walk, so it took every file with it.
+      const app = {
+        'app/translations/en.yml': 'en:\n  moto:\n  hello: Hello\n  world: World\n',
+        'app/translations/pt-BR.yml': 'pt-BR:\n  moto: Moto\n  hello: Olá\n',
+        'app/translations/fr.yml': 'fr:\n  moto: Moto\n  hello: Bonjour\n',
+      };
+
+      const offenses = await check(app, [MatchingTranslations]);
+
+      expect(offenses.map((offense) => `${offense.uri} ${offense.message}`).sort()).to.deep.equal([
+        "file:///app/translations/fr.yml The translation for 'world' is missing",
+        "file:///app/translations/pt-BR.yml The translation for 'world' is missing",
+      ]);
+    });
+  });
+
+  /**
+   * A duplicated mapping key is a real authoring bug (`YAMLSyntaxError` reports it), but
+   * it is not a reason to read the file as empty. Doing so cost `MatchingTranslations`
+   * 561 offenses that were not there on one real project: five of its 39 `en/*.yml`
+   * files had a duplicate, so every key those files define looked absent from `en`.
+   */
+  it('should treat a list value as one key, not as one key per element', async () => {
+    // `t` returns the whole list — `{{ 'types' | t | parse_json }}` is how a project reads
+    // one — so `types.1` is not a key anyone can add, and a translated list is allowed to
+    // be a different length. `TranslationKeyExists` counts the same key the same way.
+    const app = {
+      'app/translations/en.yml': 'en:\n  types:\n    - followship\n    - membership\n',
+      'app/translations/pt-BR.yml': 'pt-BR:\n  types:\n    - seguir\n',
+    };
+
+    const offenses = await check(app, [MatchingTranslations]);
+
+    expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+  });
+
+  it('should still report a locale missing a list-valued key entirely', async () => {
+    const app = {
+      'app/translations/en.yml': 'en:\n  types:\n    - followship\n',
+      'app/translations/pt-BR.yml': 'pt-BR:\n  hello: Olá\n',
+    };
+
+    const offenses = await check(app, [MatchingTranslations]);
+
+    expect(offenses.map((offense) => offense.message)).to.deep.equal([
+      "A translation for 'hello' does not exist in the en locale",
+      "The translation for 'types' is missing",
+    ]);
+  });
+
+  describe('when an en file has a duplicated mapping key', () => {
+    it('should still count the keys that file defines as present in en', async () => {
+      const app = {
+        'app/translations/en/admin.yml':
+          'en:\n  admin:\n    title: Admin\n    title: Admin panel\n    check_all: Check all\n',
+        'app/translations/pt-BR/admin.yml':
+          'pt-BR:\n  admin:\n    title: Administração\n    check_all: Marcar todos\n',
+      };
+
+      const offenses = await check(app, [MatchingTranslations]);
+
+      expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+    });
+
+    it('should keep reporting a key the locale really does define alone', async () => {
+      const app = {
+        'app/translations/en/admin.yml':
+          'en:\n  admin:\n    title: Admin\n    title: Admin panel\n',
+        'app/translations/pt-BR/admin.yml':
+          'pt-BR:\n  admin:\n    title: Administração\n    ghost: Fantasma\n',
+      };
+
+      const offenses = await check(app, [MatchingTranslations]);
+
+      expect(offenses.map((offense) => offense.message)).to.deep.equal([
+        "A translation for 'admin.ghost' does not exist in the en locale",
+      ]);
+    });
+  });
+
   it('should not report a key as missing if it is covered by another file in the same locale scope', async () => {
     // pt-BR/validation.yml covers 'required' — pt-BR.yml should not be blamed for it
     const app = {

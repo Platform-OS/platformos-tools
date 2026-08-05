@@ -1,6 +1,6 @@
 import { CheckDefinition, SourceCodeType } from '@platformos/platformos-check-common';
+import { toPosixPath } from '@platformos/platformos-common';
 import { glob } from 'glob';
-import normalize from 'normalize-path';
 import { AbsolutePath } from '../temp';
 
 type ModulePath = string;
@@ -44,8 +44,8 @@ export function loadThirdPartyChecks(
 
 export async function findThirdPartyChecks(nodeModuleRoot: AbsolutePath): Promise<ModulePath[]> {
   const paths = [
-    globJoin(normalize(nodeModuleRoot), '/node_modules/platformos-check-*/'),
-    globJoin(normalize(nodeModuleRoot), '/node_modules/@*/platformos-check-*/'),
+    globJoin(nodeModuleRoot, '/node_modules/platformos-check-*/'),
+    globJoin(nodeModuleRoot, '/node_modules/@*/platformos-check-*/'),
   ];
   const results = await Promise.all(paths.map((path) => glob(path)));
   return results
@@ -57,8 +57,9 @@ export async function findThirdPartyChecks(nodeModuleRoot: AbsolutePath): Promis
     );
 }
 
+/** A glob pattern is written in forward slashes whatever OS produced its parts. */
 function globJoin(...parts: string[]): string {
-  return parts.flatMap((x) => normalize(x).replace(/\/+$/, '')).join('/');
+  return parts.map(toPosixPath).join('/');
 }
 
 function isObjLiteral(thing: unknown): thing is Record<PropertyKey, any> {

@@ -3,15 +3,14 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import nodePath from 'node:path';
 
-import {
-  isLayout,
-  isPage,
-  isPartial,
-  path,
-  recursiveReadDirectory,
-} from '@platformos/platformos-check-common';
+import { path } from '@platformos/platformos-check-common';
 import { NodeFileSystem } from '@platformos/platformos-check-node';
-import { buildAppGraph, serializeAppGraph, type AppGraph } from '@platformos/platformos-graph';
+import {
+  buildAppGraph,
+  enumerateEdgeSources,
+  serializeAppGraph,
+  type AppGraph,
+} from '@platformos/platformos-graph';
 
 import { CACHE_FORMAT_VERSION, decodeCacheFile, encodeCacheFile } from './graph-cache-store.js';
 
@@ -43,11 +42,10 @@ describe('Unit: graph-cache-store (persisted graph encode/decode)', () => {
     rootUri = path.toUri(root);
     await write('app/views/pages/index.liquid', "{% render 'card' %}");
     await write('app/views/partials/card.liquid', '<div>{{ title }}</div>');
-    const entryPoints = await recursiveReadDirectory(
-      NodeFileSystem,
-      rootUri,
-      ([u]) => isLayout(u) || isPage(u) || isPartial(u),
-    );
+    // The canonical primitive, not a re-derived walk plus a re-spelled predicate: the
+    // graph owns "which files are edge sources" and its `edge-sources.spec` pins that the
+    // scoped walk equals a whole-tree walk filtered by the same classifier.
+    const entryPoints = await enumerateEdgeSources(NodeFileSystem, rootUri);
     graph = await buildAppGraph(rootUri, { fs: NodeFileSystem }, entryPoints);
   });
 

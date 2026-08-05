@@ -37,7 +37,20 @@ export type ValidateCodeStatus = 'ok' | 'warning' | 'error' | 'not_applicable';
  * parsing English. Present exactly when `status` is `not_applicable`.
  *
  * - `outside_project`  — resolved outside the project root this server serves.
- * - `unsupported_type` — inside the project, but not a platformOS source type.
+ * - `unsupported_type` — inside the project, but nothing here parses it: an asset, or a
+ *                        file in no deployed subtree that is not a source anyway. ROUTINE
+ *                        — a project holds plenty of files that are not platformOS sources
+ *                        and are not meant to be, so this must never be advised "move it
+ *                        under app/".
+ * - `misplaced_source`  — a platformOS SOURCE (something this toolchain parses) sitting
+ *                        outside every subtree the platform deploys. Almost always a
+ *                        mistake, and the opposite advice from `unsupported_type`: the
+ *                        platform will never load it, so a partial, page or query here is
+ *                        dead code. Kept separate BECAUSE the remedies differ — check-node
+ *                        splits these two at the point where classification happens
+ *                        (`LintBufferStatus`), and collapsing them here would throw away a
+ *                        distinction already paid for and leave the agent to re-derive it
+ *                        from a raw path.
  * - `too_large`        — buffer above the size bound; refused before parsing.
  * - `timed_out`        — validation exceeded its deadline; nothing conclusive.
  * - `ignored`          — excluded by the project's `.platformos-check.yml` `ignore`
@@ -49,12 +62,13 @@ export type ValidateCodeStatus = 'ok' | 'warning' | 'error' | 'not_applicable';
  *                        agent does not "retry with fewer files" for something
  *                        retrying cannot fix.
  *
- * All four share the invariant that makes `not_applicable` safe: the file was NOT
+ * All of them share the invariant that makes `not_applicable` safe: the file was NOT
  * checked, so the result is neither an approval nor a reason to block the write.
  */
 export type NotApplicableReason =
   | 'outside_project'
   | 'unsupported_type'
+  | 'misplaced_source'
   | 'too_large'
   | 'timed_out'
   | 'ignored'

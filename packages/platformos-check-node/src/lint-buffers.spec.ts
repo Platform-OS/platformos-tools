@@ -1,60 +1,50 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { URI } from 'vscode-uri';
+import { uriFromPath } from '@platformos/platformos-common';
 
-import {
-  AppCache,
-  lintBuffer,
-  lintBuffers,
-  path as uriPath,
-  type LintBuffersResult,
-} from './index';
+import { lintBuffer, lintBuffers, type LintBufferResult } from './index';
 import { Workspace, makeTempWorkspace } from './test/test-helpers';
 
 /**
- * The key `lintBuffers` reports results under, built through the SAME conversion
- * production uses.
- *
- * It must be `toUri`, never `URI.file(...).toString()`: the latter percent-encodes
- * the drive colon, so on Windows it yields `file:///c%3A/...` against production's
- * `file:///c:/...`. The two are identical on POSIX, which is exactly why the wrong
- * spelling passed locally and failed on Windows CI — and failed misleadingly,
- * because `.get(wrongKey) ?? []` reports "no offenses" rather than "no such key".
- */
-const keyFor = (root: string, relativePath: string) =>
-  uriPath.toUri(path.join(root, ...relativePath.split('/')));
-
-/**
- * TASK-17: `lintBuffers` lints N buffers in ONE pass over the project.
+ * TASK-17: `lintBuffers` lints N buffers in ONE pass over the project, and
+ * {@link lintBuffer} delegates to it so there is a single overlay/restore path.
  *
  * Two independent reasons, and the second matters more:
  *
- * 1. SPEED. Everything expensive is per-project, not per-buffer (config load,
- *    glob + reconcile, the `getDocDefinition` map, the `JSONValidator`) — ~250 ms
- *    of fixed cost against ~84 ms of real per-buffer work. N single calls repeat
- *    all of it N times against an unchanged project.
- * 2. CORRECTNESS. With every buffer overlaid at once, a partial introduced in one
- *    buffer resolves for a `render` in another. Linting the same coordinated edit
- *    file-by-file reports `MissingPartial` for a file that exists in the very batch
- *    being checked — a false positive inherent to the single-buffer shape.
+ * 1. SPEED. Everything expensive is per-project, not per-buffer: resolving the config,
+ *    walking and reconciling the shared `App`, reconciling the route table. N single
+ *    calls repeat all of it N times against an unchanged project.
+ * 2. CORRECTNESS. With every buffer overlaid at once, a partial introduced in one buffer
+ *    resolves for a `render` in another. Linting the same coordinated edit file-by-file
+ *    reports `MissingPartial` for a file that exists in the very batch being checked — a
+ *    false positive inherent to the single-buffer shape, not a tuning problem.
+ *
+ * The result key is built with `uriFromPath`, the SAME conversion production uses. Never
+ * `URI.file(...).toString()`, which percent-encodes the drive colon and so yields
+ * `file:///c%3A/...` against production's `file:///c:/...`. Those agree on POSIX, which is
+ * exactly how the wrong spelling passes locally and fails on Windows CI — and fails
+ * misleadingly, because a missing key reads as "no offenses" rather than "no such file".
  */
 describe('Integration: lintBuffers', () => {
   let workspace: Workspace;
   let root: string;
   let configPath: string;
 
-  const uriOf = (relativePath: string) => keyFor(root, relativePath);
-
   const absolute = (relativePath: string) => path.join(root, ...relativePath.split('/'));
+  const uriOf = (relativePath: string) => uriFromPath(absolute(relativePath));
+
+  const resultFor = (results: Map<string, LintBufferResult>, relativePath: string) =>
+    results.get(uriOf(relativePath));
+
+  const messagesFor = (results: Map<string, LintBufferResult>, relativePath: string) =>
+    (resultFor(results, relativePath)?.offenses ?? []).map((offense) => offense.message);
 
   beforeEach(async () => {
     workspace = await makeTempWorkspace({
       '.platformos-check.yml': [
         'extends: platformos-check:nothing',
         'MissingPartial:',
-        '  enabled: true',
-        'MissingContentForLayout:',
         '  enabled: true',
         '',
       ].join('\n'),
@@ -73,71 +63,73 @@ describe('Integration: lintBuffers', () => {
     await workspace?.clean();
   });
 
-  const messagesFor = (result: LintBuffersResult, relativePath: string) =>
-    (result.offenses.get(uriOf(relativePath)) ?? []).map((offense) => offense.message);
-
   it('THE CORRECTNESS WIN: a partial added in one buffer resolves a render in another', async () => {
-    // `promo` exists on neither disk nor in the page's own buffer — only in a
-    // SIBLING buffer of the same batch. One-call-per-file cannot see it.
-    const byFile = await lintBuffers({
+    // Neither file exists on disk yet: a coordinated edit adding a page and the partial
+    // it renders, exactly what an agent writes in one step.
+    const results = await lintBuffers({
       root,
       configPath,
       buffers: [
-        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'promo' %}" },
-        { filePath: absolute('app/views/partials/promo.liquid'), content: '<div>promo</div>' },
+        { filePath: absolute('app/views/pages/new.liquid'), content: "{% render 'fresh' %}" },
+        { filePath: absolute('app/views/partials/fresh.liquid'), content: '<p>hi</p>' },
       ],
     });
 
-    expect(messagesFor(byFile, 'app/views/pages/index.liquid')).toEqual([]);
+    expect(messagesFor(results, 'app/views/pages/new.liquid')).toEqual([]);
+    expect(resultFor(results, 'app/views/pages/new.liquid')?.status).toEqual('checked');
   });
 
-  it('contrast: the SAME edit linted one file at a time reports a false MissingPartial', async () => {
-    // Pins the defect the batch removes, so the win above cannot be mistaken for a
-    // no-op. This is what an agent making a coordinated two-file change saw.
-    const offenses = await lintBuffer({
+  it('CONTRAST: the same edit linted one file at a time reports a false MissingPartial', async () => {
+    // The control for the test above. Without it, that assertion would also pass if
+    // `MissingPartial` had simply stopped working — and this is the false positive that
+    // is inherent to the single-buffer shape, so it must be shown to be real.
+    const alone = await lintBuffer({
       root,
       configPath,
-      filePath: absolute('app/views/pages/index.liquid'),
-      content: "{% render 'promo' %}",
+      filePath: absolute('app/views/pages/new.liquid'),
+      content: "{% render 'fresh' %}",
     });
 
-    expect(offenses.map((offense) => offense.message)).toEqual(["'promo' does not exist"]);
+    expect(alone.status).toEqual('checked');
+    expect(alone.offenses.map((offense) => offense.message)).toEqual(["'fresh' does not exist"]);
   });
 
   it('still reports a partial missing from BOTH the batch and disk', async () => {
-    // The batch must not become permissive: only files actually present in it count.
-    const byFile = await lintBuffers({
+    // The other control: overlaying buffers must not suppress a genuinely missing target.
+    const results = await lintBuffers({
       root,
       configPath,
       buffers: [
-        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'ghost' %}" },
-        { filePath: absolute('app/views/partials/promo.liquid'), content: '<div>promo</div>' },
+        { filePath: absolute('app/views/pages/new.liquid'), content: "{% render 'nowhere' %}" },
+        { filePath: absolute('app/views/partials/fresh.liquid'), content: '<p>hi</p>' },
       ],
     });
 
-    expect(messagesFor(byFile, 'app/views/pages/index.liquid')).toEqual(["'ghost' does not exist"]);
-  });
-
-  it('attributes each offense to its own file', async () => {
-    const byFile = await lintBuffers({
-      root,
-      configPath,
-      buffers: [
-        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'ghost' %}" },
-        { filePath: absolute('app/views/layouts/theme.liquid'), content: '<html></html>' },
-      ],
-    });
-
-    expect(messagesFor(byFile, 'app/views/pages/index.liquid')).toEqual(["'ghost' does not exist"]);
-    expect(messagesFor(byFile, 'app/views/layouts/theme.liquid')).toEqual([
-      "Layout is missing `{{ content_for_layout }}`. Every layout must output it exactly once — it renders the page body. (Named slots use `{% yield 'name' %}` separately and do not replace it.)",
+    expect(messagesFor(results, 'app/views/pages/new.liquid')).toEqual([
+      "'nowhere' does not exist",
     ]);
   });
 
-  it('returns an entry for every requested buffer, empty when clean', async () => {
-    // A caller must be able to distinguish "no offenses" from "not linted", so a
-    // clean buffer gets `[]` rather than a missing key.
-    const byFile = await lintBuffers({
+  it('attributes each offense to its own file', async () => {
+    const results = await lintBuffers({
+      root,
+      configPath,
+      buffers: [
+        { filePath: absolute('app/views/pages/a.liquid'), content: "{% render 'missing_a' %}" },
+        { filePath: absolute('app/views/pages/b.liquid'), content: "{% render 'missing_b' %}" },
+      ],
+    });
+
+    expect(messagesFor(results, 'app/views/pages/a.liquid')).toEqual([
+      "'missing_a' does not exist",
+    ]);
+    expect(messagesFor(results, 'app/views/pages/b.liquid')).toEqual([
+      "'missing_b' does not exist",
+    ]);
+  });
+
+  it('returns a checked entry for every requested buffer, empty when clean', async () => {
+    const results = await lintBuffers({
       root,
       configPath,
       buffers: [
@@ -146,150 +138,130 @@ describe('Integration: lintBuffers', () => {
       ],
     });
 
-    expect([...byFile.offenses.keys()].sort()).toEqual(
-      [uriOf('app/views/pages/index.liquid'), uriOf('app/views/partials/card.liquid')].sort(),
-    );
-    expect([...byFile.offenses.values()]).toEqual([[], []]);
+    // Whole value: a key per requested buffer, each `checked` and clean. A MISSING key
+    // would mean "not checked", which is a different claim from "clean".
+    expect(
+      [...results.entries()].map(([uri, result]) => [uri, result.status, result.offenses]),
+    ).toEqual([
+      [uriOf('app/views/pages/index.liquid'), 'checked', []],
+      [uriOf('app/views/partials/card.liquid'), 'checked', []],
+    ]);
   });
 
-  it('is byte-identical to lintBuffer for a single buffer', async () => {
-    const params = {
+  it('agrees with lintBuffer for a single buffer', async () => {
+    const single = await lintBuffer({
       root,
       configPath,
       filePath: absolute('app/views/pages/index.liquid'),
-      content: "{% render 'ghost' %}",
-    };
-
-    const single = await lintBuffer(params);
+      content: "{% render 'gone' %}",
+    });
     const batched = await lintBuffers({
       root,
       configPath,
-      buffers: [{ filePath: params.filePath, content: params.content }],
+      buffers: [
+        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'gone' %}" },
+      ],
     });
 
-    expect(batched.offenses.get(uriOf('app/views/pages/index.liquid'))).toEqual(single);
+    // `lintBuffer` delegates here, so this pins the PUBLIC contract rather than two
+    // implementations: the one-buffer batch entry IS what the single seam returns.
+    expect(single).toEqual(resultFor(batched, 'app/views/pages/index.liquid'));
+    expect(single.offenses.map((offense) => offense.message)).toEqual(["'gone' does not exist"]);
   });
 
   it('deduplicates two entries for the same file, last one winning', async () => {
-    // Overlaying the same file twice would otherwise double every offense for it.
-    const file = absolute('app/views/pages/index.liquid');
-    const byFile = await lintBuffers({
+    const results = await lintBuffers({
       root,
       configPath,
       buffers: [
-        { filePath: file, content: "{% render 'ghost' %}" },
-        { filePath: file, content: "{% render 'card' %}" },
+        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'first' %}" },
+        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'second' %}" },
       ],
     });
 
-    expect(byFile.offenses.size).toEqual(1);
-    // The LAST content wins, so the clean version is what was linted.
-    expect(messagesFor(byFile, 'app/views/pages/index.liquid')).toEqual([]);
+    // One entry, and the LAST content is what was linted. Overlaying twice would double
+    // every offense for the file.
+    expect(results.size).toEqual(1);
+    expect(messagesFor(results, 'app/views/pages/index.liquid')).toEqual([
+      "'second' does not exist",
+    ]);
   });
 
-  it('returns an empty map for an empty batch without touching the project', async () => {
-    expect(await lintBuffers({ root, configPath, buffers: [] })).toEqual({
-      offenses: new Map(),
-      ignored: new Set(),
-    });
+  it('returns an empty map for an empty batch', async () => {
+    expect(await lintBuffers({ root, configPath, buffers: [] })).toEqual(new Map());
   });
 
-  it('walks the project ONCE for the whole batch, not once per buffer', async () => {
-    /**
-     * The speed claim, asserted structurally rather than by timing.
-     *
-     * `getApp` consults the cache once per ON-DISK project file, so counting
-     * `reuse` counts project passes. A counting subclass is used rather than a
-     * `vi.spyOn` on a module export: check-node binds its imports at load time, so
-     * spying on the namespace object would not intercept the internal call.
-     */
-    class CountingAppCache extends AppCache {
-      reuseCalls = 0;
-      override reuse(uri: string, fingerprint: string) {
-        this.reuseCalls++;
-        return super.reuse(uri, fingerprint);
-      }
-    }
-    const cache = new CountingAppCache();
-    // Two liquid files are on disk (index, card); the yml config is not a source.
-    const PROJECT_FILES = 2;
-
+  /**
+   * The overlay must not outlive the call: the `App` is process-level, so one request's
+   * unsaved content is not the next request's truth. A batch overlays several files, so
+   * it has several overlays to revert — and reverting only some of them is the bug this
+   * pins.
+   */
+  it('reverts EVERY overlay, so a later call sees the files on disk again', async () => {
     await lintBuffers({
       root,
       configPath,
-      cache,
       buffers: [
-        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'card' %}" },
-        { filePath: absolute('app/views/partials/card.liquid'), content: '<div>a</div>' },
-        { filePath: absolute('app/views/layouts/theme.liquid'), content: '<html></html>' },
-        { filePath: absolute('app/views/pages/other.liquid'), content: '<div></div>' },
+        // Two partials that do NOT exist on disk. Both must be REMOVED from the app
+        // afterwards — reverting only some of them is the bug this pins, and asserting
+        // both is what makes it order-independent.
+        { filePath: absolute('app/views/partials/ghost_one.liquid'), content: '<p>1</p>' },
+        { filePath: absolute('app/views/partials/ghost_two.liquid'), content: '<p>2</p>' },
+        // An edit to a file that DOES exist, which must be invalidated back to disk.
+        { filePath: absolute('app/views/pages/index.liquid'), content: '<p>edited</p>' },
       ],
     });
 
-    // Four buffers, ONE pass over the project. Per-buffer calls would be 4x this.
-    expect(cache.reuseCalls).toEqual(PROJECT_FILES);
-  });
-
-  it('reuses a shared AppCache across batches and stays never-stale', async () => {
-    const cache = new AppCache();
-    const page = absolute('app/views/pages/index.liquid');
-
-    const first = await lintBuffers({
+    // Neither phantom partial may still resolve. If either overlay survived, its render
+    // would be considered fine and this list would be short.
+    const after = await lintBuffer({
       root,
       configPath,
-      cache,
-      buffers: [{ filePath: page, content: "{% render 'later' %}" }],
+      filePath: absolute('app/views/pages/index.liquid'),
+      content: "{% render 'ghost_one' %}{% render 'ghost_two' %}{% render 'card' %}",
     });
-    expect(messagesFor(first, 'app/views/pages/index.liquid')).toEqual(["'later' does not exist"]);
-
-    // Create the partial ON DISK between batches: the cached project must reconcile.
-    await fs.writeFile(absolute('app/views/partials/later.liquid'), '<div>later</div>', 'utf8');
-
-    const second = await lintBuffers({
-      root,
-      configPath,
-      cache,
-      buffers: [{ filePath: page, content: "{% render 'later' %}" }],
-    });
-    expect(messagesFor(second, 'app/views/pages/index.liquid')).toEqual([]);
+    expect(after.offenses.map((offense) => offense.message)).toEqual([
+      "'ghost_one' does not exist",
+      "'ghost_two' does not exist",
+    ]);
   });
 });
 
 /**
- * `check()` skips config-ignored files SILENTLY, so an empty offense list alone
- * cannot distinguish "checked and clean" from "never checked". A caller that guesses
- * the first reports a file as validated when nothing looked at it — that was a real
- * false approval in the MCP supervisor.
- *
- * `lintBuffers` reports the distinction because it already holds the config. It used
- * to be answered by a separate `ignoredByConfig` helper that loaded the config a
- * SECOND time, which meant two sources of truth for "is this file part of the app"
- * agreeing only by coincidence of implementation.
+ * Every buffer gets its OWN status, so a batch mixing kinds answers each on its own
+ * terms. An empty `offenses` list is only an answer when `status` is `checked`; for
+ * every other status it means "nothing looked at this file", and a write gate that
+ * conflates the two approves a file no check ever read.
  */
 describe('Integration: lintBuffers reports what it did NOT check', () => {
   let workspace: Workspace;
   let root: string;
   let configPath: string;
 
-  const uriIn = (relativePath: string) => keyFor(root, relativePath);
-  const abs = (relativePath: string) => path.join(root, ...relativePath.split('/'));
+  const absolute = (relativePath: string) => path.join(root, ...relativePath.split('/'));
+  const uriOf = (relativePath: string) => uriFromPath(absolute(relativePath));
 
   beforeEach(async () => {
     workspace = await makeTempWorkspace({
       '.platformos-check.yml': [
-        'extends: platformos-check:nothing',
-        'MissingContentForLayout:',
-        '  enabled: true',
         'ignore:',
-        '  - app/views/pages/**',
+        '  - app/views/pages/vendor/**',
+        'extends: platformos-check:nothing',
+        'MissingPartial:',
+        '  enabled: true',
         '',
       ].join('\n'),
       app: {
+        assets: { 'app.js': 'console.log(1);' },
         views: {
-          pages: { 'ignored.liquid': '<div></div>' },
-          layouts: { 'theme.liquid': '<html>{{ content_for_layout }}</html>' },
+          pages: {
+            'index.liquid': "{% render 'card' %}",
+            vendor: { 'legacy.liquid': "{% render 'gone' %}" },
+          },
+          partials: { 'card.liquid': '<div></div>' },
         },
       },
+      'README.md': '# not platformOS',
     });
     root = URI.parse(workspace.rootUri).fsPath;
     configPath = path.join(root, '.platformos-check.yml');
@@ -299,99 +271,83 @@ describe('Integration: lintBuffers reports what it did NOT check', () => {
     await workspace?.clean();
   });
 
-  it('reports an ignored buffer as ignored, and does NOT report it as clean', async () => {
-    // Deliberately unparseable: a checked file would have plenty to say, so an empty
-    // offenses entry here would be indistinguishable from a pass.
-    const result = await lintBuffers({
-      root,
-      configPath,
-      buffers: [{ filePath: abs('app/views/pages/ignored.liquid'), content: '{% if %}{{ x' }],
-    });
-
-    expect([...result.ignored]).toEqual([uriIn('app/views/pages/ignored.liquid')]);
-    // Absent from `offenses` entirely — not an empty array, which would read as clean.
-    expect(result.offenses.has(uriIn('app/views/pages/ignored.liquid'))).toBe(false);
-  });
-
-  it('CONTRAST: a non-ignored file with the same broken content IS checked', async () => {
-    // Proves the assertion above is not vacuous — the emptiness came from the ignore
-    // list, not from the checks having nothing to say.
-    const result = await lintBuffers({
-      root,
-      configPath,
-      buffers: [{ filePath: abs('app/views/layouts/theme.liquid'), content: '<html></html>' }],
-    });
-
-    expect(result.ignored).toEqual(new Set());
-    expect(
-      (result.offenses.get(uriIn('app/views/layouts/theme.liquid')) ?? []).map((o) => o.check),
-    ).toEqual(['MissingContentForLayout']);
-  });
-
-  it('partitions a mixed request', async () => {
-    const result = await lintBuffers({
+  it('partitions a mixed request, one status per buffer', async () => {
+    const results = await lintBuffers({
       root,
       configPath,
       buffers: [
-        { filePath: abs('app/views/pages/ignored.liquid'), content: 'x' },
-        { filePath: abs('app/views/layouts/theme.liquid'), content: '<html></html>' },
+        // Checked, and offending.
+        { filePath: absolute('app/views/pages/index.liquid'), content: "{% render 'gone' %}" },
+        // Excluded by the project's ignore list.
+        {
+          filePath: absolute('app/views/pages/vendor/legacy.liquid'),
+          content: "{% render 'gone' %}",
+        },
+        // An app file nothing parses.
+        { filePath: absolute('app/assets/app.js'), content: 'console.log(2);' },
+        // Not a platformOS source at all.
+        { filePath: absolute('README.md'), content: '# still not' },
+        // A source in no deployed subtree.
+        { filePath: absolute('scratch/card.liquid'), content: '<div></div>' },
       ],
     });
 
-    expect([...result.ignored]).toEqual([uriIn('app/views/pages/ignored.liquid')]);
-    expect([...result.offenses.keys()]).toEqual([uriIn('app/views/layouts/theme.liquid')]);
+    expect(
+      [...results.entries()].map(([uri, result]) => [uri, result.status, result.offenses.length]),
+    ).toEqual([
+      [uriOf('app/views/pages/index.liquid'), 'checked', 1],
+      [uriOf('app/views/pages/vendor/legacy.liquid'), 'excluded-by-config', 0],
+      [uriOf('app/assets/app.js'), 'not-a-source-file', 0],
+      [uriOf('README.md'), 'not-a-platformos-file', 0],
+      [uriOf('scratch/card.liquid'), 'misplaced-source', 0],
+    ]);
   });
 
-  it('decides from the PATTERN, not from whether the file exists on disk', async () => {
-    // Buffers are frequently unsaved, so existence is the wrong question.
-    const result = await lintBuffers({
-      root,
-      configPath,
-      buffers: [{ filePath: abs('app/views/pages/not-created-yet.liquid'), content: 'x' }],
-    });
-
-    expect([...result.ignored]).toEqual([uriIn('app/views/pages/not-created-yet.liquid')]);
-  });
-
-  it('does not parse an ignored buffer at all', async () => {
-    // The reason the split happens BEFORE the overlay: `overlayBuffers` parses
-    // eagerly, so including an ignored buffer would burn a full parse for a file
-    // `check()` then skips. A syntactically broken buffer must therefore be
-    // harmless here.
-    const result = await lintBuffers({
-      root,
-      configPath,
-      buffers: [{ filePath: abs('app/views/pages/ignored.liquid'), content: '{% if %}{{ ' }],
-    });
-
-    expect(result.offenses.size).toEqual(0);
-    expect(result.ignored.size).toEqual(1);
-  });
-
-  it('reports nothing as ignored when the config has no ignore list', async () => {
-    const plain = await makeTempWorkspace({
+  it('CONTRAST: the ignored path is checked, and offends, once the config stops ignoring it', async () => {
+    // Without this the assertion above would also pass if the file simply had nothing
+    // to report — the silence has to be caused by the `ignore` list.
+    const permissive = await makeTempWorkspace({
       '.platformos-check.yml': [
         'extends: platformos-check:nothing',
-        'MissingContentForLayout:',
+        'MissingPartial:',
         '  enabled: true',
         '',
       ].join('\n'),
-      app: { views: { layouts: { 'theme.liquid': '<html></html>' } } },
+      app: { views: { pages: { vendor: { 'legacy.liquid': "{% render 'gone' %}" } } } },
     });
     try {
-      const otherRoot = URI.parse(plain.rootUri).fsPath;
-      const result = await lintBuffers({
-        root: otherRoot,
-        configPath: path.join(otherRoot, '.platformos-check.yml'),
+      const permissiveRoot = URI.parse(permissive.rootUri).fsPath;
+      const results = await lintBuffers({
+        root: permissiveRoot,
+        configPath: path.join(permissiveRoot, '.platformos-check.yml'),
         buffers: [
-          { filePath: path.join(otherRoot, 'app/views/layouts/theme.liquid'), content: '<html>' },
+          {
+            filePath: path.join(permissiveRoot, 'app', 'views', 'pages', 'vendor', 'legacy.liquid'),
+            content: "{% render 'gone' %}",
+          },
         ],
       });
 
-      expect(result.ignored).toEqual(new Set());
-      expect(result.offenses.size).toEqual(1);
+      expect(
+        [...results.values()].map((result) => [result.status, result.offenses.length]),
+      ).toEqual([['checked', 1]]);
     } finally {
-      await plain.clean();
+      await permissive.clean();
     }
+  });
+
+  it('does not walk the project when every buffer is ignored', async () => {
+    // The ignore decision is made from the config alone, before the app is walked — the
+    // same ordering the single-buffer seam has. Asserted through the result rather than a
+    // spy: an ignored-only batch answers without ever needing a project.
+    const results = await lintBuffers({
+      root,
+      configPath,
+      buffers: [
+        { filePath: absolute('app/views/pages/vendor/legacy.liquid'), content: 'anything' },
+      ],
+    });
+
+    expect([...results.values()]).toEqual([{ status: 'excluded-by-config', offenses: [] }]);
   });
 });

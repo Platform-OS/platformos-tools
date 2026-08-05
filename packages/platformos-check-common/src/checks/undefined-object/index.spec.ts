@@ -26,7 +26,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_var' used."]);
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights).toEqual(['my_var']);
   });
 
@@ -77,7 +80,10 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(1);
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_var' used."]);
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights).toEqual(['my_var']);
   });
 
@@ -204,6 +210,27 @@ describe('Module: UndefinedObject', () => {
 
     // my_hash is defined via parse_json; function hash-access target does not shadow it
     expect(offenses).toHaveLength(0);
+  });
+
+  /**
+   * The same unguarded read `extract-undefined-variables.ts` had: a `{% function %}`
+   * the parser could not structure keeps its tag name and loses its markup to a raw
+   * string, and `markup.name.lookups` threw on it — which aborted this check for the
+   * whole file, so the undefined object AFTER the malformed tag went unreported.
+   */
+  it('should keep reporting after a function tag whose markup did not structure', async () => {
+    const sourceCode = `
+      {% doc %}
+      {% enddoc %}
+      {% liquid
+        function settings = 'lib/queries/settings/load' | dig 'results'
+      %}
+      {{ my_var }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses.map((offense) => offense.message)).toEqual(["Unknown object 'my_var' used."]);
   });
 
   it('should not report offenses for undefined partials without doc tag', async () => {
@@ -408,6 +435,38 @@ describe('Module: UndefinedObject', () => {
     expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'my_var' used."]);
   });
 
+  it('should leave an undeclared input of a documented partial to MissingDocParam', async () => {
+    // Nothing in the file defines `legacy`, so it is a parameter the caller was meant to pass
+    // and the doc does not declare — a hole in the contract, reported once on the partial by
+    // `MissingDocParam`. Only a name the file DOES define and reads out of that definition's
+    // scope stays here, which the loop and function tests above pin.
+    const sourceCode = `
+      {% doc %}
+        @param {string} text
+      {% enddoc %}
+      {{ text }}{{ legacy }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(0);
+  });
+
+  it('should keep reporting an undeclared object when the doc declares no parameter', async () => {
+    // No parameter means no declared contract, so `MissingDocParam` stands down and this
+    // check is the only one left to say the read resolves to nothing.
+    const sourceCode = `
+      {% doc %}
+        @description a card
+      {% enddoc %}
+      {{ legacy }}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'legacy' used."]);
+  });
+
   it('should not report an offense when object is defined with @param in a partial file', async () => {
     const sourceCode = `
       {% doc %}
@@ -444,7 +503,11 @@ describe('Module: UndefinedObject', () => {
         {% end${tag} %}
       `;
 
-      const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'file.liquid');
+      const offenses = await runLiquidCheck(
+        UndefinedObject,
+        sourceCode,
+        'app/views/partials/file.liquid',
+      );
 
       expect(offenses).toHaveLength(0);
     }
@@ -456,7 +519,11 @@ describe('Module: UndefinedObject', () => {
     for (const [object, goodPath] of contexts) {
       offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, goodPath);
       expect(offenses).toHaveLength(0);
-      offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, 'file.liquid');
+      offenses = await runLiquidCheck(
+        UndefinedObject,
+        `{{ ${object} }}`,
+        'app/views/partials/file.liquid',
+      );
       expect(offenses).toHaveLength(0);
     }
   });
@@ -469,7 +536,11 @@ describe('Module: UndefinedObject', () => {
       {{ tablerowloop }}
     `;
 
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'file.liquid');
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/partials/file.liquid',
+    );
 
     expect(offenses).toHaveLength(2);
   });
@@ -479,9 +550,14 @@ describe('Module: UndefinedObject', () => {
       {{ my_var }}
     `;
 
-    const offenses = await runLiquidCheck(UndefinedObject, sourceCode, 'file.liquid', {
-      platformosDocset: undefined,
-    });
+    const offenses = await runLiquidCheck(
+      UndefinedObject,
+      sourceCode,
+      'app/views/partials/file.liquid',
+      {
+        platformosDocset: undefined,
+      },
+    );
 
     expect(offenses).toHaveLength(0);
   });
@@ -649,6 +725,49 @@ describe('Module: UndefinedObject', () => {
     );
 
     expect(offenses).toHaveLength(0);
+  });
+
+  describe('an api_call object read outside an api_call', () => {
+    // `data` and `response` are `global: true` in the docset, which means "needs no parent
+    // object" and not "available everywhere" — they carry `app_file_type: 'api_call'`.
+    // Reading `global` on its own put them in scope in every file.
+    //
+    // The `{% doc %}` tag is what opts a partial into this check at all.
+    const withDoc = (body: string) => `{% doc %}\n{% enddoc %}\n${body}`;
+
+    for (const object of ['data', 'response']) {
+      it(`reports \`${object}\` in a partial`, async () => {
+        const offenses = await runLiquidCheck(
+          UndefinedObject,
+          withDoc(`{{ ${object} }}`),
+          'app/views/partials/card.liquid',
+        );
+
+        expect(offenses.map((offense) => offense.message)).toEqual([
+          `Unknown object '${object}' used.`,
+        ]);
+      });
+
+      it(`does not report \`${object}\` in an api_call`, async () => {
+        const offenses = await runLiquidCheck(
+          UndefinedObject,
+          withDoc(`{{ ${object} }}`),
+          'app/api_calls/send.liquid',
+        );
+
+        expect(offenses.map((offense) => offense.message)).toEqual([]);
+      });
+    }
+
+    it('still treats `context` as in scope in a partial', async () => {
+      const offenses = await runLiquidCheck(
+        UndefinedObject,
+        withDoc('{{ context.params.id }}'),
+        'app/views/partials/card.liquid',
+      );
+
+      expect(offenses.map((offense) => offense.message)).toEqual([]);
+    });
   });
 
   it('should not report offenses for assigned variables in a page file without doc tag', async () => {

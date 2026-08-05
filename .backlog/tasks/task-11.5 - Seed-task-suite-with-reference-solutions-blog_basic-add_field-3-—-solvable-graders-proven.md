@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-09 11:01'
-updated_date: '2026-07-09 11:17'
+updated_date: '2026-08-04 12:48'
 labels:
   - eval
   - pos-supervisor
@@ -15,6 +15,7 @@ dependencies:
   - TASK-11.2
 parent_task_id: TASK-11
 priority: medium
+ordinal: 38000
 ---
 
 ## Description

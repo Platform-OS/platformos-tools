@@ -8,7 +8,16 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
 
   beforeEach(async () => {
     provider = new CompletionsProvider({
-      documentManager: new DocumentManager(),
+      // The test helper mounts every fixture under `/path/to`; classification is
+      // anchored, so the providers need that root to tell a partial from a page.
+      findAppRootURI: async () => '/path/to',
+      documentManager: new DocumentManager(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        async () => '/path/to',
+      ),
       platformosDocset: {
         graphQL: async () => null,
         filters: async () => [],
@@ -28,7 +37,7 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
 
     for (const source of sources) {
       await expect(provider).to.complete(
-        { source, relativePath: 'file://app/views/partials/file.liquid' },
+        { source, relativePath: 'app/views/partials/file.liquid' },
         [...Object.values(BasicParamTypes), 'product'],
       );
     }
@@ -44,7 +53,7 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
 
     for (const source of sources) {
       await expect(provider).to.complete(
-        { source, relativePath: 'file://app/views/partials/file.liquid' },
+        { source, relativePath: 'app/views/partials/file.liquid' },
         [],
       );
     }

@@ -6,13 +6,14 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 09:55'
-updated_date: '2026-06-12 13:18'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies: []
 references:
   - docs/mcp-supervisor/salvage
   - docs/mcp-supervisor/salvage/OLD-ARCHITECTURE.md
 priority: high
+ordinal: 7000
 ---
 
 ## Description

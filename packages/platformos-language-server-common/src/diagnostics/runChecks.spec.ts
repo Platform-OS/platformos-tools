@@ -1,10 +1,12 @@
 import {
   allChecks,
+  CheckDefinition,
   LiquidCheckDefinition,
   path,
   Severity,
   SourceCodeType,
 } from '@platformos/platformos-check-common';
+import { nameToPaths, PlatformOSFileType, RouteTable } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Connection } from 'vscode-languageserver';
@@ -366,6 +368,473 @@ describe('Module: runChecks', () => {
         version: 0,
         diagnostics: [],
       });
+    });
+  });
+  describe('publishing across the app', () => {
+    /**
+     * A run triggered by one file still visits every file in the app and still
+     * publishes for each one, so an offense that no longer exists is cleared rather
+     * than left on screen.
+     */
+    const aUri = path.join(rootUri, 'app', 'views', 'pages', 'a.liquid');
+    const bUri = path.join(rootUri, 'app', 'views', 'pages', 'b.liquid');
+
+    function makeRunChecksWithFs(
+      fileSystem: MockFileSystem,
+      checks: LiquidCheckDefinition[] | typeof allChecks,
+    ) {
+      return makeRunChecks(documentManager, diagnosticsManager, {
+        fs: fileSystem,
+        loadConfig: async () => ({ settings: {}, checks, rootUri }),
+        platformosDocset: {
+          graphQL: async () => null,
+          filters: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          tags: async () => [],
+        },
+        jsonValidationSet: {
+          schemas: async () => [],
+        },
+      });
+    }
+
+    beforeEach(() => {
+      fs = new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/a.liquid': `{{ 'x' | filter }}`,
+          'app/views/pages/b.liquid': `{{ 'y' | filter }}`,
+        },
+        rootUri,
+      );
+      runChecks = makeRunChecksWithFs(fs, [LiquidFilter]);
+      documentManager.open(aUri, `{{ 'x' | filter }}`, 0);
+      documentManager.open(bUri, `{{ 'y' | filter }}`, 0);
+    });
+
+    it('clears the diagnostics of a file that no longer offends after another file is edited', async () => {
+      await runChecks([aUri]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith(
+        expect.objectContaining({ uri: bUri, diagnostics: [expect.anything()] }),
+      );
+
+      // B is fixed, A is edited. Editing A must still republish B — as empty.
+      documentManager.change(bUri, 'no filters here', 1);
+      documentManager.change(aUri, `{{ 'x' | filter }}{{ 'z' | filter }}`, 1);
+      connection.sendDiagnostics.mockClear();
+
+      await runChecks([aUri]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: bUri,
+        version: 1,
+        diagnostics: [],
+      });
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith(
+        expect.objectContaining({ uri: aUri, version: 1 }),
+      );
+    });
+  });
+  /**
+   * Two ways a cross-file diagnostic can silently vanish once the workspace is
+   * loaded LAZILY, both found by driving the real language server over a
+   * 2700-file project rather than by a unit test. Each is pinned here with the
+   * discriminator that tells the two code paths apart.
+   *
+   * A call site's parameters are resolved two ways, by two different checks:
+   *
+   *  - `UnrecognizedRenderPartialArguments` reads `{% doc %}`, which reaches the
+   *    partial via `getDocDefinition` → `documentManager.get(uri)`, so it needs
+   *    the partial to be a DOCUMENT;
+   *  - `PartialCallArguments` INFERS them from undefined variables in the
+   *    partial's source, read through `context.fs`, which always works.
+   *
+   * The two agree about a missing required parameter, so a test built on one
+   * would pass either way. They disagree about an UNKNOWN one: `{% doc %}` is
+   * the complete parameter list, so an argument it does not declare is an
+   * offense — while the inference path derives the list FROM the source, so
+   * every variable the partial uses is allowed and nothing is reported. That is
+   * the discriminator these use, which is why they run the doc-reading check.
+   */
+  describe('cross-file diagnostics while the workspace is still loading', () => {
+    const callerURI = path.join(rootUri, 'app', 'views', 'pages', 'home.liquid');
+    const partialURI = path.join(rootUri, 'app', 'views', 'partials', 'card.liquid');
+    const caller = `{% render 'card', title: 'a', legacy: 'b' %}`;
+    // `legacy` is used by the partial but NOT declared in its `{% doc %}`, so it
+    // is an offense with the doc and invisible without it.
+    const partial = `{% doc %}\n  @param {string} title - the title\n{% enddoc %}{{ title }}{{ legacy }}`;
+
+    const docReadingChecks = allChecks.filter(
+      (c) => c.meta.code === 'UnrecognizedRenderPartialArguments',
+    );
+
+    const unknownLegacy = {
+      source: 'platformos-check',
+      code: 'UnrecognizedRenderPartialArguments',
+      codeDescription: { href: expect.any(String) },
+      message: "Unknown argument 'legacy' in render tag for partial 'card'.",
+      severity: 2,
+      range: {
+        start: { line: 0, character: 30 },
+        end: { line: 0, character: 41 },
+      },
+    };
+
+    function makeRunChecksOver(fileSystem: MockFileSystem) {
+      return makeRunChecks(documentManager, diagnosticsManager, {
+        fs: fileSystem,
+        loadConfig: async () => ({ settings: {}, checks: docReadingChecks, rootUri }),
+        platformosDocset: {
+          graphQL: async () => null,
+          filters: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          tags: async () => [],
+        },
+        jsonValidationSet: { schemas: async () => [] },
+        includeFilesFromDisk: () => true,
+      });
+    }
+
+    /**
+     * The race. `didOpen` starts `preload` in the BACKGROUND and does not await it, so
+     * the first check of a session can run before the project has been read — and a
+     * partial nobody has read is not a document, so its `{% doc %}` is not there to be
+     * found.
+     */
+    it('waits for the workspace so the first check of a session sees the doc definition', async () => {
+      const projectFs = new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/home.liquid': caller,
+          'app/views/partials/card.liquid': partial,
+        },
+        rootUri,
+      );
+      documentManager = new DocumentManager(projectFs);
+      runChecks = makeRunChecksOver(projectFs);
+
+      // Exactly what `didOpen` does: record the buffer, check it. Nothing here
+      // has awaited the workspace.
+      documentManager.open(callerURI, caller, 0);
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [unknownLegacy],
+      });
+    });
+
+    /**
+     * The file the workspace could not read. `preload` logs it and carries on,
+     * so it stays in the `App` — classified, with no contents — and
+     * `AppFile.source` THROWS rather than pretending to be `''`.
+     *
+     * Handing that file out as a document would cost the whole run — `check` reads `ast`
+     * for every file it visits — so ONE unreadable file would mean no diagnostics for
+     * anything.
+     */
+    it('an unreadable file costs its own diagnostics and nothing else', async () => {
+      const unreadableURI = path.join(rootUri, 'app', 'views', 'partials', 'locked.liquid');
+      const projectFs = new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/home.liquid': caller,
+          'app/views/partials/card.liquid': partial,
+          'app/views/partials/locked.liquid': 'unreadable',
+        },
+        rootUri,
+      );
+      const readFile = projectFs.readFile.bind(projectFs);
+      vi.spyOn(projectFs, 'readFile').mockImplementation(async (uri) => {
+        if (uri === unreadableURI) throw new Error('EACCES: permission denied');
+        return readFile(uri);
+      });
+      documentManager = new DocumentManager(projectFs);
+      runChecks = makeRunChecksOver(projectFs);
+
+      documentManager.open(callerURI, caller, 0);
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [unknownLegacy],
+      });
+      // It is in the app, so nothing pretends it is not there — but it is not a
+      // document, so it is never published for and never read.
+      expect(documentManager.appModel(rootUri).has(unreadableURI)).toBe(true);
+      expect(documentManager.get(unreadableURI)).toBe(undefined);
+      expect(connection.sendDiagnostics).not.toHaveBeenCalledWith(
+        expect.objectContaining({ uri: unreadableURI }),
+      );
+    });
+  });
+
+  /**
+   * The editor gets the same App the CLI does. Without it every `DocumentsLocator` in
+   * every check falls back to walking candidate paths with a `stat` each, and
+   * `context.fileType` re-derives a type the file already classified — in the one place
+   * where that latency is visible to a person.
+   */
+  describe('the run gets the App itself, not just the open documents', () => {
+    const callerURI = path.join(rootUri, 'app', 'views', 'pages', 'home.liquid');
+    const partialURI = path.join(rootUri, 'app', 'views', 'partials', 'card.liquid');
+
+    /**
+     * Reports what `context.app` resolves a name to, so what gets pinned is what a check
+     * actually receives rather than an internal of `check()`.
+     */
+    const AppProbe: LiquidCheckDefinition = {
+      meta: {
+        code: 'AppProbe',
+        name: 'Reports what context.app resolves',
+        docs: { description: 'Reports what context.app resolves', recommended: true },
+        type: SourceCodeType.LiquidHtml,
+        severity: Severity.ERROR,
+        schema: {},
+        targets: [],
+      },
+      create(context) {
+        return {
+          async onCodePathEnd() {
+            context.report({
+              message: `app=${context.app.find(PlatformOSFileType.Partial, 'card')?.uri}`,
+              startIndex: 0,
+              endIndex: 1,
+            });
+          },
+        };
+      },
+    };
+
+    function projectWith(source: string) {
+      return new MockFileSystem(
+        {
+          '.pos': '',
+          'app/views/pages/home.liquid': source,
+          'app/views/partials/card.liquid': `{{ 'card' }}`,
+        },
+        rootUri,
+      );
+    }
+
+    function runChecksOver(
+      fileSystem: MockFileSystem,
+      checks: CheckDefinition[],
+      getRouteTable?: () => RouteTable | undefined,
+    ) {
+      return makeRunChecks(documentManager, diagnosticsManager, {
+        fs: fileSystem,
+        loadConfig: async () => ({ settings: {}, checks, rootUri }),
+        platformosDocset: {
+          graphQL: async () => null,
+          filters: async () => [],
+          objects: async () => [],
+          liquidDrops: async () => [],
+          tags: async () => [],
+        },
+        jsonValidationSet: { schemas: async () => [] },
+        getRouteTable,
+      });
+    }
+
+    it('hands the run its App, so a partial resolves through the name index', async () => {
+      const projectFs = projectWith(`{{ 'home' }}`);
+      documentManager = new DocumentManager(projectFs);
+      runChecks = runChecksOver(projectFs, [AppProbe]);
+
+      documentManager.open(callerURI, `{{ 'home' }}`, 0);
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [
+          {
+            source: 'platformos-check',
+            code: 'AppProbe',
+            message: `app=${partialURI}`,
+            severity: 1,
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+          },
+        ],
+      });
+    });
+
+    it('hands the run the editor route table as a provider: same instance, built on first use', async () => {
+      const projectFs = projectWith(`{{ 'home' }}`);
+      documentManager = new DocumentManager(projectFs);
+      const editorTable = new RouteTable(projectFs);
+
+      // `Dependencies.routeTable` is a provider that OWNS its table's currency, so
+      // build-on-first-use lives in runChecks' wrapper — and the table a check receives
+      // must still be THE editor table, not a second one built behind its back.
+      const RouteTableProbe: LiquidCheckDefinition = {
+        meta: {
+          code: 'RouteTableProbe',
+          name: 'Reports what context.getRouteTable resolves',
+          docs: { description: 'Reports what context.getRouteTable resolves', recommended: true },
+          type: SourceCodeType.LiquidHtml,
+          severity: Severity.ERROR,
+          schema: {},
+          targets: [],
+        },
+        create(context) {
+          return {
+            async onCodePathEnd() {
+              const table = await context.getRouteTable();
+              context.report({
+                message: `same=${table === editorTable} built=${table.isBuilt()}`,
+                startIndex: 0,
+                endIndex: 1,
+              });
+            },
+          };
+        },
+      };
+
+      runChecks = runChecksOver(projectFs, [RouteTableProbe], () => editorTable);
+
+      documentManager.open(callerURI, `{{ 'home' }}`, 0);
+      await runChecks([callerURI]);
+
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [
+          {
+            source: 'platformos-check',
+            code: 'RouteTableProbe',
+            message: 'same=true built=true',
+            severity: 1,
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+          },
+        ],
+      });
+    });
+
+    it('resolves an indexed partial with no I/O, and still hits the filesystem for one the app lacks', async () => {
+      const source = `{% render 'card' %}{% render 'ghost' %}`;
+      const projectFs = projectWith(source);
+
+      const statted: string[] = [];
+      const stat = projectFs.stat.bind(projectFs);
+      vi.spyOn(projectFs, 'stat').mockImplementation(async (uri) => {
+        statted.push(uri);
+        return stat(uri);
+      });
+      const listed: string[] = [];
+      const readDirectory = projectFs.readDirectory.bind(projectFs);
+      vi.spyOn(projectFs, 'readDirectory').mockImplementation(async (uri) => {
+        listed.push(uri);
+        return readDirectory(uri);
+      });
+
+      documentManager = new DocumentManager(projectFs);
+      runChecks = runChecksOver(
+        projectFs,
+        allChecks.filter((check) => check.meta.code === 'MissingPartial'),
+      );
+
+      await documentManager.preload(rootUri);
+      // The preload walk is not what this measures.
+      statted.length = 0;
+      listed.length = 0;
+
+      documentManager.open(callerURI, source, 0);
+      await runChecks([callerURI]);
+
+      const candidatesFor = (name: string) =>
+        nameToPaths(PlatformOSFileType.Partial, name).map((candidate) =>
+          path.join(rootUri, candidate),
+        );
+      const candidateDirs = [
+        path.join(rootUri, 'app/views/partials'),
+        path.join(rootUri, 'app/lib'),
+      ];
+
+      // In the app: answered by `App.find`, so not one candidate spelling is probed.
+      expect(statted.filter((uri) => candidatesFor('card').includes(uri))).toEqual([]);
+      expect(statted.filter((uri) => candidatesFor('ghost').includes(uri))).toEqual([]);
+      // Not in the app: the filesystem miss path is still the fallback — one
+      // listing per candidate DIRECTORY, not a stat per spelling. Only 'ghost'
+      // takes it ('card' answered from the index), so these listings are its.
+      // Without this the assertions above would also pass with a broken spy.
+      expect(listed.filter((uri) => candidateDirs.includes(uri))).toEqual(candidateDirs);
+      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+        uri: callerURI,
+        version: 0,
+        diagnostics: [
+          {
+            source: 'platformos-check',
+            code: 'MissingPartial',
+            codeDescription: {
+              href: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/missing-partial',
+            },
+            message: `'ghost' does not exist`,
+            severity: 1,
+            range: { start: { line: 0, character: 29 }, end: { line: 0, character: 36 } },
+          },
+        ],
+      });
+    });
+
+    /**
+     * Handing over the model widens what the checks can SEE. It must not widen what
+     * they VISIT — that is what `only` is for.
+     *
+     * Asserted on the files the check ran over rather than on the diagnostics that
+     * came out, because those are published per open buffer either way: dropping
+     * `only` would silently read, parse and check every file in the project on every
+     * keystroke and produce identical diagnostics while doing it.
+     */
+    it('visits the open buffers only, though the whole app is visible', async () => {
+      const visited: string[] = [];
+      const VisitRecorder: LiquidCheckDefinition = {
+        meta: {
+          code: 'VisitRecorder',
+          name: 'Records the files it was run over',
+          docs: { description: 'Records the files it was run over', recommended: true },
+          type: SourceCodeType.LiquidHtml,
+          severity: Severity.ERROR,
+          schema: {},
+          targets: [],
+        },
+        create(context) {
+          return {
+            async onCodePathStart(file) {
+              visited.push(file.uri);
+              // The app has to be visible from the file that IS visited, or this
+              // would also pass for a run that saw nothing at all.
+              expect(context.app.find(PlatformOSFileType.Partial, 'card')?.uri).toBe(partialURI);
+            },
+          };
+        },
+      };
+
+      const projectFs = projectWith(`{{ 'home' }}`);
+      documentManager = new DocumentManager(projectFs);
+      runChecks = runChecksOver(projectFs, [VisitRecorder]);
+
+      await documentManager.preload(rootUri);
+      documentManager.open(callerURI, `{{ 'home' }}`, 0);
+      await runChecks([callerURI]);
+
+      // Both files are in the app and both are readable; only the buffer is visited.
+      expect(
+        documentManager
+          .appModel(rootUri)
+          .sourceCodes()
+          .map((file) => file.uri),
+      ).toEqual([callerURI, partialURI]);
+      expect(visited).toEqual([callerURI]);
+      expect(connection.sendDiagnostics.mock.calls.map(([params]: any[]) => params.uri)).toEqual([
+        callerURI,
+      ]);
     });
   });
 });

@@ -4,7 +4,7 @@ title: validate_project tool — project-wide health sweep (broken refs + dead c
 status: To Do
 assignee: []
 created_date: '2026-07-01 21:15'
-updated_date: '2026-07-01 21:21'
+updated_date: '2026-08-04 12:48'
 labels:
   - mcp-supervisor
   - platformos-graph
@@ -18,6 +18,7 @@ references:
   - SUPERVISOR-GRAPH-INTEGRATION.md
 parent_task_id: TASK-9
 priority: medium
+ordinal: 27000
 ---
 
 ## Description

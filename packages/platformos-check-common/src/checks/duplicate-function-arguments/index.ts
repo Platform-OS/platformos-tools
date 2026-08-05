@@ -37,7 +37,7 @@ export const DuplicateFunctionArguments: LiquidCheckDefinition = {
           encounteredArgNames.add(param.name);
         }
 
-        reportDuplicateArguments(context, node, duplicateArgs, partialName);
+        reportDuplicateArguments(context, node, duplicateArgs, partialName, 'function');
       },
     };
   },

@@ -50,6 +50,39 @@ describe('Module: UnrecognizedRenderPartialParams', () => {
         "Unknown argument 'second_unknown_param' in render tag for partial 'card'.",
       );
     });
+
+    it('should report unknown arguments provided in a function tag', async () => {
+      const offenses = await runLiquidCheck(
+        UnrecognizedRenderPartialArguments,
+        `{% function a = 'commands/call/fileToCall', variable: 2, extra: 12 %}`,
+        undefined,
+        {},
+        {
+          'app/lib/commands/call/fileToCall.liquid': [
+            '{% doc %}',
+            '  @param {number} variable - param with description',
+            '{% enddoc %}',
+            '{% assign a = 5 | plus: variable %}',
+            '{{ a }}',
+          ].join('\n'),
+        },
+      );
+
+      expect(offenses.map((offense) => offense.message)).toEqual([
+        "Unknown argument 'extra' in function tag for partial 'commands/call/fileToCall'.",
+      ]);
+    });
+
+    it('should not report a globally accessible object passed as an argument', async () => {
+      // `context` is in scope inside every partial, so a {% doc %} block has no reason to
+      // declare it and passing it is redundant rather than unknown.
+      const offenses = await check(
+        ['{% doc %}', '  @param {string} title - The card title', '{% enddoc %}'].join('\n'),
+        `{% render 'card', title: 'My Card', context: context %}`,
+      );
+
+      expect(offenses.map((offense) => offense.message)).toEqual([]);
+    });
   });
 
   describe('edge cases', () => {

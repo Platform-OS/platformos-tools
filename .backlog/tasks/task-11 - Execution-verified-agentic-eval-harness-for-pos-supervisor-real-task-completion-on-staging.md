@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-09 10:59'
-updated_date: '2026-07-09 11:16'
+updated_date: '2026-08-04 12:48'
 labels:
   - eval
   - pos-supervisor
@@ -21,6 +21,7 @@ references:
   - 'https://arxiv.org/abs/2602.00933'
   - 'https://github.com/lastmile-ai/mcp-eval'
 priority: high
+ordinal: 33000
 ---
 
 ## Description

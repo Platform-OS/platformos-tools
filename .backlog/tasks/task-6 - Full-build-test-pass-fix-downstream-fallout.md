@@ -4,10 +4,12 @@ title: Full build + test pass; fix downstream fallout
 status: To Do
 assignee: []
 created_date: '2026-05-11 13:12'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-4
   - TASK-5
+ordinal: 6000
 ---
 
 ## Description

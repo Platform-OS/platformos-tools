@@ -53,9 +53,11 @@ export const YAMLSyntaxError: YAMLCheckDefinition = {
     code: 'YAMLSyntaxError',
     name: 'Enforce valid YAML',
     docs: {
-      description: 'This check exists to prevent unparseable YAML files in apps.',
+      description:
+        'Reports YAML the parser cannot read. A file with a parse failure is not ' +
+        'key-checked by the other YAML checks, so this is the only thing that reports it.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/yaml-syntax-error',
     },
     type: SourceCodeType.YAML,
     severity: Severity.ERROR,

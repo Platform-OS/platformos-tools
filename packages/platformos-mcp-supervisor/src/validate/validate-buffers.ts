@@ -22,16 +22,24 @@
 import { path as pathUtils } from '@platformos/platformos-check-node';
 
 import {
+  assetNotLinted,
   bufferTooLarge,
   fileApplicability,
   ignoredByProjectConfig,
+  misplacedSource,
+  notPlatformOSFile,
   toAbsoluteFilePath,
 } from '../adapter-input.js';
 import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
 import { lintDeadlineMs } from '../cost-model.js';
 import { TIMED_OUT, withDeadline } from '../deadline.js';
 import { runImpact } from '../impact/impact.js';
-import { runBatchLint, type BatchBuffer, type BatchLintResult } from '../lint/lint-batch.js';
+import {
+  runBatchLint,
+  type BatchBuffer,
+  type BatchLintResult,
+  type LintNotCheckedStatus,
+} from '../lint/lint-batch.js';
 import { assembleNotApplicableResult, assembleResult } from '../result/assemble.js';
 import { capToBudget } from '../result/response-budget.js';
 import { COMPUTING_IMPACT, UNAVAILABLE_IMPACT } from '../result/impact-states.js';
@@ -58,6 +66,33 @@ export interface ValidateAdapters {
 const DEFAULT_ADAPTERS: ValidateAdapters = {
   lint: runBatchLint,
   impact: runImpact,
+};
+
+/**
+ * check-node's "did not check it" status → the refusal the agent reads, by
+ * project-relative path.
+ *
+ * TOTAL OVER {@link LintNotCheckedStatus} BY TYPE, which is the only reason this is a
+ * table and not a `switch` with a `default`. Every entry hands back different ADVICE —
+ * remove it from `ignore`, move it into a deployed subtree, or do nothing because the file
+ * was never a source — and picking the wrong one is worse than saying nothing: an author
+ * whose partial sits outside the deployed tree, told their config excludes it, goes looking
+ * for an `ignore` line that does not exist. A `default` arm is exactly how that happens, so
+ * there is none, and a status added upstream fails the build right here.
+ *
+ * THE ONE PLACE the two vocabularies meet. Each factory carries both halves of the answer:
+ * the machine-readable `NotApplicableReason` an agent branches on, and the prose it reads.
+ * Note that `not-a-platformos-file` and `not-a-source-file` deliberately produce the SAME
+ * code with DIFFERENT prose — an agent has no reason to act differently on them, but
+ * calling `app/assets/logo.png` "not a platformOS file" would be plainly false, and a
+ * message an author can tell is false is a message they stop reading. Collapsing the code
+ * while keeping the wording is only expressible because the mapping produces both at once.
+ */
+const DECLINE: Record<LintNotCheckedStatus, (relativePath: string) => Declined> = {
+  'excluded-by-config': ignoredByProjectConfig,
+  'misplaced-source': misplacedSource,
+  'not-a-platformos-file': notPlatformOSFile,
+  'not-a-source-file': assetNotLinted,
 };
 
 /**
@@ -89,14 +124,15 @@ export async function validateBuffers(
     impactWithDeadline(ctx, adapters, lintable),
   ]);
 
-  // The lint pass is what knows which buffers the project config excludes — it holds
-  // the config. Folding its answer in here keeps ONE config load and one source of
-  // truth for "is this file part of the app".
+  // The lint pass is what knows which buffers were not checked and why — it holds the
+  // config AND the classifier. Folding its answer in here keeps ONE config load and one
+  // source of truth for "is this file part of the app", instead of this layer
+  // re-deriving either from a raw path.
   if (lint !== TIMED_OUT) {
     const rootUri = pathUtils.toUri(ctx.projectDir);
-    for (const key of lint.ignored) {
+    for (const [key, status] of lint.notChecked) {
       const absolute = pathUtils.toUri(toAbsoluteFilePath(ctx.projectDir, key));
-      declined.set(key, ignoredByProjectConfig(pathUtils.relative(absolute, rootUri)));
+      declined.set(key, DECLINE[status](pathUtils.relative(absolute, rootUri)));
     }
   }
 
@@ -124,11 +160,17 @@ export async function validateBuffers(
  * the project root, an unsupported file type, over the size bound — so a declined
  * buffer costs nothing and never reaches the engine.
  *
- * Config-level exclusion is deliberately NOT here. It needs the project config, and
- * the lint pass already loads one; asking separately meant a second config load and,
- * worse, a second source of truth for "is this file part of the app". `lintBuffers`
- * reports it instead (see `LintBuffersResult`), and {@link validateBuffers} folds
- * that answer in afterwards.
+ * Two refusals are deliberately NOT here, because deciding them needs the project:
+ * config-level exclusion needs the resolved `.platformos-check.yml`, and telling a
+ * MISPLACED source from an unsupported one needs the app's classification of the path.
+ * The lint pass already has both, so asking separately would mean a second config load
+ * and — the part that actually bites — a second source of truth for "is this file part of
+ * the app". `lintBuffers` answers both as a per-buffer `LintBufferStatus`, and
+ * {@link validateBuffers} folds that in afterwards through {@link DECLINE}.
+ *
+ * Note the ONE gate here that overlaps the lint's: an unsupported type. Kept, because it
+ * is decidable from the extension alone and refusing it costs no I/O — but the lint's row
+ * for it is kept too, so the two agreeing is not something either has to assume.
  */
 function partition(
   projectDir: string,
@@ -177,9 +219,9 @@ async function lintWithDeadline(
   lintable: BatchBuffer[],
   deadline: number,
 ): Promise<BatchLintResult | typeof TIMED_OUT> {
-  if (lintable.length === 0) return { diagnostics: new Map(), ignored: new Set() };
+  if (lintable.length === 0) return { diagnostics: new Map(), notChecked: new Map() };
 
-  const work = adapters.lint({ projectDir: ctx.projectDir, buffers: lintable }, ctx.appCache);
+  const work = adapters.lint({ projectDir: ctx.projectDir, buffers: lintable });
   const outcome = await withDeadline(work, deadline);
   if (outcome !== TIMED_OUT) return outcome;
 

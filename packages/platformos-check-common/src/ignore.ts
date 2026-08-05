@@ -1,67 +1,82 @@
-import { UriString, CheckDefinition, Config } from './types';
+import { uriFromPathOrUri } from '@platformos/platformos-common';
+import { normalize } from './path';
+import { CheckDefinition, Config } from './types';
 import { Minimatch } from 'minimatch';
-import { createBoundedCache } from './utils/bounded-cache';
 
 /**
- * Compiled glob matchers, keyed by the (already transformed) pattern string.
+ * The compiled ignore matchers of a config, keyed by the check they belong to.
  *
- * WHY. `isIgnored` is called once per file per check — `check()` runs it for every
- * (file, check) pair, and check-node's project loader runs it for every globbed path
- * (1686 on a real project). It used to call minimatch's FUNCTIONAL form,
- * `minimatch(uri, pattern)`, which constructs and compiles a `Minimatch` on every
- * single call: measured at 175 ms of a 211 ms `getApp`, i.e. 83% of it, and the
- * dominant per-request cost once parsing was made lazy (TASK-12.8).
+ * A `Config` is immutable for the life of a run, so its patterns can be rewritten
+ * and compiled once and then matched against every path. Doing it per CALL is what
+ * made this the most expensive part of `getApp` on a project that configures
+ * `ignore`: `getAppFilePaths` asks about every globbed path and `check()` asks
+ * again per file per check, and each ask re-ran three regex replaces per pattern
+ * and built a fresh `Minimatch` — 140-232 ms of a 207-267 ms `getApp` on a real
+ * project (1558 candidate paths, 13 patterns).
  *
- * Compiling once per pattern is a pure win with nothing to invalidate: a matcher is
- * a function of its pattern string, so a changed config produces different pattern
- * strings and therefore different keys. Stale entries are impossible by
- * construction.
- *
- * Bounded because a long-lived process (the MCP supervisor, the language server) may
- * serve many projects, each contributing its own patterns. Real configs hold a
- * handful, so the cap is far above any legitimate working set.
+ * Keyed weakly on the config object, so a config that goes away takes its matchers
+ * with it and a new config compiles its own.
  */
-const compiledPatterns = createBoundedCache<Minimatch>(512);
+const matchersByConfig = new WeakMap<Config, Map<string | symbol, Minimatch[]>>();
+
+/** The key for the check-less variant, which sees the global `ignore` only. */
+const GLOBAL = Symbol('global ignore');
 
 /**
- * Transformed pattern lists, per `Config` object and per check.
+ * Whether `config` ignores the file — however the caller spells it.
  *
- * The three `replace` calls per pattern are cheap individually but were re-run on
- * every `isIgnored` call — thousands of times per request — for a result that depends
- * only on the config and the check. Keyed on the Config OBJECT rather than on a
- * derived string so the hot path does no key building at all: a lint run passes one
- * Config to every (file, check) pair, so this hits for all of them, and a later run
- * with a re-loaded Config simply gets a fresh entry. A `WeakMap` means eviction is
- * the garbage collector's job — there is nothing to invalidate and nothing to bound.
+ * `uriFromPathOrUri` puts the subject in the normalized-URI spelling the patterns are
+ * rewritten against (`rewrite` anchors absolute patterns on `config.rootUri`, a URI), so
+ * a `file://` URI, a percent-encoded URI, and a raw filesystem path all get ONE answer —
+ * `file:///c%3A/project/x.liquid` and `c:/project/x.liquid` are otherwise different
+ * strings, and "which files are ignored" must not depend on who asked.
  */
-const transformedPatterns = new WeakMap<Config, Map<string, string[]>>();
+export function isIgnored(pathOrUri: string, config: Config, checkDef?: CheckDefinition): boolean {
+  const subject = uriFromPathOrUri(pathOrUri);
+  return matchers(config, checkDef).some((matcher) => matcher.match(subject));
+}
 
-export function isIgnored(uri: UriString, config: Config, checkDef?: CheckDefinition): boolean {
-  const rawPatterns = [...checkIgnorePatterns(checkDef, config), ...asArray(config.ignore)];
-  if (rawPatterns.length === 0) return false;
+/**
+ * Whether `config` ignores anything at all, so a caller can skip the work of
+ * PRODUCING paths to ask about.
+ *
+ * Most projects configure no `ignore`, and check-node converts every one of a
+ * project's URIs to a filesystem path before asking — 4 ms per `getApp` on a
+ * 3139-file project, all of it to be told there is nothing to match against.
+ */
+export function hasIgnorePatterns(config: Config, checkDef?: CheckDefinition): boolean {
+  return matchers(config, checkDef).length > 0;
+}
 
-  // Per-check patterns differ by check, so the check's code is the inner key.
-  let perCheck = transformedPatterns.get(config);
-  if (!perCheck) {
-    perCheck = new Map();
-    transformedPatterns.set(config, perCheck);
+function matchers(config: Config, checkDef?: CheckDefinition): Minimatch[] {
+  let byCheck = matchersByConfig.get(config);
+  if (!byCheck) {
+    byCheck = new Map();
+    matchersByConfig.set(config, byCheck);
   }
-  const checkCode = checkDef?.meta.code ?? '';
-  let ignorePatterns = perCheck.get(checkCode);
-  if (!ignorePatterns) {
-    ignorePatterns = rawPatterns.map(
-      (pattern) =>
-        pattern
-          .replace(/^\//, config.rootUri + '/') // "absolute patterns" are config.rootUri matches
-          .replace(/^([^\/])/, '**/$1') // "relative patterns" are "**/${pattern}"
-          .replace(/\/\*$/, '/**'), // "/*" patterns are really "/**"
-    );
-    perCheck.set(checkCode, ignorePatterns);
+
+  const key = checkDef?.meta.code ?? GLOBAL;
+  let compiled = byCheck.get(key);
+  if (!compiled) {
+    compiled = [...checkIgnorePatterns(checkDef, config), ...asArray(config.ignore)]
+      .map((pattern) => rewrite(pattern, config.rootUri))
+      .map((pattern) => new Minimatch(pattern));
+    byCheck.set(key, compiled);
   }
 
-  return ignorePatterns.some((pattern) =>
-    compiledPatterns(pattern, () => new Minimatch(pattern)).match(uri),
-  );
+  return compiled;
+}
+
+function rewrite(pattern: string, rootUri: string): string {
+  return (
+    pattern
+      // "absolute patterns" are config.rootUri matches. The root is normalized to
+      // the same spelling `canonicalSubject` puts the subject in, so an anchored
+      // pattern and its subject cannot diverge on the root's spelling.
+      .replace(/^\//, normalize(rootUri) + '/')
+      .replace(/^([^\/])/, '**/$1') // "relative patterns" are "**/${pattern}"
+      .replace(/\/\*$/, '/**')
+  ); // "/*" patterns are really "/**"
 }
 
 function checkIgnorePatterns(checkDef: CheckDefinition | undefined, config: Config) {

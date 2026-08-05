@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  isLayout,
-  isPage,
-  isPartial,
-  path,
-  recursiveReadDirectory,
-} from '@platformos/platformos-check-common';
+import { path } from '@platformos/platformos-check-common';
+import { FileType, getFileType, PlatformOSFileType } from '@platformos/platformos-common';
+import type { AbstractFileSystem, UriString } from '@platformos/platformos-common';
 import { MockFileSystem, type MockApp } from '@platformos/platformos-check-common/dist/test';
 
 import { enumerateEdgeSources, isEdgeSource } from '../index';
@@ -16,14 +12,14 @@ import { enumerateEdgeSources, isEdgeSource } from '../index';
  * edge-source liquid files under a project root" primitive. The supervisor's
  * GraphCache consumes it for BOTH the fingerprint domain and the build's entry
  * points, so its definition must never silently drift from the file-type
- * classifier (`isLayout`/`isPage`/`isPartial` ← `FILE_TYPE_DIRS`).
+ * classifier (`getFileType` ← `FILE_TYPE_DIRS`).
  *
  * The load-bearing guard is EQUIVALENCE-TO-THE-CLASSIFIER: the SCOPED walk (only
- * the platformOS source roots, the TASK-9.15 Phase-3A perf win) must gather the
- * exact same set a WHOLE-TREE walk filtered by `isEdgeSource` would. If a new
- * source root / partial location is added to the classifier but not to the
- * scoped roots, the whole-tree walk finds files the scoped walk misses → this
- * test fails, catching the drift before it under-reports dependents.
+ * `APP_SOURCE_SUBTREES`, the TASK-9.15 Phase-3A perf win) must gather the exact
+ * same set a WHOLE-TREE walk filtered by `isEdgeSource` would. If a partial
+ * location is added to the classifier but its subtree is not walkable, the
+ * whole-tree walk finds files the scoped walk misses → this test fails, catching
+ * the drift before it under-reports dependents.
  */
 describe('Unit: enumerateEdgeSources (canonical edge-source enumeration)', () => {
   const rootUri = path.normalize('file:/');
@@ -36,7 +32,8 @@ describe('Unit: enumerateEdgeSources (canonical edge-source enumeration)', () =>
     'app/views/partials/card.liquid', // Partial (views/partials)
     'app/lib/helper.liquid', // Partial (lib)
     'marketplace_builder/views/pages/legacy.liquid', // Page (legacy root)
-    'modules/shop/public/views/partials/widget.liquid', // Partial (top-level module)
+    'modules/shop/public/views/partials/widget.liquid', // Partial (top-level module, public)
+    'modules/shop/private/lib/secret.liquid', // Partial (top-level module, PRIVATE access level)
     'app/modules/blog/private/views/pages/post.liquid', // Page (nested app/modules)
   ];
 
@@ -66,21 +63,50 @@ describe('Unit: enumerateEdgeSources (canonical edge-source enumeration)', () =>
   it('the scoped walk equals a whole-tree walk filtered by the classifier (no drift)', async () => {
     const fs = makeFs();
     const scoped = sorted(await enumerateEdgeSources(fs, rootUri));
-    const wholeTree = sorted(await recursiveReadDirectory(fs, rootUri, ([u]) => isEdgeSource(u)));
+    const wholeTree = sorted(
+      (await everyFileUnder(fs, rootUri)).filter((u) => isEdgeSource(u, rootUri)),
+    );
     expect(scoped).toEqual(wholeTree);
   });
 
-  it('isEdgeSource is exactly isLayout || isPage || isPartial', () => {
+  it('isEdgeSource is exactly the Layout/Page/Partial classification', () => {
+    const EDGE_SOURCE_TYPES = [
+      PlatformOSFileType.Layout,
+      PlatformOSFileType.Page,
+      PlatformOSFileType.Partial,
+    ];
     for (const rel of EDGE_SOURCES) {
       const u = uri(rel);
-      expect(isEdgeSource(u)).toBe(true);
-      expect(isLayout(u) || isPage(u) || isPartial(u)).toBe(true);
+      expect(isEdgeSource(u, rootUri)).toBe(true);
+      expect(EDGE_SOURCE_TYPES).toContain(getFileType(u, rootUri));
     }
     for (const rel of Object.keys(NON_EDGE_SOURCES)) {
       const u = uri(rel);
-      expect(isEdgeSource(u)).toBe(false);
-      expect(isLayout(u) || isPage(u) || isPartial(u)).toBe(false);
+      expect(isEdgeSource(u, rootUri)).toBe(false);
+      expect(EDGE_SOURCE_TYPES).not.toContain(getFileType(u, rootUri));
     }
+  });
+
+  /**
+   * The reason the classification is anchored on the root. Unanchored, a directory
+   * named like a platformOS one ANYWHERE in the path classified: these three files
+   * are not part of the app, and counting them in the fingerprint domain made the
+   * supervisor's GraphCache rebuild on edits to files the app never reads.
+   */
+  it('does not admit a platformOS-looking path outside the app subtrees', async () => {
+    const outside = {
+      'tmp/app/views/partials/scratch.liquid': '<div></div>',
+      'seed/post_import/app/views/pages/fixture.liquid': '<div></div>',
+      'node_modules/pkg/app/lib/helper.liquid': '<div></div>',
+    };
+    for (const rel of Object.keys(outside)) expect(isEdgeSource(uri(rel), rootUri)).toBe(false);
+
+    // Control: the same three spellings ARE found when they sit at the real root, so
+    // the silence above is the anchoring, not the fixture or the walk.
+    const files: MockApp = { ...outside };
+    for (const rel of EDGE_SOURCES) files[rel] = '<div></div>';
+    const fs = new MockFileSystem(files, rootUri);
+    expect(sorted(await enumerateEdgeSources(fs, rootUri))).toEqual(sorted(EDGE_SOURCES.map(uri)));
   });
 
   it('never yields a non-platformOS sibling (a bundled react-app/ is skipped)', async () => {
@@ -89,3 +115,28 @@ describe('Unit: enumerateEdgeSources (canonical edge-source enumeration)', () =>
     expect(result).not.toContain(uri('react-app/src/components/Widget.liquid'));
   });
 });
+
+/**
+ * Every file under `baseUri`, by brute-force recursion into every directory.
+ *
+ * Deliberately written HERE, and deliberately NOT `walkAppSourceFiles`: that is the walk
+ * `enumerateEdgeSources` is built on, so using it for the control too would compare the
+ * mechanism against itself and the equivalence assertion above would hold no matter how
+ * wrong `APP_SOURCE_SUBTREES` became. An independent walk is the entire value of that test.
+ *
+ * (It replaces check-common's `recursiveReadDirectory`, which master removed from
+ * production once the anchored walk superseded it. Its only remaining purpose was to be
+ * this control, and a control belongs next to the test that needs it rather than in a
+ * shipped package's public API.)
+ */
+async function everyFileUnder(fs: AbstractFileSystem, baseUri: UriString): Promise<UriString[]> {
+  const entries = await fs.readDirectory(baseUri).catch(() => []);
+
+  const nested = await Promise.all(
+    entries.map(async ([uri, type]) =>
+      type === FileType.Directory ? everyFileUnder(fs, uri) : [uri],
+    ),
+  );
+
+  return nested.flat();
+}

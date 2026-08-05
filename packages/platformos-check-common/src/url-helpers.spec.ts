@@ -275,6 +275,16 @@ describe('tryExtractAssignUrl', () => {
     expect(tryExtractAssignUrl(firstChild('{% assign url = "/ABOUT" | downcase %}'))).toBe(null);
   });
 
+  /**
+   * The tolerant parser leaves `markup` a raw string when the strict assign rule fails
+   * (here a filter missing its colon), and the tag name survives — so reading
+   * `.lookups` off it threw, which took the rest of the file's `MissingPage` findings
+   * with it. `LiquidHTMLSyntaxError` owns the markup itself.
+   */
+  it('returns null for an assign whose markup did not structure', () => {
+    expect(tryExtractAssignUrl(firstChild(`{% assign url = "/about" | append 'x' %}`))).toBe(null);
+  });
+
   it('returns null when assigning to a target with lookups (e.g. obj.field = ...)', () => {
     // {% assign hash["key"] = "/about" %} — has lookups, not a plain variable
     const ast = toLiquidHtmlAST('{% assign url = "/about" %}');

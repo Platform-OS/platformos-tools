@@ -2,7 +2,16 @@ import { LiquidHtmlNode, NodeTypes as LiquidHtmlNodeTypes } from '@platformos/li
 
 import { Schema, Settings } from './types/schema-prop-factory';
 
-import { AbstractFileSystem, RouteTable, UriString } from '@platformos/platformos-common';
+import {
+  AbstractFileSystem,
+  App as AppModel,
+  AppFile,
+  PlatformOSFileType,
+  RouteTable,
+  SourceAppFile,
+  SourceCodeType,
+  UriString,
+} from '@platformos/platformos-common';
 import { JSONCorrector, StringCorrector } from './fixes';
 
 import {
@@ -29,7 +38,7 @@ export const isPropertyNode = (node?: ASTNode): node is PropertyNode => node?.ty
 export const isValueNode = (node?: ASTNode): node is ValueNode => node?.type === 'Value';
 export const isLiteralNode = (node?: ASTNode): node is LiteralNode => node?.type === 'Literal';
 
-export type App = SourceCode<SourceCodeType>[];
+export type { AppModel, AppFile, SourceAppFile };
 
 export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
   ? {
@@ -45,12 +54,31 @@ export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
       ast: AST[T] | Error;
     }
   : never;
-export enum SourceCodeType {
-  JSON = 'JSON',
-  LiquidHtml = 'LiquidHtml',
-  GraphQL = 'GraphQL',
-  YAML = 'YAML',
-}
+
+/**
+ * An {@link AppFile} of a known {@link SourceCodeType}, carrying the AST that type
+ * implies.
+ *
+ * `platformos-common` sits below the parsers that produce ASTs, so an `AppFile`'s
+ * `ast` is typed `unknown` — everything else about it (`uri`, `type`, `source`,
+ * `version`) already matches `SourceCode` exactly. This is the one type that
+ * re-attaches the missing knowledge, and it is applied where the runtime test that
+ * justifies it happens: `filesOfType`, which has just compared `file.type` against
+ * the very discriminant `sourceParsers` is keyed on.
+ *
+ * The conditional distributes, deliberately and for the same reason `SourceCode`
+ * does — a non-distributed `{ type: SourceCodeType; ast: AST[SourceCodeType] | Error }`
+ * decorrelates the two and is not assignable to `SourceCode<SourceCodeType>`.
+ *
+ * A `TypedAppFile<T>` IS a `SourceCode<T>`, so it goes to every check and every
+ * visitor unchanged, and it keeps the file's own identity (`fileType`, `name`,
+ * `relativePath`) available to the engine without re-deriving it from the path.
+ */
+export type TypedAppFile<T extends SourceCodeType = SourceCodeType> = T extends SourceCodeType
+  ? AppFile & { type: T; ast: AST[T] | Error }
+  : never;
+
+export { SourceCodeType };
 
 export type LiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml>;
 export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
@@ -323,13 +351,7 @@ export type Translations = {
  * / `{% background %}` / asset / layout-association edge without re-parsing.
  */
 export type ReferenceKind =
-  | 'render'
-  | 'include'
-  | 'function'
-  | 'background'
-  | 'graphql'
-  | 'asset'
-  | 'layout';
+  'render' | 'include' | 'function' | 'background' | 'graphql' | 'asset' | 'layout';
 
 export type Reference = {
   source: Location;
@@ -380,16 +402,21 @@ export interface Dependencies {
   getDocDefinition?: (relativePath: string) => Promise<DocDefinition | undefined>;
 
   /**
-   * Get references to a file (which files reference this file)
-   * Returns an empty array if no files reference this file
+   * A provider for the run's RouteTable, called at most once per run and only if
+   * a check actually asks for routes — which no check does unless the file under
+   * it links somewhere. The provider OWNS making its table current: check-node's
+   * reconciles a process-level table against the pages on disk, the language
+   * server's builds its persistent, event-maintained table on first use. Absent
+   * means the run builds a throwaway table itself when asked.
+   *
+   * A provider, never an awaited table, on purpose: knowing a route means
+   * reading every page in the project, and 87-97% of real-world Liquid contains
+   * no `<a href>`/`<form action>` whose URL survives `shouldSkipUrl` — resolving
+   * up front was whole-project I/O for nothing. The call also lands while
+   * `lintBuffer`'s buffer overlay is in place, which is what lets an unsaved
+   * page's own frontmatter define its own route.
    */
-  getReferences?: (uri: string) => Promise<Reference[]>;
-
-  /**
-   * Optional pre-built RouteTable. When provided (e.g. by the LSP),
-   * the check pipeline reuses it instead of building a new one per run.
-   */
-  routeTable?: RouteTable;
+  routeTable?: () => Promise<RouteTable>;
 }
 
 export type ValidateJSON = (
@@ -399,7 +426,22 @@ export type ValidateJSON = (
 
 export type IsValidSchema = (uri: string, jsonString: string) => Promise<boolean>;
 
+/** The {@link Dependencies} a caller injects, plus everything {@link check} derives. */
 export interface AugmentedDependencies extends Dependencies {
+  /**
+   * The run's {@link AppModel}.
+   *
+   * `check` fills this in so checks can resolve a `{% render %}` /
+   * `{% graphql %}` / `{% asset %}` name through the app's index — an O(1) lookup
+   * — instead of `stat`-ing candidate directories in order, which cost ~40,000
+   * `stat` calls per whole-project run on a 400-partial project. Hand it to
+   * `DocumentsLocator`, which still walks for a name the index has no answer for.
+   *
+   * Not optional: it was, and a caller that passed a plain array of sources got
+   * `undefined` here with no diagnostic, which is how the language server spent
+   * this whole branch resolving every name by walking candidate paths.
+   */
+  app: AppModel;
   fileExists: (uri: UriString) => Promise<boolean>;
   fileSize: (uri: UriString) => Promise<number>;
   getDefaultLocale: () => Promise<string>;
@@ -421,6 +463,17 @@ type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeTyp
       report(problem: Problem<T>): void;
       toRelativePath(uri: UriString): RelativePath;
       toUri(relativePath: RelativePath): UriString;
+      /**
+       * What the platform does with the file at `uri`, or `undefined` when it is not
+       * part of the app — anchored at `config.rootUri`.
+       *
+       * Checks must classify through this rather than by calling `getFileType(uri)`
+       * with a bare URI, which cannot be anchored and so answers a different question:
+       * `seed/post_import/app/migrations/x.liquid` contains `app/migrations/` and is
+       * not a migration. Defaults to the file being checked, which is what almost
+       * every caller wants.
+       */
+      fileType(uri?: UriString): PlatformOSFileType | undefined;
       file: SourceCode<T>;
       validateJSON?: ValidateJSON;
     }
@@ -502,8 +555,19 @@ export interface FixDescription {
  * [2]: https://codemirror.net/docs/ref/#state.EditorState.update
  */
 export interface FixApplicator {
-  (source: SourceCode<SourceCodeType>, fixes: Fix): Promise<void>;
+  (source: FixableSource, fixes: Fix): Promise<void>;
 }
+
+/**
+ * What a {@link FixApplicator} needs of the file it is fixing: where to write it,
+ * which corrector produced the fixes, and the string they apply to.
+ *
+ * Narrower than `SourceCode` on purpose. No applicator reads the AST — the CLI's
+ * writes the corrected string to disk, the language server's collects `TextEdit`s —
+ * and asking for one would mean `autofix` had to claim an AST type for every file
+ * in the app, including the ones it skips because they have no fixable offense.
+ */
+export type FixableSource = { uri: string; type: SourceCodeType; source: string };
 
 /**
  * A suggestion is a Fix that we cannot apply automatically. Perhaps

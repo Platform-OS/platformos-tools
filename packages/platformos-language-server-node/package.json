@@ -29,6 +29,7 @@
   "dependencies": {
     "@platformos/platformos-check-docs-updater": "0.0.19",
     "@platformos/platformos-check-node": "0.0.19",
+    "@platformos/platformos-common": "0.0.17",
     "@platformos/platformos-language-server-common": "0.0.19",
     "glob": "^13.0.0",
     "vscode-languageserver": "^9.0.1",

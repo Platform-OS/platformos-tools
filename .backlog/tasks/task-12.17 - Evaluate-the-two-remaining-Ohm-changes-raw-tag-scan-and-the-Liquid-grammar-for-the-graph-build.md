@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-30 00:23'
+updated_date: '2026-08-04 12:48'
 labels:
   - performance
   - liquid-html-parser
@@ -13,6 +14,7 @@ labels:
 dependencies: []
 parent_task_id: TASK-12
 priority: medium
+ordinal: 46000
 ---
 
 ## Description

@@ -2,36 +2,20 @@ import {
   LiquidHtmlNode,
   LiquidTag,
   LiquidVariableLookup,
-  LiquidVariable,
-  LiquidExpression,
-  LiquidFilter,
-  LiquidString,
   NodeTypes,
-  NamedTags,
-  TextNode,
-  GraphQLMarkup,
-  GraphQLInlineMarkup,
-  FunctionMarkup,
-  HashAssignMarkup,
-  JsonHashLiteral,
-  JsonArrayLiteral,
+  toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
-import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isError } from '../../utils';
-import {
-  PropertyShape,
-  inferShapeFromJSONString,
-  inferShapeFromGraphQL,
-  lookupPropertyPath,
-} from './property-shape';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
-
-interface VariableShape {
-  name: string;
-  shape: PropertyShape;
-  range: [start: number, end?: number];
-}
+import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
+import { isError } from '../../utils';
+import { lookupPropertyPath } from './property-shape';
+import {
+  AnalyzableFile,
+  ShapeAnalyzerDeps,
+  buildLookupPath,
+  createShapeAnalyzer,
+} from './shape-analysis';
 
 export const UnknownProperty: LiquidCheckDefinition = {
   meta: {
@@ -53,344 +37,113 @@ export const UnknownProperty: LiquidCheckDefinition = {
     const ast = context.file.ast;
     if (isError(ast)) return {};
 
-    const locator = new DocumentsLocator(context.fs);
+    const locator = new DocumentsLocator(context.fs, context.app);
     const rootUri = URI.parse(context.config.rootUri);
 
-    // Cache for GraphQL schema
     let graphqlSchema: string | undefined;
-    const getGraphQLSchema = async (): Promise<string | undefined> => {
-      if (graphqlSchema === undefined) {
+    let graphqlSchemaLoaded = false;
+    const getSchema = async (): Promise<string | undefined> => {
+      if (!graphqlSchemaLoaded) {
         graphqlSchema = (await context.platformosDocset?.graphQL()) ?? undefined;
+        graphqlSchemaLoaded = true;
       }
       return graphqlSchema;
     };
 
-    // Track variables with known shapes
-    const variableShapes: VariableShape[] = [];
-
-    // Collect variable lookups to validate
-    const lookups: LiquidVariableLookup[] = [];
-
-    // Helper to close previous shape ranges when a variable is reassigned
-    const closeShapeRange = (variableName: string, endPosition: number) => {
-      for (let i = variableShapes.length - 1; i >= 0; i--) {
-        if (variableShapes[i].name === variableName && variableShapes[i].range[1] === undefined) {
-          variableShapes[i].range[1] = endPosition;
-          break;
-        }
+    /**
+     * A file's current content, preferring the app's copy — an editor buffer beats
+     * what is on disk, and the app has already read most of these once.
+     */
+    const readContent = async (uri: string): Promise<string | undefined> => {
+      const file = context.app.get(uri);
+      if (file) {
+        await file.load();
+        return file.loadedSource;
+      }
+      try {
+        return await context.fs.readFile(uri);
+      } catch {
+        return undefined;
       }
     };
 
+    /**
+     * The partial a `{% function %}` calls, with its parse. The app's `AppFile` owns
+     * the parse when it has one, so a partial called from thirty pages is parsed once
+     * per run rather than once per call site.
+     */
+    const readPartial = async (name: string): Promise<AnalyzableFile | undefined> => {
+      const uri = await locator.locate(rootUri, 'function', name);
+      if (!uri) return undefined;
+
+      const file = context.app.get(uri);
+      if (file) {
+        await file.load();
+        const parsed = file.ast;
+        if (file.loadedSource === undefined || !isLiquidDocument(parsed)) return undefined;
+        return { uri, source: file.loadedSource, ast: parsed };
+      }
+
+      const source = await readContent(uri);
+      if (source === undefined) return undefined;
+      try {
+        return { uri, source, ast: toLiquidHtmlAST(source) };
+      } catch {
+        return undefined;
+      }
+    };
+
+    const deps: ShapeAnalyzerDeps = {
+      async readGraphQL(name: string) {
+        const uri = await locator.locate(rootUri, 'graphql', name);
+        if (!uri) return undefined;
+        const content = await readContent(uri);
+        return content === undefined ? undefined : { uri, content };
+      },
+      readPartial,
+      readContent,
+      getSchema,
+    };
+
+    const analyzer = createShapeAnalyzer(deps, { callChain: new Set([context.file.uri]) });
+
     return {
-      async LiquidTag(node: LiquidTag) {
-        // {% assign x = '{"a": 5}' | parse_json %}
-        // {% assign x = var | default: '{"fallback": true}' | parse_json %}
-        if (isLiquidTagAssign(node)) {
-          const markup = node.markup;
-
-          // Close any previous shape for this variable (reassignment).
-          // Use the value expression's end so the RHS can still see the old shape
-          // (e.g. {% assign c = c.d %} — c.d must resolve against the previous shape of c).
-          closeShapeRange(markup.name, markup.value.position.end);
-
-          const hasParseJsonFilter =
-            markup.value.filters &&
-            markup.value.filters.some(
-              (f: { name: string }) => f.name === 'parse_json' || f.name === 'to_hash',
-            );
-
-          if (hasParseJsonFilter) {
-            let jsonString: string | undefined;
-
-            // Check if expression is a direct JSON string
-            if (markup.value.expression.type === NodeTypes.String) {
-              jsonString = markup.value.expression.value;
-            }
-
-            // Check if there's a default filter with a JSON string argument
-            if (!jsonString && markup.value.filters) {
-              const defaultFilter = markup.value.filters.find(
-                (f: { name: string }) => f.name === 'default',
-              );
-              if (defaultFilter && defaultFilter.args && defaultFilter.args.length > 0) {
-                const firstArg = defaultFilter.args[0];
-                if (firstArg.type === NodeTypes.String) {
-                  jsonString = firstArg.value;
-                }
-              }
-            }
-
-            if (jsonString) {
-              const shape = inferShapeFromJSONString(jsonString);
-              if (shape) {
-                variableShapes.push({
-                  name: markup.name,
-                  shape,
-                  range: [node.position.end],
-                });
-              }
-            }
-          }
-
-          // {% assign x = {a: 5, b: {c: 1}} %} or {% assign x = [1, 2, 3] %}
-          const exprType = markup.value.expression.type;
-          if (exprType === NodeTypes.JsonHashLiteral || exprType === NodeTypes.JsonArrayLiteral) {
-            const shape = inferShapeFromLiteralNode(markup.value.expression);
-            if (shape) {
-              variableShapes.push({
-                name: markup.name,
-                shape,
-                range: [node.position.end],
-              });
-            }
-          }
-
-          // {% assign x = y | dig: "key1" | dig: "key2" %}
-          // Follow the dig path through the source variable's known shape.
-          const digFilters =
-            markup.value.filters?.filter((f: { name: string }) => f.name === 'dig') ?? [];
-          if (digFilters.length > 0 && markup.value.expression.type === NodeTypes.VariableLookup) {
-            const expr = markup.value.expression as LiquidVariableLookup;
-            if (expr.name) {
-              const digPath: string[] = [];
-              let validDigPath = true;
-              for (const digFilter of digFilters) {
-                const arg = digFilter.args?.[0];
-                if (arg?.type === NodeTypes.String) {
-                  digPath.push(arg.value);
-                } else {
-                  validDigPath = false;
-                  break;
-                }
-              }
-
-              if (validDigPath && digPath.length > 0) {
-                // Combine any lookups on the source expression (e.g. y.a | dig: "b")
-                // with the dig path to get the full navigation path.
-                const sourceLookupPath = buildLookupPath(expr.lookups);
-                const fullPath = sourceLookupPath ? [...sourceLookupPath, ...digPath] : digPath;
-
-                const sourceIdx = findLastApplicableShapeIndex(
-                  expr.name,
-                  node.position.start,
-                  variableShapes,
-                );
-                if (sourceIdx !== -1) {
-                  const result = lookupPropertyPath(variableShapes[sourceIdx].shape, fullPath);
-                  if (result.shape && !result.error) {
-                    variableShapes.push({
-                      name: markup.name,
-                      shape: result.shape,
-                      range: [node.position.end],
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        // {% parse_json x %}{"a": 5}{% endparse_json %}
-        if (isLiquidTagParseJson(node)) {
-          const variableName = node.markup.name;
-          if (variableName && node.children) {
-            // Close any previous shape for this variable (reassignment)
-            closeShapeRange(variableName, node.position.start);
-
-            const textContent = node.children
-              .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
-              .map((c) => c.value)
-              .join('');
-            const shape = inferShapeFromJSONString(textContent);
-            if (shape) {
-              variableShapes.push({
-                name: variableName,
-                shape,
-                range: [node.blockEndPosition?.end ?? node.position.end],
-              });
-            }
-          }
-        }
-
-        // {% graphql result = 'query_name' %} (file-based)
-        if (isLiquidTagGraphQL(node) && isGraphQLMarkup(node.markup)) {
-          const markup = node.markup;
-          const graphqlFile = isLiquidString(markup.graphql) ? markup.graphql.value : null;
-
-          if (graphqlFile) {
-            const located = await locator.locate(rootUri, 'graphql', graphqlFile);
-            if (located) {
-              try {
-                const content = await context.fs.readFile(located);
-                const schema = await getGraphQLSchema();
-                const shape = inferShapeFromGraphQL(content, schema);
-                if (shape) {
-                  const resultShape = applyDigFilters(shape, markup.filters);
-                  if (resultShape) {
-                    variableShapes.push({
-                      name: markup.name,
-                      shape: resultShape,
-                      range: [node.position.end],
-                    });
-                  }
-                }
-              } catch {
-                // File read error - skip
-              }
-            }
-          }
-        }
-
-        // {% graphql result %}...inline graphql...{% endgraphql %} (inline)
-        if (isLiquidTagGraphQL(node) && isGraphQLInlineMarkup(node.markup)) {
-          const markup = node.markup;
-          if (node.children) {
-            const textContent = node.children
-              .filter((c): c is TextNode => c.type === NodeTypes.TextNode)
-              .map((c) => c.value)
-              .join('');
-            const schema = await getGraphQLSchema();
-            const shape = inferShapeFromGraphQL(textContent, schema);
-            if (shape) {
-              const resultShape = applyDigFilters(shape, markup.filters);
-              if (resultShape) {
-                variableShapes.push({
-                  name: markup.name,
-                  shape: resultShape,
-                  range: [node.blockEndPosition?.end ?? node.position.end],
-                });
-              }
-            }
-          }
-        }
-
-        // {% function object = 'partial_name', arg: value %}
-        // The function tag reassigns the variable to the return value of the partial,
-        // which has an unknown shape. Close any tracked shape so we don't false-positive.
-        if (isLiquidTagFunction(node)) {
-          const markup = node.markup;
-          const variableName = markup.name.name;
-          if (variableName) {
-            closeShapeRange(variableName, node.position.start);
-          }
-        }
-
-        // {% hash_assign x["key"] = value %} or {% hash_assign x["a"]["b"] = value %}
-        if (isLiquidTagHashAssign(node)) {
-          const markup = node.markup;
-          const variableName = markup.target.name;
-          const lookupPath = getHashAssignLookupPath(markup);
-
-          if (variableName && lookupPath && lookupPath.length > 0) {
-            // Determine value shape - check if value is a JSON string with parse_json filter
-            let valueShape: PropertyShape = { kind: 'primitive' };
-            if (markup.value.expression.type === NodeTypes.String) {
-              const hasParseJsonFilter = markup.value.filters.some(
-                (f) => f.name === 'parse_json' || f.name === 'to_hash',
-              );
-              if (hasParseJsonFilter) {
-                const inferredShape = inferShapeFromJSONString(markup.value.expression.value);
-                if (inferredShape) {
-                  valueShape = inferredShape;
-                }
-              }
-            }
-
-            // Find existing shape for this variable
-            const existingIdx = findLastApplicableShapeIndex(
-              variableName,
-              node.position.start,
-              variableShapes,
-            );
-
-            if (existingIdx !== -1) {
-              // Merge the new property into existing shape
-              const existing = variableShapes[existingIdx];
-              const newShape = mergeNestedPropertyIntoShape(existing.shape, lookupPath, valueShape);
-              variableShapes.push({
-                name: variableName,
-                shape: newShape,
-                range: [node.position.end],
-              });
-            } else {
-              // Create new object shape with this property
-              const newShape = mergeNestedPropertyIntoShape(
-                { kind: 'object', properties: new Map() },
-                lookupPath,
-                valueShape,
-              );
-              variableShapes.push({
-                name: variableName,
-                shape: newShape,
-                range: [node.position.end],
-              });
-            }
-          }
-        }
+      async LiquidTag(node: LiquidTag, ancestors: LiquidHtmlNode[]) {
+        await analyzer.handleLiquidTag(node, ancestors);
       },
 
       async VariableLookup(node: LiquidVariableLookup, ancestors: LiquidHtmlNode[]) {
-        if (node.lookups.length > 0) {
-          // Skip the target of hash_assign - it's being defined, not accessed
-          const parent = ancestors[ancestors.length - 1];
-          if (isHashAssignMarkup(parent) && parent.target === node) {
-            return;
-          }
-          lookups.push(node);
-        }
+        analyzer.handleVariableLookup(node, ancestors);
       },
 
       async onCodePathEnd() {
-        for (const lookup of lookups) {
+        for (const lookup of analyzer.lookups) {
           if (!lookup.name) continue;
 
-          // Find the applicable shape for this variable at this position
-          const shapeIdx = findLastApplicableShapeIndex(
-            lookup.name,
-            lookup.position.start,
-            variableShapes,
-          );
+          // No known shape - don't validate (could be dynamic/external)
+          const shape = analyzer.shapeAt(lookup.name, lookup.position.start);
+          if (!shape) continue;
 
-          if (shapeIdx === -1) {
-            // No known shape - don't validate (could be dynamic/external)
-            continue;
-          }
-
-          const applicableShape = variableShapes[shapeIdx];
-
-          // Build the lookup path
+          // A dynamic path (`a[key]`) can't be validated
           const path = buildLookupPath(lookup.lookups);
-          if (!path) {
-            // Path contains dynamic access - can't validate
-            continue;
-          }
+          if (!path) continue;
 
-          // Check if the path is valid
-          const result = lookupPropertyPath(applicableShape.shape, path);
+          const result = lookupPropertyPath(shape, path);
+          if (result.errorAt === undefined) continue;
 
-          if (result.error === 'unknown_property' && result.errorAt !== undefined) {
-            const invalidProperty = path[result.errorAt];
-            const accessPath =
-              result.errorAt > 0
-                ? `${lookup.name}.${path.slice(0, result.errorAt).join('.')}`
-                : lookup.name;
+          const accessPath =
+            result.errorAt > 0
+              ? `${lookup.name}.${path.slice(0, result.errorAt).join('.')}`
+              : lookup.name;
+          const invalidLookup = lookup.lookups[result.errorAt];
 
-            // Find position of the invalid lookup
-            const invalidLookup = lookup.lookups[result.errorAt];
-
+          if (result.error === 'unknown_property') {
             context.report({
-              message: `Unknown property '${invalidProperty}' on '${accessPath}'.`,
+              message: `Unknown property '${path[result.errorAt]}' on '${accessPath}'.`,
               startIndex: invalidLookup.position.start,
               endIndex: invalidLookup.position.end,
             });
-          } else if (result.error === 'primitive_access' && result.errorAt !== undefined) {
-            const accessPath =
-              result.errorAt > 0
-                ? `${lookup.name}.${path.slice(0, result.errorAt).join('.')}`
-                : lookup.name;
-
-            const invalidLookup = lookup.lookups[result.errorAt];
-
+          } else if (result.error === 'primitive_access') {
             context.report({
               message: `Cannot access property '${
                 path[result.errorAt]
@@ -405,231 +158,10 @@ export const UnknownProperty: LiquidCheckDefinition = {
   },
 };
 
-function findLastApplicableShapeIndex(
-  variableName: string,
-  position: number,
-  shapes: VariableShape[],
-): number {
-  let lastIdx = -1;
-
-  for (let i = 0; i < shapes.length; i++) {
-    const shape = shapes[i];
-    if (shape.name !== variableName) continue;
-    const [start, end] = shape.range;
-    if (position <= start) continue;
-    if (end && position > end) continue;
-    lastIdx = i;
-  }
-
-  return lastIdx;
-}
-
-function buildLookupPath(lookups: LiquidExpression[]): string[] | undefined {
-  const path: string[] = [];
-
-  for (const lookup of lookups) {
-    if (lookup.type === NodeTypes.String) {
-      path.push(lookup.value);
-    } else if (lookup.type === NodeTypes.Number) {
-      path.push(String(lookup.value));
-    } else {
-      // Dynamic lookup (variable) - can't validate
-      return undefined;
-    }
-  }
-
-  return path;
-}
-
-/**
- * Navigate a shape using the `dig` filters from a tag's result filters.
- * Returns the navigated shape, or the original shape if no dig filters are present.
- * Returns null if the dig path is dynamic or navigates to an unknown property.
- */
-function applyDigFilters(shape: PropertyShape, filters: LiquidFilter[]): PropertyShape | null {
-  const digFilters = filters.filter((f) => f.name === 'dig');
-  if (digFilters.length === 0) return shape;
-
-  const digPath: string[] = [];
-  for (const filter of digFilters) {
-    const arg = filter.args?.[0];
-    if (arg?.type === NodeTypes.String) {
-      digPath.push(arg.value);
-    } else {
-      return null;
-    }
-  }
-
-  const result = lookupPropertyPath(shape, digPath);
-  return result.error || !result.shape ? null : result.shape;
-}
-
-/**
- * Extract the lookup path from a hash_assign target.
- * For {% hash_assign a['key1']['key2'] = value %}, returns ['key1', 'key2']
- */
-function getHashAssignLookupPath(markup: HashAssignMarkup): string[] | undefined {
-  const path: string[] = [];
-
-  for (const lookup of markup.target.lookups) {
-    if (lookup.type === NodeTypes.String) {
-      path.push(lookup.value);
-    } else if (lookup.type === NodeTypes.Number) {
-      path.push(String(lookup.value));
-    } else {
-      // Dynamic lookup - can't determine statically
-      return undefined;
-    }
-  }
-
-  return path.length > 0 ? path : undefined;
-}
-
-/**
- * Merge a nested property into a shape following a path.
- * For path ['a', 'b'] and valueShape, creates/updates shape.a.b = valueShape
- */
-function mergeNestedPropertyIntoShape(
-  shape: PropertyShape,
-  path: string[],
-  valueShape: PropertyShape,
-): PropertyShape {
-  if (path.length === 0) {
-    return valueShape;
-  }
-
-  const [key, ...rest] = path;
-
-  if (shape.kind !== 'object') {
-    // Convert to object
-    const properties = new Map<string, PropertyShape>();
-    if (rest.length === 0) {
-      properties.set(key, valueShape);
-    } else {
-      properties.set(
-        key,
-        mergeNestedPropertyIntoShape({ kind: 'object', properties: new Map() }, rest, valueShape),
-      );
-    }
-    return { kind: 'object', properties };
-  }
-
-  const newProperties = new Map(shape.properties);
-  if (rest.length === 0) {
-    newProperties.set(key, valueShape);
-  } else {
-    const existingNested = newProperties.get(key) || { kind: 'object', properties: new Map() };
-    newProperties.set(key, mergeNestedPropertyIntoShape(existingNested, rest, valueShape));
-  }
-  return { kind: 'object', properties: newProperties };
-}
-
-// Type guards
-function isLiquidTagAssign(
-  node: LiquidTag,
-): node is LiquidTag & { markup: { name: string; value: LiquidVariable } } {
-  return node.name === NamedTags.assign && typeof node.markup !== 'string';
-}
-
-function isLiquidTagParseJson(
-  node: LiquidTag,
-): node is LiquidTag & { markup: LiquidVariableLookup; children: LiquidHtmlNode[] } {
-  return node.name === NamedTags.parse_json && typeof node.markup !== 'string';
-}
-
-function isLiquidTagGraphQL(
-  node: LiquidTag,
-): node is LiquidTag & { markup: GraphQLMarkup | GraphQLInlineMarkup } {
-  return node.name === NamedTags.graphql && typeof node.markup !== 'string';
-}
-
-function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
-  return node.name === NamedTags.function && typeof node.markup !== 'string';
-}
-
-function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {
-  return node.name === NamedTags.hash_assign && typeof node.markup !== 'string';
-}
-
-function isHashAssignMarkup(node: unknown): node is HashAssignMarkup {
+function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
   return (
-    typeof node === 'object' &&
-    node !== null &&
-    'type' in node &&
-    node.type === NodeTypes.HashAssignMarkup
+    typeof ast === 'object' &&
+    ast !== null &&
+    (ast as { type?: unknown }).type === NodeTypes.Document
   );
-}
-
-function isGraphQLMarkup(markup: GraphQLMarkup | GraphQLInlineMarkup): markup is GraphQLMarkup {
-  return markup.type === NodeTypes.GraphQLMarkup;
-}
-
-function isGraphQLInlineMarkup(
-  markup: GraphQLMarkup | GraphQLInlineMarkup,
-): markup is GraphQLInlineMarkup {
-  return markup.type === NodeTypes.GraphQLInlineMarkup;
-}
-
-function isLiquidString(expr: LiquidString | LiquidVariableLookup): expr is LiquidString {
-  return expr.type === NodeTypes.String;
-}
-
-/**
- * Infer a PropertyShape from a JsonHashLiteral or JsonArrayLiteral AST node.
- */
-function inferShapeFromLiteralNode(
-  node: JsonHashLiteral | JsonArrayLiteral,
-): PropertyShape | undefined {
-  if (node.type === NodeTypes.JsonArrayLiteral) {
-    let itemShape: PropertyShape | undefined;
-    for (const element of node.elements) {
-      const elShape = inferShapeFromExpressionNode(element);
-      if (elShape) {
-        itemShape = itemShape ? itemShape : elShape;
-      }
-    }
-    return { kind: 'array', itemShape };
-  }
-
-  if (node.type === NodeTypes.JsonHashLiteral) {
-    const properties = new Map<string, PropertyShape>();
-    for (const entry of node.entries) {
-      // Keys can be VariableLookup nodes (bare keys) or String nodes (quoted keys)
-      let keyName: string | undefined;
-      if (entry.key.type === NodeTypes.VariableLookup && entry.key.name) {
-        keyName = entry.key.name;
-      } else if (entry.key.type === NodeTypes.String) {
-        keyName = entry.key.value;
-      }
-      if (keyName) {
-        const valueShape = inferShapeFromExpressionNode(entry.value);
-        properties.set(keyName, valueShape ?? { kind: 'primitive' });
-      }
-    }
-    return { kind: 'object', properties };
-  }
-
-  return undefined;
-}
-
-/**
- * Infer a PropertyShape from a Liquid expression or variable node.
- */
-function inferShapeFromExpressionNode(node: LiquidExpression | LiquidVariable): PropertyShape {
-  if (node.type === NodeTypes.JsonHashLiteral) {
-    return inferShapeFromLiteralNode(node as JsonHashLiteral) ?? { kind: 'primitive' };
-  }
-  if (node.type === NodeTypes.JsonArrayLiteral) {
-    return inferShapeFromLiteralNode(node as JsonArrayLiteral) ?? { kind: 'primitive' };
-  }
-  if (node.type === NodeTypes.String) {
-    return { kind: 'primitive', primitiveType: 'string' };
-  }
-  if (node.type === NodeTypes.Number) {
-    return { kind: 'primitive', primitiveType: 'number' };
-  }
-  if (node.type === NodeTypes.LiquidLiteral) {
-    return { kind: 'primitive' };
-  }
-  return { kind: 'primitive' };
 }

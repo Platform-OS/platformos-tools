@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-08-01 03:00'
+updated_date: '2026-08-04 12:48'
 labels:
   - bug
   - mcp-supervisor
@@ -18,6 +19,7 @@ references:
 modified_files:
   - packages/platformos-mcp-supervisor/src/result/blocking.ts
 priority: medium
+ordinal: 49000
 ---
 
 ## Description

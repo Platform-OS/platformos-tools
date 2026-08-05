@@ -181,13 +181,24 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
  * - `PartialCallArguments` reports TWO different things under one code: an unknown
  *   (dead) argument, and a missing required one. There is no structured
  *   discriminator on the offense, and non-goal #2 forbids regex over messages, so
- *   the code cannot be split here. It is non-blocking wholesale, which is safe
- *   because the blocking half is independently covered: a partial with a `{% doc %}`
- *   block also raises `MissingRenderPartialArguments`, which DOES block (verified —
- *   both fire together). What that leaves unblocked is a DOC-LESS partial whose
- *   required params are INFERRED from usage. Blocking a write on a heuristic
- *   inference is exactly the false block this task removes, and the failure mode is
- *   a nil value rather than a crash.
+ *   the code cannot be split here. It is non-blocking wholesale, and what makes that
+ *   safe is that the check now only ever looks at UNDOCUMENTED partials: one whose
+ *   `{% doc %}` block declares a contract is owned entirely by
+ *   `MissingRenderPartialArguments` (which DOES block) and
+ *   `UnrecognizedRenderPartialArguments`. So the documented case is covered by a
+ *   blocking check, and everything this code still reports rests on required params
+ *   INFERRED from undefined variables in the partial's source. Blocking a write on a
+ *   heuristic inference is exactly the false block this task removes, and the failure
+ *   mode is a nil value rather than a crash.
+ *
+ *   THE JUSTIFICATION CHANGED WHILE THE CONCLUSION HELD, which is worth recording.
+ *   This used to read "a partial with a `{% doc %}` block ALSO raises
+ *   `MissingRenderPartialArguments` (verified — both fire together)", and that was
+ *   measured and true at the time. The check was later rewritten to split ownership by
+ *   whether a contract exists, so the two no longer fire together at all — the
+ *   documented case is not double-reported, it is not reported here at all. Same
+ *   verdict, sounder reason, and the emission suite pins both halves so neither the
+ *   fact nor its replacement rests on this comment.
  * - `UnrecognizedRenderPartialArguments` is the same dead-argument finding.
  * - `MissingAsset` — REMOVED from the set after measurement. `asset_url` is pure
  *   string construction: it never resolves the asset, never raises, and even

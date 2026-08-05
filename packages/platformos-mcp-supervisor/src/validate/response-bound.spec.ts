@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { path as pathUtils } from '@platformos/platformos-check-common';
-import { AppCache } from '@platformos/platformos-check-node';
 
 import { MAX_BUFFER_BYTES } from '../adapter-input.js';
 import { MAX_RESPONSE_DIAGNOSTIC_BYTES, maxResponseBytes } from '../cost-model.js';
@@ -53,7 +52,6 @@ describe('Integration: the response is bounded, and says so when it withholds', 
   const ctx = (): SupervisorContext => ({
     projectDir,
     graphCache: new GraphCache({ rootUri: pathUtils.toUri(projectDir) }),
-    appCache: new AppCache(),
     log: () => {},
   });
 

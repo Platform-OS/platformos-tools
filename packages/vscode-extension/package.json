@@ -63,6 +63,7 @@
   "dependencies": {
     "@platformos/liquid-html-parser": "^0.0.17",
     "@platformos/platformos-check-common": "0.0.19",
+    "@platformos/platformos-common": "0.0.17",
     "@platformos/platformos-language-server-browser": "0.0.19",
     "@platformos/platformos-language-server-common": "0.0.19",
     "@platformos/platformos-language-server-node": "0.0.19",
@@ -84,6 +85,7 @@
     "chai": "^6.2.2",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.8",
+    "minimatch": "^10.2.2",
     "ovsx": "^0.10.9",
     "rimraf": "^6.1.3",
     "vscode-test": "^1.3.0"
@@ -179,16 +181,6 @@
         "editor.formatOnType": true
       }
     },
-    "jsonValidation": [
-      {
-        "fileMatch": [
-          "assets/*.json",
-          "config/*.json",
-          "locales/*.json"
-        ],
-        "url": "./allowCommentsSchema.json"
-      }
-    ],
     "languages": [
       {
         "id": "liquid",
@@ -201,14 +193,6 @@
         "extensions": [
           ".liquid"
         ]
-      },
-      {
-        "id": "jsonc",
-        "filenamePatterns": [
-          "**/assets/*.json",
-          "**/config/*.json",
-          "**/locales/*.json"
-        ]
       }
     ],
     "grammars": [
@@ -218,7 +202,9 @@
         "path": "./syntaxes/grammars/liquid.tmLanguage.json",
         "embeddedLanguages": {
           "meta.embedded.block.css": "css",
-          "meta.embedded.block.js": "javascript"
+          "meta.embedded.block.js": "javascript",
+          "meta.embedded.block.graphql": "graphql",
+          "meta.embedded.block.json": "json"
         }
       },
       {

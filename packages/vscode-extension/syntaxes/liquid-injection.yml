@@ -10,6 +10,8 @@ injectionSelector: |
   L:meta.embedded.block.js,
   L:meta.embedded.block.css,
   L:meta.embedded.block.html,
+  L:meta.embedded.block.graphql,
+  L:meta.embedded.block.json,
   L:entity.other.attribute-name.html,
   L:meta.tag.custom.start.html,
   L:meta.tag.structure,

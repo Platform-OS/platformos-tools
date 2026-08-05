@@ -400,10 +400,7 @@ export interface ConcreteLiquidTagLiquid extends ConcreteLiquidTagNode<
   ConcreteLiquidLiquidTagNode[]
 > {}
 export type ConcreteLiquidLiquidTagNode =
-  | ConcreteLiquidTagOpen
-  | ConcreteLiquidTagClose
-  | ConcreteLiquidTag
-  | ConcreteLiquidRawTag;
+  ConcreteLiquidTagOpen | ConcreteLiquidTagClose | ConcreteLiquidTag | ConcreteLiquidRawTag;
 
 export interface ConcreteLiquidTagAssign extends ConcreteLiquidTagNode<
   NamedTags.assign,
@@ -680,8 +677,7 @@ export type ConcreteLiquidExpression =
   | ConcreteJsonArrayLiteral;
 
 export type ConcreteComplexLiquidExpression =
-  | ConcreteLiquidBooleanExpression
-  | ConcreteLiquidExpression;
+  ConcreteLiquidBooleanExpression | ConcreteLiquidExpression;
 
 export interface ConcreteLiquidBooleanExpression extends ConcreteBasicNode<ConcreteNodeTypes.BooleanExpression> {
   conditions: ConcreteLiquidCondition[];
@@ -749,15 +745,10 @@ export interface ConcreteYamlFrontmatterNode extends ConcreteBasicNode<ConcreteN
 }
 
 export type LiquidHtmlConcreteNode =
-  | ConcreteHtmlNode
-  | ConcreteYamlFrontmatterNode
-  | LiquidConcreteNode;
+  ConcreteHtmlNode | ConcreteYamlFrontmatterNode | LiquidConcreteNode;
 
 export type LiquidConcreteNode =
-  | ConcreteLiquidNode
-  | ConcreteTextNode
-  | ConcreteYamlFrontmatterNode
-  | LiquidDocConcreteNode;
+  ConcreteLiquidNode | ConcreteTextNode | ConcreteYamlFrontmatterNode | LiquidDocConcreteNode;
 
 export type LiquidHtmlCST = LiquidHtmlConcreteNode[];
 

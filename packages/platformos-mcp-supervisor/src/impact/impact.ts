@@ -15,12 +15,11 @@
  */
 import {
   extractDocDefinition,
-  isKnownGraphQLFile,
-  isKnownLiquidFile,
   path,
   SourceCodeType,
   type UriString,
 } from '@platformos/platformos-check-common';
+import { sourceCodeTypeOf } from '@platformos/platformos-common';
 import {
   type AppGraph,
   dependentsOf,
@@ -58,7 +57,12 @@ const SIGNATURE_EDGE_KINDS: ReadonlySet<ReferenceKind> = new Set(['render', 'inc
  * false "safe to change". Those get `status: 'not_applicable'` instead.
  */
 function isGraphTrackable(uri: UriString): boolean {
-  return isKnownLiquidFile(uri) || isKnownGraphQLFile(uri);
+  // The graph's edge-target types, asked by extension. `sourceCodeTypeOf` replaced
+  // check-common's `isKnownLiquidFile`/`isKnownGraphQLFile`, which said the same thing in
+  // two functions; naming the two types explicitly keeps the YAML case visibly excluded,
+  // which is the distinction the docblock above turns on.
+  const type = sourceCodeTypeOf(uri);
+  return type === SourceCodeType.LiquidHtml || type === SourceCodeType.GraphQL;
 }
 
 /** A fresh zeroed dependents shape for every non-`computed` status. */

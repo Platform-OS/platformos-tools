@@ -1,5 +1,5 @@
-import { path, UriString } from '@platformos/platformos-check-common';
-import { extractGraphqlTables, extractSchemaTable } from '@platformos/platformos-common';
+import { extractGraphqlTables, path, UriString } from '@platformos/platformos-check-common';
+import { extractSchemaTable } from '@platformos/platformos-common';
 
 import {
   AppGraph,

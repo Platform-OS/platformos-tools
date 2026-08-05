@@ -3,8 +3,10 @@ import { LiquidCheckDefinition, RelativePath, Severity, SourceCodeType } from '.
 import {
   containsLiquid,
   FRONTMATTER_ASSOCIATION_DIRS,
+  getAppDirPath,
   getFrontmatterSchema,
-  getFileType,
+  getModuleDirPaths,
+  parseModulePrefix,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
 import { doesFileExist } from '../../utils/file-utils';
@@ -62,7 +64,7 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
         // Absolute offset of the first character of yamlBody in source
         const bodyOffset = leadingLen + firstNewline + 1;
 
-        const fileType = getFileType(file.uri);
+        const fileType = context.fileType(file.uri);
         const schema = getFrontmatterSchema(fileType);
         if (!schema) return;
 
@@ -203,7 +205,7 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
             doc,
             bodyOffset,
             'authorization_policies',
-            `app/${FRONTMATTER_ASSOCIATION_DIRS['authorization_policies']}`,
+            FRONTMATTER_ASSOCIATION_DIRS['authorization_policies'],
             'Authorization policy',
             context,
           );
@@ -213,14 +215,7 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
         if (fileType === PlatformOSFileType.FormConfiguration) {
           for (const [field, dir] of Object.entries(FRONTMATTER_ASSOCIATION_DIRS)) {
             if (field === 'authorization_policies') continue; // only on Page, handled above
-            await checkNotificationArray(
-              doc,
-              bodyOffset,
-              field,
-              `app/${dir}`,
-              fieldLabel(field),
-              context,
-            );
+            await checkNotificationArray(doc, bodyOffset, field, dir, fieldLabel(field), context);
           }
         }
       },
@@ -231,10 +226,13 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
 /**
  * Checks each string item of a YAML sequence field against the filesystem.
  *
- * App-level items (e.g. `require_login`) are looked up at `{dir}/{name}.liquid`.
- * Module-prefixed items (e.g. `modules/community/require_login`) are looked up
- * at modules/{mod}/{public|private}/{moduleDir}/{name}.liquid where moduleDir
- * is derived from dir by stripping the leading `app/` segment.
+ * `dir` is a directory NAME from `FRONTMATTER_ASSOCIATION_DIRS` rather than a file
+ * type, so the candidate paths come from the dir-keyed helpers: `getAppDirPath` for
+ * an app-level item (e.g. `require_login`), `getModuleDirPaths` for a
+ * module-prefixed one (e.g. `modules/community/require_login`). That is the same
+ * candidate list, in the same resolution order, that go-to-definition on the very
+ * same value walks in `FrontmatterDefinitionProvider` — spelling the module roots
+ * here instead is how the two came to disagree about `app/modules/<mod>/…`.
  */
 async function checkNotificationArray(
   doc: ReturnType<typeof parseDocument>,
@@ -248,34 +246,23 @@ async function checkNotificationArray(
   const pair = doc.contents.items.find((p) => isScalar(p.key) && p.key.value === fieldName);
   if (!pair || !isSeq(pair.value)) return;
 
-  // Module-relative dir: strip leading 'app/' (e.g. 'app/authorization_policies' → 'authorization_policies')
-  const moduleDir = dir.slice('app/'.length);
-
   for (const item of pair.value.items) {
     if (!isScalar(item) || typeof item.value !== 'string') continue;
     const name = item.value;
     if (containsLiquid(name)) continue;
     const [is = 0, ie = 0] = item.range ?? [];
 
-    let exists: boolean;
-    if (name.startsWith('modules/')) {
-      const match = name.match(/^modules\/([^/]+)\/(.+)$/);
-      if (!match) {
-        exists = false;
-      } else {
-        const [, mod, rest] = match;
-        exists =
-          (await doesFileExist(
-            context,
-            `modules/${mod}/public/${moduleDir}/${rest}.liquid` as RelativePath,
-          )) ||
-          (await doesFileExist(
-            context,
-            `modules/${mod}/private/${moduleDir}/${rest}.liquid` as RelativePath,
-          ));
+    const parsed = parseModulePrefix(name);
+    const searchPaths = parsed.isModule
+      ? getModuleDirPaths(dir, parsed.moduleName)
+      : [getAppDirPath(dir)];
+
+    let exists = false;
+    for (const searchPath of searchPaths) {
+      if (await doesFileExist(context, `${searchPath}/${parsed.key}.liquid` as RelativePath)) {
+        exists = true;
+        break;
       }
-    } else {
-      exists = await doesFileExist(context, `${dir}/${name}.liquid` as RelativePath);
     }
 
     if (!exists) {
@@ -288,38 +275,17 @@ async function checkNotificationArray(
   }
 }
 
-/**
- * Tries both `{base}.liquid` and `{base}.html.liquid` since layout files may
- * carry a format extension (e.g. `application.html.liquid`).
- */
-async function layoutFileExists(
-  context: Parameters<LiquidCheckDefinition['create']>[0],
-  base: string,
-): Promise<boolean> {
-  return (
-    (await doesFileExist(context, `${base}.liquid` as RelativePath)) ||
-    (await doesFileExist(context, `${base}.html.liquid` as RelativePath))
-  );
-}
-
 async function checkLayoutExists(
   layoutName: string,
   entry: { absStart: number; absEnd: number },
   context: Parameters<LiquidCheckDefinition['create']>[0],
 ) {
-  let exists: boolean;
-
-  if (layoutName.startsWith('modules/')) {
-    // modules/{mod}/rest → modules/{mod}/{public,private}/views/layouts/{rest}.{html.}liquid
-    const match = layoutName.match(/^modules\/([^/]+)\/(.+)$/);
-    if (!match) return;
-    const [, mod, rest] = match;
-    exists =
-      (await layoutFileExists(context, `modules/${mod}/public/views/layouts/${rest}`)) ||
-      (await layoutFileExists(context, `modules/${mod}/private/views/layouts/${rest}`));
-  } else {
-    exists = await layoutFileExists(context, `app/views/layouts/${layoutName}`);
-  }
+  // The one resolver: the run's `App` answers from its index — an unsaved layout
+  // buffer included — and falls back to the filesystem for a layout the app does
+  // not hold (a config `ignore` keeps a real file out of it). Same rule, same
+  // precedence, same format handling as the language server's go-to-definition.
+  const exists =
+    (await context.app.findOrLocate(PlatformOSFileType.Layout, layoutName)) !== undefined;
 
   if (!exists) {
     context.report({

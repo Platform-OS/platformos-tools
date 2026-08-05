@@ -237,10 +237,7 @@ function convertScalar(node: Scalar, source: string, reconciled?: Reconciled): L
   const [start, end] = getRange(node);
   const repaired = reconciledValue(source, start, end, reconciled);
   const value = (repaired !== undefined ? repaired : node.value) as
-    | string
-    | number
-    | boolean
-    | null;
+    string | number | boolean | null;
   return {
     type: 'Literal',
     value,

@@ -106,7 +106,7 @@ describe('Integration: runBatchLint (the lint adapter)', () => {
   });
 
   it('returns an empty map for an empty request without touching the project', async () => {
-    expect(await lint([])).toEqual({ diagnostics: new Map(), ignored: new Set() });
+    expect(await lint([])).toEqual({ diagnostics: new Map(), notChecked: new Map() });
   });
 });
 

@@ -460,32 +460,58 @@ describe('ValidFrontmatter', () => {
     });
   });
 
-  // ── home.html.liquid deprecation ─────────────────────────────────────────
+  // ── home page deprecation ─────────────────────────────────────────────────
 
-  describe('home.html.liquid deprecation', () => {
-    it('warns when home.html.liquid is used', async () => {
-      const offenses = await check(
-        { 'app/views/pages/home.html.liquid': `---\nslug: /\n---\n{{ content }}` },
-        [ValidFrontmatter],
-      );
-      expect(offenses).to.containOffense(
-        "'home.html.liquid' is deprecated. Rename to 'index.html.liquid' to serve as the root page.",
-      );
+  describe('home page deprecation', () => {
+    it.each([
+      {
+        warnsFor: 'a page named home.html.liquid',
+        path: 'app/views/pages/home.html.liquid',
+        source: `---\nslug: /\n---\n{{ content }}`,
+        message:
+          "'home.html.liquid' is deprecated. Rename to 'index.html.liquid' to serve as the root page.",
+      },
+      {
+        warnsFor: 'a page named home.liquid — the format suffix is optional',
+        path: 'app/views/pages/home.liquid',
+        source: `{{ content }}`,
+        message: "'home.liquid' is deprecated. Rename to 'index.liquid' to serve as the root page.",
+      },
+      {
+        warnsFor: 'a MODULE page named home — its slug is derived after views/pages/',
+        path: 'modules/community/public/views/pages/home.liquid',
+        source: `{{ content }}`,
+        message: "'home.liquid' is deprecated. Rename to 'index.liquid' to serve as the root page.",
+      },
+    ])('warns for $warnsFor', async ({ path, source, message }) => {
+      const offenses = await check({ [path]: source }, [ValidFrontmatter]);
+      expect(offenses).to.containOffense(message);
     });
 
-    it('does not warn for index.html.liquid', async () => {
-      const offenses = await check(
-        { 'app/views/pages/index.html.liquid': `---\nslug: /\n---\n{{ content }}` },
-        [ValidFrontmatter],
-      );
-      expect(offenses.some((o) => o.message.includes('home.html.liquid'))).toBe(false);
-    });
-
-    it('does not warn for files whose name contains home but is not home.html.liquid', async () => {
-      const offenses = await check({ 'app/views/pages/homepage.html.liquid': `{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
-      expect(offenses.some((o) => o.message.includes('home.html.liquid'))).toBe(false);
+    it.each([
+      {
+        quietFor: 'a NESTED page named home — blog/home serves the blog/home route, not the root',
+        path: 'app/views/pages/blog/home.html.liquid',
+        source: `{{ content }}`,
+      },
+      {
+        quietFor: 'a PARTIAL named home.html.liquid — only pages serve routes',
+        path: 'app/views/partials/home.html.liquid',
+        source: `{{ content }}`,
+      },
+      {
+        quietFor: 'index.html.liquid — the modern spelling of the root page',
+        path: 'app/views/pages/index.html.liquid',
+        source: `---\nslug: /\n---\n{{ content }}`,
+      },
+      {
+        quietFor: 'a page whose name merely contains home',
+        path: 'app/views/pages/homepage.html.liquid',
+        source: `{{ content }}`,
+      },
+    ])('does not warn for $quietFor', async ({ path, source }) => {
+      const offenses = await check({ [path]: source }, [ValidFrontmatter]);
+      expect(offenses).toEqual([]);
     });
   });
 

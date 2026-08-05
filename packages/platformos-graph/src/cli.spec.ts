@@ -257,8 +257,8 @@ describe('platformos-graph CLI: project-root validation', () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe(
       `Not a platformOS project: ${startUri}\n` +
-        `No app/, modules/, .pos, or .platformos-check.yml found at or above this path. ` +
-        `Pass the path to a platformOS app directory.`,
+        `No app/, marketplace_builder/, modules/, .pos, or .platformos-check.yml found ` +
+        `at or above this path. Pass the path to a platformOS app directory.`,
     );
   });
 });

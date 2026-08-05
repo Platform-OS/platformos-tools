@@ -64,8 +64,9 @@ export interface SerializableFileDependencies {
 /**
  * Resolves the given root path (absolute, or relative to `process.cwd()`) to the
  * forward-slash-normalized `file://` URI of the enclosing platformOS project,
- * using the same `findRoot` heuristic as the language server (an `app/`,
- * `modules/`, `.pos`, or `.platformos-check.yml` marker at or above the path).
+ * using the same `findRoot` heuristic as the language server (an `app/` — or its
+ * legacy `marketplace_builder/` sibling — `modules/`, `.pos`, or
+ * `.platformos-check.yml` marker at or above the path).
  *
  * Throws when no project is found, so a typo'd or non-platformOS directory fails
  * loudly instead of silently producing an empty graph. Resolving via `findRoot`
@@ -83,8 +84,8 @@ async function resolveProjectRoot(root: string, fs: AbstractFileSystem): Promise
   if (!rootUri) {
     throw new Error(
       `Not a platformOS project: ${startUri}\n` +
-        `No app/, modules/, .pos, or .platformos-check.yml found at or above this path. ` +
-        `Pass the path to a platformOS app directory.`,
+        `No app/, marketplace_builder/, modules/, .pos, or .platformos-check.yml found ` +
+        `at or above this path. Pass the path to a platformOS app directory.`,
     );
   }
   return rootUri;

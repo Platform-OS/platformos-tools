@@ -45,6 +45,20 @@ describe('Module: TranslationKeyExists', () => {
     expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
   });
 
+  it('should find keys defined under the legacy marketplace_builder root', async () => {
+    // `getSearchPaths` covers every app root; hardcoding `app/translations` made a
+    // legacy-rooted project's every `| t` call look undefined.
+    const offenses = await check(
+      {
+        'marketplace_builder/translations/en.yml': 'en:\n  greeting: Hello\n',
+        'marketplace_builder/views/partials/code.liquid': `{{ 'greeting' | t }}`,
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+  });
+
   it('should handle key conflicts', async () => {
     // The conflict: `product.quantity` is a leaf, so `product.quantity.decrease`
     // cannot resolve.

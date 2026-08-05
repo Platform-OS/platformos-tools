@@ -24,10 +24,10 @@ GraphQLVariablesCheck:
 ImgWidthAndHeight:
   enabled: true
   severity: 0
-InvalidHashAssignTarget:
+ImplicitIncludeArguments:
   enabled: true
-  severity: 0
-JSONSyntaxError:
+  severity: 1
+InvalidHashAssignTarget:
   enabled: true
   severity: 0
 JsonLiteralQuoteStyle:
@@ -45,6 +45,9 @@ MissingAsset:
 MissingContentForLayout:
   enabled: true
   severity: 0
+MissingDocParam:
+  enabled: true
+  severity: 0
 MissingPage:
   enabled: true
   severity: 1
@@ -58,15 +61,15 @@ MissingRenderPartialArguments:
 NestedGraphQLQuery:
   enabled: true
   severity: 1
-OrphanedPartial:
-  enabled: true
-  severity: 1
 ParserBlockingScript:
   enabled: true
   severity: 0
 PartialCallArguments:
   enabled: true
   severity: 0
+RequiredDocParamWithDefault:
+  enabled: true
+  severity: 1
 ReservedVariableName:
   enabled: true
   severity: 0
@@ -106,9 +109,6 @@ ValidFrontmatter:
 ValidHTMLTranslation:
   enabled: true
   severity: 1
-ValidJSON:
-  enabled: true
-  severity: 0
 ValidRenderPartialArgumentTypes:
   enabled: true
   severity: 1
@@ -116,3 +116,6 @@ VariableName:
   enabled: true
   severity: 1
   format: snake_case
+YAMLSyntaxError:
+  enabled: true
+  severity: 0

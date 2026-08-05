@@ -21,6 +21,14 @@ export enum FileType {
 export interface FileStat {
   type: FileType;
   size: number;
+  /**
+   * Last-modification time in milliseconds, for filesystems that have one.
+   *
+   * `undefined` means the filesystem cannot say — an in-memory or virtual one —
+   * which callers must read as "cannot tell whether this changed", not as
+   * "unchanged".
+   */
+  mtimeMs?: number;
 }
 
 /** A vscode-uri string */

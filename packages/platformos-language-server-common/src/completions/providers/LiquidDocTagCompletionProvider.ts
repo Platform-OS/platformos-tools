@@ -8,14 +8,19 @@ import {
 import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../../utils/liquidDoc';
-import { filePathSupportsLiquidDoc } from '@platformos/platformos-check-common';
+import { FileTypeForURI } from '../../internal-types';
+import { makeSupportsLiquidDoc } from '../../utils/uri';
 
 export class LiquidDocTagCompletionProvider implements Provider {
-  constructor() {}
+  private readonly supportsLiquidDoc: (uri: string) => Promise<boolean>;
+
+  constructor(fileTypeForURI?: FileTypeForURI) {
+    this.supportsLiquidDoc = makeSupportsLiquidDoc(fileTypeForURI);
+  }
 
   async completions(params: LiquidCompletionParams): Promise<CompletionItem[]> {
     if (!params.completionContext) return [];
-    if (!filePathSupportsLiquidDoc(params.document.uri)) return [];
+    if (!(await this.supportsLiquidDoc(params.document.uri))) return [];
 
     const { node, ancestors } = params.completionContext;
     const parentNode = ancestors.at(-1);

@@ -30,6 +30,18 @@ describe('Module: ValidDocParamTypes', () => {
     expect(offenses).to.be.empty;
   });
 
+  it(`should not report an error when the generic array parameter type is used`, async () => {
+    const sourceCode = `
+      {% doc %}
+        @param {array} mentioned_ids - unique profile ids
+      {% enddoc %}
+    `;
+
+    const offenses = await runLiquidCheck(ValidDocParamTypes, sourceCode);
+
+    expect(offenses).to.be.empty;
+  });
+
   it(`should not report an error when a valid liquid object array parameter (product[]) type is used`, async () => {
     const sourceCode = `
       {% doc %}

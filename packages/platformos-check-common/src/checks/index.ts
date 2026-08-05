@@ -10,13 +10,14 @@ import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedTag } from './deprecated-tag';
 import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
 import { ImgWidthAndHeight } from './img-width-and-height';
-import { JSONSyntaxError } from './json-syntax-error';
+import { ImplicitIncludeArguments } from './implicit-include-arguments';
 import { LiquidHTMLSyntaxError } from './liquid-html-syntax-error';
 import { MatchingTranslations } from './matching-translations';
 import { MissingAsset } from './missing-asset';
+import { MissingDocParam } from './missing-doc-param';
 import { MissingPartial } from './missing-partial';
-import { OrphanedPartial } from './orphaned-partial';
 import { ParserBlockingScript } from './parser-blocking-script';
+import { RequiredDocParamWithDefault } from './required-doc-param-with-default';
 import { ReservedVariableName } from './reserved-variable-name';
 import { TranslationKeyExists } from './translation-key-exists';
 import { UnclosedHTMLElement } from './unclosed-html-element';
@@ -27,7 +28,6 @@ import { UnrecognizedRenderPartialArguments } from './unrecognized-render-partia
 import { UnusedAssign } from './unused-assign';
 import { UnusedDocParam } from './unused-doc-param';
 import { ValidHTMLTranslation } from './valid-html-translation';
-import { ValidJSON } from './valid-json';
 import { ValidDocParamTypes } from './valid-doc-param-types';
 import { ValidRenderPartialArgumentTypes } from './valid-render-partial-argument-types';
 import { VariableName } from './variable-name';
@@ -43,25 +43,24 @@ import { MissingPage } from './missing-page';
 import { ValidFrontmatter } from './valid-frontmatter';
 import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
+import { YAMLSyntaxError } from './yaml-syntax-error';
 
 export const allChecks: (
-  | LiquidCheckDefinition
-  | JSONCheckDefinition
-  | GraphQLCheckDefinition
-  | YAMLCheckDefinition
+  LiquidCheckDefinition | JSONCheckDefinition | GraphQLCheckDefinition | YAMLCheckDefinition
 )[] = [
   DeprecatedFilter,
   DeprecatedTag,
   DuplicateFunctionArguments,
   DuplicateRenderPartialArguments,
   ImgWidthAndHeight,
-  JSONSyntaxError,
+  ImplicitIncludeArguments,
   LiquidHTMLSyntaxError,
   MatchingTranslations,
   MissingAsset,
+  MissingDocParam,
   MissingPartial,
-  OrphanedPartial,
   ParserBlockingScript,
+  RequiredDocParamWithDefault,
   ReservedVariableName,
   TranslationKeyExists,
   UnclosedHTMLElement,
@@ -72,7 +71,6 @@ export const allChecks: (
   UnusedAssign,
   UnusedDocParam,
   ValidHTMLTranslation,
-  ValidJSON,
   ValidDocParamTypes,
   ValidRenderPartialArgumentTypes,
   VariableName,
@@ -87,6 +85,7 @@ export const allChecks: (
   ValidFrontmatter,
   JsonLiteralQuoteStyle,
   MissingContentForLayout,
+  YAMLSyntaxError,
 ];
 
 /**

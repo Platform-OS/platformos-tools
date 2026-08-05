@@ -1,19 +1,19 @@
 {% comment %}
   hello world
-  {{ product }}
+  {{ page }}
 {% endcomment %}
-{% comment %}{{ product.feature }}{% endcomment %}
-{% javascript %}
-  {% comment %}{{ product.feature }}{% endcomment %}
+{% comment %}{{ page.title }}{% endcomment %}
+<script>
+  {% comment %}{{ page.title }}{% endcomment %}
   {% comment %}
-    hi {{ product }}
+    hi {{ page }}
   {% endcomment %}
   console.log('hello world');
   const str = `
     {% comment %}
-      hi {{ product }}
+      hi {{ page }}
     {% endcomment %}
   `
-  const fuu = '{% comment %} {{ product.feature }} {% endcomment %}'
-  const fuu2 = '{% comment %}{{ product.feature }}{% endcomment %}'
-{% endjavascript %}
+  const fuu = '{% comment %} {{ page.title }} {% endcomment %}'
+  const fuu2 = '{% comment %}{{ page.title }}{% endcomment %}'
+</script>

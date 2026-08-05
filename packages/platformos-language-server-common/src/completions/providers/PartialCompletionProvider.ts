@@ -39,15 +39,13 @@ export class PartialCompletionProvider implements Provider {
       (ancestors.at(-2) as LiquidTag)?.name || undefined,
     );
 
-    return options.map(
-      (option: string): CompletionItem => ({
-        label: option,
-        kind: CompletionItemKind.Snippet,
-        documentation: {
-          kind: 'markdown',
-          value: option,
-        },
-      }),
-    );
+    return options.map((option: string): CompletionItem => ({
+      label: option,
+      kind: CompletionItemKind.Snippet,
+      documentation: {
+        kind: 'markdown',
+        value: option,
+      },
+    }));
   }
 }

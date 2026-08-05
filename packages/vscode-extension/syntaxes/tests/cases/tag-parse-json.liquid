@@ -1,0 +1,12 @@
+{% parse_json config %}
+  {
+    "title": {{ page.title | json }},
+    "enabled": true,
+    "locale": "{{ context.language }}",
+    "nested": { "count": 3 }
+  }
+{% endparse_json %}
+
+{% parse_json empty %}
+{%- endparse_json %}
+<img>

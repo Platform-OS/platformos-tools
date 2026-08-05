@@ -336,6 +336,62 @@ describe('Module: TypeSystem', () => {
     });
   });
 
+  /**
+   * The type system asks `UnknownProperty`'s analyzer what shape a variable has, instead
+   * of tracking shapes itself. These are the answers its own copy got wrong.
+   */
+  describe('shapes, as the check analyzer sees them', () => {
+    const shapeOf = async (source: string): Promise<ShapeType | string> => {
+      const ast = toLiquidHtmlAST(source);
+      const output = ast.children.at(-1)!;
+      assert(isLiquidVariableOutput(output));
+      const inferred = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
+      return typeof inferred === 'string' ? inferred : (inferred as ShapeType);
+    };
+
+    it('resolves the fields a GraphQL fragment spread contributes', async () => {
+      const inferred = await shapeOf(`{% graphql r %}
+query { records { results { id ...rec } } }
+fragment rec on Record { name slug }
+{% endgraphql %}{{ r }}`);
+
+      assert(typeof inferred !== 'string');
+      const results = inferred.shape.properties?.get('records')?.properties?.get('results');
+      expect([...(results?.properties?.keys() ?? [])]).to.deep.equal(['id', 'name', 'slug']);
+    });
+
+    it('claims no shape when a filter after parse_json changes the value', async () => {
+      // The string's keys are not the value's keys once `hash_merge` has added to it.
+      expect(
+        await shapeOf(
+          `{% assign site = '{"type": "site"}' | parse_json | hash_merge: a: b %}{{ site }}`,
+        ),
+      ).to.equal('untyped');
+    });
+
+    it('treats an empty hash as a placeholder other code fills in', async () => {
+      const inferred = await shapeOf(`{% assign c = {"errors": {}} %}{{ c }}`);
+
+      assert(typeof inferred !== 'string');
+      expect(inferred.shape.properties?.get('errors')).to.deep.equal({
+        kind: 'object',
+        properties: new Map(),
+        open: true,
+        placeholder: true,
+      });
+    });
+
+    it('knows the item type a push proves about a list', async () => {
+      const inferred = await shapeOf(`{% assign arr = [] %}{% assign arr << "item" %}{{ arr }}`);
+
+      assert(typeof inferred !== 'string');
+      expect(inferred.shape).to.deep.equal({
+        kind: 'array',
+        itemShape: { kind: 'primitive', primitiveType: 'string' },
+      });
+    });
+  });
+
   describe('cross-file type inference (A -> B -> C)', () => {
     it('should infer types through chain of function calls with GraphQL at the end', async () => {
       // Setup: File C calls GraphQL, B calls C, A calls B

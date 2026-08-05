@@ -48,7 +48,7 @@ describe('Module: DeprecatedFilter', () => {
     const offenses = await runLiquidCheck(
       DeprecatedFilter,
       sourceCode,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       mockDependencies,
     );
     expect(offenses.map((e) => e.message)).toEqual([
@@ -56,7 +56,10 @@ describe('Module: DeprecatedFilter', () => {
       "Deprecated filter 'old_filter', consider using 'new_filter'.",
     ]);
 
-    const highlights = highlightedOffenses({ 'file.liquid': sourceCode }, offenses);
+    const highlights = highlightedOffenses(
+      { 'app/views/partials/file.liquid': sourceCode },
+      offenses,
+    );
     expect(highlights).toEqual(['| old_filter', "| old_filter: 'arg'"]);
   });
 
@@ -69,7 +72,7 @@ describe('Module: DeprecatedFilter', () => {
     const offenses = await runLiquidCheck(
       DeprecatedFilter,
       sourceCode,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       mockDependencies,
     );
     expect(offenses).toHaveLength(0);
@@ -81,7 +84,7 @@ describe('Module: DeprecatedFilter', () => {
     const offenses = await runLiquidCheck(
       DeprecatedFilter,
       sourceCode,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       mockDependencies,
     );
     expect(offenses).toHaveLength(1);
@@ -94,7 +97,7 @@ describe('Module: DeprecatedFilter', () => {
     const offenses = await runLiquidCheck(
       DeprecatedFilter,
       sourceCode,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       mockDependencies,
     );
     expect(offenses).toHaveLength(2);
@@ -106,7 +109,7 @@ describe('Module: DeprecatedFilter', () => {
     const offenses = await runLiquidCheck(
       DeprecatedFilter,
       sourceCode,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       mockDependencies,
     );
     expect(offenses).toHaveLength(1);
@@ -120,7 +123,7 @@ describe('Module: DeprecatedFilter', () => {
     const offenses = await runLiquidCheck(
       DeprecatedFilter,
       sourceCode,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       mockDependencies,
     );
     const suggestions = applySuggestions(sourceCode, offenses[0]);
@@ -133,7 +136,7 @@ describe('Module: DeprecatedFilter', () => {
     const offenses = await runLiquidCheck(
       DeprecatedFilter,
       sourceCode,
-      'file.liquid',
+      'app/views/partials/file.liquid',
       mockDependencies,
     );
     expect(offenses).toHaveLength(1);

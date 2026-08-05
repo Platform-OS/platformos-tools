@@ -31,11 +31,7 @@ export interface AppGraph {
 export type AppModule = LiquidModule | AssetModule | GraphQLModule;
 
 export type FileSourceCode =
-  | LiquidSourceCode
-  | JSONSourceCode
-  | GraphQLSourceCode
-  | YAMLSourceCode
-  | AssetSourceCode;
+  LiquidSourceCode | JSONSourceCode | GraphQLSourceCode | YAMLSourceCode | AssetSourceCode;
 
 export interface SerializableGraph {
   rootUri: UriString;

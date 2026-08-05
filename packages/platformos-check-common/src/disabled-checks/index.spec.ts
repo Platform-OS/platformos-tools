@@ -42,7 +42,7 @@ describe('Module: DisabledChecks', () => {
 {{ 'asset' | random_filter }}
 {% render 'something' %}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(1);
         expectRenderMarkupOffense(offenses, 'something.liquid');
       }
@@ -54,7 +54,7 @@ describe('Module: DisabledChecks', () => {
 {{ 'asset' | random_filter }}
 {% render 'something' %}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(0);
       }
     });
@@ -69,7 +69,7 @@ ${buildComment('platformos-check-disable')}
 ${buildComment('platformos-check-enable')}
 {{ 'asset-3' | random_filter }}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(3);
         expectLiquidFilterOffense(offenses, file, 'asset-1');
         expectLiquidFilterOffense(offenses, file, 'asset-3');
@@ -85,7 +85,7 @@ ${buildComment('platformos-check-enable')}
 ${buildComment('platformos-check-enable LiquidFilter')}
 {{ 'asset-2' | random_filter }}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(2);
         expectLiquidFilterOffense(offenses, file, 'asset-2');
         expectRenderMarkupOffense(offenses, 'something.liquid');
@@ -100,7 +100,7 @@ ${buildComment('platformos-check-enable LiquidFilter')}
 ${buildComment('platformos-check-enable LiquidFilter,RenderMarkup')}
 {{ 'asset-2' | random_filter }}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(1);
         expectLiquidFilterOffense(offenses, file, 'asset-2');
       }
@@ -118,7 +118,7 @@ ${buildComment('platformos-check-enable LiquidFilter')}
 {{ 'asset-3' | random_filter }}
 {% render 'something-3' %}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(3);
         expectLiquidFilterOffense(offenses, file, 'asset-3');
         expectRenderMarkupOffense(offenses, 'something-2.liquid');
@@ -135,7 +135,7 @@ ${buildComment('platformos-check-enable LiquidFilter')}
 ${buildComment('platformos-check-enable RenderMarkup')}
 {{ 'asset-2' | random_filter }}
 {% render 'something-2' %}`;
-          const offenses = await check({ 'code.liquid': file }, checks);
+          const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
           expect(offenses).to.have.length(0);
         }
       });
@@ -149,7 +149,7 @@ ${buildComment('platformos-check-enable')}
 {{ 'asset-4' | random_filter }}
 {% render 'something-4' %}`;
 
-          const offenses = await check({ 'code.liquid': file }, checks);
+          const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
           expect(offenses).to.have.length(2);
           expectLiquidFilterOffense(offenses, file, 'asset-4');
           expectRenderMarkupOffense(offenses, 'something-4.liquid');
@@ -163,7 +163,7 @@ ${buildComment('platformos-check-enable')}
 {% render 'something' %}
 {% render 'other-thing' %}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(1);
         expectRenderMarkupOffense(offenses, 'other-thing.liquid');
       });
@@ -175,7 +175,7 @@ ${buildComment('platformos-check-enable')}
 {% endif %}
 {% render 'other-thing' %}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(2);
         expectRenderMarkupOffense(offenses, 'something.liquid');
         expectRenderMarkupOffense(offenses, 'other-thing.liquid');
@@ -188,7 +188,7 @@ ${buildComment('platformos-check-enable')}
   render 'other-thing'
 %}`;
 
-        const offenses = await check({ 'code.liquid': file }, checks);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, checks);
         expect(offenses).to.have.length(1);
         expectRenderMarkupOffense(offenses, 'other-thing.liquid');
       });
@@ -201,7 +201,7 @@ ${buildComment('platformos-check-enable')}
   endif
 %}`;
 
-        const offenses = await check({ 'code.liquid': file }, [UndefinedObject]);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, [UndefinedObject]);
         expect(offenses).to.have.length(1);
         expect(offenses).toContainEqual(
           expect.objectContaining({
@@ -217,7 +217,7 @@ ${buildComment('platformos-check-enable')}
   # platformos-check-disable-next-line
 %}`;
 
-        const offenses = await check({ 'code.liquid': file }, [UndefinedObject]);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, [UndefinedObject]);
         expect(offenses).to.have.length(2);
         expect(offenses).toContainEqual(
           expect.objectContaining({
@@ -236,7 +236,7 @@ ${buildComment('platformos-check-enable')}
 <div class="{{ foo }}"></div>
 <div class="{{ bar }}"></div>`;
 
-        const offenses = await check({ 'code.liquid': file }, [UndefinedObject]);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, [UndefinedObject]);
         expect(offenses).to.have.length(1);
         expect(offenses).toContainEqual(
           expect.objectContaining({
@@ -249,7 +249,7 @@ ${buildComment('platformos-check-enable')}
         const file = `{% doc %}{% enddoc %}{% # platformos-check-disable-next-line FAKE_RULE %}
 <div class="{{ foo }}"></div>`;
 
-        const offenses = await check({ 'code.liquid': file }, [UndefinedObject]);
+        const offenses = await check({ 'app/views/partials/code.liquid': file }, [UndefinedObject]);
         expect(offenses).to.have.length(1);
         expect(offenses).toContainEqual(
           expect.objectContaining({

@@ -6,6 +6,7 @@ import {
   DidChangeWatchedFilesNotification,
   DidRenameFilesNotification,
   FileChangeType,
+  InitializeRequest,
   PublishDiagnosticsNotification,
   DefinitionRequest,
 } from 'vscode-languageserver';
@@ -85,6 +86,78 @@ describe('Module: server', () => {
     connection.setup();
     await flushAsync();
     expect(logger).toHaveBeenCalledWith("[SERVER] Let's roll!");
+  });
+
+  /**
+   * The two globs the client filters on before it tells us anything. Both are
+   * `SOURCE_FILE_GLOB`, so the extensions match what the linter walks — the
+   * literals below are spelled out on purpose, so a change to the source
+   * extensions shows up here as a diff rather than as a tautology.
+   */
+  it('asks the client to report renames of every source file, plus assets', async () => {
+    const result: any = await connection.triggerRequest(InitializeRequest.method, {
+      capabilities: {},
+      initializationOptions: {},
+    });
+
+    expect(result.capabilities.workspace.fileOperations).toEqual({
+      didRename: {
+        filters: [
+          { pattern: { glob: '**/*.{liquid,yml,graphql}' } },
+          { pattern: { glob: '**/assets/*' } },
+        ],
+      },
+    });
+  });
+
+  it('watches every directory an app file can be in, and nothing else', async () => {
+    connection.setup({ workspace: { didChangeWatchedFiles: { dynamicRegistration: true } } });
+    await flushAsync();
+
+    const registrations = connection.spies.sendRequest.mock.calls
+      .filter(([method]: any[]) => method === 'client/registerCapability')
+      .flatMap(([, params]: any[]) => params.registrations)
+      .filter((registration: any) => registration.method === 'workspace/didChangeWatchedFiles')
+      .map((registration: any) => registration.registerOptions);
+
+    // `parseAppPath`'s grammar as globs, derived from FILE_TYPE_DIRS, so a generator
+    // template, a build artifact, `app/tmp/x.liquid` or anything under `node_modules` is
+    // never delivered at all. Spelled out rather than imported from `APP_WATCH_GLOBS`, so
+    // adding a file type shows up here as a diff rather than as a tautology.
+    //
+    // Assets are absent on purpose. Nothing reads an asset, so the only question ever
+    // asked about one is whether it exists, and `DocumentsLocator` answers that with a
+    // `stat`, which cannot go stale the way an index entry can.
+    //
+    // Every brace group holds a single path segment: the LSP's glob syntax does not
+    // promise a `{}` containing `/`.
+    const DIRS = [
+      'views/{pages,layouts,partials}',
+      '{pages,lib,authorization_policies,emails,api_calls,smses,migrations,form_configurations,' +
+        'forms,schema,custom_model_types,model_schemas,user_profile_types,instance_profile_types,' +
+        'user_profile_schemas,transactable_types,translations,graphql,graph_queries}',
+      'notifications/{email_notifications,api_call_notifications,sms_notifications}',
+      'activity_streams/{handlers,grouping_handlers}',
+    ];
+    const ROOTS = [
+      '{app,marketplace_builder}',
+      'app/modules/*/{public,private}',
+      'modules/*/{public,private}',
+    ];
+
+    expect(registrations).toEqual([
+      {
+        watchers: [
+          ...DIRS.flatMap((dir) =>
+            ROOTS.map((root) => ({ globPattern: `${root}/${dir}/**/*.{liquid,yml,graphql}` })),
+          ),
+          // Directly under `app/`, so no directory glob covers them. `app/config.yml`
+          // is how the server learns its `theme_search_paths` changed.
+          { globPattern: 'app/config.yml' },
+          { globPattern: 'app/user.yml' },
+        ],
+      },
+    ]);
   });
 
   it('should debounce calls to runChecks', async () => {
@@ -318,6 +391,57 @@ describe('Module: server', () => {
     );
   });
 
+  // A rename must not suppress a later watched-files event for either of its URIs, or an
+  // unrelated change to one of them loses its cache invalidation.
+  it('invalidates a file recreated right after a rename moved it away', async () => {
+    connection.setup();
+    await flushAsync();
+
+    fileTree['app/views/partials/foo.liquid'] = '...';
+    connection.openDocument(filePath, fileContents);
+    await flushAsync();
+    await advanceAndFlush(100);
+    expect(connection.spies.sendNotification).toHaveBeenCalledWith(
+      PublishDiagnosticsNotification.type,
+      { uri: fileURI, version: 0, diagnostics: [] },
+    );
+
+    // foo.liquid is renamed away, so the render target is gone.
+    fileTree['app/views/partials/bar.liquid'] = fileTree['app/views/partials/foo.liquid'];
+    delete fileTree['app/views/partials/foo.liquid'];
+    connection.triggerNotification(DidRenameFilesNotification.type, {
+      files: [
+        {
+          oldUri: path.join(mockRoot, 'app/views/partials/foo.liquid'),
+          newUri: path.join(mockRoot, 'app/views/partials/bar.liquid'),
+        },
+      ],
+    });
+    await flushAsync();
+    await advanceAndFlush(100);
+
+    connection.spies.sendNotification.mockClear();
+
+    // Recreated at the old path, reaching the server as a watched-files event only — no
+    // rename notification.
+    fileTree['app/views/partials/foo.liquid'] = '...';
+    connection.triggerNotification(DidChangeWatchedFilesNotification.type, {
+      changes: [
+        {
+          uri: path.join(mockRoot, 'app/views/partials/foo.liquid'),
+          type: FileChangeType.Created,
+        },
+      ],
+    });
+    await flushAsync();
+    await advanceAndFlush(100);
+
+    expect(connection.spies.sendNotification).toHaveBeenCalledWith(
+      PublishDiagnosticsNotification.type,
+      { uri: fileURI, version: 0, diagnostics: [] },
+    );
+  });
+
   it('go-to-definition reflects updated search paths after saving app/config.yml', async () => {
     // Setup file tree: config pointing to theme/dress, both dress and simple partials present
     fileTree['app/config.yml'] = 'theme_search_paths:\n  - theme/dress';
@@ -420,6 +544,44 @@ describe('Module: server', () => {
         uri: fileURI,
         version: 0,
       },
+    );
+  });
+
+  // A PAGE renders the partial, and the partial is deleted while the page stays
+  // open — reported as needing an editor restart before the offense shows up.
+  it('reports a deleted partial to an open page that renders it', async () => {
+    const pagePath = 'app/views/pages/ar.liquid';
+    const pageURI = path.join(mockRoot, pagePath);
+    fileTree['app/views/partials/foo.liquid'] = 'hello';
+
+    connection.setup();
+    await flushAsync();
+
+    connection.openDocument(pagePath, fileContents);
+    await flushAsync();
+    await advanceAndFlush(100);
+    expect(connection.spies.sendNotification).toHaveBeenCalledWith(
+      PublishDiagnosticsNotification.type,
+      { uri: pageURI, version: 0, diagnostics: [] },
+    );
+
+    connection.spies.sendNotification.mockClear();
+
+    delete fileTree['app/views/partials/foo.liquid'];
+    connection.triggerNotification(DidChangeWatchedFilesNotification.type, {
+      changes: [
+        {
+          uri: path.join(mockRoot, 'app/views/partials/foo.liquid'),
+          type: FileChangeType.Deleted,
+        },
+      ],
+    });
+    await flushAsync();
+    await advanceAndFlush(100);
+
+    expect(connection.spies.sendNotification).toHaveBeenCalledWith(
+      PublishDiagnosticsNotification.type,
+      { uri: pageURI, version: 0, diagnostics: [missingTemplateDiagnostic()] },
     );
   });
 

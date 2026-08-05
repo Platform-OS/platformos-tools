@@ -133,6 +133,7 @@ function isValidScopeExtension(_grammar, scope) {
     scope.endsWith('.css') ||
     scope.endsWith('.js') ||
     scope.endsWith('.json') ||
+    scope.endsWith('.graphql') ||
     scope.endsWith('ignored-vscode')
   );
 }

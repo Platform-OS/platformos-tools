@@ -1,5 +1,5 @@
 import { path } from '@platformos/platformos-check-common';
-import { AbstractFileSystem } from '@platformos/platformos-common';
+import { AbstractFileSystem, UnreadableDirectoryError } from '@platformos/platformos-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI, Utils } from 'vscode-uri';
@@ -31,6 +31,44 @@ describe('Module: DocumentManager', () => {
     // `fileURI.toString()` lowercases c: in 'C:\dir\path'
     // Without the URI.parse().path, this test was failing for a dumb reason
     expect(app[0].uri).to.equal(path.normalize(fileUri));
+  });
+
+  /**
+   * `preload` walks the app subtrees, so a directory's NAME never decides whether
+   * the language server manages the files under it. The walk this replaced skipped
+   * any directory ending in `vendor`, `build`, `tmp` or `dist`, so an entire site
+   * section under `app/views/pages/vendor/**` was unmanaged — no diagnostics, no
+   * completions, no rename — with nothing to indicate why.
+   */
+  describe('preload on a project with app directories named like build output', () => {
+    it('manages the files under them, and none outside the app subtrees', async () => {
+      const projectRoot = 'mock-fs:';
+      const projectFs = new MockFileSystem(
+        {
+          'app/views/pages/vendor/index.liquid': `a vendor page`,
+          'app/lib/commands/build/create.liquid': `a command`,
+          'modules/core/public/views/partials/tmp/card.liquid': `a module partial`,
+          'tmp/app/views/partials/scratch.liquid': `not deployed`,
+          'node_modules/some-pkg/app/views/partials/vendored.liquid': `not ours`,
+          'dist/app/views/pages/bundled.liquid': `build output`,
+        },
+        projectRoot,
+      );
+      const manager = new DocumentManager(projectFs);
+
+      await manager.preload('mock-fs:/');
+
+      expect(
+        manager
+          .app('mock-fs:/', true)
+          .map((sourceCode) => sourceCode.uri)
+          .sort(),
+      ).toEqual([
+        'mock-fs:/app/lib/commands/build/create.liquid',
+        'mock-fs:/app/views/pages/vendor/index.liquid',
+        'mock-fs:/modules/core/public/views/partials/tmp/card.liquid',
+      ]);
+    });
   });
 
   describe('when initialized with an abstract file system', () => {
@@ -198,6 +236,86 @@ describe('Module: DocumentManager', () => {
           message: 'Completed',
         },
       );
+    });
+
+    /**
+     * A preload that fails is not specific to an unreadable directory — a dropped
+     * network mount, EMFILE on a large project, a directory Windows has locked all
+     * reach here. What made any of them fatal for the session was that `preload` is
+     * `memoize`d: the REJECTED promise stayed in the cache, so every later preload
+     * of that root replayed the failure even after its cause was gone. And the
+     * progress token was never ended, leaving 'Initializing Liquid LSP' on screen
+     * for the rest of the session.
+     */
+    describe('when the walk fails', () => {
+      const unreadable = 'mock-fs:/app/views/partials';
+      let readDirectory: typeof fs.readDirectory;
+
+      beforeEach(() => {
+        readDirectory = fs.readDirectory.bind(fs);
+        vi.spyOn(fs, 'readDirectory').mockImplementation(async (uri) => {
+          if (uri === unreadable) throw new Error('EACCES: permission denied');
+          return readDirectory(uri);
+        });
+      });
+
+      it('ends the progress, tells the user which directory, and recovers once it is readable', async () => {
+        await expect(documentManager.preload(mockRoot)).rejects.toBeInstanceOf(
+          UnreadableDirectoryError,
+        );
+
+        // The spinner stops, rather than claiming to still be initializing.
+        expect(connection.spies.sendProgress).toHaveBeenCalledWith(
+          expect.anything(),
+          'preload#mock-fs:',
+          { kind: 'end', message: 'Failed' },
+        );
+
+        // And the user is told what to do about it, once.
+        const message =
+          'Cannot read directory: app/views/partials\n' +
+          '  EACCES: permission denied\n\n' +
+          'It is inside the app, so its contents would be deployed, and skipping it ' +
+          'would mean reporting on only part of the project. ' +
+          "Fix the directory's permissions, or move it out of the app, then run again.";
+        const shown = () =>
+          connection.spies.sendRequest.mock.calls.filter(
+            ([method]: any[]) => method === 'window/showMessageRequest',
+          );
+        // `type: 1` is MessageType.Error — a toast, not a line in the output channel.
+        expect(shown().map(([, params]: any[]) => params)).toEqual([
+          { type: 1, message, actions: [] },
+        ]);
+
+        // A repeat of the SAME failure is not a second toast — the graph rebuild
+        // preloads again on every file event, so this would be one per save.
+        await expect(documentManager.preload(mockRoot)).rejects.toBeInstanceOf(
+          UnreadableDirectoryError,
+        );
+        expect(shown()).toHaveLength(1);
+
+        // The memo did not keep the rejection, so fixing the cause is enough.
+        vi.mocked(fs.readDirectory).mockImplementation(readDirectory);
+        await documentManager.preload(mockRoot);
+
+        expect(
+          documentManager
+            .app(mockRoot, true)
+            .map((sourceCode) => sourceCode.uri)
+            .sort(),
+        ).toEqual([
+          'mock-fs:/app/views/partials/1.liquid',
+          'mock-fs:/app/views/partials/10.liquid',
+          'mock-fs:/app/views/partials/2.liquid',
+          'mock-fs:/app/views/partials/3.liquid',
+          'mock-fs:/app/views/partials/4.liquid',
+          'mock-fs:/app/views/partials/5.liquid',
+          'mock-fs:/app/views/partials/6.liquid',
+          'mock-fs:/app/views/partials/7.liquid',
+          'mock-fs:/app/views/partials/8.liquid',
+          'mock-fs:/app/views/partials/9.liquid',
+        ]);
+      });
     });
   });
 });

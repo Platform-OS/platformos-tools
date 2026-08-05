@@ -1,0 +1,284 @@
+original file
+-----------------------------------
+{% graphql people = 'my/query', limit: 10 %}
+{% graphql people = 'my/query' %}
+
+{% graphql products, limit: 10 %}
+  query products($limit: Int) {
+    records(per_page: $limit, filter: { table: { value: "product" } }) {
+      results {
+        id
+        properties
+      }
+    }
+  }
+{% endgraphql %}
+
+{% graphql result %}
+  query {
+    records {
+      total_entries
+    }
+  }
+{% endgraphql %}
+
+{% graphql dynamic %}
+  query {
+    records {
+      results {
+        {{ context.constants.FIELD }}
+      }
+    }
+  }
+{% endgraphql %}
+
+{% graphql empty %}
+{%- endgraphql %}
+<img>
+
+-----------------------------------
+
+Grammar: liquid.tmLanguage.json
+-----------------------------------
+>{% graphql people = 'my/query', limit: 10 %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+            ^^^^^^
+            text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                  ^^^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                      ^^^^^^^^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                              ^
+                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                               ^^
+                               text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                 ^^^^^^
+                                 text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.other.attribute-name.liquid
+                                       ^
+                                       text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                        ^^
+                                        text.html.liquid meta.tag.liquid meta.entity.tag.liquid constant.numeric.liquid
+                                          ^
+                                          text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                           ^^
+                                           text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>{% graphql people = 'my/query' %}
+ ^^
+ text.html.liquid meta.tag.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+    ^^^^^^^
+    text.html.liquid meta.tag.liquid meta.entity.tag.liquid entity.name.tag.liquid
+           ^
+           text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+            ^^^^^^
+            text.html.liquid meta.tag.liquid meta.entity.tag.liquid variable.other.liquid
+                  ^^^
+                  text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                     ^
+                     text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                      ^^^^^^^^
+                      text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                              ^
+                              text.html.liquid meta.tag.liquid meta.entity.tag.liquid string.quoted.single.liquid
+                               ^
+                               text.html.liquid meta.tag.liquid meta.entity.tag.liquid
+                                ^^
+                                text.html.liquid meta.tag.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% graphql products, limit: 10 %}
+ ^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid
+    ^^^^^^^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid entity.name.tag.graphql.liquid
+           ^^^^^^^^^^^^^^^^^^^^^
+           text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid meta.entity.tag.graphql.liquid
+                                ^^
+                                text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+>  query products($limit: Int) {
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>    records(per_page: $limit, filter: { table: { value: "product" } }) {
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>      results {
+ ^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>        id
+ ^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>        properties
+ ^^^^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>      }
+ ^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>    }
+ ^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>  }
+ ^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>{% endgraphql %}
+ ^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+   ^
+   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+    ^^^^^^^^^^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid entity.name.tag.graphql.liquid
+              ^
+              text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+               ^^
+               text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% graphql result %}
+ ^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid
+    ^^^^^^^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid entity.name.tag.graphql.liquid
+           ^^^^^^^^
+           text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid meta.entity.tag.graphql.liquid
+                   ^^
+                   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+>  query {
+ ^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>    records {
+ ^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>      total_entries
+ ^^^^^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>    }
+ ^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>  }
+ ^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>{% endgraphql %}
+ ^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+   ^
+   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+    ^^^^^^^^^^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid entity.name.tag.graphql.liquid
+              ^
+              text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+               ^^
+               text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% graphql dynamic %}
+ ^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid
+    ^^^^^^^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid entity.name.tag.graphql.liquid
+           ^^^^^^^^^
+           text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid meta.entity.tag.graphql.liquid
+                    ^^
+                    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+>  query {
+ ^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>    records {
+ ^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>      results {
+ ^^^^^^^^^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>        {{ context.constants.FIELD }}
+ ^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+         ^^
+         text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid punctuation.definition.tag.begin.liquid
+           ^
+           text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid
+            ^^^^^^^
+            text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid variable.language.liquid
+                   ^
+                   text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid punctuation.accessor.liquid
+                    ^^^^^^^^^
+                    text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid variable.language.liquid
+                             ^
+                             text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid punctuation.accessor.liquid
+                              ^^^^^
+                              text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid variable.other.member.liquid
+                                   ^
+                                   text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid
+                                    ^^
+                                    text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql meta.object.liquid punctuation.definition.tag.end.liquid
+>      }
+ ^^^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>    }
+ ^^^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>  }
+ ^^^^
+ text.html.liquid meta.block.graphql.liquid meta.embedded.block.graphql
+>{% endgraphql %}
+ ^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+   ^
+   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+    ^^^^^^^^^^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid entity.name.tag.graphql.liquid
+              ^
+              text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+               ^^
+               text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+>
+ ^
+ text.html.liquid
+>{% graphql empty %}
+ ^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+   ^
+   text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid
+    ^^^^^^^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid entity.name.tag.graphql.liquid
+           ^^^^^^^
+           text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid meta.entity.tag.graphql.liquid
+                  ^^
+                  text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.start.liquid punctuation.definition.tag.begin.liquid
+>{%- endgraphql %}
+ ^^^
+ text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+    ^
+    text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+     ^^^^^^^^^^
+     text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid entity.name.tag.graphql.liquid
+               ^
+               text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid
+                ^^
+                text.html.liquid meta.block.graphql.liquid meta.tag.metadata.graphql.end.liquid punctuation.definition.tag.end.liquid
+><img>
+ ^
+ text.html.liquid meta.tag.object.img.void.html punctuation.definition.tag.begin.html
+  ^^^
+  text.html.liquid meta.tag.object.img.void.html entity.name.tag.html
+     ^
+     text.html.liquid meta.tag.object.img.void.html punctuation.definition.tag.end.html
+>
+ ^
+ text.html.liquid

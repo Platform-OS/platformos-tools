@@ -125,7 +125,7 @@ export const NestedGraphQLQuery: LiquidCheckDefinition = {
   },
 
   create(context) {
-    const locator = new DocumentsLocator(context.fs);
+    const locator = new DocumentsLocator(context.fs, context.app);
     const rootUri = URI.parse(context.config.rootUri);
 
     function isInsideLoopWithoutCacheOrBackground(ancestors: LiquidHtmlNode[]) {

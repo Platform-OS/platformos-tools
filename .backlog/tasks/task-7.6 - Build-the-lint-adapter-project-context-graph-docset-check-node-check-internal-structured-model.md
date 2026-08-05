@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:01'
-updated_date: '2026-06-23 10:33'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-7.2
@@ -23,6 +23,7 @@ references:
     docs/mcp-supervisor/decisions/003-graph-backed-structural-enrichment/README.md
 parent_task_id: TASK-7
 priority: high
+ordinal: 9000
 ---
 
 ## Description

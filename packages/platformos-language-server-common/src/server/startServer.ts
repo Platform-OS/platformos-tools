@@ -10,7 +10,12 @@ import {
   SourceCodeType,
   UriString,
 } from '@platformos/platformos-check-common';
-import { TranslationProvider, isPage } from '@platformos/platformos-common';
+import {
+  APP_WATCH_GLOBS,
+  PlatformOSFileType,
+  SOURCE_FILE_GLOB,
+  TranslationProvider,
+} from '@platformos/platformos-common';
 import {
   Connection,
   FileChangeType,
@@ -52,7 +57,6 @@ import { Configuration, INCLUDE_FILES_FROM_DISK } from './Configuration';
 import { safe } from './safe';
 import { AppGraphManager } from './AppGraphManager';
 import { DocumentsLocator } from '@platformos/platformos-common';
-import { relative } from '@platformos/platformos-check-common/src/path';
 import { URI } from 'vscode-uri';
 
 const defaultLogger = () => {};
@@ -112,10 +116,15 @@ export function startServer(
     connection,
     clientCapabilities,
     isValidSchema,
+    findAppRootURI,
   );
   const appGraphManager = new AppGraphManager(connection, documentManager, fs, findAppRootURI);
   const diagnosticsManager = new DiagnosticsManager(connection);
-  const documentsLocator = new DocumentsLocator(fs);
+  // Resolution goes through each root's `App`, so document links, go-to-definition
+  // and completions resolve a name exactly the way the checks do — index first
+  // (unsaved buffers and response-format spellings included), filesystem fallback
+  // for a name the index cannot answer.
+  const documentsLocator = new DocumentsLocator(fs, (rootUri) => documentManager.appModel(rootUri));
   const translationProvider = new TranslationProvider(fs);
   const searchPathsCache = new SearchPathsLoader(fs);
   const documentLinksProvider = new DocumentLinksProvider(
@@ -175,7 +184,6 @@ export function startServer(
       loadConfig,
       platformosDocset,
       jsonValidationSet,
-      appGraphManager,
       includeFilesFromDisk: () => configuration[INCLUDE_FILES_FROM_DISK],
       getRouteTable: () => definitionsProvider.getRouteTable(),
     }),
@@ -281,11 +289,15 @@ export function startServer(
     cssLanguageService.setup(params.capabilities);
     configuration.setup();
 
+    // Which renames the client tells us about. Sources come from `SOURCE_FILE_GLOB`
+    // rather than a list spelled here — a hand-written one drifts, and an extension it
+    // omits is a rename that never reaches `onDidRenameFiles`, leaving caches stale.
+    // Assets are matched by directory instead, since they keep their own extension.
     const fileOperationRegistrationOptions: FileOperationRegistrationOptions = {
       filters: [
         {
           pattern: {
-            glob: '**/*.{liquid,json,graphql}',
+            glob: SOURCE_FILE_GLOB,
           },
         },
         {
@@ -353,23 +365,20 @@ export function startServer(
     configuration.fetchConfiguration();
     configuration.registerDidChangeCapability();
     configuration.registerDidChangeWatchedFilesNotification({
-      watchers: [
-        {
-          globPattern: '**/*.liquid',
-        },
-        {
-          globPattern: '**/translations/**/*.yml',
-        },
-        {
-          globPattern: '**/*.graphql',
-        },
-        {
-          globPattern: '**/*.css',
-        },
-        {
-          globPattern: '**/app/config.yml',
-        },
-      ],
+      // `APP_WATCH_GLOBS` is `APP_SOURCE_SUBTREES` — `parseAppPath`'s grammar stated
+      // as a prefix — crossed with the three things a change can be: a platformOS
+      // source, an asset, and a stylesheet the CSS language service answers for.
+      //
+      // ANCHORED: an unanchored `**/*.liquid` and friends deliver every generator
+      // template, build artifact and `node_modules` copy in the repository, each read
+      // before the server finds out it was not an app file. Assets are here because they
+      // ARE in the `App` — the preload walk keeps them, the graph has nodes for them, and
+      // the name index answers `{% asset %}` from them — so one deleted outside the editor
+      // has to reach `documentManager.delete` or `MissingAsset` goes quiet.
+      //
+      // For an asset only the PATH is taken; see the source-type guard on the
+      // Created and Changed branches below. Nothing reads an asset's contents.
+      watchers: APP_WATCH_GLOBS.map((globPattern) => ({ globPattern })),
     });
   });
 
@@ -403,10 +412,21 @@ export function startServer(
     if (await configuration.shouldPreloadOnBoot()) {
       const rootUri = await findAppRootURI(uri);
       if (rootUri) {
-        documentManager.preload(rootUri);
+        // Not awaited: opening a file must not block on the whole workspace loading.
+        documentManager.preloadInBackground(rootUri);
       }
     }
   });
+
+  /**
+   * Whether `uri` is a page, per THE classifier — `documentManager.fileType`,
+   * which answers synchronously for any URI under a known root and walks for the
+   * root only when none is known yet. Anchored either way: `isPage(uri)` with no
+   * root would call `seed/post_import/app/views/pages/x.liquid` a page and keep
+   * it in the route table.
+   */
+  const isPageFile = async (uri: string): Promise<boolean> =>
+    (await documentManager.fileType(uri)) === PlatformOSFileType.Page;
 
   connection.onDidChangeTextDocument(async (params) => {
     if (hasUnsupportedDocument(params)) return;
@@ -417,7 +437,7 @@ export function startServer(
     }
     const text = params.contentChanges[0].text;
     documentManager.change(uri, text, version);
-    if (isPage(uri)) {
+    if (await isPageFile(uri)) {
       definitionsProvider.onPageFileChanged(uri, text);
     }
     if (await configuration.shouldCheckOnChange()) {
@@ -579,13 +599,18 @@ export function startServer(
     // incremental updates aren't reliable — files not open in the editor won't get
     // individual onDidChangeTextDocument events. VS Code reports branch-switch changes
     // as FileChangeType.Changed, so we count all change types.
-    const bulkPageChanges = params.changes.filter((c) => isPage(c.uri));
-    if (bulkPageChanges.length >= BULK_PAGE_CHANGE_THRESHOLD) {
+    // Answered ONCE per change, here, and read out of this array below. Asking
+    // again per branch would repeat a walk up the tree per call — and two of those
+    // sites sit directly inside the loop, which would serialize the whole batch on
+    // exactly the bulk change this threshold exists for.
+    const isPageChange = await Promise.all(params.changes.map((c) => isPageFile(c.uri)));
+    if (isPageChange.filter(Boolean).length >= BULK_PAGE_CHANGE_THRESHOLD) {
       definitionsProvider.invalidateRouteTable();
     }
 
     const updates: Promise<any>[] = [];
-    for (const change of params.changes) {
+    for (const [index, change] of params.changes.entries()) {
+      const changedPage = isPageChange[index];
       // App Check config changes should clear the config cache
       if (change.uri.endsWith('.platformos-check.yml')) {
         loadConfig.clearCache();
@@ -607,12 +632,9 @@ export function startServer(
         continue;
       }
 
-      // Rename cache invalidation is handled by onDidRenameFiles
-      if (documentManager.hasRecentRename(change.uri)) {
-        documentManager.clearRecentRename(change.uri);
-        continue;
-      }
-
+      // An in-editor rename reaches here as well as `onDidRenameFiles`, and both
+      // invalidate the same entries. Doing it twice is free and idempotent; SKIPPING
+      // the second pass is what is not, so nothing suppresses it.
       switch (change.type) {
         case FileChangeType.Created:
           // A created file invalidates readDirectory, readFile and stat
@@ -623,10 +645,9 @@ export function startServer(
           // If a file is created under out feet, we update its contents.
           updates.push(
             documentManager.changeFromDisk(change.uri).then(() => {
-              if (isPage(change.uri)) {
-                const doc = documentManager.get(change.uri);
-                if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
-              }
+              if (!changedPage) return;
+              const doc = documentManager.get(change.uri);
+              if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
             }),
           );
           break;
@@ -642,13 +663,12 @@ export function startServer(
           if (documentManager.get(change.uri)?.version === undefined) {
             updates.push(
               documentManager.changeFromDisk(change.uri).then(() => {
-                if (isPage(change.uri)) {
-                  const doc = documentManager.get(change.uri);
-                  if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
-                }
+                if (!changedPage) return;
+                const doc = documentManager.get(change.uri);
+                if (doc) definitionsProvider.onPageFileChanged(change.uri, doc.source);
               }),
             );
-          } else if (isPage(change.uri)) {
+          } else if (changedPage) {
             // File is open in editor but changed externally (e.g. git checkout).
             // The doc manager already has the editor version, but the route table
             // may be stale — update it from whatever the doc manager holds.
@@ -663,7 +683,7 @@ export function startServer(
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
           appGraphManager.delete(change.uri);
-          if (isPage(change.uri)) definitionsProvider.onPageFileDeleted(change.uri);
+          if (changedPage) definitionsProvider.onPageFileDeleted(change.uri);
           // If a file is deleted, it's removed from the document manager
           documentManager.delete(change.uri);
           break;

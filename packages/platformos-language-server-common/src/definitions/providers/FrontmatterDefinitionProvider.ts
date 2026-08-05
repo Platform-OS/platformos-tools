@@ -1,7 +1,9 @@
 import { NodeTypes, YAMLFrontmatter } from '@platformos/liquid-html-parser';
 import {
   FRONTMATTER_ASSOCIATION_DIRS,
-  getFileType,
+  getAppDirPath,
+  getModuleDirPaths,
+  parseModulePrefix,
   type AbstractFileSystem,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
@@ -97,7 +99,9 @@ export class FrontmatterDefinitionProvider implements BaseDefinitionProvider {
     if (cursor <= bodyStart + lastNewline + 1 + colonIndex) return [];
 
     // `layout` / `layout_name` are valid on Page; `layout` / `layout_path` on Email.
-    const fileType = getFileType(uri);
+    // Which of the two a file is comes from THE classifier — anchored at its root,
+    // synchronous when the root is already known.
+    const fileType = await this.documentManager.fileType(uri);
     const isLayoutKey =
       (fileType === PlatformOSFileType.Page && (key === 'layout' || key === 'layout_name')) ||
       (fileType === PlatformOSFileType.Email && (key === 'layout' || key === 'layout_path'));
@@ -127,37 +131,14 @@ export class FrontmatterDefinitionProvider implements BaseDefinitionProvider {
   ): Promise<DefinitionLink[]> {
     const rootUri = await this.findAppRootURI(fileUri);
     if (!rootUri) return [];
-    const root = URI.parse(rootUri);
 
-    let targetUri: string | undefined;
-
-    if (layoutName.startsWith('modules/')) {
-      const match = layoutName.match(/^modules\/([^/]+)\/(.+)$/);
-      if (!match) return [];
-      const [, mod, rest] = match;
-
-      // Check app overwrite first (app/modules/{mod}/{visibility}/views/layouts/{rest}.liquid),
-      // then fall back to the original module path (modules/{mod}/{visibility}/...).
-      // Both visibilities are checked for each root before moving to the next.
-      const roots: Array<(v: string) => URI> = [
-        (v) => Utils.joinPath(root, 'app', 'modules', mod, v, 'views', 'layouts', `${rest}.liquid`),
-        (v) => Utils.joinPath(root, 'modules', mod, v, 'views', 'layouts', `${rest}.liquid`),
-      ];
-      outer: for (const makeCandidate of roots) {
-        for (const visibility of ['public', 'private'] as const) {
-          const candidate = makeCandidate(visibility);
-          if (await this.fileExists(candidate.toString())) {
-            targetUri = candidate.toString();
-            break outer;
-          }
-        }
-      }
-    } else {
-      const candidate = Utils.joinPath(root, 'app', 'views', 'layouts', `${layoutName}.liquid`);
-      if (await this.fileExists(candidate.toString())) {
-        targetUri = candidate.toString();
-      }
-    }
+    // The one resolver: the root's `App` answers from its index — candidate order,
+    // module shadowing and response formats included — and falls back to the
+    // filesystem for a layout the app does not hold, so go-to-definition lands on
+    // the same file the platform, the linter and the graph resolve.
+    const targetUri = await this.documentManager
+      .appModel(rootUri)
+      .findOrLocate(PlatformOSFileType.Layout, layoutName);
 
     if (!targetUri) return [];
 
@@ -192,26 +173,18 @@ export class FrontmatterDefinitionProvider implements BaseDefinitionProvider {
 
     let targetUri: string | undefined;
 
-    if (itemName.startsWith('modules/')) {
-      const match = itemName.match(/^modules\/([^/]+)\/(.+)$/);
-      if (!match) return [];
-      const [, mod, name] = match;
-      const candidates = [
-        Utils.joinPath(root, 'app', 'modules', mod, 'public', appDir, `${name}.liquid`),
-        Utils.joinPath(root, 'app', 'modules', mod, 'private', appDir, `${name}.liquid`),
-        Utils.joinPath(root, 'modules', mod, 'public', appDir, `${name}.liquid`),
-        Utils.joinPath(root, 'modules', mod, 'private', appDir, `${name}.liquid`),
-      ];
-      for (const candidate of candidates) {
-        if (await this.fileExists(candidate.toString())) {
-          targetUri = candidate.toString();
-          break;
-        }
-      }
-    } else {
-      const candidate = Utils.joinPath(root, 'app', appDir, `${itemName}.liquid`);
-      if (await this.fileExists(candidate.toString())) {
-        targetUri = candidate.toString();
+    // `appDir` is a directory NAME (from FRONTMATTER_ASSOCIATION_DIRS) rather than a
+    // file type, so this uses the dir-keyed variants — same candidate ordering.
+    const parsed = parseModulePrefix(itemName);
+    const searchPaths = parsed.isModule
+      ? getModuleDirPaths(appDir, parsed.moduleName)
+      : [getAppDirPath(appDir)];
+
+    for (const searchPath of searchPaths) {
+      const uri = Utils.joinPath(root, searchPath, `${parsed.key}.liquid`).toString();
+      if (await this.fileExists(uri)) {
+        targetUri = uri;
+        break;
       }
     }
 

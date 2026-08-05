@@ -11,7 +11,9 @@ import {
 import { createDisabledChecksModule } from './disabled-checks';
 import { isIgnored } from './ignore';
 import * as path from './path';
+import { getFileType as commonGetFileType } from '@platformos/platformos-common';
 import {
+  AppModel,
   AugmentedDependencies,
   Check,
   CheckDefinition,
@@ -32,9 +34,11 @@ import {
   Problem,
   Schema,
   Settings,
+  Severity,
+  SourceAppFile,
   SourceCode,
   SourceCodeType,
-  App,
+  TypedAppFile,
   UriString,
   ValidateJSON,
   YAMLCheck,
@@ -50,26 +54,10 @@ export * from './context-utils';
 export * from './find-root';
 export * from './fixes';
 export * from './ignore';
-export {
-  FILE_TYPE_DIRS,
-  getAppPaths,
-  getFileType,
-  getModulePaths,
-  isApiCall,
-  isAuthorization,
-  isEmail,
-  isFormConfiguration,
-  isKnownGraphQLFile,
-  isKnownLiquidFile,
-  isKnownYAMLFile,
-  isLayout,
-  isMigration,
-  isPage,
-  isPartial,
-  isSms,
-  isSupportedSourceFile,
-  PlatformOSFileType,
-} from '@platformos/platformos-common';
+// No file-identity re-exports. platformos-common is the SINGLE owner of what a
+// path is — `getFileType`, `nameToPaths`, `parseAppPath`, the directory tables —
+// and consumers import those from it directly, so an import line says which layer
+// owns the fact. `identity-ownership.spec.ts` fails on any that grow back here.
 export * from './frontmatter';
 export * from './json';
 export * from './JSONValidator';
@@ -88,10 +76,20 @@ export * from './visitor';
 export * from './liquid-doc/liquidDoc';
 export * from './liquid-doc/utils';
 export * from './url-helpers';
+// ONE answer to "what shape does this variable have". `UnknownProperty` is its first
+// consumer, not its owner: the language server asks the same question for hover and
+// completion, and a second implementation of it is how the editor and the check came
+// to disagree — the editor's copy offered a `relation` exactly one property.
+export * from './checks/unknown-property/property-shape';
+export * from './checks/unknown-property/shape-analysis';
 
 const defaultErrorHandler = (_error: Error): void => {
-  // Silently ignores errors by default.
+  // Silently ignores errors by default. The offense recorded by `runPipeline` is what
+  // keeps that from reading as a clean file.
 };
+
+/** The check code an internal failure is reported under. Never a real check's code. */
+export const CHECK_ERROR_CODE = 'CheckError';
 
 /** Optional narrowing of a {@link check} run. */
 export interface CheckOptions {
@@ -107,7 +105,7 @@ export interface CheckOptions {
    *
    * `app` must STILL be the complete project. `getDefaultTranslations`,
    * `getTranslationsForBase` and check-node's `getDocDefinition` are all built from
-   * it, and are how cross-file checks (`MissingPartial`, `OrphanedPartial`,
+   * it, and are how cross-file checks (`MissingPartial`, `MissingPage`,
    * `TranslationKeyExists`, …) resolve the rest of the project. This option
    * narrows what gets VISITED, never what the checks can see.
    *
@@ -121,7 +119,7 @@ export interface CheckOptions {
 }
 
 export async function check(
-  app: App,
+  app: AppModel,
   config: Config,
   injectedDependencies: Dependencies,
   options: CheckOptions = {},
@@ -132,6 +130,9 @@ export async function check(
   const { rootUri } = config;
   const dependencies: AugmentedDependencies = {
     ...injectedDependencies,
+    // Checks that resolve a name to a file take this and let the App's index answer,
+    // rather than stat-ing candidate directories in order.
+    app,
     fileExists: makeFileExists(fs),
     fileSize: makeFileSize(fs),
     getDefaultLocale: makeGetDefaultLocale(fs, rootUri),
@@ -141,15 +142,57 @@ export async function check(
   };
 
   const { DisabledChecksVisitor, isDisabled } = createDisabledChecksModule();
-  const jsonValidator = await JSONValidator.create(dependencies.jsonValidationSet, config);
-  const validateJSON = jsonValidator?.validate;
+  // Built on FIRST USE, not per run. No shipped check reads `context.validateJSON`
+  // any more (ValidJSON and JSONSyntaxError went with the JSON source type), so
+  // awaiting `jsonValidationSet.schemas()` here charged every run for a validator
+  // nobody asked for. The seam stays — it is a documented Context capability and
+  // `jsonValidationSet` is still a real dependency of the language server's JSON
+  // services — it just costs nothing until a check asks again.
+  const validateJSON = makeLazyValidateJSON(dependencies.jsonValidationSet, config);
 
   // We're memozing those deps here because they shouldn't change within a run.
   if (dependencies.platformosDocset && !dependencies.platformosDocset.isAugmented) {
     dependencies.platformosDocset = new AugmentedPlatformOSDocset(dependencies.platformosDocset);
   }
 
+  const onRejected = config.onError || defaultErrorHandler;
   const visitable = filesToVisit(app, options.only);
+
+  /**
+   * One (check, file) pipeline, with its failure RECORDED rather than only handed to
+   * `onError` — which no host sets, so it defaults to silence.
+   *
+   * A check that throws part-way through a file has already reported what it found
+   * before the throw and will never report the rest, and a shrunken offense set reads
+   * exactly like a clean file — so a check that dies analyzing one call site's target
+   * silently passes the whole file.
+   */
+  const runPipeline = async (
+    pipeline: Promise<void>,
+    checkDef: CheckDefinition<SourceCodeType>,
+    file: SourceCode<SourceCodeType>,
+  ): Promise<void> => {
+    try {
+      await pipeline;
+    } catch (error) {
+      offenses.push(internalErrorOffense(checkDef, file, error));
+      onRejected(error as Error);
+    }
+  };
+
+  // The only place a run pays to read files. Everything visitable is read up
+  // front — in parallel — so that from here on `file.source` and `file.ast` are
+  // synchronous, which is what every check already assumes. Files that are merely
+  // VISIBLE stay unread: a cross-file check that needs one of them awaits its
+  // `load()` at the point it resolves it, and one that never resolves it never
+  // costs a read or a parse.
+  //
+  // Per file, not per run. A bare `Promise.all` rejects on the first unreadable
+  // file and takes every other file's diagnostics with it; the pipelines below
+  // already route their failures to `onError` one at a time, and this is the same
+  // rule applied to the read. A file whose read failed then throws from `source`
+  // inside its own pipeline, which lands in the same place.
+  await Promise.all(visitable.map((file) => file.load().catch(onRejected)));
 
   for (const type of Object.values(SourceCodeType)) {
     switch (type) {
@@ -160,7 +203,7 @@ export async function check(
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
             const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
-            pipelines.push(checkJSONFile(check, file));
+            pipelines.push(runPipeline(checkJSONFile(check, file), checkDef, file));
           }
         }
         break;
@@ -172,7 +215,7 @@ export async function check(
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
             const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
-            pipelines.push(checkGraphQLFile(check, file));
+            pipelines.push(runPipeline(checkGraphQLFile(check, file), checkDef, file));
           }
         }
         break;
@@ -184,7 +227,7 @@ export async function check(
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
             const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
-            pipelines.push(checkLiquidFile(check, file));
+            pipelines.push(runPipeline(checkLiquidFile(check, file), checkDef, file));
           }
         }
         break;
@@ -196,7 +239,7 @@ export async function check(
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
             const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
-            pipelines.push(checkYAMLFile(check, file));
+            pipelines.push(runPipeline(checkYAMLFile(check, file), checkDef, file));
           }
         }
         break;
@@ -204,10 +247,52 @@ export async function check(
     }
   }
 
-  const onRejected = config.onError || defaultErrorHandler;
-  await Promise.all(pipelines.map((pipeline) => pipeline.catch(onRejected)));
+  await Promise.all(pipelines);
 
   return offenses.filter((offense) => !isDisabled(offense));
+}
+
+/**
+ * A check's own failure, as an offense.
+ *
+ * Reported under {@link CHECK_ERROR_CODE} rather than the failing check's code: the
+ * check found nothing here, it BROKE here, and a consumer counting that check's
+ * offenses must not be handed one it did not produce. The message names it so the
+ * partial result is attributable.
+ *
+ * Positioned at the start of the file without reading its source — an unreadable file
+ * is one of the ways a pipeline fails, and `file.source` throws for exactly those.
+ */
+function internalErrorOffense(
+  checkDef: CheckDefinition<SourceCodeType>,
+  file: SourceCode<SourceCodeType>,
+  error: unknown,
+): Offense {
+  const position = { index: 0, line: 0, character: 0 };
+  return {
+    type: checkDef.meta.type,
+    check: CHECK_ERROR_CODE,
+    message: `${checkDef.meta.code} failed on this file and did not finish checking it: ${
+      error instanceof Error ? error.message : String(error)
+    }`,
+    uri: file.uri,
+    severity: Severity.ERROR,
+    start: position,
+    end: position,
+  } as Offense;
+}
+
+/** One validator per run, created when the first `context.validateJSON` call arrives. */
+function makeLazyValidateJSON(
+  jsonValidationSet: Dependencies['jsonValidationSet'],
+  config: Config,
+): ValidateJSON | undefined {
+  if (!jsonValidationSet) return undefined;
+  let validator: Promise<JSONValidator | undefined> | undefined;
+  return async (uri, jsonString) => {
+    validator ??= JSONValidator.create(jsonValidationSet, config);
+    return (await validator)!.validate(uri, jsonString);
+  };
 }
 
 function createContext<T extends SourceCodeType, S extends Schema>(
@@ -215,7 +300,7 @@ function createContext<T extends SourceCodeType, S extends Schema>(
   file: SourceCode<T>,
   offenses: Offense[],
   config: Config,
-  dependencies: Dependencies,
+  dependencies: AugmentedDependencies,
   validateJSON?: ValidateJSON,
 ): Context<T, S> {
   const checkSettings = config.settings[check.meta.code];
@@ -225,6 +310,12 @@ function createContext<T extends SourceCodeType, S extends Schema>(
     settings: createSettings(checkSettings, check.meta.schema),
     toUri: (relativePath) => path.join(config.rootUri, ...relativePath.split('/')),
     toRelativePath: (uri) => path.relative(uri, config.rootUri),
+    // Anchored at the run's root, so a check cannot reach the unanchored answer.
+    // Files that ARE in the app carry their type already — this reaches for it on
+    // `AppFile` and only re-derives for a URI the app does not contain (a render
+    // target that does not exist, a buffer overlaid from outside).
+    fileType: (uri = file.uri) =>
+      dependencies.app.get(uri)?.fileType ?? commonGetFileType(uri, config.rootUri),
     report(problem: Problem<T>): void {
       offenses.push({
         type: check.meta.type,
@@ -268,23 +359,32 @@ function createCheck<S extends SourceCodeType>(
   file: SourceCode<S>,
   config: Config,
   offenses: Offense[],
-  dependencies: Dependencies,
+  dependencies: AugmentedDependencies,
   validateJSON?: ValidateJSON,
 ): Check<S> {
   const context = createContext(check, file, offenses, config, dependencies, validateJSON);
   return check.create(context as any) as Check<S>;
 }
 
-/** The files a run should visit. Unknown URIs in `only` simply match nothing. */
-function filesToVisit(app: App, only?: UriString[]): App {
-  if (only === undefined) return app;
+/**
+ * The files a run should visit. Unknown URIs in `only` simply match nothing.
+ *
+ * Carries no claim about ASTs — it only feeds `load()` and {@link filesOfType},
+ * which is where a file's `type` is compared and its AST type therefore known.
+ */
+function filesToVisit(app: AppModel, only?: UriString[]): SourceAppFile[] {
+  const files = app.sourceCodes();
+  if (only === undefined) return files;
 
   const visit = new Set(only);
-  return app.filter((file) => visit.has(file.uri));
+  return files.filter((file) => visit.has(file.uri));
 }
 
-function filesOfType<S extends SourceCodeType>(type: S, sourceCodes: App): SourceCode<S>[] {
-  return sourceCodes.filter((file): file is SourceCode<S> => file.type === type);
+function filesOfType<S extends SourceCodeType>(
+  type: S,
+  sourceCodes: SourceAppFile[],
+): TypedAppFile<S>[] {
+  return sourceCodes.filter((file): file is TypedAppFile<S> => file.type === type);
 }
 
 async function checkJSONFile(check: JSONCheck, file: JSONSourceCode): Promise<void> {

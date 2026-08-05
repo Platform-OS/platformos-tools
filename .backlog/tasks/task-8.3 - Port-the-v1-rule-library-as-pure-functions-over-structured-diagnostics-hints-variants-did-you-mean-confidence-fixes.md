@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:56'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-8.1
@@ -15,6 +16,7 @@ references:
   - packages/platformos-check-common/src/fixes
 parent_task_id: TASK-8
 priority: high
+ordinal: 18000
 ---
 
 ## Description

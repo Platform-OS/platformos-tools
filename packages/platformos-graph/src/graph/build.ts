@@ -1,10 +1,11 @@
+import { UriString } from '@platformos/platformos-check-common';
 import {
-  recursiveReadDirectory as findAllFiles,
-  isLayout,
-  isPage,
-  path,
-  UriString,
-} from '@platformos/platformos-check-common';
+  getFileType,
+  PlatformOSFileType,
+  SourceCodeType,
+  sourceCodeTypeOf,
+  walkAppSourceFiles,
+} from '@platformos/platformos-common';
 import { IDependencies, AppGraph, AppModule } from '../types';
 import { augmentDependencies } from './augment';
 import { getModule } from './module';
@@ -19,11 +20,16 @@ export async function buildAppGraph(
 
   entryPoints =
     entryPoints ??
-    (await findAllFiles(deps.fs, rootUri, ([uri]) => {
-      if (!uri.endsWith('.liquid')) return false;
+    (await walkAppSourceFiles(deps.fs, rootUri, ([uri]) => {
+      // A GRAPH-domain restriction, not a second answer to "what is a source
+      // file": Liquid is the only source that can reference another file, so a
+      // non-Liquid entry point would have no edges to traverse. Which extensions
+      // ARE Liquid still comes from platformos-common, never spelled here.
+      if (sourceCodeTypeOf(uri) !== SourceCodeType.LiquidHtml) return false;
       // Layouts are entry points — they wrap all page content.
       // Pages are also entry points — they are directly requested.
-      return isLayout(uri) || isPage(uri);
+      const fileType = getFileType(uri, rootUri);
+      return fileType === PlatformOSFileType.Layout || fileType === PlatformOSFileType.Page;
     }));
 
   const graph: AppGraph = {

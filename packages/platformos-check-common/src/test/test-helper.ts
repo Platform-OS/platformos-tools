@@ -1,4 +1,5 @@
 import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
+import { AbstractFileSystem, App as AppModel } from '@platformos/platformos-common';
 import {
   applyFixToString,
   CheckDefinition,
@@ -12,15 +13,11 @@ import {
   extractDocDefinition,
   FixApplicator,
   JSONCorrector,
-  JSONSourceCode,
-  LiquidSourceCode,
   Offense,
   recommended,
+  sourceParsers,
   SourceCodeType,
   StringCorrector,
-  App,
-  toSourceCode,
-  YAMLSourceCode,
 } from '../index';
 import * as path from '../path';
 import { MockFileSystem } from './MockFileSystem';
@@ -30,10 +27,31 @@ export { JSONCorrector, StringCorrector };
 
 const rootUri = path.normalize('file:/');
 
-export function getApp(appDesc: MockApp): App {
-  return Object.entries(appDesc)
-    .map(([relativePath, source]) => toSourceCode(toUri(relativePath), source))
-    .filter((x): x is LiquidSourceCode | JSONSourceCode | YAMLSourceCode => x !== undefined);
+/**
+ * The fixture as the {@link AppModel}, so a check under test resolves names through
+ * the same index, the same `searchPathIndex` precedence and the same module
+ * shadowing that ship.
+ *
+ * A path the model does not classify is an authoring error, not a silent no-op. The
+ * model only holds files in a recognized platformOS directory, so `file.liquid` at
+ * the root is dropped, the app comes out empty, and the test passes for the wrong
+ * reason — which is what two fixtures here were already doing. Hence the throw.
+ *
+ * `has()`, not `sourceCodes()`: `app/assets/styles.css` is legitimately in the app
+ * with no `SourceCodeType`, and `MissingAsset`'s fixtures need it there.
+ */
+export function getApp(appDesc: MockApp, fs: AbstractFileSystem = new MockFileSystem(appDesc)) {
+  const app = AppModel.fromSources(rootUri, appDesc, fs, sourceParsers);
+
+  const dropped = Object.keys(appDesc).filter((relativePath) => !app.has(toUri(relativePath)));
+  if (dropped.length > 0) {
+    throw new Error(
+      `Fixture paths are not in any platformOS directory, so the app does not contain ` +
+        `them and nothing would be checked: ${dropped.join(', ')}`,
+    );
+  }
+
+  return app;
 }
 
 export async function check(
@@ -43,7 +61,11 @@ export async function check(
   checkSettings: ChecksSettings = {},
   options: CheckOptions = {},
 ): Promise<Offense[]> {
-  const app = getApp(appDesc);
+  // One filesystem behind both the app and the dependencies, so a file the checks
+  // read through `fs` and the same file read through the model cannot differ.
+  const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appDesc });
+  const app = getApp(appDesc, fs);
+  const checkOptions: CheckOptions = { ...options };
   const config: Config = {
     settings: { ...checkSettings },
     checks,
@@ -54,9 +76,9 @@ export async function check(
   };
 
   const defaultMockDependencies: Dependencies = {
-    fs: new MockFileSystem({ '.platformos-check.yml': '', ...appDesc }),
+    fs,
     async getDocDefinition(relativePath) {
-      const file = app.find((file) => file.uri.endsWith(relativePath));
+      const file = app.get(toUri(relativePath));
       if (!file || !isLiquidHtmlNode(file.ast)) {
         return undefined;
       }
@@ -113,6 +135,47 @@ export async function check(
               template: [],
             },
           },
+          // Real `access` shapes from the platformOS docset, where `global` means "needs no
+          // parent object" rather than "in scope everywhere". `data` and `response` are
+          // global yet exist only in an api_call; `forloop` is global yet exists only
+          // inside the loop that declares it. Without these, no test can catch a check
+          // that reads `global` on its own — which is how a partial reading `data` came to
+          // draw no offense at all.
+          {
+            name: 'data',
+            access: {
+              global: true,
+              parents: [],
+              template: [],
+              app_file_type: 'api_call',
+            },
+          },
+          {
+            name: 'response',
+            access: {
+              global: true,
+              parents: [],
+              template: [],
+              app_file_type: 'api_call',
+            },
+          },
+          {
+            name: 'forloop',
+            access: {
+              global: true,
+              parents: [{ object: 'forloop', property: 'parentloop' }],
+              template: [],
+            },
+          },
+          {
+            name: 'content_for_layout',
+            access: {
+              global: true,
+              parents: [],
+              template: [],
+              app_file_type: 'layout',
+            },
+          },
         ];
       },
       async liquidDrops() {
@@ -124,13 +187,19 @@ export async function check(
     },
   };
 
-  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies }, options);
+  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies }, checkOptions);
 }
 
+/**
+ * The default fixture paths below are real platformOS paths, because the fixture is
+ * a real {@link AppModel} now: a file at the project root is in no app and would be
+ * checked by nothing. A test whose subject depends on the file's TYPE — a layout, a
+ * page, a translation — should name its own path rather than lean on these.
+ */
 export async function runLiquidCheck(
   checkDef: CheckDefinition<SourceCodeType.LiquidHtml>,
   sourceCode: string,
-  fileName: string = 'file.liquid',
+  fileName: string = 'app/views/partials/file.liquid',
   mockDependencies: Partial<Dependencies> = {},
   existingAppFiles?: MockApp,
 ): Promise<Offense[]> {
@@ -142,20 +211,10 @@ export async function runLiquidCheck(
   return offenses.filter((offense) => offense.uri === path.join(rootUri, fileName));
 }
 
-export async function runJSONCheck(
-  checkDef: CheckDefinition<SourceCodeType.JSON>,
-  sourceCode: string,
-  fileName: string = 'file.json',
-  mockDependencies: Partial<Dependencies> = {},
-): Promise<Offense[]> {
-  const offenses = await check({ [fileName]: sourceCode }, [checkDef], mockDependencies);
-  return offenses.filter((offense) => offense.uri === path.join(rootUri, fileName));
-}
-
 export async function runYAMLCheck(
   checkDef: CheckDefinition<SourceCodeType.YAML>,
   sourceCode: string,
-  fileName: string = 'file.yml',
+  fileName: string = 'app/translations/en.yml',
   mockDependencies: Partial<Dependencies> = {},
 ): Promise<Offense[]> {
   const offenses = await check({ [fileName]: sourceCode }, [checkDef], mockDependencies);
@@ -201,7 +260,10 @@ export function applySuggestions(
 }
 
 export function highlightedOffenses(appOrSource: MockApp | string, offenses: Offense[]) {
-  const app = typeof appOrSource === 'string' ? { 'file.liquid': appOrSource } : appOrSource;
+  const app =
+    typeof appOrSource === 'string'
+      ? { 'app/views/partials/file.liquid': appOrSource }
+      : appOrSource;
   return offenses.map((offense) => {
     const relativePath = path.relative(offense.uri, rootUri);
     const source = app[relativePath];

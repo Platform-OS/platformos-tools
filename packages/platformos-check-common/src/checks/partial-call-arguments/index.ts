@@ -1,10 +1,7 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { DocumentsLocator, DocumentType } from '@platformos/platformos-common';
-import { URI } from 'vscode-uri';
-import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
-import { relative } from '../../path';
-import { isGloballyAccessibleObject } from '../utils';
-import { extractUndefinedVariables } from './extract-undefined-variables';
+import { FunctionMarkup, LiquidHtmlNode, RenderMarkup } from '@platformos/liquid-html-parser';
+import { callSiteTag } from '../utils';
+import { inferredTargetParams } from '../../liquid-doc/target-params';
 
 export const PartialCallArguments: LiquidCheckDefinition = {
   meta: {
@@ -13,7 +10,7 @@ export const PartialCallArguments: LiquidCheckDefinition = {
     name: 'Partial Call Arguments',
     docs: {
       description:
-        'Ensures that all required arguments are passed at render/function call sites, and that no unknown arguments are passed. Required vs optional is determined from the {% doc %} block when present, or inferred from undefined variables in the partial source otherwise. Variables used with | default are treated as optional.',
+        "Ensures that all required arguments are passed at render/function call sites, and that no unknown arguments are passed, for partials that have NO {% doc %} block. Required vs optional is inferred from undefined variables in the partial source; variables used with | default are treated as optional. A missing argument at an {% include %} site is not an error — `include` runs the partial in the caller's scope, so the value resolves from there — and belongs to `ImplicitIncludeArguments`. Documented partials are owned by `MissingRenderPartialArguments` and `UnrecognizedRenderPartialArguments`.",
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/partial-call-arguments',
     },
@@ -24,113 +21,51 @@ export const PartialCallArguments: LiquidCheckDefinition = {
   },
 
   create(context) {
-    const locator = new DocumentsLocator(context.fs);
+    const validate = async (node: RenderMarkup | FunctionMarkup, ancestors: LiquidHtmlNode[]) => {
+      const targetFile = 'value' in node.partial ? node.partial.value : node.partial.name;
+      if (!targetFile) return;
 
-    /**
-     * The globally accessible documented objects, which are in scope inside every
-     * partial and so must not be reported as missing arguments.
-     *
-     * Returns a fresh array each time, so callers are free to extend it — and must
-     * be given their own, since `extractUndefinedVariables` keys its cache on these
-     * names.
-     */
-    const globalObjectNames = async (): Promise<string[]> => {
-      const objects = (await context.platformosDocset?.objects()) ?? [];
-      return objects.filter(isGloballyAccessibleObject).map((obj) => obj.name);
-    };
+      const tag = callSiteTag(node, ancestors);
+      const params = await inferredTargetParams(context, tag, targetFile);
+      if (!params) return;
 
-    const validate = async (
-      nodeType: DocumentType,
-      targetFile: string,
-      args: LiquidNamedArgument[],
-      position: Position,
-    ) => {
-      const locatedFile = await locator.locate(
-        URI.parse(context.config.rootUri),
-        nodeType,
-        targetFile,
-      );
+      const { required, optional, inScope } = params;
+      const allowedParams = [...required, ...optional, ...inScope];
 
-      if (!locatedFile) {
-        return;
-      }
-
-      const source = await context.fs.readFile(locatedFile);
-      const relativePath = relative(locatedFile, context.config.rootUri);
-
-      let requiredParams: string[];
-      let allowedParams: string[];
-
-      // Check for @doc tag first — if present, it's the complete param list
-      const docDef = context.getDocDefinition
-        ? await context.getDocDefinition(relativePath)
-        : undefined;
-
-      if (docDef?.liquidDoc?.parameters) {
-        const { required: undefinedRequiredVars, optional: undefinedOptionalVars } =
-          extractUndefinedVariables(source, await globalObjectNames());
-        const undefinedVars = [...undefinedRequiredVars, ...undefinedOptionalVars];
-        const docRequiredNames = docDef.liquidDoc.parameters
-          .filter((p) => p.required)
-          .map((p) => p.name);
-        requiredParams = docRequiredNames.filter((name) => undefinedVars.includes(name));
-        allowedParams = docDef.liquidDoc.parameters.map((p) => p.name);
-      } else {
-        // No @doc — infer required vs optional from undefined variables in the source.
-        // Variables used with `| default` are treated as optional.
-        const inScopeNames = await globalObjectNames();
-        // `app` is not a documented object, so it never comes back from objects().
-        if (relativePath.includes('views/partials/') || relativePath.includes('/lib/')) {
-          inScopeNames.push('app');
-        }
-
-        const { required: requiredVars, optional: optionalVars } = extractUndefinedVariables(
-          source,
-          inScopeNames,
-        );
-        if (requiredVars.length === 0 && optionalVars.length === 0) return;
-
-        requiredParams = requiredVars;
-        allowedParams = [...requiredVars, ...optionalVars];
-      }
-
-      args
+      node.args
         .filter((arg) => !allowedParams.includes(arg.name))
         .forEach((arg) => {
           context.report({
-            message: `Unknown parameter ${arg.name} passed to ${nodeType} call`,
+            message: `Unknown parameter ${arg.name} passed to ${tag} call`,
             startIndex: arg.position.start,
             endIndex: arg.position.end,
           });
         });
 
-      requiredParams
-        .filter((param) => !args.find((arg) => arg.name === param))
+      // `include` runs the partial in the CALLER'S scope, so a variable the target reads and
+      // the call does not pass is not missing — it resolves from the caller, and nothing is
+      // broken. What is left is an explicitness problem, which `ImplicitIncludeArguments`
+      // reports as a warning. The unknown-ARGUMENT direction above is a real mistake
+      // whichever tag was used, so it stays.
+      if (tag === 'include') return;
+
+      required
+        .filter((param) => !node.args.find((arg) => arg.name === param))
         .forEach((param) => {
           context.report({
-            message: `Required parameter ${param} must be passed to ${nodeType} call`,
-            startIndex: position.start,
-            endIndex: position.end,
+            message: `Required parameter ${param} must be passed to ${tag} call`,
+            startIndex: node.position.start,
+            endIndex: node.position.end,
           });
         });
     };
 
     return {
-      async RenderMarkup(node) {
-        const targetFile = 'value' in node.partial ? node.partial.value : node.partial.name;
-        if (!targetFile) {
-          return;
-        }
-
-        await validate('render', targetFile, node.args, node.position);
+      async RenderMarkup(node: RenderMarkup, ancestors: LiquidHtmlNode[]) {
+        await validate(node, ancestors);
       },
-      async FunctionMarkup(node) {
-        const targetFile = 'value' in node.partial ? node.partial.value : node.partial.name;
-        if (!targetFile) {
-          return;
-        }
-
-        await validate('function', targetFile, node.args, node.position);
+      async FunctionMarkup(node: FunctionMarkup, ancestors: LiquidHtmlNode[]) {
+        await validate(node, ancestors);
       },
     };
   },

@@ -1,0 +1,43 @@
+{% function result = 'modules/core/commands/user/create', email: params.email %}
+{% include 'shared/header', title: page.title %}
+{% include_form 'user_signup', id: current_user.id %}
+{% print current_user.email %}
+{% log result, type: 'debug' %}
+{% export config, namespace: 'app' %}
+{% return result %}
+{% return { "status": 200 } %}
+{% hash_assign object["key"] = 'value' %}
+{% session cart_id = params.cart_id %}
+{% context locale: 'en' %}
+{% sign_in user_id: current_user.id, timeout_in_minutes: 60 %}
+{% redirect_to '/dashboard', status: 302 %}
+{% response_status 404 %}
+{% response_headers '{ "Cache-Control": "max-age=600" }' %}
+{% spam_protection 'recaptcha' %}
+{% theme_render_rc 'shared/header', title: page.title %}
+{% yield 'content' %}
+
+{% background source_name: 'my_job' %}
+  {% function res = 'modules/core/commands/heavy', id: params.id %}
+{% endbackground %}
+
+{% background result = 'modules/core/commands/heavy', id: params.id %}
+
+{% cache 'my-key', expire: 60 %}
+  <p>{{ context.language }}</p>
+{% endcache %}
+
+{% content_for 'head' %}
+  <meta name="robots" content="noindex">
+{% endcontent_for %}
+
+{% try %}
+  {% transaction %}
+    {% function res = 'modules/core/commands/transfer', amount: 10 %}
+    {% if res.error %}
+      {% rollback %}
+    {% endif %}
+  {% endtransaction %}
+{% catch error %}
+  {% log error %}
+{% endtry %}

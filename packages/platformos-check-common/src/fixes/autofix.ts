@@ -1,4 +1,4 @@
-import { FixApplicator, Offense, SourceCodeType, App } from '../types';
+import { AppModel, FixApplicator, Offense, SourceCodeType } from '../types';
 import { WithRequired } from '../utils/types';
 import { createCorrector } from './correctors';
 import { flattenFixes } from './utils';
@@ -14,16 +14,19 @@ type FixableOffense<S extends SourceCodeType> = S extends SourceCodeType
  * Note that offense.fix is assumed to be safe, unlike offense.suggest
  * options.
  */
-export async function autofix(sourceCodes: App, offenses: Offense[], applyFixes: FixApplicator) {
+export async function autofix(app: AppModel, offenses: Offense[], applyFixes: FixApplicator) {
   const fixableOffenses = offenses.filter(
     (offense): offense is FixableOffense<SourceCodeType> => 'fix' in offense && !!offense.fix,
   );
 
   const promises = [];
 
-  for (const sourceCode of sourceCodes) {
+  for (const sourceCode of app.sourceCodes()) {
     const sourceCodeOffenses = fixableOffenses.filter((offense) => offense.uri === sourceCode.uri);
 
+    // Load-bearing order: `sourceCode.source` below throws on a file the run never
+    // read, and most files in an app have no offense. A file that HAS one was
+    // visited, and a visited file was loaded.
     if (sourceCodeOffenses.length === 0) {
       continue;
     }

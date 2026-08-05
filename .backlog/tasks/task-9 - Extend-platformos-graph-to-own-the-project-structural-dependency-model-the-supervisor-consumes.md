@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-23 10:32'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies: []
 references:
@@ -14,6 +15,7 @@ references:
   - packages/platformos-graph/src/graph/traverse.ts
   - packages/platformos-graph/src/types.ts
 priority: medium
+ordinal: 21000
 ---
 
 ## Description

@@ -1,6 +1,7 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { LiquidNamedArgument, RenderMarkup } from '@platformos/liquid-html-parser';
+import { LiquidHtmlNode, LiquidNamedArgument, RenderMarkup } from '@platformos/liquid-html-parser';
 import { getPartialName, reportDuplicateArguments } from '../../liquid-doc/arguments';
+import { callSiteTag } from '../utils';
 
 export const DuplicateRenderPartialArguments: LiquidCheckDefinition = {
   meta: {
@@ -21,7 +22,7 @@ export const DuplicateRenderPartialArguments: LiquidCheckDefinition = {
 
   create(context) {
     return {
-      async RenderMarkup(node: RenderMarkup) {
+      async RenderMarkup(node: RenderMarkup, ancestors: LiquidHtmlNode[]) {
         const partialName = getPartialName(node);
 
         if (!partialName) return;
@@ -41,7 +42,13 @@ export const DuplicateRenderPartialArguments: LiquidCheckDefinition = {
           encounteredArgNames.add(param.name);
         }
 
-        reportDuplicateArguments(context, node, duplicateArgs, partialName);
+        reportDuplicateArguments(
+          context,
+          node,
+          duplicateArgs,
+          partialName,
+          callSiteTag(node, ancestors),
+        );
       },
     };
   },

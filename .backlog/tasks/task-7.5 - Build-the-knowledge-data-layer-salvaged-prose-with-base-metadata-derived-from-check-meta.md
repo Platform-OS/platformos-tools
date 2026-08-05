@@ -6,6 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:01'
+updated_date: '2026-08-04 12:48'
 labels: []
 dependencies:
   - TASK-7.4
@@ -14,6 +15,7 @@ references:
   - packages/platformos-check-common/src/checks
 parent_task_id: TASK-7
 priority: medium
+ordinal: 8000
 ---
 
 ## Description

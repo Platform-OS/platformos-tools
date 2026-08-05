@@ -1,7 +1,9 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { path as pathUtils } from '@platformos/platformos-check-common';
+import { Offense, path as pathUtils } from '@platformos/platformos-check-common';
+import { Parser, uriFromPath } from '@platformos/platformos-common';
+import { lintBuffer, LintBufferParams, nodeParsers } from '../index';
 
 export async function makeTmpFolder() {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'test-'));
@@ -81,10 +83,13 @@ export async function makeTempWorkspace(structure: Tree): Promise<Workspace> {
 
   await createFiles(structure, [root]);
 
-  const rootUri = pathUtils.normalize('file:' + root);
+  // `uriFromPath`, not `'file:' + root`: on Windows the concatenation keeps the drive
+  // and the backslashes, so a test would hand the API under test a root spelled
+  // differently from the one it produces itself.
+  const rootUri = uriFromPath(root);
 
   return {
-    rootUri: 'file:' + root,
+    rootUri,
     root,
     uri: (relativePath) => pathUtils.join(rootUri, ...relativePath.split('/')),
     clean: async () => fs.rm(root, { recursive: true, force: true }),
@@ -104,5 +109,49 @@ export async function makeTempWorkspace(structure: Tree): Promise<Workspace> {
       }
     }
     return Promise.all(promises);
+  }
+}
+
+/**
+ * `lintBuffer` for a test that is about the OFFENSES, asserting on the way through
+ * that the file was actually checked.
+ *
+ * `lintBuffer` answers with a status as well as offenses, because an empty list
+ * means "clean" only when the status says the checks ran. A test that reads the
+ * offenses and ignores the status would pass just as happily against a file the
+ * config excludes — which is the confusion the status exists to remove.
+ */
+export async function lintBufferOffenses(params: LintBufferParams): Promise<Offense[]> {
+  const result = await lintBuffer(params);
+  if (result.status !== 'checked') {
+    throw new Error(`Expected ${params.filePath} to be checked, but it was ${result.status}`);
+  }
+  return result.offenses;
+}
+
+/**
+ * Run `lint` with the injected Liquid parser wrapped, and report which files it
+ * parsed.
+ *
+ * Spying on the PARSER rather than on the filesystem is what isolates AST cost
+ * from the reads some checks make for their own reasons — `RouteTable` reading
+ * page frontmatter, translation files being loaded as YAML.
+ */
+export async function withCountedLiquidParses<T>(
+  lint: () => Promise<T>,
+): Promise<{ result: T; parsedUris: string[] }> {
+  const parsers = nodeParsers as Record<string, Parser | undefined>;
+  const original = parsers.LiquidHtml!;
+  const parsedUris: string[] = [];
+
+  parsers.LiquidHtml = (source, uri) => {
+    parsedUris.push(uri);
+    return original(source, uri);
+  };
+
+  try {
+    return { result: await lint(), parsedUris };
+  } finally {
+    parsers.LiquidHtml = original;
   }
 }

@@ -12,7 +12,7 @@ describe('Module: ParserBlockingScript', () => {
 
     const offenses = await reportOffenses(
       {
-        'code.liquid': file,
+        'app/views/partials/code.liquid': file,
       },
       [ParserBlockingScript],
     );
@@ -30,7 +30,9 @@ describe('Module: ParserBlockingScript', () => {
   describe('Case: script tag suggestion', () => {
     it('should suggest adding both attributes at the end', async () => {
       const file = `<script src="a.js"></script>`;
-      const offenses = await reportOffenses({ 'code.liquid': file }, [ParserBlockingScript]);
+      const offenses = await reportOffenses({ 'app/views/partials/code.liquid': file }, [
+        ParserBlockingScript,
+      ]);
 
       expect(offenses).to.have.length(1);
 
@@ -61,7 +63,7 @@ describe('Module: ParserBlockingScript', () => {
       `;
       const offenses = await reportOffenses(
         {
-          'code.liquid': file,
+          'app/views/partials/code.liquid': file,
         },
         [ParserBlockingScript],
       );
@@ -74,7 +76,7 @@ describe('Module: ParserBlockingScript', () => {
       `;
       const offenses = await reportOffenses(
         {
-          'code.liquid': file,
+          'app/views/partials/code.liquid': file,
         },
         [ParserBlockingScript],
       );
@@ -87,7 +89,7 @@ describe('Module: ParserBlockingScript', () => {
       `;
       const offenses = await reportOffenses(
         {
-          'code.liquid': file,
+          'app/views/partials/code.liquid': file,
         },
         [ParserBlockingScript],
       );
@@ -101,7 +103,7 @@ describe('Module: ParserBlockingScript', () => {
       `;
       const offenses = await reportOffenses(
         {
-          'code.liquid': file,
+          'app/views/partials/code.liquid': file,
         },
         [ParserBlockingScript],
       );

@@ -180,7 +180,7 @@ source.
 | `vscode-languageserver/node` + `vscode-languageserver-protocol/node` | LSP client/server runtime + typed protocol constants |
 | `vscode-languageserver-textdocument` | Text document mutations |
 | `js-yaml@^4.1.0` | Schema / translation YAML parsing |
-| `normalize-path@^3.0.0` | Forward-slash path normalisation (per platformos-tools convention) |
+| `@platformos/platformos-common` | `toPosixPath` / `uriFromPath` — the monorepo's one forward-slash path normalisation (replaced `normalize-path`) |
 | `zod@^3.23.8` | Tool input schema |
 
 ### Internal module dependencies
@@ -392,6 +392,14 @@ The 32 covered checks:
 92 distinct rules total (some checks have multiple priority-ordered
 rule variants).
 
+`ConvertIncludeToRender` is recorded here only because v1 claimed it —
+**do not rebuild it.** `include` is not deprecated: no tag in the docset
+is marked deprecated, and `include` is the only way to run a partial in
+the caller's scope or to stop the caller's flow from inside a partial
+with `{% break %}`, which is how the `can_do_or_*` authorization guards
+work. No check by that name exists in `platformos-check-common`, and
+none ever did.
+
 **Helpers** (`queries.ts`, `module-paths.ts`): graph-aware queries
 (`nearestByLevenshtein`, `partialNames`, `partialsReachableFrom`,
 `dependentsOf`, `translationKeysForLocale`, `stripLocalePrefix`,
@@ -497,7 +505,9 @@ heuristic fixes per check (18 per-check fix functions covering
 `NestedGraphQLQuery`, `TranslationKeyExists`,
 `InvalidHashAssignTarget`, `MetadataParamsCheck`, `UnknownProperty`,
 `LiquidHTMLSyntaxError`, plus 10 `pos-supervisor:*` structural fix
-dispatchers).
+dispatchers). The `ConvertIncludeToRender` fix rewrote a supported tag
+into one with different semantics — see the note on it in §5.8; it must
+not come back.
 
 The discriminated `Fix` union:
 

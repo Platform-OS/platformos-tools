@@ -1,19 +1,19 @@
 {% raw %}
   hello world
-  {{ product }}
+  {{ page }}
 {% endraw %}
-{% raw %}{{ product.feature }}{% endraw %}
-{% javascript %}
-  {% raw %}{{ product.feature }}{% endraw %}
+{% raw %}{{ page.title }}{% endraw %}
+<script>
+  {% raw %}{{ page.title }}{% endraw %}
   {% raw %}
-    hi {{ product }}
+    hi {{ page }}
   {% endraw %}
   console.log('hello world');
   const str = `
     {% raw %}
-      hi {{ product }}
+      hi {{ page }}
     {% endraw %}
   `
-  const fuu = '{% raw %} {{ product.feature }} {% endraw %}'
-  const fuu2 = '{% raw %}{{ product.feature }}{% endraw %}'
-{% endjavascript %}
+  const fuu = '{% raw %} {{ page.title }} {% endraw %}'
+  const fuu2 = '{% raw %}{{ page.title }}{% endraw %}'
+</script>

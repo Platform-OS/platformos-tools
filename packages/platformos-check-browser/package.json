@@ -26,6 +26,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/platformos-check-common": "0.0.19"
+    "@platformos/platformos-check-common": "0.0.19",
+    "@platformos/platformos-common": "0.0.17"
   }
 }

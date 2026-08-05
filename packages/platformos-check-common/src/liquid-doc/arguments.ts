@@ -16,10 +16,20 @@ import {
   isNullLiteral,
   isTypeCompatible,
 } from './utils';
-import { isLiquidString } from '../checks/utils';
+import { CallSiteTag, isLiquidString } from '../checks/utils';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { relative } from '../path';
+
+/**
+ * Which call site an offense is about, in the words the author wrote it in. `include` and
+ * `render` share a node type, so the tag has to be handed in (`callSiteTag`) rather than
+ * read off the node — telling someone about a "render tag" they did not write sends them
+ * looking for a tag that is not there.
+ */
+function callSiteDescription(tag: CallSiteTag, partialName: string) {
+  return ` in ${tag} tag for partial '${partialName}'`;
+}
 
 /**
  * Report error when unknown arguments are provided for `content_for` tag or `render` tag
@@ -29,13 +39,9 @@ export function reportUnknownArguments(
   node: RenderMarkup | FunctionMarkup,
   unknownProvidedArgs: LiquidNamedArgument[],
   name: string,
+  tag: CallSiteTag,
 ) {
-  let errorOwnerMessage = '';
-  if (node.type === NodeTypes.RenderMarkup) {
-    errorOwnerMessage = ` in render tag for partial '${name}'`;
-  } else if (node.type === NodeTypes.FunctionMarkup) {
-    errorOwnerMessage = ` in function tag for partial '${name}'`;
-  }
+  const errorOwnerMessage = callSiteDescription(tag, name);
 
   for (const arg of unknownProvidedArgs) {
     context.report({
@@ -60,13 +66,9 @@ export function reportMissingArguments(
   node: RenderMarkup | FunctionMarkup,
   missingRequiredArgs: LiquidDocParameter[],
   name: string,
+  tag: CallSiteTag,
 ) {
-  let errorOwnerMessage = '';
-  if (node.type === NodeTypes.RenderMarkup) {
-    errorOwnerMessage = ` in render tag for partial '${name}'`;
-  } else if (node.type === NodeTypes.FunctionMarkup) {
-    errorOwnerMessage = ` in function tag for partial '${name}'`;
-  }
+  const errorOwnerMessage = callSiteDescription(tag, name);
 
   for (const arg of missingRequiredArgs) {
     context.report({
@@ -88,13 +90,9 @@ export function reportDuplicateArguments(
   node: RenderMarkup | FunctionMarkup,
   duplicateArgs: LiquidNamedArgument[],
   name: string,
+  tag: CallSiteTag,
 ) {
-  let errorOwnerMessage = '';
-  if (node.type === NodeTypes.RenderMarkup) {
-    errorOwnerMessage = ` in render tag for partial '${name}'`;
-  } else if (node.type === NodeTypes.FunctionMarkup) {
-    errorOwnerMessage = ` in function tag for partial '${name}'`;
-  }
+  const errorOwnerMessage = callSiteDescription(tag, name);
 
   for (const arg of duplicateArgs) {
     context.report({
@@ -249,7 +247,7 @@ export async function getLiquidDocParams(
 
   // Use DocumentsLocator to find the partial across all platformOS locations,
   // including app/views/partials/, app/lib/, and module paths.
-  const locator = new DocumentsLocator(context.fs);
+  const locator = new DocumentsLocator(context.fs, context.app);
   const fileUri = await locator.locate(URI.parse(context.config.rootUri), 'render', partialName);
   if (!fileUri) return undefined;
 

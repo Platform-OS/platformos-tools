@@ -7,10 +7,9 @@ repository:
       - include: '#raw_tag'
       - include: '#doc_tag'
       - include: '#comment_block'
-      - include: '#style_codefence'
-      - include: '#stylesheet_codefence'
+      - include: '#graphql_codefence'
+      - include: '#graphql_codefence_without_graphql_grammar'
       - include: '#json_codefence'
-      - include: '#javascript_codefence'
       - include: '#object'
       - include: '#tag'
       - include: text.html.basic
@@ -107,77 +106,67 @@ repository:
       - include: '#comment_block'
       - match: '(.(?!{%-?\s*(comment|endcomment)\s*-?%}))*.'
 
-  style_codefence:
-    begin: '({%-?)\s*(style)\s*(-?%})'
-    end: '({%-?)\s*(endstyle)\s*(-?%})'
+  # {% graphql result, arg: 1 %} … {% endgraphql %} — the body is a GraphQL document.
+  #
+  # The `(?![^%]*=)` guard keeps this off the inline form, `{% graphql r = 'query_name' %}`,
+  # which names a file in app/graphql and has no body at all. It mirrors the parser, where
+  # liquidTagGraphQLInlineMarkup requires `~(space* "=")` for the block form and
+  # liquidTagGraphQLMarkup requires the `=` for the inline one. A block whose arguments
+  # happen to contain an `=` inside a string falls through to plain tag highlighting,
+  # which is the harmless direction to fail in — matching the inline form here would
+  # swallow the rest of the file looking for an {% endgraphql %} that never comes.
+  #
+  # There are two rules for one block on purpose. vscode-textmate DISCARDS an entire rule
+  # when anything in its pattern subtree references a grammar the editor has not
+  # registered, and VS Code ships no GraphQL grammar. So the first rule — real GraphQL
+  # tokens, for anyone with a GraphQL extension installed — is tried first, and the
+  # second, identical but for the missing include, is what survives on its own otherwise.
+  # Either way the body lands in meta.embedded.block.graphql, which package.json maps to
+  # the graphql language, and the injection keeps interpolated Liquid highlighted inside.
+  # The test harness registers no GraphQL grammar, so the baselines record the fallback.
+  graphql_codefence: &graphql_codefence
+    begin: '({%-?)\s*(graphql)\b(?![^%]*=)([^%]*?)(-?%})'
+    end: '({%-?)\s*(endgraphql)\s*(-?%})'
     beginCaptures:
-      0: { name: meta.tag.metadata.style.start.liquid }
+      0: { name: meta.tag.metadata.graphql.start.liquid }
       1: { name: punctuation.definition.tag.begin.liquid }
-      2: { name: entity.name.tag.style.liquid }
-      3: { name: punctuation.definition.tag.begin.liquid }
+      2: { name: entity.name.tag.graphql.liquid }
+      3: { name: meta.entity.tag.graphql.liquid }
+      4: { name: punctuation.definition.tag.begin.liquid }
     endCaptures:
-      0: { name: meta.tag.metadata.style.end.liquid }
+      0: { name: meta.tag.metadata.graphql.end.liquid }
       1: { name: punctuation.definition.tag.end.liquid }
-      2: { name: entity.name.tag.style.liquid }
+      2: { name: entity.name.tag.graphql.liquid }
       3: { name: punctuation.definition.tag.end.liquid }
-    name: meta.block.style.liquid
-    contentName: meta.embedded.block.css
+    name: meta.block.graphql.liquid
+    contentName: meta.embedded.block.graphql
     patterns:
-      - include: source.css
+      - include: source.graphql
 
-  stylesheet_codefence:
-    begin: '({%-?)\s*(stylesheet)\s*(-?%})'
-    end: '({%-?)\s*(endstylesheet)\s*(-?%})'
-    beginCaptures:
-      0: { name: meta.tag.metadata.style.start.liquid }
-      1: { name: punctuation.definition.tag.begin.liquid }
-      2: { name: entity.name.tag.style.liquid }
-      3: { name: punctuation.definition.tag.begin.liquid }
-    endCaptures:
-      0: { name: meta.tag.metadata.style.end.liquid }
-      1: { name: punctuation.definition.tag.end.liquid }
-      2: { name: entity.name.tag.style.liquid }
-      3: { name: punctuation.definition.tag.end.liquid }
-    name: meta.block.style.liquid
-    contentName: meta.embedded.block.css
-    patterns:
-      - include: source.css
+  graphql_codefence_without_graphql_grammar:
+    <<: *graphql_codefence
+    patterns: []
 
+  # {% parse_json var %} … {% endparse_json %} — the body is a JSON document. Deprecated
+  # in favour of hash literals ({% assign a = {"x": 1} %}), but still rendered.
   json_codefence:
-    begin: '({%-?)\s*(schema)\s*(-?%})'
-    end: '({%-?)\s*(endschema)\s*(-?%})'
+    begin: '({%-?)\s*(parse_json)\b([^%]*?)(-?%})'
+    end: '({%-?)\s*(endparse_json)\s*(-?%})'
     beginCaptures:
-      0: { name: meta.tag.metadata.schema.start.liquid }
+      0: { name: meta.tag.metadata.parse-json.start.liquid }
       1: { name: punctuation.definition.tag.begin.liquid }
-      2: { name: entity.name.tag.schema.liquid }
-      3: { name: punctuation.definition.tag.begin.liquid }
+      2: { name: entity.name.tag.parse-json.liquid }
+      3: { name: meta.entity.tag.parse-json.liquid }
+      4: { name: punctuation.definition.tag.begin.liquid }
     endCaptures:
-      0: { name: meta.tag.metadata.schema.end.liquid }
+      0: { name: meta.tag.metadata.parse-json.end.liquid }
       1: { name: punctuation.definition.tag.end.liquid }
-      2: { name: entity.name.tag.schema.liquid }
+      2: { name: entity.name.tag.parse-json.liquid }
       3: { name: punctuation.definition.tag.end.liquid }
-    name: meta.block.schema.liquid
+    name: meta.block.parse-json.liquid
     contentName: meta.embedded.block.json
     patterns:
       - include: source.json
-
-  javascript_codefence:
-    begin: '({%-?)\s*(javascript)\s*(-?%})'
-    end: '({%-?)\s*(endjavascript)\s*(-?%})'
-    beginCaptures:
-      0: { name: meta.tag.metadata.javascript.start.liquid }
-      1: { name: punctuation.definition.tag.begin.liquid }
-      2: { name: entity.name.tag.javascript.liquid }
-      3: { name: punctuation.definition.tag.begin.liquid }
-    endCaptures:
-      0: { name: meta.tag.metadata.javascript.end.liquid }
-      1: { name: punctuation.definition.tag.end.liquid }
-      2: { name: entity.name.tag.javascript.liquid }
-      3: { name: punctuation.definition.tag.end.liquid }
-    name: meta.block.javascript.liquid
-    contentName: meta.embedded.block.js
-    patterns:
-      - include: source.js
 
   tag:
     begin: '<%= ABSURD_COMMENT_RAW_BACKTRACK %>{%-?'
@@ -193,9 +182,9 @@ repository:
   tag_injection:
     # Here the begin makes sure we're not closing the tag because
     # otherwise our parent syntax would never close. Since The injection
-    # would think that endstyle/endjavascript was part of the
+    # would think that endgraphql/endparse_json was part of the
     # injection
-    begin: '<%= ABSURD_COMMENT_RAW_BACKTRACK %>{%-?(?!-?\s*(endstyle|endjavascript|endcomment|endraw))'
+    begin: '<%= ABSURD_COMMENT_RAW_BACKTRACK %>{%-?(?!-?\s*(endgraphql|endparse_json|endcomment|endraw))'
     end: '-?%}'
     name: meta.tag.liquid
     beginCaptures:
@@ -213,7 +202,6 @@ repository:
       - include: '#tag_case'
       - include: '#tag_conditional'
       - include: '#tag_for'
-      - include: '#tag_paginate'
       - include: '#tag_render'
       - include: '#tag_tablerow'
       - include: '#tag_expression'
@@ -231,7 +219,6 @@ repository:
       - include: '#tag_case_liquid'
       - include: '#tag_conditional_liquid'
       - include: '#tag_for_liquid'
-      - include: '#tag_paginate_liquid'
       - include: '#tag_render_liquid'
       - include: '#tag_tablerow_liquid'
       - include: '#tag_expression_liquid'
@@ -316,7 +303,7 @@ repository:
 
   tag_assign:
     name: meta.entity.tag.liquid
-    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(assign|echo)\b'
+    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(assign|echo|export|function|graphql|hash_assign|log|print|return)\b'
     beginCaptures:
       1: { name: entity.name.tag.liquid }
     end: '(?=%})'
@@ -327,7 +314,7 @@ repository:
 
   tag_assign_liquid:
     name: meta.entity.tag.liquid
-    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(assign|echo)\b'
+    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(assign|echo|export|function|graphql|hash_assign|log|print|return)\b'
     beginCaptures:
       1: { name: entity.name.tag.liquid }
     end: '$'
@@ -338,7 +325,7 @@ repository:
 
   tag_render:
     name: meta.entity.tag.render.liquid
-    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(render)\b'
+    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(render|include|theme_render_rc)\b'
     beginCaptures:
       1: { name: entity.name.tag.render.liquid }
     end: '(?=%})'
@@ -349,7 +336,7 @@ repository:
 
   tag_render_liquid:
     name: meta.entity.tag.render.liquid
-    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(render)\b'
+    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(render|include|theme_render_rc)\b'
     beginCaptures:
       1: { name: entity.name.tag.render.liquid }
     end: '$'
@@ -361,30 +348,6 @@ repository:
   tag_render_special_keywords:
     match: '\b(with|as|for)\b'
     name: keyword.control.other.liquid
-
-  tag_paginate:
-    name: meta.entity.tag.paginate.liquid
-    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(paginate)\b'
-    beginCaptures:
-      1: { name: keyword.control.paginate.liquid }
-    end: '(?=%})'
-    patterns:
-      - include: '#tag_paginate_body'
-
-  tag_paginate_liquid:
-    name: meta.entity.tag.paginate.liquid
-    begin: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(paginate)\b'
-    beginCaptures:
-      1: { name: keyword.control.paginate.liquid }
-    end: '$'
-    patterns:
-      - include: '#tag_paginate_body'
-
-  tag_paginate_body:
-    patterns:
-      - match: '\b(by)\b'
-        name: keyword.control.liquid
-      - include: '#value_expression'
 
   tag_conditional:
     name: meta.entity.tag.conditional.liquid
@@ -430,7 +393,7 @@ repository:
       - match: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(endunless|endif)\b'
         captures:
           1: { name: keyword.control.conditional.liquid }
-      - match: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(endfor|endtablerow|endpaginate)\b'
+      - match: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(endfor|endtablerow)\b'
         captures:
           1: { name: keyword.control.loop.liquid }
       - match: '(?:(?:(?<={%)|(?<={%-)|^)\s*)(endcase)\b'
@@ -525,7 +488,7 @@ repository:
       1: { name: keyword.operator.expression.liquid }
 
   language_constant:
-    match: '\b(false|true|nil|blank)\b|empty(?!\?)'
+    match: '\b(false|true|nil|null|blank)\b|empty(?!\?)'
     name: constant.language.liquid
 
   attribute:

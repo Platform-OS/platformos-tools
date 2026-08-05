@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { makeGetDefaultLocale, makeGetDefaultTranslations } from './context-utils';
+import {
+  makeGetDefaultLocale,
+  makeGetDefaultLocaleFileUri,
+  makeGetDefaultTranslations,
+} from './context-utils';
 import { MockFileSystem } from './test';
 import { AbstractFileSystem, App } from '@platformos/platformos-common';
 import { sourceParsers } from './to-source-code';
@@ -110,5 +114,46 @@ describe('Unit: getDefaultLocale', () => {
       const getDefaultTranslations = makeGetDefaultTranslations(fs, app, ROOT);
       expect(await getDefaultTranslations()).to.eql({ beverage: 'coffee' });
     });
+
+    it('should read translations from the legacy marketplace_builder root', async () => {
+      const fs: AbstractFileSystem = new MockFileSystem(
+        {
+          'marketplace_builder/translations/en.yml': 'en:\n  beverage: coffee\n',
+        },
+        'platformos-vfs:/',
+      );
+
+      const getDefaultTranslations = makeGetDefaultTranslations(fs, appWith(fs), ROOT);
+      expect(await getDefaultTranslations()).to.eql({ beverage: 'coffee' });
+    });
+
+    it('should merge the split-file layout (translations/en/*.yml)', async () => {
+      const fs: AbstractFileSystem = new MockFileSystem(
+        {
+          'app/translations/en/beverages.yml': 'en:\n  beverage: coffee\n',
+          'app/translations/en/meals.yml': 'en:\n  meal: dinner\n',
+        },
+        'platformos-vfs:/',
+      );
+
+      const getDefaultTranslations = makeGetDefaultTranslations(fs, appWith(fs), ROOT);
+      expect(await getDefaultTranslations()).to.eql({ beverage: 'coffee', meal: 'dinner' });
+    });
+  });
+});
+
+describe('Unit: getDefaultLocaleFileUri', () => {
+  it('should find en.yml under the legacy marketplace_builder root', async () => {
+    const fs: AbstractFileSystem = new MockFileSystem(
+      {
+        'marketplace_builder/translations/en.yml': 'en:\n  beverage: coffee\n',
+      },
+      'platformos-vfs:/',
+    );
+
+    const getDefaultLocaleFileUri = makeGetDefaultLocaleFileUri(fs);
+    expect(await getDefaultLocaleFileUri(ROOT)).to.eql(
+      'platformos-vfs:/marketplace_builder/translations/en.yml',
+    );
   });
 });

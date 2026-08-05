@@ -1,7 +1,8 @@
-import { load } from 'js-yaml';
 import {
   AbstractFileSystem,
-  PLATFORM_YAML_LOAD_OPTIONS,
+  DEFAULT_LOCALE,
+  getAppPathsAcrossRoots,
+  PlatformOSFileType,
   RouteTable,
   TranslationProvider,
 } from '@platformos/platformos-common';
@@ -95,48 +96,60 @@ export const makeGetDefaultTranslations = (
   rootUri: string,
 ) => cached(() => getDefaultTranslations(fs, app, rootUri));
 
+/** `en.yml` — the single-file spelling of the reference translation file. */
+const DEFAULT_LOCALE_FILE_NAME = `${DEFAULT_LOCALE}.yml`;
+
+/**
+ * The app-level translation base directories a project can hold its reference
+ * translations in — `app/translations` and its legacy `marketplace_builder/` sibling.
+ * Every root, because this locates what the project HAS: a legacy-rooted project's
+ * reference translations are exactly as authoritative as a modern one's.
+ */
+const TRANSLATION_BASE_DIRS = getAppPathsAcrossRoots(PlatformOSFileType.Translation);
+
+const defaultTranslationBases = (rootUri: string): string[] =>
+  TRANSLATION_BASE_DIRS.map((dir) => join(rootUri, dir));
+
 async function getDefaultLocaleFile(
   fs: AbstractFileSystem,
   rootUri: string,
 ): Promise<string | undefined> {
-  const enYmlUri = join(rootUri, 'app/translations/en.yml');
-  try {
-    await fs.stat(enYmlUri);
-    return enYmlUri;
-  } catch {
-    return undefined;
+  const fileExists = makeFileExists(fs);
+  for (const base of defaultTranslationBases(rootUri)) {
+    const enYmlUri = join(base, DEFAULT_LOCALE_FILE_NAME);
+    if (await fileExists(enYmlUri)) return enYmlUri;
   }
+  return undefined;
 }
 
 async function getDefaultLocale(_fs: AbstractFileSystem, _rootUri: string): Promise<string> {
-  // In platformOS, en.yml is always the reference translation file
-  return 'en';
+  return DEFAULT_LOCALE;
 }
 
+/**
+ * The reference (`en`) translations of the project, from the first app root that has
+ * any — through the same per-base loader everything else uses
+ * (`makeGetTranslationsForBase`), which owns both file layouts
+ * (`translations/en.yml` and `translations/en/*.yml`), the duplicate-key parsing,
+ * and the open-buffer-over-disk rule.
+ */
 async function getDefaultTranslations(
   fs: AbstractFileSystem,
   app: AppModel,
   rootUri: string,
 ): Promise<Translations> {
-  const defaultLocaleUri = join(rootUri, 'app/translations/en.yml');
+  const getTranslationsForBase = makeGetTranslationsForBase(fs, app);
   try {
-    // An unsaved edit to the reference locale file is what the rest of the run
-    // should be checked against, so it wins over the copy on disk. The `??` also
-    // keeps the `stat` off the buffer path — asking the disk whether the file
-    // exists is pointless once an open buffer has answered.
-    const yamlContent =
-      openBufferSource(app, defaultLocaleUri) ??
-      ((await getDefaultLocaleFile(fs, rootUri)) && (await fs.readFile(defaultLocaleUri)));
-    if (!yamlContent) return {};
-    const data = load(yamlContent, PLATFORM_YAML_LOAD_OPTIONS) as Record<string, any>;
-    if (!data || typeof data !== 'object') return {};
-    // YAML translation files wrap content under the locale key: { en: { hello: 'Hello' } }
-    const localeKey = Object.keys(data)[0];
-    return (localeKey && data[localeKey]) ?? {};
+    for (const base of defaultTranslationBases(rootUri)) {
+      const translations = await getTranslationsForBase(base, DEFAULT_LOCALE);
+      if (Object.keys(translations).length > 0) return translations;
+    }
   } catch (error) {
+    // Degrade to "no reference translations" rather than let `cached()` memoize a
+    // rejection that every later caller in the run re-throws as a CheckError.
     console.error(error);
-    return {};
   }
+  return {};
 }
 
 /**

@@ -1,36 +1,33 @@
-import { UriString } from '@platformos/platformos-common';
+import { APP_ROOTS, STANDALONE_MODULE_ROOTS, UriString } from '@platformos/platformos-common';
 import * as path from './path';
 
 type FileExists = (uri: string) => Promise<boolean>;
+
+const isAppRootName = (name: string) => APP_ROOTS.some((root) => root === name);
 
 function isInsideApp(dir: UriString): boolean {
   let current = dir;
   while (true) {
     const parent = path.dirname(current);
     if (parent === current) return false;
-    if (path.basename(parent) === 'app') return true;
+    if (isAppRootName(path.basename(parent))) return true;
     current = parent;
   }
 }
 
 async function isRoot(dir: UriString, fileExists: FileExists) {
+  // modules/ is a root indicator only when not inside an app/ subtree.
+  // app/modules/ is a valid subdirectory, and app/views/partials/modules/ is a
+  // legitimate partial organization that should not be mistaken for a project root.
+  const modulesCanMarkRoot = !isAppRootName(path.basename(dir)) && !isInsideApp(dir);
   return or(
     fileExists(path.join(dir, '.pos')),
     fileExists(path.join(dir, '.platformos-check.yml')),
-    fileExists(path.join(dir, 'app')),
-    // modules/ is a root indicator only when not inside an app/ subtree.
-    // app/modules/ is a valid subdirectory, and app/views/partials/modules/ is a
-    // legitimate partial organization that should not be mistaken for a project root.
-    and(
-      fileExists(path.join(dir, 'modules')),
-      Promise.resolve(path.basename(dir) !== 'app' && !isInsideApp(dir)),
-    ),
+    ...APP_ROOTS.map((root) => fileExists(path.join(dir, root))),
+    ...(modulesCanMarkRoot
+      ? STANDALONE_MODULE_ROOTS.map((root) => fileExists(path.join(dir, root)))
+      : []),
   );
-}
-
-async function and(...promises: Promise<boolean>[]) {
-  const bools = await Promise.all(promises);
-  return bools.reduce((a, b) => a && b, true);
 }
 
 async function or(...promises: Promise<boolean>[]) {
@@ -40,11 +37,12 @@ async function or(...promises: Promise<boolean>[]) {
 
 /**
  * Returns the root of a platformOS app. The root is the directory that contains
- * a `.pos` sentinel file, a `.platformos-check.yml` config file, an `app/` directory,
- * or a `modules/` directory (when not inside `app/`).
+ * a `.pos` sentinel file, a `.platformos-check.yml` config file, an app root
+ * directory (`app/`, or the legacy `marketplace_builder/` — `APP_ROOTS`), or a
+ * `modules/` directory (when not inside an app root).
  *
- * Note: `modules/` inside `app/` (i.e. `app/modules/`) is a valid subdirectory and
- * should not be treated as a root indicator.
+ * Note: `modules/` inside an app root (i.e. `app/modules/`) is a valid subdirectory
+ * and should not be treated as a root indicator.
  *
  * Note: this is not the app root itself. The config file might have a `root` entry that
  * points to somewhere else.

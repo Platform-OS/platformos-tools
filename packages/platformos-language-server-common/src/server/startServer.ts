@@ -12,6 +12,7 @@ import {
 } from '@platformos/platformos-check-common';
 import {
   APP_WATCH_GLOBS,
+  ASSET_FILE_OPERATION_GLOB,
   PlatformOSFileType,
   SOURCE_FILE_GLOB,
   TranslationProvider,
@@ -108,6 +109,10 @@ export function startServer(
   const fs = new CachedFileSystem(injectedFs);
   const fileExists = makeFileExists(fs);
   const loadConfig = memoize(injectedLoadConfig, (uri: string) => uri);
+  // Every hover, completion and definition request resolves its root; the walk's
+  // answer only changes when a marker file appears or disappears — the same lifetime
+  // `loadConfig` already accepts, and both caches clear on a config change below.
+  const findProjectRoot = memoize(findConfigFileRoot, (uri: string) => uri);
   const clientCapabilities = new ClientCapabilities();
   const configuration = new Configuration(connection, clientCapabilities);
 
@@ -165,7 +170,7 @@ export function startServer(
   );
 
   async function findAppRootURI(uri: string): Promise<string | null> {
-    const rootUri = await findConfigFileRoot(uri, fileExists);
+    const rootUri = await findProjectRoot(uri, fileExists);
     if (!rootUri) return null;
     const config = await loadConfig(rootUri, fs);
     return config.rootUri;
@@ -302,7 +307,7 @@ export function startServer(
         },
         {
           pattern: {
-            glob: '**/assets/*',
+            glob: ASSET_FILE_OPERATION_GLOB,
           },
         },
       ],
@@ -614,6 +619,7 @@ export function startServer(
       // App Check config changes should clear the config cache
       if (change.uri.endsWith('.platformos-check.yml')) {
         loadConfig.clearCache();
+        findProjectRoot.clearCache();
         continue;
       }
 

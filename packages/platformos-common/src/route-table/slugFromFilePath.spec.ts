@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { slugFromFilePath, formatFromFilePath, effectivePageSlug } from './slugFromFilePath';
+import {
+  slugFromFilePath,
+  formatFromFilePath,
+  effectivePageSlug,
+  isDeprecatedHomeAlias,
+} from './slugFromFilePath';
 
 describe('slugFromFilePath', () => {
   it('derives / from index.html.liquid', () => {
@@ -132,5 +137,32 @@ describe('effectivePageSlug', () => {
 
   it('ignores a non-string frontmatter `format` and uses the file-derived format', () => {
     expect(effectivePageSlug('api/data.json.liquid', { format: 123 })).toBe('api/data');
+  });
+});
+
+describe('isDeprecatedHomeAlias', () => {
+  it('recognizes the alias in every extension spelling', () => {
+    expect(isDeprecatedHomeAlias('home.html.liquid')).toBe(true);
+    expect(isDeprecatedHomeAlias('home.liquid')).toBe(true);
+    expect(isDeprecatedHomeAlias('home.json.liquid')).toBe(true);
+  });
+
+  it('accepts the logical NAME as well as the path — extension off, format kept', () => {
+    expect(isDeprecatedHomeAlias('home.html')).toBe(true);
+    expect(isDeprecatedHomeAlias('home')).toBe(true);
+  });
+
+  it('does not match a nested page named home — its slug is blog/home, not /', () => {
+    expect(isDeprecatedHomeAlias('blog/home.html.liquid')).toBe(false);
+    expect(isDeprecatedHomeAlias('blog/home')).toBe(false);
+  });
+
+  it('does not match names that merely contain home', () => {
+    expect(isDeprecatedHomeAlias('homepage.liquid')).toBe(false);
+    expect(isDeprecatedHomeAlias('my-home.liquid')).toBe(false);
+  });
+
+  it('does not match index — the modern spelling of the root page', () => {
+    expect(isDeprecatedHomeAlias('index.html.liquid')).toBe(false);
   });
 });

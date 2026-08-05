@@ -2112,9 +2112,7 @@ function toNamedLiquidTag(
         ...liquidTagBaseAttributes(node),
         name: node.name,
         markup: toFilteredExpression(node.markup) as
-          | LiquidNumber
-          | LiquidVariableLookup
-          | LiquidVariable,
+          LiquidNumber | LiquidVariableLookup | LiquidVariable,
       };
     }
 

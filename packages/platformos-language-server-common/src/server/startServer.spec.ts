@@ -104,7 +104,7 @@ describe('Module: server', () => {
       didRename: {
         filters: [
           { pattern: { glob: '**/*.{liquid,yml,graphql}' } },
-          { pattern: { glob: '**/assets/*' } },
+          { pattern: { glob: '**/assets/**' } },
         ],
       },
     });

@@ -20,7 +20,8 @@ import { FindAppRootURI } from '../../internal-types';
  * We'll change all the `| asset_url` that reference the old asset:
  *   {{ 'oldName.js' | asset_url }} -> {{ 'newName.js' | asset_url }}
  *
- * We'll do that for `.(css|js).liquid` files as well
+ * Asset names keep their FULL filename, `.liquid` included — a `theme.css.liquid`
+ * asset is referenced as `'theme.css.liquid' | asset_url` (see `assetName`).
  *
  * We'll do this by visiting all the liquid files in the app and looking for
  * string | asset_url Variable nodes that reference the old asset. We'll then create a
@@ -49,12 +50,12 @@ export class AssetRenameHandler implements BaseRenameHandler {
     // Only preload if you have something to do (folder renames are not supported)
     if (relevantRenames.length !== 1) return;
     const rename = relevantRenames[0];
+    const oldAssetName = assetName(rename.oldUri, rootUri);
+    const newAssetName = assetName(rename.newUri, rootUri);
+    if (!oldAssetName || !newAssetName) return;
     await this.documentManager.preload(rootUri);
     const app = this.documentManager.app(rootUri, true);
     const liquidSourceCodes = app.filter(isLiquidSourceCode);
-
-    const oldAssetName = assetName(rename.oldUri);
-    const newAssetName = assetName(rename.newUri);
     const editLabel = `Rename asset '${oldAssetName}' to '${newAssetName}'`;
     const annotationId = 'renameAsset';
     const workspaceEdit: WorkspaceEdit = {

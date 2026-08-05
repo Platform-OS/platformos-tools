@@ -27,15 +27,7 @@ import { UNDOCUMENTED_FILTER_RETURN_TYPES } from '../../undocumented-filters';
  * `untyped` means UNKNOWN, not "no type". Nothing is ever reported for it.
  */
 type VariableType =
-  | 'number'
-  | 'string'
-  | 'boolean'
-  | 'object'
-  | 'array'
-  | 'range'
-  | 'date'
-  | 'time'
-  | 'untyped';
+  'number' | 'string' | 'boolean' | 'object' | 'array' | 'range' | 'date' | 'time' | 'untyped';
 
 /**
  * How the target is subscripted — `x['k']` vs `x[0]` vs `x[y]`.

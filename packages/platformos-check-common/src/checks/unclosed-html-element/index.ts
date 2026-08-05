@@ -248,10 +248,7 @@ function getConditionIdentifierForWhenMarkup(
 
 function getConditionIdentifierForMarkup(
   condition:
-    | string
-    | LiquidConditionalExpression
-    | FilteredLiquidExpression
-    | ComplexLiquidExpression,
+    string | LiquidConditionalExpression | FilteredLiquidExpression | ComplexLiquidExpression,
 ): string {
   if (typeof condition === 'string') return condition;
   switch (condition.type) {

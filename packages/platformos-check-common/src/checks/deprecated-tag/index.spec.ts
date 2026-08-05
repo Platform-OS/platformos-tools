@@ -155,7 +155,9 @@ describe('Module: DeprecatedTag', () => {
         "Deprecated tag 'render_form': use `{% include_form %}` instead " +
           '(the platform\'s registry says "For semi-backwards compatibility, for now...").',
       ]);
-      expect(highlightedOffenses({ 'app/views/partials/file.liquid': sourceCode }, offenses)).toEqual(['render_form']);
+      expect(
+        highlightedOffenses({ 'app/views/partials/file.liquid': sourceCode }, offenses),
+      ).toEqual(['render_form']);
     });
 
     it('warns rather than blocks', async () => {

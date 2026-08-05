@@ -3,6 +3,7 @@ export {
   slugFromFilePath,
   formatFromFilePath,
   effectivePageSlug,
+  isDeprecatedHomeAlias,
   KNOWN_FORMATS,
 } from './slugFromFilePath';
 export { parseSlug, calculatePrecedence } from './parseSlug';

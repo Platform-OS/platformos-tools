@@ -12,7 +12,7 @@ import { path as pathUtils } from '@platformos/platformos-check-common';
 import {
   APP_SOURCE_SUBTREES,
   getFileType,
-  PlatformOSFileType,
+  isParsedFileType,
   sourceCodeTypeOf,
 } from '@platformos/platformos-common';
 
@@ -104,31 +104,27 @@ export function fileApplicability(projectDir: string, filePath: string): FileApp
 
   const uri = pathUtils.toUri(absolute);
 
-  // 2. AN ASSET IS NEVER JUDGED — decided by the TYPE, not by whether some parser happens
-  //    to accept the extension. `platformos-common` states the rule plainly ("Nothing
-  //    reads an asset, so the only question about one is whether it exists"), and this
-  //    server's own coverage table declares the whole `Asset` type not admitted.
+  // 2. AN ASSET IS NEVER JUDGED. An asset is SERVED, not rendered, so there is no
+  //    template in it to check — `platformos-common` owns that rule as `isParsedFileType`
+  //    and this asks IT rather than spelling the comparison again. That matters more than
+  //    it looks: this gate and the lint must agree about every path, and the only way to
+  //    guarantee agreement is for both to consult the same predicate.
   //
-  //    The gate did not use to enforce it, and the result was a FALSE BLOCK, measured:
-  //    `app/assets/x.liquid` holding `{% if unclosed` came back `must_fix_before_write:
-  //    true` with `LiquidHTMLSyntaxError`, because a bare `.liquid` has no response format
-  //    so `sourceCodeTypeOf` falls back to `html.liquid` and hands it to the Liquid parser.
-  //    Exactly backwards: `app/assets/theme.css.liquid` — the asset form the platform DOES
-  //    process — was exempt, while the one it serves as bytes was blocking writes on the
-  //    syntax of a language nothing there evaluates.
+  //    The rule is a TYPE question, not an extension one, which is why it was missed for
+  //    so long. Measured before it existed: `app/assets/x.liquid` holding `{% if unclosed`
+  //    came back `must_fix_before_write: true` with `LiquidHTMLSyntaxError`, because a bare
+  //    `.liquid` has no response format so the key falls back to `html.liquid`, which has a
+  //    parser row. A FALSE BLOCK on a file the platform hands back verbatim — and backwards
+  //    besides, since `theme.css.liquid`, the asset form the platform DOES process, was
+  //    exempt all along.
   //
-  //    Trading it the other way is the right direction under this package's own severity
-  //    ranking: a false block on a legitimate asset write is worse than losing detection
-  //    on a file the platform never parses. If the platform turns out to render Liquid in
-  //    `assets/` after all, this becomes a missed detection instead — the milder failure —
-  //    and the fix is upstream in classification rather than here.
-  //
-  //    NOTE the narrow scope. This corrects the WRITE GATE only. `check` on a whole
-  //    project still reports on `app/assets/*.liquid`, because `sourceCodeTypeOf` types it
-  //    as Liquid for every consumer; making assets typeless everywhere touches the lint
-  //    CLI, the language server and the graph, and is filed separately.
+  //    KEPT even though `lintBuffers` would now answer `not-a-source-file` for the same
+  //    file, and not as belt-and-braces: refusing here costs no I/O, while reaching the
+  //    lint means resolving the config and reconciling the app first. Two gates that
+  //    cannot disagree — because they share the predicate — is the cheap version of one.
   const rootUri = pathUtils.toUri(projectDir);
-  if (getFileType(uri, rootUri) === PlatformOSFileType.Asset) {
+  const fileType = getFileType(uri, rootUri);
+  if (fileType !== undefined && !isParsedFileType(fileType)) {
     return { applicable: false, ...assetNotLinted(displayPathOf(uri, projectDir)) };
   }
 

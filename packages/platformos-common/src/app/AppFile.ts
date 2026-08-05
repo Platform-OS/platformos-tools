@@ -2,6 +2,7 @@ import { AbstractFileSystem, UriString } from '../AbstractFileSystem';
 import {
   AppPathInfo,
   formatRank,
+  isParsedFileType,
   parseAppPath,
   pathToName,
   PlatformOSFileType,
@@ -88,7 +89,14 @@ export class AppFile {
     this.name = identity.name;
     this.fs = fs;
     this.parsers = parsers;
-    this.type = sourceCodeTypeOf(this.uri);
+    // BOTH facts, and this is the only place that holds both: what the platform makes of
+    // the path, and whether we have a parser for its spelling. An ASSET is served
+    // verbatim, so it has no type however parseable its extension looks — a bare
+    // `.liquid` under `assets/` has no response format and would otherwise fall back to
+    // `html.liquid` and be linted like a page. `undefined` is already the whole of "do
+    // not parse this" throughout the toolchain, so saying it here is what makes every
+    // consumer agree without any of them knowing the rule. See `isParsedFileType`.
+    this.type = isParsedFileType(this.fileType) ? sourceCodeTypeOf(this.uri) : undefined;
   }
 
   // ─── Identity ───────────────────────────────────────────────────────────────

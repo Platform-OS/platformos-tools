@@ -27,11 +27,9 @@ about intent — a fixture or a generator template lives there legitimately — 
 vetoes legitimate work on a guess gets switched off.
 
 **An asset is never judged, decided by TYPE rather than by whether a parser accepts the
-extension.** `app/assets/x.liquid` holding `{% if unclosed` returned
-`must_fix_before_write: true` with `LiquidHTMLSyntaxError`: a bare `.liquid` has no response
-format, so it fell back to `html.liquid` and reached the Liquid parser. Exactly backwards —
-`app/assets/theme.css.liquid`, the asset form the platform DOES process, was exempt all
-along. Nothing reads an asset, so nothing about one can block a write.
+extension.** The gate asks `platformos-common`'s `isParsedFileType`, so it and the lint
+cannot disagree about a path — see the separate changeset for the rule and the false block
+it closes.
 
 Also: `fingerprintOf` and `isKnownFingerprint` are exported for an embedder running its own
 never-stale cache over the same project. The sentinel itself stays private — it equals

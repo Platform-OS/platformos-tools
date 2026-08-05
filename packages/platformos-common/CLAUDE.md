@@ -175,23 +175,45 @@ drives classification, `nameToPaths`, `pathToName` and `SOURCE_FILE_EXTENSIONS` 
 one table — and `EXTENSION_AGNOSTIC_TYPES` is the three-and-a-bit exceptions. **`.yaml`
 is not a platformOS extension**; every YAML model anchors `\.yml\z`.
 
-**Two whitelists, no ignore list.** Classification answers "does the platform deploy
-this"; `sourceCodeTypeOf` (`app/types.ts`) answers "do we have a parser for this".
+**Three questions, no ignore list.** Classification answers "does the platform deploy
+this"; `isParsedFileType` answers "is this a type whose contents we read at all";
+`sourceCodeTypeOf` (`app/types.ts`) answers "do we have a parser for this spelling".
 `isSupportedSourceFile` is their intersection and contains nothing else:
 
 ```ts
-getFileType(uri) !== undefined && sourceCodeTypeOf(uri) !== undefined
+const type = getFileType(uri, rootUri);
+type !== undefined && isParsedFileType(type) && sourceCodeTypeOf(uri) !== undefined
 ```
 
-Neither implies the other — `app/views/pages/home.html` is a deployed Page we cannot
-read, a `.liquid` file in `scripts/` is readable and not deployed.
+None implies another — `app/views/pages/home.html` is a deployed Page we cannot read, a
+`.liquid` file in `scripts/` is readable and not deployed, and `app/assets/x.liquid` is
+deployed AND readable and still not a source.
 
-Do not add an exclusion list to either. There was one — a `/\.(s?css|js)\.liquid$/`
-test inside `isSupportedSourceFile` — and because an ignore-list is only consulted by
-whoever remembers it, the language server refused `theme.css.liquid` while the lint,
-which goes through `App.fromPaths` and `sourceCodeTypeOf`, put it in the app with the
-Liquid+HTML parser and reported `LiquidHTMLSyntaxError` on it. A file we cannot parse
-is now one with no row in `SOURCE_CODE_TYPE_BY_KEY`, and absence cannot be forgotten.
+**An asset is served, never rendered** (`isParsedFileType`), and that is a TYPE fact no
+extension can carry. A bare `.liquid` has no response format, so its key falls back to
+`html.liquid` — which has a parser row — and `app/assets/x.liquid` was read as Liquid and
+linted like a page: measured, a broken one produced `LiquidHTMLSyntaxError` and, through
+the MCP supervisor, a `must_fix_before_write: true`. A false block on a file the platform
+hands back byte-for-byte, while `theme.css.liquid` — the asset form the platform genuinely
+DOES process — was exempt because `css` is a format with no row. `App.findOrLocate` had
+already stated the rule ("Nothing reads an asset, so the only question about one is whether
+it exists"); `isParsedFileType` is that sentence made enforceable.
+
+It is an explicit exclusion of one type rather than a whitelist of the other eighteen, and
+the direction matters: a NEW `PlatformOSFileType` defaults to READ, so a type added without
+a check fails `file-type-coverage.spec.ts` loudly instead of silently never being linted.
+Applied in exactly two places — here and `AppFile`'s constructor — so no consumer holds a
+private opinion about it.
+
+Do not add an exclusion list to any of the three. There was one — a
+`/\.(s?css|js)\.liquid$/` test inside `isSupportedSourceFile` — and because an ignore-list
+is only consulted by whoever remembers it, the language server refused `theme.css.liquid`
+while the lint, which goes through `App.fromPaths` and `sourceCodeTypeOf`, put it in the
+app with the Liquid+HTML parser and reported `LiquidHTMLSyntaxError` on it. A file we
+cannot parse is now one with no row in `SOURCE_CODE_TYPE_BY_KEY`, and absence cannot be
+forgotten. `isParsedFileType` is not such a list and the difference is exactly that one:
+it is a shared, exported rule that both deciders consult, not a private test inside one of
+them.
 
 The key is the response format for `.liquid` files, because the format IS the body
 language: `users.json.liquid` is parsed, `theme.css.liquid` is not, and the platform's
@@ -202,13 +224,14 @@ When adding a new file type or directory alias, update `FILE_TYPE_DIRS` and
 `REFERENCE_EXTENSIONS`. The regex matchers, `parseAppPath`, `getAppPaths`,
 `getModulePaths`, `SOURCE_FILE_GLOB` and every walker downstream derive from those two.
 
-This package owns **three** facts about a file, not just the directory one:
+This package owns **five** facts about a file, not just the directory one:
 
 | Fact | Source of truth | Enforced by |
 |---|---|---|
 | Which DIRECTORIES hold which type | `FILE_TYPE_DIRS` | `app/directory-knowledge.spec.ts`, first describe |
 | Which EXTENSION each type has | `REFERENCE_EXTENSIONS` (+ `EXTENSION_AGNOSTIC_TYPES`), read via `getReferenceExtensions` | `path-utils.spec.ts` |
 | Which EXTENSIONS are sources | `SOURCE_FILE_EXTENSIONS`, and `SOURCE_FILE_GLOB` for walkers/watchers | same file, second describe |
+| Whether a type's contents are READ at all | `isParsedFileType` (Asset is not) | `path-utils.spec.ts`, `app/App.spec.ts` |
 | Which parser each one gets | `sourceCodeTypeOf` (`app/types.ts`) | — |
 
 Both guards scan every workspace package's `src/` and fail on a second copy. The

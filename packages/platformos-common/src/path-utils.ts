@@ -350,27 +350,75 @@ export function getModuleDirPaths(dir: string, moduleName: string): string[] {
 }
 
 /**
+ * Whether a file of this TYPE has contents the toolchain reads at all.
+ *
+ * True for every type but {@link PlatformOSFileType.Asset}. An asset is SERVED, not
+ * rendered: the platform hands the bytes back as they are, so there is no template in
+ * it to check, no reference in it to resolve, and nothing an offense on it could mean.
+ * `App`'s own resolver already says as much — "ASSETS never use the index, whichever
+ * files this app holds. Nothing reads an asset, so the only question about one is
+ * whether it exists" — and this is that sentence made enforceable.
+ *
+ * WHY THIS IS A TYPE QUESTION AND NOT AN EXTENSION ONE, which is the whole reason it
+ * needs saying twice. `sourceCodeTypeOf` answers "is there a parser for this spelling",
+ * and for a BARE `.liquid` the answer is yes — there is no response format, so the key
+ * falls back to `html.liquid`, which has a row. `app/assets/x.liquid` therefore parsed
+ * as Liquid+HTML and got linted like a page. Measured, before this existed: a broken
+ * one returned `LiquidHTMLSyntaxError` and, through the MCP supervisor, a
+ * `must_fix_before_write: true` — a FALSE BLOCK, refusing to let an agent write a file
+ * the platform serves verbatim. Exactly backwards, too: `theme.css.liquid` — the asset
+ * form the platform genuinely does process — was exempt all along, because `css` IS a
+ * format and has no row.
+ *
+ * So the two whitelists were not enough on their own. Where a file LIVES decides
+ * whether its contents are read, and only a type can say that.
+ *
+ * AN EXPLICIT EXCLUSION, deliberately, rather than a whitelist of the other eighteen
+ * types. A whitelist would give a NEW `PlatformOSFileType` the default "not read",
+ * which is silent and wrong in the expensive direction — a newly-added YAML type would
+ * stop being linted with nothing to notice it, the exact regression
+ * `file-type-coverage.spec.ts` exists to catch. Defaulting a new type to "read" fails
+ * loudly instead: it either has a check or that guard says so.
+ *
+ * This is NOT the ignore-list the note below warns against, and the difference is the
+ * one that mattered there: that list was a regex inside ONE predicate, so the language
+ * server consulted it and the lint did not. This is a shared, exported rule, applied at
+ * both places that decide — here and in `AppFile`'s constructor — so no consumer can
+ * hold a different opinion.
+ */
+export function isParsedFileType(type: PlatformOSFileType): boolean {
+  return type !== PlatformOSFileType.Asset;
+}
+
+/**
  * Whether the URI is a platformOS source file the LSP and linter should load and
  * parse.
  *
- * The intersection of the toolchain's two whitelists, and nothing else:
+ * The intersection of the toolchain's whitelists, and nothing else:
  *
  *   1. **the platform deploys it** — {@link getFileType}, over `FILE_TYPE_DIRS` and
  *      `REFERENCE_EXTENSIONS`;
- *   2. **we have a parser for it** — `sourceCodeTypeOf`, over the source keys in
- *      `app/types.ts`.
+ *   2. **it is a type whose contents are read** — {@link isParsedFileType};
+ *   3. **we have a parser for the spelling** — `sourceCodeTypeOf`, over the source keys
+ *      in `app/types.ts`.
  *
- * **There is deliberately no third clause.** Do not add an exclusion list here: an
- * ignore-list in one predicate is only consulted by that predicate's callers, whereas
- * a file we cannot parse is one with no row in `SOURCE_CODE_TYPE_BY_KEY`, and absence
- * cannot be forgotten.
+ * **Do not add an exclusion list here.** An ignore-list inside one predicate is only
+ * consulted by that predicate's callers — there was one, a `/\.(s?css|js)\.liquid$/`
+ * test, and the language server honoured it while the lint went through
+ * `App.fromPaths` and reported `LiquidHTMLSyntaxError` on the same file. A file we
+ * cannot parse is one with no row in `SOURCE_CODE_TYPE_BY_KEY`, and absence cannot be
+ * forgotten. Clause 2 is not such a list: it is a shared rule `AppFile` applies too, so
+ * the two cannot disagree — see {@link isParsedFileType}.
  *
- * The two clauses answer genuinely different questions and neither implies the other.
- * `app/views/pages/home.html` is a Page the platform deploys (1 yes, 2 no); a
- * `.liquid` file in `scripts/` parses fine and is not deployed (2 yes, 1 no).
+ * The clauses answer genuinely different questions and none implies another.
+ * `app/views/pages/home.html` is a Page the platform deploys (1 yes, 3 no);
+ * a `.liquid` in `scripts/` parses fine and is not deployed (3 yes, 1 no);
+ * `app/assets/x.liquid` is deployed and parseable and still not read (1 and 3 yes,
+ * 2 no).
  */
 export function isSupportedSourceFile(uri: UriString, rootUri: UriString): boolean {
-  return getFileType(uri, rootUri) !== undefined && sourceCodeTypeOf(uri) !== undefined;
+  const type = getFileType(uri, rootUri);
+  return type !== undefined && isParsedFileType(type) && sourceCodeTypeOf(uri) !== undefined;
 }
 
 /**

@@ -138,16 +138,19 @@ const COVERAGE: Record<PlatformOSFileType, Examined | typeof NOT_ADMITTED> = {
  * Real assets, in every spelling that matters.
  *
  * WHY A LIST RATHER THAN ONE PATH. This row used to be tested with `app/assets/x.liquid`
- * alone, and that single fixture was measurably the WRONG one:
- * `isSupportedSourceFile('app/assets/x.liquid', root)` is `true` — `getFileType` says
- * `Asset`, but a bare `.liquid` has no response format, so `sourceCodeTypeOf` falls back
- * to `html.liquid` and a parser claims it. The gate refused it for an unrelated reason,
- * so the test passed while asserting the opposite of what its comment claimed.
+ * alone, and that single fixture was measurably the WRONG one: at the time,
+ * `isSupportedSourceFile('app/assets/x.liquid', root)` returned `true` — `getFileType`
+ * said `Asset`, but a bare `.liquid` has no response format, so `sourceCodeTypeOf` fell
+ * back to `html.liquid` and a parser claimed it. The gate refused the file for an
+ * unrelated reason, so the test passed while asserting the opposite of what its comment
+ * claimed.
  *
- * The gate now refuses the whole `Asset` TYPE, which is what this row always said it
- * did. These spellings therefore all decline for the SAME reason rather than by
- * accident, and the bare-`.liquid` case is pinned separately below because it is the
- * only one a parser would otherwise have accepted.
+ * Both halves are now fixed. `platformos-common` owns the rule (`isParsedFileType`) and
+ * applies it in `AppFile` and `isSupportedSourceFile` alike, so an asset is not a source
+ * anywhere in the toolchain — the CLI and the language server included, not just this
+ * server's gate. These spellings therefore all decline for the SAME reason rather than by
+ * accident, and the bare-`.liquid` case is pinned separately below because it is the only
+ * one a parser would otherwise have accepted.
  *
  * `.json` is here because a standalone `.json` is an asset on this platform — JSON
  * responses come from `.json.liquid` — so nothing parses it either.

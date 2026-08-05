@@ -130,12 +130,16 @@ describe('Unit: fileApplicability', () => {
     /**
      * REFUSED BY TYPE, not by extension, and this is the branch that fixes a measured
      * FALSE BLOCK. A bare `.liquid` has no response format, so `sourceCodeTypeOf` falls
-     * back to `html.liquid` and hands `app/assets/x.liquid` to the Liquid parser: the
+     * back to `html.liquid` and handed `app/assets/x.liquid` to the Liquid parser: the
      * write gate returned `must_fix_before_write: true` with `LiquidHTMLSyntaxError` for a
      * file the platform serves as bytes. Exactly backwards, since `theme.css.liquid` — the
      * asset form the platform DOES process — was exempt all along.
      *
-     * `platformos-common` states the rule this now enforces: nothing reads an asset.
+     * The rule is `platformos-common`'s `isParsedFileType`, and this gate ASKS it rather
+     * than comparing to `PlatformOSFileType.Asset` itself. `lintBuffers` would now answer
+     * `not-a-source-file` for the same paths, so this is a fast path rather than the only
+     * defence — but two gates that share one predicate cannot drift apart, which is the
+     * whole reason it is asked rather than restated.
      */
     it.each([
       ['an image', 'app/assets/logo.png'],

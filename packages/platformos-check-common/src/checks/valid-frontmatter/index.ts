@@ -2,13 +2,16 @@ import { isMap, isScalar, isSeq, parseDocument } from 'yaml';
 import { LiquidCheckDefinition, RelativePath, Severity, SourceCodeType } from '../../types';
 import {
   containsLiquid,
+  extractRelativePagePath,
   FRONTMATTER_ASSOCIATION_DIRS,
   getAppDirPath,
   getFrontmatterSchema,
   getModuleDirPaths,
+  isDeprecatedHomeAlias,
   parseModulePrefix,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
+import { basename } from '../../path';
 import { doesFileExist } from '../../utils/file-utils';
 
 export const ValidFrontmatter: LiquidCheckDefinition = {
@@ -31,14 +34,24 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
     return {
       async onCodePathStart(file) {
         const source = file.source;
+        const fileType = context.fileType(file.uri);
 
-        if (/(?:^|\/)home\.html\.liquid$/.test(file.uri)) {
-          context.report({
-            message:
-              "'home.html.liquid' is deprecated. Rename to 'index.html.liquid' to serve as the root page.",
-            startIndex: 0,
-            endIndex: 0,
-          });
+        // Only a top-level PAGE named `home` serves the root route through the
+        // deprecated alias — `blog/home` is the `blog/home` route, and a module page
+        // counts because the backend derives the slug after `views/pages/`
+        // (`page.rb:72`). `extractRelativePagePath` is the same extraction the
+        // `RouteTable` feeds the slug rules with.
+        if (fileType === PlatformOSFileType.Page) {
+          const pagePath = extractRelativePagePath(file.uri);
+          if (pagePath && isDeprecatedHomeAlias(pagePath)) {
+            const fileName = basename(file.uri);
+            const indexName = `index${fileName.slice('home'.length)}`;
+            context.report({
+              message: `'${fileName}' is deprecated. Rename to '${indexName}' to serve as the root page.`,
+              startIndex: 0,
+              endIndex: 0,
+            });
+          }
         }
 
         // Locate the frontmatter block — may be preceded by whitespace
@@ -64,7 +77,6 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
         // Absolute offset of the first character of yamlBody in source
         const bodyOffset = leadingLen + firstNewline + 1;
 
-        const fileType = context.fileType(file.uri);
         const schema = getFrontmatterSchema(fileType);
         if (!schema) return;
 

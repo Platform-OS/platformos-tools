@@ -1,4 +1,10 @@
-import { AbstractFileSystem, FileType, TranslationProvider } from '@platformos/platformos-common';
+import {
+  AbstractFileSystem,
+  DEFAULT_LOCALE,
+  FileType,
+  MODULE_ROOTS,
+  TranslationProvider,
+} from '@platformos/platformos-common';
 import { flattenTranslationKeys } from '../utils/levenshtein';
 
 /**
@@ -40,19 +46,21 @@ export async function loadAllDefinedKeys(context: TranslationContext): Promise<s
 
   // App-level translations
   for (const base of TranslationProvider.getSearchPaths()) {
-    const translations = await context.getTranslationsForBase(context.toUri(base), 'en');
+    const translations = await context.getTranslationsForBase(context.toUri(base), DEFAULT_LOCALE);
     definedKeys.push(...flattenTranslationKeys(translations));
   }
 
   // Module translations
   const modules = await discoverModules(
     context.fs,
-    context.toUri('app/modules'),
-    context.toUri('modules'),
+    ...MODULE_ROOTS.map((root) => context.toUri(root)),
   );
   for (const moduleName of modules) {
     for (const base of TranslationProvider.getSearchPaths(moduleName)) {
-      const translations = await context.getTranslationsForBase(context.toUri(base), 'en');
+      const translations = await context.getTranslationsForBase(
+        context.toUri(base),
+        DEFAULT_LOCALE,
+      );
       for (const key of flattenTranslationKeys(translations)) {
         definedKeys.push(`modules/${moduleName}/${key}`);
       }

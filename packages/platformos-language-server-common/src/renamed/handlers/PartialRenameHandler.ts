@@ -50,11 +50,12 @@ export class PartialRenameHandler implements BaseRenameHandler {
     // Only preload if you have something to do (folder renames are not supported)
     if (relevantRenames.length !== 1) return;
     const rename = relevantRenames[0];
+    const oldPartialName = partialName(rename.oldUri, rootUri);
+    const newPartialName = partialName(rename.newUri, rootUri);
+    if (!oldPartialName || !newPartialName) return;
     await this.documentManager.preload(rootUri);
     const app = this.documentManager.app(rootUri, true);
     const liquidSourceCodes = app.filter(isLiquidSourceCode);
-    const oldPartialName = partialName(rename.oldUri);
-    const newPartialName = partialName(rename.newUri);
     const editLabel = `Rename partial '${oldPartialName}' to '${newPartialName}'`;
     const annotationId = 'renamePartial';
     const workspaceEdit: WorkspaceEdit = {

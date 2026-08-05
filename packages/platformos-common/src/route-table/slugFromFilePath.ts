@@ -9,16 +9,7 @@
  * 5. Otherwise slug = the remaining path
  */
 export function slugFromFilePath(relativeToPages: string, format: string = 'html'): string {
-  // Strip .liquid extension first
-  let slug = relativeToPages;
-  if (slug.endsWith('.liquid')) {
-    slug = slug.slice(0, -'.liquid'.length);
-  }
-
-  // Strip .{format} extension (e.g. .html, .json)
-  if (slug.endsWith(`.${format}`)) {
-    slug = slug.slice(0, -`.${format}`.length);
-  }
+  const slug = stripPageExtensions(relativeToPages, format);
 
   // index -> root
   if (slug === 'index') {
@@ -31,11 +22,44 @@ export function slugFromFilePath(relativeToPages: string, format: string = 'html
   }
 
   // home -> root (deprecated alias)
-  if (slug === 'home') {
+  if (slug === DEPRECATED_ROOT_ALIAS) {
     return '/';
   }
 
   return slug;
+}
+
+/** The deprecated spelling of the root page (rule 4); the modern one is `index`. */
+const DEPRECATED_ROOT_ALIAS = 'home';
+
+/** `p` without its `.liquid` suffix, tolerated absent. */
+function stripLiquidExtension(p: string): string {
+  return p.endsWith('.liquid') ? p.slice(0, -'.liquid'.length) : p;
+}
+
+/**
+ * Rule 1 above on its own: `relativeToPages` with `.liquid` and then `.{format}`
+ * stripped. Tolerates the absence of either, so a page's logical NAME (extension
+ * already off, format kept — `home.html`) is as valid an input as its path.
+ */
+function stripPageExtensions(relativeToPages: string, format: string): string {
+  const slug = stripLiquidExtension(relativeToPages);
+  return slug.endsWith(`.${format}`) ? slug.slice(0, -`.${format}`.length) : slug;
+}
+
+/**
+ * Whether this page spells the ROOT page through the deprecated `home` alias (rule 4
+ * above) rather than `index`. Rule 4 is the only way to learn this — the slug alone
+ * cannot say which of `home` and `index` produced its `/`.
+ *
+ * Accepts the pages-relative path (`home.html.liquid`) or the page's logical name
+ * (`home.html`, `home`). `blog/home` is NOT the alias: its slug is `blog/home`.
+ */
+export function isDeprecatedHomeAlias(relativeToPages: string): boolean {
+  return (
+    stripPageExtensions(relativeToPages, formatFromFilePath(relativeToPages)) ===
+    DEPRECATED_ROOT_ALIAS
+  );
 }
 
 /**
@@ -64,11 +88,7 @@ export const KNOWN_FORMATS = new Set([
  * Returns 'html' as the default if only `.liquid` is present or the extension is unknown.
  */
 export function formatFromFilePath(relativeToPages: string): string {
-  // Strip .liquid first
-  let name = relativeToPages;
-  if (name.endsWith('.liquid')) {
-    name = name.slice(0, -'.liquid'.length);
-  }
+  const name = stripLiquidExtension(relativeToPages);
 
   // Check for a remaining extension
   const lastDot = name.lastIndexOf('.');

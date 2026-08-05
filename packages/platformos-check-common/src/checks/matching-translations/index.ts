@@ -1,4 +1,8 @@
-import { getTranslationBase, PlatformOSFileType } from '@platformos/platformos-common';
+import {
+  DEFAULT_LOCALE,
+  getTranslationBase,
+  PlatformOSFileType,
+} from '@platformos/platformos-common';
 import {
   YAMLCheckDefinition,
   JSONNode,
@@ -62,7 +66,7 @@ export const MatchingTranslations: YAMLCheckDefinition = {
     // `pt-BR`). platformOS resolves locale from content, not from the file path.
     const locale = getLocaleFromAst(ast);
 
-    if (!isTranslationFile || !locale || locale === 'en' || ast instanceof Error) {
+    if (!isTranslationFile || !locale || locale === DEFAULT_LOCALE || ast instanceof Error) {
       return {};
     }
 
@@ -139,7 +143,7 @@ export const MatchingTranslations: YAMLCheckDefinition = {
     return {
       async onCodePathStart() {
         // Aggregate ALL en translations in this scope (en.yml + en/*.yml)
-        const en = await context.getTranslationsForBase(translationBaseUri, 'en');
+        const en = await context.getTranslationsForBase(translationBaseUri, DEFAULT_LOCALE);
         jsonPaths(en).forEach(Set.prototype.add, enTranslations);
 
         if (!isPrimaryLocaleFile) return;

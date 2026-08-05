@@ -10,6 +10,7 @@ import {
   nameToPaths,
   pathToName,
   PlatformOSFileType,
+  uriToName,
 } from './path-utils';
 
 /**
@@ -256,5 +257,49 @@ describe('pathToName ⇄ nameToPaths round trip', () => {
         PlatformOSFileType.Translation,
       );
     });
+  });
+});
+
+describe('uriToName', () => {
+  it('resolves a nested partial to its full logical name', () => {
+    expect(
+      uriToName('file:///project/app/views/partials/ui/card.liquid', 'file:///project'),
+    ).toEqual({
+      fileType: PlatformOSFileType.Partial,
+      name: 'ui/card',
+      moduleName: undefined,
+    });
+  });
+
+  it('resolves a module file to its module-prefixed name', () => {
+    expect(
+      uriToName('file:///project/modules/core/public/lib/create.liquid', 'file:///project'),
+    ).toEqual({
+      fileType: PlatformOSFileType.Partial,
+      name: 'modules/core/create',
+      moduleName: 'core',
+    });
+  });
+
+  it('keeps an asset extension, nested directories included', () => {
+    expect(uriToName('file:///project/app/assets/js/app.js', 'file:///project')).toEqual({
+      fileType: PlatformOSFileType.Asset,
+      name: 'js/app.js',
+      moduleName: undefined,
+    });
+  });
+
+  it('answers undefined for a file outside every platformOS directory', () => {
+    expect(uriToName('file:///project/scripts/build.liquid', 'file:///project')).toBe(undefined);
+  });
+
+  it('does not care how the root is spelled — trailing slash included', () => {
+    expect(uriToName('file:///project/app/views/partials/card.liquid', 'file:///project/')).toEqual(
+      {
+        fileType: PlatformOSFileType.Partial,
+        name: 'card',
+        moduleName: undefined,
+      },
+    );
   });
 });

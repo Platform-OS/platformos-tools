@@ -228,6 +228,36 @@ describe('TranslationProvider', () => {
       expect(result).toBe('Secret Message');
     });
   });
+  describe('getSearchPaths', () => {
+    it('covers every app root for app-level keys, canonical first', () => {
+      expect(TranslationProvider.getSearchPaths()).toEqual([
+        'app/translations',
+        'marketplace_builder/translations',
+      ]);
+    });
+
+    it('covers both module roots and access levels for module keys, overwrite first', () => {
+      expect(TranslationProvider.getSearchPaths('user')).toEqual([
+        'app/modules/user/public/translations',
+        'app/modules/user/private/translations',
+        'modules/user/public/translations',
+        'modules/user/private/translations',
+      ]);
+    });
+
+    it('finds a translation under the legacy marketplace_builder root', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/marketplace_builder/translations/en.yml': 'en:\n  greeting: Hello',
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(await provider.findTranslationFile(rootUri, 'greeting', 'en')).toEqual([
+        'file:///project/marketplace_builder/translations/en.yml',
+        'greeting',
+      ]);
+    });
+  });
+
   /**
    * A duplicated mapping key is what a real project produces when two people add
    * the same translation. It is not a reason to discard the file: the platform renders

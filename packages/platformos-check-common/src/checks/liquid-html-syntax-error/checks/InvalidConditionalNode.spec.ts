@@ -279,53 +279,264 @@ describe('Module: InvalidConditionalBooleanExpression', () => {
     }
   });
 
-  it('should not report an offense for unknown operators errors after values (Liquid catches these)', async () => {
+  it('should report an offense for unknown operators after values', async () => {
     const testCases = [
-      '{% if my_var word > 5 %}hello{% endif %}',
-      '{% if jake johnson > 5 %}hello{% endif %}',
-      "{% if 'test' invalid > thing %}hello{% endif %}",
-      "{% if user.name custom 'admin' %}hello{% endif %}",
+      { source: '{% if my_var word > 5 %}hello{% endif %}', operator: 'word' },
+      { source: '{% if jake johnson > 5 %}hello{% endif %}', operator: 'johnson' },
+      { source: "{% if 'test' invalid > thing %}hello{% endif %}", operator: 'invalid' },
+      { source: "{% if user.name custom 'admin' %}hello{% endif %}", operator: 'custom' },
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
+    for (const { source, operator } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Unknown operator '${operator}'. Valid operators are: ==, !=, >, <, >=, <=, contains`,
+      );
     }
   });
 
-  it('should not report an offense for unknown operators after variables', async () => {
+  it('should report an offense for unknown operators after variables', async () => {
     const testCases = [
-      '{% if variable unknown > 5 %}hello{% endif %}',
-      "{% if user.role badop 'admin' %}hello{% endif %}",
-      '{% if price fake 100 %}hello{% endif %}',
-      '{% if "str" blue == something %}hello{% endif %}',
-      '{% if red blue > something %}hello{% endif %}',
+      { source: '{% if variable unknown > 5 %}hello{% endif %}', operator: 'unknown' },
+      { source: "{% if user.role badop 'admin' %}hello{% endif %}", operator: 'badop' },
+      { source: '{% if price fake 100 %}hello{% endif %}', operator: 'fake' },
+      { source: '{% if "str" blue == something %}hello{% endif %}', operator: 'blue' },
+      { source: '{% if red blue > something %}hello{% endif %}', operator: 'blue' },
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
+    for (const { source, operator } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Unknown operator '${operator}'. Valid operators are: ==, !=, >, <, >=, <=, contains`,
+      );
     }
   });
 
-  it('should not report an offense for unknown operators in complex expressions', async () => {
+  it('should report an offense for unknown operators in complex expressions', async () => {
     const testCases = [
-      "{% if user.active and name fake 'test' %}hello{% endif %}",
-      "{% unless 'test' some > thing %}hello{% endunless %}",
+      { source: "{% if user.active and name fake 'test' %}hello{% endif %}", operator: 'fake' },
+      { source: "{% unless 'test' some > thing %}hello{% endunless %}", operator: 'some' },
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
+    for (const { source, operator } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Unknown operator '${operator}'. Valid operators are: ==, !=, >, <, >=, <=, contains`,
+      );
     }
   });
 
-  it('should not report an offense for pipe filter expressions', async () => {
-    const testCases = ['{% if wat | something == something %}hello{% endif %}'];
+  it('should report an offense and fix misspelled comparison operators', async () => {
+    const testCases = [
+      {
+        source: '{% if var ctn "hello" %}x{% endif %}',
+        operator: 'ctn',
+        suggestion: 'contains',
+        fixed: '{% if var contains "hello" %}x{% endif %}',
+      },
+      {
+        source: '{% if var cotains "hello" %}x{% endif %}',
+        operator: 'cotains',
+        suggestion: 'contains',
+        fixed: '{% if var contains "hello" %}x{% endif %}',
+      },
+      {
+        source: '{% if a = b %}x{% endif %}',
+        operator: '=',
+        suggestion: '==',
+        fixed: '{% if a == b %}x{% endif %}',
+      },
+      {
+        source: '{% if a nad b %}x{% endif %}',
+        operator: 'nad',
+        suggestion: 'and',
+        fixed: '{% if a and b %}x{% endif %}',
+      },
+    ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
+    for (const { source, operator, suggestion, fixed } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Unknown operator '${operator}'. Valid operators are: ==, !=, >, <, >=, <=, contains. Did you mean '${suggestion}'?`,
+      );
+      expect(applyFix(source, offenses[0])).to.equal(fixed);
+    }
+  });
+
+  it('should report an offense for unknown operators in unless and elsif', async () => {
+    const testCases = [
+      '{% unless var ctn "hello" %}x{% endunless %}',
+      '{% if a %}x{% elsif var ctn "hello" %}z{% endif %}',
+    ];
+
+    for (const source of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Unknown operator 'ctn'. Valid operators are: ==, !=, >, <, >=, <=, contains. Did you mean 'contains'?`,
+      );
+    }
+  });
+
+  it('should report an offense for unknown operators inside liquid statement blocks', async () => {
+    const source = '{% liquid\nif var ctn "hello"\n  echo "x"\nendif %}';
+    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.equal(
+      `Syntax is not supported: Unknown operator 'ctn'. Valid operators are: ==, !=, >, <, >=, <=, contains. Did you mean 'contains'?`,
+    );
+
+    const fixed = applyFix(source, offenses[0]);
+    expect(fixed).to.equal('{% liquid\nif var contains "hello"\n  echo "x"\nendif %}');
+  });
+
+  it('should report an offense for adjacent values with no operator between them', async () => {
+    const source = '{% if a b %}x{% endif %}';
+    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.equal(
+      `Syntax is not supported: Unknown operator 'b'. Valid operators are: ==, !=, >, <, >=, <=, contains`,
+    );
+    expect(offenses[0].fix).to.equal(undefined);
+  });
+
+  it('should report an offense for unreadable junk in operator position after variables', async () => {
+    const source = '{% unless mentioned_ids ||nonoperator profile_id %}x{% endunless %}';
+    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.equal(
+      `Syntax is not supported: Conditional is invalid. Anything after 'mentioned_ids' will be ignored. Use 'and'/'or' instead of '&&'/'||' for multiple conditions`,
+    );
+
+    const fixed = applyFix(source, offenses[0]);
+    expect(fixed).to.equal('{% unless mentioned_ids %}x{% endunless %}');
+  });
+
+  it('should report an offense for junk in operator position inside compound conditions in liquid statement blocks', async () => {
+    const source =
+      '{% liquid\nunless profile_id == event.actor.id or mentioned_ids ||nonoperator profile_id\n  assign mentioned_ids = mentioned_ids | add_to_array: profile_id\nendunless %}';
+    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.equal(
+      `Syntax is not supported: Conditional is invalid. Anything after 'profile_id == event.actor.id or mentioned_ids' will be ignored. Use 'and'/'or' instead of '&&'/'||' for multiple conditions`,
+    );
+
+    const fixed = applyFix(source, offenses[0]);
+    expect(fixed).to.equal(
+      '{% liquid\nunless profile_id == event.actor.id or mentioned_ids\n  assign mentioned_ids = mentioned_ids | add_to_array: profile_id\nendunless %}',
+    );
+  });
+
+  it('should report special message for JavaScript-style operators after variables', async () => {
+    const source = '{% if a && b %}hello{% endif %}';
+    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+
+    expect(offenses).to.have.length(1);
+    expect(offenses[0].message).to.equal(
+      `Syntax is not supported: Conditional is invalid. Anything after 'a' will be ignored. Use 'and'/'or' instead of '&&'/'||' for multiple conditions`,
+    );
+
+    const fixed = applyFix(source, offenses[0]);
+    expect(fixed).to.equal('{% if a %}hello{% endif %}');
+  });
+
+  it('should report an offense for filter pipes in conditions', async () => {
+    const testCases = [
+      {
+        source: '{% if wat | something == something %}hello{% endif %}',
+        prefix: 'wat',
+        fixed: '{% if wat %}hello{% endif %}',
+      },
+      {
+        source:
+          '{% if members contains mentioned_id or owners | contains mentioned_id %}x{% endif %}',
+        prefix: 'members contains mentioned_id or owners',
+        fixed: '{% if members contains mentioned_id or owners %}x{% endif %}',
+      },
+    ];
+
+    for (const { source, prefix, fixed } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Conditional is invalid. Anything after '${prefix}' will be ignored. Filters are not supported in conditions`,
+      );
+      expect(applyFix(source, offenses[0])).to.equal(fixed);
+    }
+  });
+
+  it('should report an offense when a condition after and/or starts with an operator', async () => {
+    const testCases = [
+      { source: '{% if a and == b %}x{% endif %}', token: '==' },
+      { source: '{% unless a or != b %}x{% endunless %}', token: '!=' },
+      { source: '{% if a == b and > c %}x{% endif %}', token: '>' },
+    ];
+
+    for (const { source, token } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Conditional cannot start with '${token}'. Use a variable or value instead`,
+      );
+      expect(offenses[0].fix).to.equal(undefined);
+    }
+  });
+
+  it('should report an offense for conditions starting with a logical operator', async () => {
+    const testCases = [
+      { source: '{% if and b %}x{% endif %}', token: 'and' },
+      { source: '{% unless or b %}x{% endunless %}', token: 'or' },
+    ];
+
+    for (const { source, token } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Conditional cannot start with '${token}'. Use a variable or value instead`,
+      );
+      expect(offenses[0].fix).to.equal(undefined);
+    }
+  });
+
+  it('should report an offense for comparisons missing their right-hand side', async () => {
+    const testCases = [
+      { source: '{% if var == %}x{% endif %}', operator: '==' },
+      { source: '{% if a contains %}x{% endif %}', operator: 'contains' },
+      { source: '{% if a == and b %}x{% endif %}', operator: '==' },
+    ];
+
+    for (const { source, operator } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Comparison operator '${operator}' is missing its right-hand side`,
+      );
+      expect(offenses[0].fix).to.equal(undefined);
+    }
+  });
+
+  it('should report an offense for conditions ending with a logical operator', async () => {
+    const testCases = [
+      { source: '{% if a and %}x{% endif %}', operator: 'and' },
+      { source: '{% if true and %}x{% endif %}', operator: 'and' },
+      { source: '{% unless a or %}x{% endunless %}', operator: 'or' },
+    ];
+
+    for (const { source, operator } of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+      expect(offenses, `Failed for: ${source}`).to.have.length(1);
+      expect(offenses[0].message).to.equal(
+        `Syntax is not supported: Conditional cannot end with '${operator}'. Expected a condition after it`,
+      );
+      expect(offenses[0].fix).to.equal(undefined);
     }
   });
 

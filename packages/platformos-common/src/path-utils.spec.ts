@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ASSET_FILE_OPERATION_GLOB,
   PlatformOSFileType,
   getFileType,
   getAppPaths,
+  getAppPathsAcrossRoots,
   getModulePaths,
   formatRank,
   getTranslationBase,
@@ -597,6 +599,34 @@ describe('getAppPaths', () => {
 
   it('Asset', () => {
     expect(getAppPaths(PlatformOSFileType.Asset)).toEqual(['app/assets']);
+  });
+});
+
+// ─── getAppPathsAcrossRoots ───────────────────────────────────────────────────
+
+describe('getAppPathsAcrossRoots', () => {
+  it('covers the legacy marketplace_builder root, canonical root wholly first', () => {
+    expect(getAppPathsAcrossRoots(PlatformOSFileType.Translation)).toEqual([
+      'app/translations',
+      'marketplace_builder/translations',
+    ]);
+  });
+
+  it('keeps directory-alias order within each root', () => {
+    expect(getAppPathsAcrossRoots(PlatformOSFileType.Partial)).toEqual([
+      'app/views/partials',
+      'app/lib',
+      'marketplace_builder/views/partials',
+      'marketplace_builder/lib',
+    ]);
+  });
+});
+
+// ─── ASSET_FILE_OPERATION_GLOB ────────────────────────────────────────────────
+
+describe('ASSET_FILE_OPERATION_GLOB', () => {
+  it('crosses segments on the file side — a single * silently dropped every nested asset rename', () => {
+    expect(ASSET_FILE_OPERATION_GLOB).toBe('**/assets/**');
   });
 });
 

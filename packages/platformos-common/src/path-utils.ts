@@ -291,6 +291,21 @@ export function getAppPaths(type: PlatformOSFileType): string[] {
 }
 
 /**
+ * {@link getAppPaths} across EVERY app root, the legacy `marketplace_builder`
+ * included, canonical root wholly first — for a caller LOCATING what a project
+ * already has (which root holds its reference translations, say). A caller NAMING
+ * where a new file belongs wants {@link getAppPaths}, which answers with the
+ * canonical root only.
+ *
+ * @example
+ * getAppPathsAcrossRoots(PlatformOSFileType.Translation)
+ * // → ['app/translations', 'marketplace_builder/translations']
+ */
+export function getAppPathsAcrossRoots(type: PlatformOSFileType): string[] {
+  return APP_ROOTS.flatMap((root) => (FILE_TYPE_DIRS[type] ?? []).map((dir) => `${root}/${dir}`));
+}
+
+/**
  * Returns all module search paths for a file type and module name, covering
  * both app/modules/{name}/... and modules/{name}/... roots, and both
  * public and private access levels (relative to project root).
@@ -379,8 +394,14 @@ export function isPage(uri: UriString, rootUri: UriString): boolean {
  * `marketplace_builder` is legacy and the backend still accepts it (`deployable.rb:21`),
  * so it stays — dropping a live root makes a project on it lint nothing at all,
  * silently.
+ *
+ * Exported for callers that must RECOGNIZE a root — check-common's `findRoot` marks a
+ * directory as a project root because it contains one of these — which cannot spell
+ * the names themselves. `findRoot` hardcoded `app`, and a legacy project without a
+ * `.pos` or config file resolved no root at all: no diagnostics, no completions, and
+ * nothing to say why.
  */
-const APP_ROOTS = ['app', 'marketplace_builder'] as const;
+export const APP_ROOTS = ['app', 'marketplace_builder'] as const;
 
 /**
  * The roots modules live under, in resolution order: an `app/modules/<name>` copy
@@ -398,6 +419,17 @@ export type AppRoot = (typeof APP_ROOTS)[number];
 export type ModuleAccessLevel = (typeof ACCESS_LEVELS)[number];
 
 /**
+ * The module roots that are top-level directories of a project (`modules/`), not
+ * nested under an app root — `app/modules/…` is covered by walking (or probing)
+ * `app/` itself. The subtree walk and check-common's `findRoot` root markers both
+ * derive from this, so they cannot disagree about which module directories stand
+ * on their own.
+ */
+export const STANDALONE_MODULE_ROOTS: readonly string[] = MODULE_ROOTS.filter(
+  (root) => !APP_ROOTS.some((appRoot) => root.startsWith(`${appRoot}/`)),
+);
+
+/**
  * The subtrees of a project, relative to its root, that an app file can live in.
  * `*` is exactly one path segment — a module name.
  *
@@ -411,9 +443,9 @@ export type ModuleAccessLevel = (typeof ACCESS_LEVELS)[number];
  */
 export const APP_SOURCE_SUBTREES: readonly string[] = [
   ...APP_ROOTS,
-  ...MODULE_ROOTS.filter(
-    (root) => !APP_ROOTS.some((appRoot) => root.startsWith(`${appRoot}/`)),
-  ).flatMap((root) => ACCESS_LEVELS.map((access) => `${root}/*/${access}`)),
+  ...STANDALONE_MODULE_ROOTS.flatMap((root) =>
+    ACCESS_LEVELS.map((access) => `${root}/*/${access}`),
+  ),
 ];
 
 /**
@@ -679,6 +711,22 @@ export const APP_WATCH_GLOBS: readonly string[] = [
 ];
 
 /**
+ * Assets in the shape a client-side FILE-OPERATION filter (rename notifications)
+ * needs them: every file at any depth under any `assets/` directory — `**` on the
+ * file side because assets nest (`assets/js/app.js`). They are absent from
+ * {@link APP_WATCH_GLOBS} because nothing reads one — but a RENAME changes what
+ * an asset reference resolves to, so those events matter.
+ *
+ * Root-agnostic deliberately: such a filter has no workspace anchor to spell `app/`
+ * against, and a `**`-rooted glob matches the directory under every legal root, so it
+ * cannot disagree with the placement rule (`directory-knowledge.spec` exempts exactly
+ * this shape). The server re-anchors with `getFileType` before acting on an event.
+ */
+export const ASSET_FILE_OPERATION_GLOB = `**/${braceGroup(
+  FILE_TYPE_DIRS[PlatformOSFileType.Asset],
+)}/**`;
+
+/**
  * The types whose filename may carry a response format (`1col.html.liquid`) that is
  * NOT part of the name a reference uses.
  *
@@ -748,6 +796,16 @@ export function pathToName(relativePath: string): LogicalName | undefined {
     name: base.startsWith(prefix) ? base : `${prefix}${base}`,
     moduleName: info.moduleName,
   };
+}
+
+/**
+ * {@link pathToName} for a caller holding a URI and its root rather than a
+ * root-relative path — `AppFile#name`'s derivation without an `App` in hand
+ * (a rename handler's deleted old URI, say). Both URIs are normalized, so a
+ * trailing-slash or differently-spelled root cannot change the answer.
+ */
+export function uriToName(uri: UriString, rootUri: UriString): LogicalName | undefined {
+  return pathToName(relativeUriPath(uri, rootUri));
 }
 
 /**

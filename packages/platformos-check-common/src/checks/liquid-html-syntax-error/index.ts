@@ -10,6 +10,8 @@ import { detectInvalidEchoValue } from './checks/InvalidEchoValue';
 import { detectInvalidConditionalNode } from './checks/InvalidConditionalNode';
 import { detectInvalidLoopRange } from './checks/InvalidLoopRange';
 import { detectInvalidLoopArguments } from './checks/InvalidLoopArguments';
+import { detectInvalidLoopIn } from './checks/InvalidLoopIn';
+import { detectInvalidWhenMarkup } from './checks/InvalidWhenMarkup';
 import { detectConditionalNodeUnsupportedParenthesis } from './checks/InvalidConditionalNodeParenthesis';
 import { detectInvalidFilterName } from './checks/InvalidFilterName';
 import { detectInvalidPipeSyntax } from './checks/InvalidPipeSyntax';
@@ -89,12 +91,17 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
           }
 
           // Run specific sub-checks first — they provide better error messages and autofixes.
+          // The loop checks misread everything after a broken `in` keyword, so they
+          // only run when it is sound.
+          const loopInProblem = detectInvalidLoopIn(node);
           const problems = [
             detectMultipleAssignValues(node),
             detectInvalidAssignSyntax(node),
             detectInvalidEchoValue(node),
-            detectInvalidLoopRange(node),
-            detectInvalidLoopArguments(node, tags),
+            loopInProblem,
+            ...(loopInProblem
+              ? []
+              : [detectInvalidLoopRange(node), detectInvalidLoopArguments(node, tags)]),
           ].filter(Boolean) as Problem<SourceCodeType.LiquidHtml>[];
 
           // Fixers for `detectConditionalNodeUnsupportedParenthesis` and `detectInvalidConditionalNode` consume
@@ -139,7 +146,7 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
         async LiquidBranch(node, ancestors) {
           if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
-          const problem = detectInvalidConditionalNode(node);
+          const problem = detectInvalidConditionalNode(node) || detectInvalidWhenMarkup(node);
 
           if (!problem) {
             return;

@@ -3,6 +3,33 @@ import { runLiquidCheck, highlightedOffenses } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
 
 describe('Module: InvalidTagSyntax', () => {
+  describe('log tag', () => {
+    it('should report log with positional arguments after the message', async () => {
+      const testCases = ['{% log a ctn b %}', "{% log object, 'label' %}"];
+
+      for (const sourceCode of testCases) {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+        const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+        expect(syntaxOffenses, `Failed for: ${sourceCode}`).toHaveLength(1);
+        expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'log'");
+      }
+    });
+
+    it('should not report valid log markup', async () => {
+      const testCases = [
+        '{% log "hello world" %}',
+        "{% log params, type: 'request-params' %}",
+        "{% log user.id, type: 'debug', env: 'staging' %}",
+      ];
+
+      for (const sourceCode of testCases) {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+        const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
+        expect(syntaxOffenses, `Failed for: ${sourceCode}`).toHaveLength(0);
+      }
+    });
+  });
+
   describe('render tag', () => {
     it('should report render without quoted template name', async () => {
       const sourceCode = `{% render %}`;

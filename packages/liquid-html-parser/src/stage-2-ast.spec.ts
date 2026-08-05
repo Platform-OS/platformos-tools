@@ -1104,6 +1104,33 @@ describe('Unit: Stage 2 (AST)', () => {
         });
       });
 
+      it('should not parse conditional markup starting with a logical operator', () => {
+        ['if', 'unless'].forEach((tagName) => {
+          for (const { toAST, expectPath } of testCases) {
+            ast = toAST(`{% ${tagName} and b -%}{% end${tagName} %}`);
+            expectPath(ast, 'children.0.type').to.equal('LiquidTag');
+            expectPath(ast, 'children.0.name').to.equal(tagName);
+            expectPath(ast, 'children.0.markup').to.equal('and b');
+
+            ast = toAST(`{% ${tagName} or b -%}{% end${tagName} %}`);
+            expectPath(ast, 'children.0.markup').to.equal('or b');
+
+            // identifiers merely starting with and/or still parse
+            ast = toAST(`{% ${tagName} andy -%}{% end${tagName} %}`);
+            expectPath(ast, 'children.0.markup.type').to.equal('VariableLookup');
+          }
+        });
+      });
+
+      it('should parse unicode identifiers in conditions', () => {
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{% if café == "x" -%}{% endif %}`);
+          expectPath(ast, 'children.0.markup.type').to.equal('Comparison');
+          expectPath(ast, 'children.0.markup.left.type').to.equal('VariableLookup');
+          expectPath(ast, 'children.0.markup.left.name').to.equal('café');
+        }
+      });
+
       describe('Case: content_for', () => {
         it('should parse content_for as a block tag with children', () => {
           for (const { toAST, expectPath, expectPosition } of testCases) {
@@ -1412,11 +1439,10 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.markup.value.type').to.equal('VariableLookup');
           expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
 
-          // positional string argument
+          // positional arguments after the message are invalid — string fallback
           ast = toAST(`{% log object, 'showme STATUS-INVALID' %}`);
-          expectPath(ast, 'children.0.markup.value.type').to.equal('VariableLookup');
-          expectPath(ast, 'children.0.markup.args').to.have.lengthOf(1);
-          expectPath(ast, 'children.0.markup.args.0.type').to.equal('String');
+          expectPath(ast, 'children.0.name').to.equal('log');
+          expectPath(ast, 'children.0.markup').to.equal(`object, 'showme STATUS-INVALID'`);
         }
       });
 

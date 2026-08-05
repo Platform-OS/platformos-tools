@@ -376,12 +376,49 @@ describe('LiquidVariableRenameProvider', () => {
       documentManager.open(textDocumentUri, textDocument.getText(), 1);
     });
 
+    /**
+     * The exact `workspace/applyEdit` payload a `name` → `first_name` doc-param
+     * rename sends when it rewrites the single `name:` argument in `source`.
+     */
+    const expectedParamRename = (uri: string, source: string) => ({
+      label: `Rename partial parameter 'name' to 'first_name'`,
+      edit: {
+        changeAnnotations: {
+          renamePartialParameter: {
+            label: `Rename partial parameter 'name' to 'first_name'`,
+            needsConfirmation: false,
+          },
+        },
+        documentChanges: [
+          {
+            textDocument: {
+              uri,
+              version: 1,
+            },
+            edits: [
+              {
+                newText: 'first_name: ',
+                range: {
+                  start: {
+                    character: source.indexOf('name:'),
+                    line: 0,
+                  },
+                  end: {
+                    character: source.indexOf('name:') + 'name: '.length,
+                    line: 0,
+                  },
+                },
+              },
+            ],
+            annotationId: 'renamePartialParameter',
+          },
+        ],
+      },
+    });
+
     it("updates render tag's named parameter when exists", async () => {
-      createSectionWithSource(
-        documentManager,
-        'section1',
-        `<div>{% render 'example-partial', name: 'Bob' %}</div>`,
-      );
+      const source = `<div>{% render 'example-partial', name: 'Bob' %}</div>`;
+      createSectionWithSource(documentManager, 'section1', source);
       createSectionWithSource(
         documentManager,
         'section2',
@@ -398,41 +435,37 @@ describe('LiquidVariableRenameProvider', () => {
       assert(result.documentChanges);
 
       expect(connection.spies.sendRequest).toHaveBeenCalledOnce();
-      expect(connection.spies.sendRequest).toHaveBeenCalledWith('workspace/applyEdit', {
-        label: `Rename partial parameter 'name' to 'first_name'`,
-        edit: {
-          changeAnnotations: {
-            renamePartialParameter: {
-              label: `Rename partial parameter 'name' to 'first_name'`,
-              needsConfirmation: false,
-            },
-          },
-          documentChanges: [
-            {
-              textDocument: {
-                uri: getSectionUri('section1'),
-                version: 1,
-              },
-              edits: [
-                {
-                  newText: 'first_name: ',
-                  range: {
-                    end: {
-                      character: 40,
-                      line: 0,
-                    },
-                    start: {
-                      character: 34,
-                      line: 0,
-                    },
-                  },
-                },
-              ],
-              annotationId: 'renamePartialParameter',
-            },
-          ],
-        },
-      });
+      expect(connection.spies.sendRequest).toHaveBeenCalledWith(
+        'workspace/applyEdit',
+        expectedParamRename(getSectionUri('section1'), source),
+      );
+    });
+
+    it('addresses a NESTED partial by its full logical name, not its basename', async () => {
+      // The partial at `views/partials/ui/example-partial.liquid` is rendered as
+      // `ui/example-partial`; a plain `example-partial` render names a DIFFERENT
+      // (top-level) partial and must keep its arguments.
+      const nestedUri = `${mockRoot}///app/views/partials/ui/example-partial.liquid`;
+      const nestedDocument = TextDocument.create(nestedUri, 'liquid', 1, textDocument.getText());
+      documentManager.open(nestedUri, nestedDocument.getText(), 1);
+
+      const source = `<div>{% render 'ui/example-partial', name: 'Bob' %}{% render 'example-partial', name: 'Ann' %}</div>`;
+      createSectionWithSource(documentManager, 'section1', source);
+
+      const params = {
+        textDocument: nestedDocument,
+        position: Position.create(1, 11),
+        newName: 'first_name',
+      };
+      const result = await provider.rename(params);
+      assert(result);
+      assert(result.documentChanges);
+
+      expect(connection.spies.sendRequest).toHaveBeenCalledOnce();
+      expect(connection.spies.sendRequest).toHaveBeenCalledWith(
+        'workspace/applyEdit',
+        expectedParamRename(getSectionUri('section1'), source),
+      );
     });
 
     ['with', 'for'].forEach((aliasTag) => {

@@ -79,7 +79,7 @@ describe('platformOS directory knowledge lives only in platformos-common', () =>
     const escaped = name.replace(/\//g, '\\/');
     const segments = name.split('/').map((segment) => `['"\`]${segment}['"\`]`);
     return [
-      // `(?<!\*)` exempts a `**/`-rooted glob (`'**/assets/*'` in a file watcher).
+      // `(?<!\*)` exempts a `**/`-rooted glob (`ASSET_FILE_OPERATION_GLOB`'s `'**/assets/**'`).
       // Such a pattern is root-AGNOSTIC by construction — it matches the directory
       // under every legal root — so it cannot disagree with the placement rule the
       // way a hardcoded `app/assets` can.

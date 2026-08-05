@@ -1,17 +1,18 @@
 import { LiquidBranch, LiquidTag } from '@platformos/liquid-html-parser';
 import { SourceCodeType, Problem } from '../../..';
-import { getValuesInMarkup, INVALID_SYNTAX_MESSAGE } from './utils';
+import { editDistance, getValuesInMarkup, INVALID_SYNTAX_MESSAGE } from './utils';
 
 type TokenType = 'variable' | keyof typeof TOKEN_PATTERNS;
 
 interface Token {
   value: string;
   type: TokenType;
+  index: number;
 }
 
 interface ExpressionIssue {
   message: string;
-  fix: string;
+  fix?: string;
 }
 
 const TOKEN_PATTERNS = {
@@ -50,14 +51,20 @@ export function detectInvalidConditionalNode(
   const startIndex = openingTagRange.start + markupOffsetInOpening;
   const endIndex = startIndex + markup.length;
 
-  return {
+  const problem: Problem<SourceCodeType.LiquidHtml> = {
     message: `${INVALID_SYNTAX_MESSAGE}: ${issue.message}`,
     startIndex,
     endIndex,
-    fix: (corrector) => {
-      corrector.replace(startIndex, endIndex, issue.fix);
-    },
   };
+
+  const replacement = issue.fix;
+  if (replacement !== undefined) {
+    problem.fix = (corrector) => {
+      corrector.replace(startIndex, endIndex, replacement);
+    };
+  }
+
+  return problem;
 }
 
 function isValueToken(token: Token): boolean {
@@ -66,6 +73,127 @@ function isValueToken(token: Token): boolean {
 
 function isOperatorToken(token: Token): boolean {
   return token.type === 'logical' || token.type === 'comparison';
+}
+
+const COMPARISON_OPERATORS = ['==', '!=', '>', '<', '>=', '<=', 'contains'];
+const OPERATOR_SUGGESTION_CANDIDATES = [...COMPARISON_OPERATORS, 'and', 'or'];
+
+// What the runtime's lax parser reads as an operator (and raises on when unknown).
+const LAX_OPERATOR_WORD = /^[=!<>a-z_]/;
+
+function isSubsequence(word: string, candidate: string): boolean {
+  let i = 0;
+  for (const char of candidate) {
+    if (char === word[i]) i++;
+  }
+  return i === word.length;
+}
+
+function suggestOperator(word: string): string | undefined {
+  const nearMisses = OPERATOR_SUGGESTION_CANDIDATES.map((candidate) => ({
+    candidate,
+    distance: editDistance(word, candidate),
+  })).filter(({ candidate, distance }) => distance <= 2 && distance < candidate.length);
+
+  if (nearMisses.length > 0) {
+    const minDistance = Math.min(...nearMisses.map(({ distance }) => distance));
+    const closest = nearMisses.filter(({ distance }) => distance === minDistance);
+    if (closest.length === 1) return closest[0].candidate;
+    // `=` ties with ==, !=, >= and <= at distance 1; only a prefix match disambiguates.
+    const prefixed = closest.filter(({ candidate }) => candidate.startsWith(word));
+    if (prefixed.length === 1) return prefixed[0].candidate;
+    return undefined;
+  }
+
+  if (word.length >= 2) {
+    const matches = OPERATOR_SUGGESTION_CANDIDATES.filter((candidate) =>
+      isSubsequence(word, candidate),
+    );
+    if (matches.length === 1) return matches[0];
+  }
+
+  return undefined;
+}
+
+function checkConditionStructure(tokens: Token[], markup: string): ExpressionIssue | null {
+  let i = 0;
+  while (i < tokens.length) {
+    if (!isValueToken(tokens[i])) {
+      // comparison/invalid at position 0 is checkInvalidStartingToken's to report
+      if (i === 0 && tokens[i].type !== 'logical') return null;
+      return {
+        message: `Conditional cannot start with '${tokens[i].value}'. Use a variable or value instead`,
+      };
+    }
+
+    const operator = tokens[i + 1];
+    if (!operator) return null;
+
+    if (operator.type === 'logical') {
+      if (i + 2 >= tokens.length) {
+        return {
+          message: `Conditional cannot end with '${operator.value}'. Expected a condition after it`,
+        };
+      }
+      i += 2;
+      continue;
+    }
+
+    if (operator.type === 'comparison') {
+      const right = tokens[i + 2];
+      if (!right || !isValueToken(right)) {
+        return {
+          message: `Comparison operator '${operator.value}' is missing its right-hand side`,
+        };
+      }
+      const separator = tokens[i + 3];
+      if (!separator) return null;
+      // junk after a complete comparison is checkTrailingTokensAfterComparison's
+      if (separator.type !== 'logical') return null;
+      i += 4;
+      continue;
+    }
+
+    if (isValueToken(operator) && LAX_OPERATOR_WORD.test(operator.value)) {
+      const suggestion = suggestOperator(operator.value);
+      const issue: ExpressionIssue = {
+        message:
+          `Unknown operator '${operator.value}'. ` +
+          `Valid operators are: ${COMPARISON_OPERATORS.join(', ')}` +
+          (suggestion ? `. Did you mean '${suggestion}'?` : ''),
+      };
+      if (suggestion) {
+        issue.fix =
+          markup.slice(0, operator.index) +
+          suggestion +
+          markup.slice(operator.index + operator.value.length);
+      }
+      return issue;
+    }
+
+    // literal-led junk is checkLaxParsingIssues' to report
+    if (tokens[i].type === 'literal') return null;
+
+    const validExpr = tokens
+      .slice(0, i + 1)
+      .map((t) => t.value)
+      .join(' ');
+    const ignored = tokens
+      .slice(i + 1)
+      .map((t) => t.value)
+      .join(' ');
+    const hint = /&&|\|\|/.test(ignored)
+      ? `. Use 'and'/'or' instead of '&&'/'||' for multiple conditions`
+      : ignored.startsWith('|')
+        ? `. Filters are not supported in conditions`
+        : '';
+
+    return {
+      message: `Conditional is invalid. Anything after '${validExpr}' will be ignored${hint}`,
+      fix: validExpr,
+    };
+  }
+  return null;
 }
 
 function checkInvalidStartingToken(tokens: Token[]): ExpressionIssue | null {
@@ -122,24 +250,19 @@ function checkLaxParsingIssues(tokens: Token[]): ExpressionIssue | null {
 
     if (current.type === 'literal' && !isOperatorToken(next)) {
       const remaining = tokens.slice(i + 1);
-      const hasUnknownOperator =
-        remaining[0]?.type === 'variable' && remaining.some(isOperatorToken);
+      const ignored = remaining.map((t) => t.value).join(' ');
+      const containsLogicalOperators = /&&|\|\|/.test(ignored);
 
-      if (!hasUnknownOperator) {
-        const ignored = remaining.map((t) => t.value).join(' ');
-        const containsLogicalOperators = /&&|\|\|/.test(ignored);
-
-        if (containsLogicalOperators) {
-          return {
-            message: `Expression stops at truthy value '${current.value}', and will ignore: '${ignored}'. Use 'and'/'or' instead of '&&'/'||' for multiple conditions`,
-            fix: current.value,
-          };
-        } else {
-          return {
-            message: `Expression stops at truthy value '${current.value}', and will ignore: '${ignored}'`,
-            fix: current.value,
-          };
-        }
+      if (containsLogicalOperators) {
+        return {
+          message: `Expression stops at truthy value '${current.value}', and will ignore: '${ignored}'. Use 'and'/'or' instead of '&&'/'||' for multiple conditions`,
+          fix: current.value,
+        };
+      } else {
+        return {
+          message: `Expression stops at truthy value '${current.value}', and will ignore: '${ignored}'`,
+          fix: current.value,
+        };
       }
     }
   }
@@ -150,8 +273,9 @@ function analyzeConditionalExpression(markup: string): ExpressionIssue | null {
   const trimmed = markup.trim();
   if (!trimmed) return null;
 
-  const tokens: Token[] = getValuesInMarkup(trimmed).map(({ value }) => ({
+  const tokens: Token[] = getValuesInMarkup(trimmed).map(({ value, index }) => ({
     value,
+    index,
     type: classifyToken(value),
   }));
 
@@ -159,6 +283,7 @@ function analyzeConditionalExpression(markup: string): ExpressionIssue | null {
 
   return (
     checkInvalidStartingToken(tokens) ||
+    checkConditionStructure(tokens, trimmed) ||
     checkTrailingTokensAfterComparison(tokens) ||
     checkLaxParsingIssues(tokens)
   );

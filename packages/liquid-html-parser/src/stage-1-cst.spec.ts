@@ -2896,11 +2896,10 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.args').to.have.lengthOf(1);
           expectPath(cst, '0.markup.args.0.name').to.equal('type');
 
-          // positional string argument (e.g. log label)
+          // positional arguments after the message are invalid — string fallback
           cst = toCST(`{% log object, 'showme STATUS-INVALID' %}`);
-          expectPath(cst, '0.markup.value.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.args').to.have.lengthOf(1);
-          expectPath(cst, '0.markup.args.0.type').to.equal('String');
+          expectPath(cst, '0.name').to.equal('log');
+          expectPath(cst, '0.markup').to.equal(`object, 'showme STATUS-INVALID'`);
         }
       });
 

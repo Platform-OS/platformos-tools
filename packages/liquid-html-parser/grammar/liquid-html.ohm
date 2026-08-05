@@ -260,7 +260,8 @@ Liquid <: Helpers {
   liquidTagLogMarkup = liquidExpression<delimTag> liquidTagLogArguments
   liquidTagLogArguments = (argumentSeparatorOptionalComma logArguments) (space* ",")? space*
   logArguments = listOf<logArgument<delimTag>, argumentSeparatorOptionalComma>
-  logArgument<delim> = namedArgument<delim> | positionalArgument<delim>
+  // named only — the runtime silently drops positional arguments after the message
+  logArgument<delim> = namedArgument<delim>
 
   liquidTagPrint = liquidTagRule<"print", liquidTagEchoMarkup>
 
@@ -366,7 +367,8 @@ Liquid <: Helpers {
   liquidTagContinue = liquidTagRule<"continue", empty>
   liquidTagElse = liquidTagRule<"else", empty>
 
-  liquidTagOpenConditionalMarkup = nonemptyListOf<condition<delimTag>, conditionSeparator> space*
+  // ~logicalOperator: the first condition must not start with and/or (runtime SyntaxError)
+  liquidTagOpenConditionalMarkup = ~logicalOperator nonemptyListOf<condition<delimTag>, conditionSeparator> space*
   conditionSeparator = &logicalOperator
   condition<delim> = logicalOperator? space* (comparison<delim> | liquidExpression<delim>) space*
   logicalOperator = ("and" | "or") ~identifier

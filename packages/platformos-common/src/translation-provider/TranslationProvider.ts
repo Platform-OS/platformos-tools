@@ -1,7 +1,15 @@
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
-import { parseModulePrefix } from '../path-utils';
+import {
+  getAppPathsAcrossRoots,
+  getModulePaths,
+  parseModulePrefix,
+  PlatformOSFileType,
+} from '../path-utils';
 import { URI, Utils } from 'vscode-uri';
 import yaml from 'js-yaml';
+
+/** In platformOS, `en` is always the reference locale. */
+export const DEFAULT_LOCALE = 'en';
 
 export class TranslationProvider {
   constructor(private readonly fs: AbstractFileSystem) {}
@@ -62,17 +70,20 @@ export class TranslationProvider {
     return true;
   }
 
+  /**
+   * The translation base directories a key search covers, project-root-relative:
+   * every app root for an app-level key (the legacy `marketplace_builder/`
+   * included), every module root × access level for a `modules/<name>/…` key.
+   * Derived from the same tables as every other search path, so a legacy-rooted
+   * project's translations are found here exactly as its partials are found
+   * elsewhere.
+   */
   static getSearchPaths(moduleName?: string): string[] {
     if (!moduleName) {
-      return ['app/translations'];
+      return getAppPathsAcrossRoots(PlatformOSFileType.Translation);
     }
 
-    return [
-      `app/modules/${moduleName}/public/translations`,
-      `app/modules/${moduleName}/private/translations`,
-      `modules/${moduleName}/public/translations`,
-      `modules/${moduleName}/private/translations`,
-    ];
+    return getModulePaths(PlatformOSFileType.Translation, moduleName);
   }
 
   async findTranslationFile(
@@ -241,7 +252,7 @@ export class TranslationProvider {
   async translate(
     rootUri: URI,
     translationKey: string,
-    defaultLocale: string = 'en',
+    defaultLocale: string = DEFAULT_LOCALE,
   ): Promise<string | undefined> {
     const [file, key] = await this.findTranslationFile(rootUri, translationKey, defaultLocale);
 

@@ -1,6 +1,6 @@
+import { GraphQLDocumentNode } from '@platformos/platformos-common';
 import { GraphQLCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { parse } from 'graphql/language';
-import { GraphQLError, validate } from 'graphql';
+import { validate } from 'graphql';
 import { buildGraphQLSchema } from '../../utils/graphql-schema';
 
 export function lineToRange(text: string, line: number): [number, number] {
@@ -32,29 +32,31 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
   },
 
   create(context) {
-    const validateContent = async (content: string) => {
+    /**
+     * The parse is the file's, not this check's: `App` parsed it once when the source
+     * was read, and re-parsing here would be a second answer to what the same bytes
+     * mean. A syntax error reaches us the same way — as a value on the node.
+     */
+    const validateDocument = async ({ content, document, syntaxError }: GraphQLDocumentNode) => {
+      // A syntax error needs no schema — the parse already failed — so it is reported
+      // before the schema is even asked for. Only `validate()` below compares the
+      // document to something, and that is the half a missing schema silences.
+      if (syntaxError) {
+        const [start, end] = lineToRange(content, syntaxError.locations?.[0]?.line ?? 1);
+        context.report({
+          message: syntaxError.message,
+          startIndex: start,
+          endIndex: end,
+        });
+        return;
+      }
+
       const graphQLSchemaString = await context.platformosDocset?.graphQL();
-      if (!graphQLSchemaString) {
+      if (!graphQLSchemaString || !document) {
         return;
       }
 
       const graphQLSchema = buildGraphQLSchema(graphQLSchemaString);
-
-      let document;
-      try {
-        document = parse(content);
-      } catch (e) {
-        if (e instanceof GraphQLError) {
-          const [start, end] = lineToRange(content, e.locations?.[0]?.line ?? 1);
-          context.report({
-            message: e.message,
-            startIndex: start,
-            endIndex: end,
-          });
-        }
-        return;
-      }
-
       const errors = validate(graphQLSchema, document);
 
       errors.forEach((error) => {
@@ -69,7 +71,7 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
 
     return {
       async onCodePathEnd(node) {
-        await validateContent(node.ast.content);
+        await validateDocument(node.ast);
       },
     };
   },

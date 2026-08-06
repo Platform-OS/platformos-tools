@@ -20,6 +20,7 @@ import {
   NodeTypes,
   TextNode,
 } from '@platformos/liquid-html-parser';
+import { GraphQLDocumentNode, parseGraphql } from '@platformos/platformos-common';
 import { SourceCodeType } from '../../types';
 import { visit } from '../../visitor';
 import { createBoundedCache } from '../../utils/bounded-cache';
@@ -88,8 +89,12 @@ export interface AnalyzableFile {
 }
 
 export interface ShapeAnalyzerDeps {
-  /** The `.graphql` document a `{% graphql x = 'name' %}` names. */
-  readGraphQL(name: string): Promise<{ uri: string; content: string } | undefined>;
+  /**
+   * The `.graphql` document a `{% graphql x = 'name' %}` names, PARSED — the parse the
+   * host already has (an `AppFile`'s), so a query named from thirty call sites costs
+   * one parse. `ast.content` is the source, so there is nothing to keep in step.
+   */
+  readGraphQL(name: string): Promise<{ uri: string; ast: GraphQLDocumentNode } | undefined>;
   /** The partial a `{% function x = 'name' %}` calls. */
   readPartial(name: string): Promise<AnalyzableFile | undefined>;
   /** What `uri` holds NOW, for revalidating a memoized analysis. */
@@ -477,7 +482,7 @@ export function createShapeAnalyzer(
 
   const pushGraphQLShape = (
     name: string,
-    content: string | undefined,
+    document: GraphQLDocumentNode | undefined,
     filters: LiquidFilter[],
     args: LiquidNamedArgument[],
     at: number,
@@ -487,9 +492,9 @@ export function createShapeAnalyzer(
     // A document we could not read leaves the variable UNKNOWN rather than untouched: the
     // tag still reassigned it, and the shape it had before is not what it holds now.
     const shape =
-      content === undefined
+      document === undefined
         ? undefined
-        : inferShapeFromGraphQL(content, schema, resolveArgumentConditions(args, at));
+        : inferShapeFromGraphQL(document, schema, resolveArgumentConditions(args, at));
     applyWrite({
       name,
       path: [],
@@ -650,11 +655,11 @@ export function createShapeAnalyzer(
       const markup = node.markup;
       const graphqlFile = isLiquidString(markup.graphql) ? markup.graphql.value : undefined;
       const document = graphqlFile ? await deps.readGraphQL(graphqlFile) : undefined;
-      if (document && reads) reads.set(document.uri, document.content);
+      if (document && reads) reads.set(document.uri, document.ast.content);
 
       pushGraphQLShape(
         markup.name,
-        document?.content,
+        document?.ast,
         markup.filters,
         markup.args,
         at,
@@ -669,7 +674,9 @@ export function createShapeAnalyzer(
       const markup = node.markup;
       pushGraphQLShape(
         markup.name,
-        textContentOf(node),
+        // An inline body has no file, so no `AppFile` holds its parse — the same parser
+        // the app injects, called directly on the text between the tags.
+        parseGraphql(textContentOf(node)),
         markup.filters,
         markup.args,
         at,

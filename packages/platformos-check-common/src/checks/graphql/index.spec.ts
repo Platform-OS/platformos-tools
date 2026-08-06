@@ -138,13 +138,35 @@ describe('Module: GraphQLCheck', () => {
     ]);
   });
 
-  it('reports no offenses when platformosDocset.graphQL returns null', async () => {
-    const files = {
-      'app/graphql/my_query.graphql': '{ unknownField }',
-    };
+  // Without a schema there is nothing to compare a field to, so the silence below is
+  // right — but only for that half. The syntax test beside it is its control: a check
+  // that stayed silent about everything without a schema would pass the first and fail
+  // the second, which is exactly the defect this pair was written for.
+  //
+  // In practice a Node run always HAS a schema: the docs manager downloads it and falls
+  // back to the copy committed in `platformos-check-docs-updater/data/graphql.graphql`.
+  // `null` is what a caller that injects its own docset gets — a browser embedder, or a
+  // test.
+  describe('when platformosDocset.graphQL returns null', () => {
+    it('does not report an unknown field, which only a schema could contradict', async () => {
+      const files = {
+        'app/graphql/my_query.graphql': '{ unknownField }',
+      };
 
-    const offenses = await check(files, [GraphQLCheck], noDeps);
-    expect(offenses).to.be.empty;
+      const offenses = await check(files, [GraphQLCheck], noDeps);
+      expect(offenses).toEqual([]);
+    });
+
+    it('still reports a syntax error, which needs no schema', async () => {
+      const files = {
+        'app/graphql/my_query.graphql': '{ unclosed {',
+      };
+
+      const offenses = await check(files, [GraphQLCheck], noDeps);
+      expect(offenses.map((offense) => offense.message)).toEqual([
+        'Syntax Error: Expected Name, found <EOF>.',
+      ]);
+    });
   });
 });
 

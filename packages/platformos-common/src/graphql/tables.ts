@@ -1,4 +1,6 @@
-import { parse, visit } from 'graphql/language';
+import { visit } from 'graphql/language';
+
+import { GraphQLDocumentNode } from './parse';
 
 /**
  * Extract every platformOS model table a GraphQL operation targets. platformOS
@@ -13,26 +15,24 @@ import { parse, visit } from 'graphql/language';
  * `table: { value: "blog_post" }`. A single document can target several tables
  * (multiple `records(...)` blocks, aliased queries, `record_create` inputs), so
  * this returns ALL of them — every distinct string table in document order —
- * rather than only the first. It walks the parsed GraphQL AST, reusing the
- * `graphql` parser this package owns rather than a regex.
+ * rather than only the first. It walks the parsed GraphQL AST rather than the
+ * source with a regex.
  *
- * Returns an empty array for operations with no table filter, a dynamic
- * (non-string) table, or unparseable input.
+ * Takes the {@link GraphQLDocumentNode} rather than a string, so the caller passes
+ * the parse its `AppFile` already holds. Returns an empty array for an operation
+ * with no table filter, a dynamic (non-string) table, or a document that did not
+ * parse. Its sibling is {@link extractSchemaTable}, which reads the `name:` of the
+ * schema such a table joins to.
  */
-export function extractGraphqlTables(content: string): string[] {
-  let ast;
-  try {
-    ast = parse(content);
-  } catch {
-    return []; // not valid GraphQL — nothing to extract
-  }
+export function extractGraphqlTables(document: GraphQLDocumentNode): string[] {
+  if (!document.document) return []; // not valid GraphQL — nothing to extract
 
   const tables: string[] = [];
   const add = (value: string) => {
     if (!tables.includes(value)) tables.push(value); // distinct, first-occurrence order
   };
 
-  visit(ast, {
+  visit(document.document, {
     ObjectField(node) {
       if (node.name.value !== 'table') return;
 

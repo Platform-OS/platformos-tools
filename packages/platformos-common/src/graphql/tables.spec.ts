@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { extractGraphqlTables } from './graphql-table';
+import { parseGraphql } from './parse';
+import { extractGraphqlTables } from './tables';
+
+/** The two steps a real caller takes, except that a real caller parses once per file. */
+const tablesOf = (content: string) => extractGraphqlTables(parseGraphql(content));
 
 describe('extractGraphqlTables', () => {
   it('extracts the table from a `table: { value: "..." }` filter', () => {
@@ -8,12 +12,12 @@ describe('extractGraphqlTables', () => {
     results { id }
   }
 }`;
-    expect(extractGraphqlTables(content)).toEqual(['blog_post']);
+    expect(tablesOf(content)).toEqual(['blog_post']);
   });
 
   it('extracts the table from the `table: "..."` shorthand', () => {
     const content = `query { records(filter: { table: "product" }) { results { id } } }`;
-    expect(extractGraphqlTables(content)).toEqual(['product']);
+    expect(tablesOf(content)).toEqual(['product']);
   });
 
   it('returns every distinct table when several are present, in document order', () => {
@@ -21,7 +25,7 @@ describe('extractGraphqlTables', () => {
   a: records(filter: { table: { value: "first" } }) { results { id } }
   b: records(filter: { table: { value: "second" } }) { results { id } }
 }`;
-    expect(extractGraphqlTables(content)).toEqual(['first', 'second']);
+    expect(tablesOf(content)).toEqual(['first', 'second']);
   });
 
   it('deduplicates a table declared more than once', () => {
@@ -29,12 +33,12 @@ describe('extractGraphqlTables', () => {
   a: records(filter: { table: { value: "blog_post" } }) { results { id } }
   b: records(filter: { table: { value: "blog_post" } }) { results { id } }
 }`;
-    expect(extractGraphqlTables(content)).toEqual(['blog_post']);
+    expect(tablesOf(content)).toEqual(['blog_post']);
   });
 
   it('returns an empty array when there is no table filter', () => {
     const content = `query currentUser { current_user { id email } }`;
-    expect(extractGraphqlTables(content)).toEqual([]);
+    expect(tablesOf(content)).toEqual([]);
   });
 
   it('is not confused by a sibling `value` field on a non-table object', () => {
@@ -43,15 +47,15 @@ describe('extractGraphqlTables', () => {
     results { id }
   }
 }`;
-    expect(extractGraphqlTables(content)).toEqual(['blog_post']);
+    expect(tablesOf(content)).toEqual(['blog_post']);
   });
 
   it('returns an empty array for unparseable GraphQL', () => {
-    expect(extractGraphqlTables('query { records(filter: {')).toEqual([]);
+    expect(tablesOf('query { records(filter: {')).toEqual([]);
   });
 
   it('returns an empty array for an empty document', () => {
-    expect(extractGraphqlTables('')).toEqual([]);
+    expect(tablesOf('')).toEqual([]);
   });
 
   it('extracts the table from a mutation (record_create style)', () => {
@@ -60,7 +64,7 @@ describe('extractGraphqlTables', () => {
     id
   }
 }`;
-    expect(extractGraphqlTables(content)).toEqual(['blog_post']);
+    expect(tablesOf(content)).toEqual(['blog_post']);
   });
 
   it('extracts every table across a mixed query + record_create mutation, in document order', () => {
@@ -68,7 +72,7 @@ describe('extractGraphqlTables', () => {
   comment: record_create(record: { table: "comment", properties: $payload }) { id }
   existing: records(filter: { table: { value: "blog_post" } }) { results { id } }
 }`;
-    expect(extractGraphqlTables(content)).toEqual(['comment', 'blog_post']);
+    expect(tablesOf(content)).toEqual(['comment', 'blog_post']);
   });
 
   it('extracts a table nested deep inside the filter object', () => {
@@ -77,27 +81,36 @@ describe('extractGraphqlTables', () => {
     results { id }
   }
 }`;
-    expect(extractGraphqlTables(content)).toEqual(['comment']);
+    expect(tablesOf(content)).toEqual(['comment']);
   });
 
   it('extracts the table when it appears before other fields (order-independent)', () => {
     const content = `query { records(filter: { table: { value: "tag" }, deleted: { exists: false } }) { results { id } } }`;
-    expect(extractGraphqlTables(content)).toEqual(['tag']);
+    expect(tablesOf(content)).toEqual(['tag']);
   });
 
   it('handles an underscored/namespaced table name', () => {
     const content = `query { records(filter: { table: { value: "modules/core/user" } }) { results { id } } }`;
-    expect(extractGraphqlTables(content)).toEqual(['modules/core/user']);
+    expect(tablesOf(content)).toEqual(['modules/core/user']);
   });
 
   it('ignores a non-string (dynamic) table value', () => {
     const content = `query q($t: String) { records(filter: { table: { value: $t } }) { results { id } } }`;
-    expect(extractGraphqlTables(content)).toEqual([]);
+    expect(tablesOf(content)).toEqual([]);
   });
 
   it('ignores a `table` used as a GraphQL alias, not a filter field', () => {
     // `table:` here is a field alias (table: results), not an object field.
     const content = `query { records(filter: { deleted: { exists: false } }) { table: results { id } } }`;
-    expect(extractGraphqlTables(content)).toEqual([]);
+    expect(tablesOf(content)).toEqual([]);
+  });
+
+  it('reads the document it is given, so one parse serves every consumer', () => {
+    const parsed = parseGraphql(
+      `query { records(filter: { table: { value: "blog_post" } }) { results { id } } }`,
+    );
+
+    expect(extractGraphqlTables(parsed)).toEqual(['blog_post']);
+    expect(extractGraphqlTables(parsed)).toEqual(['blog_post']);
   });
 });

@@ -72,12 +72,11 @@ export * from './frontmatter';
 export * from './json';
 export * from './JSONValidator';
 export * as path from './path';
-// Which model tables a GraphQL operation targets. A neutral platform fact with no
-// offense of its own, consumed by `platformos-graph`. It lives HERE rather than in
-// `platformos-common` beside its sibling `extractSchemaTable` because it needs the
-// `graphql` parser, and common must stay below the parser stack for `App`'s injected
-// parsers to keep one set of file objects shareable (`app/package-boundaries.spec.ts`).
-export * from './graphql-table';
+// No GraphQL re-exports either, for the same reason as the file-identity ones above:
+// `parseGraphql`, `extractGraphqlTables` and `extractGraphqlVariables` are platformOS
+// domain knowledge and belong to platformos-common, beside `extractSchemaTable` — the
+// schema a GraphQL table joins to. This package injects that parser into `App`
+// (`sourceParsers`) and reads the document the file already holds.
 export * from './to-source-code';
 export * from './types';
 export * from './utils/bounded-cache';

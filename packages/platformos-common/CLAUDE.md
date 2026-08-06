@@ -275,6 +275,30 @@ answers (`locateDefault`) on top.
 
 File suffixes are added automatically: `.liquid` for partials, `.graphql` for graphql. Assets have no extension filtering.
 
+### `graphql/` — how a platformOS GraphQL document is read
+
+`parseGraphql(content)` is THE GraphQL parse for the toolchain, and the two extractors
+beside it are what platformOS means by a GraphQL document: `extractGraphqlTables` (the
+model tables an operation targets, the join partner of `extractSchemaTable`'s `name:`)
+and `extractGraphqlVariables` (what a `{% graphql %}` call site may and must pass).
+
+- **The result is a value, never a throw.** `GraphQLDocumentNode` is
+  `{ type, content, document?, syntaxError? }` — a document that does not compile is a
+  normal state that `GraphQLCheck` reports on, so the syntax error travels inside the
+  node rather than as the `Error` a `Parser` may return, which would take the file out
+  of the pipeline that reports it.
+- **The extractors take the parsed node, not a string**, because the point is that
+  nobody parses twice. `check-common` injects `parseGraphql` as the `App`'s GraphQL
+  parser, so a `.graphql` file is parsed once until its source changes and the lint, the
+  language server and the graph all read that one document. There is deliberately no
+  cache in here: the `AppFile` is the cache.
+- The one caller with no file is an inline `{% graphql res %}…{% endgraphql %}` body,
+  which calls `parseGraphql` directly on the text between the tags.
+
+Enforced by `platformos-check-common/src/graphql-parse-once.spec.ts` (a document is
+parsed once per run, and again after `setSource`) and by `identity-ownership.spec.ts`
+(no check package re-exports these).
+
 ### `TranslationProvider` (`translation-provider/TranslationProvider.ts`)
 
 Loads and searches platformOS YAML translation files.
@@ -290,6 +314,6 @@ Module translation keys use the prefix `modules/{name}/...`; these are routed to
 ## Key Invariants
 
 - **URIs, not filesystem paths**: all public APIs use `UriString` (a `vscode-uri`-compatible `file://...` string), never raw OS paths. A caller holding an OS path crosses over with `uriFromPath` — the only sanctioned conversion, and the reason `os-path.ts` is the one place that knows both spellings.
-- **Do not add environment-specific imports** (`fs`, `path`, etc.) — this package must remain browser-safe. Enforced by `src/app/package-boundaries.spec.ts`, which also pins the dependency list, because the `App` model only stays shareable while this package sits below the parsers.
+- **Do not add environment-specific imports** (`fs`, `path`, etc.) — this package must remain browser-safe. Enforced by `src/app/package-boundaries.spec.ts`, which also pins the dependency list, because the `App` model only stays shareable while this package sits below the WORKSPACE packages that own the ASTs. "Below the parser stack" is about those and about browser safety, not about never reading a format: a platformOS fact defined in YAML (`extractSchemaTable`) or in GraphQL (`graphql/`) is read here, with `js-yaml` and `graphql`, and `App` still takes every parser by injection.
 - **Every workspace package must declare the `@platformos/*` siblings it imports**, enforced by `src/app/workspace-dependencies.spec.ts`. Yarn hoisting hid six missing declarations until it was added.
 - `FILE_TYPE_DIRS` drives both classification and search path generation. Keep it in sync with the server's `converters_config.rb`.

@@ -8,6 +8,8 @@ import {
   LiquidTag,
   NamedTags,
   NodeTypes,
+  type FilteredLiquidExpression,
+  type ComplexLiquidExpression,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { assertNever, findLastAndIndex } from '../../utils';
@@ -237,12 +239,17 @@ function getConditionIdentifier(branch: LiquidBranch, parent: LiquidTag): string
   }
 }
 
-function getConditionIdentifierForWhenMarkup(conditions: string | LiquidExpression[]): string {
+function getConditionIdentifierForWhenMarkup(
+  conditions: string | FilteredLiquidExpression[],
+): string {
   if (typeof conditions === 'string') return conditions;
   return conditions.map(getConditionIdentifierForMarkup).join(' or ');
 }
 
-function getConditionIdentifierForMarkup(condition: string | LiquidConditionalExpression): string {
+function getConditionIdentifierForMarkup(
+  condition:
+    string | LiquidConditionalExpression | FilteredLiquidExpression | ComplexLiquidExpression,
+): string {
   if (typeof condition === 'string') return condition;
   switch (condition.type) {
     case NodeTypes.String:
@@ -272,6 +279,19 @@ function getConditionIdentifierForMarkup(condition: string | LiquidConditionalEx
         condition.relation,
         getConditionIdentifierForMarkup(condition.right),
       ].join(' ');
+    // A `case`/`when` operand may carry filters — the platform accepts them there, so the
+    // grammar does too. The filters are part of what makes two branches DIFFERENT, so
+    // they belong in the identifier: `x | upcase` and `x | downcase` are not the same
+    // condition, and collapsing them to `x` would make this check treat them as one.
+    case NodeTypes.LiquidVariable:
+      return [
+        getConditionIdentifierForMarkup(condition.expression),
+        ...condition.filters.map((filter) => filter.name),
+      ].join(' | ');
+    // A filtered operand's expression may itself be a boolean expression — `{% case a and
+    // b | upcase %}`. It wraps a single condition, which is the identifying part.
+    case NodeTypes.BooleanExpression:
+      return getConditionIdentifierForMarkup(condition.condition);
     case NodeTypes.JsonHashLiteral:
       return '{}';
     case NodeTypes.JsonArrayLiteral:

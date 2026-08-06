@@ -6,17 +6,28 @@ import { relativePosixPath } from '../os-path';
 const packageRoot = join(__dirname, '..', '..');
 
 /**
- * The App model exists in this package precisely BECAUSE this package sits below
- * the parser stack: that is what forces parsers to be injected, and injection is
- * what lets the language server, the linter and the graph share one set of file
- * objects instead of three. These tests pin that boundary, because the model
- * silently stops being shareable the moment a parser gets imported directly.
+ * The App model exists in this package precisely BECAUSE this package sits below the
+ * parser stack: that is what forces parsers to be injected, and injection is what lets
+ * the language server, the linter and the graph share one set of file objects instead
+ * of three. These tests pin that boundary, because the model silently stops being
+ * shareable the moment it depends on something above it.
+ *
+ * "Below the parser stack" is about the WORKSPACE packages that own the ASTs
+ * (`@platformos/liquid-html-parser` and friends) and about staying browser-safe — not
+ * about never reading a format. This package owns platformOS domain facts that are
+ * DEFINED in a format: a schema's model `name:` is YAML, a GraphQL operation's target
+ * table is GraphQL. So `js-yaml` and `graphql` are dependencies, both browser-safe and
+ * neither a workspace package, and `App` still receives every parser by injection.
+ *
+ * The list is exact rather than a denylist: a new dependency has to be justified here,
+ * where the reason is written down, instead of appearing by hoisting.
  */
 describe('platformos-common package boundaries', () => {
-  it('depends on no parser and no Node-only package', async () => {
+  it('depends on no workspace parser package and no Node-only package', async () => {
     const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
 
     expect(Object.keys(manifest.dependencies)).toEqual([
+      'graphql',
       'js-yaml',
       'vscode-json-languageservice',
       'vscode-uri',

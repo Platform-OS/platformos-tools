@@ -99,6 +99,69 @@ describe('App.fromPaths', () => {
   });
 });
 
+/**
+ * An asset is IN the app and has no source type — the two halves of "nothing reads an
+ * asset, so the only question about one is whether it exists".
+ *
+ * `AppFile` is the second place the rule is applied (`isSupportedSourceFile` is the
+ * other), and it is the one that reaches the linter: `check()` iterates source types, and
+ * `App.sourceCodes()` filters on `type !== undefined`, so a typeless file is never
+ * visited by any check however many are enabled. Pinning it here rather than trusting
+ * `isSupportedSourceFile` is the point — the two are separate code paths, and this is the
+ * one a lint run actually takes.
+ */
+describe('AppFile.type — an asset is held, never read', () => {
+  const fileFor = (relativePath: string) =>
+    App.fromPaths(ROOT, [uri(relativePath)], explodingFs).get(uri(relativePath))!;
+
+  it.each([
+    // The case that was linted like a page: a bare `.liquid` has no response format, so
+    // `sourceCodeTypeOf` falls back to `html.liquid`, which has a parser row.
+    'app/assets/x.liquid',
+    'app/assets/nested/deep/w.liquid',
+    'app/assets/page.html.liquid',
+    'app/assets/theme.css.liquid',
+    'app/assets/app.js',
+    'marketplace_builder/assets/x.liquid',
+  ])('holds %s as an Asset with no source type', (relativePath) => {
+    const file = fileFor(relativePath);
+
+    // Asserted TOGETHER: present and classified, but with nothing to parse. Either half
+    // alone would pass under a change that broke the other — dropping assets from the app
+    // entirely would also produce "no offenses", while silently losing asset resolution.
+    expect({ fileType: file.fileType, type: file.type }).toEqual({
+      fileType: PlatformOSFileType.Asset,
+      type: undefined,
+    });
+  });
+
+  it('excludes assets from sourceCodes() while keeping them in the app', () => {
+    // `sourceCodes()` is what the language server hands the checks and what `check()`
+    // walks. The page is the CONTROL: it proves the filter is selective rather than
+    // empty, so the asset's absence is the rule doing its job.
+    const app = App.fromPaths(
+      ROOT,
+      [uri('app/assets/x.liquid'), uri('app/views/pages/index.liquid')],
+      explodingFs,
+    );
+
+    expect({
+      all: app.all().map((file) => file.relativePath),
+      sources: app.sourceCodes().map((file) => file.relativePath),
+    }).toEqual({
+      all: ['app/assets/x.liquid', 'app/views/pages/index.liquid'],
+      sources: ['app/views/pages/index.liquid'],
+    });
+  });
+
+  it('still reads a NON-asset whose spelling is identical', () => {
+    // The tightest control available: the same filename, the same extension, the same
+    // absent response format — differing only in the directory, which is the entire
+    // content of the rule.
+    expect(fileFor('app/views/partials/x.liquid').type).toEqual(SourceCodeType.LiquidHtml);
+  });
+});
+
 describe('AppFile.name', () => {
   const nameOf = (relativePath: string) =>
     App.fromPaths(ROOT, [uri(relativePath)], explodingFs).get(uri(relativePath))!.name;
@@ -425,13 +488,18 @@ describe('App.fromSources', () => {
       ROOT,
       {
         'app/views/partials/card.liquid': '<b>card</b>',
-        'app/translations/en.yml': 'en:\n  hi: Hi',
+        'app/translations/en.yml': `en:
+  hi: Hi`,
       },
       explodingFs,
       trivialParsers(),
     );
 
-    expect(app.all().map((file) => file.source)).toEqual(['<b>card</b>', 'en:\n  hi: Hi']);
+    expect(app.all().map((file) => file.source)).toEqual([
+      '<b>card</b>',
+      `en:
+  hi: Hi`,
+    ]);
     expect(app.get(uri('app/views/partials/card.liquid'))!.ast).toEqual({
       kind: 'liquid',
       source: '<b>card</b>',

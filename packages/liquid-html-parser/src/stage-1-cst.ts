@@ -316,7 +316,7 @@ export interface ConcreteLiquidComparison extends ConcreteBasicNode<ConcreteNode
 
 export interface ConcreteLiquidTagOpenForm extends ConcreteLiquidTagOpenNode<
   NamedTags.form,
-  ConcreteLiquidArgument[]
+  ConcreteLiquidTagArgument[]
 > {}
 
 export interface ConcreteLiquidTagOpenFor extends ConcreteLiquidTagOpenNode<
@@ -349,7 +349,6 @@ export type ConcreteLiquidTagNamed =
   | ConcreteLiquidTagDecrement
   | ConcreteLiquidTagElsif
   | ConcreteLiquidTagInclude
-  | ConcreteLiquidTagLayout
   | ConcreteLiquidTagLiquid
   | ConcreteLiquidTagRender
   | ConcreteLiquidTagFunction
@@ -394,10 +393,6 @@ export interface ConcreteLiquidTagIncrement extends ConcreteLiquidTagNode<
 export interface ConcreteLiquidTagDecrement extends ConcreteLiquidTagNode<
   NamedTags.decrement,
   ConcreteLiquidVariableLookup
-> {}
-export interface ConcreteLiquidTagLayout extends ConcreteLiquidTagNode<
-  NamedTags.layout,
-  ConcreteLiquidExpression
 > {}
 
 export interface ConcreteLiquidTagLiquid extends ConcreteLiquidTagNode<
@@ -498,7 +493,9 @@ export interface ConcreteLiquidTagResponseHeaders extends ConcreteLiquidTagNode<
 > {}
 export interface ConcreteLiquidTagResponseStatus extends ConcreteLiquidTagNode<
   NamedTags.response_status,
-  ConcreteNumberLiteral | ConcreteLiquidVariableLookup
+  // A ConcreteLiquidVariable when the operand carries filters, which the platform accepts and
+  // then ignores — see FilterWithoutEffect.
+  ConcreteNumberLiteral | ConcreteLiquidVariableLookup | ConcreteLiquidVariable
 > {}
 export interface ConcreteLiquidTagReturn extends ConcreteLiquidTagNode<
   NamedTags.return,
@@ -599,8 +596,10 @@ export interface ConcreteLiquidTagCacheMarkup extends ConcreteBasicNode<Concrete
 }
 
 export interface ConcreteLiquidTagLogMarkup extends ConcreteBasicNode<ConcreteNodeTypes.LogMarkup> {
-  value: ConcreteLiquidExpression;
-  args: ConcreteLiquidArgument[];
+  // A ConcreteLiquidVariable when the operand carries filters — the grammar binds
+  // `liquidFilteredExpression` here, so the narrower spelling was a type understatement.
+  value: ConcreteLiquidExpression | ConcreteLiquidVariable;
+  args: ConcreteLiquidTagArgument[];
 }
 
 export interface ConcreteLiquidTagSessionMarkup extends ConcreteBasicNode<ConcreteNodeTypes.SessionMarkup> {
@@ -654,6 +653,14 @@ export interface ConcreteLiquidFilter extends ConcreteBasicNode<ConcreteNodeType
 }
 
 export type ConcreteLiquidArgument = ConcreteLiquidExpression | ConcreteLiquidNamedArgument;
+
+/**
+ * A TAG argument. Unlike a FILTER argument its positional value may be a
+ * `ConcreteLiquidVariable`, i.e. carry filters — the grammar's `tagArgumentValue` admits one
+ * where `arguments<delim>` does not. Kept separate from `ConcreteLiquidArgument` for the same
+ * reason as `LiquidTagArgument` in stage 2: filter arguments cannot reach this state.
+ */
+export type ConcreteLiquidTagArgument = ConcreteLiquidArgument | ConcreteLiquidVariable;
 
 export interface ConcreteLiquidNamedArgument extends ConcreteBasicNode<ConcreteNodeTypes.NamedArgument> {
   name: string;
@@ -1037,7 +1044,6 @@ function toCST<T>(
     liquidTagFunction: 0,
     liquidTagGraphQL: 0,
     liquidTagInclude: 0,
-    liquidTagLayout: 0,
     liquidTagRule: {
       type: ConcreteNodeTypes.LiquidTag,
       name: 3,
@@ -1069,7 +1075,6 @@ function toCST<T>(
     },
 
     liquidTagEchoMarkup: 0,
-    liquidTagLayoutMarkup: 0,
     liquidTagAssignMarkup: {
       type: ConcreteNodeTypes.AssignMarkup,
       name: (tokens: Node[]) => tokens[0].children[0].sourceString,
@@ -1242,6 +1247,26 @@ function toCST<T>(
       locEnd,
       source,
     },
+    // Expression plus optional filters, in the tag operands the platform accepts them in.
+    //
+    // Mapped to the SAME LiquidVariable node `{{ }}` and `{% assign %}` produce, which is
+    // what keeps this change cheap: every parent rule keeps its arity (so no positional
+    // child index below shifts), and the prettier printer already knows how to print it —
+    // `expression` followed by `filters`. Emitting a node the printer did not model would
+    // silently drop the filters when a file is formatted.
+    //
+    // `locEnd` is plain here, unlike `liquidReturnVariable`, because this rule has no
+    // trailing `space* &delim` to exclude from the range.
+    liquidFilteredExpression: 0,
+    liquidExpressionWithFilters: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      rawSource: (tokens: Node[]) => source.slice(locStart(tokens), locEnd(tokens)).trimEnd(),
+      locStart,
+      locEnd,
+      source,
+    },
     liquidTagOpenCache: 0,
     liquidTagCacheMarkup: {
       type: ConcreteNodeTypes.CacheMarkup,
@@ -1339,6 +1364,19 @@ function toCST<T>(
     liquidTagThemeRenderRc: 0,
     liquidTagResponseStatus: 0,
     liquidTagResponseStatusMarkup: 0,
+    responseStatusValue: 0,
+    responseStatusOperand: 0,
+    // Reuses LiquidVariable, the node {{ }} and {% assign %} already produce, so the printer
+    // needs no new case and the filters cannot be dropped on format.
+    responseStatusValueWithFilters: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      rawSource: (tokens: Node[]) => source.slice(locStart(tokens), locEnd(tokens)).trimEnd(),
+      locStart,
+      locEnd,
+      source,
+    },
     liquidTagResponseHeaders: 0,
     liquidTagResponseHeadersMarkup: 0,
     liquidTagRollback: 0,
@@ -1450,6 +1488,8 @@ function toCST<T>(
     },
     simpleArgument: 0,
     tagArguments: 0,
+    filterlessTagArguments: 0,
+    resultFilterRenderArguments: 1,
     graphqlArguments: 0,
     graphqlRenderArguments: 1,
     // Pass-through: delegates to whichever alternative matched (liquidJsonHashLiteral,
@@ -1472,6 +1512,43 @@ function toCST<T>(
       type: ConcreteNodeTypes.NamedArgument,
       name: 0,
       value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    // TAG argument positions, which accept a filter where the FILTER positions above must
+    // not — see the grammar comment on `tagArgumentValue`. Each produces the SAME concrete
+    // node as its filterless counterpart, so every existing consumer is unaffected:
+    // `ConcreteLiquidNamedArgument.value` already admits a `ConcreteLiquidVariable` (the
+    // graphql path below has always produced one) and `toNamedArgument` already routes it
+    // through `toLiquidVariable`.
+    tagPositionalArgument: 0,
+    tagNamedArgument: {
+      type: ConcreteNodeTypes.NamedArgument,
+      name: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    tagNamedArgumentValue: 0,
+    tagHashPairValue: {
+      type: ConcreteNodeTypes.NamedArgument,
+      name: 0,
+      value: 4,
+      locStart,
+      locEnd,
+      source,
+    },
+    tagArgumentValue: 0,
+    // The one new SHAPE: an argument value carrying filters. Reuses LiquidVariable — the node
+    // `{{ }}` and `{% assign %}` already produce — so the printer needs no new case and the
+    // filters cannot be dropped on format.
+    tagArgumentValueWithFilters: {
+      type: ConcreteNodeTypes.LiquidVariable,
+      expression: 0,
+      filters: 1,
+      rawSource: (tokens: Node[]) => source.slice(locStart(tokens), locEnd(tokens)).trimEnd(),
       locStart,
       locEnd,
       source,

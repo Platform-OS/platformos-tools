@@ -43,6 +43,22 @@ export { runBackfillDocsCLI } from './backfill-docs';
 export { resetRouteTable };
 export { resetSharedApp };
 /**
+ * File identity, for an embedder running its OWN never-stale cache over the same project.
+ *
+ * The MCP supervisor's project-graph cache is the one such consumer: it fingerprints
+ * every edge source to decide whether a cached graph still describes the tree. It shares
+ * this definition rather than spelling its own because the definition is the part that
+ * was hard to get right — `ctime` is in there because `mtime` is settable from userland,
+ * so an mtime-restored same-length rewrite is invisible to `mtime:size`, and a second
+ * implementation is a second chance to omit it and be stale in exactly that way.
+ *
+ * To be precise about what sharing does and does not buy: these caches never compare
+ * fingerprints against EACH OTHER — each compares only against its own previous scan — so
+ * two different definitions would not corrupt anything. What is shared is the measured
+ * definition and the "could not tell" answer, not a comparison.
+ */
+export { fingerprintOf, isKnownFingerprint } from './fingerprints';
+/**
  * Download the latest platformOS liquid docs over the local docset, then
  * {@link resetPlatformOSLiquidDocsManager} so the next lint run reads them.
  */
@@ -304,42 +320,135 @@ export interface LintBufferResult {
  * visiting the others could only produce results this function discards.
  */
 export async function lintBuffer(params: LintBufferParams): Promise<LintBufferResult> {
-  const { root, filePath, content, configPath, log = () => {} } = params;
+  const { filePath, ...rest } = params;
+  const results = await lintBuffers({ ...rest, buffers: [{ filePath, content: params.content }] });
+  // One buffer in, so one result out — and `lintBuffers` keys by the same
+  // `uriFromPath(filePath)` this would compute, so the lookup cannot miss.
+  return results.get(uriFromPath(filePath))!;
+}
+
+/** One in-memory buffer in a {@link lintBuffers} batch. */
+export interface BufferToLint {
+  /** Absolute path to the file under edit. */
+  filePath: string;
+  /** In-memory contents (may differ from, or not yet exist on, disk). */
+  content: string;
+}
+
+export interface LintBuffersParams extends Omit<LintBufferParams, 'filePath' | 'content'> {
+  /**
+   * The buffers under edit. A later entry for the same path wins, matching "last write
+   * for this file", so a caller need not deduplicate. Two entries for one file would
+   * otherwise overlay twice and double every offense for it.
+   */
+  buffers: BufferToLint[];
+}
+
+/**
+ * Lint SEVERAL in-memory buffers in ONE pass over the project, keyed by normalized URI.
+ *
+ * WHY THIS IS THE PRIMARY SEAM, with {@link lintBuffer} delegating to it. Everything
+ * expensive is per-PROJECT, not per-buffer: resolving the config, walking and reconciling
+ * the shared `App`, reconciling the route table. Linting N buffers one call at a time
+ * repeats all of it N times against an unchanged project.
+ *
+ * IT IS ALSO MORE CORRECT, which matters more than the speed. With every buffer overlaid
+ * at once, a partial introduced in one buffer resolves for a `render` in another. Linting
+ * the same edit file-by-file reports `MissingPartial` for a file that exists in the very
+ * batch being checked — a false positive inherent to the single-buffer shape, not a
+ * tuning problem.
+ *
+ * Every buffer gets its OWN {@link LintBufferResult}, so a batch mixing an asset, an
+ * ignored path and two real sources answers each on its own terms. One vocabulary for
+ * both seams: a caller never has to learn a second way of being told "not checked".
+ *
+ * Only the buffers are VISITED (`CheckOptions.only`) while the whole project stays
+ * visible to cross-file checks. Offenses are always attributed to the visited file, so
+ * visiting the rest could only produce results this function discards.
+ */
+export async function lintBuffers(
+  params: LintBuffersParams,
+): Promise<Map<UriString, LintBufferResult>> {
+  const { root, buffers, configPath, log = () => {} } = params;
+  const results = new Map<UriString, LintBufferResult>();
+  if (buffers.length === 0) return results;
+
   const config = await loadConfig(configPath, root);
-  const uri = uriFromPath(filePath);
+
+  // Last entry for a path wins.
+  const requested = new Map<UriString, string>();
+  for (const buffer of buffers) requested.set(uriFromPath(buffer.filePath), buffer.content);
 
   // Asked before the app is walked: no amount of project context changes the answer.
-  // `isIgnored` canonicalizes its subject, so this URI and the ones `check()` asks about
-  // get the same answer despite arriving in different spellings.
-  if (isIgnored(uri, config)) {
-    return notChecked('excluded-by-config');
+  // `isIgnored` canonicalizes its subject, so these URIs and the ones `check()` asks
+  // about get the same answer despite arriving in different spellings.
+  const toOverlay = new Map<UriString, string>();
+  for (const [uri, content] of requested) {
+    if (isIgnored(uri, config)) results.set(uri, notChecked('excluded-by-config'));
+    else toOverlay.set(uri, content);
   }
+  // A batch of nothing but ignored paths must not pay for the walk, exactly as the
+  // single-buffer seam does not.
+  if (toOverlay.size === 0) return results;
 
   const app = await getApp(config);
-  // The buffer's source replaces whatever was on disk (adding the file when it is not
-  // saved yet), and the version marks it as a buffer so translation lookups and any
-  // other "prefer unsaved content" path pick it up.
-  const onDisk = app.has(uri);
-  const file = app.setSource(uri, content, BUFFER_VERSION);
-  // `undefined` means the path is in no platformOS directory, so there is nothing to add
-  // and nothing to undo. Same URI, same classifier, so the miss needs no second opinion.
-  if (!file) {
-    return notChecked(
-      sourceCodeTypeOf(uri) === undefined ? 'not-a-platformos-file' : 'misplaced-source',
-    );
-  }
+  /** Undo one overlay. Collected as we go so a throw still reverts what was applied. */
+  const restore: Array<() => void> = [];
+  const visit: UriString[] = [];
 
   try {
-    // Classified, but nothing parses it: `check()` iterates the source types, so an
-    // asset is never visited however many checks are enabled.
-    if (file.type === undefined) return notChecked('not-a-source-file');
+    for (const [uri, content] of toOverlay) {
+      // The buffer's source replaces whatever was on disk (adding the file when it is
+      // not saved yet), and the version marks it as a buffer so translation lookups and
+      // any other "prefer unsaved content" path pick it up.
+      const onDisk = app.has(uri);
+      const file = app.setSource(uri, content, BUFFER_VERSION);
+      // `undefined` means the path is in no platformOS directory, so there is nothing to
+      // add and nothing to undo. Same URI, same classifier, so the miss needs no second
+      // opinion.
+      if (!file) {
+        results.set(
+          uri,
+          notChecked(
+            sourceCodeTypeOf(uri) === undefined ? 'not-a-platformos-file' : 'misplaced-source',
+          ),
+        );
+        continue;
+      }
+      // Registered BEFORE the type check below: an asset was still overlaid, so it still
+      // has to be reverted.
+      restore.push(() => (onDisk ? app.invalidate(uri) : app.remove([uri])));
 
-    return { status: 'checked', offenses: await lintApp(app, config, log, [uri]) };
+      // Classified, but nothing parses it: `check()` iterates the source types, so an
+      // asset is never visited however many checks are enabled.
+      if (file.type === undefined) {
+        results.set(uri, notChecked('not-a-source-file'));
+        continue;
+      }
+
+      // Seeded so a clean buffer reports `checked` with no offenses, which is the whole
+      // point of the status: an empty list must not be indistinguishable from unchecked.
+      results.set(uri, { status: 'checked', offenses: [] });
+      visit.push(uri);
+    }
+
+    if (visit.length > 0) {
+      for (const offense of await lintApp(app, config, log, visit)) {
+        // `only` already restricts the visit to these files; the lookup keeps the
+        // partition explicit and independent of that optimization.
+        results.get(offense.uri)?.offenses.push(offense);
+      }
+    }
+
+    // Reported in REQUEST order. `results` was filled in two passes (ignored first, then
+    // overlaid), and that is an implementation detail a caller iterating the map should
+    // not see. Total by construction: every requested URI is either ignored or overlaid,
+    // and both paths set an entry.
+    return new Map([...requested.keys()].map((uri) => [uri, results.get(uri)!]));
   } finally {
     // The app outlives this call, so the overlay must not: one request's unsaved content
     // is not the next request's truth.
-    if (onDisk) app.invalidate(uri);
-    else app.remove([uri]);
+    for (const undo of restore) undo();
   }
 }
 

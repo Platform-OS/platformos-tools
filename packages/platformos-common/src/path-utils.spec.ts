@@ -8,6 +8,7 @@ import {
   getModulePaths,
   formatRank,
   getTranslationBase,
+  isParsedFileType,
   isSupportedSourceFile,
   isPartial,
   isPage,
@@ -477,9 +478,18 @@ describe('isSupportedSourceFile', () => {
     'app/views/pages/home.html',
     'app/views/partials/foo.css.liquid',
     'app/views/partials/foo.js.liquid',
+    // EVERY asset spelling, including the ones a parser would otherwise accept. An
+    // asset is served verbatim, so its contents are never read whatever they look like
+    // — see `isParsedFileType`, and the dedicated describe below for why the bare
+    // `.liquid` case is the one that matters.
     'app/assets/theme.css.liquid',
     'app/assets/app.js',
     'app/assets/theme.css',
+    'app/assets/x.liquid',
+    'app/assets/nested/deep/w.liquid',
+    'app/assets/page.html.liquid',
+    'marketplace_builder/assets/x.liquid',
+    'modules/core/public/assets/x.liquid',
     // Not classified at all.
     'app/translations/en.yaml',
     'app/graphql/x.yml',
@@ -513,6 +523,51 @@ describe('isSupportedSourceFile', () => {
     ['app/views/pages/run.js.liquid', false],
   ])('%s → %s, decided by the response format', (path, expected) => {
     expect(isSupportedSourceFile(uri(path), ROOT)).toBe(expected);
+  });
+
+  /**
+   * THE ASSET RULE, and the regression it closes.
+   *
+   * A bare `.liquid` has no response format, so `sourceCodeTypeOf` falls back to
+   * `html.liquid` — a key that HAS a row — and `app/assets/x.liquid` was read as
+   * Liquid+HTML and linted like a page. Measured before the fix: a broken one produced
+   * `LiquidHTMLSyntaxError`, and through the MCP supervisor a `must_fix_before_write:
+   * true` — a false block on a file the platform serves verbatim.
+   *
+   * Asserted as the CONJUNCTION rather than as one `false`, because the two halves are
+   * what make it a type rule and not an extension rule: the file IS deployed, and a
+   * parser for its spelling DOES exist. Only the type says no. A future change that
+   * dropped assets from classification entirely would satisfy a bare `toBe(false)` while
+   * breaking asset resolution everywhere.
+   */
+  it('does not read an asset whose extension a parser would otherwise accept', () => {
+    const asset = uri('app/assets/x.liquid');
+
+    expect({
+      deployed: getFileType(asset, ROOT),
+      parsedType: isParsedFileType(PlatformOSFileType.Asset),
+      read: isSupportedSourceFile(asset, ROOT),
+    }).toEqual({
+      deployed: PlatformOSFileType.Asset,
+      parsedType: false,
+      read: false,
+    });
+  });
+
+  /**
+   * The CONTROL for the rule above. `isParsedFileType` excludes exactly one type, and
+   * excluding a second would silently stop linting a whole family — so the set is pinned
+   * by enumeration rather than by spot checks.
+   *
+   * Deliberately derived from the enum, so a NEW `PlatformOSFileType` shows up here
+   * automatically and defaults to "read", which is the safe direction: a new type with no
+   * check fails `file-type-coverage.spec.ts` loudly, whereas a new type silently not read
+   * is the regression nothing catches.
+   */
+  it('reads every file type except Asset', () => {
+    const notParsed = Object.values(PlatformOSFileType).filter((type) => !isParsedFileType(type));
+
+    expect(notParsed).toEqual([PlatformOSFileType.Asset]);
   });
 
   it('keeps classification and readability separate for a non-Liquid page', () => {

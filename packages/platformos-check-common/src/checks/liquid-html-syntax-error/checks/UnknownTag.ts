@@ -19,6 +19,24 @@ const GRAMMAR_KNOWN_TAGS = new Set<string>([
   '#', // inline comment: {% # this is a comment %}
 ]);
 
+/**
+ * Tags an author is likely to reach for out of habit, with what platformOS wants instead.
+ *
+ * "Unknown tag 'layout'" is accurate and useless: the author already knows they wrote `layout`,
+ * and it reads like a typo rather than a missing feature. This tooling is forked from Shopify's,
+ * so these are the tags a Shopify author brings with them, and the failure is deploy-wide — the
+ * converter rejects the file and takes the whole changeset.
+ *
+ * A remedy that is wrong is worse than no remedy, so a name goes in only once BOTH halves are
+ * measured against `/api/app_builder/liquid_exec`: that the platform lacks the tag, and what it
+ * does instead.
+ */
+const PLATFORMOS_ALTERNATIVE: Readonly<Record<string, string>> = {
+  layout:
+    'platformOS has no layout tag — it selects a layout from the page frontmatter instead, ' +
+    'e.g. `layout: application`.',
+};
+
 export function detectUnknownTag(
   node: LiquidTag,
   tags: TagEntry[] = [],
@@ -35,8 +53,10 @@ export function detectUnknownTag(
     return;
   }
 
+  const alternative = PLATFORMOS_ALTERNATIVE[tagName];
+
   return {
-    message: `Unknown tag '${tagName}'`,
+    message: alternative ? `Unknown tag '${tagName}'. ${alternative}` : `Unknown tag '${tagName}'`,
     startIndex: node.position.start,
     endIndex: node.position.end,
   };

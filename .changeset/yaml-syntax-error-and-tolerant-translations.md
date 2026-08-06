@@ -1,6 +1,6 @@
 ---
 '@platformos/platformos-common': patch
-'@platformos/platformos-check-common': patch
+'@platformos/platformos-check-common': minor
 ---
 
 Read a translation file the way the platform does, and report the YAML problems nothing
@@ -24,12 +24,27 @@ document link in a page.
 **`YAMLSyntaxError` (error, recommended)** is the counterpart to `LiquidHTMLSyntaxError`
 and, until now, the missing one: a YAML source drew no diagnostic however broken it was,
 while every reader quietly declined to use it. It reports each complaint the parser makes,
-positioned — a duplicated key is named and highlighted on the duplicate itself:
-`Duplicate key 'banner_mobile' — the last value wins, so the earlier one is dead.` It is
-deliberately type-agnostic, because a duplicate in `app/config.yml` is the same bug as one
-in a translation file; `fixed-path-files.spec.ts` records it as the one YAML check that
-needs no file-type guard, and pins that a config file YAML reads cleanly still draws
-nothing.
+positioned. It is deliberately type-agnostic, because a broken `app/config.yml` is the same
+bug as a broken translation file; `fixed-path-files.spec.ts` records it as the one YAML
+check that needs no file-type guard, and pins that a config file YAML reads cleanly still
+draws nothing.
+
+**Duplicate keys are NOT reported here.** `YAMLSyntaxError` answers one question — does this
+file parse — and it is on the MCP supervisor's write gate (`BLOCKING_CHECKS`), whose stated
+justification is that the converter rejects the changeset. Measured, the converter does the
+opposite: `pos-cli deploy --dry-run` ACCEPTS a repeated key and the platform resolves it
+last-wins, so the file deploys and renders. Reporting it at `error` from a blocking check
+made every one of those a false block — refusing to let an agent write a file the platform
+takes. Blocking legal, working input is this toolchain's most expensive failure mode.
+
+**`DuplicateYAMLKey` (warning, recommended)** carries that finding instead, off the gate:
+`blocksWrite` requires severity `error` AND membership of `BLOCKING_CHECKS`, and this check
+satisfies neither. WARNING rather than INFO because it is silent DATA LOSS — a translation
+string the author wrote never reaches a user and nothing else says so — and the precedent is
+`DuplicateRenderPartialArguments`, the same defect one level up, already a warning. The
+squiggle lands on the EARLIER entry, departing from that precedent deliberately: the later
+occurrence is the one that WINS, so highlighting it would point the author at the working
+value and invite them to delete it. The dead one gets the mark.
 
 Two things it does not report, both decided by measuring rather than by taste: a trailing
 `---` terminator, since Ruby reads such a file as one document plus an empty one and
@@ -44,7 +59,8 @@ disagree about what a key is.
 
 Measured across four real projects: the largest went 9460 → 8830 offenses (−676 false
 `TranslationKeyExists`, −26 internal-error reports, +61 `MatchingTranslations` that were
-verified genuine, +11 duplicate keys), two were unchanged, and `pos-module-community` +1 — a
+verified genuine, +11 duplicate keys, now `DuplicateYAMLKey` warnings rather than
+`YAMLSyntaxError` errors), two were unchanged, and `pos-module-community` +1 — a
 real duplicate in its own module translations. The most valuable single find is not a
 translation: one project's `app/config.yml` sets
 `graphql_argument_type_mismatch_mode: ignore` on line 10 and `: error` on line 123, so that

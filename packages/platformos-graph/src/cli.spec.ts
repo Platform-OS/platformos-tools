@@ -18,6 +18,7 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
     expect(graph.rootUri).toBe(uriFromPath(skeletonPath));
 
     // Whole node set, sorted by URI so the assertion is order-independent.
+    // (`app/assets/*` sorts ahead of `app/views/*`.)
     expect([...graph.nodes].sort((a, b) => a.uri.localeCompare(b.uri))).toEqual([
       {
         uri: p('app/assets/app.css'),
@@ -92,6 +93,12 @@ describe('platformos-graph CLI: buildSerializedGraph', () => {
         target: p('app/views/partials/header.liquid'),
         type: 'direct',
         kind: 'render',
+      },
+      {
+        source: p('app/views/pages/index.liquid'),
+        target: p('app/views/layouts/application.liquid'),
+        type: 'direct',
+        kind: 'layout',
       },
       {
         source: p('app/views/pages/index.liquid'),

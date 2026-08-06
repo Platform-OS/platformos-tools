@@ -83,6 +83,19 @@ describe('Unit: check() with the `only` option', () => {
     expect(await checkOnly([])).toEqual([]);
   });
 
+  it('visits everything when `only` is explicitly undefined, which `[]` must not do', async () => {
+    // The other half of the rule above. `undefined` and `[]` are the two ways a
+    // caller can fail to name a file, and they mean opposite things. The guard
+    // must key on absence, not emptiness: an `!only?.length` style test collapses
+    // them and silently lints the WHOLE project when asked for nothing.
+    const everything = await check(APP);
+
+    expect(sorted(await check(APP, undefined, {}, {}, { only: undefined }))).toEqual(
+      sorted(everything),
+    );
+    expect(everything).not.toEqual([]);
+  });
+
   it('returns no offenses when told to visit a file that is not part of the app', async () => {
     expect(await checkOnly([uri('app/views/pages/ghost.liquid')])).toEqual([]);
   });

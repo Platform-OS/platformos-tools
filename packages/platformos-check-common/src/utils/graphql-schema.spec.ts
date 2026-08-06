@@ -29,6 +29,12 @@ describe('Unit: buildGraphQLSchema', () => {
     expect(buildGraphQLSchema(SDL_A)).toBe(buildGraphQLSchema(SDL_A));
   });
 
+  it('returns the same instance for an equal SDL passed as a different string object', () => {
+    const copy = SDL_A.split('').join('');
+
+    expect(buildGraphQLSchema(copy)).toBe(buildGraphQLSchema(SDL_A));
+  });
+
   it('builds a usable schema', () => {
     const queryType = buildGraphQLSchema(SDL_A).getQueryType();
 

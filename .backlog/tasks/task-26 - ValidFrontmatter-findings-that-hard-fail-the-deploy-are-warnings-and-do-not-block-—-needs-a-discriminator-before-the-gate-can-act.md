@@ -16,6 +16,8 @@ dependencies:
   - TASK-8.1
 references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS.md
+modified_files:
+  - packages/platformos-mcp-supervisor/src/result/blocking.ts
 priority: medium
 ordinal: 49000
 ---

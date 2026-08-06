@@ -8,6 +8,7 @@ import {
   LiquidModule,
   LiquidModuleKind,
   ModuleType,
+  SchemaModule,
   SUPPORTED_ASSET_IMAGE_EXTENSIONS,
 } from '../types';
 import { extname } from '../utils';
@@ -45,10 +46,11 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
 
     case PlatformOSFileType.Partial:
       // The URI is already resolved, so it is used as-is. Reducing it to a
-      // `basename` and letting `getPartialModule` rebuild a path from that loses
-      // any subdirectory and any module prefix — `app/views/partials/ui/card.liquid`
-      // came back as `app/views/partials/card.liquid`, a node for a file that need
-      // not exist.
+      // `basename` and rebuilding a path from that loses any subdirectory and any
+      // module prefix — `app/views/partials/ui/card.liquid` came back as
+      // `app/views/partials/card.liquid`, a node for a file that need not exist,
+      // and `app/lib/can/x.liquid` was split from the same file resolved as an
+      // edge target (which comes through getPartialModuleByUri).
       return getPartialModuleByUri(appGraph, uri);
 
     case PlatformOSFileType.Asset:
@@ -62,6 +64,10 @@ export function getModule(appGraph: AppGraph, uri: UriString): AppModule | undef
  * Preferred over {@link getAssetModule} whenever the file is known, for the same
  * reason as {@link getPartialModuleByUri}: it does not reconstruct a path from a
  * name, so a nested or module asset keeps the location it actually has.
+ *
+ * Gated on {@link isSupportedAsset} HERE rather than at each call site, so a new
+ * caller cannot forget the gate and mint an Asset node for a value that is not an
+ * asset file.
  */
 export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModule | undefined {
   if (!isSupportedAsset(uri)) return undefined;
@@ -69,13 +75,14 @@ export function getAssetModuleByUri(appGraph: AppGraph, uri: string): AssetModul
   return module(appGraph, {
     type: ModuleType.Asset,
     kind: 'unused',
-    dependencies: [],
-    references: [],
     // Normalize to forward slashes — see getPartialModuleByUri.
     uri: path.normalize(uri),
+    dependencies: [],
+    references: [],
   });
 }
 
+/** File extensions the graph treats as assets (the `asset_url` edge gate). */
 const SUPPORTED_ASSET_EXTENSIONS = [
   ...SUPPORTED_ASSET_IMAGE_EXTENSIONS,
   'js',
@@ -88,7 +95,17 @@ const SUPPORTED_ASSET_EXTENSIONS = [
   'eot',
 ];
 
-function isSupportedAsset(nameOrUri: string): boolean {
+/**
+ * Whether `nameOrUri` refers to a supported asset file (by extension).
+ *
+ * The single gate for admitting an asset, whether the subject is a reference (the
+ * string inside `{{ 'app.js' | asset_url }}`) or a resolved URI. It preserves the
+ * graph's historical behavior of ignoring an `asset_url`-family filter applied to
+ * a value that is not an asset file. Exported so the traversal can skip the
+ * filesystem probe for a non-asset value BEFORE resolving it; the module
+ * factories gate on it again, so neither layer depends on the other remembering.
+ */
+export function isSupportedAsset(nameOrUri: string): boolean {
   return SUPPORTED_ASSET_EXTENSIONS.includes(extname(nameOrUri));
 }
 
@@ -100,9 +117,10 @@ function isSupportedAsset(nameOrUri: string): boolean {
  * `modules/<name>/{public,private}/assets/`. Those come from platformos-common, so the
  * graph resolves a reference to the same place the linter and the platform do.
  *
- * The FIRST candidate is used as the canonical location, as {@link getPartialModule}
- * does: this is sync and has no filesystem, so it cannot tell which candidate exists.
- * Prefer {@link getAssetModuleByUri} when the URI is already known.
+ * The FIRST candidate is used as the canonical location: this is sync and has no
+ * filesystem, so it cannot tell which candidate exists. Prefer
+ * {@link getAssetModuleByUri} — the traversal resolves through `DocumentsLocator`,
+ * which can.
  */
 export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule | undefined {
   if (!isSupportedAsset(asset)) return undefined;
@@ -113,21 +131,7 @@ export function getAssetModule(appGraph: AppGraph, asset: string): AssetModule |
   return module(appGraph, {
     type: ModuleType.Asset,
     kind: 'unused',
-    dependencies: [],
-    references: [],
     uri: path.join(appGraph.rootUri, canonical),
-  });
-}
-
-export function getPartialModule(appGraph: AppGraph, partial: string): LiquidModule {
-  // Where a partial lives, and the extension it resolves with, both come from
-  // platformos-common's name→path mapping — never spelled here.
-  const [canonical] = nameToPaths(PlatformOSFileType.Partial, partial);
-  const uri = path.join(appGraph.rootUri, canonical);
-  return module(appGraph, {
-    type: ModuleType.Liquid,
-    kind: LiquidModuleKind.Partial,
-    uri: uri,
     dependencies: [],
     references: [],
   });
@@ -135,21 +139,24 @@ export function getPartialModule(appGraph: AppGraph, partial: string): LiquidMod
 
 /**
  * Create (or fetch the cached) Liquid Partial module for an ALREADY-RESOLVED
- * full URI — used for `{% function %}` / `{% include %}` targets whose URI is
- * resolved canonically by `DocumentsLocator` (which handles lib paths, module
- * prefixes, and extensions). Unlike {@link getPartialModule}, it does not
- * reconstruct the path from a name. Commands/queries/lib helpers are all
- * `Partial` kind, consistent with check-common's file-type classification.
+ * full URI — used for `{% render %}` / `{% include %}` / `{% function %}` /
+ * `{% background %}` targets whose URI is resolved canonically by
+ * `DocumentsLocator` (which handles lib paths, module prefixes, and extensions).
+ * It keys the node by that URI verbatim (normalized), never reconstructing a path
+ * from a name: partials have two search roots (`views/partials`, `lib`) and two
+ * extensions, so a name-derived path is a guess, and guessing split a `lib/`
+ * partial into two nodes. Commands/queries/lib helpers are all `Partial` kind,
+ * consistent with check-common's file-type classification.
  */
 export function getPartialModuleByUri(appGraph: AppGraph, uri: string): LiquidModule {
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Partial,
     // Normalize to forward slashes so module keys match the rest of the graph
-    // (getPartialModule/getAssetModule build URIs via path.join, which
-    // normalizes). DocumentsLocator returns `Utils.joinPath(...).toString()`
-    // unnormalized, which on Windows keeps backslashes and breaks key/edge
-    // matching against the normalized URIs everywhere else.
+    // (getAssetModule builds its URI via path.join, which normalizes).
+    // DocumentsLocator returns `Utils.joinPath(...).toString()` unnormalized,
+    // which on Windows keeps backslashes and breaks key/edge matching against the
+    // normalized URIs everywhere else.
     uri: path.normalize(uri),
     dependencies: [],
     references: [],
@@ -169,6 +176,24 @@ export function getGraphQLModuleByUri(appGraph: AppGraph, uri: string): GraphQLM
     uri: path.normalize(uri),
     dependencies: [],
     references: [],
+    // Always present (empty = no table declared); populated during traversal.
+    tables: [],
+  });
+}
+
+/**
+ * Create (or fetch the cached) Schema module for an already-resolved
+ * `custom_model_type`/schema URI — discovered during a full `buildAppGraph`.
+ * A leaf node; its `table` (the model `name:`) is populated during traversal.
+ */
+export function getSchemaModule(appGraph: AppGraph, uri: string): SchemaModule {
+  return module(appGraph, {
+    type: ModuleType.Schema,
+    kind: 'schema',
+    // Normalize to forward slashes — see getPartialModuleByUri.
+    uri: path.normalize(uri),
+    dependencies: [],
+    references: [],
   });
 }
 
@@ -180,7 +205,30 @@ export function getLayoutModule(
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Layout,
-    uri: layoutUri,
+    // Normalize so a layout discovered as an entry point keys identically to the
+    // same file resolved as a frontmatter `layout:` edge target (which comes
+    // through getLayoutModuleByUri, also normalized) — one node, never a split
+    // identity. See getPartialModuleByUri for why DocumentsLocator/fs URIs must
+    // be normalized.
+    uri: path.normalize(layoutUri),
+    dependencies: [],
+    references: [],
+  });
+}
+
+/**
+ * Create (or fetch the cached) Layout module for an already-resolved layout URI
+ * — used for the frontmatter `layout:` association edge, whose target is
+ * resolved by `DocumentsLocator` (`'layout'` type: `app/views/layouts`, module
+ * prefixes, `.html.liquid`/`.liquid`). Distinct from {@link getLayoutModule} only
+ * in that the latter accepts the `string | false | undefined` a frontmatter read
+ * yields; both normalize, so both key the same node.
+ */
+export function getLayoutModuleByUri(appGraph: AppGraph, uri: string): LiquidModule {
+  return module(appGraph, {
+    type: ModuleType.Liquid,
+    kind: LiquidModuleKind.Layout,
+    uri: path.normalize(uri),
     dependencies: [],
     references: [],
   });
@@ -190,7 +238,9 @@ export function getPageModule(appGraph: AppGraph, pageUri: string): LiquidModule
   return module(appGraph, {
     type: ModuleType.Liquid,
     kind: LiquidModuleKind.Page,
-    uri: pageUri,
+    // Normalize for the same node-identity reason as getLayoutModule / the other
+    // factories (see getPartialModuleByUri).
+    uri: path.normalize(pageUri),
     dependencies: [],
     references: [],
   });
@@ -209,4 +259,16 @@ function module<T extends AppModule>(appGraph: AppGraph, mod: T): T {
     cache.set(mod.uri, mod);
   }
   return cache.get(mod.uri)! as T;
+}
+
+/**
+ * Intern a fully-formed module into the graph's identity cache (dedup by URI),
+ * returning the canonical instance. Deserialization uses this to SEED the cache
+ * from a persisted graph, so that a subsequent incremental update
+ * (`applyFileChange`) resolves its targets to the SAME module objects the loaded
+ * graph holds — without it, the factories would mint fresh duplicates on a cache
+ * miss and edges would bind to the wrong nodes. See {@link ModuleCache}.
+ */
+export function internModule<T extends AppModule>(appGraph: AppGraph, mod: T): T {
+  return module(appGraph, mod);
 }

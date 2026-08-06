@@ -2,6 +2,7 @@ export { RouteTable, extractRelativePagePath } from './RouteTable';
 export {
   slugFromFilePath,
   formatFromFilePath,
+  effectivePageSlug,
   isDeprecatedHomeAlias,
   KNOWN_FORMATS,
 } from './slugFromFilePath';

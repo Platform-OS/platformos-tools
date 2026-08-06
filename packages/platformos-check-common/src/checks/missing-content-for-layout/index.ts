@@ -10,8 +10,11 @@ import { PlatformOSFileType } from '@platformos/platformos-common';
  * entirely — a correctness defect, not a style issue. (Named slots use
  * `{% yield 'name' %}` separately and do not substitute for it.)
  *
- * The check is scoped to layout files via `getFileType` (re-exported as
- * `isLayout`) so it never fires on pages or partials. Both detection and the
+ * The check is scoped to layout files via `context.fileType()`, the run's
+ * root-ANCHORED classification, resolving to the canonical
+ * `PlatformOSFileType.Layout` — the single source of truth shared with
+ * DocumentsLocator's `'layout'` type and the graph's layout edge — so it never
+ * fires on pages or partials. Both detection and the
  * suggested fix are AST-based: any reference to the `content_for_layout`
  * variable clears the check (whether emitted with `{{ … }}`, `{% echo … %}`,
  * or inside a `{% liquid %}` block), and the fix is inserted before the

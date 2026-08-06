@@ -17,6 +17,9 @@ import { describe, expect, it } from 'vitest';
  * EXPLAINS the directory rule to an agent in prose, which is a different job from
  * applying it, and check-node is its only dependency.
  */
+const packagesRoot = join(__dirname, '..', '..');
+const scannedPackages = ['platformos-check-common', 'platformos-check-node'];
+
 describe('file identity has one owner', () => {
   const IDENTITY_SYMBOLS = new Set([
     'getFileType',
@@ -50,40 +53,66 @@ describe('file identity has one owner', () => {
 
   const ALLOWED = new Set(['platformos-check-node/src/index.ts: APP_SOURCE_SUBTREES']);
 
-  const packagesRoot = join(__dirname, '..', '..');
-  const scanned = ['platformos-check-common', 'platformos-check-node'];
-
   it('is never re-exported by the check packages', async () => {
-    const offenders: string[] = [];
-
-    for (const packageName of scanned) {
-      for (const file of await sourceFiles(join(packagesRoot, packageName, 'src'))) {
-        if (file.endsWith('.spec.ts')) continue;
-        const source = await readFile(file, 'utf8');
-        // Forward-slashed, so `ALLOWED` is written once rather than once per OS.
-        const relative = relativePosixPath(file, packagesRoot);
-
-        for (const [, names] of source.matchAll(
-          /export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@platformos\/platformos-common'/gs,
-        )) {
-          for (const raw of names.split(',')) {
-            const name = raw.trim().split(/\s+as\s+/)[0];
-            if (!IDENTITY_SYMBOLS.has(name)) continue;
-            const offender = `${relative}: ${name}`;
-            if (!ALLOWED.has(offender)) offenders.push(offender);
-          }
-        }
-
-        // A star re-export forwards the whole identity API in one line.
-        if (/export\s+\*\s+from\s*'@platformos\/platformos-common'/.test(source)) {
-          offenders.push(`${relative}: export *`);
-        }
-      }
-    }
-
-    expect(offenders).toEqual([]);
+    expect(await reExportsOf(IDENTITY_SYMBOLS, ALLOWED)).toEqual([]);
   });
 });
+
+/**
+ * The same rule for the other fact platformos-common owns: how a platformOS GraphQL
+ * document is READ — parsed, and asked for its tables and its variables. A check reads
+ * the document its `AppFile` already parsed; nothing here re-exports the reader, or a
+ * caller could import it from two packages and one of them would stop being the parse
+ * the app performed.
+ *
+ * The `GraphQLDocumentNode` TYPE is deliberately absent from this list: check-common
+ * re-exports it, exactly as it re-exports `SourceCodeType`, because its `AST` map is
+ * keyed on it and two structurally equal types would be two types.
+ */
+describe('GraphQL reading has one owner', () => {
+  const GRAPHQL_SYMBOLS = new Set([
+    'parseGraphql',
+    'isGraphqlDocument',
+    'extractGraphqlTables',
+    'extractGraphqlVariables',
+  ]);
+
+  it('is never re-exported by the check packages', async () => {
+    expect(await reExportsOf(GRAPHQL_SYMBOLS, new Set())).toEqual([]);
+  });
+});
+
+/** Every `export … from '@platformos/platformos-common'` of a symbol in `symbols`. */
+async function reExportsOf(symbols: Set<string>, allowed: Set<string>): Promise<string[]> {
+  const offenders: string[] = [];
+
+  for (const packageName of scannedPackages) {
+    for (const file of await sourceFiles(join(packagesRoot, packageName, 'src'))) {
+      if (file.endsWith('.spec.ts')) continue;
+      const source = await readFile(file, 'utf8');
+      // Forward-slashed, so `allowed` is written once rather than once per OS.
+      const relative = relativePosixPath(file, packagesRoot);
+
+      for (const [, names] of source.matchAll(
+        /export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*'@platformos\/platformos-common'/gs,
+      )) {
+        for (const raw of names.split(',')) {
+          const name = raw.trim().split(/\s+as\s+/)[0];
+          if (!symbols.has(name)) continue;
+          const offender = `${relative}: ${name}`;
+          if (!allowed.has(offender)) offenders.push(offender);
+        }
+      }
+
+      // A star re-export forwards the whole API in one line.
+      if (/export\s+\*\s+from\s*'@platformos\/platformos-common'/.test(source)) {
+        offenders.push(`${relative}: export *`);
+      }
+    }
+  }
+
+  return offenders;
+}
 
 async function sourceFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });

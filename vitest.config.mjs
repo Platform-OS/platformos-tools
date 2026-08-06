@@ -23,6 +23,9 @@ export default defineConfig({
     // because they carry the same intent and are only Vitest 4 defaults. They must
     // stay top-level `test` options — the `poolOptions.forks` / bare `test.forks`
     // spellings this replaced are accepted silently and do nothing.
+    //
+    // TASK-12.11 removes the need for this by making extension discovery hermetic,
+    // which restores the ~20% CI parallelism this gives up.
     pool: 'forks',
     fileParallelism: false,
     isolate: true,

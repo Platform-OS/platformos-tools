@@ -1,6 +1,6 @@
 import { expect, describe, it, vi, beforeEach } from 'vitest';
 import { Minimatch } from 'minimatch';
-import { isIgnored } from './ignore';
+import { hasIgnorePatterns, isIgnored } from './ignore';
 import { UriString, CheckDefinition, Config, SourceCodeType } from './types';
 
 vi.mock('minimatch', async (importOriginal) => {
@@ -241,6 +241,80 @@ describe('Function: isIgnored', () => {
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
       ['**/app/views/pages/**'],
       ['**/app/views/layouts/**'],
+    ]);
+  });
+
+  /**
+   * A pattern is rewritten against the config's ROOT, so the same pattern text under two
+   * different roots is two different matchers. Trivially true while matchers are keyed on
+   * the config object; asserted anyway because it is the trap any future pattern-keyed
+   * cache falls into — an absolute pattern's compiled form embeds the root, so keying on
+   * the pattern TEXT alone would serve project-a's matcher to project-b.
+   */
+  it('should not reuse an absolute pattern across two roots', () => {
+    const under = (rootUri: string, subjectRoot: string): boolean =>
+      isIgnored(`${subjectRoot}/app/views/x.liquid`, {
+        settings: {},
+        checks: [],
+        rootUri,
+        ignore: ['/app/views/**'],
+      });
+
+    // Anchored at its own root, the pattern matches.
+    expect(under('file:///project-a', 'file:///project-a')).toBe(true);
+    expect(under('file:///project-b', 'file:///project-b')).toBe(true);
+    // Anchored at project-b, a project-a path is outside the pattern entirely.
+    expect(under('file:///project-b', 'file:///project-a')).toBe(false);
+  });
+
+  /**
+   * The correctness half of "a different config compiles on its own": editing
+   * `.platformos-check.yml` changes the VERDICT for a file that did not itself change,
+   * in both directions. A cache that keyed too coarsely would serve the stale answer,
+   * and going back again is what catches a cache that only ever moves forward.
+   */
+  it('should follow a changed ignore list in both directions', () => {
+    const withIgnore = (globalIgnore: string[]): Config => ({
+      settings: {},
+      checks: [],
+      rootUri: 'file:/path/to',
+      ignore: globalIgnore,
+    });
+    const subject = toUri('app/views/pages/secret.liquid');
+
+    expect(isIgnored(subject, withIgnore(['other/**']))).toBe(false);
+    expect(isIgnored(subject, withIgnore(['app/views/pages/**']))).toBe(true);
+    expect(isIgnored(subject, withIgnore(['other/**']))).toBe(false);
+  });
+
+  /**
+   * Nothing to match against means nothing to COMPILE — the premise
+   * {@link hasIgnorePatterns} exists to exploit, since most projects configure no
+   * `ignore` at all and check-node otherwise converts every project URI to a filesystem
+   * path just to be told so.
+   */
+  it('should compile nothing, and report nothing to match, when there are no patterns', () => {
+    const empty = config({ checkIgnore: [], globalIgnore: [] });
+
+    expect(isIgnored(toUri('app/views/pages/index.liquid'), empty)).toBe(false);
+    expect(vi.mocked(Minimatch).mock.calls).toEqual([]);
+    expect(hasIgnorePatterns(empty)).toBe(false);
+    expect(hasIgnorePatterns(empty, checkDef)).toBe(false);
+  });
+
+  it('should report there is something to match once a pattern is configured', () => {
+    const globalOnly = config({ checkIgnore: [], globalIgnore: ['modules/vendor/**'] });
+    const perCheckOnly = config({ checkIgnore: ['app/views/partials/*.liquid'], globalIgnore: [] });
+
+    // A per-check pattern is invisible to the check-less question, and that asymmetry is
+    // the point: the caller that skips work must ask the same question it will act on.
+    expect([hasIgnorePatterns(globalOnly), hasIgnorePatterns(globalOnly, checkDef)]).toEqual([
+      true,
+      true,
+    ]);
+    expect([hasIgnorePatterns(perCheckOnly), hasIgnorePatterns(perCheckOnly, checkDef)]).toEqual([
+      false,
+      true,
     ]);
   });
 

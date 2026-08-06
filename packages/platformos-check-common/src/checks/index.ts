@@ -9,6 +9,7 @@ import {
 import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedTag } from './deprecated-tag';
 import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
+import { DuplicateYAMLKey } from './duplicate-yaml-key';
 import { ImgWidthAndHeight } from './img-width-and-height';
 import { ImplicitIncludeArguments } from './implicit-include-arguments';
 import { LiquidHTMLSyntaxError } from './liquid-html-syntax-error';
@@ -23,6 +24,8 @@ import { TranslationKeyExists } from './translation-key-exists';
 import { UnclosedHTMLElement } from './unclosed-html-element';
 import { UndefinedObject } from './undefined-object';
 import { UniqueDocParamNames } from './unique-doc-param-names';
+import { FilterArity } from './filter-arity';
+import { FilterWithoutEffect } from './filter-without-effect';
 import { UnknownFilter } from './unknown-filter';
 import { UnrecognizedRenderPartialArguments } from './unrecognized-render-partial-arguments';
 import { UnusedAssign } from './unused-assign';
@@ -52,6 +55,7 @@ export const allChecks: (
   DeprecatedTag,
   DuplicateFunctionArguments,
   DuplicateRenderPartialArguments,
+  DuplicateYAMLKey,
   ImgWidthAndHeight,
   ImplicitIncludeArguments,
   LiquidHTMLSyntaxError,
@@ -66,6 +70,8 @@ export const allChecks: (
   UnclosedHTMLElement,
   UndefinedObject,
   UniqueDocParamNames,
+  FilterArity,
+  FilterWithoutEffect,
   UnknownFilter,
   UnrecognizedRenderPartialArguments,
   UnusedAssign,

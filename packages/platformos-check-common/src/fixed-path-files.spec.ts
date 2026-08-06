@@ -18,7 +18,9 @@ describe('the fixed-path config files', () => {
   const app = {
     'app/config.yml': ['theme_search_paths:', '  - theme/dress', 'foo: <b>bar</b>', ''].join('\n'),
     'app/user.yml': ['properties:', '  - name: first_name', '    type: string', ''].join('\n'),
-    'app/translations/en.yml': 'en:\n  hello: Hello\n',
+    'app/translations/en.yml': `en:
+  hello: Hello
+`,
   };
 
   it('are classified, and are YAML sources the linter loads', () => {
@@ -31,7 +33,10 @@ describe('the fixed-path config files', () => {
   });
 
   it('attract no offenses from any check', async () => {
-    const configUris = ['file:/app/config.yml', 'file:/app/user.yml'];
+    // The URIs as `check()` actually reports them. Spelled `file:/app/...` this filter
+    // matched NOTHING, so the assertion below passed without looking at anything — the
+    // test that follows is what exposed it.
+    const configUris = ['file:///app/config.yml', 'file:///app/user.yml'];
 
     const offenses = await check(app, allChecks);
 
@@ -47,16 +52,45 @@ describe('the fixed-path config files', () => {
     // Guarding on the type is what makes it deliberate — and what makes it survive a
     // translations directory alias being added to FILE_TYPE_DIRS.
     //
-    // `YAMLSyntaxError` is the deliberate exception: it reports what the YAML parser
-    // said, and a duplicated key in `app/config.yml` is the same bug it is in a
-    // translation file. It needs no type guard because it asks nothing about the type —
-    // and the test above pins that a config file YAML reads cleanly still draws nothing.
+    // TWO checks are deliberate exceptions, and for the same reason: they ask nothing
+    // about the file's type, so there is nothing to guard. `YAMLSyntaxError` reports what
+    // the parser could not read; `DuplicateYAMLKey` reports a value the platform
+    // discarded. A duplicated key in `app/config.yml` is the same bug it is in a
+    // translation file — that claim is measured below rather than asserted here — and the
+    // test above pins that a config file YAML reads cleanly still draws nothing.
     const yamlChecks = allChecks.filter((def) => def.meta.type === SourceCodeType.YAML);
 
     expect(yamlChecks.map((def) => def.meta.code).sort()).toEqual([
+      'DuplicateYAMLKey',
       'MatchingTranslations',
       'ValidHTMLTranslation',
       'YAMLSyntaxError',
+    ]);
+  });
+
+  /**
+   * The exception, measured. The enumeration above only records the INTENT that these two
+   * checks are type-agnostic; this proves it for the one whose finding is easy to author,
+   * on the file type that was classified last and is least likely to have been considered.
+   *
+   * Also the control for `attract no offenses from any check`: that test's fixtures are
+   * clean, so on its own it cannot distinguish "the checks correctly skip a config file"
+   * from "nothing looks at config files at all".
+   */
+  it('reports a duplicated key in a config file, not only in a translation file', async () => {
+    const offenses = await check(
+      {
+        'app/config.yml': `theme_search_paths:
+  - theme/dress
+foo: one
+foo: two
+`,
+      },
+      allChecks,
+    );
+
+    expect(offenses.map((offense) => ({ check: offense.check, uri: offense.uri }))).toEqual([
+      { check: 'DuplicateYAMLKey', uri: 'file:///app/config.yml' },
     ]);
   });
 });

@@ -53,3 +53,25 @@ It should support spaces or lack of thereof erywhere
 a    :  b  , range
 : ( a .. b)
 %}
+
+It should keep an assign target's brackets, which are load-bearing
+{% assign h['k'] = 1 %}
+{% assign h["k"] = 1 %}
+{% assign h['a']['b'] = 1 %}
+{% assign h['k-1'] = 1 %}
+{% assign h[0] = 1 %}
+{% assign h[k] = 1 %}
+
+It should normalise a dot target to brackets
+{% assign h.k = 1 %}
+{% assign h.a['b'] = 1 %}
+{% assign h['a'].b = 1 %}
+
+It should keep the target of an append bracketed too
+{% assign h['k'] << 1 %}
+{% assign h.k << 1 %}
+
+It should still prefer dot access everywhere that is not a target
+{{ h['k'] }}
+{% assign z = h['k'] %}
+{% if h['k'] == 1 %}{{ h['k'] }}{% endif %}

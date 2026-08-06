@@ -9,17 +9,35 @@ import {
   parseModulePrefix,
   PlatformOSFileType,
 } from '../path-utils';
+import { PLATFORM_YAML_LOAD_OPTIONS } from '../yaml-load-options';
 import { URI, Utils } from 'vscode-uri';
 
 export type DocumentType =
-  'function' | 'render' | 'include' | 'background' | 'graphql' | 'asset' | 'theme_render_rc';
+  | 'function'
+  | 'render'
+  | 'include'
+  | 'background'
+  | 'graphql'
+  | 'asset'
+  | 'layout'
+  | 'theme_render_rc';
 
-/** Which platformOS file type each resolvable reference kind points at. */
+/**
+ * Which platformOS file type each resolvable reference kind points at.
+ *
+ * `layout` is here because the graph resolves a page's frontmatter `layout:` to a node
+ * (`graph/traverse.ts`) and `MissingContentForLayout` asks the same question. It needs no
+ * extension list of its own: `App.findOrLocate` resolves a layout through the same
+ * response-format machinery as everything else, so the legacy `application.html.liquid`
+ * spelling is found under the name `application` — verified on a real project — while a
+ * name with no file behind it still comes back unresolved.
+ */
 const FILE_TYPE_BY_DOCUMENT_TYPE = {
   partial: PlatformOSFileType.Partial,
   graphql: PlatformOSFileType.GraphQL,
   asset: PlatformOSFileType.Asset,
-} as const satisfies Record<'partial' | 'graphql' | 'asset', PlatformOSFileType>;
+  layout: PlatformOSFileType.Layout,
+} as const satisfies Record<'partial' | 'graphql' | 'asset' | 'layout', PlatformOSFileType>;
 
 /**
  * Load theme_search_paths from app/config.yml.
@@ -38,7 +56,10 @@ export async function loadSearchPaths(
       getFixedFilePath(PlatformOSFileType.InstanceConfig)!,
     ).toString();
     const content = await fs.readFile(configUri);
-    const config = yaml.load(content) as Record<string, unknown> | null;
+    // A duplicated key must not cost the project its search paths — see
+    // PLATFORM_YAML_LOAD_OPTIONS. The `catch` below would otherwise answer "no
+    // config", silently sending every lookup down the default paths.
+    const config = yaml.load(content, PLATFORM_YAML_LOAD_OPTIONS) as Record<string, unknown> | null;
     const paths = config?.theme_search_paths;
     if (Array.isArray(paths) && paths.length > 0) {
       return paths.map(String);
@@ -76,7 +97,10 @@ export class DocumentsLocator {
     private readonly app?: App | AppResolver,
   ) {}
 
-  private getSearchPaths(type: 'partial' | 'graphql' | 'asset', moduleName?: string): string[] {
+  private getSearchPaths(
+    type: 'partial' | 'graphql' | 'asset' | 'layout',
+    moduleName?: string,
+  ): string[] {
     const fileType = FILE_TYPE_BY_DOCUMENT_TYPE[type];
 
     return moduleName ? getModulePaths(fileType, moduleName) : getAppPaths(fileType);
@@ -90,11 +114,19 @@ export class DocumentsLocator {
    * `App.findOrLocate`, in one place for every caller. This class only maps the
    * reference kind to a file type and the root to an app: the one supplied at
    * construction, or a walk-only stand-in when none was.
+   *
+   * The per-type extension table this used to carry is GONE, deliberately. It listed
+   * `['.html.liquid', '.liquid']` for a layout and `['.liquid']` for a partial, and probed
+   * each spelling with a `stat` per search path — so it covered exactly the response
+   * formats someone had thought to enumerate, and `index.csv.liquid` was not one of them
+   * (a measured `MissingPartial` false positive). `findOrLocate` matches directory ENTRY
+   * NAMES instead, which covers every format at the I/O cost of covering one, and answers
+   * from the O(1) index before touching the filesystem at all.
    */
   private async locateFile(
     rootUri: URI,
     fileName: string,
-    type: 'partial' | 'graphql' | 'asset',
+    type: 'partial' | 'graphql' | 'asset' | 'layout',
   ): Promise<string | undefined> {
     return this.appFor(rootUri).findOrLocate(FILE_TYPE_BY_DOCUMENT_TYPE[type], fileName);
   }
@@ -302,8 +334,23 @@ export class DocumentsLocator {
         return this.creationUri(rootUri, PlatformOSFileType.Partial, fileName, 1);
       case 'graphql':
         return this.creationUri(rootUri, PlatformOSFileType.GraphQL, fileName, 0);
+      case 'layout':
+        // Canonical creation path uses the modern `.liquid` extension, not the legacy
+        // `.html.liquid` — `REFERENCE_EXTENSIONS[Layout]` is `['.liquid']`, so
+        // `nameToCreationPath` produces it without this switch spelling an extension.
+        return this.creationUri(rootUri, PlatformOSFileType.Layout, fileName, 0);
+      case 'asset':
+        // NOT `undefined`, which is what this returned before the merge. There is no
+        // "creation" path for an asset, but there IS a canonical location, and the graph
+        // needs it: `graph/traverse.ts` calls `locateOrDefault(…, 'asset', …)` so that a
+        // reference to a missing asset still yields a node to hang the broken edge on.
+        // Returning `undefined` silently drops those edges instead.
+        //
+        // Nothing is appended to the name because an asset reference carries its own
+        // extension (`logo.png`); that falls out of `Asset` having no
+        // `REFERENCE_EXTENSIONS` row rather than from an empty string spelled here.
+        return this.creationUri(rootUri, PlatformOSFileType.Asset, fileName, 0);
       case 'theme_render_rc': // ambiguous — multiple search paths, no single canonical location
-      case 'asset': // no canonical creation path
         return undefined;
       default:
         return undefined;
@@ -359,6 +406,9 @@ export class DocumentsLocator {
 
       case 'asset':
         return this.locateFile(rootUri, fileName, 'asset');
+
+      case 'layout':
+        return this.locateFile(rootUri, fileName, 'layout');
 
       default:
         return undefined;

@@ -79,7 +79,6 @@ Liquid <: Helpers {
     | liquidTagElsif
     | liquidTagInclude
     | liquidTagIncrement
-    | liquidTagLayout
     | liquidTagLiquid
     | liquidTagRender
     | liquidTagFunction
@@ -195,15 +194,12 @@ Liquid <: Helpers {
   liquidTagHashAssignMarkup = liquidVariableLookup<delimTag> space* "=" space* liquidVariable<delimTag>
 
   liquidTagCycle = liquidTagRule<"cycle", liquidTagCycleMarkup>
-  liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidExpression<delimTag>, argumentSeparator> space*
+  liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidFilteredExpression<delimTag>, argumentSeparator> space*
 
   liquidTagIncrement = liquidTagRule<"increment", variableSegmentAsLookupMarkup>
   liquidTagDecrement = liquidTagRule<"decrement", variableSegmentAsLookupMarkup>
   liquidTagOpenCapture = liquidTagOpenRule<"capture", variableSegmentAsLookupMarkup>
   variableSegmentAsLookupMarkup = variableSegmentAsLookup space*
-
-  liquidTagLayout = liquidTagRule<"layout", liquidTagLayoutMarkup>
-  liquidTagLayoutMarkup = liquidExpression<delimTag> space*
 
   // We'll black hole the statement and switch parser in the cst builder
   // We do this because it's technically the same grammar (with minor redefinitions)
@@ -229,7 +225,7 @@ Liquid <: Helpers {
     liquidString<delimTag> renderVariableExpression? renderAliasExpression? renderArguments
 
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
-  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression renderArguments liquidFilter<delimTag>* space*
+  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression resultFilterRenderArguments liquidFilter<delimTag>* space*
 
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
   liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments liquidFilter<delimTag>* space*
@@ -244,7 +240,7 @@ Liquid <: Helpers {
   liquidTagBackgroundInlineMarkup = ~(variableSegment space* "=") argumentSeparatorOptionalComma tagArguments (space* ",")? space*
 
   liquidTagOpenCache = liquidTagOpenRule<"cache", liquidTagCacheMarkup>
-  liquidTagCacheMarkup = liquidExpression<delimTag> renderArguments
+  liquidTagCacheMarkup = liquidFilteredExpression<delimTag> renderArguments
 
   liquidTagOpenParseJson = liquidTagOpenRule<"parse_json", variableSegmentAsLookupMarkup>
 
@@ -257,10 +253,10 @@ Liquid <: Helpers {
   liquidTagCatchMarkup = variableSegmentAsLookup? space*
 
   liquidTagLog = liquidTagRule<"log", liquidTagLogMarkup>
-  liquidTagLogMarkup = liquidExpression<delimTag> liquidTagLogArguments
+  liquidTagLogMarkup = liquidFilteredExpression<delimTag> liquidTagLogArguments
   liquidTagLogArguments = (argumentSeparatorOptionalComma logArguments) (space* ",")? space*
   logArguments = listOf<logArgument<delimTag>, argumentSeparatorOptionalComma>
-  logArgument<delim> = namedArgument<delim> | positionalArgument<delim>
+  logArgument<delim> = tagNamedArgument<delim> | tagPositionalArgument<delim>
 
   liquidTagPrint = liquidTagRule<"print", liquidTagEchoMarkup>
 
@@ -273,14 +269,14 @@ Liquid <: Helpers {
     | liquidComplexExpression<delim>
 
   liquidTagYield = liquidTagRule<"yield", liquidTagYieldMarkup>
-  liquidTagYieldMarkup = liquidExpression<delimTag> space*
+  liquidTagYieldMarkup = liquidFilteredExpression<delimTag> space*
 
   liquidTagSession = liquidTagRule<"session", liquidTagSessionMarkup>
   liquidTagSessionMarkup = variableSegment space* "=" space* liquidVariable<delimTag> space*
 
   liquidTagExport = liquidTagRule<"export", liquidTagExportMarkup>
   liquidTagExportMarkup = nonemptyListOf<exportVariable, argumentSeparator> liquidTagExportNamespace? space*
-  liquidTagExportNamespace = argumentSeparatorOptionalComma namedArgument<delimTag>
+  liquidTagExportNamespace = argumentSeparatorOptionalComma tagNamedArgument<delimTag>
   // Variable lookup that is NOT followed by ":" (to distinguish from named arguments)
   exportVariable = variableSegmentAsLookup ~(space* ":")
 
@@ -291,28 +287,44 @@ Liquid <: Helpers {
   liquidTagSignInMarkup = tagArguments (space* ",")? space*
 
   liquidTagRedirectTo = liquidTagRule<"redirect_to", liquidTagRedirectToMarkup>
-  liquidTagRedirectToMarkup = liquidExpression<delimTag> renderArguments
+  liquidTagRedirectToMarkup = liquidFilteredExpression<delimTag> renderArguments
 
   liquidTagIncludeForm = liquidTagRule<"include_form", liquidTagIncludeFormMarkup>
   liquidTagIncludeFormMarkup = partialExpression renderArguments
 
   liquidTagSpamProtection = liquidTagRule<"spam_protection", liquidTagSpamProtectionMarkup>
-  liquidTagSpamProtectionMarkup = liquidExpression<delimTag> renderArguments
+  liquidTagSpamProtectionMarkup = liquidFilteredExpression<delimTag> renderArguments
 
   liquidTagThemeRenderRc = liquidTagRule<"theme_render_rc", liquidTagRenderMarkup>
 
   liquidTagResponseStatus = liquidTagRule<"response_status", liquidTagResponseStatusMarkup>
-  liquidTagResponseStatusMarkup = (liquidNumber | liquidVariableLookup<delimTag>) space*
+  liquidTagResponseStatusMarkup = responseStatusValue space*
+  // A third operand shape, distinct from `liquidFilteredExpression` and from the tag argument
+  // rules: the operand stays restricted to a number or a lookup, and only the filter suffix is
+  // added. Reusing `liquidFilteredExpression` here would have widened the operand to any
+  // expression, which is a change to what the tag ACCEPTS rather than a false-block fix.
+  responseStatusValue =
+    | responseStatusValueWithFilters
+    | responseStatusOperand
+  responseStatusValueWithFilters = responseStatusOperand liquidFilter<delimTag>+
+  responseStatusOperand = liquidNumber | liquidVariableLookup<delimTag>
 
   liquidTagResponseHeaders = liquidTagRule<"response_headers", liquidTagResponseHeadersMarkup>
-  liquidTagResponseHeadersMarkup = liquidExpression<delimTag> space*
+  liquidTagResponseHeadersMarkup = liquidFilteredExpression<delimTag> space*
 
   liquidTagRollback = liquidTagRule<"rollback", empty>
 
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
+  // For a tag that assigns a RESULT and carries its own trailing `liquidFilter*`, a filter
+  // after the last argument belongs to the RESULT, not to the argument — `{% function res =
+  // 'p', arg: 3 | dig: 'results' %}` digs the function's result. That filter is real and
+  // APPLIED, unlike an argument-level one, so these arguments deliberately stay filterless:
+  // a filtered argument value would win the PEG ordered choice and silently steal it.
+  // Only `function` needs this; graphql has its own `graphqlRenderArguments` path.
+  resultFilterRenderArguments = (argumentSeparatorOptionalComma filterlessTagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?
   partialExpression = liquidString<delimTag> | liquidVariableLookup<delimTag>
-  renderVariableExpression = space+ ("for" | "with") space+ liquidExpression<delimTag>
+  renderVariableExpression = space+ ("for" | "with") space+ liquidFilteredExpression<delimTag>
   renderAliasExpression = space+ "as" space+ variableSegment
 
   // Exclude graphql and background from base case since they have special handling
@@ -330,6 +342,8 @@ Liquid <: Helpers {
     | "cache"
     | "parse_json"
     | "transaction"
+    // `try_rc` BEFORE `try`: an ordered choice would match `try` and then choke on `_rc`.
+    | "try_rc"
     | "try"
     ) endOfIdentifier
 
@@ -339,7 +353,7 @@ Liquid <: Helpers {
   // `[\w-]+: value` pairs out of the markup, so keys may contain hyphens (html-class:,
   // html-data-user-id:), commas between attributes are optional, and bare {% form %} is valid.
   liquidTagOpenFormMarkup =
-    orderedListOf<positionalArgument<delimTag>, namedArgument<delimTag>, argumentSeparatorOptionalComma> (space* ",")? space*
+    orderedListOf<tagPositionalArgument<delimTag>, tagNamedArgument<delimTag>, argumentSeparatorOptionalComma> (space* ",")? space*
 
   liquidTagOpenFor = liquidTagOpenRule<"for", liquidTagOpenForMarkup>
 
@@ -352,10 +366,10 @@ Liquid <: Helpers {
   liquidTagOpenTablerow = liquidTagOpenRule<"tablerow", liquidTagOpenForMarkup>
 
   liquidTagOpenCase = liquidTagOpenRule<"case", liquidTagOpenCaseMarkup>
-  liquidTagOpenCaseMarkup = liquidExpression<delimTag> space*
+  liquidTagOpenCaseMarkup = liquidFilteredExpression<delimTag> space*
 
   liquidTagWhen = liquidTagRule<"when", liquidTagWhenMarkup>
-  liquidTagWhenMarkup = nonemptyListOf<liquidExpression<delimTag>, whenMarkupSep> space*
+  liquidTagWhenMarkup = nonemptyListOf<liquidFilteredExpression<delimTag>, whenMarkupSep> space*
   whenMarkupSep = space* ("," | "or" ~identifier) space*
 
   liquidTagOpenIf = liquidTagOpenRule<"if", liquidTagOpenConditionalMarkup>
@@ -418,6 +432,33 @@ Liquid <: Helpers {
   // instead of falling back to the other rule:
   // {{ 'string' | some_filter }}
   liquidVariable<delim> = liquidComplexExpression<delim> liquidFilter<delim>* space* &delim
+
+  // Expression plus optional filters, WITHOUT liquidVariable's trailing `space* &delim`
+  // lookahead — so it can be used where more markup follows (arguments, list separators).
+  //
+  // WHY IT EXISTS. Several tag operands bound `liquidExpression`, which has no filters, so
+  // `{% cache 'k' | append: '1' %}` failed the strict markup rule. The parser is tolerant,
+  // so the tag fell back to raw-string markup and `InvalidTagSyntax` reported it — a FALSE
+  // BLOCK on code `pos-cli deploy --dry-run` accepts. Measured with paired dry-runs (filter
+  // present, then absent) for every operand below.
+  //
+  // It produces a LiquidVariable node, the same shape `{{ }}` and `{% assign %}` already
+  // use. That keeps every parent rule's arity unchanged AND means the prettier printer
+  // already knows how to print it — printing `expression` plus `filters`. A rule that
+  // parsed filters the printer did not model would silently DELETE them on format.
+  liquidFilteredExpression<delim> =
+    | liquidExpressionWithFilters<delim>
+    | liquidExpression<delim>
+
+  // `liquidFilter+`, one or more — so an operand with NO filter falls through to the bare
+  // `liquidExpression` above and keeps exactly the CST and AST shape it has always had.
+  // Matching zero filters here instead would wrap every one of these operands in a
+  // LiquidVariable purely because a different tag might carry filters, changing the shape
+  // for every existing file, consumer and fixture to no purpose — measured, it broke 22
+  // stage-2 and 12 stage-1 assertions that were describing correct behaviour.
+  //
+  // Same idiom, and same reason, as `liquidJsonItemVariable` above.
+  liquidExpressionWithFilters<delim> = liquidExpression<delim> liquidFilter<delim>+
 
   liquidExpression<delim> =
     | liquidString<delim>
@@ -495,7 +536,34 @@ Liquid <: Helpers {
   // `identifier:` — otherwise namedArgumentValue falls through to liquidExpressionOrJsonLiteral.
   // Produces a NamedArgument node so linters can inspect nested argument pairs.
   hashPairValue<delim> = variableSegment space* ":" space* liquidExpression<delim>
-  tagArguments = listOf<namedArgument<delimTag>, argumentSeparatorOptionalComma>
+
+  // TAG argument values, which accept a filter. FILTER argument values must NOT, so these
+  // MIRROR positionalArgument/namedArgument/hashPairValue instead of widening them:
+  // `arguments<delim>` is reached from `liquidFilter`, and widening the shared rules was
+  // measured to break EVERY filter that takes an argument — `{{ 'a' | append: 'b' }}` threw
+  // `Unexpected object: undefined`, and 9 of 9 baseline shapes changed.
+  //
+  // The filter here is DEAD CODE on the platform: `pos-cli deploy --dry-run` accepts it and
+  // the runtime silently ignores it, because Ruby's `TagAttributes` scanner captures
+  // `QuotedFragment`, which excludes `|`. Measured over 15 such positions against
+  // `liquid_exec`, with 5 positive controls ({{ }}, assign, echo, session, return) where the
+  // same probe DOES raise. It parses so the write gate cannot refuse a file that deploys, and
+  // `FilterWithoutEffect` reports that the filter does nothing.
+  //
+  // `liquidFilter+`, not `*`: with `*` the filterless form still matches the first
+  // alternative and wraps every argument in a needless LiquidVariable.
+  tagPositionalArgument<delim> = tagArgumentValue<delim> ~(space* ":")
+  tagNamedArgument<delim> = variableSegment space* ":" space* tagNamedArgumentValue<delim>
+  tagNamedArgumentValue<delim> = tagHashPairValue<delim> | tagArgumentValue<delim>
+  tagHashPairValue<delim> = variableSegment space* ":" space* tagArgumentValue<delim>
+  tagArgumentValue<delim> =
+    | tagArgumentValueWithFilters<delim>
+    | liquidExpressionOrJsonLiteral<delim>
+  tagArgumentValueWithFilters<delim> = liquidExpressionOrJsonLiteral<delim> liquidFilter<delim>+
+
+  tagArguments = listOf<tagNamedArgument<delimTag>, argumentSeparatorOptionalComma>
+  // The pre-filter spelling, kept for `resultFilterRenderArguments` — see its comment.
+  filterlessTagArguments = listOf<namedArgument<delimTag>, argumentSeparatorOptionalComma>
   graphqlArguments = listOf<graphqlNamedArgument, argumentSeparatorOptionalComma>
   graphqlNamedArgument = variableSegment space* ":" space* graphqlNamedArgumentValue
   graphqlNamedArgumentValue = liquidExpression<delimTag>
@@ -532,6 +600,16 @@ Liquid <: Helpers {
     | "content_for"
     | "parse_json"
     | "transaction"
+    // `try_rc` is an alias the platform registers against the same handler as `try`, and
+    // it is a BLOCK, so its close tag must be recognised too. Measured, because the
+    // delimiter does NOT follow the canonical name: `{% try_rc %}…{% endtry %}` is
+    // rejected with "'endtry' is not a valid delimiter for try_rc tags. use endtry_rc",
+    // while `{% try_rc %}…{% endtry_rc %}` renders. Listing it in the docset alone could
+    // never fix this — `{% endtry_rc %}` would still be reported as an unknown tag, which
+    // BLOCKS (TASK-56).
+    //
+    // `try_rc` BEFORE `try`: an ordered choice would match `try` and then choke on `_rc`.
+    | "try_rc"
     | "try"
     ) endOfIdentifier
 

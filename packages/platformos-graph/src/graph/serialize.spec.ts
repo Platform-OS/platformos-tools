@@ -1,7 +1,7 @@
 import { path as pathUtils } from '@platformos/platformos-check-common';
 import { describe, expect, it } from 'vitest';
 import { AppGraph } from '../types';
-import { getLayoutModule, getPartialModule } from './module';
+import { getLayoutModule, getPartialModuleByUri } from './module';
 import { serializeAppGraph } from './serialize';
 import { bind } from './traverse';
 
@@ -16,9 +16,9 @@ describe('Unit: serializeAppGraph', () => {
     };
 
     const layout = getLayoutModule(graph, p('app/views/layouts/application.liquid'))!;
-    const headerPartial = getPartialModule(graph, 'header');
-    const parentPartial = getPartialModule(graph, 'parent');
-    const childPartial = getPartialModule(graph, 'child');
+    const headerPartial = getPartialModuleByUri(graph, p('app/views/partials/header.liquid'));
+    const parentPartial = getPartialModuleByUri(graph, p('app/views/partials/parent.liquid'));
+    const childPartial = getPartialModuleByUri(graph, p('app/views/partials/child.liquid'));
 
     bind(layout, headerPartial, { sourceRange: [0, 5] });
     bind(layout, parentPartial, { sourceRange: [10, 15] });

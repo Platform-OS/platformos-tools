@@ -124,9 +124,37 @@ describe('DocumentsLocator', () => {
       );
     });
 
-    it('asset → undefined (no canonical creation path)', () => {
+    it('asset → app/assets (canonical location; the reference carries its own extension)', () => {
       const locator = new DocumentsLocator(createMockFileSystem({}));
-      expect(locator.locateDefault(rootUri, 'asset', 'logo.png')).toBeUndefined();
+      expect(locator.locateDefault(rootUri, 'asset', 'emails/logo.png')).toBe(
+        'file:///project/app/assets/emails/logo.png',
+      );
+    });
+
+    it('module asset → modules/.../public/assets', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'asset', 'modules/core/logo.png')).toBe(
+        'file:///project/modules/core/public/assets/logo.png',
+      );
+    });
+
+    it('theme_render_rc → undefined (no single canonical location)', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'theme_render_rc', 'card')).toBeUndefined();
+    });
+
+    it('layout → app/views/layouts (.liquid canonical default)', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'layout', 'theme')).toBe(
+        'file:///project/app/views/layouts/theme.liquid',
+      );
+    });
+
+    it('module layout → modules/.../public/views/layouts', () => {
+      const locator = new DocumentsLocator(createMockFileSystem({}));
+      expect(locator.locateDefault(rootUri, 'layout', 'modules/core/admin')).toBe(
+        'file:///project/modules/core/public/views/layouts/admin.liquid',
+      );
     });
   });
 
@@ -195,6 +223,195 @@ describe('DocumentsLocator', () => {
       const result = await locator.locate(rootUri, 'render', 'modules/admin/secret');
 
       expect(result).toBe('file:///project/app/modules/admin/private/views/partials/secret.liquid');
+    });
+
+    it('should locate a .liquid layout in app/views/layouts', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/views/layouts/application.liquid': '{{ content_for_layout }}',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'application');
+
+      expect(result).toBe('file:///project/app/views/layouts/application.liquid');
+    });
+
+    it('should locate an .html.liquid layout in app/views/layouts', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/views/layouts/application.html.liquid': '{{ content_for_layout }}',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'application');
+
+      expect(result).toBe('file:///project/app/views/layouts/application.html.liquid');
+    });
+
+    it('resolves a layout deterministically when BOTH spellings exist, which the platform treats as one view', async () => {
+      // THIS TEST USED TO ASSERT A PRECEDENCE THE PLATFORM DOES NOT DEFINE. It required
+      // `.html.liquid` to win over `.liquid`, which read like a platform rule and is not one.
+      //
+      // Measured in the platform source (`desksnearme`):
+      //   - `LiquidViewConverter.build_default_values` defaults `format` to `'html'`, so a
+      //     bare `application.liquid` is an `html` view just like `application.html.liquid`;
+      //   - `LiquidPathParser#parse` strips the format extension
+      //     (`path.basename(".#{format}")`), so BOTH files produce
+      //     `path: 'views/layouts/application'`.
+      // The two spellings are therefore the SAME `InstanceView` identity — a project holding
+      // both is in an ambiguous state, not one with a documented winner. (Worth its own check;
+      // this resolver is not the place to invent an answer.)
+      //
+      // So what is actually pinned here is what a resolver owes its callers regardless:
+      // a deterministic answer, and one of the two real files rather than a third path or
+      // `undefined`. Which one is `formatRank`'s business, asserted where that rule lives.
+      const fs = createMockFileSystem({
+        'file:///project/app/views/layouts/application.html.liquid': 'html',
+        'file:///project/app/views/layouts/application.liquid': 'plain',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const first = await locator.locate(rootUri, 'layout', 'application');
+      const again = await locator.locate(rootUri, 'layout', 'application');
+
+      expect([
+        'file:///project/app/views/layouts/application.liquid',
+        'file:///project/app/views/layouts/application.html.liquid',
+      ]).toContain(first);
+      expect(again).toBe(first);
+    });
+
+    it('resolves a layout that exists ONLY as the legacy .html.liquid', async () => {
+      // The control, and the case that actually occurs: arabbank ships
+      // `application.html.liquid` with no `application.liquid` beside it. A resolver that
+      // only knew `.liquid` would report every page's layout missing.
+      const fs = createMockFileSystem({
+        'file:///project/app/views/layouts/application.html.liquid': 'html',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      expect(await locator.locate(rootUri, 'layout', 'application')).toBe(
+        'file:///project/app/views/layouts/application.html.liquid',
+      );
+      // ...and a name with no file behind it still fails, so the above is not permissiveness.
+      expect(await locator.locate(rootUri, 'layout', 'no_such_layout')).toBeUndefined();
+    });
+
+    it('should locate a module layout', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/modules/core/public/views/layouts/admin.liquid': 'admin',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'modules/core/admin');
+
+      expect(result).toBe('file:///project/app/modules/core/public/views/layouts/admin.liquid');
+    });
+
+    it('should return undefined for a non-existent layout', async () => {
+      const fs = createMockFileSystem({});
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'missing');
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should locate a module .html.liquid layout', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/modules/core/public/views/layouts/admin.html.liquid': 'admin',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'modules/core/admin');
+
+      expect(result).toBe(
+        'file:///project/app/modules/core/public/views/layouts/admin.html.liquid',
+      );
+    });
+
+    it('should find a layout in a private module path when public is absent', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/modules/core/private/views/layouts/admin.liquid': 'admin',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'modules/core/admin');
+
+      expect(result).toBe('file:///project/app/modules/core/private/views/layouts/admin.liquid');
+    });
+
+    it('should locate a nested layout name', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/views/layouts/admin/dashboard.liquid': 'dash',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'admin/dashboard');
+
+      expect(result).toBe('file:///project/app/views/layouts/admin/dashboard.liquid');
+    });
+
+    it('should NOT resolve a layout name that only exists as a partial (search paths are isolated)', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/views/partials/foo.liquid': 'partial',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'layout', 'foo');
+
+      expect(result).toBeUndefined();
+    });
+
+    it('locateOrDefault returns the existing layout (locate short-circuits the default)', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/views/layouts/theme.html.liquid': 'html',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      // The default would be `theme.liquid`; the existing `.html.liquid` must win.
+      const result = await locator.locateOrDefault(rootUri, 'layout', 'theme');
+
+      expect(result).toBe('file:///project/app/views/layouts/theme.html.liquid');
+    });
+
+    it('locateOrDefault falls back to the canonical default for a missing layout', async () => {
+      const fs = createMockFileSystem({});
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locateOrDefault(rootUri, 'layout', 'theme');
+
+      expect(result).toBe('file:///project/app/views/layouts/theme.liquid');
+    });
+
+    it('locateOrDefault returns the existing asset under app/assets', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/assets/emails/logo.png': 'binary',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locateOrDefault(rootUri, 'asset', 'emails/logo.png');
+
+      expect(result).toBe('file:///project/app/assets/emails/logo.png');
+    });
+
+    it('locateOrDefault falls back to the canonical app/assets path for a missing asset', async () => {
+      const fs = createMockFileSystem({});
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locateOrDefault(rootUri, 'asset', 'images/missing.png');
+
+      expect(result).toBe('file:///project/app/assets/images/missing.png');
+    });
+
+    it('should locate an asset by its own extension (no extension appended)', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/assets/logo.png': 'binary',
+      });
+      const locator = new DocumentsLocator(fs);
+
+      const result = await locator.locate(rootUri, 'asset', 'logo.png');
+
+      expect(result).toBe('file:///project/app/assets/logo.png');
     });
   });
 
@@ -422,7 +639,9 @@ describe('DocumentsLocator', () => {
   describe('loadSearchPaths', () => {
     it('should load valid theme_search_paths from config', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml': 'theme_search_paths:\n  - theme/dress\n  - theme/simple',
+        'file:///project/app/config.yml': `theme_search_paths:
+  - theme/dress
+  - theme/simple`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);
@@ -465,7 +684,10 @@ describe('DocumentsLocator', () => {
 
     it('should coerce non-string entries to strings', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml': 'theme_search_paths:\n  - 123\n  - true\n  - null',
+        'file:///project/app/config.yml': `theme_search_paths:
+  - 123
+  - true
+  - null`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);
@@ -474,8 +696,9 @@ describe('DocumentsLocator', () => {
 
     it('should handle config with Liquid expressions in paths', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml':
-          'theme_search_paths:\n  - "theme/{{ context.constants.MY_THEME | default: \'custom\' }}"\n  - theme/simple',
+        'file:///project/app/config.yml': `theme_search_paths:
+  - "theme/{{ context.constants.MY_THEME | default: 'custom' }}"
+  - theme/simple`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);
@@ -496,8 +719,10 @@ describe('DocumentsLocator', () => {
 
     it('should handle config with other properties alongside theme_search_paths', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml':
-          'some_setting: true\ntheme_search_paths:\n  - theme/dress\nanother_setting: 42',
+        'file:///project/app/config.yml': `some_setting: true
+theme_search_paths:
+  - theme/dress
+another_setting: 42`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);

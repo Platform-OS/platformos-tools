@@ -216,8 +216,11 @@ describe('Module: runChecks', () => {
       'app/test': '',
       '.git/test': 'test',
       'modules/test': 'test',
-      [defaultPath]: 'en:\n  hello: hello',
-      [frPath]: 'fr:\n  hello: bonjour\n  hi: salut',
+      [defaultPath]: `en:
+  hello: hello`,
+      [frPath]: `fr:
+  hello: bonjour
+  hi: salut`,
     };
 
     const matchingTranslation = allChecks.filter((c) => c.meta.code === 'MatchingTranslations');
@@ -256,10 +259,18 @@ describe('Module: runChecks', () => {
             message: `A translation for 'hi' does not exist in the en locale`,
             severity: 1,
             range: {
-              // 'fr:\n  hello: bonjour\n  hi: salut'
-              // line 2 starts at offset 21, 'hi: salut' spans offsets 23-31
+              // The fixture is `'fr:\n  hello: bonjour\n  hi: salut'`.
+              // Line 2 starts at offset 21 and 'hi: salut' occupies offsets 23-31, so
+              // the exclusive end offset is 32 — the length of the source, since the
+              // fixture has no trailing newline.
+              //
+              // This asserted `character: 10` while `getPosition` could not name a
+              // position past the last character: it clamped an end-of-input offset
+              // onto that character, and the range came back one short, highlighting
+              // 'hi: salu'. Every diagnostic ending at end of input was truncated the
+              // same way, in the editor as well as here.
               start: { line: 2, character: 2 },
-              end: { line: 2, character: 10 },
+              end: { line: 2, character: 11 },
             },
           },
         ]),
@@ -268,7 +279,13 @@ describe('Module: runChecks', () => {
 
     // Change the contents of the defaultURI buffer, expect frURI to be fixed
     documentManager.open(defaultURI, files[defaultPath], 0);
-    documentManager.change(defaultURI, 'en:\n  hello: hello\n  hi: hi', 1);
+    documentManager.change(
+      defaultURI,
+      `en:
+  hello: hello
+  hi: hi`,
+      1,
+    );
     connection.sendDiagnostics.mockClear();
     await runChecks([frURI]);
     expect(connection.sendDiagnostics).toHaveBeenCalledWith({

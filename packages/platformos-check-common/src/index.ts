@@ -47,6 +47,16 @@ import {
 import { getPosition } from './utils';
 import { visitJSON, visitLiquid } from './visitors';
 
+// `levenshtein` (edit distance) is re-exported so sibling consumers (e.g. the
+// graph's nearest-name "did you mean" candidates) reuse it rather than
+// re-implementing string-distance.
+export { levenshtein } from './utils';
+
+// `isTranslationKeyUsage` is the shared predicate for "a string literal piped
+// through `t`/`translate`"; exported so the graph's self-structural detects
+// translation keys with the SAME rule as the `TranslationKeyExists` check.
+export { isTranslationKeyUsage, TRANSLATION_FILTERS } from './translation-usage';
+
 export * from './AugmentedPlatformOSDocset';
 export * from './types/platformos-liquid-docs';
 export * from './checks';
@@ -62,6 +72,11 @@ export * from './frontmatter';
 export * from './json';
 export * from './JSONValidator';
 export * as path from './path';
+// No GraphQL re-exports either, for the same reason as the file-identity ones above:
+// `parseGraphql`, `extractGraphqlTables` and `extractGraphqlVariables` are platformOS
+// domain knowledge and belong to platformos-common, beside `extractSchemaTable` — the
+// schema a GraphQL table joins to. This package injects that parser into `App`
+// (`sourceParsers`) and reads the document the file already holds.
 export * from './to-source-code';
 export * from './types';
 export * from './utils/bounded-cache';
@@ -103,17 +118,18 @@ export interface CheckOptions {
    * decide for itself what an empty result means — passing `[]` to mean "the
    * whole project" would silently lint nothing.
    *
-   * `app` must STILL be the complete project. `getDefaultTranslations`,
-   * `getTranslationsForBase` and check-node's `getDocDefinition` are all built from
-   * it, and are how cross-file checks (`MissingPartial`, `MissingPage`,
+   * `app` must STILL be the complete project. The cross-file dependencies built
+   * below (`getDefaultTranslations`, `getTranslationsForBase`, `getRouteTable`,
+   * `fileExists`) and check-node's `getDocDefinition` are all derived from it, and
+   * are how cross-file checks (`MissingPartial`, `MissingPage`,
    * `TranslationKeyExists`, …) resolve the rest of the project. This option
    * narrows what gets VISITED, never what the checks can see.
    *
    * The result is exactly the subset of the unrestricted run's offenses that
    * belongs to these files, because an offense's `uri` is always the visited
    * file's `uri` (see `report` in `createContext` — the single place offenses are
-   * created). It is therefore a performance option, not a semantic one: on a
-   * 1400-file project it takes the check phase from ~21 s to ~0.15 s.
+   * created). It is therefore a performance option, not a semantic one: linting
+   * one buffer in a 1400-file project drops from ~21 s to ~0.1 s.
    */
   only?: UriString[];
 }
@@ -367,7 +383,9 @@ function createCheck<S extends SourceCodeType>(
 }
 
 /**
- * The files a run should visit. Unknown URIs in `only` simply match nothing.
+ * The files a run should visit: all of them, or just the ones {@link CheckOptions.only}
+ * names. Unknown URIs in `only` simply match nothing (a buffer for a file that is
+ * not part of the app yields no offenses).
  *
  * Carries no claim about ASTs — it only feeds `load()` and {@link filesOfType},
  * which is where a file's `type` is compared and its AST type therefore known.

@@ -2,8 +2,9 @@ import yaml from 'js-yaml';
 import { URI, Utils } from 'vscode-uri';
 import { AbstractFileSystem, FileType } from '../AbstractFileSystem';
 import { getAppPaths, getModulePaths, PlatformOSFileType } from '../path-utils';
+import { PLATFORM_YAML_LOAD_OPTIONS } from '../yaml-load-options';
 import { RouteEntry, RouteSegment } from './types';
-import { slugFromFilePath, formatFromFilePath, KNOWN_FORMATS } from './slugFromFilePath';
+import { formatFromFilePath, effectivePageSlug, KNOWN_FORMATS } from './slugFromFilePath';
 import { parseSlug, calculatePrecedence } from './parseSlug';
 
 interface PageFrontmatter {
@@ -25,7 +26,10 @@ function extractFrontmatter(source: string): PageFrontmatter | null {
   if (yamlBlock.length === 0) return null;
 
   try {
-    const result = yaml.load(yamlBlock);
+    // A duplicated frontmatter key must not cost the page its route — see
+    // PLATFORM_YAML_LOAD_OPTIONS. The `catch` below returns null, which reads
+    // downstream as "this page has no frontmatter at all".
+    const result = yaml.load(yamlBlock, PLATFORM_YAML_LOAD_OPTIONS);
     if (typeof result !== 'object' || result === null) return null;
     return result as PageFrontmatter;
   } catch {
@@ -348,12 +352,9 @@ export class RouteTable {
     const method = (frontmatter?.method || 'get').toLowerCase();
     const format = frontmatter?.format || fileFormat;
 
-    let slug: string;
-    if (frontmatter?.slug !== undefined && frontmatter.slug !== null) {
-      slug = String(frontmatter.slug);
-    } else {
-      slug = slugFromFilePath(relativePath, format);
-    }
+    // Slug derivation (override-wins, else path-derived) is shared with every
+    // other consumer via `effectivePageSlug`, so it cannot drift.
+    const slug = effectivePageSlug(relativePath, frontmatter);
 
     const entries: RouteEntry[] = [];
 

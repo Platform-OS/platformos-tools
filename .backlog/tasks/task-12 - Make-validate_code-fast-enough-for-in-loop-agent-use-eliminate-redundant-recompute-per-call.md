@@ -64,6 +64,34 @@ Memory investigated (RSS looked like it was growing: 492 → 550 → 644 MB acro
 
 AC #1 (< 500 ms) is NOT met yet: ~5.8 s remains, and it is now almost entirely `getApp` re-reading and re-PARSING every project file on every call (3.6–5.8 s of the total; `check()` itself is 81 ms). See the follow-up subtask for that; it is the last structural piece.
 
+## Branch split (2026-07-29) — SUPERSEDED, kept for the numbers
+
+Retained through the TASK-60 merge because it holds measurements nothing else records, but
+read it as history: it predates the lazy `App` model, and three of its claims are no longer
+true. `AppCache` and `fileFingerprint` do not exist any more (the cache became a
+process-level shared `App`, reconciled per call); TASK-12.8's lazy parse landed AS TASK-12.6
+rather than superseding it; and TASK-12.5 was dropped, not decided. The closing note below
+is the current state.
+
+The work now lives on two branches with a deliberate boundary:
+
+- `supervisor-check` (`f0ad948`) — master + within-run memoization only, NO graph integration (verified: `AppCache`, `fileFingerprint`, `ctimeMs`, `GraphCache`, `runImpact` all absent from its tree; `38e3e11` not in its ancestry). Carries TASK-12.1, 12.2, 12.3, 12.4, the docset reset, and the test-infrastructure fixes. Per-call cost there is ~8.5 s wall / ~10.8 s CPU on pos-module-mcp, because it has no parsed-project cache — the <500 ms target is NOT met on this branch and cannot be without TASK-12.8.
+- `supervisor-graph-integration` (`d13b887`) — contains everything from `supervisor-check` plus the graph work and the cache-correctness fixes (`ctimeMs` fingerprint, `CACHE_FORMAT_VERSION 2`, `file-fingerprint.spec.ts`, the e2e invalidation test). Warm `validate_code` 0.9–1.0 s. This is where AC#1 is met.
+
+AC#1 is checked on the basis of the graph branch's warm figure. Read it with the cold-path caveat: first call 6.6 s with a persisted graph, 46–58 s without one.
+
+## Remaining work, by payoff
+
+1. TASK-12.7 — warm the graph at `startServer` (kills the 46–58 s cold call; graph branch only)
+2. TASK-12.8 — lazy parse in check-node (kills the remaining cold parse AND the 848–940 MB RSS; supersedes TASK-12.6 option 1)
+3. TASK-12.9 — memoize `NestedGraphQLQuery` (~1 s, whole-project workloads)
+4. TASK-12.5 — decide what `mode: full|quick` should do (contract, not perf)
+5. TASK-12.11 — hermetic extension discovery, so fork parallelism can be restored (~20% CI time)
+6. TASK-12.12 — unify the duplicated shape inference (LSP vs check-common)
+7. TASK-12.10 — re-key the analysis cache on uri+fingerprint (low; measured as adequate today)
+
+TASK-9.16 was closed as delivered by TASK-12.3 — same `{ only: [uri] }` design, with its spike/audit/equivalence criteria satisfied and the evidence recorded there.
+
 ## AC #1 is now met — the epic is closed (2026-08-03)
 
 TASK-12.6 was the last structural piece these notes pointed at ("it is now almost entirely
@@ -95,4 +123,8 @@ mismatches on every field.
 12.1 GraphQL schema memo · 12.2 partial-analysis memo · 12.3 `CheckOptions.only` · 12.4
 process docset · 12.5 the `mode` contract (dropped) · 12.6 the lazy App model (+ its seven
 children) — all Done. The follow-up work the migration left open is TASK-46.
+
+Both notes above are kept side by side deliberately: 0.9–1.0 s warm (graph branch, eager
+parse) and 99–123 ms warm (lazy `App`) are each real, on different architectures, and the
+pair is the only record of what the lazy model actually bought.
 <!-- SECTION:NOTES:END -->

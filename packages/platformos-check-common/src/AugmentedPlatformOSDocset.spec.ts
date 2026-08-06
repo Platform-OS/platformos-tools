@@ -1,5 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
+import { UNDOCUMENTED_FILTERS } from './undocumented-filters';
+import { undocumentedTagEntries } from './undocumented-tags';
 import { PlatformOSDocset } from './types';
 
 describe('Module: AugmentedPlatformOSDocset', async () => {
@@ -55,10 +57,35 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
   });
 
   describe('filters', async () => {
-    it('should return filters with undocumented filters', async () => {
+    it('should return exactly the undocumented filters when the docset has none', async () => {
+      // This mock's `filters()` returns [], so everything here comes from the
+      // undocumented list — which makes the composition exactly assertable.
+      //
+      // It used to assert `length >= 10`, a threshold standing in for the 13
+      // hand-typed entries of the day. That hid what it was really checking: when the
+      // list was regenerated from a live instance and 12 fictional filters were
+      // dropped, the failure read as "expected at least 10, got 6" rather than naming
+      // the change. Comparing against the list itself pins the WIRING (official +
+      // aliases + undocumented, each as a `{ name }` entry) and lets
+      // `undocumented-filters.spec.ts` own the contents.
       const filters = await platformosDocset.filters();
 
-      expect(filters).to.have.length.greaterThanOrEqual(10);
+      // THIS ASSERTION IS THE LANGUAGE SERVER BOUNDARY. `startServer.ts` builds this same
+      // `AugmentedPlatformOSDocset`, so whatever shape appears here is what the LSP's
+      // `TypeSystem` consumes — and `docsetEntryReturnType` defaults a filter with no
+      // `return_type` to `'string'`.
+      //
+      // Adding `return_type` to these entries would therefore retype them for completions
+      // and hover (`sum` -> number, `where` -> array, `find` -> hash, `has` -> boolean).
+      // That is very likely an IMPROVEMENT, but `TypeSystem.spec.ts` injects a mock docset
+      // and would not catch a regression, so the change cannot be verified where it lands.
+      //
+      // The measured types live in `UNDOCUMENTED_FILTER_RETURN_TYPES` instead, consumed
+      // only by `InvalidHashAssignTarget`. Keeping the entries bare makes the LSP delta
+      // provably zero — same code path, same input — rather than probably fine. If you
+      // want the LSP improvement, do it as its own change with tests that drive the real
+      // augmented docset, and expect this assertion to change with it.
+      expect(filters).toEqual(UNDOCUMENTED_FILTERS.map((name) => ({ name })));
     });
 
     it('should return valid filter entries', async () => {
@@ -248,16 +275,37 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
   });
 
   describe('tags', async () => {
-    it('should return tags with undocumented tags', async () => {
+    it('should return exactly the undocumented tags when the docset has none', async () => {
+      // This mock's `tags()` returns [], so everything here comes from the augmentation —
+      // which makes the composition exactly assertable.
+      //
+      // It used to assert `length >= 3`, a threshold standing in for the three hand-listed
+      // sub-tags of the day. That hid what it was checking: when the list grew to include
+      // the tags read from the platform's `register_tag` registry, a threshold would have
+      // stayed green whether one name or thirty had been added, and would have stayed green
+      // if the registry half had been dropped entirely (TASK-56). Comparing against the
+      // derivation pins the WIRING and lets `undocumented-tags.spec.ts` own the contents.
       const tags = await platformosDocset.tags();
 
-      expect(tags).have.length.greaterThanOrEqual(3);
+      expect(tags).toEqual(undocumentedTagEntries([]));
     });
 
-    it('should return valid tag entries', async () => {
-      const tags = await platformosDocset.tags();
+    it('should pass the documented tags through alongside them', async () => {
+      // The other half of the wiring: the augmentation ADDS, and must never replace. A
+      // `tags()` that returned only the undocumented entries would satisfy the assertion
+      // above, and would make every documented tag unknown.
+      const docset = new AugmentedPlatformOSDocset({
+        graphQL: async () => null,
+        filters: async () => [],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        tags: async () => [{ name: 'assign', summary: 'from the docs' }],
+      });
 
-      expect(tags).to.deep.include({ name: 'elsif' });
+      const tags = await docset.tags();
+
+      expect(tags[0]).toEqual({ name: 'assign', summary: 'from the docs' });
+      expect(tags.slice(1)).toEqual(undocumentedTagEntries([{ name: 'assign' }]));
     });
   });
 });

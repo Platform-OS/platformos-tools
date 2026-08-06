@@ -79,6 +79,15 @@ describe('Module: LiquidHTMLSyntaxError', () => {
   });
 
   it('should report unexpected tokens (3)', async () => {
+    // This message is Ohm's own "expected one of" list, so it enumerates the grammar's tag
+    // alternation verbatim and CHANGES whenever the vocabulary does. It is an encoded
+    // defect rather than a contract — nobody chose this wording, and an author reading a
+    // 50-item list learns nothing — but it is pinned here, so a vocabulary change has to
+    // come past this test rather than slipping through.
+    //
+    // `try_rc` appears because the platform registers it as an alias of `try` and it is a
+    // BLOCK, so it reaches the grammar's `blockName`. `layout` is absent because platformOS
+    // has no such tag.
     const sourceCode = `
       <a href="abc" {%></a>
     `;
@@ -86,7 +95,7 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
-      `SyntaxError: expected "#", a letter, "yield", "theme_render_rc", "spam_protection", "sign_in", "session", "rollback", "return", "response_status", "response_headers", "redirect_to", "print", "log", "include_form", "export", "context", "catch", "background", "when", "graphql", "function", "render", "liquid", "layout", "increment", "include", "elsif", "else", "echo", "decrement", "cycle", "continue", "break", "hash_assign", "assign", "try", "transaction", "parse_json", "cache", "tablerow", "unless", "if", "ifchanged", "for", "case", "capture", "form", "content_for", "end", "raw", "comment", or "doc"`,
+      `SyntaxError: expected "#", a letter, "yield", "theme_render_rc", "spam_protection", "sign_in", "session", "rollback", "return", "response_status", "response_headers", "redirect_to", "print", "log", "include_form", "export", "context", "catch", "background", "when", "graphql", "function", "render", "liquid", "increment", "include", "elsif", "else", "echo", "decrement", "cycle", "continue", "break", "hash_assign", "assign", "try", "try_rc", "transaction", "parse_json", "cache", "tablerow", "unless", "if", "ifchanged", "for", "case", "capture", "form", "content_for", "end", "raw", "comment", or "doc"`,
     );
   });
 

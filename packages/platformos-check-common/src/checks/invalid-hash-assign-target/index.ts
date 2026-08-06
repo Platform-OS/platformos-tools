@@ -1,5 +1,7 @@
 import {
+  AssignMarkup,
   LiquidTag,
+  LiquidExpression,
   LiquidHtmlNode,
   LiquidVariable,
   NodeTypes,
@@ -10,9 +12,32 @@ import {
   FunctionMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
+import type { ReturnType } from '../../types/platformos-liquid-docs';
 import { isError } from '../../utils';
+import { UNDOCUMENTED_FILTER_RETURN_TYPES } from '../../undocumented-filters';
 
-type VariableType = 'number' | 'string' | 'boolean' | 'object' | 'array' | 'untyped';
+/**
+ * What a variable holds, as far as this check can tell.
+ *
+ * `range` is deliberately NOT folded into `array`. A range and an array are the same
+ * thing to the old hand-written table, but they are not to the runtime: an Array
+ * accepts `x[0] = …` and a range was only ever measured raising. Merging them would
+ * force a guess in one direction or the other — either approve range index-assign
+ * (unmeasured) or refuse array index-assign (measured working).
+ *
+ * `untyped` means UNKNOWN, not "no type". Nothing is ever reported for it.
+ */
+type VariableType =
+  'number' | 'string' | 'boolean' | 'object' | 'array' | 'range' | 'date' | 'time' | 'untyped';
+
+/**
+ * How the target is subscripted — `x['k']` vs `x[0]` vs `x[y]`.
+ *
+ * The runtime enforces a rule this check used to ignore entirely: a Hash needs a
+ * KEY and an Array needs an INDEX. `x[y]` is `unknown` because the subscript is
+ * only decidable at runtime, and an unknown subscript must never produce a report.
+ */
+type Accessor = 'key' | 'index' | 'unknown';
 
 interface VariableTypeEntry {
   name: string;
@@ -20,13 +45,297 @@ interface VariableTypeEntry {
   range: [start: number, end?: number];
 }
 
+/**
+ * Docset `return_type.type` values this check is willing to act on.
+ *
+ * EXACT MATCH, and everything absent from this table becomes `untyped`. Mapping a
+ * spelling by resemblance would be guessing, and this check refuses writes — a wrong
+ * guess here is a refusal of working code. An unrecognised return type costs a missed
+ * detection, which is the direction that cannot manufacture a false block.
+ *
+ * THE FOUR ENTRIES BELOW THE LINE WERE ADDED FROM MEASUREMENT, NOT FROM THE SPELLING
+ * LOOKING SCALAR-LIKE. Each was rendered on a live instance and its `hash_assign`
+ * outcome recorded for both subscripts, and the falsifier — a `date`- or
+ * `datetime`-typed value that legitimately accepts `hash_assign` — was looked for and
+ * not found:
+ *
+ *   date             to_date, date_add, add_to_date  -> Date,  raises on both subscripts
+ *   datetime         to_time                         -> Time,  raises on both subscripts
+ *   time             add_to_time                     -> Time,  raises on both subscripts
+ *   array of arrays  parse_csv, parse_csv_rc         -> Array, raises on a key,
+ *                                                       RENDERS on an index
+ *
+ * `datetime` and `time` both resolve to `time` because the runtime returns a Time for
+ * both — that is the measurement, not a decision to treat two spellings alike.
+ *
+ * The measurements are recorded in `filter-return-type-oracle.ts` and re-asserted by
+ * `filter-return-type-sweep.spec.ts` for every filter each spelling covers, so a docset
+ * change that invalidates one of these fails a test rather than silently changing what
+ * the server refuses to write.
+ *
+ * Still deliberately ABSENT: `untyped` and `'string, nil'`. Those describe values whose
+ * type depends on the input or is a union with nil, so no single measurement can
+ * establish them and silence remains the only safe reading.
+ */
+export const DOCSET_RETURN_TYPES: Readonly<Record<string, VariableType>> = {
+  string: 'string',
+  number: 'number',
+  boolean: 'boolean',
+  array: 'array',
+  hash: 'object',
+
+  date: 'date',
+  datetime: 'time',
+  time: 'time',
+  'array of arrays': 'array',
+};
+
+/**
+ * Types for filters the DOCSET HAS NO DATA FOR — a data defect, not a modelling choice.
+ *
+ * `filters.json` carries a `return_type` for every shipped filter but these: `array_index_of`
+ * has one whose `type` is the empty string, and `new_line_to_br` has none at all. There is
+ * nothing to map, so no entry in {@link DOCSET_RETURN_TYPES} can reach them.
+ *
+ * THE REAL FIX IS UPSTREAM AND IS NOT AVAILABLE HERE. `data/filters.json` is re-downloaded
+ * from documentation.platformos.com by the docs-updater's `postbuild`, so a correction
+ * written into that file is reverted by the next build — and would look like the hole was
+ * closed while this check quietly went back to reporting nothing. Until the documentation
+ * API carries the field, the gap is named here instead of being papered over as if it were
+ * a spelling someone chose not to interpret.
+ *
+ * MEASURED, LIKE EVERYTHING ELSE THAT REPORTS: `array_index_of` returns an Integer and
+ * `new_line_to_br` a String, both raising on either subscript. `nl2br` is listed because
+ * `AugmentedPlatformOSDocset.expandAliases` re-emits the entry — missing `return_type`
+ * included — under the alias name, so the alias has the same hole.
+ *
+ * APPLIED ONLY WHERE THE DATA IS GENUINELY MISSING, never to an unrecognised spelling —
+ * see {@link variableTypeOf}. That keeps this narrowly a workaround for absent data
+ * rather than a second, quieter mapping table.
+ */
+export const DOCSET_RETURN_TYPE_GAPS: Readonly<Record<string, VariableType>> = {
+  array_index_of: 'number',
+  new_line_to_br: 'string',
+  nl2br: 'string',
+};
+
+/**
+ * The only part of a docset filter entry any of this reads.
+ *
+ * Structural on purpose, and narrower than the docset's own `ReturnType`: nothing here
+ * looks at `name`, `description` or `array_value` on a return type, so requiring them
+ * would stop a caller passing the shape it actually has — which is exactly what the
+ * shipped `filters.json` and the sweep both do.
+ */
+type FilterTypeSource = {
+  name: string;
+  return_type?: ReadonlyArray<Pick<ReturnType, 'type'>>;
+};
+
+/**
+ * The single type a filter returns, or `untyped` when that cannot be established.
+ *
+ * A filter declaring SEVERAL return types is an enum-like union; it resolves only
+ * when every branch maps to the same thing, because a union of "string or nil" is
+ * not a string for the purpose of refusing a write.
+ */
+function toVariableType(returnTypes: FilterTypeSource['return_type']): VariableType {
+  if (!returnTypes || returnTypes.length === 0) return 'untyped';
+
+  const mapped = new Set(returnTypes.map((entry) => DOCSET_RETURN_TYPES[entry.type] ?? 'untyped'));
+  const [only] = mapped;
+  return mapped.size === 1 ? only : 'untyped';
+}
+
+/** Whether the docset simply has no return-type data for this filter. */
+function hasNoReturnTypeData(returnTypes: FilterTypeSource['return_type']): boolean {
+  if (!returnTypes || returnTypes.length === 0) return true;
+  return returnTypes.length === 1 && returnTypes[0].type === '';
+}
+
+/**
+ * The type a filter produces, as this check models it.
+ *
+ * THE DOCSET DECIDES FIRST, ALWAYS. Two measured fallbacks fill in behind it, and both
+ * apply ONLY where the docset has nothing to say at all. The distinction is the point: an
+ * unrecognised SPELLING is a modelling decision this check declines to make and stays
+ * `untyped`; an ABSENT field is missing data, which is the one case a measurement is
+ * allowed to answer. Letting either fallback win over a spelling would turn it into a
+ * second mapping table with weaker rules, which is how the hand-written tables this check
+ * used to carry went wrong.
+ *
+ * The two fallbacks are separate because their PROVENANCE differs, and collapsing them
+ * would lose which problem is being worked around:
+ *
+ *   {@link DOCSET_RETURN_TYPE_GAPS}          the docset HAS the filter, and its
+ *                                            `return_type` is empty or absent
+ *   `UNDOCUMENTED_FILTER_RETURN_TYPES`       the docset does not have the filter at all;
+ *                                            `AugmentedPlatformOSDocset` injects it as a
+ *                                            bare `{ name }` from `undocumented-filters.ts`
+ *
+ * The gap table is consulted first only because it is the narrower population; no name
+ * appears in both, and `undocumented-filters.spec.ts` asserts that.
+ */
+export function variableTypeOf(filter: FilterTypeSource): VariableType {
+  if (!hasNoReturnTypeData(filter.return_type)) return toVariableType(filter.return_type);
+
+  const gap = DOCSET_RETURN_TYPE_GAPS[filter.name];
+  if (gap) return gap;
+
+  // Measured against the runtime by `verify-undocumented-filters.mjs`, and expressed in
+  // the docset's own spelling so it resolves through the SAME table as everything else
+  // rather than introducing a second vocabulary.
+  const undocumented = UNDOCUMENTED_FILTER_RETURN_TYPES[filter.name];
+  return undocumented ? (DOCSET_RETURN_TYPES[undocumented] ?? 'untyped') : 'untyped';
+}
+
+/**
+ * The subscript applied directly to the target variable, if it can be read statically.
+ *
+ * ONLY THE FIRST LOOKUP IS MODELLED, and a deeper chain is knowingly out of scope. The
+ * runtime walks the WHOLE chain and complains about the intermediate value — measured:
+ *
+ *   {% assign x = 'a,b' | split: ',' %}{% hash_assign x[0]['k'] = 'v' %}
+ *     -> "x[0] is a, expected Hash or Array"
+ *
+ * Answering that needs the type of `x[0]`, not of `x`, and nothing here tracks element
+ * types. Guessing it is worse than silence in both directions: the same measurement shows
+ * `x['a'][0]` RENDERS when `x['a']` is a Hash, so "the last subscript must match the
+ * container" is not the rule either, and a check built on that assumption would refuse
+ * working code.
+ *
+ * So `x[0]['k']` is a known missed detection, bounded to nested targets, and left alone
+ * deliberately rather than by oversight.
+ */
+function accessorOf(lookups: readonly LiquidExpression[]): Accessor {
+  const first = lookups[0];
+  if (!first) return 'unknown';
+  if (first.type === NodeTypes.String) return 'key';
+  if (first.type === NodeTypes.Number) return 'index';
+  return 'unknown';
+}
+
+/**
+ * The offense for a SUBSCRIPT WRITE — `tag x[…] = value` — or `undefined` when the write is
+ * fine, or when we cannot tell, which is treated identically ON PURPOSE.
+ *
+ * Modelled on what the runtime actually enforces, which is two rules, not one: the container
+ * must be a Hash or an Array, AND the subscript has to match (a Hash takes a key, an Array
+ * takes an index). "Can only be used on object types" is not the rule, and telling an author
+ * to convert a working Array into a Hash is a refusal of working code.
+ *
+ * `tag` is a parameter because `hash_assign` and `assign` reach the same runtime setter and
+ * the author needs to read their own spelling back — see {@link SUBSCRIPT_WRITE_TAGS}.
+ */
+function subscriptWriteMessage(
+  tag: string,
+  name: string,
+  type: VariableType,
+  accessor: Accessor,
+): string | undefined {
+  switch (type) {
+    case 'number':
+    case 'string':
+    case 'boolean':
+    case 'range':
+    case 'date':
+    case 'time':
+      // The runtime's complaint here is about the TARGET ("x is 5, expected Hash or
+      // Array"), so the subscript makes no difference to the outcome. `date` and `time`
+      // sit here on the same measured footing as the rest: both were rendered on a live
+      // instance and raise "expected Hash or Array" for a key AND for an index.
+      return `Cannot use ${tag} on '${name}', which is a ${type}. ${tag} expects a Hash or an Array.`;
+
+    case 'array':
+      // Measured both ways: `x[0] = …` on an Array renders, `x['key'] = …` raises
+      // "expected index, key was provided". An unknown subscript stays silent.
+      return accessor === 'key'
+        ? `Cannot use ${tag} on '${name}' with a string key, because it is an Array. Use a numeric index instead.`
+        : undefined;
+
+    case 'object':
+    case 'untyped':
+      return undefined;
+  }
+}
+
+/**
+ * The offense for an APPEND — `{% assign x << value %}` — which is a different rule from a
+ * subscript write and shares nothing with it but the tag name.
+ *
+ * MEASURED across every container, and the Hash row is the falsifier that proves the two are
+ * not the same rule: `=` wants a Hash and refuses a scalar, `<<` wants an Array and refuses a
+ * Hash.
+ *
+ *   {% parse_json x %}[1]{% endparse_json %}{% assign x << 2 %}   appends, x stays an Array
+ *   {% parse_json x %}{}{% endparse_json %} {% assign x << 1 %}   raises "x is {}, expected Array"
+ *   {% assign x = 'a' %}                    {% assign x << 'b' %} raises "x is a, expected Array"
+ *   {% assign x = 1 %}                      {% assign x << 2 %}   raises "x is 1, expected Array"
+ *   (x never assigned)                      {% assign x << 1 %}   raises "x is null, expected Array"
+ *
+ * An append THROUGH a subscript (`{% assign x['k'] << v %}`) is NOT this rule and is not
+ * reported at all: the runtime checks the value AT the subscript — measured, "x[k] is null,
+ * expected Array" — and nothing here tracks element types.
+ */
+function appendMessage(name: string, type: VariableType): string | undefined {
+  switch (type) {
+    case 'number':
+    case 'string':
+    case 'boolean':
+    case 'range':
+    case 'date':
+    case 'time':
+    case 'object':
+      return `Cannot use '<<' on '${name}', which is a ${type === 'object' ? 'Hash' : type}. '<<' appends to an Array.`;
+
+    case 'array':
+    case 'untyped':
+      return undefined;
+  }
+}
+
+/**
+ * Where the TARGET ends in the source, for a tag whose markup carries no node spanning it.
+ *
+ * `AssignMarkup` records the variable NAME and its lookups separately, and a bracket lookup's
+ * node begins INSIDE the brackets — so the last lookup's end is one short of the `]` for
+ * `x['k']` and exactly right for `x.k`. Reading the gap rather than adding a fixed offset keeps
+ * this correct across the whitespace the grammar permits: `x [ 'k' ]` parses.
+ */
+function targetEndOf(source: string, lookups: readonly LiquidExpression[]): number {
+  const last = lookups[lookups.length - 1];
+  let index = last.position.end;
+  while (index < source.length && /\s/.test(source[index])) index++;
+  return source[index] === ']' ? index + 1 : last.position.end;
+}
+
+/**
+ * The tags that write THROUGH a subscript, and why they share one rule.
+ *
+ * `hash_assign` is the older, deprecated spelling; `assign` gained the same ability and is what
+ * an author should reach for now. They are not merely similar — MEASURED against
+ * `/api/app_builder/liquid_exec`, every container × subscript combination behaves identically,
+ * with the container read back after the write so acceptance means the write happened:
+ *
+ *                        x['k'] = 'V'        x[0] = 'V'        x.k = 'V'
+ *   Hash                 writes              writes (key "0")  writes
+ *   Array                raises, wants index writes            raises, wants index
+ *   String/Number/       raises, "expected Hash or Array" for every subscript
+ *   Boolean/nil/unset
+ *
+ * The ONE difference is notation, not semantics: `hash_assign x.k` raises a PARSE-time
+ * `Syntax Error in 'hash_assign'`, while `assign x.k` writes the key `k`. That belongs to
+ * `InvalidHashAssignTargetSyntax`, which is why it is not modelled here — a dot lookup is a
+ * plain KEY accessor for the purposes of this check, exactly as the runtime treats it.
+ */
+const SUBSCRIPT_WRITE_TAGS = 'hash_assign, assign';
+
 export const InvalidHashAssignTarget: LiquidCheckDefinition = {
   meta: {
     code: 'InvalidHashAssignTarget',
-    name: 'Invalid hash_assign target',
+    name: 'Invalid hash write target',
     docs: {
-      description:
-        'Reports errors when hash_assign is used on a variable that is not an object type (e.g., number, string, boolean, array).',
+      description: `Reports a write through a subscript (${SUBSCRIPT_WRITE_TAGS}) against a target the runtime rejects: a value that is neither a Hash nor an Array, or an Array subscripted with a string key instead of a numeric index. Also reports '<<' against a target that is not an Array.`,
       recommended: true,
       url: undefined,
     },
@@ -53,89 +362,98 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
       }
     };
 
-    // Find the applicable type for a variable at a given position
+    /**
+     * The type in effect for `variableName` at `position`, or `undefined` if none is
+     * known there.
+     *
+     * THE START BOUND IS INCLUSIVE, and that is the whole fix. A range STARTS at the
+     * defining tag's `position.end`, which is an offset a real tag can begin at
+     * exactly, because Liquid tags may abut with nothing between them:
+     *
+     *   {% assign x = 5 %}{% hash_assign x['k'] = 'v' %}
+     *                     ^ range start AND lookup position are both 18
+     *
+     * An exclusive `position <= start` excluded that case, so the check went silent
+     * on a buffer the runtime raises `HashAssignTagError` for, while firing on the
+     * same code with a single space inserted. The defect therefore looked like the
+     * check being dead rather than a boundary being wrong, and an evaluation reported
+     * it as such. A node that begins exactly where the previous one ended IS after
+     * it, and no two nodes share an offset, so nothing is admitted wrongly.
+     *
+     * THE END BOUND IS NOT SYMMETRIC WITH IT, despite reading that way. A range is
+     * closed at the START offset of the tag that redefines the variable, and that
+     * tag's own lookup — if it performs one — happens BEFORE the close, while the
+     * range is still open. Every later lookup sits at a strictly greater offset. So
+     * no lookup can land on a closed range's end, and `>` versus `>=` is not
+     * currently distinguishable by any buffer: verified by flipping it, which changes
+     * no test. It is written as the inclusive reading because that is what the range
+     * means; do not infer from the symmetry that both bounds were measured.
+     *
+     * Later entries win, which is what resolves a reassignment whose ranges abut.
+     */
     const findVariableType = (variableName: string, position: number): VariableType | undefined => {
       let result: VariableType | undefined;
 
       for (const entry of variableTypes) {
         if (entry.name !== variableName) continue;
         const [start, end] = entry.range;
-        if (position <= start) continue;
-        if (end && position > end) continue;
+        if (position < start) continue;
+        // `end !== undefined`, not `end`: "no upper bound" is an OPEN range, which is
+        // exactly `undefined` — truthiness would also reopen a range closed at offset
+        // 0. Defensive rather than a live fix: an entry's start is a preceding tag's
+        // end, so a close at 0 cannot occur. Written this way because the predicate
+        // should be right by construction, not by an argument about offsets.
+        if (end !== undefined && position > end) continue;
         result = entry.type;
       }
 
       return result;
     };
 
-    // Infer the type from a LiquidVariable (expression + filters)
-    const inferVariableType = (variable: LiquidVariable): VariableType => {
-      // Check filters that change the type
-      if (variable.filters && variable.filters.length > 0) {
-        const lastFilter = variable.filters[variable.filters.length - 1];
+    /**
+     * The return types of every filter the docset knows, keyed by name.
+     *
+     * Built ONCE per file and memoized, because `filters()` is async and a document
+     * can hold many assignments. An absent docset yields an empty map, so every
+     * filtered value becomes `untyped` and nothing is reported for it — the check
+     * still works on unfiltered assignments, which is the majority of them.
+     */
+    let returnTypes: Promise<Map<string, VariableType>> | undefined;
+    const filterReturnTypes = () => {
+      returnTypes ??= (async () => {
+        const filters = (await context.platformosDocset?.filters()) ?? [];
+        return new Map(filters.map((filter) => [filter.name, variableTypeOf(filter)]));
+      })();
+      return returnTypes;
+    };
 
-        // Filters that return objects
-        if (lastFilter.name === 'parse_json' || lastFilter.name === 'to_hash') {
-          return 'object';
-        }
-
-        // Filters that return numbers
-        if (
-          lastFilter.name === 'size' ||
-          lastFilter.name === 'abs' ||
-          lastFilter.name === 'ceil' ||
-          lastFilter.name === 'floor' ||
-          lastFilter.name === 'round' ||
-          lastFilter.name === 'plus' ||
-          lastFilter.name === 'minus' ||
-          lastFilter.name === 'times' ||
-          lastFilter.name === 'divided_by' ||
-          lastFilter.name === 'modulo'
-        ) {
-          return 'number';
-        }
-
-        // Filters that return strings
-        if (
-          lastFilter.name === 'append' ||
-          lastFilter.name === 'prepend' ||
-          lastFilter.name === 'capitalize' ||
-          lastFilter.name === 'downcase' ||
-          lastFilter.name === 'upcase' ||
-          lastFilter.name === 'strip' ||
-          lastFilter.name === 'strip_html' ||
-          lastFilter.name === 'strip_newlines' ||
-          lastFilter.name === 'truncate' ||
-          lastFilter.name === 'truncatewords' ||
-          lastFilter.name === 'replace' ||
-          lastFilter.name === 'replace_first' ||
-          lastFilter.name === 'remove' ||
-          lastFilter.name === 'remove_first' ||
-          lastFilter.name === 'slice' ||
-          lastFilter.name === 'split' ||
-          lastFilter.name === 'join' ||
-          lastFilter.name === 'json'
-        ) {
-          return 'string';
-        }
-
-        // Filters that return arrays
-        if (
-          lastFilter.name === 'split' ||
-          lastFilter.name === 'sort' ||
-          lastFilter.name === 'sort_natural' ||
-          lastFilter.name === 'reverse' ||
-          lastFilter.name === 'uniq' ||
-          lastFilter.name === 'compact' ||
-          lastFilter.name === 'concat' ||
-          lastFilter.name === 'map' ||
-          lastFilter.name === 'where'
-        ) {
-          return 'array';
-        }
+    /**
+     * The type of an assigned value — expression, then whatever the last filter turns
+     * it into.
+     *
+     * FILTER RETURN TYPES COME FROM THE DOCSET, not from a list in this file. There
+     * used to be four hand-written arrays here, and they were wrong in the way
+     * hand-written tables are: `split` appeared in BOTH the string list and the array
+     * list, the string branch ran first, and so
+     * `{% assign x = '' | split: ',' %}{% hash_assign x[0] = 'v' %}` — which renders
+     * fine — was reported as a hash_assign on a string. Since this check refuses
+     * writes, that was a blocking refusal of working code, caused entirely by a typo
+     * nobody could see.
+     *
+     * The docset carries `return_type` for 166 of the 167 shipped filters, so the
+     * data already existed. What it does NOT carry is a guarantee of completeness:
+     * filters missing from it, and the generated undocumented ones, have no return
+     * type at all. Those resolve to `untyped` and produce nothing, which is the only
+     * safe reading — see {@link DOCSET_RETURN_TYPES}.
+     */
+    const inferVariableType = async (variable: LiquidVariable): Promise<VariableType> => {
+      const filters = variable.filters;
+      if (filters && filters.length > 0) {
+        // The LAST filter decides: every earlier one is input to the next.
+        const last = filters[filters.length - 1];
+        return (await filterReturnTypes()).get(last.name) ?? 'untyped';
       }
 
-      // Fall back to expression type
       const expr = variable.expression;
       switch (expr.type) {
         case NodeTypes.Number:
@@ -149,7 +467,10 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
           }
           return 'untyped';
         case NodeTypes.Range:
-          return 'array';
+          // NOT `array` — see the VariableType doc. Measured raising on key-assign;
+          // index-assign was never measured, so it stays its own type rather than
+          // inheriting Array's permissions.
+          return 'range';
         case NodeTypes.BooleanExpression:
           return 'boolean';
         default:
@@ -157,21 +478,90 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
       }
     };
 
+    /**
+     * Record what a variable holds AFTER a write that goes INTO it rather than replacing it.
+     *
+     * A subscript write and an append both leave the container in place, so the variable does
+     * NOT take the value's type — which is the whole difference from a plain `{% assign %}`.
+     * Getting this wrong is a false block rather than a missed detection: rebinding `h` to
+     * `string` after `{% assign h['k'] = 'V' %}` makes the very next `hash_assign` on the same
+     * hash look like a write onto a string, and this check refuses writes.
+     *
+     * The type is NARROWED, not merely kept. A write that reaches the runtime at all proves the
+     * container was of the right kind, so an untyped variable becomes what the operation
+     * requires — an Array for `<<`, a Hash for a subscript write unless it was already an Array,
+     * which a subscript write does not convert.
+     *
+     * The language server's `TypeSystem` already modelled this — its `AssignMarkup` visitor
+     * returns `Untyped` for exactly these two shapes — so hover and completion were right while
+     * the check that BLOCKS was wrong. Worth knowing before adding a third model of the same
+     * question somewhere else.
+     */
+    const narrowAfterWriteInto = (name: string, node: LiquidTag, becomes: 'array' | 'hash') => {
+      const existing = findVariableType(name, node.position.start) ?? 'untyped';
+      closeTypeRange(name, node.position.start);
+      variableTypes.push({
+        name,
+        type: becomes === 'array' || existing === 'array' ? 'array' : 'object',
+        range: [node.position.end],
+      });
+    };
+
     return {
       async LiquidTag(node: LiquidTag) {
-        // {% assign x = value %}
+        // {% assign x = value %}, {% assign x[…] = value %}, {% assign x << value %}
         if (isLiquidTagAssign(node)) {
           const markup = node.markup;
+          const lookups = markup.lookups ?? [];
 
-          // Close any previous type for this variable (reassignment)
-          closeTypeRange(markup.name, node.position.start);
+          if (lookups.length > 0) {
+            // A SUBSCRIPT WRITE, measured identical to `hash_assign` in every container ×
+            // subscript combination — so it answers to the same rule, reported under the
+            // author's own spelling. `<<` through a subscript is deliberately absent: the
+            // runtime asks about the value AT the subscript, not about the container.
+            if (markup.operator === '=') {
+              const name = markup.name;
+              const message = subscriptWriteMessage(
+                'assign',
+                name,
+                findVariableType(name, node.position.start) ?? 'untyped',
+                accessorOf(lookups),
+              );
 
-          const inferredType = inferVariableType(markup.value);
-          variableTypes.push({
-            name: markup.name,
-            type: inferredType,
-            range: [node.position.end],
-          });
+              if (message) {
+                context.report({
+                  message,
+                  startIndex: markup.position.start,
+                  endIndex: targetEndOf(node.source, lookups),
+                });
+              }
+            }
+
+            narrowAfterWriteInto(markup.name, node, 'hash');
+          } else if (markup.operator === '<<') {
+            const message = appendMessage(
+              markup.name,
+              findVariableType(markup.name, node.position.start) ?? 'untyped',
+            );
+
+            if (message) {
+              context.report({
+                message,
+                startIndex: markup.position.start,
+                endIndex: markup.position.end,
+              });
+            }
+
+            narrowAfterWriteInto(markup.name, node, 'array');
+          } else {
+            // A plain assignment REPLACES the variable, so it takes the value's type.
+            closeTypeRange(markup.name, node.position.start);
+            variableTypes.push({
+              name: markup.name,
+              type: await inferVariableType(markup.value),
+              range: [node.position.end],
+            });
+          }
         }
 
         // {% increment x %} / {% decrement x %}
@@ -229,6 +619,13 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
         }
 
         // {% function result = 'path' %}
+        //
+        // A SUBSCRIPT TARGET (`{% function h['k'] = 'path' %}`) parses — measured, all eight
+        // spellings reach partial resolution rather than a syntax error — but what the write
+        // then does is UNMEASURED: settling it needs a partial that exists, and the oracle
+        // instance has none. So the target is not judged, and the container is rebound to
+        // `untyped` exactly as for a plain target. That costs missed detections, which is the
+        // direction that cannot manufacture a false block in a check that refuses writes.
         if (node.name === NamedTags.function && typeof node.markup !== 'string') {
           const markup = node.markup as FunctionMarkup;
           const varName = markup.name.name;
@@ -243,40 +640,30 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
           }
         }
 
-        // {% hash_assign x['key'] = value %} - validate the target
+        // {% hash_assign x['key'] = value %} — the same subscript write, under the older,
+        // deprecated spelling, which additionally REFUSES a dot target at parse time. That
+        // refusal is `InvalidHashAssignTargetSyntax`'s to report, not this check's.
         if (isLiquidTagHashAssign(node)) {
           const markup = node.markup;
           const variableName = markup.target.name;
 
           if (variableName) {
-            const existingType = findVariableType(variableName, node.position.start);
+            const message = subscriptWriteMessage(
+              'hash_assign',
+              variableName,
+              findVariableType(variableName, node.position.start) ?? 'untyped',
+              accessorOf(markup.target.lookups ?? []),
+            );
 
-            // Report error if target is a primitive type
-            if (
-              existingType === 'number' ||
-              existingType === 'string' ||
-              existingType === 'boolean'
-            ) {
+            if (message) {
               context.report({
-                message: `Cannot use hash_assign on '${variableName}' which is a ${existingType}. hash_assign can only be used on object types.`,
-                startIndex: markup.target.position.start,
-                endIndex: markup.target.position.end,
-              });
-            } else if (existingType === 'array') {
-              context.report({
-                message: `Cannot use hash_assign on '${variableName}' which is an array. hash_assign can only be used on object types.`,
+                message,
                 startIndex: markup.target.position.start,
                 endIndex: markup.target.position.end,
               });
             }
 
-            // Track the new type (hash_assign makes it an object)
-            closeTypeRange(variableName, node.position.start);
-            variableTypes.push({
-              name: variableName,
-              type: 'object',
-              range: [node.position.end],
-            });
+            narrowAfterWriteInto(variableName, node, 'hash');
           }
         }
       },
@@ -285,9 +672,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
 };
 
 // Type guards
-function isLiquidTagAssign(
-  node: LiquidTag,
-): node is LiquidTag & { markup: { name: string; value: LiquidVariable } } {
+function isLiquidTagAssign(node: LiquidTag): node is LiquidTag & { markup: AssignMarkup } {
   return node.name === NamedTags.assign && typeof node.markup !== 'string';
 }
 

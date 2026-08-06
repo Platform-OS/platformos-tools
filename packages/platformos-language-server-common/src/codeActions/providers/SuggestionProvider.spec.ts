@@ -7,13 +7,12 @@ import {
 } from '@platformos/platformos-check-common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { URI } from 'vscode-uri';
 import { DiagnosticsManager } from '../../diagnostics';
 import { DocumentManager } from '../../documents';
 import { SuggestionProvider } from './SuggestionProvider';
 
 describe('Unit: SuggestionProvider', () => {
-  const uri = path.normalize(URI.file('/path/to/app/views/partials/file.liquid'));
+  const uri = path.toUri('/path/to/app/views/partials/file.liquid');
   const contents = `
     {% assign x = 1 %}
     <script src="2.js"></script>

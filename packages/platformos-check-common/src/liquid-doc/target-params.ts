@@ -54,18 +54,63 @@ export async function inferredTargetParams(
 
   const source = await context.fs.readFile(locatedFile);
 
-  // Which documented objects reach the TARGET depends on the target's type: most `global`
-  // objects are not global to a partial — `data` and `response` belong to an api_call, so a
-  // partial reading one is reading an argument nobody passed.
-  const targetFileType = context.fileType(locatedFile);
-  const objects = (await context.platformosDocset?.objects()) ?? [];
-  const inScope = objects
-    .filter((object) => isObjectInScope(object, targetFileType))
-    .map((object) => object.name);
-  // `app` is not a documented object, so it never comes back from objects().
-  if (targetFileType === PlatformOSFileType.Partial) inScope.push('app');
+  const inScope = await inScopeNames(context, context.fileType(locatedFile));
 
   const { required, optional } = extractUndefinedVariables(source, inScope);
 
   return { required, optional, inScope };
+}
+
+/**
+ * The documented object names in scope for a target of `targetFileType`, cached per
+ * docset object list.
+ *
+ * WHY the cache. `objects()` is memoized upstream, but the SCAN over every documented
+ * object was re-run at every call site, and a partial rendered from dozens of places
+ * paid it dozens of times. `PartialCallArguments` is the highest-volume check in the
+ * suite (6765 offenses on one real project), so this runs a lot.
+ *
+ * Keyed weakly on the objects ARRAY, not on a name or a version: `objects()` returns
+ * the same array for the life of a docset, so a re-downloaded docset yields a new
+ * array and therefore a new entry, and the old one is collected. There is nothing to
+ * invalidate and nothing to bound — the same discipline `isIgnored` uses for its
+ * compiled matchers.
+ */
+const inScopeNamesByObjects = new WeakMap<
+  object,
+  Map<PlatformOSFileType | undefined, readonly string[]>
+>();
+
+async function inScopeNames(
+  context: Context<SourceCodeType.LiquidHtml>,
+  // `undefined` when the located file is outside every recognized platformOS directory,
+  // which `isObjectInScope` already answers for — it is a distinct cache key, not a
+  // reason to skip the cache.
+  targetFileType: PlatformOSFileType | undefined,
+): Promise<string[]> {
+  const objects = (await context.platformosDocset?.objects()) ?? [];
+
+  let byType = inScopeNamesByObjects.get(objects);
+  if (!byType) {
+    byType = new Map();
+    inScopeNamesByObjects.set(objects, byType);
+  }
+
+  let names = byType.get(targetFileType);
+  if (!names) {
+    // Which documented objects reach the TARGET depends on the target's type: most
+    // `global` objects are not global to a partial — `data` and `response` belong to an
+    // api_call, so a partial reading one is reading an argument nobody passed.
+    names = objects
+      .filter((object) => isObjectInScope(object, targetFileType))
+      .map((object) => object.name);
+    // `app` is not a documented object, so it never comes back from objects().
+    if (targetFileType === PlatformOSFileType.Partial) names = [...names, 'app'];
+    byType.set(targetFileType, names);
+  }
+
+  // A FRESH array on every call. Callers are free to extend the returned `inScope`, and it is
+  // also a cache KEY inside `extractUndefinedVariables` — one caller pushing onto a
+  // shared array would corrupt both the next caller's scope and that key.
+  return [...names];
 }

@@ -86,7 +86,6 @@ export enum NamedTags {
   if = 'if',
   include = 'include',
   increment = 'increment',
-  layout = 'layout',
   liquid = 'liquid',
   render = 'render',
   function = 'function',

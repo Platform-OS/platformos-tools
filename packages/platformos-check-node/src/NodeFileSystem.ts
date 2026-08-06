@@ -32,6 +32,8 @@ export const NodeFileSystem: AbstractFileSystem = {
         type: stats.isDirectory() ? FileType.Directory : FileType.File,
         size: stats.size,
         mtimeMs: stats.mtimeMs,
+        // Same syscall, one more field — see `FileStat.ctimeMs` for why a cache needs it.
+        ctimeMs: stats.ctimeMs,
       };
     } catch (e) {
       throw new Error(`Failed to get file stat: ${e}`);

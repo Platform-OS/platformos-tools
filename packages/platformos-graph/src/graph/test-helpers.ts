@@ -9,7 +9,7 @@ import { identity } from '../utils';
 export function makeGetSourceCode(fs: AbstractFileSystem) {
   return memoize(async function getSourceCode(uri: string) {
     const source = await fs.readFile(uri);
-    return toSourceCode(URI.file(uri).toString(), source);
+    return toSourceCode(pathUtils.toUri(uri), source);
   }, identity);
 }
 

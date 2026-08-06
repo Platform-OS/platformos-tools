@@ -1,5 +1,5 @@
 import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
-import { Parsers, sourceCodeTypeOf } from '@platformos/platformos-common';
+import { Parsers, parseGraphql, sourceCodeTypeOf } from '@platformos/platformos-common';
 
 import { toJSONNode } from './jsonc/parse';
 import { toYAMLNode } from './yaml/parse';
@@ -39,15 +39,22 @@ export function toYAMLAST(source: string): JSONNode | Error {
   }
 }
 
-export function toGraphQLAST(source: string): GraphQLDocumentNode | Error {
-  try {
-    return {
-      type: 'Document',
-      content: source,
-    } as GraphQLDocumentNode;
-  } catch (error) {
-    return asError(error);
-  }
+/**
+ * A `.graphql` file's AST.
+ *
+ * The parse itself belongs to `platformos-common` — how a platformOS GraphQL
+ * operation is read is platform knowledge, the same way a schema's `name:` is — and
+ * this is the seam that hands it to `App`. Going through the injected parser is what
+ * makes the file parse ONCE per change: the `AppFile` memoizes what comes back, so
+ * `GraphQLCheck`, `GraphQLVariablesCheck`, the shape analyzer and the graph all read
+ * the same document instead of parsing the same source four times.
+ *
+ * Never an `Error`: a document that does not compile is what `GraphQLCheck` exists to
+ * report, and an `Error` AST would take the file out of the pipeline that reports it.
+ * {@link parseGraphql} returns the syntax error inside the node instead.
+ */
+export function toGraphQLAST(source: string): GraphQLDocumentNode {
+  return parseGraphql(source);
 }
 
 /**

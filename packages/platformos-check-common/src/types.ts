@@ -6,6 +6,7 @@ import {
   AbstractFileSystem,
   App as AppModel,
   AppFile,
+  GraphQLDocumentNode,
   PlatformOSFileType,
   RouteTable,
   SourceAppFile,
@@ -120,10 +121,13 @@ export interface PlatformOSFile {
   path: string;
 }
 
-export interface GraphQLDocumentNode {
-  type: 'Document';
-  content: string;
-}
+/**
+ * The GraphQL AST, owned by `platformos-common` and re-exported here — never
+ * redeclared, exactly like {@link SourceCodeType}. It carries the parsed document as
+ * well as the source, so a `.graphql` file is parsed once by the `App` that holds it
+ * and every check reads that one parse.
+ */
+export type { GraphQLDocumentNode };
 
 // AST[SourceCodeType.LiquidHtml] maps to LiquidHtmlNode
 export type AST = {
@@ -363,6 +367,16 @@ export type Reference = {
 
   /** Which Liquid construct produced this edge. Optional for backwards compatibility. */
   kind?: ReferenceKind;
+
+  /**
+   * The names of the named arguments passed at the call site, in source order —
+   * e.g. `['title', 'count']` for `{% render 'card', title: x, count: 3 %}`.
+   * Present only for edges that carry named arguments (render/include/function/
+   * background/graphql); omitted entirely when there are none. Values are not
+   * captured (names are what cross-checking against a partial's `@param`
+   * signature needs).
+   */
+  args?: string[];
 };
 
 export type Range = [start: number, end: number]; // represents a range in the source code
@@ -620,14 +634,22 @@ export type Offense<T extends SourceCodeType = SourceCodeType> = T extends Sourc
     }
   : never;
 
+/**
+ * A place in a source file, in the Language Server Protocol's document model.
+ *
+ * `line` and `character` are BOTH 0-based, and `character` counts UTF-16 code units.
+ * The language server hands these straight to VS Code without converting; the MCP
+ * supervisor is the one consumer that adds 1 to each. `utils/position.ts` is the only
+ * producer and documents why the model is the LSP's.
+ */
 export interface Position {
-  /** 0-indexed */
+  /** Character offset from the start of the file. 0-indexed. */
   index: number;
 
-  /** 1-indexed */
+  /** 0-indexed — NOT 1-indexed, whatever a caller displaying it may do. */
   get line(): number;
 
-  /** 0-indexed */
+  /** 0-indexed, in UTF-16 code units, so an astral character advances it by 2. */
   get character(): number;
 }
 

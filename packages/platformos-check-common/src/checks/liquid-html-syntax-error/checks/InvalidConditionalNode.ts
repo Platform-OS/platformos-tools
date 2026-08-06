@@ -11,10 +11,22 @@ interface Token {
 
 interface ExpressionIssue {
   message: string;
-  fix: string;
+  /**
+   * Replacement markup for the autofix, when one exists.
+   *
+   * OPTIONAL, because not every defect has a safe mechanical repair. A filter in a
+   * condition needs the value assigned on a PRECEDING line, which is a change this
+   * corrector cannot express — it may only replace the markup it was given. Offering a
+   * fix that silently dropped the filter would change what the condition tests.
+   */
+  fix?: string;
 }
 
 const TOKEN_PATTERNS = {
+  // A LONE pipe, never `||`. The tokenizer emits those as separate tokens — measured —
+  // and `||` is someone reaching for JavaScript, which `checkLaxParsingIssues` already
+  // explains. Conflating them would replace a useful message with a confusing one.
+  filter: /^\|$/,
   logical: /^(and|or)$/,
   comparison: /^(==|!=|>=|<=|>|<|contains)$/,
   invalid: /^[@#$&]$/,
@@ -50,13 +62,19 @@ export function detectInvalidConditionalNode(
   const startIndex = openingTagRange.start + markupOffsetInOpening;
   const endIndex = startIndex + markup.length;
 
+  const fix = issue.fix;
   return {
     message: `${INVALID_SYNTAX_MESSAGE}: ${issue.message}`,
     startIndex,
     endIndex,
-    fix: (corrector) => {
-      corrector.replace(startIndex, endIndex, issue.fix);
-    },
+    // Only offered when the issue carries a safe replacement; see ExpressionIssue.fix.
+    ...(fix === undefined
+      ? {}
+      : {
+          fix: (corrector: { replace: (start: number, end: number, text: string) => void }) => {
+            corrector.replace(startIndex, endIndex, fix);
+          },
+        }),
   };
 }
 
@@ -66,6 +84,44 @@ function isValueToken(token: Token): boolean {
 
 function isOperatorToken(token: Token): boolean {
   return token.type === 'logical' || token.type === 'comparison';
+}
+
+/**
+ * A filter inside a condition, which the platform's deploy converter REJECTS.
+ *
+ * MEASURED, against `pos-cli deploy --dry-run`, paired with a filter-free control so a
+ * rejection caused by the fixture is distinguishable from one caused by the filter:
+ *
+ *   ```
+ *     {% if 'a' | upcase == 'A' %}          REJECTED   (control ACCEPTED)
+ *     {% unless 'a' | upcase == 'A' %}      REJECTED   (control ACCEPTED)
+ *     {% if false %}{% elsif 'a' | u… %}    REJECTED   (control ACCEPTED)
+ *     {% if 'a' | upcase %}                 REJECTED   (control ACCEPTED)
+ *   ```
+ *
+ * WHY THIS NEEDED ITS OWN RULE. Three of those four produced NO diagnostic at all — a
+ * false approval on a converter rejection, which fails the WHOLE changeset rather than
+ * one file. The grammar refuses the markup correctly in every case, so it arrives here
+ * as a raw string; the heuristics below then let the comparison forms through, because
+ * `|` classifies as a plain variable and `checkLaxParsingIssues` treats
+ * "variable followed by an operator" as a legitimate unknown operator.
+ *
+ * Only the truthy form (`{% if 'a' | upcase %}`) was caught, and by accident — it has no
+ * comparison operator after the pipe, so a different heuristic fired with a message about
+ * truthiness that never mentions the real problem.
+ *
+ * RUNS FIRST, so the specific explanation wins over those general ones.
+ */
+function checkFilterInCondition(tokens: Token[]): ExpressionIssue | null {
+  const filter = tokens.find((token) => token.type === 'filter');
+  if (!filter) return null;
+
+  return {
+    message:
+      'Filters are not allowed in a condition, and the deploy converter rejects the ' +
+      'file — which fails the whole changeset, not just this template. Apply the filter ' +
+      'in an {% assign %} first, then compare the assigned variable',
+  };
 }
 
 function checkInvalidStartingToken(tokens: Token[]): ExpressionIssue | null {
@@ -158,6 +214,9 @@ function analyzeConditionalExpression(markup: string): ExpressionIssue | null {
   if (tokens.length === 0) return null;
 
   return (
+    // FIRST: the specific, measured explanation beats the general heuristics, which
+    // otherwise describe a filter as either an unknown operator or a truthiness quirk.
+    checkFilterInCondition(tokens) ||
     checkInvalidStartingToken(tokens) ||
     checkTrailingTokensAfterComparison(tokens) ||
     checkLaxParsingIssues(tokens)

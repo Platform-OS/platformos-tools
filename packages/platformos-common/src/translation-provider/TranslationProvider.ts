@@ -8,9 +8,16 @@ import {
 import { URI, Utils } from 'vscode-uri';
 import yaml from 'js-yaml';
 
+import { PLATFORM_YAML_LOAD_OPTIONS } from '../yaml-load-options';
+
 /** In platformOS, `en` is always the reference locale. */
 export const DEFAULT_LOCALE = 'en';
 
+/**
+ * Every `load` below sits inside a `try`/`catch` that treats a throw as "this file has
+ * no translations", so js-yaml's default made one repeated key empty an entire locale
+ * and every key in it appear missing. See {@link PLATFORM_YAML_LOAD_OPTIONS}.
+ */
 export class TranslationProvider {
   constructor(private readonly fs: AbstractFileSystem) {}
 
@@ -217,7 +224,14 @@ export class TranslationProvider {
    */
   private loadYaml(content: string): unknown {
     try {
-      return yaml.load(content, { json: true });
+      // The named constant, not an inline `{ json: true }`: this is one decision that has
+      // to hold at EVERY `yaml.load` in the repo, and `yaml-load-options.ts` is where it
+      // is stated once — with the `--dry-run` measurement that the platform accepts a
+      // duplicated key last-wins, and the list of 26 constructs verified unaffected by the
+      // flag. A second inline copy is how a reader ends up quietly disagreeing with the
+      // linter about what a file says, which is exactly what happened to
+      // `DocumentsLocator.loadSearchPaths`.
+      return yaml.load(content, PLATFORM_YAML_LOAD_OPTIONS);
     } catch {
       return undefined;
     }

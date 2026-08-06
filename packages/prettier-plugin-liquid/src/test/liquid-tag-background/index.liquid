@@ -1,0 +1,12 @@
+It should preserve filters on background tag result (file-based)
+{% background job = 'lib/jobs/send', data: object, template: 'lib/mailers/welcome' | dig: 'results' %}
+
+It should preserve filters on background tag with no args
+{% background job = 'lib/jobs/send' | dig: 'results' %}
+
+It should break on long lines with filters
+printWidth: 1
+{% background job = 'lib/jobs/send', data: object | dig: 'results' %}
+
+It should keep the inline block form's filter, which the runtime scans and discards
+{% background delay: 10 | plus: 1 %}x{% endbackground %}

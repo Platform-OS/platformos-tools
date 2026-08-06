@@ -904,8 +904,18 @@ describe('server instructions', () => {
     //
     //   condition (if/unless/elsif, for … in)  converter REJECTS -> blocks
     //   any other tag operand or argument      converter accepts, runtime IGNORES -> warns
-    //   {{ }}, assign, echo, print, return,    applied
-    //   session, function/graphql result
+    //   {{ }}, assign, hash_assign, session,   applied
+    //     echo, print, return
+    //   an argument value that IS a JSON       applied
+    //     literal, and a trailing filter on
+    //     {% graphql res = 'file' %}
+    //
+    // The applied rows were WRONG here for a release, in the direction that costs the most: the
+    // text said "function/graphql result", so an agent was told `{% function r = 'p', a: 1 |
+    // dig: 'x' %}` filters the result. Measured against a live instance, it does not — only
+    // graphql's FILE form splits its markup on the first `|`. `function`, `background` and the
+    // INLINE graphql block share that grammar rule and discard the filter, and no probe short of
+    // reading the assigned value back can tell the four apart.
     //
     // The middle row is the one that was wrong here before. The text used to say a filter in
     // a tag OPERAND "is fine", naming ten tags — which invited exactly the generalisation
@@ -925,6 +935,11 @@ describe('server instructions', () => {
       rejected: collapsed.includes('FILTER INSIDE A CONDITION'),
       ignored: collapsed.includes('IGNORES it, so the value arrives unfiltered'),
       applied: collapsed.includes('Filters apply only where the whole value is a Liquid variable'),
+      // The applying list must name hash_assign and the JSON-literal argument, and must say
+      // which trailing filters only LOOK like result filters. Each of these was a live defect.
+      appliesForHashAssign: collapsed.includes('assign, hash_assign, echo, print, return, session'),
+      appliesForJsonLiteral: collapsed.includes('where an argument value IS a JSON literal'),
+      trailingFilterQualified: collapsed.includes('only LOOKS like that and is discarded'),
       // The blocking half must really block, and the ignored half must NOT.
       blockingBackedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
       warningNotBlocking: BLOCKING_CHECKS.has('FilterWithoutEffect'),
@@ -932,6 +947,9 @@ describe('server instructions', () => {
       rejected: true,
       ignored: true,
       applied: true,
+      appliesForHashAssign: true,
+      appliesForJsonLiteral: true,
+      trailingFilterQualified: true,
       blockingBackedBy: true,
       warningNotBlocking: false,
     });

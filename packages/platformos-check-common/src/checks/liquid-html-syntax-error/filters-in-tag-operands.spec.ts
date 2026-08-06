@@ -1,73 +1,136 @@
 import { describe, expect, it } from 'vitest';
+import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 
 import { LiquidHTMLSyntaxError } from './index';
 import { runLiquidCheck } from '../../test';
+import { SourceCodeType } from '../../types';
+import { visit } from '../../visitor';
 
 /**
  * WHICH TAG OPERANDS ACCEPT A FILTER — the whole adjudication, as fixtures.
  *
- * Every row below was settled against `pos-cli deploy --dry-run`, each construct deployed
- * WITH the filter and again WITHOUT it, so a rejection caused by the fixture is
- * distinguishable from one caused by the filter. That pairing is not ceremony: the first
- * harness used `|` as its field delimiter and shredded every fixture containing a filter,
- * and the only reason it was caught is that the controls failed too.
+ * Filters are accepted wherever the platform parses a full Liquid VARIABLE and refused
+ * wherever it parses a bare EXPRESSION. That follows each Ruby tag's own markup parsing, so
+ * it is measured per operand rather than inferred from grammar symmetry.
  *
- * THE RULE, and it is not derivable from grammar symmetry. Filters are accepted wherever
- * the platform parses a full Liquid VARIABLE, and refused wherever it parses a bare
- * EXPRESSION. That follows each Ruby tag's own markup parsing, so it has to be measured
- * per operand rather than inferred from what looks consistent.
+ * Settled against `pos-cli deploy --dry-run`, each construct deployed WITH the filter and
+ * again WITHOUT it. THE RUNTIME IS NOT THE ORACLE HERE: `liquid_exec` accepted every
+ * construct in this file, including all six the converter rejects. For a syntax question the
+ * converter is the only authority.
  *
- * THE RUNTIME IS NOT THE ORACLE HERE. `liquid_exec` accepted every construct in this file,
- * including all six the converter rejects — verified with controls proving it does report
- * real syntax errors. For a syntax question the converter is the only authority.
- *
- * WHY THESE BLOCKED AT ALL. The operands bound `liquidExpression`, which carries no
- * filters, so the strict markup rule failed. The parser is TOLERANT — it does not throw,
- * it stores the markup as a raw string — and `InvalidTagSyntax` then reported that. The
- * symptom was a `LiquidHTMLSyntaxError`, which BLOCKS, on code that deploys.
+ * These blocked because the operands bound `liquidExpression`, which carries no filters, so
+ * the strict markup rule failed, the markup degraded to a raw string, and `InvalidTagSyntax`
+ * reported it — a `LiquidHTMLSyntaxError`, which BLOCKS, on code that deploys.
  */
+
+/**
+ * Every row carries its own FILTERLESS spelling and the filter names the AST must hold, so the
+ * control group and the reachability assertion cannot drift out of sync with this table — the
+ * controls used to be a second hand-maintained list, and it was already one row short.
+ */
+const ACCEPTED: Array<[label: string, filtered: string, filterless: string, filters: string[]]> = [
+  [
+    'cache key',
+    `{% cache 'k' | append: '1' %}x{% endcache %}`,
+    `{% cache 'k' %}x{% endcache %}`,
+    ['append'],
+  ],
+  ['log value', `{% log 'msg' | upcase %}`, `{% log 'msg' %}`, ['upcase']],
+  ['yield', `{% yield 'slot' | upcase %}`, `{% yield 'slot' %}`, ['upcase']],
+  [
+    'redirect_to url',
+    `{% redirect_to '/p' | append: '/x' %}`,
+    `{% redirect_to '/p' %}`,
+    ['append'],
+  ],
+  [
+    'spam_protection version',
+    `{% spam_protection 'x' | downcase %}`,
+    `{% spam_protection 'x' %}`,
+    ['downcase'],
+  ],
+  [
+    'response_headers',
+    `{% response_headers '{}' | upcase %}`,
+    `{% response_headers '{}' %}`,
+    ['upcase'],
+  ],
+  ['render with', `{% render 'p' with 'a' | upcase %}`, `{% render 'p' with 'a' %}`, ['upcase']],
+  [
+    'render for',
+    `{% render 'p' for 'a,b' | split: ',' %}`,
+    `{% render 'p' for 'a,b' %}`,
+    ['split'],
+  ],
+  [
+    'case subject',
+    `{% case 'a' | upcase %}{% when 'A' %}y{% endcase %}`,
+    `{% case 'a' %}{% when 'A' %}y{% endcase %}`,
+    ['upcase'],
+  ],
+  [
+    'when',
+    `{% case 'a' %}{% when 'a' | downcase %}y{% endcase %}`,
+    `{% case 'a' %}{% when 'a' %}y{% endcase %}`,
+    ['downcase'],
+  ],
+  ['cycle', `{% cycle 'a' | upcase, 'b' %}`, `{% cycle 'a', 'b' %}`, ['upcase']],
+  // TRAILING filters. The converter accepts all four, so blocking them was a false block —
+  // `background` had no trailing `liquidFilter*` and its argumentless spelling did not parse at
+  // all. Whether the RUNTIME honours them is a different question and a different check's job:
+  // measured, only the `graphql` FILE form does, and `FilterWithoutEffect` reports the rest.
+  [
+    'background result, with arguments',
+    `{% background j = 'p', a: 1 | dig: 'x' %}`,
+    `{% background j = 'p', a: 1 %}`,
+    ['dig'],
+  ],
+  [
+    'background result, no arguments',
+    `{% background j = 'p' | dig: 'x' %}`,
+    `{% background j = 'p' %}`,
+    ['dig'],
+  ],
+  [
+    'function result',
+    `{% function r = 'p', a: 1 | dig: 'x' %}`,
+    `{% function r = 'p', a: 1 %}`,
+    ['dig'],
+  ],
+  [
+    'graphql result',
+    `{% graphql g = 'q', a: 1 | dig: 'x' %}`,
+    `{% graphql g = 'q', a: 1 %}`,
+    ['dig'],
+  ],
+];
+
+/** Every LiquidFilter name reachable in the AST. */
+const filterNamesIn = (source: string) =>
+  visit<SourceCodeType.LiquidHtml, string>(toLiquidHtmlAST(source), {
+    async LiquidFilter(node) {
+      return node.name;
+    },
+  });
+
 describe('Module: filters in tag operands', () => {
   const offensesFor = (source: string) => runLiquidCheck(LiquidHTMLSyntaxError, source);
 
   describe('operands the converter ACCEPTS a filter in', () => {
-    const ACCEPTED: Array<[string, string]> = [
-      ['cache key', `{% cache 'k' | append: '1' %}x{% endcache %}`],
-      ['log value', `{% log 'msg' | upcase %}`],
-      ['yield', `{% yield 'slot' | upcase %}`],
-      ['redirect_to url', `{% redirect_to '/p' | append: '/x' %}`],
-      ['spam_protection version', `{% spam_protection 'x' | downcase %}`],
-      ['response_headers', `{% response_headers '{}' | upcase %}`],
-      ['render with', `{% render 'p' with 'a' | upcase %}`],
-      ['render for', `{% render 'p' for 'a,b' | split: ',' %}`],
-      ['case subject', `{% case 'a' | upcase %}{% when 'A' %}y{% endcase %}`],
-      ['when', `{% case 'a' %}{% when 'a' | downcase %}y{% endcase %}`],
-      ['cycle', `{% cycle 'a' | upcase, 'b' %}`],
-    ];
-
-    for (const [label, source] of ACCEPTED) {
+    for (const [label, filtered] of ACCEPTED) {
       it(`says nothing about a filter in the ${label}`, async () => {
-        expect(await offensesFor(source)).toEqual([]);
+        expect(await offensesFor(filtered)).toEqual([]);
       });
     }
 
     it('still parses every one of them WITHOUT a filter', async () => {
-      // The control for the whole group. A grammar change wide enough to accept anything
-      // would satisfy every assertion above, so the filter-free forms are pinned too.
-      const controls = [
-        `{% cache 'k' %}x{% endcache %}`,
-        `{% log 'msg' %}`,
-        `{% yield 'slot' %}`,
-        `{% redirect_to '/p' %}`,
-        `{% spam_protection 'x' %}`,
-        `{% response_headers '{}' %}`,
-        `{% render 'p' with 'a' %}`,
-        `{% render 'p' for 'a,b' %}`,
-        `{% case 'a' %}{% when 'A' %}y{% endcase %}`,
-        `{% cycle 'a', 'b' %}`,
-      ];
+      // The control for the whole group: a grammar change wide enough to accept anything would
+      // satisfy every assertion above.
+      const found = await Promise.all(
+        ACCEPTED.map(async ([label, , filterless]) => [label, await offensesFor(filterless)]),
+      );
 
-      const offenses = await Promise.all(controls.map(offensesFor));
-      expect(offenses.map((found) => found.length)).toEqual(controls.map(() => 0));
+      expect(found).toEqual(ACCEPTED.map(([label]) => [label, []]));
     });
   });
 
@@ -90,16 +153,15 @@ describe('Module: filters in tag operands', () => {
     }
   });
 
-  it('keeps the filters in the AST, so a formatter cannot silently drop them', async () => {
-    // THE PROPERTY THAT MADE THIS SAFE TO DO AT ALL. The prettier plugin regenerates source
-    // from the AST rather than editing text, so a filter the AST does not carry is a filter
-    // deleted from the author's file on the next format — silently, with no error.
-    //
-    // Before this change the markup was a raw STRING and the printer emitted it verbatim,
-    // so formatting preserved it. The wrapper reuses the SAME LiquidVariable node `{{ }}`
-    // and `{% assign %}` produce, which the printer already knows how to print, so the
-    // guarantee survives. `prettier-plugin-liquid` round-trips all eleven constructs.
-    const ast = (await offensesFor(`{% cache 'k' | append: '1' %}x{% endcache %}`)).length;
-    expect(ast).toBe(0);
+  it('keeps every accepted filter reachable in the AST, so the printer cannot drop it', async () => {
+    // The prettier plugin regenerates source from the AST, so a filter the AST does not carry
+    // is a filter deleted from the author's file on the next format — silently, with no error.
+    // The offense counts above cannot see this: a construct whose markup degrades to a raw
+    // string reports no syntax error either, and the printer emits raw strings verbatim.
+    const found = await Promise.all(
+      ACCEPTED.map(async ([label, filtered]) => [label, await filterNamesIn(filtered)]),
+    );
+
+    expect(found).toEqual(ACCEPTED.map(([label, , , filters]) => [label, filters]));
   });
 });

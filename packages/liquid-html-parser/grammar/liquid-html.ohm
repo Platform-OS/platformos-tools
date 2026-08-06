@@ -232,7 +232,8 @@ Liquid <: Helpers {
 
   // platformos simple tags
   liquidTagBackground = liquidTagRule<"background", liquidTagBackgroundMarkup>
-  liquidTagBackgroundMarkup = variableSegment space* "=" space* partialExpression renderArguments
+  // Same shape as `function` above — see `resultFilterRenderArguments`.
+  liquidTagBackgroundMarkup = variableSegment space* "=" space* partialExpression resultFilterRenderArguments liquidFilter<delimTag>* space*
 
   liquidTagOpenBackground = liquidTagOpenRule<"background", liquidTagBackgroundInlineMarkup>
   // Block form: only named arguments, no result variable (matches Ruby inline syntax)
@@ -315,12 +316,16 @@ Liquid <: Helpers {
   liquidTagRollback = liquidTagRule<"rollback", empty>
 
   renderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space*
-  // For a tag that assigns a RESULT and carries its own trailing `liquidFilter*`, a filter
-  // after the last argument belongs to the RESULT, not to the argument — `{% function res =
-  // 'p', arg: 3 | dig: 'results' %}` digs the function's result. That filter is real and
-  // APPLIED, unlike an argument-level one, so these arguments deliberately stay filterless:
-  // a filtered argument value would win the PEG ordered choice and silently steal it.
-  // Only `function` needs this; graphql has its own `graphqlRenderArguments` path.
+  // Filterless arguments, so that a filter written after the last argument lands on the MARKUP
+  // node rather than being absorbed into the argument — a filtered argument value would win the
+  // PEG ordered choice and silently steal it.
+  //
+  // This is a PARSING choice, not a claim about the runtime. Measured, `function` and
+  // `background` do NOT filter their result: the trailing filter binds to the last argument and
+  // is discarded unless that argument is a JSON literal. Parking it on the markup keeps the
+  // author's text round-trippable by the printer and gives `FilterWithoutEffect` one node to
+  // report — do not read `FunctionMarkup.filters` as "a result filter".
+  // Used by `function` and `background`; graphql has its own `graphqlRenderArguments` path.
   resultFilterRenderArguments = (argumentSeparatorOptionalComma filterlessTagArguments) (space* ",")? space*
   completionModeRenderArguments = (argumentSeparatorOptionalComma tagArguments) (space* ",")? space* (argumentSeparator? liquidVariableLookup<delimTag> space*)?
   partialExpression = liquidString<delimTag> | liquidVariableLookup<delimTag>

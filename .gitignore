@@ -7,6 +7,7 @@ coverage
 dawn
 dist
 node_modules
+packages/**/*.vsix
 packages/**/standalone.*
 packages/node/src/theme-liquid-docs
 standalone.js

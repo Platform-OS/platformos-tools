@@ -86,8 +86,12 @@ impact
 WHAT IS ACTUALLY CHECKED
   Liquid  - syntax, unknown filters and tags, filters called with the wrong number
             of arguments, missing partials/assets, render arguments against
-            {% doc %}, layout correctness, and more. Three that block and are easy
-            to trip over: a JSON literal in {% assign %} must use DOUBLE quotes
+            {% doc %}, layout correctness, and more. Four that block and are easy
+            to trip over: inside {% liquid %}, the FIRST %} ends the block wherever
+            it appears — in a comment or a string alike — so the statements after
+            it never run and are rendered to the page as text, with no error at any
+            layer. Build the sequence instead: assign s = "a %" | append: "} b".
+            Next, a JSON literal in {% assign %} must use DOUBLE quotes
             ({'k': 1} is rejected by the deploy converter, failing the whole
             changeset); a write through a subscript — {% assign h['k'] = v %}, or
             the deprecated {% hash_assign %} — needs a Hash with a key or an Array

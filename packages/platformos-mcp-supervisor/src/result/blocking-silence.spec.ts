@@ -532,6 +532,49 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     },
   ],
 
+  TruncatedLiquidBlock: [
+    // The near-misses of the emission fixture. Each was rendered on a live instance and
+    // produced its expected output, with none of the block's own source in the body.
+    {
+      name: 'the same block with no %} in its comment',
+      filePath: PAGE,
+      content: `{% liquid
+  # a comment mentioning the closing sequence
+  assign d = 21 | times: 2
+%}R=[{{ d }}]
+`,
+      oracle: 'runtime',
+    },
+    {
+      name: 'a trailing comment on its own line, the commonest valid shape',
+      filePath: PAGE,
+      content: `{% liquid
+  assign x = 1
+  # done
+%}OK[{{ x }}]
+`,
+      oracle: 'runtime',
+    },
+    {
+      // The false positive a stranded-delimiter rule would produce on its own: a valid
+      // block followed by prose that merely mentions the sequence.
+      name: 'a valid block followed by page text containing %}',
+      filePath: PAGE,
+      content: `{% liquid
+  assign x = 1
+%}OK[{{ x }}] write %} to close a tag
+`,
+      oracle: 'runtime',
+    },
+    {
+      name: 'a comment-only block, which swallows its delimiter but loses nothing',
+      filePath: PAGE,
+      content: `{% liquid # just a note %}OK
+`,
+      oracle: 'runtime',
+    },
+  ],
+
   MissingRenderPartialArguments: [
     {
       name: 'passes the required parameter',
@@ -659,6 +702,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       GraphQLCheck: 2,
       GraphQLVariablesCheck: 1,
       InvalidHashAssignTarget: 9,
+      TruncatedLiquidBlock: 4,
       MissingRenderPartialArguments: 1,
       MissingContentForLayout: 1,
     });
@@ -686,6 +730,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       GraphQLCheck: ['schema'],
       GraphQLVariablesCheck: ['by-construction'],
       InvalidHashAssignTarget: ['by-construction', 'runtime'],
+      TruncatedLiquidBlock: ['runtime'],
       MissingRenderPartialArguments: ['by-construction'],
       MissingContentForLayout: ['by-construction'],
     });

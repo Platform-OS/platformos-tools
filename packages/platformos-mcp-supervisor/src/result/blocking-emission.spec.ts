@@ -140,6 +140,21 @@ const EMITS: Record<string, EmissionFixture> = {
     errors: ['MissingContentForLayout'],
   },
 
+  TruncatedLiquidBlock: {
+    // A `%}` inside the block's own comment ends it. Measured: HTTP 200, the `assign`
+    // never runs, and the block's remaining source is rendered into the body. The
+    // buffer deliberately does NOT go on to output the lost variable — that would
+    // draw an incidental `UndefinedObject` and let this fixture pass on the wrong
+    // finding, which is how the defect hid from the linter in the first place.
+    filePath: PAGE,
+    content: `{% liquid
+  # a comment mentioning %} the closing sequence
+  assign d = 21 | times: 2
+%}
+`,
+    errors: ['TruncatedLiquidBlock'],
+  },
+
   MissingRenderPartialArguments: {
     // A DOCUMENTED partial: the `{% doc %}` block is an explicit contract, and this
     // blocking check owns it ALONE. `PartialCallArguments` deliberately does not fire

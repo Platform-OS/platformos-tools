@@ -46,6 +46,7 @@ import { MissingPage } from './missing-page';
 import { ValidFrontmatter } from './valid-frontmatter';
 import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
+import { TruncatedLiquidBlock } from './truncated-liquid-block';
 import { YAMLSyntaxError } from './yaml-syntax-error';
 
 export const allChecks: (
@@ -91,6 +92,7 @@ export const allChecks: (
   ValidFrontmatter,
   JsonLiteralQuoteStyle,
   MissingContentForLayout,
+  TruncatedLiquidBlock,
   YAMLSyntaxError,
 ];
 

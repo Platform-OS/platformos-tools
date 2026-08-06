@@ -833,17 +833,28 @@ describe('server instructions', () => {
       jsonLiteral: SERVER_INSTRUCTIONS.includes('must use DOUBLE quotes'),
       hashAssign: SERVER_INSTRUCTIONS.includes('needs a Hash with a key or an Array'),
       yamlParse: SERVER_INSTRUCTIONS.includes('one that does not parse is reported and blocks'),
+      truncatedLiquid: SERVER_INSTRUCTIONS.includes('the FIRST %} ends the block'),
       backedBy: [
         BLOCKING_CHECKS.has('JsonLiteralQuoteStyle'),
         BLOCKING_CHECKS.has('InvalidHashAssignTarget'),
         BLOCKING_CHECKS.has('YAMLSyntaxError'),
+        BLOCKING_CHECKS.has('TruncatedLiquidBlock'),
       ],
     }).toEqual({
       jsonLiteral: true,
       hashAssign: true,
       yamlParse: true,
-      backedBy: [true, true, true],
+      truncatedLiquid: true,
+      backedBy: [true, true, true, true],
     });
+  });
+
+  it('gives the truncated-block remedy that was MEASURED to work', () => {
+    // A remedy that does not work is worse than none, and this one is not guessable: a
+    // literal %} cannot appear in ANY Liquid string — it truncates in {% liquid %}, truncates
+    // in a standalone {% assign %}, and raises in {{ }}. Composition is the only spelling
+    // there is, so the instructions have to carry it rather than say "avoid %}".
+    expect(SERVER_INSTRUCTIONS).toContain('assign s = "a %" | append: "} b"');
   });
 
   it('describes the size refusal in terms of BOTH bounds it can come from', () => {

@@ -85,6 +85,9 @@ ReservedVariableName:
 TranslationKeyExists:
   enabled: true
   severity: 0
+TruncatedLiquidBlock:
+  enabled: true
+  severity: 0
 UnclosedHTMLElement:
   enabled: true
   severity: 1

@@ -112,6 +112,7 @@ describe('Unit: blocksWrite', () => {
       'MissingContentForLayout',
       'MissingPartial',
       'MissingRenderPartialArguments',
+      'TruncatedLiquidBlock',
       'UnknownFilter',
       'YAMLSyntaxError',
     ]);

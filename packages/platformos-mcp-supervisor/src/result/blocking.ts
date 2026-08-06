@@ -145,6 +145,27 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // content, so one that cannot is a defeated contract — and a silently blank page
   // is harder to diagnose than an error.
   'MissingContentForLayout',
+
+  // A `{% liquid %}` block ending at a `%}` inside its own comment or string. The
+  // same shape as the entry above, and admitted for the same reason. Measured:
+  // `liquid_exec` answers `ok: true, error: null` and the page returns HTTP 200 —
+  // with the statements after the delimiter never run and the block's own SOURCE in
+  // the response body.
+  //
+  // This is not the "visibly wrong, still a working page" class it first looks like.
+  // `ReservedVariableName` renders a page that still does its job; here the author's
+  // logic does not execute at all, a `function` partial returns nothing, and server
+  // template source is emitted to the client. What the runtime then reports points
+  // at the wrong construct — "function must return a value", against a `return`
+  // statement that is present and correct — so the author starts the search three
+  // lines away from the cause. Harder to diagnose than an error, which is precisely
+  // the bar the two entries above clear.
+  //
+  // A false block here would be the reason not to, and it was measured rather than
+  // argued: the detector fired ZERO times across 7250 real `.liquid` files holding
+  // 6274 `{% liquid %}` blocks. The construct has no legitimate use — an author who
+  // writes it has already lost the rest of the block.
+  'TruncatedLiquidBlock',
 ]);
 
 /**

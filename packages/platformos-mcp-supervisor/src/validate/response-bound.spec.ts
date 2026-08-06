@@ -147,7 +147,9 @@ describe('Integration: the response is bounded, and says so when it withholds', 
     // solving the tail at the expense of the path taken before every write.
     const result = (await runValidateCode(ctx(), {
       file_path: 'app/views/pages/index.liquid',
-      content: "{% render 'no_such_partial' %}\n{{ 'a' | no_such_filter_xyz }}\n",
+      content: `{% render 'no_such_partial' %}
+{{ 'a' | no_such_filter_xyz }}
+`,
     })) as ValidateCodeResult;
 
     expect({

@@ -417,7 +417,11 @@ describe('GraphCache: real project (integration — real buildAppGraph + fs + mt
     // incrementally (real applyFileChange) and serves the UPDATED graph
     // immediately — no `recomputing` gap. (A fresh mtime is guaranteed by
     // writing different content.)
-    write('app/views/pages/about.liquid', "{% render 'card' %}\n<h1>About</h1>");
+    write(
+      'app/views/pages/about.liquid',
+      `{% render 'card' %}
+<h1>About</h1>`,
+    );
     const second = await cache.lookup();
     if (!('graph' in second) || !second.graph) throw new Error('expected an updated graph');
     expect(dependentSources(second.graph, 'app/views/partials/card.liquid')).toEqual([

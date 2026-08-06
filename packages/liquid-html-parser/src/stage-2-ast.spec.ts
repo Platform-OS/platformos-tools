@@ -2438,7 +2438,10 @@ describe('Unit: Stage 2 (AST)', () => {
       expectPath(ast, 'children.0.body.nodes.0.type').to.eql('LiquidDocExampleNode');
       expectPath(ast, 'children.0.body.nodes.0.name').to.eql('example');
       expectPath(ast, 'children.0.body.nodes.0.content.value').to.eql(
-        'including inline code\n        This is a valid example\n        It can have multiple lines\n',
+        `including inline code
+        This is a valid example
+        It can have multiple lines
+`,
       );
 
       ast = toLiquidAST(`
@@ -2471,7 +2474,9 @@ describe('Unit: Stage 2 (AST)', () => {
       expectPath(ast, 'children.0.body.nodes.0.type').to.eql('LiquidDocExampleNode');
       expectPath(ast, 'children.0.body.nodes.0.name').to.eql('example');
       expectPath(ast, 'children.0.body.nodes.0.content.value').to.eql(
-        'This is a valid example\n        It can have multiple lines\n',
+        `This is a valid example
+        It can have multiple lines
+`,
       );
       expectPath(ast, 'children.0.body.nodes.1.type').to.eql('LiquidDocParamNode');
       expectPath(ast, 'children.0.body.nodes.1.name').to.eql('param');
@@ -2491,7 +2496,9 @@ describe('Unit: Stage 2 (AST)', () => {
       expectPath(ast, 'children.0.body.nodes.0.content.value').to.eql('This is a description\n');
       expectPath(ast, 'children.0.body.nodes.1.type').to.eql('LiquidDocDescriptionNode');
       expectPath(ast, 'children.0.body.nodes.1.content.value').to.eql(
-        'This is another description\n        it can have multiple lines\n',
+        `This is another description
+        it can have multiple lines
+`,
       );
 
       ast = toLiquidAST(`
@@ -2600,14 +2607,16 @@ describe('Unit: Stage 2 (AST)', () => {
       ast = toLiquidAST(`<script>\n  const a = {{ product | json }};\n</script>`);
 
       expectPath(ast, 'children.0.type').to.eql('TextNode');
-      expectPath(ast, 'children.0.value').to.eql('<script>\n  const a =');
+      expectPath(ast, 'children.0.value').to.eql(`<script>
+  const a =`);
     });
 
     it('should parse style tags as a text node', () => {
       ast = toLiquidAST(`<style>\n  :root { --bg: {{ settings.bg }}}\n</style>`);
 
       expectPath(ast, 'children.0.type').to.eql('TextNode');
-      expectPath(ast, 'children.0.value').to.eql('<style>\n  :root { --bg:');
+      expectPath(ast, 'children.0.value').to.eql(`<style>
+  :root { --bg:`);
     });
 
     it('should allow for dangling html open tags inside branches when the conditions are right', () => {

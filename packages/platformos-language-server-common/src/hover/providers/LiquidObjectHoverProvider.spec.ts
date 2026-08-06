@@ -81,7 +81,8 @@ describe('Module: LiquidObjectHoverProvider', async () => {
       '{{ con█text }}',
       '{{ context█ }}',
       '{% echo context█ %}',
-      '{% liquid\n echo context█ %}',
+      `{% liquid
+ echo context█ %}`,
       '{% assign x = context %}{{ x█ }}',
     ];
     for (const context of contexts) {
@@ -127,14 +128,10 @@ describe('Module: LiquidObjectHoverProvider', async () => {
   });
 
   it('offers NOTHING inside {% layout %}, which platformOS does not implement', async () => {
-    // This asserted a hover of "none: `keyword`" inside `{% layout none %}` — a feature that
-    // helped an author write a tag the platform rejects. Measured: `Unknown tag 'layout'` from
-    // both `pos-cli deploy --dry-run` and `liquid_exec`, and a converter rejection fails the
-    // WHOLE changeset, so the editor was assisting a deploy-wide failure (TASK-44).
-    //
-    // Asserted rather than deleted, because "the feature is gone" is the requirement now.
-    // platformOS selects a layout from FRONTMATTER; `FrontmatterKeyCompletionProvider` helps
-    // there, which is where it belongs.
+    // Hovering inside a tag the platform rejects assists a deploy-wide failure: measured,
+    // `Unknown tag 'layout'` from both `pos-cli deploy --dry-run` and `liquid_exec`, and a
+    // converter rejection fails the WHOLE changeset. platformOS selects a layout from
+    // FRONTMATTER; `FrontmatterKeyCompletionProvider` helps there, which is where it belongs.
     await expect(provider).to.hover(`{% layout none█ %}`, null);
     await expect(provider).to.hover('{{ none█ }}', null);
   });

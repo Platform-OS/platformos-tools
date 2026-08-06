@@ -28,7 +28,12 @@ describe('Module: YAMLSyntaxError', () => {
     }));
 
   /** Invalid: the second property sits one column left of the first sequence item. */
-  const BAD_INDENT = 'name: car\nproperties:\n - name: make\n   type: string\n  year: 1\n';
+  const BAD_INDENT = `name: car
+properties:
+ - name: make
+   type: string
+  year: 1
+`;
 
   it('reports a parse failure at the position it happened', async () => {
     expect(await offensesFor({ 'app/schema/car.yml': BAD_INDENT })).toEqual([
@@ -74,7 +79,10 @@ describe('Module: YAMLSyntaxError', () => {
     // the first would be reported if this took `errors[0]`, which is what the parse
     // layer used to do.
     const offenses = await offensesFor({
-      'app/schema/a.yml': 'en:\n  hello: [unclosed\n   bad: : :\n',
+      'app/schema/a.yml': `en:
+  hello: [unclosed
+   bad: : :
+`,
     });
 
     expect(offenses.length).toBeGreaterThan(1);
@@ -107,12 +115,23 @@ describe('Module: YAMLSyntaxError', () => {
     // degenerate. An empty translations file is common and must not be an error.
     expect(
       await offensesFor({
-        'app/schema/valid.yml': 'name: car\nproperties:\n  - name: make\n    type: string\n',
-        'app/translations/en.yml': 'en:\n  hello: Hello\n',
+        'app/schema/valid.yml': `name: car
+properties:
+  - name: make
+    type: string
+`,
+        'app/translations/en.yml': `en:
+  hello: Hello
+`,
         'app/translations/empty.yml': '',
         'app/translations/comment_only.yml': '# nothing here\n',
-        'app/transactable_types/nested.yml':
-          'name: t\nproperties:\n  - name: a\n    type: array\n    items:\n      type: string\n',
+        'app/transactable_types/nested.yml': `name: t
+properties:
+  - name: a
+    type: array
+    items:
+      type: string
+`,
       }),
     ).toEqual([]);
   });
@@ -124,7 +143,14 @@ describe('Module: YAMLSyntaxError', () => {
     // document and found several. Multi-document YAML is valid YAML, so objecting to
     // it would refuse a write over our own calling convention. `toYAMLNode` drops
     // that error specifically; this pins the decision.
-    expect(await offensesFor({ 'app/schema/multi.yml': 'name: a\n---\nname: b\n' })).toEqual([]);
+    expect(
+      await offensesFor({
+        'app/schema/multi.yml': `name: a
+---
+name: b
+`,
+      }),
+    ).toEqual([]);
   });
 
   it('still reports a real syntax error in the FIRST document of a multi-document file', async () => {
@@ -136,9 +162,14 @@ describe('Module: YAMLSyntaxError', () => {
     // `MULTIPLE_DOCS` INSTEAD OF a syntax error in document two, never alongside it
     // — so the filter loses no diagnostic that was ever available.
     expect(
-      (await offensesFor({ 'app/schema/multi.yml': 'name: [a\n---\nname: b\n' })).map(
-        (offense) => offense.message,
-      ),
+      (
+        await offensesFor({
+          'app/schema/multi.yml': `name: [a
+---
+name: b
+`,
+        })
+      ).map((offense) => offense.message),
     ).toEqual(['Flow sequence in block collection must be sufficiently indented and end with a ]']);
   });
 });
@@ -163,7 +194,11 @@ describe('Module: YAMLSyntaxError (message shape and document structure)', () =>
     );
 
   it('reports nothing for a file YAML reads cleanly', async () => {
-    expect(await messagesOf('en:\n  hello: Hello\n')).toEqual([]);
+    expect(
+      await messagesOf(`en:
+  hello: Hello
+`),
+    ).toEqual([]);
   });
 
   it("reports the parser's complaint without its trailing line/column suffix", async () => {
@@ -172,7 +207,11 @@ describe('Module: YAMLSyntaxError (message shape and document structure)', () =>
   });
 
   it('reports an unterminated string', async () => {
-    expect(await messagesOf('en:\n  hello: "unterminated\n')).toEqual(['Missing closing "quote']);
+    expect(
+      await messagesOf(`en:
+  hello: "unterminated
+`),
+    ).toEqual(['Missing closing "quote']);
   });
 
   /**
@@ -182,13 +221,23 @@ describe('Module: YAMLSyntaxError (message shape and document structure)', () =>
    * nothing.
    */
   it('does not report a trailing document terminator', async () => {
-    expect(await messagesOf('---\nen:\n  hello: Hello\n---\n')).toEqual([]);
+    expect(
+      await messagesOf(`---
+en:
+  hello: Hello
+---
+`),
+    ).toEqual([]);
   });
 
   it('reports every complaint about a file nothing else will lint, not just the first', async () => {
     // Every other YAML reader declines a file the parser complains about, so this is the
     // only diagnostic such a file gets — it has to name each problem.
-    expect(await messagesOf('pt-BR:\n  hello: :\n  bad yaml')).toEqual([
+    expect(
+      await messagesOf(`pt-BR:
+  hello: :
+  bad yaml`),
+    ).toEqual([
       'Nested mappings are not allowed in compact mappings',
       'Implicit map keys need to be followed by map values',
     ]);
@@ -205,7 +254,10 @@ describe('Module: YAMLSyntaxError (message shape and document structure)', () =>
  * matters: `DuplicateYAMLKey` reports it as a non-blocking WARNING.
  */
 describe('Module: YAMLSyntaxError (duplicate keys belong to DuplicateYAMLKey)', () => {
-  const DUPLICATED = 'en:\n  hello: Hello\n  hello: Hi\n';
+  const DUPLICATED = `en:
+  hello: Hello
+  hello: Hi
+`;
 
   it('does not report a duplicated mapping key', async () => {
     expect(await runYAMLCheck(YAMLSyntaxError, DUPLICATED, 'app/translations/en.yml')).toEqual([]);
@@ -215,7 +267,12 @@ describe('Module: YAMLSyntaxError (duplicate keys belong to DuplicateYAMLKey)', 
     expect(
       await runYAMLCheck(
         YAMLSyntaxError,
-        '---\nen:\n  hello: Hello\n  hello: Hi\n---\n',
+        `---
+en:
+  hello: Hello
+  hello: Hi
+---
+`,
         'app/translations/en.yml',
       ),
     ).toEqual([]);

@@ -46,12 +46,10 @@ describe('assets are held by the app and never linted', () => {
    * just as the literal prefix `app/assets/`.
    */
   const PROJECT: Tree = {
-    '.platformos-check.yml': [
-      'extends: platformos-check:nothing',
-      'LiquidHTMLSyntaxError:',
-      '  enabled: true',
-      '',
-    ].join('\n'),
+    '.platformos-check.yml': `extends: platformos-check:nothing
+LiquidHTMLSyntaxError:
+  enabled: true
+`,
     app: {
       assets: {
         'x.liquid': BROKEN,

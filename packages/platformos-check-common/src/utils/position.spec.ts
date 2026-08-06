@@ -38,20 +38,30 @@ const theirs = (source: string) => {
 const SOURCES: Record<string, string> = {
   empty: '',
   'no terminator at all': 'a: 1',
-  'LF, trailing': 'a: 1\nb: 2\n',
-  'LF, no trailing': 'a: 1\nb: 2',
+  'LF, trailing': `a: 1
+b: 2
+`,
+  'LF, no trailing': `a: 1
+b: 2`,
   'CRLF, trailing': 'a: 1\r\nb: 2\r\n',
   'CRLF, no trailing': 'a: 1\r\nb: 2',
   'lone CR (classic Mac)': 'a: 1\rb: 2\r',
   'mixed CRLF and LF': 'a: 1\r\nb: 2\nc: 3\r\n',
-  'consecutive blank lines': 'a\n\n\nb',
+  'consecutive blank lines': `a
+
+
+b`,
   'consecutive blank CRLF lines': 'a\r\n\r\n\r\nb',
   'terminator only': '\n',
   'CRLF terminator only': '\r\n',
   'CR then LF as separate lines': '\n\r',
   'leading BOM': '﻿a: 1\n',
-  'astral plane characters': 'a: "😀😀"\nb: 2\n',
-  'combining marks': 'a: "éé"\nb: 2\n',
+  'astral plane characters': `a: "😀😀"
+b: 2
+`,
+  'combining marks': `a: "éé"
+b: 2
+`,
   'trailing whitespace before CRLF': 'a: 1   \r\n',
 };
 
@@ -68,6 +78,10 @@ describe('Unit: getPosition', () => {
     // previous implementation counted the carriage return as a sixth character and
     // reported the `\n` at column 6, a column the line does not have. Under LF the
     // same construct always reported 5, which is why LF and CRLF now agree.
+    // Both stay ESCAPED. The space before the terminator is the fifth character and
+    // therefore load-bearing; a template literal would put it at the end of a source
+    // line, where any editor that trims trailing whitespace silently rewrites the
+    // fixture into a different one.
     const crlf = '{{ x \r\n{{ y';
     const lf = '{{ x \n{{ y';
 
@@ -127,7 +141,8 @@ describe('Unit: getPosition', () => {
   it('stays correct when sources are interleaved, so the line-start memo cannot go stale', () => {
     // The memo is keyed on string identity and rebuilt on a miss. Alternating between
     // two shapes with DIFFERENT line structure is what a stale entry would break.
-    const short = 'a\nb';
+    const short = `a
+b`;
     const long = 'aaaa\r\nbbbb\r\ncccc';
 
     expect([
@@ -148,7 +163,9 @@ describe('Unit: getOffset', () => {
   it('reads 1-based line and column, matching the parser that produces them', () => {
     // Kept deliberately separate from `getPosition`: this speaks the parser's
     // convention, not the LSP's, and the two must not be assumed to be inverses.
-    const source = 'a: 1\nbb: 2\n';
+    const source = `a: 1
+bb: 2
+`;
 
     expect([getOffset(source, 1, 1), getOffset(source, 2, 1), getOffset(source, 2, 3)]).toEqual([
       0, 5, 7,

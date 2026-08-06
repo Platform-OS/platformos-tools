@@ -488,13 +488,18 @@ describe('App.fromSources', () => {
       ROOT,
       {
         'app/views/partials/card.liquid': '<b>card</b>',
-        'app/translations/en.yml': 'en:\n  hi: Hi',
+        'app/translations/en.yml': `en:
+  hi: Hi`,
       },
       explodingFs,
       trivialParsers(),
     );
 
-    expect(app.all().map((file) => file.source)).toEqual(['<b>card</b>', 'en:\n  hi: Hi']);
+    expect(app.all().map((file) => file.source)).toEqual([
+      '<b>card</b>',
+      `en:
+  hi: Hi`,
+    ]);
     expect(app.get(uri('app/views/partials/card.liquid'))!.ast).toEqual({
       kind: 'liquid',
       source: '<b>card</b>',

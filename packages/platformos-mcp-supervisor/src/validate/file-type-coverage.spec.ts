@@ -56,7 +56,12 @@ interface Examined {
 const NOT_ADMITTED = Symbol('not admitted');
 
 const BROKEN_LIQUID = "{{ 'a' | no_such_filter_zzz }}\n";
-const BROKEN_YAML = 'name: car\nproperties:\n - name: make\n   type: string\n  year: 1\n';
+const BROKEN_YAML = `name: car
+properties:
+ - name: make
+   type: string
+  year: 1
+`;
 const BROKEN_GRAPHQL = 'query { no_such_root_field { id } }\n';
 
 const COVERAGE: Record<PlatformOSFileType, Examined | typeof NOT_ADMITTED> = {

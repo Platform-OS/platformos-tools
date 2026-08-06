@@ -22,7 +22,9 @@ import { getPosition } from '../utils/position';
  */
 describe('Unit: normalizeLoneCarriageReturns', () => {
   it('leaves a source with no carriage return exactly as it was', async () => {
-    const source = 'a: 1\nb: 2\n';
+    const source = `a: 1
+b: 2
+`;
 
     // Same reference, not merely equal: this runs on every YAML file in a project and
     // the common case must not allocate.
@@ -36,7 +38,16 @@ describe('Unit: normalizeLoneCarriageReturns', () => {
       // Mixed in one file — the CRLF survives, the lone CR does not.
       normalizeLoneCarriageReturns('a: 1\r\nb: 2\rc: 3\n'),
       normalizeLoneCarriageReturns('en:\r  key: hello\r'),
-    ]).toEqual(['a: 1\nb: 2\n', 'a: 1\r\nb: 2\r\n', 'a: 1\r\nb: 2\nc: 3\n', 'en:\n  key: hello\n']);
+    ]).toEqual([
+      `a: 1
+b: 2
+`,
+      'a: 1\r\nb: 2\r\n',
+      'a: 1\r\nb: 2\nc: 3\n',
+      `en:
+  key: hello
+`,
+    ]);
   });
 
   it('never changes the length, which is what keeps every diagnostic offset valid', async () => {
@@ -48,7 +59,9 @@ describe('Unit: normalizeLoneCarriageReturns', () => {
       'a: 1\r\nb: 2\rc: 3\n',
       '\r\r\r',
       'en:\r  key: hello\r',
-      'a: 1\nb: 2\n',
+      `a: 1
+b: 2
+`,
     ];
 
     expect(sources.map((source) => normalizeLoneCarriageReturns(source).length)).toEqual(

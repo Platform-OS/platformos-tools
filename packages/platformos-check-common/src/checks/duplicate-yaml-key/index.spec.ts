@@ -42,7 +42,11 @@ describe('Module: DuplicateYAMLKey', () => {
     // The range covers `name: car` — the entry that does nothing — rather than the one
     // that wins. Anchoring on the later occurrence would point the author at the working
     // value and invite them to delete it.
-    expect(await offensesFor('name: car\nname: van\n')).toEqual([
+    expect(
+      await offensesFor(`name: car
+name: van
+`),
+    ).toEqual([
       {
         message: discarded('name', 2),
         start: { line: 0, character: 0 },
@@ -52,7 +56,12 @@ describe('Module: DuplicateYAMLKey', () => {
   });
 
   it('reports a duplicate nested inside a property', async () => {
-    expect(await offensesFor('properties:\n  make: ford\n  make: audi\n')).toEqual([
+    expect(
+      await offensesFor(`properties:
+  make: ford
+  make: audi
+`),
+    ).toEqual([
       {
         message: discarded('make', 3),
         start: { line: 1, character: 2 },
@@ -64,7 +73,12 @@ describe('Module: DuplicateYAMLKey', () => {
   it('reports a duplicate inside a sequence item', async () => {
     // Sequences hold maps, so the walk has to descend through them. Measured: this
     // resolves to `{a: 2}`, exactly like a duplicate anywhere else.
-    expect(await offensesFor('items:\n  - a: 1\n    a: 2\n')).toEqual([
+    expect(
+      await offensesFor(`items:
+  - a: 1
+    a: 2
+`),
+    ).toEqual([
       {
         message: discarded('a', 3),
         start: { line: 1, character: 4 },
@@ -77,7 +91,12 @@ describe('Module: DuplicateYAMLKey', () => {
     // Three occurrences means two discards, and both point at the last entry rather than
     // at the next one — pairwise shadowing is accurate about the mechanism and useless
     // about the outcome, which is that only line 3 survives.
-    expect(await offensesFor('a: 1\na: 2\na: 3\n')).toEqual([
+    expect(
+      await offensesFor(`a: 1
+a: 2
+a: 3
+`),
+    ).toEqual([
       {
         message: discarded('a', 3),
         start: { line: 0, character: 0 },
@@ -98,20 +117,44 @@ describe('Module: DuplicateYAMLKey', () => {
     // resolves BOTH to boolean `true`, so `{true=>"b"}` has size 1 and the `yes:` value
     // is silently discarded. Exactly the data loss this check exists to report.
     expect([
-      (await offensesFor('yes: a\ntrue: b\n')).length,
-      (await offensesFor('on: a\ntrue: b\n')).length,
-      (await offensesFor('off: a\nfalse: b\n')).length,
+      (
+        await offensesFor(`yes: a
+true: b
+`)
+      ).length,
+      (
+        await offensesFor(`on: a
+true: b
+`)
+      ).length,
+      (
+        await offensesFor(`off: a
+false: b
+`)
+      ).length,
       // 1.1 octal: `014` is 12, so this collides too. Also missed before.
-      (await offensesFor('014: a\n12: b\n')).length,
+      (
+        await offensesFor(`014: a
+12: b
+`)
+      ).length,
       // ...while `on:` and `off:` are different booleans and must NOT collide.
-      (await offensesFor('on: a\noff: b\n')).length,
+      (
+        await offensesFor(`on: a
+off: b
+`)
+      ).length,
     ]).toEqual([1, 1, 1, 1, 0]);
   });
 
   it('reports a duplicate whose entries have no value', async () => {
     // `a:` twice is still a key written twice. There is no value to lose, but the author
     // wrote something that does nothing, which is the same defect.
-    expect(await offensesFor('a:\na:\n')).toEqual([
+    expect(
+      await offensesFor(`a:
+a:
+`),
+    ).toEqual([
       {
         message: discarded('a', 2),
         start: { line: 0, character: 0 },
@@ -122,20 +165,35 @@ describe('Module: DuplicateYAMLKey', () => {
 
   describe('legal YAML it must stay silent about', () => {
     it('says nothing about distinct keys', async () => {
-      expect(await offensesFor('name: car\nmodel: van\n')).toEqual([]);
+      expect(
+        await offensesFor(`name: car
+model: van
+`),
+      ).toEqual([]);
     });
 
     it('says nothing about the same key in DIFFERENT mappings', async () => {
       // `title` under two parents is not a duplicate — this is the single most common
       // shape in a translations file, and reporting it would make the check unusable.
-      expect(await offensesFor('en:\n  a:\n    title: one\n  b:\n    title: two\n')).toEqual([]);
+      expect(
+        await offensesFor(`en:
+  a:
+    title: one
+  b:
+    title: two
+`),
+      ).toEqual([]);
     });
 
     it('says nothing about a number key and a string key that look alike', async () => {
       // `1` and `"1"` are one key in a JS object and TWO in a Ruby Hash, and the platform
       // is the authority. Comparing by source text would report this; comparing by
       // resolved type and value does not.
-      expect(await offensesFor('1: a\n"1": b\n')).toEqual([]);
+      expect(
+        await offensesFor(`1: a
+"1": b
+`),
+      ).toEqual([]);
     });
 
     it('says nothing about a number key and a FLOAT key at the same value', async () => {
@@ -144,7 +202,11 @@ describe('Module: DuplicateYAMLKey', () => {
       //
       // JS has one number type, so an identity built from `typeof` + `String()` made
       // these identical and reported a duplicate that does not exist. Round 5 found it.
-      expect(await offensesFor('1: x\n1.0: y\n')).toEqual([]);
+      expect(
+        await offensesFor(`1: x
+1.0: y
+`),
+      ).toEqual([]);
     });
 
     it('says nothing about tokens the two parsers resolve differently', async () => {
@@ -154,22 +216,43 @@ describe('Module: DuplicateYAMLKey', () => {
       // and a string to Psych, `.inf` carries a null VALUE in npm which would collide
       // with a real `null:` key.
       expect([
-        await offensesFor('y: a\ntrue: b\n'),
-        await offensesFor('1e3: a\n1000: b\n'),
-        await offensesFor('.inf: a\nnull: b\n'),
-        await offensesFor('0X10: a\n16: b\n'),
-        await offensesFor('1:30: a\n5400: b\n'),
+        await offensesFor(`y: a
+true: b
+`),
+        await offensesFor(`1e3: a
+1000: b
+`),
+        await offensesFor(`.inf: a
+null: b
+`),
+        await offensesFor(`0X10: a
+16: b
+`),
+        await offensesFor(`1:30: a
+5400: b
+`),
       ]).toEqual([[], [], [], [], []]);
     });
 
     it('says nothing about repeated merge keys', async () => {
       // `<<` is repeatable under YAML 1.1 merge semantics and what the platform does
       // with it has NOT been measured. Silence is the safe direction until it is.
-      expect(await offensesFor('base: &b\n  x: 1\nm:\n  <<: *b\n  <<: *b\n')).toEqual([]);
+      expect(
+        await offensesFor(`base: &b
+  x: 1
+m:
+  <<: *b
+  <<: *b
+`),
+      ).toEqual([]);
     });
 
     it('says nothing about an anchor and its alias', async () => {
-      expect(await offensesFor('a: &x 1\nb: *x\n')).toEqual([]);
+      expect(
+        await offensesFor(`a: &x 1
+b: *x
+`),
+      ).toEqual([]);
     });
 
     it('says nothing about a file that does not parse, even when it ALSO has a duplicate', async () => {
@@ -181,7 +264,10 @@ describe('Module: DuplicateYAMLKey', () => {
       // there was nothing to report either way. Deleting the guard did not fail a single
       // test. The fixture now contains a real duplicate that the parser still recovers
       // enough to see, so the silence is the guard's doing rather than the input's.
-      const broken = 'a: 1\na: 2\nb: [unclosed\n';
+      const broken = `a: 1
+a: 2
+b: [unclosed
+`;
       expect(await offensesFor(broken)).toEqual([]);
 
       // The control: the file really is broken, and the duplicate really is findable —
@@ -202,10 +288,18 @@ describe('Module: DuplicateYAMLKey', () => {
     // the engine admits. Pinned as the whole set rather than one example, because a
     // routing change that quietly dropped a type is exactly the kind of gap that survives.
     const app: MockApp = {
-      'app/model_schemas/car.yml': 'name: car\nname: van\n',
-      'app/transactable_types/item.yml': 'name: car\nname: van\n',
-      'app/user_profile_types/buyer.yml': 'name: car\nname: van\n',
-      'app/translations/en/app.yml': 'name: car\nname: van\n',
+      'app/model_schemas/car.yml': `name: car
+name: van
+`,
+      'app/transactable_types/item.yml': `name: car
+name: van
+`,
+      'app/user_profile_types/buyer.yml': `name: car
+name: van
+`,
+      'app/translations/en/app.yml': `name: car
+name: van
+`,
     };
 
     expect(

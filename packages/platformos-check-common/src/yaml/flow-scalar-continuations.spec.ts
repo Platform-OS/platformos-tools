@@ -55,10 +55,34 @@ describe('Module: flow scalar continuations', () => {
    */
   describe('the indentation ladder', () => {
     const LADDER: Array<[label: string, source: string]> = [
-      ['deeper than the key', 'en:\n  k: "Hello\n    world"\n'],
-      ['aligned with the key', 'en:\n  k: "Hello\n  world"\n'],
-      ['shallower than the key', 'en:\n  k: "Hello\n world"\n'],
-      ['at column 0', 'en:\n  k: "Hello\nworld"\n'],
+      [
+        'deeper than the key',
+        `en:
+  k: "Hello
+    world"
+`,
+      ],
+      [
+        'aligned with the key',
+        `en:
+  k: "Hello
+  world"
+`,
+      ],
+      [
+        'shallower than the key',
+        `en:
+  k: "Hello
+ world"
+`,
+      ],
+      [
+        'at column 0',
+        `en:
+  k: "Hello
+world"
+`,
+      ],
     ];
 
     for (const [label, source] of LADDER) {
@@ -77,8 +101,22 @@ describe('Module: flow scalar continuations', () => {
     }
 
     it('folds a three-line scalar, and both quote styles', async () => {
-      expect(valueOfK('en:\n  k: "a\n  b\n  c"\n')).toEqual('a b c');
-      expect(valueOfK("en:\n  k: 'Hello\n  world'\n")).toEqual('Hello world');
+      expect(
+        valueOfK(`en:
+  k: "a
+  b
+  c"
+`),
+      ).toEqual('a b c');
+      expect(
+        valueOfK(`en:
+  k: 'Hello
+  world'
+`),
+      ).toEqual('Hello world');
+      // ESCAPED, unlike its two neighbours: the two spaces before the line break are
+      // what this row is about, and a template literal would park them at the end of a
+      // source line for the next whitespace trim to delete.
       expect(valueOfK('en:\n  k: "trailing  \n  x"\n')).toEqual('trailing x');
     });
   });
@@ -92,13 +130,46 @@ describe('Module: flow scalar continuations', () => {
    */
   describe('genuinely invalid YAML still fails', () => {
     const STILL_INVALID: Array<[label: string, source: string]> = [
-      ['an unterminated quote', 'en:\n  k: "Hello\n'],
-      ['an unterminated quote at end of input', 'en:\n  k: "Hello'],
-      ['an unquoted multi-line value', 'en:\n  k: Hello\n  world\n'],
+      [
+        'an unterminated quote',
+        `en:
+  k: "Hello
+`,
+      ],
+      [
+        'an unterminated quote at end of input',
+        `en:
+  k: "Hello`,
+      ],
+      [
+        'an unquoted multi-line value',
+        `en:
+  k: Hello
+  world
+`,
+      ],
       ['tab indentation', 'en:\n\tk: 1\n'],
-      ['an unclosed flow sequence', 'en:\n  k: [1, 2\n'],
-      ['a compact nested mapping', 'a: 1\nb: 2\n  c: 3\n'],
-      ['a sequence item without an indicator', 'en:\n - a: 1\n   b: 2\n  c: 3\n'],
+      [
+        'an unclosed flow sequence',
+        `en:
+  k: [1, 2
+`,
+      ],
+      [
+        'a compact nested mapping',
+        `a: 1
+b: 2
+  c: 3
+`,
+      ],
+      [
+        'a sequence item without an indicator',
+        `en:
+ - a: 1
+   b: 2
+  c: 3
+`,
+      ],
     ];
 
     for (const [label, source] of STILL_INVALID) {
@@ -118,7 +189,13 @@ describe('Module: flow scalar continuations', () => {
 
   describe('the rest of the document is still analysed', () => {
     it('keeps later keys, and more than one multi-line scalar', async () => {
-      const root = toYAMLNode('en:\n  a: "1\n  2"\n  b: "3\n  4"\n  c: 5\n') as any;
+      const root = toYAMLNode(`en:
+  a: "1
+  2"
+  b: "3
+  4"
+  c: 5
+`) as any;
       const inner = root.children[0].value;
       const byKey = Object.fromEntries(
         inner.children.map((child: any) => [child.key.value, child.value.value]),
@@ -135,8 +212,16 @@ describe('Module: flow scalar continuations', () => {
       // The offset assertion is the point. Because the substitution is byte-for-byte, the
       // duplicate's range is still an offset into the ORIGINAL source — the two scalar lines
       // above it shift the reported position by exactly two lines and nothing else.
-      const source = 'en:\n  k: "Hello\n  world"\n  dup: 1\n  dup: 2\n';
-      const withoutScalar = 'en:\n  dup: 1\n  dup: 2\n';
+      const source = `en:
+  k: "Hello
+  world"
+  dup: 1
+  dup: 2
+`;
+      const withoutScalar = `en:
+  dup: 1
+  dup: 2
+`;
 
       const found = findDuplicateKeys(source);
       const control = findDuplicateKeys(withoutScalar);
@@ -156,7 +241,11 @@ describe('Module: flow scalar continuations', () => {
     // The reconciliation must never run on a healthy file, both for cost and because a
     // needless second parse is a needless second opinion. Asserted by value equality across
     // shapes that have nothing to reconcile.
-    const root = toYAMLNode('en:\n  k: "Hello world"\n  n: 1\n  t: true\n') as any;
+    const root = toYAMLNode(`en:
+  k: "Hello world"
+  n: 1
+  t: true
+`) as any;
     const inner = root.children[0].value;
 
     expect(

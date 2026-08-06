@@ -133,14 +133,12 @@ describe('Integration: runBatchLint — CRLF and LF are indistinguishable', () =
     mkdirSync(join(projectDir, '.git'));
     writeFileSync(
       join(projectDir, '.platformos-check.yml'),
-      [
-        'extends: platformos-check:nothing',
-        'YAMLSyntaxError:',
-        '  enabled: true',
-        'LiquidHTMLSyntaxError:',
-        '  enabled: true',
-        '',
-      ].join('\n'),
+      `extends: platformos-check:nothing
+YAMLSyntaxError:
+  enabled: true
+LiquidHTMLSyntaxError:
+  enabled: true
+`,
       'utf8',
     );
   });

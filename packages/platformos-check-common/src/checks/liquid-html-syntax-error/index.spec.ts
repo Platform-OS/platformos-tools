@@ -86,8 +86,8 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     // come past this test rather than slipping through.
     //
     // `try_rc` appears because the platform registers it as an alias of `try` and it is a
-    // BLOCK, so it had to reach the grammar's `blockName` (TASK-56). `layout` is absent
-    // because platformOS has no such tag (TASK-44).
+    // BLOCK, so it reaches the grammar's `blockName`. `layout` is absent because platformOS
+    // has no such tag.
     const sourceCode = `
       <a href="abc" {%></a>
     `;

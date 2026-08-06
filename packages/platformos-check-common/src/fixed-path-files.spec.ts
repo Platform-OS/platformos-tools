@@ -18,7 +18,9 @@ describe('the fixed-path config files', () => {
   const app = {
     'app/config.yml': ['theme_search_paths:', '  - theme/dress', 'foo: <b>bar</b>', ''].join('\n'),
     'app/user.yml': ['properties:', '  - name: first_name', '    type: string', ''].join('\n'),
-    'app/translations/en.yml': 'en:\n  hello: Hello\n',
+    'app/translations/en.yml': `en:
+  hello: Hello
+`,
   };
 
   it('are classified, and are YAML sources the linter loads', () => {
@@ -78,7 +80,11 @@ describe('the fixed-path config files', () => {
   it('reports a duplicated key in a config file, not only in a translation file', async () => {
     const offenses = await check(
       {
-        'app/config.yml': 'theme_search_paths:\n  - theme/dress\nfoo: one\nfoo: two\n',
+        'app/config.yml': `theme_search_paths:
+  - theme/dress
+foo: one
+foo: two
+`,
       },
       allChecks,
     );

@@ -639,7 +639,9 @@ describe('DocumentsLocator', () => {
   describe('loadSearchPaths', () => {
     it('should load valid theme_search_paths from config', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml': 'theme_search_paths:\n  - theme/dress\n  - theme/simple',
+        'file:///project/app/config.yml': `theme_search_paths:
+  - theme/dress
+  - theme/simple`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);
@@ -682,7 +684,10 @@ describe('DocumentsLocator', () => {
 
     it('should coerce non-string entries to strings', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml': 'theme_search_paths:\n  - 123\n  - true\n  - null',
+        'file:///project/app/config.yml': `theme_search_paths:
+  - 123
+  - true
+  - null`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);
@@ -691,8 +696,9 @@ describe('DocumentsLocator', () => {
 
     it('should handle config with Liquid expressions in paths', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml':
-          'theme_search_paths:\n  - "theme/{{ context.constants.MY_THEME | default: \'custom\' }}"\n  - theme/simple',
+        'file:///project/app/config.yml': `theme_search_paths:
+  - "theme/{{ context.constants.MY_THEME | default: 'custom' }}"
+  - theme/simple`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);
@@ -713,8 +719,10 @@ describe('DocumentsLocator', () => {
 
     it('should handle config with other properties alongside theme_search_paths', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/config.yml':
-          'some_setting: true\ntheme_search_paths:\n  - theme/dress\nanother_setting: 42',
+        'file:///project/app/config.yml': `some_setting: true
+theme_search_paths:
+  - theme/dress
+another_setting: 42`,
       });
 
       const result = await loadSearchPaths(fs, rootUri);

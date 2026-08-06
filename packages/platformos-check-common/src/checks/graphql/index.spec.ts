@@ -149,7 +149,9 @@ describe('Module: GraphQLCheck', () => {
 });
 
 describe('Unit: lineToRange', () => {
-  const TEXT = 'line1\nline2\nline3';
+  const TEXT = `line1
+line2
+line3`;
 
   it('returns correct range for line 1', () => {
     expect(lineToRange(TEXT, 1)).to.eql([0, 5]); // "line1"
@@ -182,7 +184,9 @@ describe('Unit: lineToRange', () => {
   });
 
   it('does not return the whole file when line is 0', () => {
-    const longText = 'first line\nsecond line\nthird line';
+    const longText = `first line
+second line
+third line`;
     const [, end] = lineToRange(longText, 0);
     // Should be end of first line (10), not end of whole text (33)
     expect(end).to.equal(10);

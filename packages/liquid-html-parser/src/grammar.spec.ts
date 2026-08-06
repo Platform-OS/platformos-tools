@@ -234,15 +234,11 @@ describe('Unit: liquidHtmlGrammar', () => {
     });
 
     /**
-     * TASK-44. `{% layout %}` is not a platformOS tag, so the grammar must treat it exactly as
-     * it treats any name it has never heard of — no better and no worse.
-     *
-     * Two assertions that used to live in the list above claimed `{%- layout 'full-width' -%}`
-     * and `{%- layout none -%}` parse. They did, via a DEDICATED rule, and that encoded a
-     * deploy-wide FALSE APPROVAL: the parser accepted a file the converter rejects with
-     * `Unknown tag 'layout'` — failing the WHOLE changeset — and no check objected. Measured
-     * against both `--dry-run` and `liquid_exec`; platformOS selects a layout from FRONTMATTER
-     * (`layout: application`), never from a tag.
+     * `{% layout %}` is not a platformOS tag — measured against both `pos-cli deploy --dry-run`
+     * and `liquid_exec`, which answer `Unknown tag 'layout'`, and a converter rejection fails
+     * the WHOLE changeset. platformOS selects a layout from FRONTMATTER (`layout: application`).
+     * So the grammar must treat the name exactly as it treats any it has never heard of — no
+     * better and no worse — or the parser approves a file the platform rejects.
      *
      * Asserted as an EQUIVALENCE against a control name rather than as a fixed expectation per
      * mode. The modes genuinely differ — the strict grammar has no base case, so an unknown tag

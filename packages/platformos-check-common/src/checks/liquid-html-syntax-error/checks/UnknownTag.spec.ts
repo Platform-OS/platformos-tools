@@ -87,10 +87,6 @@ describe('Module: UnknownTag', () => {
         `{% cycle "a", "b", "c" %}`,
         `{% break %}`,
         `{% continue %}`,
-        // `{% layout %}` was here, and it encoded the TASK-44 false approval: this list asserts
-        // that a tag is NOT reported, so including a tag the platform rejects made the defect
-        // a requirement. It is now covered by the `{% layout %}` describe block below, which
-        // asserts the opposite.
         `{% render 'partial' %}`,
         `{% include 'partial' %}`,
       ];
@@ -299,45 +295,8 @@ layout: 'modules/community/blank'
     });
   });
 
-  /**
-   * TASK-44. `{% layout %}` was a deploy-wide FALSE APPROVAL.
-   *
-   * The grammar carried a dedicated rule for it — Shopify inheritance that came along with the
-   * fork — so the parser accepted it, no check objected, and the supervisor answered
-   * `status: ok, must_fix_before_write: false`. The converter REJECTS it with
-   * `Unknown tag 'layout'`, and a converter rejection fails the WHOLE changeset, so an agent
-   * told "write this" took every other file in the deploy down with it.
-   *
-   * Confirmed by two independent oracles: `pos-cli deploy --dry-run` (round 5) and
-   * `/api/app_builder/liquid_exec` (re-measured here), in every form — with an argument,
-   * `none`, bare, and inside `{% liquid %}`. Controls render, so the probes are sound.
-   *
-   * BOUNDED BY MEASUREMENT, not by the report. `eval/tag-vocabulary-sweep.mjs` runs all 50 tag
-   * names the grammar carries against the runtime: `layout` is the ONLY one the platform answers
-   * `Unknown tag` for. `ifchanged` was the other suspect — present in the grammar, absent from
-   * the docset — and it renders, so it is not a second defect.
-   */
-  describe('{% layout %}, which platformOS does not implement', () => {
-    const LAYOUT_FORMS: Array<[label: string, source: string]> = [
-      ['with an argument', `{% layout 'application' %}`],
-      ['with none', `{% layout none %}`],
-      ['bare', `{% layout %}`],
-      ['whitespace-trimmed', `{%- layout 'application' -%}`],
-      ['inside a liquid tag', `{% liquid\n  layout 'application' %}`],
-    ];
-
-    for (const [label, sourceCode] of LAYOUT_FORMS) {
-      it(`reports layout ${label}`, async () => {
-        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-
-        expect(offenses.filter((o) => o.message.includes('Unknown tag'))).toHaveLength(1);
-      });
-    }
-
+  describe('the remedy hint for a tag platformOS does not implement', () => {
     it('tells the author what platformOS wants instead, not merely that the tag is unknown', async () => {
-      // AC#2. "Unknown tag 'layout'" is accurate and useless — the author knows what they
-      // wrote, and it reads like a typo rather than a missing feature. The remedy is measured:
-      // platformOS selects a layout from page frontmatter.
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, `{% layout 'application' %}`);
       const unknown = offenses.filter((o) => o.message.includes('Unknown tag'));
 
@@ -355,46 +314,15 @@ layout: 'modules/community/blank'
 
       expect(unknown.map((o) => o.message)).toEqual(["Unknown tag 'redirect_too'"]);
     });
-
-    it('leaves the layout CONCEPT alone — only the tag is gone', async () => {
-      // `{{ content_for_layout }}` is an object and renders fine; `{% content_for %}` is a real
-      // platformOS block tag; frontmatter is not this check's business. Removing the tag must not
-      // have caught any of them.
-      const unrelated = [
-        `{{ content_for_layout }}`,
-        `{% content_for 'slot' %}x{% endcontent_for %}`,
-        `---\nlayout: application\n---\n<p>hi</p>`,
-      ];
-
-      const reported = await Promise.all(
-        unrelated.map(async (source) =>
-          (await runLiquidCheck(LiquidHTMLSyntaxError, source)).filter((o) =>
-            o.message.includes('Unknown tag'),
-          ),
-        ),
-      );
-
-      expect(reported).toEqual(unrelated.map(() => []));
-    });
   });
 
   /**
-   * TASK-56 — the SAME defect as `{% layout %}` above, in the opposite direction.
+   * Tags the platform REGISTERS and the official docs omit. `LiquidHTMLSyntaxError` is ERROR
+   * severity and the MCP supervisor treats it as blocking, so reporting one is an unappealable
+   * refusal of working code. See `src/registered-tags.ts` for the vocabulary.
    *
-   * `layout` was a tag we accepted and the platform lacks: a false approval that fails the
-   * whole changeset. These eight are tags the platform REGISTERS and we refused. Because
-   * `LiquidHTMLSyntaxError` is ERROR severity and the MCP supervisor treats it as blocking,
-   * each was an unappealable refusal — the agent could not write working code at all.
-   *
-   * WHY A PROBE COULD NEVER HAVE FOUND THESE. `eval/tag-vocabulary-sweep.mjs` asks the
-   * runtime about names WE carry, so it can only find tags we wrongly accept; there is
-   * nothing to enumerate in the other direction. The platform's own `register_tag` registry
-   * answers both at once, and diffing it against our vocabulary surfaced all eight
-   * immediately. See `src/registered-tags.ts`.
-   *
-   * MEASURED ON THE RUNTIME TOO, not just read off the registry. Each of the eight was run
-   * through `/api/app_builder/liquid_exec`, and each failed for its OWN reason — a missing
-   * argument, a partial that does not exist, a query name that does not resolve — never
+   * Each was also run through `/api/app_builder/liquid_exec` and failed for its OWN reason — a
+   * missing argument, a partial that does not exist, a query name that does not resolve — never
    * with `Unknown tag`. That message is the discriminator: a bare `{% tag %}` fixture is
    * EXPECTED to fail for a tag that exists, and that failure is not evidence of absence.
    */

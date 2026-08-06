@@ -54,9 +54,8 @@ describe('Module: InvalidHashAssignTarget', () => {
 
     const offenses = await check(app, [InvalidHashAssignTarget]);
     expect(offenses).toHaveLength(1);
-    // Was asserted as 'array'. A range is no longer conflated with an Array: an
-    // Array accepts `x[0] = ...` and a range was only ever measured raising, so
-    // merging them would force a guess in one direction. See VariableType.
+    // A range is not an Array here: an Array accepts `x[0] = ...` and a range was only ever
+    // measured raising, so merging them would force a guess in one direction. See VariableType.
     expect(offenses[0].message).toContain('range');
   });
 
@@ -523,10 +522,6 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
     // does not list at all, and one whose return type is a UNION (`string, nil`). A union
     // is not narrowable by measurement — the value is a string on one branch and nil on
     // the other — so it stays unknown by design rather than for want of a probe.
-    //
-    // `time` and "no return_type at all" used to be in this list. Both have since been
-    // settled against the runtime and now report; see the two tests below. That is the
-    // only reason they left, and the sweep re-measures them on every run.
     expect([
       await offensesIn(`{% assign x = 'a' | not_in_the_docset %}\n{% hash_assign x['k'] = 'v' %}`),
       await offensesIn(`{% assign x = 'a' | first_or_nil %}\n{% hash_assign x['k'] = 'v' %}`),

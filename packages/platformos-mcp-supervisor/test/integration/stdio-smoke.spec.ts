@@ -75,7 +75,8 @@ beforeAll(async () => {
     'app/views/layouts/theme.liquid',
     '<html><body>{{ content_for_layout }}</body></html>',
   );
-  writeProjectFile('app/lib/queries/list.liquid', "{% graphql r = 'noop' %}\n{% return r %}");
+  writeProjectFile('app/lib/queries/list.liquid', `{% graphql r = 'noop' %}
+{% return r %}`);
 
   transport = new StdioClientTransport({
     command: process.execPath,
@@ -397,7 +398,10 @@ describe('Integration: validate_code sees on-disk fixes without a cache-clearing
     mkdirSync(join(fixProjectDir, '.git'));
     writeFileSync(
       join(fixProjectDir, '.platformos-check.yml'),
-      ['extends: platformos-check:nothing', 'MissingPartial:', '  enabled: true', ''].join('\n'),
+      `extends: platformos-check:nothing
+MissingPartial:
+  enabled: true
+`,
       'utf8',
     );
     partialPath = join(fixProjectDir, 'app', 'views', 'partials', 'ghost.liquid');
@@ -481,7 +485,8 @@ describe('Integration: the project graph is warmed at server start', () => {
     mkdirSync(join(warmProjectDir, '.git'));
     writeFileSync(
       join(warmProjectDir, '.platformos-check.yml'),
-      ['extends: platformos-check:nothing', ''].join('\n'),
+      `extends: platformos-check:nothing
+`,
       'utf8',
     );
     // A real edge source, so there is something for the graph to be built from.

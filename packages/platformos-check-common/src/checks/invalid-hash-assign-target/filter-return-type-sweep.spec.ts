@@ -415,12 +415,10 @@ describe('Sweep: the filters this check deliberately says nothing about', () => 
     // else becomes `untyped` by falling through a `??`. That is the safe direction — a
     // missed detection, never a false block — but a NEW spelling appearing here is a
     // group of filters the check just went blind to, and it should arrive as a failure.
-    // Down to two spellings, and both are here on purpose rather than for want of a
-    // measurement. `untyped` describes values whose type depends on what was piped in —
-    // `first` of an Array of Hashes is a Hash — and `'string, nil'` is a union. No single
-    // probe can establish either, so silence stays the only safe reading. The four
-    // spellings that USED to be listed here (date, datetime, time, array of arrays) were
-    // narrowed once the runtime settled them; see DOCSET_RETURN_TYPES.
+    // Both spellings are here on purpose rather than for want of a measurement. `untyped`
+    // describes values whose type depends on what was piped in — `first` of an Array of
+    // Hashes is a Hash — and `'string, nil'` is a union. No single probe can establish
+    // either, so silence stays the only safe reading. See DOCSET_RETURN_TYPES.
     expect(UNTYPED_RETURN_TYPE_SPELLINGS).toEqual({
       'string, nil': ['l', 'localize'],
       untyped: [

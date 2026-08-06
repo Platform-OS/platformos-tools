@@ -33,8 +33,14 @@ describe('Module: YAMLSyntaxError — duplicate keys are accepted, as the platfo
     }));
 
   /** Both duplicate shapes the evaluation deployed and the converter accepted. */
-  const TOP_LEVEL_DUPLICATE = 'name: car\nname: van\n';
-  const NESTED_DUPLICATE = 'name: car\nproperties:\n  make: ford\n  make: audi\n';
+  const TOP_LEVEL_DUPLICATE = `name: car
+name: van
+`;
+  const NESTED_DUPLICATE = `name: car
+properties:
+  make: ford
+  make: audi
+`;
 
   /**
    * Every admitted YAML file type. ONE extension, because there is only one:
@@ -76,7 +82,10 @@ describe('Module: YAMLSyntaxError — duplicate keys are accepted, as the platfo
     // the case where a too-broad suppression would hide one.
     expect(
       await offensesFor({
-        'app/schema/both.yml': 'name: car\nname: van\nproperties: [unclosed\n',
+        'app/schema/both.yml': `name: car
+name: van
+properties: [unclosed
+`,
       }),
     ).toEqual([
       {
@@ -94,7 +103,11 @@ describe('Module: YAMLSyntaxError — duplicate keys are accepted, as the platfo
     // cannot rot the same way — schema SHAPE is deliberately not validated here.
     expect(
       await offensesFor({
-        'app/schema/unknown.yml': 'name: car\nnot_a_real_property: 1\nproperties:\n  make: ford\n',
+        'app/schema/unknown.yml': `name: car
+not_a_real_property: 1
+properties:
+  make: ford
+`,
       }),
     ).toEqual([]);
   });
@@ -119,8 +132,13 @@ describe('Module: MatchingTranslations — a duplicate key does not empty a loca
   it('reports nothing when the reference locale repeats a key', async () => {
     expect(
       await messagesFor({
-        'app/translations/en.yml': 'en:\n  hello: Hello\n  hello: Again\n',
-        'app/translations/fr.yml': 'fr:\n  hello: Bonjour\n',
+        'app/translations/en.yml': `en:
+  hello: Hello
+  hello: Again
+`,
+        'app/translations/fr.yml': `fr:
+  hello: Bonjour
+`,
       }),
     ).toEqual([]);
   });
@@ -130,8 +148,13 @@ describe('Module: MatchingTranslations — a duplicate key does not empty a loca
     // and was told the translation for it was missing.
     expect(
       await messagesFor({
-        'app/translations/en.yml': 'en:\n  hello: Hello\n',
-        'app/translations/fr.yml': 'fr:\n  hello: Bonjour\n  hello: Salut\n',
+        'app/translations/en.yml': `en:
+  hello: Hello
+`,
+        'app/translations/fr.yml': `fr:
+  hello: Bonjour
+  hello: Salut
+`,
       }),
     ).toEqual([]);
   });
@@ -139,8 +162,14 @@ describe('Module: MatchingTranslations — a duplicate key does not empty a loca
   it('reports nothing when both locales repeat a key', async () => {
     expect(
       await messagesFor({
-        'app/translations/en.yml': 'en:\n  hello: Hello\n  hello: Again\n',
-        'app/translations/fr.yml': 'fr:\n  hello: Bonjour\n  hello: Salut\n',
+        'app/translations/en.yml': `en:
+  hello: Hello
+  hello: Again
+`,
+        'app/translations/fr.yml': `fr:
+  hello: Bonjour
+  hello: Salut
+`,
       }),
     ).toEqual([]);
   });
@@ -150,8 +179,15 @@ describe('Module: MatchingTranslations — a duplicate key does not empty a loca
     // had simply stopped working.
     expect(
       await messagesFor({
-        'app/translations/en.yml': 'en:\n  hello: Hello\n  hello: Again\n  bye: Bye\n',
-        'app/translations/fr.yml': 'fr:\n  hello: Bonjour\n  hello: Salut\n',
+        'app/translations/en.yml': `en:
+  hello: Hello
+  hello: Again
+  bye: Bye
+`,
+        'app/translations/fr.yml': `fr:
+  hello: Bonjour
+  hello: Salut
+`,
       }),
     ).toEqual([
       { uri: 'app/translations/fr.yml', message: "The translation for 'bye' is missing" },

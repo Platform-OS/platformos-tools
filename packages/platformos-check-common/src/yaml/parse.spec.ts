@@ -38,7 +38,11 @@ describe('Unit: toYAMLNode failure contract', () => {
   });
 
   it('reports every failure the parser recovered from, in source order', () => {
-    const failures = failuresFor('en:\n  hello: [unclosed\n   bad: : :\n') ?? [];
+    const failures =
+      failuresFor(`en:
+  hello: [unclosed
+   bad: : :
+`) ?? [];
 
     // Taking `errors[0]` was the previous behaviour, and it hides genuinely
     // independent problems in a document the parser kept reading.
@@ -77,12 +81,22 @@ describe('Unit: toYAMLNode failure contract', () => {
     // the author making a mistake — multi-document YAML is valid YAML, and the first
     // document still parses. Reporting it would put a false BLOCK on every such file
     // for a reason no author could act on except by restructuring valid input.
-    expect(failuresFor('name: a\n---\nname: b\n')).toEqual(null);
+    expect(
+      failuresFor(`name: a
+---
+name: b
+`),
+    ).toEqual(null);
   });
 
   it('still reports a real failure in the first document of a multi-document file', () => {
     // Dropping `MULTIPLE_DOCS` must not drop everything alongside it.
-    expect(failuresFor('name: [a\n---\nname: b\n')).toEqual([
+    expect(
+      failuresFor(`name: [a
+---
+name: b
+`),
+    ).toEqual([
       {
         message: 'Flow sequence in block collection must be sufficiently indented and end with a ]',
         offset: 9,
@@ -95,8 +109,17 @@ describe('Unit: toYAMLNode failure contract', () => {
     // `uniqueKeys: false`. The library defaults it to `true` and raises
     // `DUPLICATE_KEY`, which reached the blocking gate — while the converter accepts
     // a repeated key and resolves it last-wins.
-    expect(failuresFor('a: 1\na: 2\n')).toEqual(null);
-    expect(failuresFor('top:\n  a: 1\n  a: 2\n')).toEqual(null);
+    expect(
+      failuresFor(`a: 1
+a: 2
+`),
+    ).toEqual(null);
+    expect(
+      failuresFor(`top:
+  a: 1
+  a: 2
+`),
+    ).toEqual(null);
   });
 
   it('keeps BOTH pairs of a repeated key in the node tree', () => {
@@ -104,7 +127,9 @@ describe('Unit: toYAMLNode failure contract', () => {
     // survives, in source order, so a check walking the tree sees exactly what the
     // author wrote — and a reader resolving to a single value takes the last, which
     // is what the platform does.
-    const node = toYAMLNode('a: 1\na: 2\n') as ObjectNode;
+    const node = toYAMLNode(`a: 1
+a: 2
+`) as ObjectNode;
 
     expect(
       node.children.map((property) => [property.key.value, (property.value as LiteralNode).value]),
@@ -118,11 +143,19 @@ describe('Unit: toYAMLNode failure contract', () => {
     // Including the two that look degenerate: an empty file and a comment-only file
     // are both common and both valid.
     for (const source of [
-      'name: car\nproperties:\n  - name: make\n    type: string\n',
-      'en:\n  hello: Hello\n',
+      `name: car
+properties:
+  - name: make
+    type: string
+`,
+      `en:
+  hello: Hello
+`,
       '',
       '# nothing here\n',
-      'a: 1\n...\n',
+      `a: 1
+...
+`,
     ]) {
       expect(failuresFor(source)).toEqual(null);
     }

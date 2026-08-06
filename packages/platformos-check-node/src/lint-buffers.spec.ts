@@ -42,12 +42,10 @@ describe('Integration: lintBuffers', () => {
 
   beforeEach(async () => {
     workspace = await makeTempWorkspace({
-      '.platformos-check.yml': [
-        'extends: platformos-check:nothing',
-        'MissingPartial:',
-        '  enabled: true',
-        '',
-      ].join('\n'),
+      '.platformos-check.yml': `extends: platformos-check:nothing
+MissingPartial:
+  enabled: true
+`,
       app: {
         views: {
           pages: { 'index.liquid': "{% render 'card' %}" },
@@ -243,14 +241,12 @@ describe('Integration: lintBuffers reports what it did NOT check', () => {
 
   beforeEach(async () => {
     workspace = await makeTempWorkspace({
-      '.platformos-check.yml': [
-        'ignore:',
-        '  - app/views/pages/vendor/**',
-        'extends: platformos-check:nothing',
-        'MissingPartial:',
-        '  enabled: true',
-        '',
-      ].join('\n'),
+      '.platformos-check.yml': `ignore:
+  - app/views/pages/vendor/**
+extends: platformos-check:nothing
+MissingPartial:
+  enabled: true
+`,
       app: {
         assets: { 'app.js': 'console.log(1);' },
         views: {
@@ -307,12 +303,10 @@ describe('Integration: lintBuffers reports what it did NOT check', () => {
     // Without this the assertion above would also pass if the file simply had nothing
     // to report — the silence has to be caused by the `ignore` list.
     const permissive = await makeTempWorkspace({
-      '.platformos-check.yml': [
-        'extends: platformos-check:nothing',
-        'MissingPartial:',
-        '  enabled: true',
-        '',
-      ].join('\n'),
+      '.platformos-check.yml': `extends: platformos-check:nothing
+MissingPartial:
+  enabled: true
+`,
       app: { views: { pages: { vendor: { 'legacy.liquid': "{% render 'gone' %}" } } } },
     });
     try {

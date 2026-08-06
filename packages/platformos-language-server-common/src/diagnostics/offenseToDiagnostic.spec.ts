@@ -58,6 +58,9 @@ describe('Module: offenseToDiagnostic', () => {
     // end-of-line insertion point. Under CRLF it used to be 6 — one past a line that
     // has no sixth character. VS Code hid it by clamping on render; the supervisor,
     // which has no clamp, published the impossible column.
+    // Both stay ESCAPED: the space before the terminator is the fifth character, and a
+    // template literal would leave it at the end of a source line where a whitespace
+    // trim would silently rewrite the fixture.
     const crlf = '{{ x \r\n{{ y';
     const lf = '{{ x \n{{ y';
 

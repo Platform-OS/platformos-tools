@@ -461,17 +461,6 @@ async function buildSymbolsTable(
           range: [node.position.start],
         };
       }
-      // NO `layout` BRANCH. This used to introduce `none` as a keyword inside
-      // `{% layout none %}`, which drove hover and completion for it — and platformOS has no
-      // `layout` tag. Measured: `Unknown tag 'layout'` from both `--dry-run` and `liquid_exec`,
-      // and a converter rejection fails the WHOLE changeset. So the editor was autocompleting
-      // an author into a deploy-wide failure, which is worse than offering nothing.
-      //
-      // TASK-44 removed the grammar rule, so the markup is now an unparsed string and there is
-      // no identifier node here for this to describe. Removing it is therefore both correct and
-      // necessary — it could not fire again. platformOS selects a layout from FRONTMATTER, and
-      // `FrontmatterKeyCompletionProvider` already completes layout NAMES there, which is where
-      // the help belongs.
       // Everything that assigns a SHAPE — `{% parse_json %}`, `{% graphql %}` (inline
       // and file-based), `{% hash_assign %}`, `{% function %}` — is one question now,
       // asked of the analyzer that already walked this file.

@@ -110,10 +110,9 @@ describe('Module: ObjectCompletionProvider', async () => {
   });
 
   it('offers no completion inside {% layout %}, which platformOS does not implement', async () => {
-    // `['{% layout non█ %}', 'none']` used to sit in the contextual-variables table below.
-    // Completing it walked an author into `Unknown tag 'layout'`, which the converter rejects
-    // and which fails the WHOLE changeset (TASK-44). The layout name belongs in frontmatter,
-    // where `FrontmatterKeyCompletionProvider` completes it.
+    // Completing here walks an author into `Unknown tag 'layout'`, which the converter rejects
+    // and which fails the WHOLE changeset. The layout name belongs in frontmatter, where
+    // `FrontmatterKeyCompletionProvider` completes it.
     await expect(provider, '{% layout non█ %}').to.complete('{% layout non█ %}', []);
   });
 

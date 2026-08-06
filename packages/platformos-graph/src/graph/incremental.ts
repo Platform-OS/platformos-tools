@@ -1,5 +1,9 @@
-import { extractGraphqlTables, path, UriString } from '@platformos/platformos-check-common';
-import { extractSchemaTable } from '@platformos/platformos-common';
+import { path, UriString } from '@platformos/platformos-check-common';
+import {
+  extractGraphqlTables,
+  extractSchemaTable,
+  isGraphqlDocument,
+} from '@platformos/platformos-common';
 
 import {
   AppGraph,
@@ -204,7 +208,7 @@ async function materializeTarget(
 async function readLeafTable(module: AppModule, deps: AugmentedDependencies): Promise<void> {
   if (module.type === ModuleType.GraphQL) {
     const sourceCode = await deps.getSourceCode(module.uri);
-    module.tables = extractGraphqlTables(sourceCode.source);
+    module.tables = isGraphqlDocument(sourceCode.ast) ? extractGraphqlTables(sourceCode.ast) : [];
   } else if (module.type === ModuleType.Schema) {
     const sourceCode = await deps.getSourceCode(module.uri);
     module.table = extractSchemaTable(sourceCode.source);

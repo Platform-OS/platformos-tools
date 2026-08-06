@@ -13,12 +13,8 @@ import { PLATFORM_YAML_LOAD_OPTIONS } from './yaml-load-options';
  *     type: string
  * ```
  *
- * Named to mirror `extractGraphqlTables` so a consumer can join a GraphQL operation to
- * the schema it targets. That sibling lives in `platformos-check-common`, not here, and
- * the split is deliberate: it needs the `graphql` parser, while this needs only the
- * `js-yaml` reader this package already owns. `platformos-common` stays below the parser
- * stack so `App`'s parsers can be injected — see `app/package-boundaries.spec.ts`. Not a
- * `{@link}` for that reason: this package must not reference the other's symbols.
+ * Named to mirror {@link extractGraphqlTables}, its sibling in this package, so a
+ * consumer can join a GraphQL operation to the schema it targets.
  *
  * Returns `undefined` for a missing/empty/non-string `name` or unparseable YAML.
  */

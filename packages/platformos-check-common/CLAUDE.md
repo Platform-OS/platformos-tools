@@ -43,7 +43,15 @@ It:
 - `LiquidHtml` → `LiquidHtmlNode` (from `@platformos/liquid-html-parser`)
 - `JSON` → `JSONNode` (jsonc-parser wrapper, `src/jsonc/types.ts`)
 - `YAML` → **also `JSONNode`** — YAML is parsed into the same JSONNode AST via `src/yaml/parse.ts`
-- `GraphQL` → `GraphQLDocumentNode` (just `{ type: 'Document', content: string }`)
+- `GraphQL` → `GraphQLDocumentNode` (`{ type, content, document?, syntaxError? }`, from
+  `platformos-common` — re-exported here, never redeclared). The parse is the file's:
+  `sourceParsers` injects `parseGraphql` into the `App`, so a `.graphql` document is
+  parsed once until its source changes and `GraphQLCheck`, `GraphQLVariablesCheck`,
+  `UnknownProperty` and the graph all read that one document. A check that wants tables
+  or variables calls `extractGraphqlTables` / `extractGraphqlVariables` on it rather
+  than parsing; an inline `{% graphql %}…{% endgraphql %}` body, which has no file,
+  calls `parseGraphql` itself. `graphql-parse-once.spec.ts` fails if any of them grows
+  a parse of its own.
 
 ### Check definition pattern
 

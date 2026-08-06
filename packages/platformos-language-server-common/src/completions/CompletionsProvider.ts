@@ -80,7 +80,16 @@ export class CompletionsProvider {
     this.documentManager = documentManager;
     this.platformosDocset = platformosDocset;
     this.log = log;
-    const typeSystem = new TypeSystem(platformosDocset, fs, documentsLocator, findAppRootURI);
+    // The App per project root, so the type system reads a `.graphql` document from the
+    // same `AppFile` the diagnostics parsed rather than reading and parsing it again per
+    // call site, per completion request.
+    const typeSystem = new TypeSystem(
+      platformosDocset,
+      fs,
+      documentsLocator,
+      findAppRootURI,
+      (root) => documentManager.appModel(root),
+    );
     this.graphqlFieldCompletionProvider = new GraphQLFieldCompletionProvider(
       platformosDocset,
       documentManager,

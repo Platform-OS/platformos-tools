@@ -12,10 +12,11 @@ import {
   ObjectEntry,
 } from '@platformos/platformos-check-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
-import { DocumentsLocator } from '@platformos/platformos-common';
+import { App, DocumentsLocator } from '@platformos/platformos-common';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
 import { ArrayType, ShapeType, TypeSystem, UnionType } from './TypeSystem';
+import { languageServerParsers } from './documents/DocumentManager';
 import { isLiquidVariableOutput, isNamedLiquidTag } from './utils';
 
 describe('Module: TypeSystem', () => {
@@ -493,6 +494,100 @@ query {
         expect(productsShape?.properties?.get('title')?.kind).to.equal('primitive');
         expect(productsShape?.properties?.get('price')?.kind).to.equal('primitive');
       }
+    });
+
+    /**
+     * The type system reads a document from the App the host supplies, which is the same
+     * `AppFile` the diagnostics over these buffers already parsed — not a second read and
+     * a second parse of the same bytes, once per call site, per request.
+     *
+     * Each fixture below makes the two answers DIFFERENT on purpose: the App holds a
+     * version the filesystem does not. A read that went to disk would infer the disk's
+     * answer, so the assertion says which path ran. The no-App tests above and below are
+     * the control for the fallback still working.
+     */
+    describe('when the host supplies an App', () => {
+      const rootUri = 'file:///project';
+
+      const appBacked = (onDisk: Record<string, string>, inTheApp: Record<string, string>) => {
+        const fs = new MockFileSystem(onDisk, rootUri);
+        const app = App.fromSources(rootUri, inTheApp, fs, languageServerParsers);
+
+        return new TypeSystem(
+          {
+            graphQL: async () => null, // no schema: shapes come from the selection set
+            tags: async () => [],
+            objects: async () => [],
+            liquidDrops: async () => [],
+            filters: async () => [],
+          },
+          fs,
+          new DocumentsLocator(fs, app),
+          async () => rootUri,
+          () => app,
+        );
+      };
+
+      /** The type of `data` in `{% function data = '<partial>' %}{{ data }}`. */
+      const typeOfCall = async (typeSystem: TypeSystem, partial: string) => {
+        const ast = toLiquidHtmlAST(`{% function data = '${partial}' %}\n{{ data }}`);
+        const variableOutput = ast.children[1];
+        assert(isLiquidVariableOutput(variableOutput));
+
+        return typeSystem.inferType(
+          variableOutput.markup,
+          ast,
+          `${rootUri}/app/views/pages/test.liquid`,
+        );
+      };
+
+      it('reads a .graphql document from the App, not from disk', async () => {
+        const onDisk = {
+          'app/graphql/get_user.graphql': `query { user { id } }`,
+          'app/lib/users/fetch.liquid': `{% graphql result = 'get_user' %}\n{% return result %}`,
+        };
+        const typeSystem = appBacked(onDisk, {
+          ...onDisk,
+          'app/graphql/get_user.graphql': `query { user { id email } }`,
+        });
+
+        const inferred = await typeOfCall(typeSystem, 'users/fetch');
+
+        assert(typeof inferred !== 'string' && inferred.kind === 'shape');
+        const user = inferred.shape.properties?.get('user');
+        expect([...(user?.properties?.keys() ?? [])]).to.deep.equal(['id', 'email']);
+      });
+
+      // The shape analyzer's own read of a partial (`ShapeAnalyzerDeps.readPartial`).
+      it('reads a partial the shape analyzer resolves from the App, not from disk', async () => {
+        const onDisk = {
+          'app/lib/users/get.liquid': `{% assign user = {"id": 1} %}\n{% return user %}`,
+        };
+        const typeSystem = appBacked(onDisk, {
+          'app/lib/users/get.liquid': `{% assign user = {"id": 1, "email": "a@b.c"} %}\n{% return user %}`,
+        });
+
+        const inferred = await typeOfCall(typeSystem, 'users/get');
+
+        assert(typeof inferred !== 'string' && inferred.kind === 'shape');
+        expect([...(inferred.shape.properties?.keys() ?? [])]).to.deep.equal(['id', 'email']);
+      });
+
+      // The other partial read: `inferFunctionReturnType`, for a callee whose return the
+      // analyzer cannot shape — here two branches returning different types.
+      it('reads a partial the return-type inference resolves from the App, not from disk', async () => {
+        const branching = (second: string) =>
+          `{% if condition %}{% return 'text' %}{% else %}{% return ${second} %}{% endif %}`;
+        const typeSystem = appBacked(
+          { 'app/lib/users/value.liquid': branching('42') },
+          { 'app/lib/users/value.liquid': branching('true') },
+        );
+
+        const inferred = await typeOfCall(typeSystem, 'users/value');
+
+        assert(typeof inferred !== 'string' && inferred.kind === 'union');
+        expect([...inferred.types].sort()).to.deep.equal(['boolean', 'string']);
+      });
     });
 
     it('should handle multiple return types creating a union', async () => {

@@ -1,44 +1,13 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { DocumentsLocator } from '@platformos/platformos-common';
+import {
+  DocumentsLocator,
+  GraphqlVariable,
+  extractGraphqlVariables,
+  isGraphqlDocument,
+  parseGraphql,
+} from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidNamedArgument, Position } from '@platformos/liquid-html-parser';
-import { OperationDefinitionNode, parse, TypeNode } from 'graphql/language';
-
-type ExtractedVariable = {
-  name: string;
-  required: boolean;
-};
-
-function isNonNullType(type: TypeNode): boolean {
-  return type.kind === 'NonNullType';
-}
-
-export function extractVariables(content: string): ExtractedVariable[] | undefined {
-  try {
-    const ast = parse(content);
-    const variables: ExtractedVariable[] = [];
-
-    for (const definition of ast.definitions) {
-      if (definition.kind === 'OperationDefinition') {
-        const operation = definition as OperationDefinitionNode;
-
-        if (operation.variableDefinitions) {
-          for (const variableDef of operation.variableDefinitions) {
-            const hasDefault = variableDef.defaultValue != null;
-            variables.push({
-              name: variableDef.variable.name.value,
-              required: isNonNullType(variableDef.type) && !hasDefault,
-            });
-          }
-        }
-      }
-    }
-
-    return variables;
-  } catch {
-    return undefined;
-  }
-}
 
 export const GraphQLVariablesCheck: LiquidCheckDefinition = {
   meta: {
@@ -59,6 +28,24 @@ export const GraphQLVariablesCheck: LiquidCheckDefinition = {
   create(context) {
     const locator = new DocumentsLocator(context.fs, context.app);
 
+    /**
+     * The variables a `.graphql` document declares, from the app's own copy of it.
+     *
+     * Through the `AppFile` rather than `fs.readFile` for two reasons: the app holds
+     * the editor's unsaved buffer, which the disk does not, and it holds the PARSE, so
+     * a query called from thirty pages is parsed once per run instead of thirty times.
+     * A URI the app does not have — one resolved outside the project — still falls back
+     * to reading and parsing it here.
+     */
+    const variablesOf = async (uri: string): Promise<GraphqlVariable[] | undefined> => {
+      const file = context.app.get(uri);
+      if (file) {
+        await file.load();
+        return isGraphqlDocument(file.ast) ? extractGraphqlVariables(file.ast) : undefined;
+      }
+      return extractGraphqlVariables(parseGraphql(await context.fs.readFile(uri)));
+    };
+
     const validate = async (
       targetFile: string,
       args: LiquidNamedArgument[],
@@ -77,8 +64,10 @@ export const GraphQLVariablesCheck: LiquidCheckDefinition = {
       if (!locatedFile) {
         return;
       }
-      let params = extractVariables(await context.fs.readFile(locatedFile));
+      const params = await variablesOf(locatedFile);
 
+      // A document we could not read declares nothing we know of — every argument at
+      // this call site is neither proven wrong nor proven missing.
       if (!params) {
         return;
       }

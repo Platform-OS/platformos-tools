@@ -14,6 +14,7 @@ import {
   FixApplicator,
   JSONCorrector,
   Offense,
+  PlatformOSDocset,
   recommended,
   sourceParsers,
   SourceCodeType,
@@ -25,7 +26,10 @@ import { MockApp } from './MockApp';
 
 export { JSONCorrector, StringCorrector };
 
-const rootUri = path.normalize('file:/');
+/** The project root every fixture path in this file is relative to. */
+export const mockRootUri = path.normalize('file:/');
+
+const rootUri = mockRootUri;
 
 /**
  * The fixture as the {@link AppModel}, so a check under test resolves names through
@@ -75,7 +79,28 @@ export async function check(
     },
   };
 
-  const defaultMockDependencies: Dependencies = {
+  return coreCheck(
+    app,
+    config,
+    { ...createMockDependencies(fs, app), ...mockDependencies },
+    checkOptions,
+  );
+}
+
+/**
+ * The injected services a check run gets in tests: a mock filesystem and a small,
+ * REAL-shaped docset.
+ *
+ * Exported because {@link check} builds a fresh app per call, which is the wrong tool
+ * for a test about what survives BETWEEN runs — a parse the app is supposed to keep.
+ * Such a test builds its own app once and calls the engine directly, and this is how it
+ * gets the same docset every other test measures against.
+ */
+export function createMockDependencies(
+  fs: AbstractFileSystem,
+  app: AppModel,
+): Dependencies & { platformosDocset: PlatformOSDocset } {
+  return {
     fs,
     async getDocDefinition(relativePath) {
       const file = app.get(toUri(relativePath));
@@ -186,8 +211,6 @@ export async function check(
       },
     },
   };
-
-  return coreCheck(app, config, { ...defaultMockDependencies, ...mockDependencies }, checkOptions);
 }
 
 /**

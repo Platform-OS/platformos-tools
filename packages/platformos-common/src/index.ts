@@ -7,16 +7,19 @@ export * from './os-path';
 export * from './path-utils';
 export * from './object-scope';
 export * from './frontmatter';
-// A neutral platformOS platform fact (no lint/offense use): a schema file's declared
-// `name:`. It lives here beside the other structure/resolution facts (frontmatter,
-// RouteTable, DocumentsLocator) and is consumed by the graph, and it can live here
-// because reading it needs only `js-yaml` — the YAML reader this package already owns.
+// Two neutral platformOS platform facts (no lint/offense use), which join to each
+// other: the model table a GraphQL operation targets, and the `name:` a schema file
+// declares. They live here beside the other structure/resolution facts (frontmatter,
+// RouteTable, DocumentsLocator) because knowing them IS platformOS domain knowledge,
+// and this package is where that knowledge lives.
 //
-// Its sibling `extractGraphqlTables` does NOT live here, and the reason is the boundary
-// `app/package-boundaries.spec.ts` pins: it needs the `graphql` PARSER, and this package
-// sits below the parser stack so that `App` can have its parsers INJECTED. That injection
-// is the whole reason one set of `AppFile`s is shareable between the linter, the language
-// server and the graph. It now lives in `platformos-check-common`, which already owns the
-// GraphQL knowledge and the dependency, and which the graph already depends on.
+// Reading them means reading YAML and GraphQL, which is why `js-yaml` and `graphql`
+// are dependencies. That does not cross the boundary `app/package-boundaries.spec.ts`
+// pins: both are browser-safe and neither is a workspace package, so `App` still sits
+// below the parser stack and still takes its parsers by INJECTION — which is what lets
+// the linter, the language server and the graph share one set of `AppFile`s. The
+// GraphQL parser they inject is `parseGraphql` from right here, so a `.graphql` file is
+// parsed once and every consumer reads the same document.
+export * from './graphql';
 export * from './schema-table';
 export * from './yaml-load-options';

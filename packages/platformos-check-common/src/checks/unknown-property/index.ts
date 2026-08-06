@@ -5,7 +5,7 @@ import {
   NodeTypes,
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
-import { DocumentsLocator } from '@platformos/platformos-common';
+import { DocumentsLocator, isGraphqlDocument, parseGraphql } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 import { isError } from '../../utils';
@@ -94,11 +94,23 @@ export const UnknownProperty: LiquidCheckDefinition = {
     };
 
     const deps: ShapeAnalyzerDeps = {
+      /**
+       * The `.graphql` document a tag names, with its parse. The `AppFile` owns that
+       * parse, so a query named from thirty call sites is parsed once per run rather
+       * than once per call site — the same rule {@link readPartial} follows.
+       */
       async readGraphQL(name: string) {
         const uri = await locator.locate(rootUri, 'graphql', name);
         if (!uri) return undefined;
+
+        const file = context.app.get(uri);
+        if (file) {
+          await file.load();
+          return isGraphqlDocument(file.ast) ? { uri, ast: file.ast } : undefined;
+        }
+
         const content = await readContent(uri);
-        return content === undefined ? undefined : { uri, content };
+        return content === undefined ? undefined : { uri, ast: parseGraphql(content) };
       },
       readPartial,
       readContent,

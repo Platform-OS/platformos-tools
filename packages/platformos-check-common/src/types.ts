@@ -6,6 +6,7 @@ import {
   AbstractFileSystem,
   App as AppModel,
   AppFile,
+  GraphQLDocumentNode,
   PlatformOSFileType,
   RouteTable,
   SourceAppFile,
@@ -120,10 +121,13 @@ export interface PlatformOSFile {
   path: string;
 }
 
-export interface GraphQLDocumentNode {
-  type: 'Document';
-  content: string;
-}
+/**
+ * The GraphQL AST, owned by `platformos-common` and re-exported here — never
+ * redeclared, exactly like {@link SourceCodeType}. It carries the parsed document as
+ * well as the source, so a `.graphql` file is parsed once by the `App` that holds it
+ * and every check reads that one parse.
+ */
+export type { GraphQLDocumentNode };
 
 // AST[SourceCodeType.LiquidHtml] maps to LiquidHtmlNode
 export type AST = {

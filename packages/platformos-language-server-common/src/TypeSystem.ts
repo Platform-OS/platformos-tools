@@ -47,7 +47,15 @@ import {
   shapeToTypeString,
   shapeToJSONPlaceholder,
 } from './PropertyShapeInference';
-import { AbstractFileSystem, DocumentsLocator } from '@platformos/platformos-common';
+import {
+  AbstractFileSystem,
+  App,
+  AppResolver,
+  DocumentsLocator,
+  GraphQLDocumentNode,
+  isGraphqlDocument,
+  parseGraphql,
+} from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 
 export class TypeSystem {
@@ -59,6 +67,13 @@ export class TypeSystem {
     private readonly fs?: AbstractFileSystem,
     private readonly documentsLocator?: DocumentsLocator,
     private readonly findAppRootURI?: (uri: string) => Promise<string | null>,
+    /**
+     * The {@link App} backing a project root, when the host has one — the language
+     * server's `DocumentManager`. It is what the shape analyzer reads a `.graphql`
+     * document from, so the document the editor infers a type from is the one the
+     * diagnostics already parsed, rather than a second parse of the same bytes.
+     */
+    private readonly getApp?: AppResolver,
   ) {}
 
   private async getGraphQLSchema(): Promise<string | undefined> {
@@ -173,6 +188,7 @@ export class TypeSystem {
       undefined, // processingFiles
       objectMap,
       filtersMap,
+      rootUri ? this.getApp?.(rootUri) : undefined,
     );
   }
 
@@ -369,13 +385,14 @@ async function buildSymbolsTable(
   processingFiles?: Set<string>,
   objectMap?: ObjectMap,
   filtersMap?: FiltersMap,
+  app?: App,
 ): Promise<SymbolsTable> {
   // ONE answer to "what shape does this variable have", shared with `UnknownProperty`.
   // Do not track shapes here as well; a second copy drifts.
   //
   // Fed first, in source order, so the pass below can ask it about any position.
   const analyzer = createShapeAnalyzer({
-    ...shapeAnalyzerDeps(graphqlSchema, fs, documentsLocator, rootUri),
+    ...shapeAnalyzerDeps(graphqlSchema, fs, documentsLocator, rootUri, app),
     // The docset half of the answer, which no diagnostic needs: `context.current_user`
     // has properties because the docset says so, not because this file assigned it.
     resolveExternalShape: (read, position) => externalShape(read, position),
@@ -527,6 +544,7 @@ async function buildSymbolsTable(
                 processingFiles,
                 objectMap,
                 filtersMap,
+                app,
               ).catch(() => undefined)
             : undefined;
           // A function result is in scope whatever it holds, so it is named either way.
@@ -1191,6 +1209,7 @@ async function inferFunctionReturnType(
   processingFiles: Set<string> | undefined,
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
+  app?: App,
 ): Promise<PseudoType | ArrayType | ShapeType | UnionType | undefined> {
   // 1. Locate the file
   const located = await documentsLocator.locate(URI.parse(rootUri), 'function', partialPath);
@@ -1202,9 +1221,12 @@ async function inferFunctionReturnType(
   trackingSet.add(located);
 
   try {
-    // 3. Read and parse the partial
-    const content = await fs.readFile(located);
-    const partialAst = toLiquidHtmlAST(content);
+    // 3. The partial's source and parse — the app's when it has them, so the partial is
+    // parsed once for the whole session rather than once per `{% function %}` that names
+    // it. The analyzer's `readPartial` resolves the same way.
+    const partial = await readLiquidFile(located, fs, app);
+    if (!partial) return undefined;
+    const partialAst = partial.ast;
 
     // 4. Build symbols table for the partial (recursive)
     const partialSymbolsTable = await buildSymbolsTable(
@@ -1218,6 +1240,7 @@ async function inferFunctionReturnType(
       trackingSet,
       objectMap,
       filtersMap,
+      app,
     );
 
     // 5. Find all return statements and infer their types
@@ -1392,6 +1415,7 @@ function shapeAnalyzerDeps(
   fs: AbstractFileSystem | undefined,
   documentsLocator: DocumentsLocator | undefined,
   rootUri: string | undefined,
+  app: App | undefined,
 ): ShapeAnalyzerDeps {
   const locate = async (kind: 'graphql' | 'function', name: string) => {
     if (!fs || !documentsLocator || !rootUri) return undefined;
@@ -1411,25 +1435,46 @@ function shapeAnalyzerDeps(
     }
   };
 
-  return {
-    async readGraphQL(name) {
-      const uri = await locate('graphql', name);
-      if (!uri) return undefined;
-      const content = await readContent(uri);
-      return content === undefined ? undefined : { uri, content };
-    },
+  /**
+   * A document a tag names is read and parsed ONCE per symbols table, not once per call
+   * site: a page that names the same query or the same partial from five places used to
+   * pay for five reads and five parses. Scoped to this deps object, which lives for
+   * exactly one table build, so it cannot serve a stale document to a later one.
+   *
+   * When the host has an {@link App} there is nothing left to read or parse at all — see
+   * {@link readLiquidFile}.
+   */
+  const graphqlDocuments = new Map<
+    string,
+    Promise<{ uri: string; ast: GraphQLDocumentNode } | undefined>
+  >();
+  const partials = new Map<string, Promise<AnalyzablePartial | undefined>>();
 
-    async readPartial(name) {
-      const uri = await locate('function', name);
-      if (!uri) return undefined;
-      const source = await readContent(uri);
-      if (source === undefined) return undefined;
-      try {
-        return { uri, source, ast: toLiquidHtmlAST(source) };
-      } catch {
-        return undefined;
-      }
-    },
+  return {
+    readGraphQL: (name) =>
+      once(graphqlDocuments, name, async () => {
+        const uri = await locate('graphql', name);
+        if (!uri) return undefined;
+
+        const file = app?.get(uri);
+        if (file) {
+          // A failed load leaves `ast` unparseable rather than throwing out of here, and
+          // the read below is then the second chance.
+          await file.load().catch(() => undefined);
+          if (isGraphqlDocument(file.ast)) return { uri, ast: file.ast };
+        }
+
+        const content = await readContent(uri);
+        return content === undefined ? undefined : { uri, ast: parseGraphql(content) };
+      }),
+
+    readPartial: (name) =>
+      once(partials, name, async () => {
+        const uri = await locate('function', name);
+        if (!uri) return undefined;
+        const read = await readLiquidFile(uri, fs, app);
+        return read && { uri, ...read };
+      }),
 
     readContent,
 
@@ -1437,6 +1482,70 @@ function shapeAnalyzerDeps(
       return graphqlSchema;
     },
   };
+}
+
+/** What {@link ShapeAnalyzerDeps.readPartial} answers with. */
+type AnalyzablePartial = { uri: string; source: string; ast: LiquidHtmlNode };
+
+/** Memoize by name for the lifetime of the map, misses included. */
+function once<T>(
+  cache: Map<string, Promise<T | undefined>>,
+  key: string,
+  produce: () => Promise<T | undefined>,
+): Promise<T | undefined> {
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const value = produce();
+  cache.set(key, value);
+  return value;
+}
+
+/**
+ * A Liquid file's source and parse, from the {@link App} when the host has one.
+ *
+ * The `AppFile` owns that parse, so a partial called from thirty places is parsed once —
+ * and it is the SAME parse the diagnostics over these buffers used, so the editor and the
+ * check beside it cannot hold different opinions about what the partial says. A URI the
+ * app does not have (resolved outside the project, or not yet walked) still falls back to
+ * reading and parsing it here, which is what the whole function did before.
+ *
+ * `undefined` for a file that cannot be read or does not parse — a partial whose structure
+ * is unknown is what the caller already treats as "no type".
+ */
+async function readLiquidFile(
+  uri: string,
+  fs: AbstractFileSystem | undefined,
+  app: App | undefined,
+): Promise<{ source: string; ast: LiquidHtmlNode } | undefined> {
+  const file = app?.get(uri);
+  if (file) {
+    // A failed load leaves the file unparsed rather than throwing out of here, and the
+    // read below is then the second chance.
+    await file.load().catch(() => undefined);
+    const { ast, loadedSource } = file;
+    if (loadedSource !== undefined && isLiquidDocument(ast)) return { source: loadedSource, ast };
+  }
+
+  if (!fs) return undefined;
+
+  try {
+    const source = await fs.readFile(uri);
+    return { source, ast: toLiquidHtmlAST(source) };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * An `AppFile`'s `ast` is typed `unknown` — `platformos-common` sits below the parsers —
+ * and holds an `Error` for a file that did not parse, so it is narrowed here rather than
+ * asserted.
+ */
+function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
+  return (
+    typeof ast === 'object' && ast !== null && (ast as LiquidHtmlNode).type === NodeTypes.Document
+  );
 }
 
 /**

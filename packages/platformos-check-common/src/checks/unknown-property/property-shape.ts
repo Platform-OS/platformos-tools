@@ -1,11 +1,11 @@
 import {
-  parse,
   SelectionSetNode,
   FieldNode,
   FragmentDefinitionNode,
   DirectiveNode,
   ValueNode,
 } from 'graphql/language';
+import { GraphQLDocumentNode } from '@platformos/platformos-common';
 import {
   GraphQLSchema,
   GraphQLInterfaceType,
@@ -405,19 +405,26 @@ function selectionSetToShape(
 }
 
 /**
- * Extract response shape from GraphQL document content
- * @param content - The GraphQL query/mutation content
+ * Extract the response shape a GraphQL operation produces.
+ *
+ * Takes the PARSED document, not a string: a file-based `{% graphql %}` gets the parse
+ * its `AppFile` already holds, so a query called from thirty call sites is parsed once
+ * rather than thirty times, and an inline `{% graphql %}…{% endgraphql %}` body — which
+ * has no file — parses its own text through the same `parseGraphql`.
+ *
+ * @param node - The GraphQL query/mutation, parsed
  * @param schemaString - Optional GraphQL schema SDL string for accurate type inference
  * @param args - Argument values the `{% graphql %}` call site passed, for `@include`/`@skip`
  */
 export function inferShapeFromGraphQL(
-  content: string,
+  node: GraphQLDocumentNode,
   schemaString?: string,
   args?: GraphQLArgumentValues,
 ): PropertyShape | undefined {
-  try {
-    const document = parse(content);
+  const document = node.document;
+  if (!document) return undefined; // did not parse — no shape, as before
 
+  try {
     let schema: GraphQLSchema | undefined;
 
     if (schemaString) {

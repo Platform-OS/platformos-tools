@@ -1,6 +1,5 @@
 import { FilterEntry, ObjectEntry, TagEntry, PlatformOSDocset } from './types';
 import { UNDOCUMENTED_FILTERS } from './undocumented-filters';
-import { undocumentedTagEntries } from './undocumented-tags';
 import { memo } from './utils';
 
 const toFilterEntry = (name: string): FilterEntry => ({ name });
@@ -64,11 +63,6 @@ export class AugmentedPlatformOSDocset implements PlatformOSDocset {
   });
 
   tags = memo(async (): Promise<TagEntry[]> => {
-    const documented = await this.platformosDocset.tags();
-    // Derived from the platform's own `register_tag` registry plus a short hand-verified
-    // list of sub-tags — see `undocumented-tags.ts`. Never hand-edit either: a name that
-    // is NOT a real tag silences `UnknownTag`, and a real tag missing from them is a
-    // BLOCKING refusal of code the platform runs.
-    return [...documented, ...undocumentedTagEntries(documented)];
+    return await this.platformosDocset.tags();
   });
 }

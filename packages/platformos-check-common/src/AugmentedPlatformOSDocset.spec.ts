@@ -1,7 +1,6 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
 import { UNDOCUMENTED_FILTERS } from './undocumented-filters';
-import { undocumentedTagEntries } from './undocumented-tags';
 import { PlatformOSDocset } from './types';
 
 describe('Module: AugmentedPlatformOSDocset', async () => {
@@ -275,25 +274,7 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
   });
 
   describe('tags', async () => {
-    it('should return exactly the undocumented tags when the docset has none', async () => {
-      // This mock's `tags()` returns [], so everything here comes from the augmentation —
-      // which makes the composition exactly assertable.
-      //
-      // It used to assert `length >= 3`, a threshold standing in for the three hand-listed
-      // sub-tags of the day. That hid what it was checking: when the list grew to include
-      // the tags read from the platform's `register_tag` registry, a threshold would have
-      // stayed green whether one name or thirty had been added, and would have stayed green
-      // if the registry half had been dropped entirely (TASK-56). Comparing against the
-      // derivation pins the WIRING and lets `undocumented-tags.spec.ts` own the contents.
-      const tags = await platformosDocset.tags();
-
-      expect(tags).toEqual(undocumentedTagEntries([]));
-    });
-
-    it('should pass the documented tags through alongside them', async () => {
-      // The other half of the wiring: the augmentation ADDS, and must never replace. A
-      // `tags()` that returned only the undocumented entries would satisfy the assertion
-      // above, and would make every documented tag unknown.
+    it('should pass the documented tags through unchanged', async () => {
       const docset = new AugmentedPlatformOSDocset({
         graphQL: async () => null,
         filters: async () => [],
@@ -302,10 +283,7 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         tags: async () => [{ name: 'assign', summary: 'from the docs' }],
       });
 
-      const tags = await docset.tags();
-
-      expect(tags[0]).toEqual({ name: 'assign', summary: 'from the docs' });
-      expect(tags.slice(1)).toEqual(undocumentedTagEntries([{ name: 'assign' }]));
+      expect(await docset.tags()).toEqual([{ name: 'assign', summary: 'from the docs' }]);
     });
   });
 });

@@ -43,6 +43,14 @@ is not the way to share parses here — sharing the file OBJECTS is.** The graph
 in-flight `validate_code` buffer, a URI outside the project), which by definition has
 no `AppFile`.
 
+**An app is handed over for BOTH seams or neither.** `IDependencies.app` is the
+resolution half of the same object: with it, a `{% render %}`/`{% function %}`/`layout:`
+target is answered by `findOrLocate`'s index; without it, `DocumentsLocator` builds a
+walk-only stand-in and every reference in the project costs a `readDirectory` per
+candidate directory (6993 → 590 listings on a real 3450-file project; the answers are
+identical either way, since the index only short-circuits the same walk). A caller good
+enough to read a file through is good enough to find it with.
+
 - **`App.fromPaths(rootUri, uris, fs, parsers)` classifies paths and does NO I/O.** No
   `stat`, no read, no parse. That is what makes it affordable per call rather than once
   per process, and what removed 15 s and ~750 MB of transient AST garbage from every

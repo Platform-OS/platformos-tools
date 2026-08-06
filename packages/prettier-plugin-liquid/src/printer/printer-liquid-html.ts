@@ -563,6 +563,7 @@ function printNode(
           ),
         );
       }
+      if (node.filters.length > 0) appendFilters(doc as Doc[], path, print, args.isLiquidStatement);
       return doc;
     }
 

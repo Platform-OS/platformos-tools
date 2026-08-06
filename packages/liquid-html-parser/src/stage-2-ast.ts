@@ -510,7 +510,14 @@ export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
    * @example {% function res = 'partial', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
-  /** Filters applied to the result variable, e.g. {% function res = 'path' | dig: 'key' %} */
+  /**
+   * The trailing filters, e.g. {% function res = 'path' | dig: 'key' %}.
+   *
+   * NOT applied to `res`: measured, the runtime binds a trailing filter to the last argument and
+   * discards it unless that argument is a JSON literal. `FilterWithoutEffect` reports it. They
+   * are parked here so the printer can round-trip the author's text — see {@link GraphQLMarkup}
+   * for the one shape where this really is a result filter.
+   */
   filters: LiquidFilter[];
 }
 
@@ -527,7 +534,14 @@ export interface GraphQLMarkup extends ASTNode<NodeTypes.GraphQLMarkup> {
    * @example {% graphql res = 'file', arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
-  /** Filters applied to the result variable, e.g. {% graphql res = 'path' | dig: 'key' %} */
+  /**
+   * Filters applied to the result variable, e.g. {% graphql res = 'path' | dig: 'key' %}.
+   *
+   * The FILE form is the one tag measured to split its markup on the first `|` and genuinely
+   * filter its result, which is why `FilterWithoutEffect` stays silent on it and reports the
+   * identical-looking {@link FunctionMarkup}, {@link BackgroundMarkup} and
+   * {@link GraphQLInlineMarkup}.
+   */
   filters: LiquidFilter[];
 }
 
@@ -543,7 +557,12 @@ export interface GraphQLInlineMarkup extends ASTNode<NodeTypes.GraphQLInlineMark
    * @example {% graphql res, arg1: value1, arg2: value2 %}
    */
   args: LiquidNamedArgument[];
-  /** Filters applied to the result variable, e.g. {% graphql res | dig: 'key' %} */
+  /**
+   * The trailing filters, e.g. {% graphql res | dig: 'key' %}.
+   *
+   * NOT applied: measured, the INLINE form scans its markup with `TAG_ATTRIBUTES` and drops the
+   * filter, unlike the file form in {@link GraphQLMarkup}. `FilterWithoutEffect` reports it.
+   */
   filters: LiquidFilter[];
 }
 
@@ -604,11 +623,20 @@ export interface LiquidBranchCatch extends LiquidBranchNode<
 > {}
 
 // platformos markup interfaces
-/** {% background job_id = 'partial', [...namedArguments] %} (file-based) */
+/** {% background job_id = 'partial', [...namedArguments] [| filter] %} (file-based) */
 export interface BackgroundMarkup extends ASTNode<NodeTypes.BackgroundMarkup> {
   jobId: string;
   partial: LiquidString | LiquidVariableLookup;
   args: LiquidNamedArgument[];
+  /**
+   * The trailing filters, e.g. {% background job = 'path' | dig: 'key' %}.
+   *
+   * NOT applied to `job`: measured against a live instance, the assigned job id comes back
+   * unfiltered and an undefined filter here does not even raise. `FilterWithoutEffect` reports
+   * it. Parked here so the printer can round-trip the author's text — see {@link GraphQLMarkup}
+   * for the one shape where this really is a result filter.
+   */
+  filters: LiquidFilter[];
 }
 
 /** {% background ...namedArguments %}...{% endbackground %} (inline) */
@@ -780,8 +808,11 @@ export type LiquidArgument = LiquidExpression | LiquidNamedArgument;
  * A TAG argument, which unlike a FILTER argument may carry filters.
  *
  * `{% log 'm', 't' | upcase %}` parses because the deploy converter accepts it, so refusing
- * it would be an unappealable false block on a file that deploys. The filter is DEAD CODE —
- * measured, the runtime silently ignores it — and `FilterWithoutEffect` reports that.
+ * it would be an unappealable false block on a file that deploys. The filter is usually DEAD
+ * CODE — measured, `TAG_ATTRIBUTES` scans the value and excludes `|` — and `FilterWithoutEffect`
+ * reports that. The exception is an argument value that IS a JSON literal
+ * (`data: {"a": 1} | json`), which the platform parses with `Liquid::JsonLiteralVariable` and
+ * whose filters it does apply, so that one is not reported.
  *
  * Deliberately SEPARATE from `LiquidArgument` rather than a widening of it: `LiquidArgument`
  * is also `LiquidFilter.args`, where a nested filter cannot occur (the grammar's
@@ -2394,6 +2425,7 @@ function toBackgroundMarkup(node: ConcreteLiquidTagBackgroundMarkup): Background
     type: NodeTypes.BackgroundMarkup,
     partial: toExpression(node.partial) as LiquidString | LiquidVariableLookup,
     args: node.args.map(toLiquidArgument) as LiquidNamedArgument[],
+    filters: node.filters.map(toFilter),
     position: position(node),
     source: node.source,
   };

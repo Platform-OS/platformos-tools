@@ -882,6 +882,59 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
+      it('should parse result-level filters on background tags', () => {
+        // The filter is parked on the MARKUP node, not absorbed into the last argument. That is
+        // a parsing contract, not a claim that the runtime filters the result — it does not, and
+        // `FilterWithoutEffect` reports it. Asserted as a whole projection rather than field by
+        // field, because a filter STOLEN by the last argument is a missing `filters` entry AND an
+        // extra one under `args` — one equality pins both halves, a `lengthOf` neither.
+        const shape = (markup: any) => ({
+          type: markup.type,
+          args: markup.args.map((arg: any) => ({ name: arg.name, value: arg.value.type })),
+          filters: markup.filters.map((filter: any) => ({
+            name: filter.name,
+            args: filter.args.map((arg: any) => arg.value),
+          })),
+        });
+
+        const cases: Array<[source: string, markup: ReturnType<typeof shape>]> = [
+          [
+            `{% background job = 'path', arg1: 2, arg2: 3 | dig: 'results' %}`,
+            {
+              type: 'BackgroundMarkup',
+              args: [
+                { name: 'arg1', value: 'Number' },
+                { name: 'arg2', value: 'Number' },
+              ],
+              filters: [{ name: 'dig', args: ['results'] }],
+            },
+          ],
+          [
+            `{% background job = 'path' | dig: 'results' %}`,
+            {
+              type: 'BackgroundMarkup',
+              args: [],
+              filters: [{ name: 'dig', args: ['results'] }],
+            },
+          ],
+          // The filterless form keeps an empty list rather than growing a node.
+          [
+            `{% background job = 'path', arg1: 2 %}`,
+            {
+              type: 'BackgroundMarkup',
+              args: [{ name: 'arg1', value: 'Number' }],
+              filters: [],
+            },
+          ],
+        ];
+
+        for (const { toAST } of testCases) {
+          for (const [source, markup] of cases) {
+            expect(shape((toAST(source) as any).children[0].markup)).to.deep.equal(markup);
+          }
+        }
+      });
+
       it('should parse function tags with JSON literals as named argument values', () => {
         for (const { toAST, expectPath } of testCases) {
           // empty array and empty hash as named argument values

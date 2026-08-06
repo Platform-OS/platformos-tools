@@ -6,35 +6,29 @@ import { check, MockApp } from '../../test';
 /**
  * TASK-47. A filter the deploy converter ACCEPTS and the runtime never APPLIES.
  *
- * WHY BOTH DIRECTIONS ARE PINNED HERE. This check exists because of a two-sided defect:
- * refusing these constructs was an unappealable false block on files that deploy, and
- * approving them silently ships code that does not do what its author wrote. So the
- * reporting cases and the SILENT cases are equally load-bearing, and the silent group is a
- * genuine control — a predicate wide enough to warn about every filter in the language would
- * satisfy the reporting group on its own.
+ * Both directions are load-bearing: refusing these constructs was a false block on files that
+ * deploy, and approving them silently ships code that does not do what its author wrote. So
+ * the SILENT group below is a genuine control — a predicate wide enough to warn about every
+ * filter in the language would satisfy the reporting group on its own.
  *
- * EVERY ROW WAS MEASURED against `/api/app_builder/liquid_exec`, not inferred from the
- * grammar. `no_such_filter_xyz` raises `Liquid::UndefinedFilter` wherever the runtime
- * evaluates it, so a construct that renders clean proves the filter was never seen. Each
- * probe was paired with a filterless control that renders clean, which is what distinguishes
- * "the filter is ignored" from "the fixture is wrong" — seven fixtures failed that way and
- * were discarded rather than reported.
+ * Every row was measured against a live instance, never inferred from the grammar, using the
+ * strongest lens the position allows:
  *
- * Three independent lenses agreed:
+ *   observable   `{% case 'a' | upcase %}{% when 'A' %}…{% when 'a' %}` matches 'a'
+ *   observable   `{% assign h = {} %}{% hash_assign h['k'] = 'a' | upcase %}{{ h['k'] }}` -> A
+ *   observable   a partial that reads an argument back reports the value it was HANDED
+ *   raises       `{{ 'a' | no_such_filter_xyz }}` raises Liquid::UndefinedFilter
  *
- *   {{ 'a' | no_such_filter_xyz }}                       RAISES UndefinedFilter   control
- *   {% assign x = 'a' | no_such_filter_xyz %}            RAISES                   control
- *   {{ 'a' | upcase: 1, 2, 3 }}                          RAISES ArgumentError     control
- *   {% cache 'k' | no_such_filter_xyz %}x{% endcache %}  renders clean
- *   {% log 'm', type: 't' | no_such_filter_xyz %}        renders clean
- *   {% case 'a' | upcase %}{% when 'A' %}…{% when 'a' %} matches 'a'              decisive
+ * An observable probe shows the filter's effect directly; "renders clean" only shows nothing
+ * raised, which for `background` merely proved the work happened in a worker. Each probe was
+ * paired with a filterless control — one that fails identically kills the probe, as
+ * `response_headers` did with its 501.
  *
- * The `case` row is the strongest evidence available: the filter's effect on control flow is
- * directly observable and the UNFILTERED branch wins.
- *
- * The mechanism, which is why this is a class and not a list: Ruby Liquid parses these
- * markups with its own scanner, and `TagAttributes` captures `QuotedFragment`, which
- * explicitly excludes `|`.
+ * THE TRAILING-FILTER ROWS ARE WHY THE OBSERVABLE LENS IS NOT OPTIONAL. `function`, `background`
+ * and `graphql` share one grammar rule and one Ruby-looking shape, and a "renders clean" probe
+ * says the same thing about all three. Reading the assigned value back separates them: only
+ * `graphql`'s FILE form filters its result. The other two were silent here for a whole release
+ * on the strength of the shape argument alone.
  */
 const offensesFor = (liquid: string) => {
   const app: MockApp = { 'app/views/pages/index.liquid': liquid };
@@ -47,11 +41,8 @@ const messages = async (liquid: string) =>
 /**
  * Positions measured to IGNORE the filter, each paired with its FILTERLESS spelling.
  *
- * The pairing is explicit rather than derived by stripping the filter with a regex. The first
- * version did that and the regex silently failed to strip `| plus: 0`, so a "filterless"
- * fixture still carried a filter and the control test failed for a reason that had nothing to
- * do with the code. Writing both spellings out cannot go wrong that way, and it mirrors how
- * every row was measured: the construct with the filter, then again without it.
+ * Both spellings are written out rather than derived by stripping the filter with a regex — an
+ * earlier version did that and silently failed to strip `| plus: 0`.
  */
 const IGNORES_THE_FILTER: Array<[label: string, filtered: string, filterless: string]> = [
   ['cache key', `{% cache 'k' | upcase %}x{% endcache %}`, `{% cache 'k' %}x{% endcache %}`],
@@ -103,14 +94,47 @@ const IGNORES_THE_FILTER: Array<[label: string, filtered: string, filterless: st
   // A third operand shape: the value stays restricted to a number or a lookup and only the
   // filter suffix was added, so `{% response_status 'abc' %}` still fails to parse.
   ['response_status', `{% response_status 200 | plus: 0 %}`, `{% response_status 200 %}`],
+  // TRAILING filters on tags that only LOOK like they filter a result. Measured: the append is
+  // a no-op on the assigned value, and `no_such_filter_xyz` in the same position does not raise,
+  // so the filter is never evaluated at all. Contrast `graphql`'s FILE form, which is in
+  // APPLIES_THE_FILTER below — the discriminator is the tag, and it had to be measured per tag.
+  [
+    'function trailing filter',
+    `{% function r = 'p', a: 1 | dig: 'x' %}`,
+    `{% function r = 'p', a: 1 %}`,
+  ],
+  [
+    'function trailing filter without arguments',
+    `{% function r = 'p' | dig: 'x' %}`,
+    `{% function r = 'p' %}`,
+  ],
+  [
+    'background trailing filter',
+    `{% background j = 'p', a: 1 | dig: 'x' %}`,
+    `{% background j = 'p', a: 1 %}`,
+  ],
+  [
+    'background trailing filter without arguments',
+    `{% background j = 'p' | dig: 'x' %}`,
+    `{% background j = 'p' %}`,
+  ],
+  [
+    'graphql INLINE trailing filter',
+    `{% graphql g, a: 1 | dig: 'x' %}q{% endgraphql %}`,
+    `{% graphql g, a: 1 %}q{% endgraphql %}`,
+  ],
+  // It is the LAST argument that decides, not "some argument is a JSON literal". Measured:
+  // `payload: {"a": 1}, zzz: 1 | json` left `payload` a hash and the result unfiltered, whereas
+  // the same filter with the literal LAST reached it. Without this row, dropping the
+  // `[args.length - 1]` index for an `args.some(isJsonLiteral)` would pass every other fixture.
+  [
+    'trailing filter after a non-JSON last argument',
+    `{% function r = 'p', data: {"a": 1}, a: 1 | dig: 'x' %}`,
+    `{% function r = 'p', data: {"a": 1}, a: 1 %}`,
+  ],
 ];
 
-/**
- * Positions measured to APPLY the filter. Every one of these must stay SILENT.
- *
- * This is the control group, and it is the reason the check allowlists APPLYING positions
- * rather than enumerating ignoring ones.
- */
+/** Positions measured to APPLY the filter. Every one of these must stay SILENT. */
 const APPLIES_THE_FILTER: Array<[label: string, source: string]> = [
   ['variable output', `{{ 'a' | upcase }}`],
   ['assign', `{% assign x = 'a' | upcase %}`],
@@ -118,18 +142,31 @@ const APPLIES_THE_FILTER: Array<[label: string, source: string]> = [
   ['print', `{% print 'a' | upcase %}`],
   ['return', `{% return 'a' | upcase %}`],
   ['session', `{% session s = 'a' | upcase %}`],
+  // Write-tag RHS spellings an author actually writes. They reduce to two fields the check
+  // keys on — `AssignMarkup.value` and `HashAssignMarkup.value` — so they are here as the
+  // measured record, not as independent paths. Read back observably: h['k'] -> A, a[0] -> X.
+  ['assign to a bracket path', `{% assign h['k'] = 'a' | upcase %}`],
+  ['assign appending to an array', `{% assign a << 'x' | upcase %}`],
+  ['hash_assign', `{% hash_assign h['k'] = 'a' | upcase %}`],
+  ['hash_assign with a filter chain', `{% hash_assign p['edited_at'] = 'now' | to_time | json %}`],
+  ['hash_assign with a filter argument', `{% hash_assign h['a'] = h['a'] | hash_merge: id: x %}`],
   ['output inside an HTML attribute', `<div class="{{ x | upcase }}"></div>`],
   ['output inside a tag body', `{% cache 'k' %}{{ x | upcase }}{% endcache %}`],
-  // A markup-level trailing filter is a different AST shape: it hangs off the markup node,
-  // not off a LiquidVariable. `{% return 'a' | upcase %}` has that shape and was measured to
-  // APPLY, and this one filters the function's RESULT.
-  ['function result filter', `{% function r = 'p', a: 1 | dig: 'x' %}`],
+  // An argument value that IS a JSON literal goes through `Liquid::JsonLiteralVariable`, the one
+  // argument parser that consumes filters. Measured observably: a function whose partial reads
+  // the argument back received the JSON STRING for `payload: {"a": 1} | json`, and `| json |
+  // upcase` arrived as {"A":1} — both filters, in order. The value shape decides this, not the
+  // tag, which is why it cannot be an entry in APPLIES_BY_PARENT_FIELD.
+  ['JSON hash argument', `{% log 'm', data: {"a": 1} | json %}`],
+  ['JSON array argument', `{% function r = 'p', items: [1, 2, 3] | reverse %}`],
+  // The ONE tag measured to split its markup on the first `|` and filter its RESULT: `dig:
+  // 'users'` restructured the returned hash, and `no_such_filter_xyz` there raises. Its INLINE
+  // form does neither and sits in IGNORES_THE_FILTER above — same tag, opposite answers.
+  ['graphql FILE result filter', `{% graphql g = 'q', a: 1 | dig: 'x' %}`],
 ];
 
 describe('Module: FilterWithoutEffect', () => {
   it('reports the whole offense for a canonical case', async () => {
-    // One case asserted in full, so the message, the range and the severity are all pinned
-    // rather than implied by the sweeps below.
     const offenses = await offensesFor(`{% log 'm', type: 't' | upcase %}`);
 
     expect(offenses).toEqual([
@@ -142,15 +179,12 @@ describe('Module: FilterWithoutEffect', () => {
         uri: 'file:///app/views/pages/index.liquid',
         severity: 1,
         type: 'LiquidHtml',
-        // The FILTER is highlighted, not the value. A LiquidFilter's range opens at the
-        // whitespace before its `|`, so this starts at 21 (the space) and ends after
-        // `upcase` at 30 — measured against the parser rather than counted by eye, which
-        // is how the first version of this assertion was wrong.
+        // The FILTER is highlighted, not the value; a LiquidFilter's range opens at the
+        // whitespace before its `|`, hence 21 rather than 22.
         start: { index: 21, line: 0, character: 21 },
         end: { index: 30, line: 0, character: 30 },
-        // No autofix, deliberately: the repair needs an {% assign %} on a PRECEDING line,
-        // which the corrector cannot express, and deleting the filter would silently change
-        // what the author wrote.
+        // No autofix: the repair needs an {% assign %} on a PRECEDING line, which the
+        // corrector cannot express.
         fix: undefined,
         suggest: undefined,
       },
@@ -181,22 +215,16 @@ describe('Module: FilterWithoutEffect', () => {
   });
 
   it('stays silent on a zero-filter LiquidVariable, which graphql arguments always produce', async () => {
-    // THE CONTROL THAT ACTUALLY BITES, and it took a sabotage to find. Deleting the
-    // `filters.length === 0` guard left the filterless sweep below entirely green, because an
-    // unfiltered tag argument produces no LiquidVariable at all — `tagArgumentValue` falls
-    // through to a bare expression — so the visitor never runs and the guard is unreachable
-    // from those fixtures. The test was decorative.
-    //
-    // `graphqlNamedArgumentValue` is the one position that ALWAYS builds a LiquidVariable,
-    // with `filters: []` by construction. It is not in the applying allowlist, so without the
-    // guard every graphql named argument in every project would be warned about.
+    // The control that bites the `filters.length === 0` guard. `graphqlNamedArgumentValue` is
+    // the one position that ALWAYS builds a LiquidVariable, with `filters: []` by construction,
+    // and it is not in the applying allowlist — so without the guard every graphql named
+    // argument in every project is warned about. The filterless sweep below cannot catch that:
+    // an unfiltered tag argument produces no LiquidVariable at all, so the visitor never runs.
     expect(await messages(`{% graphql g = 'q', name: val %}`)).toEqual([]);
     expect(await messages(`{% graphql g = 'q', a: x, b: y %}`)).toEqual([]);
   });
 
   it('stays silent on the filterless spelling of every reported construct', async () => {
-    // Weaker than the graphql control above — see its comment — but it pins that the fix did
-    // not start reporting ordinary tag arguments, which is what an author writes all day.
     const reported = await Promise.all(
       IGNORES_THE_FILTER.map(async ([label, , filterless]) => [label, await messages(filterless)]),
     );
@@ -215,8 +243,6 @@ describe('Module: FilterWithoutEffect', () => {
   });
 
   it('does NOT block: this is a warning on a file that deploys and renders', async () => {
-    // The severity is the finding. The converter accepts these constructs and the page
-    // renders, so blocking would be the false block this check was created to remove.
     expect(FilterWithoutEffect.meta.severity).toEqual(1);
   });
 });

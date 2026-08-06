@@ -102,9 +102,13 @@ WHAT IS ACTUALLY CHECKED
             A filter anywhere else in a platformOS tag — operand or argument, e.g.
             {% cache 'k' | upcase %} — warns but does not block: the platform
             IGNORES it, so the value arrives unfiltered. Filters apply only where
-            the whole value is a Liquid variable ({{ }}, assign, echo, print,
-            return, session) plus a trailing filter on function/graphql, which
-            filters the RESULT.
+            the whole value is a Liquid variable ({{ }}, assign, hash_assign, echo,
+            print, return, session), where an argument value IS a JSON literal
+            ({% log 'm', data: {"a": 1} | json %}), and on a trailing filter after
+            {% graphql res = 'file' %}, which filters the RESULT. A trailing filter
+            on function or background, or on the INLINE {% graphql %} block, only
+            LOOKS like that and is discarded — filter the result in a following
+            {% assign %} instead.
   GraphQL - operations validated against the project schema.
   YAML    - syntax, for model/schema, transactable-type, profile-type and
             translation files: one that does not parse is reported and blocks,

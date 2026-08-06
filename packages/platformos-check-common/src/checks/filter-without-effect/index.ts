@@ -1,65 +1,89 @@
-import { LiquidHtmlNode, NodeTypes } from '@platformos/liquid-html-parser';
+import {
+  LiquidFilter,
+  LiquidHtmlNode,
+  LiquidNamedArgument,
+  NodeTypes,
+} from '@platformos/liquid-html-parser';
 
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 
 /**
- * A filter the platform parses but never applies.
+ * A filter the platform parses but never applies, so it is dead code.
  *
- * WHAT IS MEASURED, and why this is not derivable from the grammar. `pos-cli deploy
- * --dry-run` ACCEPTS a filter in a platformOS tag's operand or argument value, so refusing
- * one is an unappealable false block on a file that deploys. But the runtime never applies
- * it. Ruby Liquid parses those markups with its own scanner — `TagAttributes` captures
- * `QuotedFragment`, which explicitly excludes `|` — so the filter is not part of the value
- * the tag receives. It is DEAD CODE, and silence would let an author ship a file that does
- * something other than what it says.
+ * WHICH RUBY PARSER RECEIVES THE VALUE decides the answer, and each position was measured
+ * against a live instance — the grammar cannot tell you, because it accepts a filter in far
+ * more places than the runtime honours one:
  *
- * Measured against `/api/app_builder/liquid_exec`, 15 positions, three independent lenses,
- * each paired with a filterless control that renders clean:
+ *   `Liquid::Variable`             APPLIES    {{ }}, assign, hash_assign, session,
+ *                                            echo, print, return
+ *   `Liquid::JsonLiteralVariable`  APPLIES    an argument value that IS a JSON literal
+ *   `TAG_ATTRIBUTES` scan          DISCARDS   every other operand and argument value
+ *   `Expression.parse` over a
+ *     `QuotedFragment`             DISCARDS
  *
- *   {{ 'a' | no_such_filter_xyz }}                        RAISES UndefinedFilter  <- control
- *   {% assign x = 'a' | no_such_filter_xyz %}             RAISES                  <- control
- *   {{ 'a' | upcase: 1, 2, 3 }}                           RAISES ArgumentError    <- control
- *   {% cache 'k' | no_such_filter_xyz %}x{% endcache %}   renders clean
- *   {% log 'm', type: 't' | no_such_filter_xyz %}         renders clean
- *   {% case 'a' | upcase %}{% when 'A' %}…{% when 'a' %}  matches 'a'             <- decisive
+ * Both discarding paths exclude `|` by construction, so the filter never reaches the value.
  *
- * The `case` row is the strongest evidence obtainable: the filter's effect on control flow
- * is directly observable, and the UNFILTERED branch wins.
+ * A TRAILING filter — one written after a tag's last argument — is NOT a separate rule but the
+ * same one applied to that last argument, because `TAG_ATTRIBUTES` keeps scanning past the `|`.
+ * Measured: `{% function r = 'p', a: 1 | dig: 'x' %}` hands the partial a stray `dig` argument
+ * and leaves `r` unfiltered, while `{% function r = 'p', items: [1, 2] | reverse %}` really
+ * does reverse `items`, a JSON literal being the one argument shape whose parser consumes
+ * filters. `graphql`'s FILE form is the sole tag that genuinely splits its markup on the first
+ * `|` and filters its RESULT; `function`, `background` and `graphql`'s INLINE form only look
+ * like they do, and all three were measured to drop it.
  *
- * WHY AN ALLOWLIST OF APPLYING POSITIONS, rather than a list of ignoring ones. The set where
- * filters genuinely apply is core Liquid — `{{ }}`, `assign`, `echo`/`print`, `return`,
- * `session` — and is stable. The set that ignores them grows every time platformOS adds a
- * tag. Listing the stable set means a NEW tag is reported by default, which is the direction
- * that ages well.
+ * Applying positions are allowlisted rather than ignoring ones, because the applying set
+ * changes only when a new write tag appears while the ignoring set grows with every tag
+ * platformOS adds — so a new tag is reported by default. The cost is that a missing entry is
+ * a false positive; `index.spec.ts` holds both groups as measured fixtures for that reason.
  *
- * The cost of that choice, stated rather than discovered later: a future position where
- * filters DO apply would be warned about until it is added below. That is a non-blocking
- * warning on working code — visible and cheap — whereas the inverse silently misses every
- * new tag. This check must never join `BLOCKING_CHECKS`: the file deploys and renders.
+ * ON AST FIDELITY: the grammar parks a trailing filter on the MARKUP node
+ * (`FunctionMarkup.filters` and friends) even where the runtime binds it to the last argument.
+ * That is deliberate and must not be read as "this is a result filter" — the prettier printer
+ * regenerates source from the AST, and the markup node is where the author's filter round-trips
+ * verbatim. This check, not the AST shape, is what carries the runtime meaning.
  *
- * NOT IN SCOPE. A markup-level trailing filter list is a different AST shape — it hangs off
- * the markup node (`FunctionMarkup.filters`, `GraphQLMarkup.filters`), not off a
- * `LiquidVariable` — so it is never visited here. That is correct: `{% return 'a' | upcase %}`
- * has the same shape and was measured to APPLY, and `{% function r = 'p', a: 1 | dig: 'x' %}`
- * filters the function's RESULT.
+ * Never blocking: the file deploys and renders.
  */
 
 /**
  * Positions where the platform parses the value as a full Liquid variable, so filters apply.
  *
- * Keyed by the parent node type and the field holding the variable, because neither alone is
- * enough: `LiquidTag.markup` holds an APPLYING variable for `echo` and an IGNORED one for
- * `case` and `yield`, which is why a purely structural "is it the whole markup" test was
- * measured and rejected.
+ * Keyed by parent type AND field, because neither alone is enough: `LiquidTag.markup` holds an
+ * APPLYING variable for `echo` and an IGNORED one for `case` and `yield`.
  */
 const APPLIES_BY_PARENT_FIELD: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   [NodeTypes.LiquidVariableOutput, new Set(['markup'])],
   [NodeTypes.AssignMarkup, new Set(['value'])],
   [NodeTypes.SessionMarkup, new Set(['value'])],
+  [NodeTypes.HashAssignMarkup, new Set(['value'])],
 ]);
 
 /** Tags whose ENTIRE markup is a Liquid variable, so filters apply. */
 const APPLIES_AS_WHOLE_TAG_MARKUP: ReadonlySet<string> = new Set(['echo', 'print', 'return']);
+
+/**
+ * Expressions the platform parses with `Liquid::JsonLiteralVariable`, which consumes filters.
+ *
+ * Only the literal's OWN filters: measured, a filter nested INSIDE the literal
+ * (`data: {"a": 'z' | upcase}`) is a converter syntax error, so nothing there is exempt.
+ */
+const JSON_LITERALS: ReadonlySet<string> = new Set([
+  NodeTypes.JsonHashLiteral,
+  NodeTypes.JsonArrayLiteral,
+]);
+
+/** The expression a value ultimately holds, through the wrappers different positions add. */
+function expressionTypeOf(value: unknown): string | undefined {
+  if (value === null || typeof value !== 'object') return undefined;
+
+  const node = value as LiquidHtmlNode;
+  if (node.type === NodeTypes.NamedArgument) return expressionTypeOf(node.value);
+  if (node.type === NodeTypes.LiquidVariable) return expressionTypeOf(node.expression);
+  return node.type;
+}
+
+const isJsonLiteral = (value: unknown) => JSON_LITERALS.has(expressionTypeOf(value) ?? '');
 
 /** Which field of `parent` holds `node`, or undefined when it is not a direct child. */
 function fieldHolding(parent: LiquidHtmlNode, node: LiquidHtmlNode): string | undefined {
@@ -78,8 +102,15 @@ function filtersApplyHere(parent: LiquidHtmlNode, node: LiquidHtmlNode): boolean
     return field === 'markup' && APPLIES_AS_WHOLE_TAG_MARKUP.has(String(parent.name));
   }
 
+  if (parent.type === NodeTypes.NamedArgument) {
+    return field === 'value' && isJsonLiteral(node);
+  }
+
   return APPLIES_BY_PARENT_FIELD.get(parent.type)?.has(field) ?? false;
 }
+
+/** The shape shared by every markup node that can carry a trailing filter list. */
+type MarkupWithTrailingFilters = { args: LiquidNamedArgument[]; filters: LiquidFilter[] };
 
 export const FilterWithoutEffect: LiquidCheckDefinition = {
   meta: {
@@ -98,6 +129,36 @@ export const FilterWithoutEffect: LiquidCheckDefinition = {
   },
 
   create(context) {
+    const report = (filters: LiquidFilter[], advice: string) => {
+      const names = filters.map((filter) => `'${filter.name}'`).join(', ');
+
+      context.report({
+        message:
+          `${filters.length === 1 ? `Filter ${names} has` : `Filters ${names} have`} no effect here. ` +
+          advice,
+        // The FILTERS are highlighted, not the value: the value is fine and the filter is
+        // the dead part. A LiquidFilter's range opens at the whitespace before its `|`.
+        startIndex: filters[0].position.start,
+        endIndex: filters[filters.length - 1].position.end,
+      });
+    };
+
+    /**
+     * A trailing filter on a tag the runtime does NOT split on the first `|`. It binds to the
+     * last argument, so it survives only where that argument's parser consumes filters.
+     */
+    const reportTrailingFilters = (node: MarkupWithTrailingFilters) => {
+      if (node.filters.length === 0) return;
+      if (isJsonLiteral(node.args[node.args.length - 1])) return;
+
+      report(
+        node.filters,
+        'platformOS scans this tag markup with its own scanner and never filters the tag result, ' +
+          'so the unfiltered value is assigned — and a filter spelled `name: value` is scanned ' +
+          'as one more tag argument. Apply it to the result in a following {% assign %}.',
+      );
+    };
+
     return {
       async LiquidVariable(node, ancestors) {
         if (node.filters.length === 0) return;
@@ -105,22 +166,24 @@ export const FilterWithoutEffect: LiquidCheckDefinition = {
         const parent = ancestors[ancestors.length - 1];
         if (!parent || filtersApplyHere(parent, node)) return;
 
-        const names = node.filters.map((filter) => `'${filter.name}'`).join(', ');
-        const [first] = node.filters;
-
-        context.report({
-          message:
-            `${node.filters.length === 1 ? `Filter ${names} has` : `Filters ${names} have`} no effect here. ` +
-            'platformOS parses this tag markup with its own scanner and never applies the filter, ' +
+        report(
+          node.filters,
+          'platformOS parses this tag markup with its own scanner and never applies the filter, ' +
             'so the unfiltered value is used. Apply it in an {% assign %} first and pass the ' +
             'assigned variable.',
-          // The FILTERS are highlighted, not the whole expression: the value is fine and the
-          // filter is the dead part, so underlining the value would suggest changing it.
-          // A LiquidFilter's own range opens at the whitespace before its `|` — measured,
-          // not assumed — so the highlight starts one character left of the pipe.
-          startIndex: first.position.start,
-          endIndex: node.filters[node.filters.length - 1].position.end,
-        });
+        );
+      },
+
+      // Every markup node that carries a trailing filter list EXCEPT `GraphQLMarkup`, which is
+      // the one tag measured to split its markup on the first `|` and filter its result.
+      async FunctionMarkup(node) {
+        reportTrailingFilters(node);
+      },
+      async BackgroundMarkup(node) {
+        reportTrailingFilters(node);
+      },
+      async GraphQLInlineMarkup(node) {
+        reportTrailingFilters(node);
       },
     };
   },

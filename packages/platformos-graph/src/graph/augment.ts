@@ -7,6 +7,10 @@ export function augmentDependencies(rootUri: string, ideps: IDependencies): Augm
   return {
     fs: ideps.fs,
 
+    // Passed through as given. There is nothing to default: an absent app means the
+    // caller has none, and `DocumentsLocator` already owns what to do then.
+    app: ideps.app,
+
     // parse at most once
     getSourceCode: memoize(
       ideps.getSourceCode ??

@@ -10,15 +10,43 @@ import {
   GraphQLSourceCode,
   YAMLSourceCode,
 } from '@platformos/platformos-check-common';
+import type { App, AppResolver } from '@platformos/platformos-common';
 
 export interface IDependencies {
   fs: CheckDependencies['fs'];
 
   /** Optional perf improvement if you somehow have access to pre-computed source code info */
   getSourceCode?: (uri: UriString) => Promise<FileSourceCode>;
+
+  /**
+   * The {@link App} whose per-type name index answers `{% render 'ui/card' %}`,
+   * `{% function … = 'commands/create' %}`, `{% graphql … = 'user/find' %}` and
+   * `layout: application` — the same object {@link IDependencies.getSourceCode} reads
+   * through when it is `appBackedGetSourceCode`.
+   *
+   * The pairing is the point: a caller that holds an App should hand it over for BOTH,
+   * so the graph reuses the lint's parses AND its index. Without it, `DocumentsLocator`
+   * falls back to a walk-only stand-in and every reference costs a `readDirectory` per
+   * candidate directory — on the language server, thousands of listings for a project
+   * whose index was already built and in memory.
+   *
+   * It cannot change the ANSWER, only what it costs: `App.findOrLocate` resolves
+   * index-first and falls through to the very walk the stand-in performs, in
+   * `getAppPaths`/`getModulePaths` order either way. Assets never consult the index at
+   * all (nothing reads an asset, so the only question is whether it exists on disk).
+   *
+   * Omit it where there is genuinely no App: a build in a worker thread, a CLI, a
+   * fixture.
+   */
+  app?: App | AppResolver;
 }
 
-export type Dependencies = Required<IDependencies>;
+/**
+ * `IDependencies` with the optional PERFORMANCE seams resolved by
+ * `augmentDependencies` — `getSourceCode` always present, `app` still optional
+ * because "no app here" is a legitimate final state, not an unaugmented one.
+ */
+export type Dependencies = Required<Omit<IDependencies, 'app'>> & Pick<IDependencies, 'app'>;
 
 export type AugmentedDependencies = Dependencies;
 

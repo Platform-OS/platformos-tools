@@ -221,15 +221,19 @@ export class AppGraphManager {
    *
    * The fallback covers what the app does not contain: a URI outside the project,
    * and a file that is not a platformOS source at all.
+   *
+   * The SAME app answers the graph's name resolution (`app`), so a
+   * `{% render 'ui/card' %}` is resolved by the index this server already built
+   * instead of by a `readDirectory` per candidate directory. Both seams or neither:
+   * an app good enough to read a file through is good enough to find it with.
    */
   private graphDependencies(rootUri: string): GraphDependencies {
     const { fs } = this;
+    const app = this.documentManager.appModel(rootUri);
     return {
       fs,
-      getSourceCode: appBackedGetSourceCode(
-        this.documentManager.appModel(rootUri),
-        this.getSourceCode,
-      ),
+      app,
+      getSourceCode: appBackedGetSourceCode(app, this.getSourceCode),
     };
   }
 }

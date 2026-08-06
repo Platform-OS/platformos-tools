@@ -50,8 +50,8 @@ export interface ResolvedReference {
   args?: string[];
 }
 
-/** The dependency surface the reference resolver needs: just a filesystem (for DocumentsLocator). */
-type ResolverDependencies = Pick<AugmentedDependencies, 'fs'>;
+/** The dependency surface the reference resolver needs: what `DocumentsLocator` takes. */
+type ResolverDependencies = Pick<AugmentedDependencies, 'fs' | 'app'>;
 
 export async function traverseModule(
   module: AppModule,
@@ -160,9 +160,15 @@ export async function resolveLiquidReferences(
 ): Promise<ResolvedReference[]> {
   if (sourceCode.ast instanceof Error) return []; // can't visit what you can't parse
 
-  // Canonical target resolution (lib paths, module prefixes, extensions) is
-  // owned by check-common's DocumentsLocator — never re-derived here.
-  const documentsLocator = new DocumentsLocator(deps.fs);
+  // Canonical target resolution (lib paths, module prefixes, extensions) is owned by
+  // platformos-common's DocumentsLocator — never re-derived here.
+  //
+  // `deps.app` is the caller's App, so a name is answered by the index it already holds
+  // (O(1), no I/O) and only an index MISS walks candidate directories. Without one the
+  // locator builds a walk-only stand-in and every reference lists a directory per
+  // candidate path — same answers, thousands of extra listings on a project the language
+  // server had already indexed. See `IDependencies.app`.
+  const documentsLocator = new DocumentsLocator(deps.fs, deps.app);
   const rootUri = URI.parse(appGraph.rootUri);
 
   const visitor: Visitor<SourceCodeType.LiquidHtml, ResolvedReference> = {
@@ -317,8 +323,9 @@ export async function resolveLiquidReferences(
  *   `MissingPartial` check, so prefer that for diagnostics.
  * - Only statically resolvable references are returned; dynamic targets
  *   (`{% render some_var %}`) and inline forms are skipped.
- * - `sourceCode` is parsed by the caller (from the buffer, not disk); only `fs`
- *   is touched here, for target resolution.
+ * - `sourceCode` is parsed by the caller (from the buffer, not disk); nothing but
+ *   target resolution happens here, against `deps.app`'s index when one is supplied
+ *   and `deps.fs` otherwise (see `IDependencies.app`).
  */
 export async function extractFileReferences(
   rootUri: UriString,

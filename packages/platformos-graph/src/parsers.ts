@@ -24,20 +24,41 @@ export function parseJs(source: string): Program | Error {
 const parseOpaqueAsset: Parser = () => new Error('File parsing not implemented');
 
 /**
- * The file types the GRAPH cares about and the linter does not: `.js` assets, and
- * images it only needs to know the existence of.
+ * The file types the GRAPH holds and the linter does not: `.js` assets and images.
  *
- * {@link toSourceCode} parses assets through this map, so there is one definition of
- * how a `.js` or image asset is handled however the file arrives.
+ * They are here for {@link toSourceCode}'s contract — every URI it is handed comes back
+ * as a `FileSourceCode`, so an asset needs a row that says how (or that there is nothing
+ * to parse) — and so an `App` an asset URI is put into can answer `ast` at all. NOT
+ * because a graph build reads them: `traverseModule` returns immediately for an Asset
+ * node, and the only question the graph asks about an asset is whether it EXISTS, which
+ * is an `fs` probe. So a project model built with `sourceParsers` alone is enough to back
+ * a graph — every file the graph reads is a Liquid, GraphQL or YAML one.
  *
- * Registering these on an {@link App} — rather than building a second set of file
+ * Registering them on an {@link App} — rather than building a second set of file
  * objects — is what lets a graph build and a lint run over the same project hold the
  * SAME `AppFile` instances, so each file is read and parsed at most once for both.
  * The language server does that: it merges this map into its own
  * (`languageServerParsers`) and its `AppGraphManager` reads through
- * {@link appBackedGetSourceCode}. The MCP supervisor is the other consumer-to-be,
- * once its lint adapter grows a graph. Merging into check-node's
- * `nodeParsers` would do nothing: check-node builds no graph.
+ * {@link appBackedGetSourceCode}. Merging into check-node's `nodeParsers` would do
+ * nothing: check-node builds no graph.
+ *
+ * THE MCP SUPERVISOR DELIBERATELY DOES NOT SHARE, and this is not a pending to-do:
+ *
+ * - Its full builds run on a worker thread — a second heap on purpose, so a
+ *   whole-project parse cannot be retained by the process serving lints — and a thread
+ *   cannot share `AppFile` objects at all.
+ * - Its incremental `applyFileChange` does run in the main process, but its graph cache
+ *   is an authority on DISK state: a fingerprint that matches means "this graph
+ *   describes these bytes". check-node's shared `App` is lint-owned and carries UNSAVED
+ *   editor buffers (`lintBuffers` overlays each buffer under `BUFFER_VERSION` and
+ *   reverts when the call ends), and the cache reconciles in the BACKGROUND, concurrent
+ *   with lints. Reading a graph through it could record a buffer as disk truth in a
+ *   graph whose fingerprint then declares it fresh — a wrong answer no later scan
+ *   invalidates, which is the one failure that cache exists to rule out.
+ * - And there would be nothing to win. `lintBuffers` parses the content it was handed,
+ *   never the app's copy of that file, and drops the app's entry for it on the way out
+ *   — so the file a reconcile parses is precisely the file whose parse no lint would
+ *   have reused.
  */
 export const graphParsers: Parsers = {
   extensions: {

@@ -47,7 +47,26 @@ const PLATFORM_ACCEPTS: Array<[label: string, target: string]> = [
   ['variable key', `h[k]`],
   ['numeric index', `h[0]`],
   ['non-identifier key', `h['k-1']`],
-  ['spaced brackets', `h [ 'k' ]`],
+  ['space inside the brackets', `h[ 'k' ]`],
+];
+
+/**
+ * NOT this detector's business, and NOT accepted by the platform either — recorded so the
+ * distinction is not lost.
+ *
+ * `h [ 'k' ]`, with a space between the name and the `[`, raises `Syntax Error in
+ * 'hash_assign'` for the same reason a dot target does: at PARSE time. It was previously
+ * listed above as an accepted spelling, which was a mis-measurement — a space INSIDE the
+ * brackets is fine, a space BEFORE them is not, and the two were conflated.
+ *
+ * `assign` refuses it too (`Syntax Error in 'assign'`), so this is not a `hash_assign`
+ * peculiarity. Our grammar parses both, so nothing reports either: a FALSE APPROVAL of a
+ * construct the converter rejects, which fails the whole changeset. It needs a grammar change
+ * to detect, so it is filed rather than bolted onto a detector that answers a different
+ * question.
+ */
+const PLATFORM_REJECTS_BUT_NOT_FOR_NOTATION: Array<[label: string, target: string]> = [
+  ['space before the brackets', `h [ 'k' ]`],
 ];
 
 describe('detectInvalidHashAssignTargetSyntax', () => {
@@ -78,6 +97,22 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
     expect(Object.fromEntries(reported)).toEqual(
       Object.fromEntries(PLATFORM_ACCEPTS.map(([label]) => [label, []])),
     );
+  });
+
+  it('stays silent on a target the platform refuses for a reason that is not notation', async () => {
+    // A KNOWN FALSE APPROVAL, asserted rather than left implicit. Silence here is right for
+    // THIS detector — the target ends in a bracket, so its rule is satisfied — and wrong for
+    // the toolchain, which reports nothing at all about a parse error that fails the whole
+    // changeset. Pinning it means the gap is visible in the diff if someone "fixes" it here,
+    // where the message would tell the author to change a `.` they did not write.
+    const reported = await Promise.all(
+      PLATFORM_REJECTS_BUT_NOT_FOR_NOTATION.map(async ([label, target]) => [
+        label,
+        await messagesFor(`${HASH}{% hash_assign ${target} = 1 %}`),
+      ]),
+    );
+
+    expect(Object.fromEntries(reported)).toEqual({ 'space before the brackets': [] });
   });
 
   it('reports the whole offense, so the message and range are pinned', async () => {
@@ -128,5 +163,54 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
     const reported = await Promise.all(unrelated.map((source) => messagesFor(source)));
 
     expect(reported).toEqual(unrelated.map(() => []));
+  });
+
+  /**
+   * The rule does NOT generalise to the other tags that write into a Hash, and the temptation
+   * to generalise it is why this is pinned rather than left to the prose above.
+   *
+   * `assign` and `function` reach the same runtime setter as `hash_assign` — see
+   * `InvalidHashAssignTarget`, which does treat all of them alike — but they do not share its
+   * PARSER. Measured on a live instance, each row reading the hash back:
+   *
+   *   {% assign h.k     = 'V' %}   writes the key `k`   -> {"k":"V"}
+   *   {% assign h.a.b   = 'V' %}   writes `a.b`         -> {"a":{"b":"V"}}
+   *   {% assign h['a'].b = 'V' %}  writes `a.b`         -> {"a":{"b":"V"}}
+   *   {% hash_assign h.k = 'V' %}  RAISES Liquid::SyntaxError at PARSE time
+   *
+   * `function` was measured only as far as its target PARSING — every spelling reaches partial
+   * resolution rather than a syntax error — because settling its write needs a partial that
+   * exists and the oracle instance has none. Parsing is all this detector is about, so that is
+   * enough for it, and is not enough for `InvalidHashAssignTarget`.
+   *
+   * So extending this detector to those two tags would refuse code the platform runs, on a
+   * check that BLOCKS the write.
+   */
+  describe('the dot rule belongs to hash_assign alone', () => {
+    const DOT_TARGETS = [`h.k`, `h.a.b`, `h['a'].b`];
+
+    it('says nothing about a dot target on the tags that accept one', async () => {
+      const accepted = DOT_TARGETS.flatMap((target) => [
+        `${HASH}{% assign ${target} = 1 %}`,
+        `${HASH}{% function ${target} = 'lib/p' %}`,
+      ]);
+
+      const reported = await Promise.all(accepted.map((source) => messagesFor(source)));
+
+      expect(reported).toEqual(accepted.map(() => []));
+    });
+
+    it('still reports the identical target under hash_assign', async () => {
+      // The control, and it is the whole test. "Nothing was reported" is also what a detector
+      // deleted outright produces, and these are the same three targets in the same buffer
+      // shape — only the tag name differs.
+      const rejected = DOT_TARGETS.map((target) => `${HASH}{% hash_assign ${target} = 1 %}`);
+
+      const reported = await Promise.all(rejected.map((source) => messagesFor(source)));
+
+      expect(reported).toEqual(
+        rejected.map(() => [expect.stringContaining('must end in a bracket subscript')]),
+      );
+    });
   });
 });

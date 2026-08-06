@@ -109,15 +109,41 @@ const deeplyNested = (levels: number): string => {
  * prevent.
  */
 const VALID_YAML: Record<string, string> = {
-  anchor_and_alias: 'base: &b\n  a: 1\nother: *b\n',
-  merge_key: 'base: &b\n  a: 1\nchild:\n  <<: *b\n  c: 2\n',
-  merge_key_multi_source: 'a: &a\n  x: 1\nb: &b\n  y: 2\nc:\n  <<: [*a, *b]\n',
-  block_scalar_literal: 'name: |\n  line one\n  line two\n',
-  block_scalar_folded: 'name: >\n  folded text here\n',
-  block_scalar_strip: 'name: |-\n  no trailing newline\n',
+  anchor_and_alias: `base: &b
+  a: 1
+other: *b
+`,
+  merge_key: `base: &b
+  a: 1
+child:
+  <<: *b
+  c: 2
+`,
+  merge_key_multi_source: `a: &a
+  x: 1
+b: &b
+  y: 2
+c:
+  <<: [*a, *b]
+`,
+  block_scalar_literal: `name: |
+  line one
+  line two
+`,
+  block_scalar_folded: `name: >
+  folded text here
+`,
+  block_scalar_strip: `name: |-
+  no trailing newline
+`,
   block_scalar_keep: 'name: |+\n  keep\n\n',
-  block_scalar_explicit_indent: 'name: |2\n   two space indent\n',
-  explicit_tags: 'a: !!str 5\nb: !!int "7"\nc: !!seq [1, 2]\n',
+  block_scalar_explicit_indent: `name: |2
+   two space indent
+`,
+  explicit_tags: `a: !!str 5
+b: !!int "7"
+c: !!seq [1, 2]
+`,
   custom_tag: 'a: !mytag foo\n',
   quoted_scalar_with_colon: 'a: "x: y"\n',
   quoted_scalar_with_hash: "a: 'c # d'\n",
@@ -126,25 +152,60 @@ const VALID_YAML: Record<string, string> = {
   comments_only: '# nothing here\n',
   byte_order_mark: '\uFEFFname: car\n',
   crlf_line_endings: 'name: car\r\nother: 1\r\n',
-  document_start_marker: '---\nname: car\n',
-  document_end_marker: 'name: car\n...\n',
-  multi_document: 'name: a\n---\nname: b\n',
+  document_start_marker: `---
+name: car
+`,
+  document_end_marker: `name: car
+...
+`,
+  multi_document: `name: a
+---
+name: b
+`,
   bare_scalar: 'just a string\n',
-  top_level_sequence: '- 1\n- 2\n',
+  top_level_sequence: `- 1
+- 2
+`,
   deep_nesting: deeplyNested(60),
   very_long_line: `name: ${'x'.repeat(20000)}\n`,
-  non_ascii_keys: 'zażółć: gęślą\nключ: значение\n',
-  emoji_key_and_value: '"🎉": party\nvalue: "🚀"\n',
-  yaml_directive: '%YAML 1.2\n---\nname: car\n',
-  complex_key: '? [a, b]\n: value\n',
+  non_ascii_keys: `zażółć: gęślą
+ключ: значение
+`,
+  emoji_key_and_value: `"🎉": party
+value: "🚀"
+`,
+  yaml_directive: `%YAML 1.2
+---
+name: car
+`,
+  complex_key: `? [a, b]
+: value
+`,
   flow_collections: 'a: {b: 1, c: [1, 2]}\n',
-  infinity_and_nan: 'a: .inf\nb: -.inf\nc: .nan\n',
-  octal_and_hex: 'a: 0o14\nb: 0x1F\n',
-  timestamps: 'a: 2026-01-01\nb: 2026-01-01T12:00:00Z\n',
-  empty_values: 'a:\nb:\n',
-  explicit_nulls: 'a: ~\nb: null\n',
-  duplicate_key_top_level: 'name: car\nname: van\n',
-  duplicate_key_nested: 'name: car\nproperties:\n  make: ford\n  make: audi\n',
+  infinity_and_nan: `a: .inf
+b: -.inf
+c: .nan
+`,
+  octal_and_hex: `a: 0o14
+b: 0x1F
+`,
+  timestamps: `a: 2026-01-01
+b: 2026-01-01T12:00:00Z
+`,
+  empty_values: `a:
+b:
+`,
+  explicit_nulls: `a: ~
+b: null
+`,
+  duplicate_key_top_level: `name: car
+name: van
+`,
+  duplicate_key_nested: `name: car
+properties:
+  make: ford
+  make: audi
+`,
 };
 
 /** Every shape, in a model schema and in a translation file. */
@@ -160,8 +221,11 @@ const EXISTING_PARTIALS = {
 };
 
 const DOCUMENTED_PARTIAL = {
-  'app/views/partials/card.liquid':
-    '{% doc %}\n  @param title {string} Title\n{% enddoc %}\n{{ title }}\n',
+  'app/views/partials/card.liquid': `{% doc %}
+  @param title {string} Title
+{% enddoc %}
+{{ title }}
+`,
 };
 
 const GRAPHQL_OPERATION = {
@@ -196,7 +260,11 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     {
       name: 'liquid tag',
       filePath: PAGE,
-      content: '{% liquid\n  assign a = 1\n  echo a\n%}\n',
+      content: `{% liquid
+  assign a = 1
+  echo a
+%}
+`,
       oracle: 'by-construction',
     },
     {
@@ -380,13 +448,17 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     {
       name: 'hash with a key',
       filePath: PAGE,
-      content: "{% assign h = '{}' | parse_json %}\n{% hash_assign h['k'] = 'v' %}\n",
+      content: `{% assign h = '{}' | parse_json %}
+{% hash_assign h['k'] = 'v' %}
+`,
       oracle: 'runtime',
     },
     {
       name: 'array with an index',
       filePath: PAGE,
-      content: "{% assign a = '1,2' | split: ',' %}\n{% hash_assign a[0] = 'v' %}\n",
+      content: `{% assign a = '1,2' | split: ',' %}
+{% hash_assign a[0] = 'v' %}
+`,
       oracle: 'runtime',
     },
     // A variable subscript cannot be resolved statically, so the accessor is unknown
@@ -394,8 +466,10 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     {
       name: 'variable subscript',
       filePath: PAGE,
-      content:
-        "{% assign h = '{}' | parse_json %}\n{% assign k = 'a' %}\n{% hash_assign h[k] = 'v' %}\n",
+      content: `{% assign h = '{}' | parse_json %}
+{% assign k = 'a' %}
+{% hash_assign h[k] = 'v' %}
+`,
       oracle: 'runtime',
     },
     // Never assigned in this file. It raises at runtime HERE, but in a partial the
@@ -406,6 +480,55 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
       filePath: PAGE,
       content: "{% hash_assign x['k'] = 'v' %}\n",
       oracle: 'by-construction',
+    },
+    // `assign` writes into a Hash too, and is what an author should reach for now that
+    // `hash_assign` is deprecated. The same accepted shapes, under the tag that is not
+    // going away — plus the two `assign` has and `hash_assign` does not.
+    {
+      name: 'assign: hash with a key',
+      filePath: PAGE,
+      content: `{% assign h = '{}' | parse_json %}
+{% assign h['k'] = 'v' %}
+`,
+      oracle: 'runtime',
+    },
+    {
+      name: 'assign: array with an index',
+      filePath: PAGE,
+      content: `{% assign a = '1,2' | split: ',' %}
+{% assign a[0] = 'v' %}
+`,
+      oracle: 'runtime',
+    },
+    // The shape that a rule generalised from `hash_assign` would refuse. Measured with
+    // the hash read back: it writes the key `k`. `hash_assign h.k` raises a PARSE-time
+    // syntax error, and that difference is notation, not semantics.
+    {
+      name: 'assign: DOT target on a hash, which hash_assign cannot parse',
+      filePath: PAGE,
+      content: `{% assign h = '{}' | parse_json %}
+{% assign h.k = 'v' %}
+`,
+      oracle: 'runtime',
+    },
+    {
+      name: 'assign: append to an array',
+      filePath: PAGE,
+      content: `{% assign a = '1,2' | split: ',' %}
+{% assign a << 3 %}
+`,
+      oracle: 'runtime',
+    },
+    // The false block this suite exists to catch: a write INTO a hash does not replace
+    // it, so the SECOND write must not be refused as a write onto the first one's value.
+    {
+      name: 'assign: two writes into the same hash',
+      filePath: PAGE,
+      content: `{% assign h = '{}' | parse_json %}
+{% assign h['k'] = 'v' %}
+{% hash_assign h['j'] = 'w' %}
+`,
+      oracle: 'runtime',
     },
   ],
 
@@ -447,7 +570,11 @@ function adjacencyVariants(content: string): string[] {
     ...new Set([
       content,
       content.replace(TAGS_APART, '%}{%'),
-      content.replace(TAGS_TOGETHER, '%}\n{%'),
+      content.replace(
+        TAGS_TOGETHER,
+        `%}
+{%`,
+      ),
     ]),
   ];
 }
@@ -531,7 +658,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       JsonLiteralQuoteStyle: 3,
       GraphQLCheck: 2,
       GraphQLVariablesCheck: 1,
-      InvalidHashAssignTarget: 4,
+      InvalidHashAssignTarget: 9,
       MissingRenderPartialArguments: 1,
       MissingContentForLayout: 1,
     });
@@ -616,7 +743,9 @@ describe('Integration: every blocking check stays silent on input the platform a
     // The one control kept here rather than left to the emission suite. Suppressing
     // `DUPLICATE_KEY` is an edit that could widen into hiding real parse failures, and
     // the whole YAML corpus above would pass just as happily if it had.
-    const broken = 'name: car\nproperties: [unclosed\n';
+    const broken = `name: car
+properties: [unclosed
+`;
     const locations = [
       SCHEMA,
       TRANSLATIONS,
@@ -653,8 +782,20 @@ describe('Integration: every blocking check stays silent on input the platform a
     // asserting only the warning would let it drift onto the write gate.
     const observed = [];
     for (const [name, content] of [
-      ['top level', 'name: car\nname: van\n'],
-      ['nested', 'name: car\nproperties:\n  make: ford\n  make: audi\n'],
+      [
+        'top level',
+        `name: car
+name: van
+`,
+      ],
+      [
+        'nested',
+        `name: car
+properties:
+  make: ford
+  make: audi
+`,
+      ],
     ] as const) {
       const result = await validate(SCHEMA, content);
       observed.push({

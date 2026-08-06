@@ -1,8 +1,9 @@
 import {
+  AssignMarkup,
   LiquidTag,
+  LiquidExpression,
   LiquidHtmlNode,
   LiquidVariable,
-  LiquidVariableLookup,
   NodeTypes,
   NamedTags,
   HashAssignMarkup,
@@ -206,8 +207,8 @@ export function variableTypeOf(filter: FilterTypeSource): VariableType {
  * So `x[0]['k']` is a known missed detection, bounded to nested targets, and left alone
  * deliberately rather than by oversight.
  */
-function accessorOf(target: LiquidVariableLookup): Accessor {
-  const first = target.lookups?.[0];
+function accessorOf(lookups: readonly LiquidExpression[]): Accessor {
+  const first = lookups[0];
   if (!first) return 'unknown';
   if (first.type === NodeTypes.String) return 'key';
   if (first.type === NodeTypes.Number) return 'index';
@@ -215,16 +216,23 @@ function accessorOf(target: LiquidVariableLookup): Accessor {
 }
 
 /**
- * The offense for this target, or `undefined` when the assignment is fine — or when
- * we cannot tell, which is treated identically ON PURPOSE.
+ * The offense for a SUBSCRIPT WRITE — `tag x[…] = value` — or `undefined` when the write is
+ * fine, or when we cannot tell, which is treated identically ON PURPOSE.
  *
- * Modelled on what the runtime actually enforces, which is two rules, not one:
- * `hash_assign` requires a Hash or an Array, AND the subscript has to match (a Hash
- * takes a key, an Array takes an index). The old check knew only the first, and
- * described even that as "can only be used on object types" — which is not the rule
- * and told an author to convert a working Array into a Hash.
+ * Modelled on what the runtime actually enforces, which is two rules, not one: the container
+ * must be a Hash or an Array, AND the subscript has to match (a Hash takes a key, an Array
+ * takes an index). "Can only be used on object types" is not the rule, and telling an author
+ * to convert a working Array into a Hash is a refusal of working code.
+ *
+ * `tag` is a parameter because `hash_assign` and `assign` reach the same runtime setter and
+ * the author needs to read their own spelling back — see {@link SUBSCRIPT_WRITE_TAGS}.
  */
-function offenseMessage(name: string, type: VariableType, accessor: Accessor): string | undefined {
+function subscriptWriteMessage(
+  tag: string,
+  name: string,
+  type: VariableType,
+  accessor: Accessor,
+): string | undefined {
   switch (type) {
     case 'number':
     case 'string':
@@ -236,13 +244,13 @@ function offenseMessage(name: string, type: VariableType, accessor: Accessor): s
       // Array"), so the subscript makes no difference to the outcome. `date` and `time`
       // sit here on the same measured footing as the rest: both were rendered on a live
       // instance and raise "expected Hash or Array" for a key AND for an index.
-      return `Cannot use hash_assign on '${name}', which is a ${type}. hash_assign expects a Hash or an Array.`;
+      return `Cannot use ${tag} on '${name}', which is a ${type}. ${tag} expects a Hash or an Array.`;
 
     case 'array':
       // Measured both ways: `x[0] = …` on an Array renders, `x['key'] = …` raises
       // "expected index, key was provided". An unknown subscript stays silent.
       return accessor === 'key'
-        ? `Cannot use hash_assign on '${name}' with a string key, because it is an Array. Use a numeric index instead.`
+        ? `Cannot use ${tag} on '${name}' with a string key, because it is an Array. Use a numeric index instead.`
         : undefined;
 
     case 'object':
@@ -251,13 +259,83 @@ function offenseMessage(name: string, type: VariableType, accessor: Accessor): s
   }
 }
 
+/**
+ * The offense for an APPEND — `{% assign x << value %}` — which is a different rule from a
+ * subscript write and shares nothing with it but the tag name.
+ *
+ * MEASURED across every container, and the Hash row is the falsifier that proves the two are
+ * not the same rule: `=` wants a Hash and refuses a scalar, `<<` wants an Array and refuses a
+ * Hash.
+ *
+ *   {% parse_json x %}[1]{% endparse_json %}{% assign x << 2 %}   appends, x stays an Array
+ *   {% parse_json x %}{}{% endparse_json %} {% assign x << 1 %}   raises "x is {}, expected Array"
+ *   {% assign x = 'a' %}                    {% assign x << 'b' %} raises "x is a, expected Array"
+ *   {% assign x = 1 %}                      {% assign x << 2 %}   raises "x is 1, expected Array"
+ *   (x never assigned)                      {% assign x << 1 %}   raises "x is null, expected Array"
+ *
+ * An append THROUGH a subscript (`{% assign x['k'] << v %}`) is NOT this rule and is not
+ * reported at all: the runtime checks the value AT the subscript — measured, "x[k] is null,
+ * expected Array" — and nothing here tracks element types.
+ */
+function appendMessage(name: string, type: VariableType): string | undefined {
+  switch (type) {
+    case 'number':
+    case 'string':
+    case 'boolean':
+    case 'range':
+    case 'date':
+    case 'time':
+    case 'object':
+      return `Cannot use '<<' on '${name}', which is a ${type === 'object' ? 'Hash' : type}. '<<' appends to an Array.`;
+
+    case 'array':
+    case 'untyped':
+      return undefined;
+  }
+}
+
+/**
+ * Where the TARGET ends in the source, for a tag whose markup carries no node spanning it.
+ *
+ * `AssignMarkup` records the variable NAME and its lookups separately, and a bracket lookup's
+ * node begins INSIDE the brackets — so the last lookup's end is one short of the `]` for
+ * `x['k']` and exactly right for `x.k`. Reading the gap rather than adding a fixed offset keeps
+ * this correct across the whitespace the grammar permits: `x [ 'k' ]` parses.
+ */
+function targetEndOf(source: string, lookups: readonly LiquidExpression[]): number {
+  const last = lookups[lookups.length - 1];
+  let index = last.position.end;
+  while (index < source.length && /\s/.test(source[index])) index++;
+  return source[index] === ']' ? index + 1 : last.position.end;
+}
+
+/**
+ * The tags that write THROUGH a subscript, and why they share one rule.
+ *
+ * `hash_assign` is the older, deprecated spelling; `assign` gained the same ability and is what
+ * an author should reach for now. They are not merely similar — MEASURED against
+ * `/api/app_builder/liquid_exec`, every container × subscript combination behaves identically,
+ * with the container read back after the write so acceptance means the write happened:
+ *
+ *                        x['k'] = 'V'        x[0] = 'V'        x.k = 'V'
+ *   Hash                 writes              writes (key "0")  writes
+ *   Array                raises, wants index writes            raises, wants index
+ *   String/Number/       raises, "expected Hash or Array" for every subscript
+ *   Boolean/nil/unset
+ *
+ * The ONE difference is notation, not semantics: `hash_assign x.k` raises a PARSE-time
+ * `Syntax Error in 'hash_assign'`, while `assign x.k` writes the key `k`. That belongs to
+ * `InvalidHashAssignTargetSyntax`, which is why it is not modelled here — a dot lookup is a
+ * plain KEY accessor for the purposes of this check, exactly as the runtime treats it.
+ */
+const SUBSCRIPT_WRITE_TAGS = 'hash_assign, assign';
+
 export const InvalidHashAssignTarget: LiquidCheckDefinition = {
   meta: {
     code: 'InvalidHashAssignTarget',
-    name: 'Invalid hash_assign target',
+    name: 'Invalid hash write target',
     docs: {
-      description:
-        'Reports hash_assign against a target the runtime rejects: a value that is neither a Hash nor an Array, or an Array subscripted with a string key instead of a numeric index.',
+      description: `Reports a write through a subscript (${SUBSCRIPT_WRITE_TAGS}) against a target the runtime rejects: a value that is neither a Hash nor an Array, or an Array subscripted with a string key instead of a numeric index. Also reports '<<' against a target that is not an Array.`,
       recommended: true,
       url: undefined,
     },
@@ -400,21 +478,90 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
       }
     };
 
+    /**
+     * Record what a variable holds AFTER a write that goes INTO it rather than replacing it.
+     *
+     * A subscript write and an append both leave the container in place, so the variable does
+     * NOT take the value's type — which is the whole difference from a plain `{% assign %}`.
+     * Getting this wrong is a false block rather than a missed detection: rebinding `h` to
+     * `string` after `{% assign h['k'] = 'V' %}` makes the very next `hash_assign` on the same
+     * hash look like a write onto a string, and this check refuses writes.
+     *
+     * The type is NARROWED, not merely kept. A write that reaches the runtime at all proves the
+     * container was of the right kind, so an untyped variable becomes what the operation
+     * requires — an Array for `<<`, a Hash for a subscript write unless it was already an Array,
+     * which a subscript write does not convert.
+     *
+     * The language server's `TypeSystem` already modelled this — its `AssignMarkup` visitor
+     * returns `Untyped` for exactly these two shapes — so hover and completion were right while
+     * the check that BLOCKS was wrong. Worth knowing before adding a third model of the same
+     * question somewhere else.
+     */
+    const narrowAfterWriteInto = (name: string, node: LiquidTag, becomes: 'array' | 'hash') => {
+      const existing = findVariableType(name, node.position.start) ?? 'untyped';
+      closeTypeRange(name, node.position.start);
+      variableTypes.push({
+        name,
+        type: becomes === 'array' || existing === 'array' ? 'array' : 'object',
+        range: [node.position.end],
+      });
+    };
+
     return {
       async LiquidTag(node: LiquidTag) {
-        // {% assign x = value %}
+        // {% assign x = value %}, {% assign x[…] = value %}, {% assign x << value %}
         if (isLiquidTagAssign(node)) {
           const markup = node.markup;
+          const lookups = markup.lookups ?? [];
 
-          // Close any previous type for this variable (reassignment)
-          closeTypeRange(markup.name, node.position.start);
+          if (lookups.length > 0) {
+            // A SUBSCRIPT WRITE, measured identical to `hash_assign` in every container ×
+            // subscript combination — so it answers to the same rule, reported under the
+            // author's own spelling. `<<` through a subscript is deliberately absent: the
+            // runtime asks about the value AT the subscript, not about the container.
+            if (markup.operator === '=') {
+              const name = markup.name;
+              const message = subscriptWriteMessage(
+                'assign',
+                name,
+                findVariableType(name, node.position.start) ?? 'untyped',
+                accessorOf(lookups),
+              );
 
-          const inferredType = await inferVariableType(markup.value);
-          variableTypes.push({
-            name: markup.name,
-            type: inferredType,
-            range: [node.position.end],
-          });
+              if (message) {
+                context.report({
+                  message,
+                  startIndex: markup.position.start,
+                  endIndex: targetEndOf(node.source, lookups),
+                });
+              }
+            }
+
+            narrowAfterWriteInto(markup.name, node, 'hash');
+          } else if (markup.operator === '<<') {
+            const message = appendMessage(
+              markup.name,
+              findVariableType(markup.name, node.position.start) ?? 'untyped',
+            );
+
+            if (message) {
+              context.report({
+                message,
+                startIndex: markup.position.start,
+                endIndex: markup.position.end,
+              });
+            }
+
+            narrowAfterWriteInto(markup.name, node, 'array');
+          } else {
+            // A plain assignment REPLACES the variable, so it takes the value's type.
+            closeTypeRange(markup.name, node.position.start);
+            variableTypes.push({
+              name: markup.name,
+              type: await inferVariableType(markup.value),
+              range: [node.position.end],
+            });
+          }
         }
 
         // {% increment x %} / {% decrement x %}
@@ -472,6 +619,13 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
         }
 
         // {% function result = 'path' %}
+        //
+        // A SUBSCRIPT TARGET (`{% function h['k'] = 'path' %}`) parses — measured, all eight
+        // spellings reach partial resolution rather than a syntax error — but what the write
+        // then does is UNMEASURED: settling it needs a partial that exists, and the oracle
+        // instance has none. So the target is not judged, and the container is rebound to
+        // `untyped` exactly as for a plain target. That costs missed detections, which is the
+        // direction that cannot manufacture a false block in a check that refuses writes.
         if (node.name === NamedTags.function && typeof node.markup !== 'string') {
           const markup = node.markup as FunctionMarkup;
           const varName = markup.name.name;
@@ -486,14 +640,20 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
           }
         }
 
-        // {% hash_assign x['key'] = value %} - validate the target
+        // {% hash_assign x['key'] = value %} — the same subscript write, under the older,
+        // deprecated spelling, which additionally REFUSES a dot target at parse time. That
+        // refusal is `InvalidHashAssignTargetSyntax`'s to report, not this check's.
         if (isLiquidTagHashAssign(node)) {
           const markup = node.markup;
           const variableName = markup.target.name;
 
           if (variableName) {
-            const existingType = findVariableType(variableName, node.position.start) ?? 'untyped';
-            const message = offenseMessage(variableName, existingType, accessorOf(markup.target));
+            const message = subscriptWriteMessage(
+              'hash_assign',
+              variableName,
+              findVariableType(variableName, node.position.start) ?? 'untyped',
+              accessorOf(markup.target.lookups ?? []),
+            );
 
             if (message) {
               context.report({
@@ -503,16 +663,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
               });
             }
 
-            // What the variable holds AFTER the assignment. An Array stays an Array —
-            // `hash_assign` writes into it, it does not convert it — so a later
-            // key-assign on the same variable is still reported. Overwriting it with
-            // `object` here (the previous behaviour) silenced exactly that case.
-            closeTypeRange(variableName, node.position.start);
-            variableTypes.push({
-              name: variableName,
-              type: existingType === 'array' ? 'array' : 'object',
-              range: [node.position.end],
-            });
+            narrowAfterWriteInto(variableName, node, 'hash');
           }
         }
       },
@@ -521,9 +672,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
 };
 
 // Type guards
-function isLiquidTagAssign(
-  node: LiquidTag,
-): node is LiquidTag & { markup: { name: string; value: LiquidVariable } } {
+function isLiquidTagAssign(node: LiquidTag): node is LiquidTag & { markup: AssignMarkup } {
   return node.name === NamedTags.assign && typeof node.markup !== 'string';
 }
 

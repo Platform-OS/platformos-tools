@@ -27,6 +27,13 @@ import { SourceCodeType, Problem } from '../../..';
  * SO THE RULE IS POSITIONAL, not about the key: only the LAST lookup must be a bracket.
  * Reporting any dot in the chain would be a false block on `h.a['b']`, which works.
  *
+ * AND IT IS `hash_assign`'s ALONE. `assign` and `function` write into a Hash through the same
+ * runtime setter — `InvalidHashAssignTarget` treats all three alike for that reason — but they
+ * do not share this PARSER. Measured, reading the hash back: `{% assign h.k = 'V' %}` writes
+ * the key `k`, `{% assign h.a.b = 'V' %}` and `{% assign h['a'].b = 'V' %}` write `a.b`, and
+ * every `function` target spelling reaches partial resolution rather than a syntax error.
+ * Generalising this detector to them would refuse working code on a check that BLOCKS.
+ *
  * WHY NOT `InvalidHashAssignTarget`. That check answers a TYPE question — is the container a
  * Hash or an Array, and does the subscript kind match — and it necessarily stays silent when
  * it cannot infer the type, which is most of the time (a render argument, a module value, a

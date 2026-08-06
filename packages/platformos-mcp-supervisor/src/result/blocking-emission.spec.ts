@@ -128,7 +128,9 @@ const EMITS: Record<string, EmissionFixture> = {
     // pinned by that check's own spec; what this fixture proves is that a reported
     // offense reaches the gate and blocks.
     filePath: PAGE,
-    content: "{% assign x = 5 %}\n{% hash_assign x['k'] = 'v' %}\n",
+    content: `{% assign x = 5 %}
+{% hash_assign x['k'] = 'v' %}
+`,
     errors: ['InvalidHashAssignTarget'],
   },
 
@@ -152,8 +154,11 @@ const EMITS: Record<string, EmissionFixture> = {
     // that `PartialCallArguments` still fires at all lives immediately below, so the
     // silence here cannot come from a check that simply stopped working.
     project: {
-      'app/views/partials/card.liquid':
-        '{% doc %}\n  @param title {string} Title\n{% enddoc %}\n{{ title }}\n',
+      'app/views/partials/card.liquid': `{% doc %}
+  @param title {string} Title
+{% enddoc %}
+{{ title }}
+`,
     },
     filePath: PAGE,
     content: "{% render 'card' %}\n",
@@ -165,7 +170,12 @@ const EMITS: Record<string, EmissionFixture> = {
     // item above it. `--dry-run` rejects this and fails the whole changeset; before
     // the check existed the supervisor returned `ok` with nothing in `errors[]`.
     filePath: 'app/schema/car.yml',
-    content: 'name: car\nproperties:\n - name: make\n   type: string\n  year: 1\n',
+    content: `name: car
+properties:
+ - name: make
+   type: string
+  year: 1
+`,
     errors: ['YAMLSyntaxError'],
   },
 
@@ -253,7 +263,11 @@ function adjacencyVariants(content: string): string[] {
     ...new Set([
       content,
       content.replace(TAGS_APART, '%}{%'),
-      content.replace(TAGS_TOGETHER, '%}\n{%'),
+      content.replace(
+        TAGS_TOGETHER,
+        `%}
+{%`,
+      ),
     ]),
   ];
 }
@@ -328,6 +342,47 @@ describe('Integration: every blocking check can actually block', () => {
       });
     });
   }
+
+  /**
+   * `hash_assign` is deprecated, so the fixture above pins the gate against the spelling an
+   * author is being told to STOP writing. `assign` reaches the same runtime setter — measured,
+   * every container × subscript combination identical, with the container read back — and it
+   * carries a second rule of its own in `<<`, which needs an Array and refuses a Hash.
+   *
+   * Both are asserted end-to-end HERE rather than only in check-common, because the claim that
+   * matters is that the offense reaches the gate and stops the write. A check can report and
+   * still not block: `blocksWrite` needs severity `error` AND membership of `BLOCKING_CHECKS`,
+   * and neither is visible from the check's own spec.
+   */
+  it('blocks a subscript write and an append through assign, not only through hash_assign', async () => {
+    const buffers = [
+      // A subscript write onto a String. The runtime raises "x is abc, expected Hash or Array".
+      `{% assign x = 'abc' %}{% assign x['k'] = 'v' %}`,
+      // A DOT target onto the same String, which `hash_assign` cannot even parse and `assign`
+      // can — so this shape is reachable only through `assign`.
+      `{% assign x = 'abc' %}{% assign x.k = 'v' %}`,
+      // An append onto a Hash. The runtime raises "x is {}, expected Array".
+      `{% parse_json x %}{}{% endparse_json %}{% assign x << 1 %}`,
+    ];
+
+    const verdicts = [];
+    for (const content of buffers) {
+      const result = await validate(PAGE, content);
+      verdicts.push({
+        blocked: result.must_fix_before_write,
+        status: result.status,
+        errors: [...new Set(result.errors.map((error) => error.check))].sort(),
+      });
+    }
+
+    expect(verdicts).toEqual(
+      buffers.map(() => ({
+        blocked: true,
+        status: 'error',
+        errors: ['InvalidHashAssignTarget'],
+      })),
+    );
+  });
 
   /**
    * THE CONTROL for the silence in the `MissingRenderPartialArguments` fixture.

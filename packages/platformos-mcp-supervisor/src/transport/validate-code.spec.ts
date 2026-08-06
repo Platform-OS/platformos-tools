@@ -865,7 +865,8 @@ describe('server instructions', () => {
     // The old wording — "a bug in the validator; retrying will not help" — told an
     // agent to give up on a request it could fix by deduplicating.
     expect(SERVER_INSTRUCTIONS).not.toContain('retrying will not help');
-    expect(SERVER_INSTRUCTIONS).toContain('is yours\n                       to fix');
+    expect(SERVER_INSTRUCTIONS).toContain(`is yours
+                       to fix`);
   });
 
   it('states the once-per-file rule, which the server enforces by refusing', () => {
@@ -893,7 +894,8 @@ describe('server instructions', () => {
   });
 
   it('names filter arity among what is checked, now that it blocks', () => {
-    expect(SERVER_INSTRUCTIONS).toContain('wrong number\n            of arguments');
+    expect(SERVER_INSTRUCTIONS).toContain(`wrong number
+            of arguments`);
   });
 
   it('states all THREE outcomes for a filter, because there are three and not two', () => {
@@ -914,10 +916,9 @@ describe('server instructions', () => {
     //
     // Behaviour is pinned in check-common's `filter-without-effect/index.spec.ts` and end to
     // end in `blocking-emission.spec.ts`; this pins that the agent is TOLD all three.
-    // Substrings are chosen to survive a REWRAP. An earlier version of this pinned
-    // `'the platform\n            IGNORES it'`, which encoded the line breaks and would have
-    // failed on a reflow that changed nothing about the claim — a test that fails for the
-    // wrong reason trains people to edit the test.
+    // Substrings are chosen to survive a REWRAP: a substring that spans a line break encodes
+    // the wrapping, and fails on a reflow that changed nothing about the claim — a test that
+    // fails for the wrong reason trains people to edit the test.
     const collapsed = SERVER_INSTRUCTIONS.replace(/\s+/g, ' ');
 
     expect({
@@ -951,6 +952,30 @@ describe('server instructions', () => {
       showsAnAcceptedDot: SERVER_INSTRUCTIONS.includes("h.a['b'] are fine"),
       backedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
     }).toEqual({ stated: true, showsAnAcceptedDot: true, backedBy: true });
+  });
+
+  it('scopes the bracket rule to hash_assign and names the two rules assign has instead', () => {
+    // `hash_assign` is deprecated and `assign` writes into a Hash too, so an agent told only
+    // about `hash_assign` learns a rule that does not apply to the tag it should be writing —
+    // and, worse, does not learn the two that DO. Both are measured with the container read
+    // back: `assign h.k = 'V'` writes the key `k`, and `assign x << v` raises unless `x` is an
+    // Array, a Hash included.
+    //
+    // Behaviour lives in `subscript-writes.spec.ts`; this pins that the agent is told, and
+    // that both rules are carried by a check that BLOCKS.
+    expect({
+      namesAssign: SERVER_INSTRUCTIONS.includes("{% assign h['k'] = v %}"),
+      scopesTheBracketRule: SERVER_INSTRUCTIONS.includes('Only hash_assign additionally'),
+      saysAssignAcceptsThem: SERVER_INSTRUCTIONS.includes('assign accepts all'),
+      statesAppend: SERVER_INSTRUCTIONS.includes('{% assign x << v %} needs an'),
+      backedBy: BLOCKING_CHECKS.has('InvalidHashAssignTarget'),
+    }).toEqual({
+      namesAssign: true,
+      scopesTheBracketRule: true,
+      saysAssignAcceptsThem: true,
+      statesAppend: true,
+      backedBy: true,
+    });
   });
 
   it('names the YAML DIALECT, because key identity is not inferable without it', () => {

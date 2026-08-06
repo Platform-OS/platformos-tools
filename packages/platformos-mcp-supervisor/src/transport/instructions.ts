@@ -89,10 +89,13 @@ WHAT IS ACTUALLY CHECKED
             {% doc %}, layout correctness, and more. Three that block and are easy
             to trip over: a JSON literal in {% assign %} must use DOUBLE quotes
             ({'k': 1} is rejected by the deploy converter, failing the whole
-            changeset); {% hash_assign %} needs a Hash with a key or an Array with
-            a numeric index — nothing else — and its target must end in a BRACKET
-            subscript, so h['k'] and h.a['b'] are fine but h.k and h['a'].b cannot
-            be parsed at all; and a FILTER INSIDE A CONDITION is
+            changeset); a write through a subscript — {% assign h['k'] = v %}, or
+            the deprecated {% hash_assign %} — needs a Hash with a key or an Array
+            with a numeric index, nothing else, and {% assign x << v %} needs an
+            Array (a Hash is refused). Only hash_assign additionally requires that
+            its target must end in a BRACKET, so h['k'] and h.a['b'] are fine but
+            h.k and h['a'].b cannot be parsed under it at all — assign accepts all
+            four. And a FILTER INSIDE A CONDITION is
             rejected by the converter, so {% if a | upcase == 'A' %} and
             {% for x in list | reverse %} must {% assign %} the filtered value
             first and then test or iterate that.

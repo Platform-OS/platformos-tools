@@ -18,12 +18,35 @@ dry-run oracle outranks the runtime one *for syntax only*.
 
 ---
 
-## 1. `hash_assign` is stricter than "it needs an object"
+## 1. Writing into a Hash is stricter than "it needs an object"
 
 The runtime enforces **three** rules, and they fail at different times. Rule zero is
 syntactic and fires before the other two are even considered.
 
-### Rule 0 — the target must end in a BRACKET subscript
+### `hash_assign` is not the only tag that does this, and it is the deprecated one
+
+`{% assign h['k'] = v %}` writes into a Hash too, and is what you should reach for.
+Measured against `liquid_exec` with the container read back afterwards, `assign` and
+`hash_assign` agree on **every** container × subscript combination — rules 1 and 2 below
+apply identically to both.
+
+Rule 0 is the exception, and it is `hash_assign`'s alone:
+
+```liquid
+{% assign      h.k = 'v' %}   ✅ writes the key `k`
+{% hash_assign h.k = 'v' %}   ❌ Liquid::SyntaxError at parse time
+```
+
+So a rule generalised from `hash_assign` to `assign` refuses working code. `{% function
+h['k'] = 'partial' %}` parses in every target spelling; what its write then does is
+unmeasured, because it needs a partial that exists.
+
+`{% assign x << v %}` is a **fourth, separate rule**: it appends and requires an Array.
+A Hash raises — `"x is {}, expected Array"` — which is the exact inverse of rule 1, so the
+two cannot be modelled as one. Through a subscript (`{% assign x['k'] << v %}`) the runtime
+asks about the value *at* the subscript, not the container.
+
+### Rule 0 — a `hash_assign` target must end in a BRACKET subscript
 
 ```liquid
 {% hash_assign h['k']   = 'v' %}   ✅
@@ -91,10 +114,19 @@ the obvious inverse rule does **not** hold:
 So "the last subscript must match the container" is false. Anything modelling
 nested targets needs real element types, not a heuristic.
 
-### `hash_assign` does not convert the target
+### A write INTO a container does not replace it
 
-Writing into an Array leaves it an Array. A later key-assign on the same
-variable is still wrong.
+Writing into an Array leaves it an Array, so a later key-assign on the same variable is
+still wrong. The same for a Hash — and this is where a checker gets it backwards, because
+`{% assign h['k'] = 'V' %}` *looks* like a plain assignment:
+
+```liquid
+{% parse_json h %}{}{% endparse_json %}
+{% assign h['k'] = 'V' %}
+{% hash_assign h['j'] = 'W' %}   ✅ renders — `h` is still a Hash, not the string 'V'
+```
+
+`<<` is the same: appending a number to an Array leaves an Array.
 
 ---
 

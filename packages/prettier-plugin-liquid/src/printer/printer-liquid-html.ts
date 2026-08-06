@@ -149,6 +149,66 @@ function isYamlFrontMatter(node: TextNode) {
   );
 }
 
+/**
+ * Whether this `VariableLookup` is the TARGET of a write, where bracket notation is
+ * load-bearing and must survive formatting.
+ *
+ * MEASURED on a live instance, not inferred. `hash_assign` requires the FINAL subscript to be
+ * a bracket:
+ *
+ *   {% hash_assign h['k'] = 'V' %}    assigns      {% hash_assign h.k      = 'V' %}  RAISES
+ *   {% hash_assign h["k"] = 'V' %}    assigns      {% hash_assign h.a.b    = 'V' %}  RAISES
+ *   {% hash_assign h.a['b'] = 'V' %}  assigns      {% hash_assign h['a'].b = 'V' %}  RAISES
+ *   {% hash_assign h[k] = 'V' %}      assigns
+ *   {% hash_assign h[0] = 'V' %}      assigns
+ *
+ * The raise is `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax: hash_assign
+ * hash[key] = value`, at PARSE time — so a rewritten file does not merely fail to deploy, it
+ * cannot be parsed, and a converter rejection takes the WHOLE changeset. Without this guard
+ * the printer turned `h['k']` into `h.k` on every format: valid code silently rewritten into
+ * undeployable code, with no error at any layer.
+ *
+ * `{% function h['k'] = 'partial' %}` is here on a WEAKER claim, deliberately stated as such.
+ * Its target parses in every notation, so the dot form is not a measured syntax error the way
+ * `hash_assign`'s is. It is guarded anyway because what the write DOES was never measured —
+ * settling it needs a partial that exists — and rewriting an author's target is not something
+ * to do on an unmeasured tag. Preserving costs nothing; being wrong costs the changeset.
+ *
+ * EVERY lookup in the target is printed as a bracket, not only the last one. Only the last is
+ * load-bearing — `h.a['b']` is accepted — so this also normalises `h.a['b']` to `h['a']['b']`
+ * and an author's invalid `h.k` to `h['k']`. Both are deliberate: the output is uniformly the
+ * one spelling that is always valid, and leaving a mixed `h.a['b']` would invite the next
+ * reader to tidy away the one bracket doing the work.
+ *
+ * WHY NOT PRESERVE EACH LOOKUP'S ORIGINAL NOTATION, which would be the gentler fix. The only
+ * available signal is that `dotLookup` builds a `String` node with no `single` field while a
+ * bracket lookup sets one — and `LiquidString.single` is declared `boolean`, NOT optional. So
+ * that distinction is a pre-existing type violation rather than a contract: nothing stops the
+ * parser from filling `single` in on dot lookups as a tidy-up, and this printer would then
+ * silently start emitting dots in targets and reintroduce the syntax error. Preserving
+ * notation needs an explicit typed signal on the node first; until then, always-brackets
+ * depends on nothing fragile.
+ *
+ * `{% assign %}` is NOT decided here: its markup carries the name and the lookups separately
+ * with no `VariableLookup` node to reach this function, so it brackets its own target — see
+ * the `AssignMarkup` case.
+ *
+ * The parent comes from `path.getParentNode()` rather than the augmented `node.parentNode`:
+ * the augmentation types `parentNode` as `ParentNode`, which by construction only covers nodes
+ * that can HAVE children, and neither markup node is one. The print-time parent is exactly the
+ * question being asked, so this is the right API rather than a cast around a deliberately
+ * narrow type.
+ */
+function isWriteTarget(
+  printParent: { type?: string; target?: unknown; name?: unknown } | null,
+  node: unknown,
+): boolean {
+  if (!printParent) return false;
+  if (printParent.type === NodeTypes.HashAssignMarkup) return printParent.target === node;
+  if (printParent.type === NodeTypes.FunctionMarkup) return printParent.name === node;
+  return false;
+}
+
 function printTextNode(
   path: AstPath<TextNode>,
   options: LiquidParserOptions,
@@ -325,17 +385,29 @@ function printNode(
     case NodeTypes.AssignMarkup: {
       const doc: Doc[] = [node.name];
       if (node.lookups.length > 0) {
-        const lookups: Doc[] = (path as any).map((lookupPath: any) => {
-          const lookup = lookupPath.getValue() as LiquidExpression;
-          if (
-            lookup.type === NodeTypes.String &&
-            /^\D/.test(lookup.value) &&
-            /^[a-z0-9_]+\??$/i.test(lookup.value)
-          ) {
-            return ['.', print(lookupPath)];
-          }
-          return ['[', print(lookupPath), ']'];
-        }, 'lookups');
+        /**
+         * An `{% assign %}` TARGET is printed with brackets throughout, for the same reason a
+         * `hash_assign` target is — see {@link isWriteTarget}. This is the tag an author should
+         * be reaching for now that `hash_assign` is deprecated, so it is the one that matters
+         * most.
+         *
+         * The "prefer direct access" normalisation used to apply here and was wrong TWICE
+         * over. It printed the STRING NODE after the dot rather than the raw value, so
+         * `{% assign h['k'] = 'V' %}` came out as `{% assign h.'k' = 'V' %}` — not the dot
+         * form, but a spelling no Liquid parser accepts. Measured: `Liquid syntax error:
+         * Syntax Error in 'assign' - Valid syntax: assign [var] = [value]`, at PARSE time. One
+         * format turned a working file into one that cannot be parsed and that the deploy
+         * converter rejects, taking the whole changeset with it.
+         *
+         * Brackets are always accepted here — `h['k']`, `h["k"]`, `h[0]`, `h[k]` all assign —
+         * and so is the dot form, which is why this is a normalisation rather than a repair:
+         * `{% assign h.k = 'V' %}` and `{% assign h['k'] = 'V' %}` both write the key `k`,
+         * measured with the hash read back.
+         */
+        const lookups: Doc[] = (path as any).map(
+          (lookupPath: any) => ['[', print(lookupPath), ']'],
+          'lookups',
+        );
         doc.push(...lookups);
       }
       doc.push(
@@ -725,48 +797,15 @@ function printNode(
       }
 
       /**
-       * Bracket notation is LOAD-BEARING in a `hash_assign` TARGET, so the "prefer direct
-       * access" normalisation below must not apply there.
-       *
-       * MEASURED on a live instance, not inferred. The platform requires the final subscript
-       * to be a bracket:
-       *
-       *   {% hash_assign h['k'] = 'V' %}    assigns      {% hash_assign h.k     = 'V' %}  RAISES
-       *   {% hash_assign h["k"] = 'V' %}    assigns      {% hash_assign h.a.b   = 'V' %}  RAISES
-       *   {% hash_assign h.a['b'] = 'V' %}  assigns      {% hash_assign h['a'].b = 'V' %} RAISES
-       *   {% hash_assign h[k] = 'V' %}      assigns
-       *   {% hash_assign h[0] = 'V' %}      assigns
-       *
-       * The raise is `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax:
-       * hash_assign hash[key] = value`, at PARSE time — so a rewritten file does not merely
-       * fail to deploy, it cannot be parsed, and a converter rejection takes the WHOLE
-       * changeset. Without this guard the printer turned `h['k']` into `h.k` on every format:
-       * valid code silently rewritten into undeployable code, with no error at any layer.
-       *
-       * EVERY lookup in the target is printed as a bracket, not only the last one. Only the
-       * last is load-bearing — `h.a['b']` is accepted — so this also normalises `h.a['b']` to
-       * `h['a']['b']` and an author's invalid `h.k` to `h['k']`. Both are deliberate: the
-       * output is uniformly the one spelling that is always valid, and leaving a mixed
-       * `h.a['b']` would invite the next reader to tidy away the one bracket doing the work.
-       *
-       * WHY NOT PRESERVE EACH LOOKUP'S ORIGINAL NOTATION, which would be the gentler fix. The
-       * only available signal is that `dotLookup` builds a `String` node with no `single`
-       * field while a bracket lookup sets one — and `LiquidString.single` is declared
-       * `boolean`, NOT optional. So that distinction is a pre-existing type violation rather
-       * than a contract: nothing stops the parser from filling `single` in on dot lookups as a
-       * tidy-up, and this printer would then silently start emitting dots in targets and
-       * reintroduce the syntax error. Preserving notation needs an explicit typed signal on
-       * the node first; until then, always-brackets depends on nothing fragile.
-       *
-       * `path.getParentNode()` rather than the augmented `node.parentNode`: the augmentation
-       * types `parentNode` as `ParentNode`, which by construction only covers nodes that can
-       * HAVE children, and a `HashAssignMarkup` is not one. The print-time parent is exactly
-       * the question being asked here, so this is the right API rather than a cast around a
-       * type that is deliberately narrow.
+       * Bracket notation is LOAD-BEARING in a WRITE TARGET, so the "prefer direct access"
+       * normalisation below must not apply to one — see {@link isWriteTarget}.
        */
-      const printParent = path.getParentNode() as { type?: string; target?: unknown } | null;
-      const isHashAssignTarget =
-        printParent?.type === NodeTypes.HashAssignMarkup && printParent.target === node;
+      const printParent = path.getParentNode() as {
+        type?: string;
+        target?: unknown;
+        name?: unknown;
+      } | null;
+      const isTarget = isWriteTarget(printParent, node);
 
       const lookups: Doc[] = path.map((lookupPath, index) => {
         const lookup = lookupPath.getValue() as LiquidExpression;
@@ -777,7 +816,7 @@ function printNode(
             // (for everything but stuff with dashes and stuff that starts with a number)
             const isGlobalStringLookup = index === 0 && !node.name;
             if (
-              !isHashAssignTarget &&
+              !isTarget &&
               !isGlobalStringLookup &&
               /^\D/.test(value) &&
               /^[a-z0-9_]+\??$/i.test(value)

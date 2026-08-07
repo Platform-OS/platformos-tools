@@ -1,14 +1,12 @@
 ---
 id: TASK-6
 title: Full build + test pass; fix downstream fallout
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-11 13:12'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:51'
 labels: []
-dependencies:
-  - TASK-4
-  - TASK-5
+dependencies: []
 ordinal: 6000
 ---
 
@@ -45,3 +43,18 @@ yarn type-check
 - [ ] #3 yarn type-check passes
 - [ ] #4 grep -rn marketplace_builder packages/ --include=*.ts returns no live (non-comment) hits
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CLOSED AS OBSOLETE 2026-08-07 — meta-task for TASK-1 … TASK-5
+
+A build-and-fix-fallout pass for an epic that is now closed: its parts were either
+delivered by other work or deliberately reversed. The two fallout classes it anticipated
+are both moot — `marketplace_builder/` fixtures did not need migrating because the root
+was kept, and the strict-classification fallout landed incrementally with the work that
+introduced it.
+
+The repo currently builds clean and the whole suite passes (361 files / 3859 tests as of
+2026-08-07), so there is no outstanding fallout to fix.
+<!-- SECTION:NOTES:END -->

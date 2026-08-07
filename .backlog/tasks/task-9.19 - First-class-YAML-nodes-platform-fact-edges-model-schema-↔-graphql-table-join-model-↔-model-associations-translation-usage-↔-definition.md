@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-03 06:51'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 14:49'
 labels:
   - platformos-graph
   - mcp-supervisor
@@ -14,10 +14,7 @@ labels:
   - yaml
   - translations
   - schemas
-dependencies:
-  - TASK-9.14
-  - TASK-9.15
-  - TASK-9.17
+dependencies: []
 references:
   - packages/platformos-graph/src/graph/build.ts
   - packages/platformos-graph/src/graph/traverse.ts
@@ -71,3 +68,36 @@ Working dir: ~/Work/platformos-tools/platformos-tools.
 - [ ] #7 Strictly platform FACTS only (ADR 004); the commands/queries resource/CRUD CONVENTION remains out of scope (TASK-9.7); all logic in platformos-graph (ADR 003)
 - [ ] #8 TDD: fixtures covering schema/graphql/translation edges; edge + dependents + orphan + reconcile assertions (whole-value); graph + supervisor suites + type-check + format + frozen-lockfile green
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## STALENESS CHECK 2026-08-07 — the NODES landed; none of the three edges did
+
+**What is done:** schema/YAML files are first-class graph nodes. `SchemaModule`
+(`platformos-graph/src/types.ts:162`) exists with `kind: 'schema'` and carries
+`table?: string`, delivered by TASK-9.6 (archived Done). `GraphQLModule` carries
+`tables`. So both sides of the Phase-A join now hold the data the join needs.
+
+**What is NOT done — all three edge families, Phase A included.** The raw material
+exists but nothing links it. `SchemaModule.table`'s own doc says it is "a single value …
+that **a consumer** can join against", i.e. the join is deliberately left to the caller
+and there is no `table → schema` index or edge in the build. So AC #1's real requirement
+— "`dependentsOf(schema)` returns the ops/files that query it" — is unmet, as are Phase B
+(translation usage ↔ definition) and Phase C (model ↔ model associations).
+
+So retitle rather than re-scope: "First-class YAML nodes" is finished, "platform-fact
+edges" is entirely outstanding.
+
+**Two constraints worth carrying into the work:**
+
+1. `SchemaModule`'s doc records that it is "not render-reachable, so it is discovered and
+   added explicitly during a full `buildAppGraph` (never an entry point)". That is exactly
+   the prerequisite this task's description flags — scoped/entry-point builds must
+   materialize these nodes, or edits will not reconcile.
+2. For Phase B, use check-common's exported `isTranslationKeyUsage` / `TRANSLATION_FILTERS`
+   rather than a fresh predicate. They are exported specifically "so the graph's
+   self-structural detects translation keys with the SAME rule as the
+   `TranslationKeyExists` check" — the difference between the graph and the check agreeing
+   about what a translation reference is and quietly disagreeing.
+<!-- SECTION:NOTES:END -->

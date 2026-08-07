@@ -6,14 +6,9 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:01'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 14:48'
 labels: []
-dependencies:
-  - TASK-7.2
-  - TASK-7.3
-  - TASK-7.4
-  - TASK-9.2
-  - TASK-9.3
+dependencies: []
 references:
   - packages/platformos-graph
   - packages/platformos-check-common/src/AugmentedPlatformOSDocset.ts
@@ -66,26 +61,28 @@ FORBIDDEN in this package (these were the old duplications): a re-implemented `p
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## Partial progress — lint-only slice (2026-06-12)
+## STALENESS CHECK 2026-08-07 — five of six ACs look met; AC #2 is the whole remaining gap
 
-Implemented the MINIMAL lint adapter so `validate_code` lints for real (user-directed: only the check() adapter now).
+`src/lint/lint-batch.ts` + `src/context.ts` + `src/graph-cache/` exist and the package
+lints through check-node with a graph-backed project context, so ACs #1, #3, #4, #5 and
+#6 appear satisfied by inspection.
 
-### Done
-- `src/lint/lint.ts`: `runLint({ projectDir, filePath, content }) -> ValidateCodeDiagnostic[]` — resolves the absolute file path, calls the check-node `lintBuffer` seam (TASK-7.3: `check()` with the buffer overlaid on the on-disk project; NO LSP), and maps `Offense[]` → diagnostics (severity enum→string; 0-based line+char → 1-based line+column).
-- `src/lint/lint.spec.ts` (3, hermetic temp project, docset/network-free): real offense → mapped diagnostic with 1-based range; clean file → []; absolute path accepted.
-- This is the ONLY I/O boundary on the request path; the architecture guard (no language-server import on the lint path) passes over `src/lint`.
+**AC #2 is not met, and it is the substantive one.** It requires `Offense` to map to a
+structured diagnostic "with fix/suggest and matched identifiers carried as data".
+`toDiagnostic` (`lint/lint-batch.ts:166`) sets exactly seven fields — `check`, `severity`,
+`message`, `line`, `column`, `end_line`, `end_column` — and drops `Offense.fix` and
+`Offense.suggest` entirely. There is no `StructuredDiagnostic` intermediate model; offenses
+map straight to the agent-facing `ValidateCodeDiagnostic`.
 
-### NOT yet done (full 7.6 scope)
-- A dedicated `lint/project-context.ts` `ProjectContext` built EXPLICITLY from `platformos-graph` + `AugmentedPlatformOSDocset` with a TTL cache and root via check-common `findRoot`. The current slice relies on `lintBuffer`'s internal app/docset construction (per call) and uses `ctx.projectDir` directly as root.
-- `lint/model.ts` `StructuredDiagnostic` carrying structured `fix`/`suggest` + matched identifiers for the enrich stage. The current slice maps `Offense` straight to the agent `ValidateCodeDiagnostic` (no enrich layer yet), so fixes/identifiers are not carried.
+Whether that intermediate model is still wanted is worth deciding rather than assuming:
+the agent-facing type already declares `hint`, `suggestion`, `confidence`, `fix` and
+`see_also`, so a second internal shape may be redundant.
 
-When enrich (7.7) lands, insert StructuredDiagnostic between lint and the result mapping.
+**"Matched identifiers carried as data" depends on TASK-8.1**, which is genuinely
+untouched — `Offense` today is `{ type, check, message, uri, severity, start, end, fix?,
+suggest? }` with no typed payload field.
 
-## Reframe (2026-06-23, ADR 003)
+Note the file this task's ACs describe as `lint/lint.ts` is now `lint/lint-batch.ts`.
 
-`ProjectContext` is a THIN CACHED ADAPTER over `platformos-graph` — NOT a place for graph logic. It calls `buildAppGraph` + the project-structure query API (TASK-9), caches per project (TTL, ~v1's 30s), and hands PLAIN DATA to the pure enrich/result stages.
-
-The old `project-fact-graph.ts` / `project-scanner.ts` / `dependency-graph.ts` / `render-flow.ts` are NOT rebuilt here — by principle, all graph/project-structure functionality lives in `platformos-graph` (TASK-9). The supervisor consumes it and adds zero graph/scanner/query code.
-
-Status: the MINIMAL lint adapter (`runLint` via check-node `lintBuffer`, Offense→diagnostic mapping) is already implemented (see prior note). The FULL graph-backed `ProjectContext` (dependents/orphan/reachability/docset feeding enrichment) depends on TASK-9.2 (query API) + TASK-9.3 (per-file self-structural).
+**Overlaps TASK-8.6 and TASK-7.7** on the fix/suggest passthrough — see TASK-8.6's note.
 <!-- SECTION:NOTES:END -->

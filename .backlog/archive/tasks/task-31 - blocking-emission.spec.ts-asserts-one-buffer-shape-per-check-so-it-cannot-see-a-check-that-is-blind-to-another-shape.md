@@ -6,17 +6,14 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-08-01 20:12'
-updated_date: '2026-08-01 21:08'
+updated_date: '2026-08-07 12:45'
 labels:
   - mcp-supervisor
   - testing
   - robustness
-dependencies:
-  - TASK-30
+dependencies: []
 references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS-ROUND3.md
-modified_files:
-  - packages/platformos-mcp-supervisor/src/result/blocking-emission.spec.ts
 priority: medium
 ---
 

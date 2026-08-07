@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:17'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 14:47'
 labels: []
 dependencies:
   - TASK-7.7
@@ -43,15 +43,21 @@ Implement `result/`: compose enriched diagnostics + advisories into the typed `V
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## Partial progress — lint-only slice (2026-06-12)
+## STALENESS CHECK 2026-08-07 — mostly built; AC #3 names two outputs that were removed
 
-Implemented a MINIMAL slice of result assembly to support the lint-only `validate_code`.
+`src/result/` exists and does the job: `assemble.ts`, `blocking.ts`, `impact-states.ts`,
+`response-budget.ts`, `types.ts`. ACs #1 and #2 look satisfied by inspection.
 
-### Done
-- `src/result/assemble.ts`: PURE `assembleResult(diagnostics, mode) -> ValidateCodeResult`. Buckets diagnostics by severity into errors/warnings/infos; derives `status` (error>warning>ok) and `must_fix_before_write` (minimal rule: any error blocks). Imports ONLY `./types` — no engine, no I/O — so the task-7.1 purity guard is trivially satisfied.
-- `src/result/assemble.spec.ts` (5): severity bucketing, status derivation, must_fix, ok-on-empty/infos-only, and asserts the deferred fields stay empty/null.
+**AC #3 is half stale.** It requires unit pins for "Clustering, scorecard, status,
+must_fix_before_write, and next_step". `status`, `must_fix_before_write` and `next_step`
+are on `ValidateCodeResult` and pinned. **`clusters` and `scorecard` are not — they were
+deliberately deleted.** TASK-12.5 (archived) removed six permanently-empty result stubs
+in one commit — `proposed_fixes`, `clusters`, `scorecard`, `tips`, `domain_guide`,
+`parse_error` — because "an agent cannot distinguish an always-empty field from a
+meaningful one". A clean-file result went from 15 keys to 6, and `assemble.spec.ts` now
+pins the exact key set and asserts each removed field is ABSENT.
 
-### NOT yet done (full 7.9 scope)
-- Clustering, architecture scorecard, the EXPLICIT blocking-warning set (current must_fix = has-errors only), `next_step` prose, and tips/domain_guide/structural (TASK-8).
-- Note on ordering: the 0-based→1-based line/column normalization currently lives in the `lint/` Offense→diagnostic mapping (since there is no enrich layer yet), not in `result/`. Revisit when the enriched-diagnostic input lands.
+So clustering/scorecard cannot be re-added here without breaking that guard. TASK-12.5's
+own note says they "return when TASK-8.x actually populates them" — which makes this
+task's remaining scope dependent on TASK-8.2/8.3, not independent of them.
 <!-- SECTION:NOTES:END -->

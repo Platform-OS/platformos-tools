@@ -1,13 +1,12 @@
 ---
 id: TASK-4
 title: Replace inlined extension filters with isSupportedSourceFile
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-11 13:10'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:51'
 labels: []
-dependencies:
-  - TASK-3
+dependencies: []
 ordinal: 4000
 ---
 
@@ -53,3 +52,23 @@ This only filters Liquid; GraphQL and YAML files outside known dirs slip through
 - [ ] #2 DocumentManager.app() uses isSupportedSourceFile uniformly
 - [ ] #3 yarn build succeeds for both packages with no unused-import errors
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CLOSED AS DONE 2026-08-07
+
+The hand-rolled extension filters are gone and the `isKnownLiquidFile` /
+`isKnownGraphQLFile` / `isKnownYAMLFile` family was deleted. `platformos-common/CLAUDE.md`
+records it: "the per-type `isLayout`/`isSms`/`isKnownLiquidFile`/… family was deleted
+once every caller had moved to `context.fileType` or `AppFile.fileType`."
+
+The only surviving mentions anywhere in the repo are historical comments in
+`platformos-mcp-supervisor/src/impact/impact.ts` and
+`platformos-check-common/src/fixed-path-files.spec.ts` explaining what the code used to
+do. No call sites.
+
+The specific call site this task named (`platformos-check-node/src/index.ts:144-163`)
+no longer exists in that shape either: check-node builds its file set through the shared
+`App` model.
+<!-- SECTION:NOTES:END -->

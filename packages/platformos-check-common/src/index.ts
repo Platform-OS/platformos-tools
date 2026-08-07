@@ -1,9 +1,6 @@
 import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
-import { JSONValidator } from './JSONValidator';
 import {
   makeFileExists,
-  makeFileSize,
-  makeGetDefaultLocale,
   makeGetDefaultTranslations,
   makeGetRouteTable,
   makeGetTranslationsForBase,
@@ -24,9 +21,7 @@ import {
   GraphQLCheck,
   GraphQLDocumentNode,
   GraphQLSourceCode,
-  JSONCheck,
   JSONNode,
-  JSONSourceCode,
   LiquidCheck,
   LiquidHtmlNode,
   LiquidSourceCode,
@@ -40,7 +35,6 @@ import {
   SourceCodeType,
   TypedAppFile,
   UriString,
-  ValidateJSON,
   YAMLCheck,
   YAMLSourceCode,
 } from './types';
@@ -70,7 +64,6 @@ export * from './ignore';
 // owns the fact. `identity-ownership.spec.ts` fails on any that grow back here.
 export * from './frontmatter';
 export * from './json';
-export * from './JSONValidator';
 export * as path from './path';
 // No GraphQL re-exports either, for the same reason as the file-identity ones above:
 // `parseGraphql`, `extractGraphqlTables` and `extractGraphqlVariables` are platformOS
@@ -150,21 +143,12 @@ export async function check(
     // rather than stat-ing candidate directories in order.
     app,
     fileExists: makeFileExists(fs),
-    fileSize: makeFileSize(fs),
-    getDefaultLocale: makeGetDefaultLocale(fs, rootUri),
     getDefaultTranslations: makeGetDefaultTranslations(fs, app, rootUri),
     getTranslationsForBase: makeGetTranslationsForBase(fs, app),
     getRouteTable: makeGetRouteTable(fs, rootUri, injectedDependencies.routeTable),
   };
 
   const { DisabledChecksVisitor, isDisabled } = createDisabledChecksModule();
-  // Built on FIRST USE, not per run. No shipped check reads `context.validateJSON`
-  // any more (ValidJSON and JSONSyntaxError went with the JSON source type), so
-  // awaiting `jsonValidationSet.schemas()` here charged every run for a validator
-  // nobody asked for. The seam stays — it is a documented Context capability and
-  // `jsonValidationSet` is still a real dependency of the language server's JSON
-  // services — it just costs nothing until a check asks again.
-  const validateJSON = makeLazyValidateJSON(dependencies.jsonValidationSet, config);
 
   // We're memozing those deps here because they shouldn't change within a run.
   if (dependencies.platformosDocset && !dependencies.platformosDocset.isAugmented) {
@@ -213,15 +197,11 @@ export async function check(
   for (const type of Object.values(SourceCodeType)) {
     switch (type) {
       case SourceCodeType.JSON: {
-        const files = filesOfType(type, visitable);
-        const checkDefs = checksOfType(type, config.checks);
-        for (const file of files) {
-          for (const checkDef of checkDefs) {
-            if (isIgnored(file.uri, config, checkDef)) continue;
-            const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
-            pipelines.push(runPipeline(checkJSONFile(check, file), checkDef, file));
-          }
-        }
+        // Nothing to do: `SOURCE_CODE_TYPE_BY_KEY` has no `.json` row, so no `AppFile`
+        // is ever typed JSON and `visitable` cannot contain one. The enum member
+        // survives for `toSourceCode`'s editor-buffer fallback alone, which the
+        // language server — not this engine — consumes. Kept as an explicit empty case
+        // so the switch stays exhaustive over `SourceCodeType`.
         break;
       }
       case SourceCodeType.GraphQL: {
@@ -230,7 +210,7 @@ export async function check(
         for (const file of files) {
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
-            const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
+            const check = createCheck(checkDef, file, config, offenses, dependencies);
             pipelines.push(runPipeline(checkGraphQLFile(check, file), checkDef, file));
           }
         }
@@ -242,7 +222,7 @@ export async function check(
         for (const file of files) {
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
-            const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
+            const check = createCheck(checkDef, file, config, offenses, dependencies);
             pipelines.push(runPipeline(checkLiquidFile(check, file), checkDef, file));
           }
         }
@@ -254,7 +234,7 @@ export async function check(
         for (const file of files) {
           for (const checkDef of checkDefs) {
             if (isIgnored(file.uri, config, checkDef)) continue;
-            const check = createCheck(checkDef, file, config, offenses, dependencies, validateJSON);
+            const check = createCheck(checkDef, file, config, offenses, dependencies);
             pipelines.push(runPipeline(checkYAMLFile(check, file), checkDef, file));
           }
         }
@@ -298,31 +278,16 @@ function internalErrorOffense(
   } as Offense;
 }
 
-/** One validator per run, created when the first `context.validateJSON` call arrives. */
-function makeLazyValidateJSON(
-  jsonValidationSet: Dependencies['jsonValidationSet'],
-  config: Config,
-): ValidateJSON | undefined {
-  if (!jsonValidationSet) return undefined;
-  let validator: Promise<JSONValidator | undefined> | undefined;
-  return async (uri, jsonString) => {
-    validator ??= JSONValidator.create(jsonValidationSet, config);
-    return (await validator)!.validate(uri, jsonString);
-  };
-}
-
 function createContext<T extends SourceCodeType, S extends Schema>(
   check: CheckDefinition<T, S>,
   file: SourceCode<T>,
   offenses: Offense[],
   config: Config,
   dependencies: AugmentedDependencies,
-  validateJSON?: ValidateJSON,
 ): Context<T, S> {
   const checkSettings = config.settings[check.meta.code];
   return {
     ...dependencies,
-    validateJSON,
     settings: createSettings(checkSettings, check.meta.schema),
     toUri: (relativePath) => path.join(config.rootUri, ...relativePath.split('/')),
     toRelativePath: (uri) => path.relative(uri, config.rootUri),
@@ -376,9 +341,8 @@ function createCheck<S extends SourceCodeType>(
   config: Config,
   offenses: Offense[],
   dependencies: AugmentedDependencies,
-  validateJSON?: ValidateJSON,
 ): Check<S> {
-  const context = createContext(check, file, offenses, config, dependencies, validateJSON);
+  const context = createContext(check, file, offenses, config, dependencies);
   return check.create(context as any) as Check<S>;
 }
 
@@ -405,13 +369,6 @@ function filesOfType<S extends SourceCodeType>(
   return sourceCodes.filter((file): file is TypedAppFile<S> => file.type === type);
 }
 
-async function checkJSONFile(check: JSONCheck, file: JSONSourceCode): Promise<void> {
-  if (check.onCodePathStart) await check.onCodePathStart(file);
-  if (file.ast instanceof Error) return;
-  if (Object.keys(check).length > 0) await visitJSON(file.ast, check);
-  if (check.onCodePathEnd) await check.onCodePathEnd(file as typeof file & { ast: JSONNode });
-}
-
 async function checkGraphQLFile(check: GraphQLCheck, file: GraphQLSourceCode): Promise<void> {
   if (check.onCodePathEnd)
     await check.onCodePathEnd(file as typeof file & { ast: GraphQLDocumentNode });
@@ -427,6 +384,6 @@ async function checkLiquidFile(check: LiquidCheck, file: LiquidSourceCode): Prom
 async function checkYAMLFile(check: YAMLCheck, file: YAMLSourceCode): Promise<void> {
   if (check.onCodePathStart) await check.onCodePathStart(file);
   if (file.ast instanceof Error) return;
-  if (Object.keys(check).length > 0) await visitJSON(file.ast, check as any);
+  if (Object.keys(check).length > 0) await visitJSON(file.ast, check);
   if (check.onCodePathEnd) await check.onCodePathEnd(file as typeof file & { ast: JSONNode });
 }

@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-29 21:43'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:52'
 labels:
   - performance
   - check-common
@@ -37,3 +37,30 @@ The trade to weigh explicitly: it costs one `stat` per call site on a file that 
 - [ ] #4 If implemented: PartialCallArguments offenses unchanged on a real multi-hundred-file project (byte-identical whole-project output)
 - [ ] #5 If implemented: retained memory for the cache measured before/after with forced GC, and the entry cap justified against that measurement
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## STALENESS CHECK 2026-08-07 — still open, but the proposed mechanism no longer exists
+
+**The problem is real and unchanged.** `createBoundedCache`'s two consumers still key on
+file CONTENT, so the 512-entry cap bounds entry count while actual memory varies with
+file size — exactly as described. `utils/bounded-cache.ts` documents the content-keying
+("Callers are expected to key on the exact input the result depends on (typically file
+content), so an entry can never be stale").
+
+**The proposed fix cannot be applied as written.** This task's plan is to re-key on
+`uri + fileFingerprint`, and **`fileFingerprint` no longer exists** in
+`platformos-check-node/src` — it was removed with `AppCache` during the lazy-`App` epic
+(TASK-46). The only surviving mentions are historical comments in the supervisor's
+`graph-cache-store.ts`.
+
+Whoever picks this up must first decide what replaces it. The `App` model now owns file
+identity and freshness, so the natural key is probably `AppFile`'s identity plus its
+loaded version rather than a `stat`-derived fingerprint — which also removes the "one
+extra `stat` per call site" cost this task weighed as the main trade.
+
+The task's own A/B numbers still stand (limit 512 vs unbounded: statistically identical
+on a 1190-partial project), so **closing this as won't-do remains a legitimate outcome**,
+as the description already says.
+<!-- SECTION:NOTES:END -->

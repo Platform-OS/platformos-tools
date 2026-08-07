@@ -5,6 +5,7 @@ import {
   getAppPaths,
   getFixedFilePath,
   getModulePaths,
+  getReferenceExtensions,
   nameToCreationPath,
   parseModulePrefix,
   PlatformOSFileType,
@@ -23,7 +24,14 @@ export type DocumentType =
   | 'theme_render_rc';
 
 /**
- * Which platformOS file type each resolvable reference kind points at.
+ * Which platformOS file type each reference kind resolves to — the ONE place the
+ * relation is written down.
+ *
+ * `Record<DocumentType, …>`, so adding a member to {@link DocumentType} without saying
+ * what it resolves to is a compile error rather than a silent `undefined` at runtime.
+ * That is the whole reason this is a table and not a `switch`: a `switch` can be
+ * exhaustive OR have a runtime fallback, and this needs both — see {@link
+ * DocumentsLocator.locate}.
  *
  * `layout` is here because the graph resolves a page's frontmatter `layout:` to a node
  * (`graph/traverse.ts`) and `MissingContentForLayout` asks the same question. It needs no
@@ -31,13 +39,71 @@ export type DocumentType =
  * response-format machinery as everything else, so the legacy `application.html.liquid`
  * spelling is found under the name `application` — verified on a real project — while a
  * name with no file behind it still comes back unresolved.
+ *
+ * The four partial-valued entries are not redundant: `render`, `include`, `background`,
+ * `function` and `theme_render_rc` are five different TAGS that all name a Partial, and
+ * they diverge elsewhere — `function` is created in `app/lib` rather than
+ * `app/views/partials` ({@link DocumentsLocator.locateDefault}), and `theme_render_rc`
+ * resolves through the theme search paths.
  */
-const FILE_TYPE_BY_DOCUMENT_TYPE = {
-  partial: PlatformOSFileType.Partial,
+const FILE_TYPE_BY_DOCUMENT_TYPE: Readonly<Record<DocumentType, PlatformOSFileType>> = {
+  render: PlatformOSFileType.Partial,
+  include: PlatformOSFileType.Partial,
+  background: PlatformOSFileType.Partial,
+  function: PlatformOSFileType.Partial,
+  theme_render_rc: PlatformOSFileType.Partial,
   graphql: PlatformOSFileType.GraphQL,
   asset: PlatformOSFileType.Asset,
   layout: PlatformOSFileType.Layout,
-} as const satisfies Record<'partial' | 'graphql' | 'asset' | 'layout', PlatformOSFileType>;
+};
+
+/**
+ * Whether `nodeName` is a reference kind this class knows how to resolve.
+ *
+ * Needed because the type is not a guarantee at runtime: `DocumentLinksProvider` visits
+ * EVERY `LiquidTag` and does `node.name as DocumentType`, so an `{% if %}` or a
+ * third-party tag reaches `locate` whenever its markup happens to carry a `partial`
+ * field. An unknown name must come back unresolved — a document link that does not
+ * resolve — rather than throw inside an LSP request handler.
+ */
+function isDocumentType(nodeName: string | undefined): nodeName is DocumentType {
+  return nodeName !== undefined && nodeName in FILE_TYPE_BY_DOCUMENT_TYPE;
+}
+
+/**
+ * Where a file of each kind WOULD be created — a different question from where one is
+ * looked up, which is why this is a second table rather than a column of the first.
+ *
+ * `dirIndex` selects among a type's directory aliases in `FILE_TYPE_DIRS`, which is how
+ * `function` lands in `app/lib` while `render` lands in `app/views/partials` — expressed
+ * as an index rather than as a path spelled here.
+ *
+ * `layout`'s canonical path uses the modern `.liquid`, not the legacy `.html.liquid`:
+ * `REFERENCE_EXTENSIONS[Layout]` is `['.liquid']`, so `nameToCreationPath` produces it
+ * without this table naming an extension.
+ *
+ * `asset` is a real entry and NOT `null`. There is no "creation" path for an asset, but
+ * there IS a canonical location and the graph needs it — `graph/traverse.ts` calls
+ * `locateOrDefault(…, 'asset', …)` so a reference to a missing asset still yields a node
+ * to hang the broken edge on; `undefined` would silently drop those edges. Nothing is
+ * appended to the name because an asset reference carries its own extension
+ * (`logo.png`), which falls out of `Asset` having no `REFERENCE_EXTENSIONS` row.
+ *
+ * `theme_render_rc` is `null`: several search-path prefixes are in play, so there is no
+ * single canonical location.
+ */
+const CREATION_TARGET_BY_DOCUMENT_TYPE: Readonly<
+  Record<DocumentType, { fileType: PlatformOSFileType; dirIndex: number } | null>
+> = {
+  render: { fileType: PlatformOSFileType.Partial, dirIndex: 0 },
+  include: { fileType: PlatformOSFileType.Partial, dirIndex: 0 },
+  background: { fileType: PlatformOSFileType.Partial, dirIndex: 0 },
+  function: { fileType: PlatformOSFileType.Partial, dirIndex: 1 },
+  graphql: { fileType: PlatformOSFileType.GraphQL, dirIndex: 0 },
+  layout: { fileType: PlatformOSFileType.Layout, dirIndex: 0 },
+  asset: { fileType: PlatformOSFileType.Asset, dirIndex: 0 },
+  theme_render_rc: null,
+};
 
 /**
  * Load theme_search_paths from app/config.yml.
@@ -97,10 +163,7 @@ export class DocumentsLocator {
     private readonly app?: App | AppResolver,
   ) {}
 
-  private getSearchPaths(
-    type: 'partial' | 'graphql' | 'asset' | 'layout',
-    moduleName?: string,
-  ): string[] {
+  private getSearchPaths(type: DocumentType, moduleName?: string): string[] {
     const fileType = FILE_TYPE_BY_DOCUMENT_TYPE[type];
 
     return moduleName ? getModulePaths(fileType, moduleName) : getAppPaths(fileType);
@@ -126,7 +189,7 @@ export class DocumentsLocator {
   private async locateFile(
     rootUri: URI,
     fileName: string,
-    type: 'partial' | 'graphql' | 'asset' | 'layout',
+    type: DocumentType,
   ): Promise<string | undefined> {
     return this.appFor(rootUri).findOrLocate(FILE_TYPE_BY_DOCUMENT_TYPE[type], fileName);
   }
@@ -148,26 +211,19 @@ export class DocumentsLocator {
     return fallback;
   }
 
-  private async listFiles(
-    rootUri: URI,
-    filePrefix: string,
-    type: 'partial' | 'graphql' | 'asset',
-  ): Promise<string[]> {
+  private async listFiles(rootUri: URI, filePrefix: string, type: DocumentType): Promise<string[]> {
     const parsed = parseModulePrefix(filePrefix);
     const searchPaths = this.getSearchPaths(type, parsed.isModule ? parsed.moduleName : undefined);
 
     const results = new Set<string>();
 
-    const matchesType = (name: string): boolean => {
-      switch (type) {
-        case 'partial':
-          return name.endsWith('.liquid');
-        case 'graphql':
-          return name.endsWith('.graphql');
-        case 'asset':
-          return true;
-      }
-    };
+    // From `REFERENCE_EXTENSIONS` rather than a switch spelling `.liquid`/`.graphql`
+    // here: that table already says what extension each type resolves with, and an
+    // empty list means "no extension filter" — which is exactly Asset, whose references
+    // carry their own extension.
+    const extensions = getReferenceExtensions(FILE_TYPE_BY_DOCUMENT_TYPE[type]);
+    const matchesType = (name: string): boolean =>
+      extensions.length === 0 || extensions.some((extension) => name.endsWith(extension));
 
     const walk = async (basePath: string, dirUri: URI): Promise<void> => {
       let entries: [string, FileType][];
@@ -193,7 +249,10 @@ export class DocumentsLocator {
         if ((parsed.key.endsWith('/') || parsed.key === '') && result.startsWith('/'))
           result = result.slice(1);
 
-        if (type !== 'asset') {
+        // Same condition as the filter above, from the same table: a type that resolves
+        // WITH an extension is referenced without one, so the completion drops it. An
+        // asset has no extension of its own to drop.
+        if (extensions.length > 0) {
           const index = result.lastIndexOf('.');
           result = index === -1 ? result : result.slice(0, index);
         }
@@ -242,7 +301,9 @@ export class DocumentsLocator {
    */
   private async expandDynamicPath(rootUri: URI, searchPath: string): Promise<string[]> {
     const segments = searchPath.split('/');
-    const basePaths = this.getSearchPaths('partial');
+    // The theme search paths are prefixes onto the PARTIAL directories, which is what
+    // `theme_render_rc` resolves against.
+    const basePaths = this.getSearchPaths('theme_render_rc');
     let prefixes = [''];
 
     for (const segment of segments) {
@@ -304,13 +365,13 @@ export class DocumentsLocator {
     for (const searchPath of themeSearchPaths) {
       for (const prefix of await this.resolveSearchPath(rootUri, searchPath)) {
         const candidate = prefix ? `${prefix}/${fileName}` : fileName;
-        const result = await this.locateFile(rootUri, candidate, 'partial');
+        const result = await this.locateFile(rootUri, candidate, 'theme_render_rc');
         if (result) return result;
       }
     }
 
     if (!themeSearchPaths.includes('')) {
-      return this.locateFile(rootUri, fileName, 'partial');
+      return this.locateFile(rootUri, fileName, 'theme_render_rc');
     }
 
     return undefined;
@@ -322,39 +383,13 @@ export class DocumentsLocator {
    * Returns undefined for theme_render_rc (ambiguous search path) and asset.
    */
   locateDefault(rootUri: URI, nodeName: DocumentType, fileName: string): string | undefined {
-    switch (nodeName) {
-      // Which directory a new file goes in — `views/partials` for a render,
-      // `lib` for a function, both being Partials — is expressed as an index into
-      // FILE_TYPE_DIRS rather than as a path spelled here.
-      case 'render':
-      case 'include':
-      case 'background':
-        return this.creationUri(rootUri, PlatformOSFileType.Partial, fileName, 0);
-      case 'function':
-        return this.creationUri(rootUri, PlatformOSFileType.Partial, fileName, 1);
-      case 'graphql':
-        return this.creationUri(rootUri, PlatformOSFileType.GraphQL, fileName, 0);
-      case 'layout':
-        // Canonical creation path uses the modern `.liquid` extension, not the legacy
-        // `.html.liquid` — `REFERENCE_EXTENSIONS[Layout]` is `['.liquid']`, so
-        // `nameToCreationPath` produces it without this switch spelling an extension.
-        return this.creationUri(rootUri, PlatformOSFileType.Layout, fileName, 0);
-      case 'asset':
-        // NOT `undefined`, which is what this returned before the merge. There is no
-        // "creation" path for an asset, but there IS a canonical location, and the graph
-        // needs it: `graph/traverse.ts` calls `locateOrDefault(…, 'asset', …)` so that a
-        // reference to a missing asset still yields a node to hang the broken edge on.
-        // Returning `undefined` silently drops those edges instead.
-        //
-        // Nothing is appended to the name because an asset reference carries its own
-        // extension (`logo.png`); that falls out of `Asset` having no
-        // `REFERENCE_EXTENSIONS` row rather than from an empty string spelled here.
-        return this.creationUri(rootUri, PlatformOSFileType.Asset, fileName, 0);
-      case 'theme_render_rc': // ambiguous — multiple search paths, no single canonical location
-        return undefined;
-      default:
-        return undefined;
-    }
+    const target = CREATION_TARGET_BY_DOCUMENT_TYPE[nodeName];
+    // Covers both an unknown name (see `locate`) and `theme_render_rc`, whose entry is
+    // `null` — with several search-path prefixes in play there is no single location a
+    // new file would belong in.
+    if (!target) return undefined;
+
+    return this.creationUri(rootUri, target.fileType, fileName, target.dirIndex);
   }
 
   private creationUri(
@@ -383,55 +418,44 @@ export class DocumentsLocator {
     );
   }
 
+  /**
+   * The two switches this replaced were exhaustive over {@link DocumentType} AND carried
+   * a `default` — which reads as dead code and is not. The type is not a runtime
+   * guarantee: `DocumentLinksProvider` casts every visited `LiquidTag`'s name to
+   * `DocumentType`, so an unrecognized tag arrives here whenever its markup happens to
+   * have a `partial` field. Hence {@link isDocumentType}, a real check, instead of a
+   * `default` arm that looks unreachable — and instead of `assertNever`, which would
+   * turn a broken document link into a thrown error inside an LSP request.
+   *
+   * Exhaustiveness has not been given up for that: it moved to
+   * {@link FILE_TYPE_BY_DOCUMENT_TYPE}, a `Record<DocumentType, …>` that fails to
+   * compile when a member is added without an entry.
+   */
   async locate(
     rootUri: URI,
     nodeName: DocumentType,
     fileName: string,
     themeSearchPaths?: string[] | null,
   ): Promise<string | undefined> {
-    switch (nodeName) {
-      case 'render':
-      case 'include':
-      case 'background':
-      case 'function':
-        return this.locateFile(rootUri, fileName, 'partial');
+    if (!isDocumentType(nodeName)) return undefined;
 
-      case 'theme_render_rc':
-        return themeSearchPaths
-          ? this.locateWithSearchPaths(rootUri, fileName, themeSearchPaths)
-          : this.locateFile(rootUri, fileName, 'partial');
-
-      case 'graphql':
-        return this.locateFile(rootUri, fileName, 'graphql');
-
-      case 'asset':
-        return this.locateFile(rootUri, fileName, 'asset');
-
-      case 'layout':
-        return this.locateFile(rootUri, fileName, 'layout');
-
-      default:
-        return undefined;
+    // The one kind whose resolution is not just its file type: a `theme_render_rc`
+    // reference is looked up through the configured search-path prefixes first, and only
+    // falls back to a plain partial lookup when the project configures none.
+    if (nodeName === 'theme_render_rc' && themeSearchPaths) {
+      return this.locateWithSearchPaths(rootUri, fileName, themeSearchPaths);
     }
+
+    return this.locateFile(rootUri, fileName, nodeName);
   }
 
+  /** `nodeName` is a bare `string` here by design — completions ask about whatever tag the cursor is in. */
   async list(rootUri: URI, nodeName: string | undefined, filePrefix: string): Promise<string[]> {
-    switch (nodeName) {
-      case 'function':
-      case 'render':
-      case 'include':
-      case 'background':
-      case 'theme_render_rc':
-        return this.listFiles(rootUri, filePrefix, 'partial');
+    if (!isDocumentType(nodeName)) return [];
+    // A layout is never completed: `layout:` is frontmatter, not a tag with a cursor in
+    // it, so no completion request names it. Listing them would be harmless but untested.
+    if (nodeName === 'layout') return [];
 
-      case 'graphql':
-        return this.listFiles(rootUri, filePrefix, 'graphql');
-
-      case 'asset':
-        return this.listFiles(rootUri, filePrefix, 'asset');
-
-      default:
-        return [];
-    }
+    return this.listFiles(rootUri, filePrefix, nodeName);
   }
 }

@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:17'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 14:48'
 labels: []
 dependencies:
   - TASK-7.10
@@ -47,13 +47,25 @@ Stand up the test suite for the new package, exploiting the pure architecture fo
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## NOTE — salvage material untracked from git (2026-06-12)
+## STALENESS CHECK 2026-08-07 — half satisfied, half blocked on stages that do not exist
 
-To keep PRs small, `docs/mcp-supervisor/salvage/` (139 files, ~956K) was UNTRACKED via `git rm -r --cached` and added to `.gitignore`. The files remain on the original author's working tree but are NOT in git for teammates/CI.
+The package has **22 spec files**, including real stdio integration
+(`test/integration/stdio-smoke.spec.ts`, `graph-build-worker.spec.ts`,
+`process-guards-survival.spec.ts`), and they run under the root `yarn test` (part of the
+current 361 files / 3859 tests, all passing). **ACs #2 and #4 are met.**
 
-This task restores the salvaged fixtures (`project`, `broken-project`, parity corpus) + `OLD-parity-spec.ts` into the package test tree — recover them from git history:
+**AC #1 cannot be met yet**: it asks for pure-stage unit tests covering `enrich/`,
+`advise/` and `result/`. Only `result/` exists — `src/enrich/` and `src/advise/` have
+never been created (TASK-7.7, TASK-7.8). The `result/` half is covered
+(`assemble.spec.ts`, `blocking.spec.ts`, `blocking-emission.spec.ts`,
+`response-budget`…).
 
-    git checkout 69aa9e4 -- docs/mcp-supervisor/salvage
+**AC #3 ("fresh result baselines … no stale old baselines remain") needs re-reading
+against TASK-12.5**, which changed the result shape substantially — six fields removed,
+a clean-file result going from 15 keys to 6 — and added an exact-key-set guard in
+`assemble.spec.ts`. Any baseline captured before that is stale by definition; any
+captured after already reflects the current shape.
 
-(commit `69aa9e4` = "add pos-supervisor migration", the last commit that tracked them). Then copy the needed subset INTO `packages/platformos-mcp-supervisor/test/` so they are tracked as part of the package's own test surface (which is the intent of this task anyway).
+Realistically this task is now "test enrich/ and advise/ when they exist", which makes it
+a follow-on to 7.7/7.8 rather than independent work.
 <!-- SECTION:NOTES:END -->

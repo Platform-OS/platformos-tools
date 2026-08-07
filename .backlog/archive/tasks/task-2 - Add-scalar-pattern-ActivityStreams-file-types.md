@@ -1,13 +1,12 @@
 ---
 id: TASK-2
 title: Add scalar-pattern + ActivityStreams file types
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-11 13:02'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:51'
 labels: []
-dependencies:
-  - TASK-1
+dependencies: []
 ordinal: 2000
 ---
 
@@ -44,3 +43,32 @@ Add new `PlatformOSFileType` enum values for files that converters_config.rb mat
 - [ ] #3 ActivityStreamsHandler and ActivityStreamsGroupingHandler classify under app/, modules/, and app/modules/ roots
 - [ ] #4 YAML_FILE_TYPES set updated to include ActivityStreamsHandler and ActivityStreamsGroupingHandler
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CLOSED AS OBSOLETE 2026-08-07 — partly done, partly declined on purpose
+
+Checked each proposed enum value against `platformos-common/src/path-utils.ts`:
+
+| Proposed | Status |
+|---|---|
+| `InstanceConfig` | **exists** |
+| `UserType` | **exists, renamed `UserSchema`** |
+| `ActivityStreamsHandler` | **exists** |
+| `ActivityStreamsGroupingHandler` | **exists** |
+| `AssetManifest` | **declined** |
+| `AssetsManifest` | **declined** |
+| `ModulesLock` | **declined** |
+
+The three `.json` types were not an oversight. The toolchain has no JSON source type at
+all — `SOURCE_CODE_TYPE_BY_KEY` has no `.json` row, and `platformos-common/CLAUDE.md`
+states the reason: "the only `.json` files the platform deploys are generated manifests
+no check looks at. Ruby's `App::REGEXP_MAP` agrees." Adding classifications for files
+nothing reads would create types with no checks, which is the failure mode
+`file-type-coverage.spec.ts` exists to catch.
+
+The `SCALAR_MATCHERS` design in the description is also superseded: fixed-path files are
+handled by `FILE_TYPE_FILES` + `getFixedFilePath`, checked ahead of the directory
+patterns inside `parseAppPath`.
+<!-- SECTION:NOTES:END -->

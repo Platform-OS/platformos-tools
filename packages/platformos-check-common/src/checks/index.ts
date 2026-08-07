@@ -1,7 +1,6 @@
 import {
   ConfigTarget,
   GraphQLCheckDefinition,
-  JSONCheckDefinition,
   LiquidCheckDefinition,
   YAMLCheckDefinition,
 } from '../types';
@@ -48,9 +47,7 @@ import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
 import { YAMLSyntaxError } from './yaml-syntax-error';
 
-export const allChecks: (
-  LiquidCheckDefinition | JSONCheckDefinition | GraphQLCheckDefinition | YAMLCheckDefinition
-)[] = [
+export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCheckDefinition)[] = [
   DeprecatedFilter,
   DeprecatedTag,
   DuplicateFunctionArguments,

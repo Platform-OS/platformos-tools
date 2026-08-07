@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-30 19:08'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:52'
 labels:
   - performance
   - check-node
@@ -63,36 +63,27 @@ Worth noting the ceiling: even at zero for both scans, the warm call has ~150 ms
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## Re-measured 2026-07-31 — the premise was partly wrong, value is ~1/3 of what this task claimed
+## STALENESS CHECK 2026-08-07 — the measurements predate the App model; re-measure before acting
 
-Profiled on an idle box (load 0.7–1.1) against `pos-module-mcp`, after TASK-12.8/12.16:
+The measured breakdown in the description is from before the lazy-`App` epic (TASK-46)
+landed, and **three of the things it measures no longer exist under those names**:
 
-```
-validate_code warm median      332–346 ms   (min 263, cold first call ~800)
-  lintBuffer TOTAL             213 ms
-    getApp                     120 ms   <- glob 61 ms, isIgnored 49 ms
-    loadConfig                  10 ms
-    buffer lint + docDefs      ~84 ms
-  enumerateEdgeSources        ~142 ms   <- runs CONCURRENTLY with the 213 ms lint
-not_applicable short-circuit     1 ms
-```
+- `AppCache` — gone from `platformos-check-node/src`.
+- `fileFingerprint` — gone; the "1686 × fileFingerprint (getApp gate) 44 ms" and
+  "1357 × fileFingerprint 46 ms" rows measure code that has been deleted.
+- The `getApp` gate itself — check-node now goes through `getSharedApp`
+  (`shared-app.ts`), which reconciles one process-level `App` against a fresh walk
+  rather than re-globbing and re-fingerprinting.
 
-**The two scans are NOT additive.** This task costed them as `89–135 ms + ~142 ms ≈ 230 ms` of the warm call. But lint and impact are two branches of the same `Promise.all`: `enumerateEdgeSources` sits on the impact branch, entirely hidden behind the 213 ms lint branch. Removing it saves approximately **zero** wall-clock unless it grows past the lint.
+**The underlying question is still open**: `shared-app.ts` states plainly that "the
+candidate paths are walked again on every call — that part is not cacheable, because a
+process with no filesystem events (an agent editing files out of band) has no other way
+to learn what changed." So a per-call directory walk is still there by design, and
+whether it can be avoided is still worth asking.
 
-So the real prize is the glob alone: **~61 ms of a ~332 ms call (~18%)**, not 230 ms.
+What is invalid is the cost model. Re-measure on the current code before designing
+anything; the 89–135 ms glob and 96 ms `enumerateEdgeSources` figures cannot be assumed
+to survive a change that replaced the whole file-loading path.
 
-## Rejected approach: push `ignore` down into glob
-
-The project globs 1686 paths and discards 90% via `isIgnored` (162 survive). Passing the config's ignore list to `glob({ ignore })` looked like it should prune whole subtrees. Measured:
-
-```
-glob (current, no ignore)     60.8 ms -> 1686 paths
-glob (ignore pushed down)    126.3 ms ->  208 paths
-```
-
-**Twice as slow.** glob applies string `ignore` patterns as per-entry matching after traversal, not as directory pruning — it still walks everything and then pays minimatch on top. Pruning would need glob's `Ignore` interface with `childrenIgnored`, which is a bigger change for a sub-61 ms ceiling.
-
-## Recommendation: deprioritized to Low
-
-At ~61 ms available and a watcher/directory-mtime scheme trading never-stale guarantees for it, the risk/reward is poor. `loadConfig` (10 ms) is a cheaper unrelated win if anything here is wanted. Prefer the batch/multi-file API instead: an agent validating 20 files currently pays 20 × 332 ms and re-globs 20 times, which is a far larger real-world cost than one call's glob.
+See also TASK-64, which covers the related fact that the shared app is a single slot.
 <!-- SECTION:NOTES:END -->

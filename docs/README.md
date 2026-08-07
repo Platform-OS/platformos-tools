@@ -12,7 +12,7 @@ To learn more about our release practices, please read [our releasing documentat
 - [Writing your own check](./platformos-check-common/writing-your-own-check)
 
 ## platformOS platform behaviour
-- [platformOS gotchas](./platformos-gotchas.md) — runtime and deploy-converter behaviours measured against a live instance while building the MCP supervisor
+- [platformOS gotchas](./platformos-gotchas.md) — the platform behaviours no check can record: why the YAML checks exist, how to probe a live instance without fooling yourself, and what is deliberately not validated
 
 We encourage you to explore these documents to better understand the capabilities and usage of each tool.
 

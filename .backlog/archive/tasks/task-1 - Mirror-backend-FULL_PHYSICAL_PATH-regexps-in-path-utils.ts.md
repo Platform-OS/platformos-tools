@@ -1,10 +1,10 @@
 ---
 id: TASK-1
 title: Mirror backend FULL_PHYSICAL_PATH regexps in path-utils.ts
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-11 12:48'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:50'
 labels: []
 dependencies: []
 ordinal: 1000
@@ -38,3 +38,31 @@ Replace the current FILE_TYPE_DIRS + TYPE_MATCHERS in `packages/platformos-commo
 - [ ] #4 Each BACKEND_MODELS row carries a comment pointing to the exact backend model file:line it mirrors
 - [ ] #5 RouteTable.extractRelativePagePath drops the marketplace_builder regex alternative
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CLOSED AS OBSOLETE 2026-08-07 — goal met, two instructions since reversed
+
+Verified against the code, not assumed.
+
+**Achieved by other means.** `TYPE_MATCHERS` no longer exists anywhere in
+`platformos-common/src` — the dir-name-only matcher was deleted and `PATH_PATTERNS` now
+compiles one ANCHORED regex per (type, dir) pair with the extension in it, which is
+exactly what this task asked for. `app/translations/en.json` classifies as nothing,
+`app/graphql/x.yml` as nothing. `parseAppPath` is the anchored resolver.
+
+**Two of this task's instructions were later deliberately REVERSED, which is why leaving
+it open is worse than closing it — someone picking it up would undo working behaviour:**
+
+1. *"Drop `marketplace_builder` support entirely (user-approved)."* It was kept.
+   `APP_ROOTS = ['app', 'marketplace_builder']`, with the reason recorded at the
+   constant: "dropping a live root makes a project on it lint nothing at all, silently."
+2. The `RouteTable.extractRelativePagePath` change followed the same reversal.
+
+**Superseded by** the file-identity work in TASK-59/59.1 and the lazy-`App` epic
+(TASK-46), both archived. The current design is documented in
+`packages/platformos-common/CLAUDE.md` under "path-utils.ts — File type classification".
+
+Siblings TASK-2 … TASK-6 closed with it; see each for its own disposition.
+<!-- SECTION:NOTES:END -->

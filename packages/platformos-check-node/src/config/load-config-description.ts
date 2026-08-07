@@ -34,7 +34,11 @@ export async function loadConfigDescription(
     ...configDescription.require,
     ...thirdPartyChecksPaths,
   ]);
-  const checks: CheckDefinition<SourceCodeType>[] = allChecks
+  // `allChecks` is narrowed to the three types this toolchain actually ships
+  // (Liquid, GraphQL, YAML); a third-party check is unconstrained and declares any
+  // `SourceCodeType`. The widening happens here, at the join, rather than by keeping
+  // a type we do not ship in `allChecks`.
+  const checks: CheckDefinition<SourceCodeType>[] = (allChecks as CheckDefinition<SourceCodeType>[])
     .concat(thirdPartyChecks)
     .filter(isEnabledBy(configDescription));
 

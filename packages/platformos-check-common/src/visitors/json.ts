@@ -1,41 +1,27 @@
-import { JSONNode, CheckNodeMethod, JSONCheck, SourceCodeType } from '../types';
+import { JSONNode, YAMLCheck } from '../types';
+import { walkNodes } from './walk';
 
 function isJSONNode(thing: unknown): thing is JSONNode {
   return !!thing && typeof thing === 'object' && 'type' in thing;
 }
 
-const nonTraversableProperties = new Set(['loc']);
+/**
+ * `loc` holds offsets, not nodes, so descending into it would find nothing — this is a
+ * shortcut rather than a correctness guard, unlike Liquid's `nonTraversableProperties`.
+ */
+const nonTraversableProperties: ReadonlySet<string> = new Set(['loc']);
 
-export async function visitJSON(node: JSONNode, check: JSONCheck): Promise<void> {
-  const stack: { node: JSONNode; ancestors: JSONNode[] }[] = [{ node, ancestors: [] }];
-  let method: CheckNodeMethod<SourceCodeType.JSON, any> | undefined;
-
-  while (stack.length > 0) {
-    const { node, ancestors } = stack.pop()!;
-    const lineage = ancestors.concat(node);
-
-    method = check[node.type];
-    if (method) await method(node, ancestors);
-
-    for (const key in node) {
-      if (!node.hasOwnProperty(key) || nonTraversableProperties.has(key)) {
-        continue;
-      }
-
-      const value = node[key as keyof JSONNode];
-      if (Array.isArray(value)) {
-        for (let i = value.length - 1; i >= 0; i--) {
-          const item = value[i];
-          if (isJSONNode(item)) {
-            stack.push({ node: item, ancestors: lineage });
-          }
-        }
-      } else if (isJSONNode(value)) {
-        stack.push({ node: value, ancestors: lineage });
-      }
-    }
-
-    method = check[`${node.type}:exit`];
-    if (method) await method(node, ancestors);
-  }
+/**
+ * Run a check's visitor methods over a {@link JSONNode} tree, which is the AST a YAML
+ * file gets — `AST[YAML]` is `JSONNode`, so a YAML check narrows on JSON node types.
+ *
+ * Typed for `YAMLCheck` because YAML is the only caller: JSON is an editor-buffer type
+ * that no check ever sees (see `JSONSourceCode`).
+ */
+// Not `async` — see `visitLiquid` for why the extra microtask ticks matter.
+export function visitJSON(node: JSONNode, check: YAMLCheck): Promise<void> {
+  return walkNodes(node, check as Parameters<typeof walkNodes>[1], {
+    isNode: isJSONNode,
+    skip: nonTraversableProperties,
+  });
 }

@@ -1,4 +1,7 @@
-import { NodeTypes as LiquidHtmlNodeTypes } from '@platformos/liquid-html-parser';
+import {
+  NodeTypes as LiquidHtmlNodeTypes,
+  nonTraversableProperties,
+} from '@platformos/liquid-html-parser';
 import { AST, LiquidHtmlNode, NodeOfType, SourceCodeType, NodeTypes, JSONNode } from './types';
 
 export type VisitorMethod<S extends SourceCodeType, T, R> = (
@@ -63,12 +66,32 @@ export async function visit<S extends SourceCodeType, R>(
   return results;
 }
 
+/**
+ * `parentNode`, `prev`, `next`, `firstChild`, `lastChild` — the parser's own list of the
+ * properties that link a node back to its parent or siblings, which it documents as
+ * "properties that create loops that would make walking infinite".
+ *
+ * Applied here even though the AST `toLiquidHtmlAST` returns does not populate them:
+ * measured over 3957 node objects from real project files, none was set, so skipping
+ * them changes nothing today. It is the AUGMENTED AST that carries them — the prettier
+ * plugin builds one — and this function is exported, so nothing stops such a node
+ * reaching it. The check-runner walkers have always skipped these; there is no reason
+ * for the collecting walk to be the one that hangs.
+ *
+ * `loc` needs no entry: it holds offsets, and {@link isNode} rejects anything without a
+ * string `type`.
+ *
+ * Imported from the parser rather than respelled — it owns which of its own properties
+ * are back-references, and a second copy here would be one more place to forget.
+ */
 export function forEachChildNodes<S extends SourceCodeType>(
   node: AST[S],
   lineage: AST[S][],
   execute: ExecuteFunction<S>,
 ) {
-  for (const value of Object.values(node)) {
+  for (const [key, value] of Object.entries(node)) {
+    if (nonTraversableProperties.has(key)) continue;
+
     if (Array.isArray(value)) {
       for (let i = value.length - 1; i >= 0; i--) {
         execute(value[i], lineage);

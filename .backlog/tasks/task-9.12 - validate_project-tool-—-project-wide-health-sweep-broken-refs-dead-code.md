@@ -4,14 +4,13 @@ title: validate_project tool — project-wide health sweep (broken refs + dead c
 status: To Do
 assignee: []
 created_date: '2026-07-01 21:15'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:45'
 labels:
   - mcp-supervisor
   - platformos-graph
   - validation
   - tool
-dependencies:
-  - TASK-9.10
+dependencies: []
 references:
   - docs/mcp-supervisor/decisions/004-platform-facts-vs-conventions/README.md
   - packages/platformos-graph/src/graph/query.ts

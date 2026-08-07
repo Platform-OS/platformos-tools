@@ -4,7 +4,7 @@ title: Wire the validate_code handler end-to-end with full/quick modes
 status: To Do
 assignee: []
 created_date: '2026-06-08 10:17'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 14:47'
 labels: []
 dependencies:
   - TASK-7.9
@@ -39,25 +39,23 @@ Replace the stub handler (task-7.4) with the real composition: lint/ -> enrich/ 
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## Partial progress — lint-only slice (2026-06-12)
+## STALENESS CHECK 2026-08-07 — AC #2 is dead; AC #1 is blocked, not done
 
-The handler no longer returns a stub: it now calls `runLint` → `assembleResult` and returns REAL detection results. (User-directed descope: wire ONLY the lint part now; enrich/advise + full result come later.)
+**AC #2 ("full and quick modes behave as documented") can never be satisfied — `mode`
+was deliberately REMOVED.** TASK-12.5 (archived, Done) decided against it: the parameter
+was advertised in the schema and did nothing, both branches returning the same result at
+the same cost, and giving it real semantics was rejected because "there is no longer a
+heavy stage worth skipping" — a warm call is ~340 ms of which the buffer's own work is
+~84 ms, the rest being fixed project cost a `quick` mode could not skip without making
+the answer wrong. `ValidateCodeParams` today is `{ file_path?, content?, files? }`.
+**Strike AC #2** rather than implement it.
 
-### What `validate_code` does NOW
-1. Resolve the file path: `file_path` used as-is if absolute, else joined onto `ctx.projectDir`; lint root = `ctx.projectDir`.
-2. `lintBuffer({ root, filePath, content })` (check-node, TASK-7.3) — runs check-common `check()` over the on-disk project with the buffer overlaid; cross-file checks resolve; NO LSP, NO subprocess.
-3. Map each `Offense` → `ValidateCodeDiagnostic`: `check`, `severity` (error/warning/info), `message`, and **1-based** line + column (check-common positions are 0-based for BOTH line and char — `getPosition` uses `origin:0` — so both get +1; matches v1's 0→1 conversion step).
-4. `assembleResult` buckets into errors/warnings/infos; `status` = error>warning>ok; `must_fix_before_write` = (has errors).
+**AC #1 is genuinely outstanding, but blocked upstream.** `validate_code` IS registered
+(`transport/validate-code.ts:175`) and returns a typed `ValidateCodeResult` end to end,
+so the handler is no longer a stub. What is missing is two of the four stages it names:
+`src/enrich/` and `src/advise/` do not exist (TASK-7.7, TASK-7.8). The real composition
+today is lint → result.
 
-Everything else is empty/null: `proposed_fixes`, `clusters`, `scorecard`, `tips`, `domain_guide`, `structural`; `next_step` omitted; `parse_error` stays null (syntax errors surface as `LiquidHTMLSyntaxError` diagnostics). Fixes are NOT translated (`Offense.fix`/`suggest` deferred to enrich). `mode` is accepted but a no-op (no heavy stages yet).
-
-### Files
-- `src/transport/validate-code.ts` — handler body replaced (stub → runLint+assembleResult).
-- `src/lint/lint.ts`, `src/result/assemble.ts` (see TASK-7.6 / TASK-7.9 notes).
-
-### Verification
-- Package suite 31/31 (assemble 5, args 8, guards 12, lint 3, smoke 3). stdio-smoke now drives the REAL bin end-to-end: clean layout → status ok; layout missing `content_for_layout` → MissingContentForLayout error with numeric line/column. Architecture guards still 12/12. Build + type-check clean; prettier-clean.
-
-### NOT yet done (remaining 7.10 scope)
-- enrich → advise → richer result composition; explicit full vs quick behaviour; typed tool-error mapping for handler failures; README + ARCHITECTURE request-flow update.
+So this is not "wire it up" work any more; it is "add the two missing stages, then
+compose". Consider reducing it to that, or folding it into 7.7/7.8's completion.
 <!-- SECTION:NOTES:END -->

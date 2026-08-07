@@ -34,7 +34,6 @@
     "line-column": "^1.0.2",
     "lodash": "^4.17.23",
     "minimatch": "^10.2.2",
-    "vscode-json-languageservice": "^5.7.1",
     "vscode-uri": "^3.1.0",
     "yaml": "^2.8.2"
   },

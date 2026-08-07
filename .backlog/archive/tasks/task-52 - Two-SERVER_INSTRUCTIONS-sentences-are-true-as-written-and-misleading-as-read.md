@@ -4,21 +4,15 @@ title: Two SERVER_INSTRUCTIONS sentences are true as written and misleading as r
 status: Done
 assignee: []
 created_date: '2026-08-03 11:15'
-updated_date: '2026-08-03 17:10'
+updated_date: '2026-08-07 12:45'
 labels:
   - mcp-supervisor
   - agent-surface
   - eval-final
-dependencies:
-  - TASK-47
-  - TASK-51
+dependencies: []
 references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS-FINAL.md
   - packages/platformos-mcp-supervisor/src/transport/instructions.ts
-modified_files:
-  - packages/platformos-mcp-supervisor/src/transport/instructions.ts
-  - packages/platformos-mcp-supervisor/src/transport/validate-code.spec.ts
-  - packages/platformos-mcp-supervisor/src/result/blocking-emission.spec.ts
 priority: low
 ---
 

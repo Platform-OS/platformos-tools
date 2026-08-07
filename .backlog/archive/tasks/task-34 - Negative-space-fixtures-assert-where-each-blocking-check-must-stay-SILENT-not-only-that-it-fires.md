@@ -6,21 +6,17 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-08-02 07:09'
-updated_date: '2026-08-02 09:41'
+updated_date: '2026-08-07 12:45'
 labels:
   - mcp-supervisor
   - check-common
   - false-block
   - testing
   - eval-round4
-dependencies:
-  - TASK-33
+dependencies: []
 references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS-ROUND4.md
   - /home/ecgtheow/Work/supervisor-tests/eval/METHODOLOGY.md
-modified_files:
-  - packages/platformos-mcp-supervisor/src/result/blocking-emission.spec.ts
-  - packages/platformos-mcp-supervisor/src/result/blocking-silence.spec.ts
 priority: high
 ---
 
@@ -61,8 +57,6 @@ A fixture is only worth having if its validity was established, not assumed. Rou
 - [x] #5 Each fixture records the oracle that certifies it as valid input, so a future reader can tell a measured fact from an assumption
 - [x] #6 Assertions are whole-value per the repo rule: the full offense array equals the empty array, not a length or membership check
 <!-- AC:END -->
-
-
 
 ## Implementation Notes
 

@@ -12,7 +12,6 @@ import {
   Dependencies,
   extractDocDefinition,
   FixApplicator,
-  JSONCorrector,
   Offense,
   PlatformOSDocset,
   recommended,
@@ -24,7 +23,7 @@ import * as path from '../path';
 import { MockFileSystem } from './MockFileSystem';
 import { MockApp } from './MockApp';
 
-export { JSONCorrector, StringCorrector };
+export { StringCorrector };
 
 /** The project root every fixture path in this file is relative to. */
 export const mockRootUri = path.normalize('file:/');

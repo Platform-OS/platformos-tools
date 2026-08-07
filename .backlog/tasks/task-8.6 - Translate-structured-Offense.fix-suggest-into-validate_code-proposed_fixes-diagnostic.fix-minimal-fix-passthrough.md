@@ -6,7 +6,7 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-02 15:00'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 14:48'
 labels:
   - mcp-supervisor
   - fixes
@@ -47,3 +47,29 @@ Working dir: ~/Work/platformos-tools/platformos-tools.
 - [ ] #4 Whole-value tests: text-edit fix appears on diagnostic + proposed_fixes with check; suggest-only → suggestion; neither → no fix fields; exact offset mapping pinned
 - [ ] #5 supervisor suite + type-check + format green; no regression to lint/impact/assemble; scope/overlap with TASK-8.3 documented
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## STALENESS CHECK 2026-08-07 — half the target no longer exists, the other half is declared but dead
+
+**`proposed_fixes` is gone.** It was a permanently-empty result stub deleted by TASK-12.5
+(archived) with five siblings. Re-adding it means updating `assemble.spec.ts`'s exact
+key-set guard deliberately, and only once something populates it.
+
+**`diagnostic.fix` DOES exist in the type and is never populated — which is the more
+interesting half.** `ValidateCodeDiagnostic` declares `hint?`, `suggestion?`,
+`confidence?`, `fix?: AgentFix` and `see_also?`, and `AgentFix` is fully specified. But
+`toDiagnostic` in `lint/lint-batch.ts:166` — the only place an `Offense` becomes a
+diagnostic — sets exactly seven fields: `check`, `severity`, `message`, `line`, `column`,
+`end_line`, `end_column`. `Offense.fix` and `Offense.suggest` are dropped on the floor.
+
+So the agent-facing shape for enrichment is already designed and typed; nothing fills it.
+Unlike the removed result stubs, these are OPTIONAL and simply absent from responses, and
+`transport/instructions.ts` does not advertise them — so this is latent contract surface
+rather than a live false promise. Worth keeping that way until populated.
+
+**Overlaps TASK-7.7 and TASK-7.6 AC #2**, both of which describe carrying `fix`/`suggest`
+through to the agent surface. Three tasks currently claim this same seam; consider merging
+before starting, so the mapping is not written twice.
+<!-- SECTION:NOTES:END -->

@@ -3,10 +3,10 @@ id: TASK-12.12
 title: >-
   Unify the duplicated GraphQL/JSON shape inference between the language server
   and check-common
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 21:43'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:51'
 labels:
   - architecture
   - check-common
@@ -38,3 +38,30 @@ Care needed: the two copies are near-identical, not identical, and the differenc
 - [ ] #4 No behaviour change: check-common `UnknownProperty` specs and the LSP hover/completion/TypeSystem suites pass unchanged, and whole-project offense output on a real project is byte-identical before/after
 - [ ] #5 check-common stays browser-safe — no Node-only import is introduced by the move (verified by the browser package building and its suite passing)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CLOSED AS DONE 2026-08-07 — verified symbol by symbol
+
+check-common owns the shape analyzer and the language server consumes it. Checked each
+symbol this task listed as duplicated:
+
+| Symbol | LSP `PropertyShapeInference.ts` | check-common `property-shape.ts` |
+|---|---|---|
+| `mergeShapes` | 0 definitions | 1 |
+| `inferShapeFromJSON` | 0 | 2 |
+| `unwrapType` | 0 | 1 |
+| `isArrayType` | 0 | 1 |
+| `selectionSetToShape` | 0 | 1 |
+| `inferShapeFromGraphQL` | 0 | 1 |
+
+The LSP file still exists (225 lines) but defines none of them — it imports
+`PropertyShape`, `UNKNOWN_SHAPE`, `mergeShapes`, `objectShape` … from check-common. What
+remains there is exactly what this task said the shared surface must absorb rather than
+drop: the LSP-specific `ExpressionShapeResolver` seam (now `resolveExternalShape`, wired
+in `TypeSystem.ts:398`) and AST-node literal inference.
+
+So the outcome matches the task's own stated requirement — "the shared surface must
+absorb those rather than drop them" — and the drift risk it was written for is closed.
+<!-- SECTION:NOTES:END -->

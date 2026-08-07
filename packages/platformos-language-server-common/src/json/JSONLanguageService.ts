@@ -3,7 +3,6 @@ import {
   JsonValidationSet,
   SchemaDefinition,
   SourceCodeType,
-  isValid,
 } from '@platformos/platformos-check-common';
 import { JSONDocument, LanguageService, getLanguageService } from 'vscode-json-languageservice';
 import {
@@ -106,7 +105,7 @@ export class JSONLanguageService {
     return [];
   }
 
-  public isValidSchema = async (uri: string, jsonString: string) => {
+  public isValidSchema: IsValidSchema = async (uri: string, jsonString: string) => {
     await this.initialized;
     const service = this.service;
     if (!service) return false;
@@ -138,4 +137,28 @@ export class JSONLanguageService {
     if (!schema) return `Could not get schema for '${uri}'`;
     return schema;
   }
+}
+
+/**
+ * Whether `jsonString` validates against the schemas `service` was configured with.
+ *
+ * Lived in check-common beside a `JSONValidator` class that the check engine used to
+ * build per run. Nothing checks a JSON file any more — `sourceCodeTypeOf` has no
+ * `.json` row, so no `AppFile` is ever JSON — and this function never needed the class
+ * regardless: it takes the `LanguageService` its caller already owns. It is here
+ * because the language server is the only thing that asks the question.
+ */
+async function isValid(
+  service: LanguageService,
+  uri: string,
+  jsonString: string,
+): Promise<boolean> {
+  const jsonTextDocument = TextDocument.create(uri, 'json', 0, jsonString);
+  const jsonDocument = service.parseJSONDocument(jsonTextDocument);
+  const diagnostics = await service.doValidation(jsonTextDocument, jsonDocument, {
+    schemaValidation: 'error',
+    trailingCommas: 'ignore',
+    comments: 'ignore',
+  });
+  return diagnostics.every((diagnostic) => diagnostic.severity !== 1);
 }

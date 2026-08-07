@@ -3,10 +3,10 @@ id: TASK-12.15
 title: >-
   Eliminate the double parse: one process-wide parsed-source cache shared by the
   graph build and the lint
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-07-29 23:22'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:51'
 labels:
   - performance
   - check-node
@@ -47,3 +47,25 @@ The worker boundary is the subtle part: naive sharing would silently do nothing 
 - [ ] #5 Peak RSS measured before/after — sharing parses must not simply move the memory cost (currently ~1050 MB peak with the worker)
 - [ ] #6 Offense output byte-identical on three real projects; graph dependents unchanged (existing GraphCache and app-cache specs pass untouched)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CLOSED AS SUPERSEDED 2026-08-07 — the premise was rejected, the goal was met
+
+The goal — stop parsing the same file twice per process — was achieved. The MECHANISM
+this task specifies was explicitly considered and rejected.
+
+`platformos-common/CLAUDE.md` states it: "**A parsed-source cache keyed on
+`(uri, fingerprint)` is not the way to share parses here — sharing the file OBJECTS
+is.**" The lazy-`App` model (TASK-46 epic, archived) made `App`/`AppFile` the single
+answer to "the project's files, parsed", replacing four separate mechanisms including
+the fingerprint cache this task builds on. The graph now reads through
+`appBackedGetSourceCode(app, fallback)` (`platformos-graph/src/parsers.ts`), so a graph
+build and a check run in one process hold the same `AppFile`s and parse once.
+
+**Both primitives this task depends on are gone.** `AppCache` and `fileFingerprint` no
+longer exist in `platformos-check-node/src` — the only surviving mentions are historical
+comments in the supervisor's `graph-cache-store.ts`. So the task cannot be executed as
+written, and the work it wanted is already done.
+<!-- SECTION:NOTES:END -->

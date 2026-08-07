@@ -6,19 +6,14 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-08-01 20:13'
-updated_date: '2026-08-01 23:06'
+updated_date: '2026-08-07 12:44'
 labels:
   - mcp-supervisor
   - agent-surface
   - honesty
-dependencies:
-  - TASK-21
+dependencies: []
 references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS-ROUND3.md
-modified_files:
-  - packages/platformos-mcp-supervisor/src/result/assemble.ts
-  - packages/platformos-mcp-supervisor/src/result/types.ts
-  - packages/platformos-mcp-supervisor/src/transport/instructions.ts
 priority: medium
 ---
 

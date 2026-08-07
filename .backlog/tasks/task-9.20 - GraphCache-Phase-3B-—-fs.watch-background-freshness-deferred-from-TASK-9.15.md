@@ -4,13 +4,12 @@ title: GraphCache Phase 3B — fs.watch background freshness (deferred from TASK
 status: To Do
 assignee: []
 created_date: '2026-07-03 07:37'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:45'
 labels:
   - mcp-supervisor
   - performance
   - architecture
-dependencies:
-  - TASK-9.15
+dependencies: []
 references:
   - packages/platformos-mcp-supervisor/src/graph-cache/graph-cache.ts
   - SUPERVISOR-GRAPH-INTEGRATION.md

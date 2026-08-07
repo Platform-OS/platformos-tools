@@ -6,13 +6,11 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:57'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 14:48'
 labels: []
 dependencies:
   - TASK-8.2
   - TASK-8.3
-  - TASK-9.2
-  - TASK-9.3
 references:
   - packages/platformos-mcp-supervisor/CURRENT_SYSTEM_ARCHITECTURE.md
   - docs/mcp-supervisor/salvage/OLD-parity-spec.ts
@@ -59,11 +57,27 @@ The v1 contract (`CURRENT_SYSTEM_ARCHITECTURE.md` §5.13 / §6; confirmed in the
 ## Implementation Notes
 
 <!-- SECTION:NOTES:BEGIN -->
-## Reframe (2026-06-23, ADR 003) — `structural` is CONSUMED from platformos-graph, not computed here
+## STALENESS CHECK 2026-08-07 — these fields were REMOVED, not never-added
 
-The `structural` result field has two parts, both SOURCED FROM `platformos-graph` (the supervisor only shapes them into `ValidateCodeResult`):
-- Cross-file / project-relationship: `rendered_by` (dependents), `is_orphan`, missing render/function/graphql targets, and (optionally) resource/CRUD completeness — from the graph query API (TASK-9.2).
-- Self-structural: `renders_used`, `graphql_queries_used`, `filters_used`, `tags_used`, `translation_keys`, `doc_params`, `slug`, `layout`, `method` — from per-module self-structural (TASK-9.3).
+The task reads as "fill in fields the contract already has". It is now the opposite: all
+four were present as always-empty stubs and were **deliberately deleted** by TASK-12.5
+(archived, Done), alongside `proposed_fixes` and `clusters`/`scorecard`, on the grounds
+that "an agent cannot distinguish an always-empty field from a meaningful one, so
+`proposed_fixes: []` was a standing invitation to conclude 'no fixes are available' from
+a field that was never going to say anything else". A clean-file result went from 15 keys
+to 6.
 
-The supervisor adds NO graph/extraction logic; it consumes the graph API and assembles the field (pure). This is the agent-facing 'dependencies in the project' view the v1 tool provided. Now depends on TASK-9.2 + TASK-9.3.
+Current `ValidateCodeResult`: `status`, `must_fix_before_write`, `errors`, `warnings`,
+`infos`, `impact`, plus optional `next_step`, `not_applicable_reason`, `truncated`. None
+of `tips`, `domain_guide`, `structural`, `parse_error` exists.
+
+**Two consequences for whoever picks this up:**
+
+1. `assemble.spec.ts` pins the EXACT key set and asserts each removed field is ABSENT,
+   including a JSON round trip (because `undefined` disappears on the wire, so "absent"
+   and "present but undefined" are indistinguishable to a naive test yet identical to an
+   agent). Re-adding a field means updating that guard **deliberately**, not deleting it.
+2. TASK-12.5's rule stands: a field ships only once something populates it. So this task
+   cannot land ahead of TASK-8.2/8.3 — re-adding empty fields would restore exactly the
+   defect that removal fixed.
 <!-- SECTION:NOTES:END -->

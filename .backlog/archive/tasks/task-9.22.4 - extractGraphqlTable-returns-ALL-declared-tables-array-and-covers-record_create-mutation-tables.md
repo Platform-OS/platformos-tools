@@ -6,23 +6,11 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-07-07 10:13'
-updated_date: '2026-07-07 10:38'
+updated_date: '2026-08-07 12:45'
 labels:
   - platformos-common
   - platformos-graph
-dependencies:
-  - TASK-9.22.1
-modified_files:
-  - packages/platformos-common/src/graphql-table.ts
-  - packages/platformos-common/src/graphql-table.spec.ts
-  - packages/platformos-common/src/schema-table.ts
-  - packages/platformos-graph/src/types.ts
-  - packages/platformos-graph/src/graph/module.ts
-  - packages/platformos-graph/src/graph/traverse.ts
-  - packages/platformos-graph/src/graph/incremental.ts
-  - packages/platformos-graph/src/graph/deserialize.ts
-  - packages/platformos-graph/src/graph/traverse-edges.spec.ts
-  - packages/platformos-graph/src/graph/incremental.spec.ts
+dependencies: []
 parent_task_id: TASK-9.22
 priority: high
 ---

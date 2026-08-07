@@ -6,14 +6,13 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-08-01 11:55'
-updated_date: '2026-08-01 23:20'
+updated_date: '2026-08-07 12:44'
 labels:
   - bug
   - check-common
   - correctness
   - false-approval
-dependencies:
-  - TASK-20
+dependencies: []
 references:
   - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS.md
 priority: medium

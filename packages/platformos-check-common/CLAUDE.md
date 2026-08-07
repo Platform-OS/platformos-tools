@@ -35,7 +35,12 @@ language server lints just the open buffers against the whole project.
 It:
 1. Wraps raw `Dependencies` with augmented helpers (file-exists, translations, etc.)
 2. Wraps the raw docset in `AugmentedPlatformOSDocset` (memoized, adds undocumented filters/tags)
-3. Iterates over `SourceCodeType` values (JSON, LiquidHtml, GraphQL, YAML) and runs each applicable `CheckDefinition` against each file via visitors
+3. Iterates over `SourceCodeType` values and runs each applicable `CheckDefinition`
+   against each file via visitors. **Only LiquidHtml, GraphQL and YAML have a body**:
+   `SOURCE_CODE_TYPE_BY_KEY` has no `.json` row, so no `AppFile` is ever typed JSON and
+   the `JSON` arm is an explicit empty case that keeps the switch exhaustive. The enum
+   member survives for `toSourceCode`'s editor-buffer fallback, which the language
+   server consumes and this engine never sees.
 
 ### Source code types (`src/types.ts`)
 
@@ -78,7 +83,11 @@ export const MyCheck: LiquidCheckDefinition = {
 };
 ```
 
-- `context` has: `report()`, `file`, `config`, `settings`, `toUri()`, `toRelativePath()`, `fileType()`, `app`, `fs`, `platformosDocset`, `getDocDefinition`, `fileExists`, `fileSize`, `getDefaultLocale`, `getDefaultTranslations`, `getTranslationsForBase`, `getRouteTable`, `validateJSON`
+- `context` has: `report()`, `file`, `config`, `settings`, `toUri()`, `toRelativePath()`, `fileType()`, `app`, `fs`, `platformosDocset`, `getDocDefinition`, `fileExists`, `getDefaultTranslations`, `getTranslationsForBase`, `getRouteTable`.
+  There is no `fileSize`, `getDefaultLocale` or `validateJSON` — each was a seam whose
+  last consumer had already been deleted, so each was a capability the engine paid to
+  build on every run and no check ever called. A check that needs the reference locale
+  imports the `DEFAULT_LOCALE` constant from `platformos-common`
 - `context.app` is the run's `App` and is never `undefined`. Hand it to
   `new DocumentsLocator(context.fs, context.app)` so a `render`/`graphql` name resolves
   through the index instead of a `stat` per candidate path. `context.fileType(uri?)`
@@ -99,11 +108,15 @@ For checks the engine calls `visitLiquid` / `visitJSON` which support both entry
 ### Fix / autofix infrastructure (`src/fixes/`)
 
 - `StringCorrector` — for Liquid/YAML: records `replace(start, end, text)` and `remove(start, end)` operations
-- `JSONCorrector` — for JSON: operates on the JSONNode tree
 - `GraphQLCorrector` — for GraphQL
 - `createCorrector(type, source)` — factory returning the right corrector
 - `applyFixToString(source, fix)` — applies collected `FixDescription[]` to a string
 - No YAML autofix: `createCorrector` throws for `SourceCodeType.YAML`
+- No JSON autofix either, and there is no `JSONCorrector`. `autofix` walks
+  `app.sourceCodes()`, so it is never handed a JSON file; `createCorrector` throws for
+  `SourceCodeType.JSON` for the same reason it throws for YAML. `Corrector<JSON>` is a
+  `StringCorrector` placeholder rather than `never` only because `never` intersects
+  every `Fixer<T>` call down to an uncallable signature
 
 ### `AugmentedPlatformOSDocset` (`src/AugmentedPlatformOSDocset.ts`)
 
@@ -118,7 +131,10 @@ Wraps the raw `PlatformOSDocset` (from dependency injection) with:
 Factory functions for the augmented dependency methods:
 - `makeGetTranslationsForBase(fs, app)` — loads and merges YAML translation files; open editor buffers take precedence over filesystem
 - `makeGetDefaultTranslations(fs, app, rootUri)` — loads `app/translations/en.yml`, strips locale root key
-- `makeGetDefaultLocale(fs, rootUri)` — always returns `'en'`
+- `makeGetDefaultLocaleFileUri(fs)` — locates `en.yml` across the app roots. There is no
+  `makeGetDefaultLocale`: it took an `fs` and a root, ignored both, and returned the
+  `DEFAULT_LOCALE` constant, so every run built and memoized a promise for a literal.
+  Import `DEFAULT_LOCALE` from `platformos-common` instead
 - `makeGetRouteTable(fs, rootUri, existing?)` — at most one `RouteTable` per run,
   produced on the first `context.getRouteTable()`. `existing` is either a table (the
   LSP's, kept current by file events) or a **provider** for a caller whose table costs

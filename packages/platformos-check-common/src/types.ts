@@ -13,7 +13,7 @@ import {
   SourceCodeType,
   UriString,
 } from '@platformos/platformos-common';
-import { JSONCorrector, StringCorrector } from './fixes';
+import { StringCorrector } from './fixes';
 
 import {
   ArrayNode,
@@ -82,16 +82,6 @@ export type TypedAppFile<T extends SourceCodeType = SourceCodeType> = T extends 
 export { SourceCodeType };
 
 export type LiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml>;
-export type PartialSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
-  PlatformOSFile & {
-    kind: 'Partial';
-  };
-
-export type PageLiquidSourceCode = SourceCode<SourceCodeType.LiquidHtml> &
-  PlatformOSFile & {
-    kind: 'Page';
-    route: string;
-  };
 
 export type LiquidCheckDefinition<S extends Schema = Schema> = CheckDefinition<
   SourceCodeType.LiquidHtml,
@@ -101,12 +91,17 @@ export type LiquidCheck = Check<SourceCodeType.LiquidHtml>;
 
 export { LiquidHtmlNode, LiquidHtmlNodeTypes };
 
+/**
+ * A `.json` buffer the EDITOR holds open, never a file of the app.
+ *
+ * `SOURCE_CODE_TYPE_BY_KEY` has no `.json` row, so `AppFile.type` is never
+ * `SourceCodeType.JSON` and no such file can reach a check. The type survives for
+ * `toSourceCode`'s editor fallback alone — the language server's `DocumentManager`
+ * models every buffer the editor opens, `.json` included, so the JSON language
+ * service can answer hover and completion for one. There is deliberately no
+ * `JSONCheck`/`JSONCheckDefinition` beside this: nothing checks a JSON file.
+ */
 export type JSONSourceCode = SourceCode<SourceCodeType.JSON>;
-export type JSONCheckDefinition<S extends Schema = Schema> = CheckDefinition<
-  SourceCodeType.JSON,
-  S
->;
-export type JSONCheck = Check<SourceCodeType.JSON>;
 
 export type YAMLSourceCode = SourceCode<SourceCodeType.YAML>;
 export type YAMLCheckDefinition<S extends Schema = Schema> = CheckDefinition<
@@ -114,12 +109,6 @@ export type YAMLCheckDefinition<S extends Schema = Schema> = CheckDefinition<
   S
 >;
 export type YAMLCheck = Check<SourceCodeType.YAML>;
-
-export interface PlatformOSFile {
-  name: string;
-  module_name: string;
-  path: string;
-}
 
 /**
  * The GraphQL AST, owned by `platformos-common` and re-exported here — never
@@ -320,7 +309,22 @@ type CheckNodeMethods<T extends SourceCodeType> = {
 };
 
 type CheckExitMethods<T extends SourceCodeType> = {
-  /** Happens once per node, in reverse order */
+  /**
+   * Happens once per node, immediately AFTER its entry method and BEFORE any of its
+   * children — not after the subtree, despite the name.
+   *
+   * The walker dispatches entry, pushes the children, then dispatches exit, all in one
+   * iteration; the children are popped in later iterations. So `X:exit` runs while the
+   * subtree under `X` is still unvisited, which makes this a second entry callback
+   * rather than an exit one.
+   *
+   * This said "in reverse order" until the behaviour was recorded from the running code
+   * (`visitors/traversal-order.spec.ts`). No shipped check declares an `:exit` method,
+   * which is how prose describing the opposite of the implementation went unnoticed.
+   * The behaviour is left as-is deliberately and tracked in TASK-73 — a check written
+   * against the old comment would be subtly wrong, so the comment is what had to change
+   * first.
+   */
   [NT in NodeTypes[T] as `${NT}:exit`]: CheckNodeMethod<T, NT>;
 };
 
@@ -423,11 +427,6 @@ export interface Dependencies {
   routeTable?: () => Promise<RouteTable>;
 }
 
-export type ValidateJSON = (
-  uri: string,
-  jsonString: string,
-) => Promise<{ message: string; startIndex: number; endIndex: number }[]>;
-
 export type IsValidSchema = (uri: string, jsonString: string) => Promise<boolean>;
 
 /** The {@link Dependencies} a caller injects, plus everything {@link check} derives. */
@@ -447,8 +446,6 @@ export interface AugmentedDependencies extends Dependencies {
    */
   app: AppModel;
   fileExists: (uri: UriString) => Promise<boolean>;
-  fileSize: (uri: UriString) => Promise<number>;
-  getDefaultLocale: () => Promise<string>;
   getDefaultTranslations(): Promise<Translations>;
   /**
    * Aggregates ALL translation files for `locale` within the given translations
@@ -479,7 +476,6 @@ type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeTyp
        */
       fileType(uri?: UriString): PlatformOSFileType | undefined;
       file: SourceCode<T>;
-      validateJSON?: ValidateJSON;
     }
   : never;
 
@@ -489,7 +485,12 @@ export type Context<T extends SourceCodeType, S extends Schema = Schema> = T ext
 
 export type Corrector<T extends SourceCodeType> = T extends SourceCodeType
   ? {
-      [SourceCodeType.JSON]: JSONCorrector;
+      // Unreachable, and a placeholder rather than `never`: JSON is an editor-buffer
+      // type only (see JSONSourceCode), so `autofix` — which walks `app.sourceCodes()`
+      // — is never handed one and `createCorrector` throws if it somehow is. `never`
+      // here would be more honest but it poisons every call through `Fixer<T>`, whose
+      // union of function types intersects its parameters down to `never`.
+      [SourceCodeType.JSON]: StringCorrector;
       [SourceCodeType.LiquidHtml]: StringCorrector;
       [SourceCodeType.GraphQL]: GraphQLCorrector;
       [SourceCodeType.YAML]: StringCorrector; // no YAML autofix yet; StringCorrector as placeholder
@@ -505,7 +506,6 @@ export type Fixer<T extends SourceCodeType> = T extends SourceCodeType
   ? (corrector: Corrector<T>) => void
   : never;
 export type LiquidHtmlFixer = Fixer<SourceCodeType.LiquidHtml>;
-export type JSONFixer = Fixer<SourceCodeType.JSON>;
 export type GraphQLFixer = Fixer<SourceCodeType.GraphQL>;
 
 /**
@@ -588,7 +588,6 @@ export type Suggestion<T extends SourceCodeType> = T extends SourceCodeType
   : never;
 
 export type LiquidHtmlSuggestion = Suggestion<SourceCodeType.LiquidHtml>;
-export type JSONSuggestion = Suggestion<SourceCodeType.JSON>;
 
 export type Problem<T extends SourceCodeType> = T extends SourceCodeType
   ? {

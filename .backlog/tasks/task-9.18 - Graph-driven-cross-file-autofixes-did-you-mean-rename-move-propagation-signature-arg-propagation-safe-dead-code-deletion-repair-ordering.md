@@ -6,14 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-07-02 15:01'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:45'
 labels:
   - platformos-graph
   - mcp-supervisor
   - fixes
   - autofix
 dependencies:
-  - TASK-9.10
   - TASK-8.6
 references:
   - packages/platformos-graph/src/graph/query.ts

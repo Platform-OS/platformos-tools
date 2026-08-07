@@ -9,6 +9,7 @@ import {
 import { URI } from 'vscode-uri';
 import { join } from './path';
 import { AppModel, Translations } from './types';
+import { memo } from './utils/memo';
 
 /**
  * The contents of an OPEN editor buffer for `uri`, or `undefined` when the file's
@@ -74,27 +75,14 @@ export const makeFileExists = (fs: AbstractFileSystem): FileExists =>
     }
   };
 
-export const makeFileSize = (fs: AbstractFileSystem) =>
-  async function fileSize(uri: string) {
-    try {
-      const stats = await fs.stat(uri);
-      return stats.size;
-    } catch (error) {
-      return 0;
-    }
-  };
-
 export const makeGetDefaultLocaleFileUri = (fs: AbstractFileSystem) => (rootUri: string) =>
   getDefaultLocaleFile(fs, rootUri);
-
-export const makeGetDefaultLocale = (fs: AbstractFileSystem, rootUri: string) =>
-  cached(() => getDefaultLocale(fs, rootUri));
 
 export const makeGetDefaultTranslations = (
   fs: AbstractFileSystem,
   app: AppModel,
   rootUri: string,
-) => cached(() => getDefaultTranslations(fs, app, rootUri));
+) => memo(() => getDefaultTranslations(fs, app, rootUri));
 
 /** `en.yml` — the single-file spelling of the reference translation file. */
 const DEFAULT_LOCALE_FILE_NAME = `${DEFAULT_LOCALE}.yml`;
@@ -122,10 +110,6 @@ async function getDefaultLocaleFile(
   return undefined;
 }
 
-async function getDefaultLocale(_fs: AbstractFileSystem, _rootUri: string): Promise<string> {
-  return DEFAULT_LOCALE;
-}
-
 /**
  * The reference (`en`) translations of the project, from the first app root that has
  * any — through the same per-base loader everything else uses
@@ -145,8 +129,8 @@ async function getDefaultTranslations(
       if (Object.keys(translations).length > 0) return translations;
     }
   } catch (error) {
-    // Degrade to "no reference translations" rather than let `cached()` memoize a
-    // rejection that every later caller in the run re-throws as a CheckError.
+    // Degrade to "no reference translations" rather than let the `memo` above cache a
+    // rejected promise that every later caller in the run re-throws as a CheckError.
     console.error(error);
   }
   return {};
@@ -193,13 +177,4 @@ async function resolveRouteTable(
   const table = new RouteTable(fs);
   await table.build(URI.parse(rootUri));
   return table;
-}
-
-function cached<T>(fn: () => Promise<T>): () => Promise<T>;
-function cached<T>(fn: (...args: any[]) => Promise<T>): (...args: any[]) => Promise<T> {
-  let cachedPromise: Promise<T>;
-  return async (...args) => {
-    if (!cachedPromise) cachedPromise = fn(...args);
-    return cachedPromise;
-  };
 }

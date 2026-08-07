@@ -5,25 +5,11 @@ status: Done
 assignee:
   - filip
 created_date: '2026-06-08 10:01'
-updated_date: '2026-06-09 21:36'
+updated_date: '2026-08-07 12:45'
 labels: []
-dependencies:
-  - TASK-7.1
+dependencies: []
 references:
   - docs/mcp-supervisor/salvage/OLD-ARCHITECTURE.md
-modified_files:
-  - packages/platformos-mcp-supervisor/package.json
-  - packages/platformos-mcp-supervisor/tsconfig.json
-  - packages/platformos-mcp-supervisor/tsconfig.build.json
-  - packages/platformos-mcp-supervisor/src/result/types.ts
-  - packages/platformos-mcp-supervisor/src/logger.ts
-  - packages/platformos-mcp-supervisor/src/transport/validate-code.ts
-  - packages/platformos-mcp-supervisor/src/transport/server.ts
-  - packages/platformos-mcp-supervisor/src/bin/args.ts
-  - packages/platformos-mcp-supervisor/src/bin/args.spec.ts
-  - packages/platformos-mcp-supervisor/src/bin/platformos-mcp-supervisor.ts
-  - packages/platformos-mcp-supervisor/src/index.ts
-  - packages/platformos-mcp-supervisor/test/integration/stdio-smoke.spec.ts
 parent_task_id: TASK-7
 priority: high
 ---

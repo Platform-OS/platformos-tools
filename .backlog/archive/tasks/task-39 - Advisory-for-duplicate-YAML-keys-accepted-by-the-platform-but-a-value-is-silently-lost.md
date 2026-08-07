@@ -6,23 +6,12 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-08-02 09:16'
-updated_date: '2026-08-02 16:42'
+updated_date: '2026-08-07 12:45'
 labels:
   - check-common
   - detection-gap
   - eval-round4
-dependencies:
-  - TASK-33
-modified_files:
-  - packages/platformos-check-common/src/yaml/duplicate-keys.ts
-  - packages/platformos-check-common/src/checks/duplicate-yaml-key/index.ts
-  - packages/platformos-check-common/src/checks/duplicate-yaml-key/index.spec.ts
-  - packages/platformos-check-common/src/checks/index.ts
-  - packages/platformos-check-common/src/checks/yaml-syntax-error/index.ts
-  - packages/platformos-check-common/src/yaml/parse.ts
-  - packages/platformos-mcp-supervisor/src/transport/instructions.ts
-  - packages/platformos-mcp-supervisor/src/transport/validate-code.spec.ts
-  - packages/platformos-mcp-supervisor/src/result/blocking-silence.spec.ts
+dependencies: []
 priority: low
 ---
 

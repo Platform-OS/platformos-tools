@@ -1,13 +1,12 @@
 ---
 id: TASK-5
 title: Update path-utils spec for backend-mirror behavior
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-05-11 13:10'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-07 12:51'
 labels: []
-dependencies:
-  - TASK-3
+dependencies: []
 ordinal: 5000
 ---
 
@@ -62,3 +61,21 @@ Rewrite `packages/platformos-common/src/path-utils.spec.ts` to assert the new (s
 - [ ] #2 Scalar-pattern, ActivityStreams, wrong-extension, asset-partial, and Page-non-liquid cases added
 - [ ] #3 yarn workspace @platformos/platformos-common test passes
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## CLOSED AS OBSOLETE 2026-08-07 — its central instruction was reversed
+
+This task's main ask was to delete the `marketplace_builder` coverage from
+`path-utils.spec.ts`. That root was **kept** (see TASK-1), so removing its assertions
+would delete tests for live behaviour — the opposite of the intent.
+
+The rest landed by other routes: wrong-extension rejection
+(`app/translations/en.json` → `undefined`, `app/graphql/x.txt` → `undefined`) is covered,
+because the extension is part of classification via `REFERENCE_EXTENSIONS` and the
+anchored `PATH_PATTERNS`. Fixed-path files (`app/config.yml` → `InstanceConfig`,
+`app/user.yml` → `UserSchema`) are covered by `fixed-path-files.spec.ts`. The
+`AssetManifest` / `AssetsManifest` / `ModulesLock` rows it asks for were never added on
+purpose — see TASK-2.
+<!-- SECTION:NOTES:END -->

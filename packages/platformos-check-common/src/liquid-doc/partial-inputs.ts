@@ -1,10 +1,9 @@
 import { PlatformOSFileType } from '@platformos/platformos-common';
 import { Context, SourceCodeType } from '../types';
-import { isError } from '../utils';
-import { isObjectInScope } from '../checks/utils';
+import { inScopeNames } from './in-scope-names';
 import {
-  extractUndefinedVariables,
   UndefinedVariables,
+  undefinedVariablesOf,
 } from '../checks/partial-call-arguments/extract-undefined-variables';
 
 /**
@@ -27,17 +26,10 @@ import {
 export async function partialInputs(
   context: Context<SourceCodeType.LiquidHtml>,
 ): Promise<UndefinedVariables> {
-  const objects = (await context.platformosDocset?.objects()) ?? [];
-  const inScopeNames = objects
-    .filter((object) => isObjectInScope(object, PlatformOSFileType.Partial))
-    .map((object) => object.name);
-  inScopeNames.push('app');
-
-  const ast = context.file.ast;
-
-  return extractUndefinedVariables(
-    context.file.source,
-    inScopeNames,
-    isError(ast) ? undefined : ast,
+  // The same scope rule the CALL-SITE checks apply to this file as a target, from the same
+  // memoized source — a partial is judged against one list, not two spellings of one.
+  return undefinedVariablesOf(
+    context.file,
+    await inScopeNames(context, PlatformOSFileType.Partial),
   );
 }

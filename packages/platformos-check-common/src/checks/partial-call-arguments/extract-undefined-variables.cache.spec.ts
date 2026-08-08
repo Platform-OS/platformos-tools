@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
+import { App } from '@platformos/platformos-common';
 
-import {
-  clearUndefinedVariablesCache,
-  extractUndefinedVariables,
-} from './extract-undefined-variables';
+import { extractUndefinedVariables, undefinedVariablesOf } from './extract-undefined-variables';
+import { sourceParsers } from '../../to-source-code';
+import { MockFileSystem } from '../../test';
 
 // Spy on the real parser so "how many times was this source parsed?" is
 // observable. Everything else about the parser stays real. `vi.mock` is hoisted
@@ -17,24 +17,36 @@ vi.mock('@platformos/liquid-html-parser', async (importOriginal) => {
 
 const parseCount = () => vi.mocked(toLiquidHtmlAST).mock.calls.length;
 
-describe('Unit: extractUndefinedVariables memoization', () => {
-  // The cache is module-global, so every test here starts from a cold one.
-  // Without this, a test that happens to use the same source as an earlier one
-  // would see 0 parses and fail as though the memoization were broken.
-  beforeEach(() => {
-    clearUndefinedVariablesCache();
-  });
+const ROOT = 'file:///project';
+const PARTIAL = 'app/views/partials/card.liquid';
 
-  it('parses a given source once, however many call sites ask about it', () => {
-    const source = '{{ title }}{{ subtitle }}';
+/** One file in an `App`, the way the engine hands one to a check. */
+function appFile(source: string) {
+  const fs = new MockFileSystem({ [PARTIAL]: source }, ROOT);
+  const app = App.fromSources(ROOT, { [PARTIAL]: source }, fs, sourceParsers);
+  return app.get(`${ROOT}/${PARTIAL}`)!;
+}
+
+/**
+ * The analysis is memoized ON THE FILE, not in a cache of its own.
+ *
+ * That is what lets it be keyed by nothing but the in-scope names: the file already knows when
+ * its source stops being true and drops the memo with the parse, and the `App` already evicts
+ * files nobody is using — so there is no content key holding a second copy of every source, and
+ * no eviction policy to tune. These pin both halves of that: it memoizes, and it lets go.
+ */
+describe('Unit: undefinedVariablesOf memoization', () => {
+  it('analyzes a file once, however many call sites ask about it', () => {
+    const file = appFile('{{ title }}{{ subtitle }}');
     const before = parseCount();
 
     const results = [
-      extractUndefinedVariables(source),
-      extractUndefinedVariables(source),
-      extractUndefinedVariables(source),
+      undefinedVariablesOf(file),
+      undefinedVariablesOf(file),
+      undefinedVariablesOf(file),
     ];
 
+    // One parse for the file itself, and no second analysis.
     expect(parseCount() - before).toEqual(1);
     const analysis = {
       required: ['title', 'subtitle'],
@@ -45,62 +57,65 @@ describe('Unit: extractUndefinedVariables memoization', () => {
     expect(results).toEqual([analysis, analysis, analysis]);
   });
 
-  it('re-analyzes when the source changes, so an edited partial is never served stale', () => {
-    const before = parseCount();
+  it('re-analyzes when the file is edited, so an open buffer is never served stale', () => {
+    const file = appFile('{{ title }}');
 
-    const first = extractUndefinedVariables('{{ title }}');
-    const second = extractUndefinedVariables('{{ title }}{{ author }}');
+    const before = undefinedVariablesOf(file);
+    file.setSource('{{ title }}{{ author }}', 1);
+    const after = undefinedVariablesOf(file);
 
-    expect(parseCount() - before).toEqual(2);
-    expect(first).toEqual({ required: ['title'], optional: [], selfDefaulted: [], defined: [] });
-    expect(second).toEqual({
-      required: ['title', 'author'],
-      optional: [],
-      selfDefaulted: [],
-      defined: [],
+    expect({ before, after }).toEqual({
+      before: { required: ['title'], optional: [], selfDefaulted: [], defined: [] },
+      after: { required: ['title', 'author'], optional: [], selfDefaulted: [], defined: [] },
     });
   });
 
-  it('re-analyzes when the in-scope global names change for the same source', () => {
-    const source = '{{ app.foo }}{{ widget }}';
+  it('re-analyzes when the file is invalidated', () => {
+    const file = appFile('{{ title }}');
+    undefinedVariablesOf(file);
     const before = parseCount();
 
-    const withoutGlobals = extractUndefinedVariables(source, []);
-    const withGlobals = extractUndefinedVariables(source, ['app']);
+    file.invalidate();
+    file.setSource('{{ other }}');
 
-    expect(parseCount() - before).toEqual(2);
-    expect(withoutGlobals).toEqual({
-      required: ['app', 'widget'],
-      optional: [],
-      selfDefaulted: [],
-      defined: [],
-    });
-    expect(withGlobals).toEqual({
-      required: ['widget'],
-      optional: [],
-      selfDefaulted: [],
-      defined: [],
-    });
+    expect(undefinedVariablesOf(file).required).toEqual(['other']);
+    expect(parseCount() - before).toEqual(1);
   });
 
-  it('spends no parse at all when the caller already holds the AST of that source', () => {
+  it('keeps the analyses for different in-scope names apart', () => {
+    const file = appFile('{{ app.foo }}{{ widget }}');
+
+    expect({
+      withoutGlobals: undefinedVariablesOf(file, []).required,
+      withGlobals: undefinedVariablesOf(file, ['app']).required,
+    }).toEqual({ withoutGlobals: ['app', 'widget'], withGlobals: ['widget'] });
+  });
+
+  it('hands every caller its own arrays, so one caller cannot corrupt another', () => {
+    const file = appFile('{{ shared }}');
+
+    undefinedVariablesOf(file).required.push('mutated');
+
+    expect(undefinedVariablesOf(file).required).toEqual(['shared']);
+  });
+
+  /**
+   * The escape hatch, for a source with no file behind it — a render target resolved outside
+   * the walked subtrees. It computes every time, which is why callers holding a file use the
+   * memoized form.
+   */
+  it('computes every time for a bare source, and takes a parse the caller already has', () => {
     const source = '{{ title }}';
     const ast = toLiquidHtmlAST(source);
     const before = parseCount();
 
-    const result = extractUndefinedVariables(source, [], ast);
+    const results = [extractUndefinedVariables(source), extractUndefinedVariables(source, [], ast)];
 
-    expect(parseCount() - before).toEqual(0);
-    expect(result).toEqual({ required: ['title'], optional: [], selfDefaulted: [], defined: [] });
-  });
-
-  it('hands every caller its own arrays, so one caller cannot corrupt another', () => {
-    const source = '{{ shared }}';
-
-    const first = extractUndefinedVariables(source);
-    first.required.push('mutated');
-    const second = extractUndefinedVariables(source);
-
-    expect(second).toEqual({ required: ['shared'], optional: [], selfDefaulted: [], defined: [] });
+    // The first parses; the second is handed the AST and parses nothing.
+    expect(parseCount() - before).toEqual(1);
+    expect(results).toEqual([
+      { required: ['title'], optional: [], selfDefaulted: [], defined: [] },
+      { required: ['title'], optional: [], selfDefaulted: [], defined: [] },
+    ]);
   });
 });

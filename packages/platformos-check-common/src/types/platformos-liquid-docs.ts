@@ -104,6 +104,21 @@ export interface FilterEntry extends DocsetEntry {
 }
 
 export interface TagEntry extends DocsetEntry {
+  /**
+   * The registered name of the tag that supersedes this one, when it is deprecated.
+   *
+   * The successor as DATA rather than as a sentence, which is what `DeprecatedTag`'s rename
+   * needs: that autofix writes to the user's file unattended under `pos-cli check run -a`, and
+   * deriving the target from `deprecation_reason` made it depend on how the prose was worded.
+   *
+   * Absent for a docset published before the platform emitted it — `platformos-tools` reads
+   * the reason as a fallback for exactly that case. Upstream it is
+   * `deprecated_replacement` in `~/projects/desksnearme`
+   * (`docs/generators/liquid_tags/default/module/setup.rb`): an `@alias` publishes its
+   * canonical name, and a `@deprecated` tag with a class of its own declares `@replaced_by`.
+   */
+  deprecation_replacement?: string;
+
   /** Used for categorization on the docs website */
   category?: string;
 

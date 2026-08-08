@@ -9,14 +9,22 @@
  * frequently-rendered partials first — exactly the entries the cache exists for —
  * as soon as a project pushed past `limit` distinct keys.
  *
- * Callers are expected to key on the exact input the result depends on
- * (typically file content), so an entry can never be stale: changed content is a
- * different key, and the old entry ages out.
+ * Callers key on the exact input the result depends on. Where that input is the
+ * file CONTENT — `extract-undefined-variables`, and the markup a
+ * `DeprecatedTag` probe answers about — an entry can never be stale: changed
+ * content is a different key, and the old entry ages out.
  *
- * `clear()` drops everything. No production caller needs it today (entries are
- * keyed by content, so none can go stale); it exists so tests stay independent of
- * each other, and so a long-lived host that switches projects has a way to release
- * the previous project's entries.
+ * A caller may instead key on IDENTITY and revalidate on the way out, which is
+ * what the partial-analysis memo in `checks/unknown-property/shape-analysis.ts`
+ * does: its entries record every file the analysis read, and a hit re-reads them
+ * before it is trusted. That keeps the key small when the answer depends on
+ * several files, and it moves the burden — a key that omits something the answer
+ * depends on, and a revalidation that reads from somewhere other than where the
+ * analysis read, are both stale-cache bugs this class cannot catch for you.
+ *
+ * `clear()` drops everything. It exists so tests stay independent of each other,
+ * and so a long-lived host that switches projects has a way to release the
+ * previous project's entries.
  */
 export interface BoundedCache<Result> {
   (key: string, compute: () => Result): Result;

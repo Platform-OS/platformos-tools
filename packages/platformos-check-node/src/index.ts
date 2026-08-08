@@ -33,6 +33,12 @@ import { NodeFileSystem } from './NodeFileSystem';
 import { getSharedRouteTable, resetRouteTable } from './route-table';
 import { getSharedApp, resetSharedApp } from './shared-app';
 
+/**
+ * Deliberately re-exported BEFORE the `export *` below, which carries an `autofix` of its
+ * own. See `./autofix` for which one has to win and why. It is a strict superset of
+ * check-common's, so nothing else needs re-exporting to reach that behaviour.
+ */
+export { autofix, saveToDiskFixApplicator } from './autofix';
 export * from '@platformos/platformos-check-common';
 // Where an app file can live, for an embedder that has to EXPLAIN the directory rule to
 // an agent. Explaining is the only job out here — classifying is `lintBuffer`'s.

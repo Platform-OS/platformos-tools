@@ -91,6 +91,12 @@ export * from './url-helpers';
 // to disagree — the editor's copy offered a `relation` exactly one property.
 export * from './checks/unknown-property/property-shape';
 export * from './checks/unknown-property/shape-analysis';
+// How `DeprecatedTag`'s autofix decides what a deprecated tag is renamed TO. Out here so the
+// packages that own the docset can assert their committed copy still resolves, against this
+// resolution rather than a second spelling of it. Only the GUARDED form is public: the raw
+// prose parse under it answers without asking whether the tag it named is one this docset has,
+// or has itself deprecated, which is the whole safety argument for the rename.
+export { resolveReplacementTag } from './checks/deprecated-tag';
 
 const defaultErrorHandler = (_error: Error): void => {
   // Silently ignores errors by default. The offense recorded by `runPipeline` is what

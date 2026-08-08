@@ -10,6 +10,7 @@ import {
   path as pathUtils,
   BasicParamTypes,
   ObjectEntry,
+  PropertyShape,
 } from '@platformos/platformos-check-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { App, DocumentsLocator } from '@platformos/platformos-common';
@@ -18,6 +19,25 @@ import { URI } from 'vscode-uri';
 import { ArrayType, ShapeType, TypeSystem, UnionType } from './TypeSystem';
 import { languageServerParsers } from './documents/DocumentManager';
 import { isLiquidVariableOutput, isNamedLiquidTag } from './utils';
+
+const PROJECT = 'file:///project';
+const PAGE = `${PROJECT}/app/views/pages/test.liquid`;
+
+const object = (
+  properties: Record<string, PropertyShape>,
+  rest: Partial<PropertyShape> = {},
+): PropertyShape => ({ kind: 'object', properties: new Map(Object.entries(properties)), ...rest });
+
+/** A GraphQL selection names no primitive TYPE; a JSON literal does. */
+const primitive = (primitiveType?: PropertyShape['primitiveType']): PropertyShape =>
+  primitiveType ? { kind: 'primitive', primitiveType } : { kind: 'primitive' };
+
+/** What `{% graphql %}` adds to whatever the operation selected, on every result. */
+const GRAPHQL_ERRORS: PropertyShape = {
+  kind: 'array',
+  optional: true,
+  itemShape: object({ message: primitive('string') }),
+};
 
 describe('Module: TypeSystem', () => {
   let typeSystem: TypeSystem;
@@ -118,6 +138,50 @@ describe('Module: TypeSystem', () => {
     });
   });
 
+  /** The inferred type of the LAST `{% assign %}` in `source`. */
+  const typeOfLastAssign = async (source: string) => {
+    const ast = toLiquidHtmlAST(source);
+    const last = ast.children.at(-1)!;
+    assert(isNamedLiquidTag(last, NamedTags.assign));
+    return typeSystem.inferType(last.markup as AssignMarkup, ast, 'file:///file.liquid');
+  };
+
+  /** The inferred type of the LAST node of `source`, which in every case below is a `{{ … }}`. */
+  const typeOfLastOutput = async (
+    source: string,
+    ts: TypeSystem = typeSystem,
+    uri = 'file:///file.liquid',
+  ) => {
+    const ast = toLiquidHtmlAST(source);
+    const output = ast.children.at(-1)!;
+    assert(isLiquidVariableOutput(output));
+    return ts.inferType(output.markup, ast, uri);
+  };
+
+  /** The same, narrowed for a caller whose subject is the shape rather than the kind. */
+  const shapeOfLastOutput = async (source: string, ts?: TypeSystem, uri?: string) => {
+    const inferred = await typeOfLastOutput(source, ts, uri);
+    assert(typeof inferred !== 'string' && inferred.kind === 'shape');
+    return inferred.shape;
+  };
+
+  /** A type system whose partials and `.graphql` documents are `files`, read through no App. */
+  const typeSystemFor = (files: Record<string, string>) => {
+    const fs = new MockFileSystem(files, PROJECT);
+    return new TypeSystem(
+      {
+        graphQL: async () => null, // no schema: shapes come from the selection set
+        tags: async () => [],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        filters: async () => [],
+      },
+      fs,
+      new DocumentsLocator(fs),
+      async () => PROJECT,
+    );
+  };
+
   it('should return the type of assign markup nodes (basic test)', async () => {
     for (const { value, type } of literalContexts) {
       const ast = toLiquidHtmlAST(`{% assign x = ${value} %}`);
@@ -205,37 +269,50 @@ describe('Module: TypeSystem', () => {
     });
   });
 
+  /**
+   * WHICH OPERAND OF `default` FLOWS, and so whose type is the answer. `default` yields the
+   * piped value unless it is blank, so the piped value's type wins whenever there is one and
+   * nothing proves it blank — taking the fallback's unconditionally named the wrong type for
+   * every chain whose input was typed.
+   *
+   * Blank is Liquid's `empty?`-then-`!input`, not JavaScript's falsiness, which is what the
+   * zero case is here to separate: `!0` is false in Ruby, so a zero flows through.
+   */
   describe('when using the default filter', () => {
-    it('should return the type of the default value literal', async () => {
-      const ast = toLiquidHtmlAST(`
-        {% assign x = x | default: 10 %}
-      `);
-      const xVariable = (ast as any).children[0].markup as AssignMarkup;
-      const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
-      expect(inferredType).to.equal('number');
-    });
+    it('answers with the operand that flows, deciding blankness the way Liquid does', async () => {
+      const withThumbnail = (assign: string) =>
+        `{% assign d = context.models[0].thumbnail %}\n${assign}`;
 
-    it('should return the type of the default value lookup', async () => {
-      const ast = toLiquidHtmlAST(`
-        {% assign d = context.models[0].thumbnail %}
-        {% assign x = unknown | default: d %}
-      `);
-      const xVariable = (ast as any).children[1].markup as AssignMarkup;
-      const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
-      expect(inferredType).to.equal('image');
-    });
-
-    it('should prefer the piped value when its type is known', async () => {
-      // `default` returns the piped value unless it is falsy, so that value's type is the
-      // answer whenever there is one. Taking the fallback's unconditionally named the
-      // wrong type for every chain whose input was typed.
-      const ast = toLiquidHtmlAST(`
-        {% assign d = context.models[0].thumbnail %}
-        {% assign x = d | default: 'placeholder' %}
-      `);
-      const xVariable = (ast as any).children[1].markup as AssignMarkup;
-      const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
-      expect(inferredType).to.equal('image');
+      expect({
+        // Nothing is known about the piped value, so the fallback is the whole answer.
+        untypedPipedLiteralFallback: await typeOfLastAssign(`{% assign x = x | default: 10 %}`),
+        untypedPipedLookupFallback: await typeOfLastAssign(
+          withThumbnail(`{% assign x = unknown | default: d %}`),
+        ),
+        // A typed piped value reaches the output, so the fallback's type is not the answer.
+        typedPiped: await typeOfLastAssign(
+          withThumbnail(`{% assign x = d | default: 'placeholder' %}`),
+        ),
+        // PROVABLY blank, and typed `string` — so nothing about the type alone separates
+        // this from the case above; only the blankness does.
+        provablyBlankPiped: await typeOfLastAssign(
+          withThumbnail(`{% assign title = '' %}\n{% assign x = title | default: d %}`),
+        ),
+        blankLiteralPiped: await typeOfLastAssign(
+          withThumbnail(`{% assign x = blank | default: d %}`),
+        ),
+        // The control: a zero is not blank in Liquid, so it flows and stays a number.
+        zeroPiped: await typeOfLastAssign(
+          withThumbnail(`{% assign count = 0 %}\n{% assign x = count | default: d %}`),
+        ),
+      }).toEqual({
+        untypedPipedLiteralFallback: 'number',
+        untypedPipedLookupFallback: 'image',
+        typedPiped: 'image',
+        provablyBlankPiped: 'image',
+        blankLiteralPiped: 'image',
+        zeroPiped: 'number',
+      });
     });
   });
 
@@ -407,12 +484,12 @@ fragment rec on Record { name slug }
   });
 
   describe('cross-file type inference (A -> B -> C)', () => {
+    /**
+     * A page calls B, B calls C, C runs the query — inline in one chain, from a `.graphql`
+     * document in the other. The shape the query selects has to survive every hop.
+     */
     it('should infer types through chain of function calls with GraphQL at the end', async () => {
-      // Setup: File C calls GraphQL, B calls C, A calls B
-      // The type from GraphQL should propagate: C -> B -> A
-
-      const mockFiles = {
-        // File C: calls GraphQL and returns the result
+      const typeSystem = typeSystemFor({
         'app/lib/deep/get_user.liquid': `{% graphql result %}
 query {
   user {
@@ -423,10 +500,8 @@ query {
 }
 {% endgraphql %}
 {% return result %}`,
-        // File B: calls C and returns its result
         'app/lib/middle/get_data.liquid': `{% function user_data = 'deep/get_user' %}
 {% return user_data %}`,
-        // GraphQL query file (for file-based GraphQL test)
         'app/graphql/get_products.graphql': `query {
   products {
     id
@@ -434,79 +509,33 @@ query {
     price
   }
 }`,
-        // File that uses file-based GraphQL
         'app/lib/products/fetch.liquid': `{% graphql result = 'get_products' %}
 {% return result %}`,
-        // File that calls the file-based GraphQL function
         'app/lib/products/wrapper.liquid': `{% function products = 'products/fetch' %}
 {% return products %}`,
-      };
+      });
 
-      const rootUri = 'file:///project';
-      const fs = new MockFileSystem(mockFiles, rootUri);
-      const documentsLocator = new DocumentsLocator(fs);
-
-      const crossFileTypeSystem = new TypeSystem(
-        {
-          graphQL: async () => null, // No schema for simple inference
-          tags: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          filters: async () => [],
-        },
-        fs,
-        documentsLocator,
-        async () => rootUri,
+      const inline = await shapeOfLastOutput(
+        `{% function data = 'middle/get_data' %}\n{{ data }}`,
+        typeSystem,
+        PAGE,
+      );
+      const fileBased = await shapeOfLastOutput(
+        `{% function products = 'products/wrapper' %}\n{{ products }}`,
+        typeSystem,
+        PAGE,
       );
 
-      // Test 1: File A calls B (which calls C with GraphQL)
-      // Check that `data` has the correct shape type
-      const fileASource = `{% function data = 'middle/get_data' %}
-{{ data }}`;
-      const fileAAst = toLiquidHtmlAST(fileASource);
-      const variableOutput = fileAAst.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-
-      const inferredType = await crossFileTypeSystem.inferType(
-        variableOutput.markup,
-        fileAAst,
-        `${rootUri}/app/views/pages/test.liquid`,
-      );
-
-      // The type of `data` should be a shape with the GraphQL structure
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        // data should have `user` property from GraphQL
-        const userShape = inferredType.shape.properties?.get('user');
-        expect(userShape).to.exist;
-        expect(userShape?.kind).to.equal('object');
-        expect(userShape?.properties?.get('name')?.kind).to.equal('primitive');
-        expect(userShape?.properties?.get('id')?.kind).to.equal('primitive');
-        expect(userShape?.properties?.get('email')?.kind).to.equal('primitive');
-      }
-
-      // Test 2: File-based GraphQL through chain
-      const fileBSource = `{% function products = 'products/wrapper' %}
-{{ products }}`;
-      const fileBAst = toLiquidHtmlAST(fileBSource);
-      const variableOutputB = fileBAst.children[1];
-      assert(isLiquidVariableOutput(variableOutputB));
-
-      const inferredTypeB = await crossFileTypeSystem.inferType(
-        variableOutputB.markup,
-        fileBAst,
-        `${rootUri}/app/views/pages/test2.liquid`,
-      );
-
-      expect(inferredTypeB).to.have.property('kind', 'shape');
-      if (typeof inferredTypeB !== 'string' && inferredTypeB.kind === 'shape') {
-        const productsShape = inferredTypeB.shape.properties?.get('products');
-        expect(productsShape).to.exist;
-        expect(productsShape?.kind).to.equal('object');
-        expect(productsShape?.properties?.get('id')?.kind).to.equal('primitive');
-        expect(productsShape?.properties?.get('title')?.kind).to.equal('primitive');
-        expect(productsShape?.properties?.get('price')?.kind).to.equal('primitive');
-      }
+      expect({ inline, fileBased }).toEqual({
+        inline: object({
+          user: object({ id: primitive(), name: primitive(), email: primitive() }),
+          errors: GRAPHQL_ERRORS,
+        }),
+        fileBased: object({
+          products: object({ id: primitive(), title: primitive(), price: primitive() }),
+          errors: GRAPHQL_ERRORS,
+        }),
+      });
     });
 
     /**
@@ -522,11 +551,12 @@ query {
     describe('when the host supplies an App', () => {
       const rootUri = 'file:///project';
 
+      /** The `app` comes back too: a test that edits a buffer needs `setSource` on it. */
       const appBacked = (onDisk: Record<string, string>, inTheApp: Record<string, string>) => {
         const fs = new MockFileSystem(onDisk, rootUri);
         const app = App.fromSources(rootUri, inTheApp, fs, languageServerParsers);
 
-        return new TypeSystem(
+        const typeSystem = new TypeSystem(
           {
             graphQL: async () => null, // no schema: shapes come from the selection set
             tags: async () => [],
@@ -539,6 +569,8 @@ query {
           async () => rootUri,
           () => app,
         );
+
+        return { typeSystem, app };
       };
 
       /** The type of `data` in `{% function data = '<partial>' %}{{ data }}`. */
@@ -559,7 +591,7 @@ query {
           'app/graphql/get_user.graphql': `query { user { id } }`,
           'app/lib/users/fetch.liquid': `{% graphql result = 'get_user' %}\n{% return result %}`,
         };
-        const typeSystem = appBacked(onDisk, {
+        const { typeSystem } = appBacked(onDisk, {
           ...onDisk,
           'app/graphql/get_user.graphql': `query { user { id email } }`,
         });
@@ -576,7 +608,7 @@ query {
         const onDisk = {
           'app/lib/users/get.liquid': `{% assign user = {"id": 1} %}\n{% return user %}`,
         };
-        const typeSystem = appBacked(onDisk, {
+        const { typeSystem } = appBacked(onDisk, {
           'app/lib/users/get.liquid': `{% assign user = {"id": 1, "email": "a@b.c"} %}\n{% return user %}`,
         });
 
@@ -586,12 +618,51 @@ query {
         expect([...(inferred.shape.properties?.keys() ?? [])]).to.deep.equal(['id', 'email']);
       });
 
+      /**
+       * AN EDIT TO AN OPEN, UNSAVED PARTIAL, through this class's own deps wiring rather
+       * than a hand-built deps object — because the defect lived exactly in the difference
+       * between two of those deps. `readPartial` preferred the App's buffer while
+       * `readContent`, which is all the analysis memo revalidates against, read only disk.
+       * So the first analysis recorded the BUFFER's text, the revalidation compared the
+       * unchanged file on DISK against it, decided nothing had moved, and served the old
+       * shape — for hover, completion and `{% function %}` return types alike, until the
+       * user saved.
+       *
+       * DISK HOLDS THE FIRST BUFFER'S TEXT, which is what makes this a test of the memo and
+       * not of the read: with a third text on disk the revalidation compares two things that
+       * differ whichever source it reads, calls the entry stale either way, and passes with
+       * the defect in place. Matching disk to the pre-edit buffer is the only arrangement
+       * where a disk-only comparison concludes "unchanged" — and `{"a": 1}` is then the
+       * STALE answer the second assertion refuses.
+       */
+      it('follows an edit to an open, unsaved partial without a save', async () => {
+        const relative = 'app/lib/users/edited.liquid';
+        const returning = (literal: string) => `{% assign user = ${literal} %}\n{% return user %}`;
+        const { typeSystem, app } = appBacked(
+          { [relative]: returning('{"a": 1}') },
+          { [relative]: returning('{"a": 1}') },
+        );
+
+        const keysOfCall = async () => {
+          const inferred = await typeOfCall(typeSystem, 'users/edited');
+          assert(typeof inferred !== 'string' && inferred.kind === 'shape');
+          return [...(inferred.shape.properties?.keys() ?? [])];
+        };
+
+        const before = await keysOfCall();
+        // The editor's own move: a buffer version, no write to `fs`.
+        app.setSource(`${rootUri}/${relative}`, returning('{"b": 2}'), 1);
+        const after = await keysOfCall();
+
+        expect({ before, after }).to.deep.equal({ before: ['a'], after: ['b'] });
+      });
+
       // The other partial read: `inferFunctionReturnType`, for a callee whose return the
       // analyzer cannot shape — here two branches returning different types.
       it('reads a partial the return-type inference resolves from the App, not from disk', async () => {
         const branching = (second: string) =>
           `{% if condition %}{% return 'text' %}{% else %}{% return ${second} %}{% endif %}`;
-        const typeSystem = appBacked(
+        const { typeSystem } = appBacked(
           { 'app/lib/users/value.liquid': branching('42') },
           { 'app/lib/users/value.liquid': branching('true') },
         );
@@ -604,8 +675,7 @@ query {
     });
 
     it('should handle multiple return types creating a union', async () => {
-      const mockFiles = {
-        // File with conditional returns
+      const typeSystem = typeSystemFor({
         'app/lib/conditional/get_value.liquid': `
           {% if condition %}
             {% return 'string_value' %}
@@ -613,107 +683,35 @@ query {
             {% return 42 %}
           {% endif %}
         `,
-        // Wrapper that calls the conditional function
         'app/lib/conditional/wrapper.liquid': `
           {% function result = 'conditional/get_value' %}
           {% return result %}
         `,
-      };
+      });
 
-      const rootUri = 'file:///project';
-      const fs = new MockFileSystem(mockFiles, rootUri);
-      const documentsLocator = new DocumentsLocator(fs);
-
-      const unionTypeSystem = new TypeSystem(
-        {
-          graphQL: async () => null,
-          tags: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          filters: async () => [],
-        },
-        fs,
-        documentsLocator,
-        async () => rootUri,
-      );
-
-      // Call the wrapper that calls the conditional function
-      const sourceCode = `
-        {% function data = 'conditional/wrapper' %}
-        {{ data }}
-      `;
-      const ast = toLiquidHtmlAST(sourceCode);
-      const variableOutput = ast.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-
-      const inferredType = await unionTypeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        `${rootUri}/app/views/pages/test.liquid`,
-      );
-
-      // Should be a union type of string and number
-      expect(inferredType).to.have.property('kind', 'union');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'union') {
-        expect(inferredType.types).to.have.length(2);
-        expect(inferredType.types).to.include('string');
-        expect(inferredType.types).to.include('number');
-      }
+      expect(
+        await typeOfLastOutput(
+          `{% function data = 'conditional/wrapper' %}\n{{ data }}`,
+          typeSystem,
+          PAGE,
+        ),
+      ).toEqual({ kind: 'union', types: ['string', 'number'] });
     });
 
     it('should handle circular references gracefully', async () => {
-      const mockFiles = {
-        // File A calls B
-        'app/lib/circular/a.liquid': `
-          {% function result = 'circular/b' %}
-          {% return result %}
-        `,
-        // File B calls A (circular!)
-        'app/lib/circular/b.liquid': `
-          {% function result = 'circular/a' %}
-          {% return result %}
-        `,
-      };
+      // A calls B calls A. The answer is `untyped` rather than a hang or a throw.
+      const typeSystem = typeSystemFor({
+        'app/lib/circular/a.liquid': `{% function result = 'circular/b' %}{% return result %}`,
+        'app/lib/circular/b.liquid': `{% function result = 'circular/a' %}{% return result %}`,
+      });
 
-      const rootUri = 'file:///project';
-      const fs = new MockFileSystem(mockFiles, rootUri);
-      const documentsLocator = new DocumentsLocator(fs);
-
-      const circularTypeSystem = new TypeSystem(
-        {
-          graphQL: async () => null,
-          tags: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          filters: async () => [],
-        },
-        fs,
-        documentsLocator,
-        async () => rootUri,
-      );
-
-      // This should not hang or throw - it should return 'untyped' for circular refs
-      const sourceCode = `
-        {% function data = 'circular/a' %}
-        {{ data }}
-      `;
-      const ast = toLiquidHtmlAST(sourceCode);
-      const variableOutput = ast.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-
-      const inferredType = await circularTypeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        `${rootUri}/app/views/pages/test.liquid`,
-      );
-
-      // Should handle circular reference gracefully (returns 'untyped')
-      expect(inferredType).to.equal('untyped');
+      expect(
+        await typeOfLastOutput(`{% function data = 'circular/a' %}\n{{ data }}`, typeSystem, PAGE),
+      ).to.equal('untyped');
     });
 
     it('should infer types through 3-level chain: A -> B -> C with GraphQL', async () => {
-      const mockFiles = {
-        // File C: the deepest level, calls GraphQL
+      const typeSystem = typeSystemFor({
         'app/lib/level3/fetch_data.liquid': `{% graphql result %}
 query {
   records {
@@ -728,70 +726,33 @@ query {
 }
 {% endgraphql %}
 {% return result %}`,
-        // File B: middle level, calls C
         'app/lib/level2/process_data.liquid': `{% function raw_data = 'level3/fetch_data' %}
 {% return raw_data %}`,
-        // File A: top level, calls B
         'app/lib/level1/get_records.liquid': `{% function processed = 'level2/process_data' %}
 {% return processed %}`,
-      };
+      });
 
-      const rootUri = 'file:///project';
-      const fs = new MockFileSystem(mockFiles, rootUri);
-      const documentsLocator = new DocumentsLocator(fs);
-
-      const threeLevelTypeSystem = new TypeSystem(
-        {
-          graphQL: async () => null,
-          tags: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          filters: async () => [],
-        },
-        fs,
-        documentsLocator,
-        async () => rootUri,
+      expect(
+        await shapeOfLastOutput(
+          `{% function records = 'level1/get_records' %}\n{{ records }}`,
+          typeSystem,
+          PAGE,
+        ),
+      ).toEqual(
+        object({
+          records: object({
+            results: object({
+              id: primitive(),
+              properties: object({ name: primitive(), value: primitive() }),
+            }),
+          }),
+          errors: GRAPHQL_ERRORS,
+        }),
       );
-
-      // Consumer code calls file A (which calls B, which calls C)
-      // Test just `records` variable to verify the full shape is propagated
-      const sourceCode = `{% function records = 'level1/get_records' %}
-{{ records }}`;
-      const ast = toLiquidHtmlAST(sourceCode);
-      const variableOutput = ast.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-
-      const inferredType = await threeLevelTypeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        `${rootUri}/app/views/pages/consumer.liquid`,
-      );
-
-      // Verify the entire chain propagates the GraphQL shape correctly
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        // Check the nested structure: records.results should be an object
-        const recordsShape = inferredType.shape.properties?.get('records');
-        expect(recordsShape).to.exist;
-        expect(recordsShape?.kind).to.equal('object');
-
-        const resultsShape = recordsShape?.properties?.get('results');
-        expect(resultsShape).to.exist;
-        expect(resultsShape?.kind).to.equal('object');
-
-        // Check deeply nested properties
-        expect(resultsShape?.properties?.get('id')?.kind).to.equal('primitive');
-        const propertiesShape = resultsShape?.properties?.get('properties');
-        expect(propertiesShape).to.exist;
-        expect(propertiesShape?.kind).to.equal('object');
-        expect(propertiesShape?.properties?.get('name')?.kind).to.equal('primitive');
-        expect(propertiesShape?.properties?.get('value')?.kind).to.equal('primitive');
-      }
     });
 
     it('should merge hash_assign keys with existing function return shapes', async () => {
-      const mockFiles = {
-        // Function that returns a shape from GraphQL
+      const typeSystem = typeSystemFor({
         'app/lib/api/get_user.liquid': `{% graphql result %}
 query {
   user {
@@ -801,311 +762,132 @@ query {
 }
 {% endgraphql %}
 {% return result %}`,
-      };
+      });
 
-      const rootUri = 'file:///project';
-      const fs = new MockFileSystem(mockFiles, rootUri);
-      const documentsLocator = new DocumentsLocator(fs);
-
-      const hashAssignTypeSystem = new TypeSystem(
-        {
-          graphQL: async () => null,
-          tags: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          filters: async () => [],
-        },
-        fs,
-        documentsLocator,
-        async () => rootUri,
+      // The written key joins what the query selected instead of replacing it.
+      expect(
+        await shapeOfLastOutput(
+          `{% function data = 'api/get_user' %}\n{% hash_assign data['extra'] = 'value' %}\n{{ data }}`,
+          typeSystem,
+          PAGE,
+        ),
+      ).toEqual(
+        object({
+          user: object({ id: primitive(), name: primitive() }),
+          errors: GRAPHQL_ERRORS,
+          extra: primitive('string'),
+        }),
       );
-
-      // hash_assign should add 'extra' key while preserving 'user' key
-      const sourceCode = `{% function data = 'api/get_user' %}
-{% hash_assign data['extra'] = 'value' %}
-{{ data }}`;
-      const ast = toLiquidHtmlAST(sourceCode);
-      const variableOutput = ast.children[2];
-      assert(isLiquidVariableOutput(variableOutput));
-
-      const inferredType = await hashAssignTypeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        `${rootUri}/app/views/pages/test.liquid`,
-      );
-
-      // Should have both original 'user' key and new 'extra' key
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.properties?.get('user')).to.exist;
-        expect(inferredType.shape.properties?.get('extra')).to.exist;
-      }
     });
 
     it('should accumulate multiple hash_assign keys', async () => {
-      const mockFiles = {};
-
-      const rootUri = 'file:///project';
-      const fs = new MockFileSystem(mockFiles, rootUri);
-      const documentsLocator = new DocumentsLocator(fs);
-
-      const hashAssignTypeSystem = new TypeSystem(
-        {
-          graphQL: async () => null,
-          tags: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          filters: async () => [],
-        },
-        fs,
-        documentsLocator,
-        async () => rootUri,
+      expect(
+        await shapeOfLastOutput(
+          [
+            `{% assign data = '{}' | parse_json %}`,
+            `{% hash_assign data['key1'] = 'value1' %}`,
+            `{% hash_assign data['key2'] = 'value2' %}`,
+            `{% hash_assign data['key3'] = 'value3' %}`,
+            `{{ data }}`,
+          ].join('\n'),
+        ),
+      ).toEqual(
+        object({
+          key1: primitive('string'),
+          key2: primitive('string'),
+          key3: primitive('string'),
+        }),
       );
-
-      // Multiple hash_assign calls should accumulate keys
-      const sourceCode = `{% assign data = '{}' | parse_json %}
-{% hash_assign data['key1'] = 'value1' %}
-{% hash_assign data['key2'] = 'value2' %}
-{% hash_assign data['key3'] = 'value3' %}
-{{ data }}`;
-      const ast = toLiquidHtmlAST(sourceCode);
-      const variableOutput = ast.children[4];
-      assert(isLiquidVariableOutput(variableOutput));
-
-      const inferredType = await hashAssignTypeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        `${rootUri}/app/views/pages/test.liquid`,
-      );
-
-      // Should have all three keys
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.properties?.get('key1')).to.exist;
-        expect(inferredType.shape.properties?.get('key2')).to.exist;
-        expect(inferredType.shape.properties?.get('key3')).to.exist;
-      }
     });
   });
 
   describe('JSON literal type inference', () => {
     it('should infer shape from a JSON hash literal', async () => {
-      const ast = toLiquidHtmlAST(`{% assign a = {x: 1, y: "hello"} %}{{ a }}`);
-      const variableOutput = ast.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
+      expect(await shapeOfLastOutput(`{% assign a = {x: 1, y: "hello"} %}{{ a }}`)).toEqual(
+        object({ x: primitive('number'), y: primitive('string') }),
       );
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.kind).to.equal('object');
-        expect(inferredType.shape.properties?.get('x')).to.deep.equal({
-          kind: 'primitive',
-          primitiveType: 'number',
-        });
-        expect(inferredType.shape.properties?.get('y')).to.deep.equal({
-          kind: 'primitive',
-          primitiveType: 'string',
-        });
-      }
     });
 
     it('should infer an empty object shape from {}', async () => {
-      const ast = toLiquidHtmlAST(`{% assign a = {} %}{{ a }}`);
-      const variableOutput = ast.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
+      // OPEN and a PLACEHOLDER: nothing is known yet, and the writes that follow are the
+      // whole of what it holds. `{}` is the one shape that CLOSES on the first write.
+      expect(await shapeOfLastOutput(`{% assign a = {} %}{{ a }}`)).toEqual(
+        object({}, { open: true, placeholder: true }),
       );
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.kind).to.equal('object');
-        expect(inferredType.shape.properties?.size).to.equal(0);
-      }
     });
 
     it('should infer array shape from a JSON array literal', async () => {
-      const ast = toLiquidHtmlAST(`{% assign a = [1, 2, 3] %}{{ a }}`);
-      const variableOutput = ast.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
-      );
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.kind).to.equal('array');
-        expect(inferredType.shape.itemShape).to.deep.equal({
-          kind: 'primitive',
-          primitiveType: 'number',
-        });
-      }
+      expect(await shapeOfLastOutput(`{% assign a = [1, 2, 3] %}{{ a }}`)).toEqual({
+        kind: 'array',
+        itemShape: primitive('number'),
+      });
     });
 
     it('should infer nested object shapes', async () => {
-      const ast = toLiquidHtmlAST(`{% assign a = {"nested": {"deep": 42}} %}{{ a.nested.deep }}`);
-      const variableOutput = ast.children[1];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
-      );
-      expect(inferredType).to.equal('number');
+      expect(
+        await typeOfLastOutput(`{% assign a = {"nested": {"deep": 42}} %}{{ a.nested.deep }}`),
+      ).to.equal('number');
     });
 
     it('should produce the same shape as parse_json for equivalent JSON', async () => {
-      const astLiteral = toLiquidHtmlAST(`{% assign a = {a: 2} %}{{ a }}`);
-      const astParseJson = toLiquidHtmlAST(`{% assign b = '{"a": 2}' | parse_json %}{{ b }}`);
+      const literal = await shapeOfLastOutput(`{% assign a = {a: 2} %}{{ a }}`);
+      const parsed = await shapeOfLastOutput(`{% assign b = '{"a": 2}' | parse_json %}{{ b }}`);
 
-      const outputLiteral = astLiteral.children[1];
-      const outputParseJson = astParseJson.children[1];
-      assert(isLiquidVariableOutput(outputLiteral));
-      assert(isLiquidVariableOutput(outputParseJson));
-
-      const typeLiteral = await typeSystem.inferType(
-        outputLiteral.markup,
-        astLiteral,
-        'file:///file.liquid',
-      );
-      const typeParseJson = await typeSystem.inferType(
-        outputParseJson.markup,
-        astParseJson,
-        'file:///file.liquid',
-      );
-
-      expect(typeLiteral).to.have.property('kind', 'shape');
-      expect(typeParseJson).to.have.property('kind', 'shape');
-      if (
-        typeof typeLiteral !== 'string' &&
-        typeLiteral.kind === 'shape' &&
-        typeof typeParseJson !== 'string' &&
-        typeParseJson.kind === 'shape'
-      ) {
-        // Both should have an 'a' property with number type
-        expect(typeLiteral.shape.properties?.get('a')).to.deep.equal(
-          typeParseJson.shape.properties?.get('a'),
-        );
-      }
+      // Asserted against the shape itself as well as against each other: two identically
+      // wrong answers agree just as well as two right ones.
+      expect({ literal, parsed }).toEqual({
+        literal: object({ a: primitive('number') }),
+        parsed: object({ a: primitive('number') }),
+      });
     });
 
     it('should support LHS lookups with assign (assign x["key"] = value)', async () => {
-      const ast = toLiquidHtmlAST(
-        `{% assign config = {} %}{% assign config["key"] = "value" %}{{ config }}`,
-      );
-      const variableOutput = ast.children[2];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
-      );
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.properties?.get('key')).to.exist;
-      }
-    });
-
-    it('should support << operator (array append)', async () => {
-      const ast = toLiquidHtmlAST(`{% assign arr = [] %}{% assign arr << "item" %}{{ arr }}`);
-      const variableOutput = ast.children[2];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
-      );
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.kind).to.equal('array');
-        expect(inferredType.shape.itemShape).to.deep.equal({
-          kind: 'primitive',
-          primitiveType: 'string',
-        });
-      }
-    });
-
-    it('should support bare push form (assign arr << value)', async () => {
-      const ast = toLiquidHtmlAST(`{% assign arr = [] %}{% assign arr << "item" %}{{ arr }}`);
-      const variableOutput = ast.children[2];
-      assert(isLiquidVariableOutput(variableOutput));
-      const inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        'file:///file.liquid',
-      );
-      expect(inferredType).to.have.property('kind', 'shape');
-      if (typeof inferredType !== 'string' && inferredType.kind === 'shape') {
-        expect(inferredType.shape.kind).to.equal('array');
-        expect(inferredType.shape.itemShape).to.deep.equal({
-          kind: 'primitive',
-          primitiveType: 'string',
-        });
-      }
+      // The write CLOSES the placeholder above, which is why `key` is all there is.
+      expect(
+        await shapeOfLastOutput(
+          `{% assign config = {} %}{% assign config["key"] = "value" %}{{ config }}`,
+        ),
+      ).toEqual(object({ key: primitive('string') }));
     });
   });
 
   describe('parse_json block with {{ expr | json }} children', () => {
     it('infers object shape from static JSON in block form (baseline)', async () => {
-      // Existing behaviour: static JSON works fine
-      const ast = toLiquidHtmlAST(
-        `{% parse_json data %}{"id": 1, "name": "hello"}{% endparse_json %}{{ data }}`,
-      );
-      const output = ast.children[1];
-      assert(isLiquidVariableOutput(output));
-      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
-      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
-      expect(inferredType.shape.properties?.has('id')).toBe(true);
-      expect(inferredType.shape.properties?.has('name')).toBe(true);
+      expect(
+        await shapeOfLastOutput(
+          `{% parse_json data %}{"id": 1, "name": "hello"}{% endparse_json %}{{ data }}`,
+        ),
+      ).toEqual(object({ id: primitive('number'), name: primitive('string') }));
     });
 
     it('infers object shape when values are {{ expr | json }} — unresolvable falls back to null', async () => {
-      // object.unknown_var is not in the docset, so shape is unresolvable → null placeholder
-      const ast = toLiquidHtmlAST(
-        `{% parse_json data %}\n{"id": {{ object.unknown_var | json }}, "name": {{ object.unknown_var2 | json }}}\n{% endparse_json %}{{ data }}`,
-      );
-      const output = ast.children[1];
-      assert(isLiquidVariableOutput(output));
-      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
-      // Keys must be discovered even when types are unknown
-      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
-      expect(inferredType.shape.properties?.has('id')).toBe(true);
-      expect(inferredType.shape.properties?.has('name')).toBe(true);
+      // `object.unknown_var` is in no docset, so the KEYS are discovered and the values are
+      // the null placeholder — which the baseline above proves is not what static JSON gives.
+      expect(
+        await shapeOfLastOutput(
+          `{% parse_json data %}\n{"id": {{ object.unknown_var | json }}, "name": {{ object.unknown_var2 | json }}}\n{% endparse_json %}{{ data }}`,
+        ),
+      ).toEqual(object({ id: primitive('null'), name: primitive('null') }));
     });
 
     it('infers correct value types when the expression resolves via the type system', async () => {
-      // user is established as a ShapeType by the first parse_json block
-      const ast = toLiquidHtmlAST(
-        `{% parse_json user %}{"name": "John", "age": 30}{% endparse_json %}\n{% parse_json data %}\n{"username": {{ user.name | json }}, "years": {{ user.age | json }}}\n{% endparse_json %}{{ data }}`,
-      );
-      const output = ast.children[2];
-      assert(isLiquidVariableOutput(output));
-      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
-      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
-      const usernameShape = inferredType.shape.properties?.get('username');
-      expect(usernameShape?.kind).toBe('primitive');
-      expect(usernameShape?.primitiveType).toBe('string');
-      const yearsShape = inferredType.shape.properties?.get('years');
-      expect(yearsShape?.kind).toBe('primitive');
-      expect(yearsShape?.primitiveType).toBe('number');
+      // `user` is established as a shape by the first block, so the second block's
+      // interpolations resolve through it rather than falling back to null.
+      expect(
+        await shapeOfLastOutput(
+          `{% parse_json user %}{"name": "John", "age": 30}{% endparse_json %}\n{% parse_json data %}\n{"username": {{ user.name | json }}, "years": {{ user.age | json }}}\n{% endparse_json %}{{ data }}`,
+        ),
+      ).toEqual(object({ username: primitive('string'), years: primitive('number') }));
     });
 
     it('falls back gracefully when no | json filter present on LiquidVariableOutput', async () => {
-      // Without | json, fall back to null for that key; key still discoverable via TextNode context
-      const ast = toLiquidHtmlAST(
-        `{% parse_json data %}\n{"title": "{{ object.title }}"}\n{% endparse_json %}{{ data }}`,
-      );
-      const output = ast.children[1];
-      assert(isLiquidVariableOutput(output));
-      const inferredType = await typeSystem.inferType(output.markup, ast, 'file:///file.liquid');
-      // key must still be discovered (the TextNodes provide `"title": "` and `"`)
-      assert(typeof inferredType !== 'string' && inferredType.kind === 'shape');
-      expect(inferredType.shape.properties?.has('title')).toBe(true);
+      // The key is still discovered: the TextNodes around the interpolation spell `"title": "`
+      // and `"`, which is a string whatever the interpolation turns out to be.
+      expect(
+        await shapeOfLastOutput(
+          `{% parse_json data %}\n{"title": "{{ object.title }}"}\n{% endparse_json %}{{ data }}`,
+        ),
+      ).toEqual(object({ title: primitive('string') }));
     });
   });
 });

@@ -355,19 +355,42 @@ describe('Module: runChecks', () => {
       documentManager.open(partialURI, partialInBuffer, 0);
     });
 
-    it('reports a stale offense when the check reads the partial straight from disk', async () => {
-      runChecks = makeRunChecksWithFs(fs);
+    /**
+     * The first arm used to assert the OPPOSITE — that a plain filesystem yields a STALE
+     * offense — as the control proving `DocumentBackedFileSystem` was what made the buffer
+     * visible. It no longer does: `inferredTargetParams` resolves the target through the
+     * `App`, which is document-backed, so the buffer wins whatever the filesystem is. The App
+     * also already holds the parse, which is why it is asked first.
+     *
+     * So the two arms are now green for the same reason, and they are one test rather than
+     * two because that is what they assert: wrapping the filesystem changes nothing here. The
+     * wrapper still matters for reads that do not go through the App (`DocumentsLocator`
+     * resolves candidate paths by `stat`), which is why the wrapped arm stays.
+     */
+    it('sees the in-editor buffer whether or not the filesystem is document-backed', async () => {
+      for (const filesystem of [fs, new DocumentBackedFileSystem(fs, documentManager)]) {
+        connection.sendDiagnostics.mockClear();
+        runChecks = makeRunChecksWithFs(filesystem);
 
-      await runChecks([callerURI]);
+        await runChecks([callerURI]);
 
-      expect(connection.sendDiagnostics).toHaveBeenCalledWith({
-        uri: callerURI,
-        version: 0,
-        diagnostics: [unknownArgDiagnostic],
-      });
+        expect(connection.sendDiagnostics).toHaveBeenCalledWith({
+          uri: callerURI,
+          version: 0,
+          diagnostics: [],
+        });
+      }
     });
 
-    it('reads the in-editor buffer of the partial through DocumentBackedFileSystem', async () => {
+    /**
+     * THE CONTROL for both, and the reason `unknownArgDiagnostic` still exists. Both arms
+     * above now assert SILENCE, so on their own they would pass just as well against a check
+     * that had stopped reporting anything at all, or a fixture whose caller passed nothing.
+     * Here the buffer is the on-disk text — the partial references `arg` in neither — and the
+     * offense is still reported, so the silence above is the buffer's doing.
+     */
+    it('still reports an argument no version of the partial references', async () => {
+      documentManager.open(partialURI, partialOnDisk, 0);
       runChecks = makeRunChecksWithFs(new DocumentBackedFileSystem(fs, documentManager));
 
       await runChecks([callerURI]);
@@ -375,7 +398,7 @@ describe('Module: runChecks', () => {
       expect(connection.sendDiagnostics).toHaveBeenCalledWith({
         uri: callerURI,
         version: 0,
-        diagnostics: [],
+        diagnostics: [unknownArgDiagnostic],
       });
     });
   });

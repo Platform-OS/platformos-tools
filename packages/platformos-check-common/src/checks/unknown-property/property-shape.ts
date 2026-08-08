@@ -114,12 +114,42 @@ export function mergeShapes(a: PropertyShape, b: PropertyShape): PropertyShape {
 /**
  * Merge two ALTERNATIVES — values only one of which is the one the code produced. The
  * opposite of {@link mergeShapes} where it matters: the value may BE the one nobody can
- * see into, so `unknown` absorbs instead of contributing nothing.
+ * see into, so `unknown` withdraws every claim instead of contributing nothing.
+ *
+ * WITHDRAWING A CLAIM IS NOT THE SAME AS FORGETTING WHAT THE OTHER BRANCH SAID, and this is
+ * where one analyzer serves two consumers. Absorbing outright is right for the diagnostic —
+ * nothing is reportably absent when a branch might hold anything — and throws away names the
+ * editor has no reason to lose, with no false positive on that side to suppress. So an object
+ * branch survives as an OPEN shape whose properties are all OPTIONAL, which is exactly "these
+ * may be here, and so may anything else": `lookupPropertyPath` can report nothing through it,
+ * `getAvailableProperties` still lists the names. Any other kind carries no names to keep, so
+ * `unknown` absorbs it.
  */
 export function mergeAlternatives(a: PropertyShape, b: PropertyShape): PropertyShape {
   const merged = mergeAlternativeKinds(a, b);
   if (merged.kind === 'unknown') return merged;
   return withOptional(merged, a.optional === true || b.optional === true);
+}
+
+/**
+ * What an object shape still says when the value might instead be something unseeable.
+ *
+ * Already-unverifiable shapes are returned as they are, so folding a list whose elements are
+ * mostly unreadable — `[a, b, {"x": 1}, c]` — rebuilds the property map once instead of once
+ * per unknown element.
+ */
+function unverifiable(shape: PropertyShape): PropertyShape {
+  const properties = new Map<string, PropertyShape>();
+  for (const [key, value] of shape.properties ?? []) properties.set(key, withOptional(value, true));
+  return isUnverifiable(shape) ? shape : objectWith(properties, true);
+}
+
+function isUnverifiable(shape: PropertyShape): boolean {
+  return (
+    shape.open === true &&
+    shape.placeholder !== true &&
+    [...(shape.properties ?? [])].every(([, value]) => value.optional === true)
+  );
 }
 
 /** The one shape describing whichever of `shapes` a read reaches. */
@@ -128,7 +158,10 @@ export function foldAlternatives(shapes: PropertyShape[]): PropertyShape | undef
 }
 
 function mergeAlternativeKinds(a: PropertyShape, b: PropertyShape): PropertyShape {
-  if (a.kind === 'unknown' || b.kind === 'unknown') return UNKNOWN_SHAPE;
+  if (a.kind === 'unknown' || b.kind === 'unknown') {
+    const known = a.kind === 'unknown' ? b : a;
+    return known.kind === 'object' ? unverifiable(known) : UNKNOWN_SHAPE;
+  }
 
   if (a.kind === 'object' && b.kind === 'object') {
     const properties = new Map<string, PropertyShape>();
@@ -504,14 +537,21 @@ export function lookupPropertyPath(shape: PropertyShape, path: string[]): Lookup
     }
 
     if (current.kind === 'primitive') {
+      // A JSON `null` is a key with nothing in it, so a read through it is unverifiable
+      // rather than a type error — the same reason a written `nil` claims no shape.
+      //
+      // BEFORE the `size` shortcut, not after: measured on a live instance, `nil.size` is
+      // itself nil, so treating it as a number and then reporting the read under it was a
+      // false positive on exactly the case this guard exists for.
+      //
+      //   {% assign x = {"a": null} %}
+      //   x.a.size -> nil    x.a.foo -> nil    x.a.size.foo -> nil
+      if (current.primitiveType === 'null') return { shape: undefined };
       // `size` is defined on every Liquid value, strings included.
       if (key === 'size') {
         current = { kind: 'primitive', primitiveType: 'number' };
         continue;
       }
-      // A JSON `null` is a key with nothing in it, so a read through it is unverifiable
-      // rather than a type error — the same reason a written `nil` claims no shape.
-      if (current.primitiveType === 'null') return { shape: undefined };
       return { shape: undefined, error: 'primitive_access', errorAt: i };
     }
 

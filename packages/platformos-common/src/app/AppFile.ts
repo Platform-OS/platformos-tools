@@ -73,8 +73,10 @@ export class AppFile {
   private loadPromise: Promise<void> | undefined;
   private parsed: unknown;
   private hasParsed = false;
+  private derivedValues: Map<string, unknown> | undefined;
   private versionValue: number | undefined;
   private lastTouchValue = 0;
+  private revisionValue = ++contentClock;
 
   /**
    * Takes its identity ALREADY DERIVED, because {@link createAppFile} had to derive it
@@ -186,6 +188,30 @@ export class AppFile {
   }
 
   /**
+   * WHICH CONTENTS this file is holding — a position on a process-wide logical clock,
+   * moved by every {@link setSource} and every {@link invalidate}, and by nothing else.
+   *
+   * It is what lets an analysis somewhere ELSE record what it read and check later
+   * whether that is still true, without keeping a copy of it. Two numbers compare in
+   * constant time and synchronously; the alternative is re-reading every file the
+   * analysis touched, on every cache hit, through whichever read path the memo's owner
+   * happened to pick — and picking a different one from the analysis is precisely the
+   * defect this exists to make unspellable.
+   *
+   * GLOBAL AND MONOTONIC, not per-file. `App.update` REPLACES the file object for a URI
+   * (its read and parse are stale by definition), and a per-file counter would restart
+   * at zero on the replacement — so a recording made against the old file would compare
+   * equal to a brand new one and be trusted. A global clock cannot hand a later file an
+   * earlier number, so "same revision" means "same contents" for the whole process.
+   *
+   * NOT {@link lastTouch}, which moves on every READ: a memo validated against that
+   * would miss on every hit, since asking is itself a touch.
+   */
+  get revision(): number {
+    return this.revisionValue;
+  }
+
+  /**
    * The source if it is already in memory, `undefined` otherwise.
    *
    * This is the read for callers that want to *prefer* an in-memory buffer over
@@ -227,6 +253,31 @@ export class AppFile {
     return this.parsed;
   }
 
+  /**
+   * A value DERIVED from this file — an analysis of its parse — memoized for exactly as long
+   * as the parse is, and dropped by the same two places that drop it.
+   *
+   * WHY IT LIVES HERE. The alternative is a module-level cache in whichever package computes
+   * the analysis, keyed on the file's CONTENT so it cannot go stale. That works, and it costs
+   * a second copy of every source it has ever seen plus an eviction policy to bound them. This
+   * file already holds the source and the parse, already knows when they stop being true, and
+   * the {@link App} already evicts the files nobody is using — so hanging the analysis off it
+   * needs no key, no copy and no eviction of its own.
+   *
+   * `key` distinguishes analyses, and must include whatever the computation depends on BEYOND
+   * this file: `undefinedVariables` reads a list of in-scope global names, so that list is part
+   * of its key. Anything else is a stale answer.
+   *
+   * `unknown` for the same reason {@link ast} is: this package sits below the packages that
+   * define these analyses, so it stores them without knowing what they are.
+   */
+  derived<T>(key: string, compute: () => T): T {
+    this.lastTouchValue = ++touchClock;
+    this.derivedValues ??= new Map();
+    if (!this.derivedValues.has(key)) this.derivedValues.set(key, compute());
+    return this.derivedValues.get(key) as T;
+  }
+
   /** Read this file's source into memory. At most one read per version, however many callers await it. */
   async load(): Promise<void> {
     this.lastTouchValue = ++touchClock;
@@ -256,10 +307,12 @@ export class AppFile {
    */
   setSource(source: string, version?: number): void {
     this.lastTouchValue = ++touchClock;
+    this.revisionValue = ++contentClock;
     this.loadedSourceValue = source;
     this.versionValue = version;
     this.parsed = undefined;
     this.hasParsed = false;
+    this.derivedValues = undefined;
   }
 
   /**
@@ -268,10 +321,12 @@ export class AppFile {
    * let laziness decide whether it is worth re-reading.
    */
   invalidate(): void {
+    this.revisionValue = ++contentClock;
     this.loadedSourceValue = undefined;
     this.versionValue = undefined;
     this.parsed = undefined;
     this.hasParsed = false;
+    this.derivedValues = undefined;
     this.loadPromise = undefined;
   }
 
@@ -304,6 +359,13 @@ export class AppFile {
  * is a plain number comparison with no wall-clock semantics to get wrong.
  */
 let touchClock = 0;
+
+/**
+ * The process-wide logical clock behind {@link AppFile.revision}. Separate from
+ * {@link touchClock} because they answer different questions: that one moves when a file
+ * is USED, this one only when what it holds CHANGES.
+ */
+let contentClock = 0;
 
 /** Everything about a file that follows from its path alone, derived once. */
 export interface AppFileIdentity {

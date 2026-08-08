@@ -451,6 +451,52 @@ describe('App.update', () => {
   });
 });
 
+/**
+ * `AppFile.revision` is what lets an analysis elsewhere record what it read and check
+ * later whether that is still true, WITHOUT keeping a copy of it and without a second
+ * read path that can disagree with the one the analysis used.
+ *
+ * The clock is process-wide rather than per-file for the case below: `update` REPLACES the
+ * file object, so a per-file counter would restart at zero on the replacement and a
+ * recording made against the old file would compare equal to the new one. Asserted here,
+ * on the numbers themselves, because a consumer-level test of the same property passed
+ * with the clock sabotaged into a per-file counter — it was reading a memo entry an
+ * earlier test had left, and so had nothing to detect.
+ */
+describe('AppFile.revision', () => {
+  const card = uri('app/views/partials/card.liquid');
+
+  it('moves when the contents change and stands still when they do not', async () => {
+    const app = App.fromPaths(ROOT, [card], new CountingFileSystem({ [card]: 'card' }), {});
+    const file = app.get(card)!;
+
+    const atStart = file.revision;
+    await file.load();
+    const afterReading = file.revision;
+    file.setSource('edited', 1);
+    const afterSetSource = file.revision;
+    file.invalidate();
+    const afterInvalidate = file.revision;
+
+    expect({
+      // A READ is not a change: a memo validated against `lastTouch` would miss on every
+      // hit, since asking is itself a touch.
+      unchangedByReading: afterReading === atStart,
+      movedBySetSource: afterSetSource > atStart,
+      movedByInvalidate: afterInvalidate > afterSetSource,
+    }).toEqual({ unchangedByReading: true, movedBySetSource: true, movedByInvalidate: true });
+  });
+
+  it('never gives a replaced file the revision the one it replaced had', () => {
+    const app = App.fromPaths(ROOT, [card], new CountingFileSystem({ [card]: 'card' }), {});
+    const before = app.get(card)!.revision;
+
+    app.update([card]);
+
+    expect(app.get(card)!.revision > before).toBe(true);
+  });
+});
+
 describe('App.remove', () => {
   const original = uri('modules/core/public/views/partials/card.liquid');
   const overwrite = uri('app/modules/core/public/views/partials/card.liquid');

@@ -285,6 +285,24 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       await expect(provider).to.complete(source, ['first', 'last', 'size']);
     });
 
+    /**
+     * An array LITERAL whose elements do not all resolve. Its items are alternatives — a read
+     * reaches one of them — and one of them here is a value nobody can see into, so nothing
+     * can be claimed absent. What the elements that DID resolve name is still worth offering:
+     * `row` may not be a hash with a `name`, but the other element certainly is.
+     *
+     * `UnknownProperty` is the other half of this and must stay silent on the same source —
+     * `index.spec.ts` pins that — which is what makes the wider list here safe rather than a
+     * diagnostic waiting to fire.
+     */
+    it('should complete the known elements of an array literal with an unresolvable one', async () => {
+      const source = `
+        {% assign rows = [row, {"name": "a", "id": 1}] %}
+        {{ rows.first.█ }}
+      `;
+      await expect(provider).to.complete(source, ['id', 'name']);
+    });
+
     it('should work with to_hash filter', async () => {
       const source = `
         {% assign a = '{"key": "value"}' | to_hash %}
@@ -311,24 +329,16 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       await expect(provider).to.complete(source, ['added', 'existing']);
     });
 
-    it('should complete nested properties added via hash_assign', async () => {
-      const source = `
+    it('should complete both levels of a nested hash_assign', async () => {
+      const built = (read: string) => `
         {% assign a = '{}' | parse_json %}
         {% hash_assign a['nested'] = '{}' | parse_json %}
         {% hash_assign a['nested']['key'] = 5 %}
-        {{ a.nested.█ }}
+        ${read}
       `;
-      await expect(provider).to.complete(source, ['key']);
-    });
 
-    it('should complete first level with nested hash_assign', async () => {
-      const source = `
-        {% assign a = '{}' | parse_json %}
-        {% hash_assign a['nested'] = '{}' | parse_json %}
-        {% hash_assign a['nested']['key'] = 5 %}
-        {{ a.█ }}
-      `;
-      await expect(provider).to.complete(source, ['nested']);
+      await expect(provider).to.complete(built(`{{ a.█ }}`), ['nested']);
+      await expect(provider).to.complete(built(`{{ a.nested.█ }}`), ['key']);
     });
 
     it('should merge shapes from all array elements', async () => {
@@ -339,16 +349,40 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       await expect(provider).to.complete(source, ['age', 'city', 'name']);
     });
 
-    it('should infer nothing from a default filter value, which may not be the value', async () => {
-      // A `default:` fallback is parsed only when the expression is nil, so its keys are
-      // the value's keys in one branch and nobody's in the other. The analyzer this
-      // provider shares with `UnknownProperty` claims no shape for it. The literal cases
-      // above are the control: they still complete.
+    /**
+     * The standard platformOS "parse params with a default" idiom. The fallback is parsed
+     * only when the expression is blank, so its keys are the value's keys in one branch and
+     * nobody's in the other — and the analyzer says exactly that, as an OPEN shape whose
+     * properties are all OPTIONAL.
+     *
+     * This is where the one analyzer serves its two consumers differently, deliberately.
+     * `UnknownProperty` can report nothing through such a shape — a read of `fallback` is
+     * unverifiable and a read of anything else lands on an open object — which is what
+     * `index.spec.ts`'s "should claim nothing when the shape comes from a `default:`" pins.
+     * Here the same shape is a list of names, and offering names that one branch really does
+     * have costs the author nothing.
+     */
+    it('should offer a default filter fallback keys, which one branch really has', async () => {
       const source = `
         {% assign a = some_var | default: '{"fallback": true, "value": 42}' | parse_json %}
         {{ a.█ }}
       `;
-      await expect(provider).to.complete(source, []);
+      await expect(provider).to.complete(source, ['fallback', 'value']);
+    });
+
+    /**
+     * The control, and the other side of the same rule: AFTER the parse, the value is a Hash
+     * and `default`'s fallback is a plain String, so `'[]' | parse_json` being empty leaves
+     * the variable holding the unparsed TEXT `{"b": 2}`. The analyzer claims no shape rather
+     * than the array's — `UnknownProperty` used to report `b` here — and what is left is the
+     * fallback's own type, a string, whose one member is the one a string really has.
+     */
+    it('should infer a string, not the parsed array, from a default that comes after the parse', async () => {
+      const source = `
+        {% assign a = '[]' | parse_json | default: '{"b": 2}' %}
+        {{ a.█ }}
+      `;
+      await expect(provider).to.complete(source, ['size']);
     });
 
     it('should work with parse_json block syntax', async () => {

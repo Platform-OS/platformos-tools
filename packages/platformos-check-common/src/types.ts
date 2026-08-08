@@ -475,7 +475,13 @@ type StaticContextProperties<T extends SourceCodeType> = T extends SourceCodeTyp
        * every caller wants.
        */
       fileType(uri?: UriString): PlatformOSFileType | undefined;
-      file: SourceCode<T>;
+      /**
+       * The file being checked. A {@link TypedAppFile} — which IS a `SourceCode<T>`, so every
+       * existing use is unaffected — because that is what the engine has always passed: it
+       * iterates the run's `App`. Saying so gives a check the file's identity and its
+       * `derived` memo instead of just its bytes.
+       */
+      file: TypedAppFile<T>;
     }
   : never;
 

@@ -8,6 +8,7 @@ import {
   HashAssignMarkup,
   JsonArrayLiteral,
   JsonHashLiteral,
+  LiquidArgument,
   LiquidExpression,
   LiquidFilter,
   LiquidHtmlNode,
@@ -25,24 +26,25 @@ import { SourceCodeType } from '../../types';
 import { visit } from '../../visitor';
 import { createBoundedCache } from '../../utils/bounded-cache';
 import { extractUndefinedVariables } from '../partial-call-arguments/extract-undefined-variables';
+import { isNullLiteral } from '../../liquid-doc/utils';
+import { navigationFilter } from '../../filter-semantics';
 import {
   ConditionValue,
+  NIL_SHAPE,
   PropertyShape,
   UNKNOWN_SHAPE,
   inferShapeFromGraphQL,
   inferShapeFromJSONString,
   deepOpen,
+  foldAlternatives,
   objectShape,
   lookupPropertyPath,
+  mergeAlternatives,
   mergeShapeAtPath,
-  mergeShapes,
+  primitiveShapeOfLiteral,
 } from './property-shape';
 
-/**
- * How many `{% function %}` boundaries one analysis may cross. Three covers the
- * platformOS convention of page → command → query partial → `.graphql`; beyond that
- * the answer is "unknown shape", never a partial one.
- */
+/** How many `{% function %}` boundaries one analysis may cross. */
 const MAX_CALL_DEPTH = 3;
 
 /** Tags that assign a variable, so unreadable markup on one means an unknown assignment. */
@@ -53,32 +55,18 @@ const ASSIGNING_TAGS = new Set<string>([
   NamedTags.graphql,
   NamedTags.parse_json,
   NamedTags.capture,
-  // A loop binds its variable, and markup we cannot read may bind a name we are
-  // tracking — which is the shadowing this check used to get wrong even when it COULD
-  // read the markup.
+  // A loop binds its variable, so unreadable markup may bind a name we track.
   NamedTags.for,
   NamedTags.tablerow,
 ]);
 
-/** Tags that assign a value whose structure this check does not model. */
-const UNMODELLED_ASSIGNMENTS = new Set<string>([
-  NamedTags.capture,
-  NamedTags.increment,
-  NamedTags.decrement,
-]);
-
-/** Filters that leave a JSON string's shape intact, so the shape can still be claimed. */
-const JSON_SHAPE_FILTERS = new Set(['parse_json', 'to_hash', 'default']);
+/** Filters a `parse_json` chain may contain and still describe the literal it parses. */
+const JSON_CHAIN_FILTERS = new Set(['parse_json', 'to_hash', 'default']);
 
 /** Anything that can appear where a value is expected, with or without filters. */
 type ValueExpression = ComplexLiquidExpression | LiquidVariable;
 
-/**
- * How many partial analyses to keep. A lint run asks one question per DISTINCT
- * (partial, arguments) pair, so this covers a whole project while bounding what a
- * long-lived process retains. Values are one shape plus the read log that validates
- * it; the keys hold partial sources, which is what the cap is really sizing.
- */
+/** How many partial analyses to keep: one per distinct (partial, arguments) pair. */
 const RETURN_SHAPE_CACHE_LIMIT = 512;
 
 /** A liquid file the analyzer can read: its identity, its content and its parse. */
@@ -89,11 +77,7 @@ export interface AnalyzableFile {
 }
 
 export interface ShapeAnalyzerDeps {
-  /**
-   * The `.graphql` document a `{% graphql x = 'name' %}` names, PARSED — the parse the
-   * host already has (an `AppFile`'s), so a query named from thirty call sites costs
-   * one parse. `ast.content` is the source, so there is nothing to keep in step.
-   */
+  /** The `.graphql` document a name refers to, PARSED — the parse the host already has. */
   readGraphQL(name: string): Promise<{ uri: string; ast: GraphQLDocumentNode } | undefined>;
   /** The partial a `{% function x = 'name' %}` calls. */
   readPartial(name: string): Promise<AnalyzableFile | undefined>;
@@ -102,13 +86,8 @@ export interface ShapeAnalyzerDeps {
   /** The platformOS GraphQL SDL, or `undefined` when the docset has none. */
   getSchema(): Promise<string | undefined>;
   /**
-   * The shape of a read this analysis cannot resolve itself — a documented global like
-   * `context.current_user`, whose properties come from the docset rather than from any
-   * assignment in the file.
-   *
-   * The seam exists for the language server, which knows those and needs them inside a
-   * hash literal (`{ "user": context.current_user }`) for hover and completion. A check
-   * passes nothing and gets exactly the answers it got before.
+   * A read this analysis cannot resolve itself — a documented global like
+   * `context.current_user`. The language server passes one; a check passes nothing.
    */
   resolveExternalShape?(read: LiquidVariableLookup, position: number): PropertyShape | undefined;
 }
@@ -126,11 +105,7 @@ export interface AnalyzerOptions {
   depth?: number;
   /** Partials already open on this call chain, by URI. Re-entry claims nothing. */
   callChain?: ReadonlySet<string>;
-  /**
-   * Variables this source uses and nothing ever defines — nil at runtime. Only a
-   * callee has these: it is the call site that decides whether a parameter it never
-   * assigns has a value at all.
-   */
+  /** Variables this source uses and nothing defines — nil at runtime. Callees only. */
   provablyNil?: ReadonlySet<string>;
   /** Every file this analysis reads, and what it read. Filled in as it goes. */
   reads?: Map<string, string>;
@@ -156,23 +131,11 @@ interface TrackedValue {
   /** A provable `true`/`false`, for forwarding into a GraphQL `@include`. */
   boolean?: boolean;
   range: [start: number, end?: number];
-  /**
-   * This name is a REFERENCE to a value tracked elsewhere — a `for`/`tablerow` item is
-   * an element of the collection, not a copy of it. Liquid hands out references, so a
-   * write through it lands somewhere this model cannot name, which is what makes a
-   * partial that does so return {@link deepOpen}.
-   */
+  /** A REFERENCE to a value tracked elsewhere, so a write through it lands off-model. */
   alias?: true;
 }
 
-/**
- * A write to a variable, resolved out of whichever tag spelled it.
- *
- * `assign`, `hash_assign` and `function` all write through an optional LVALUE PATH
- * (`{% assign hash['key'] = … %}`, `{% function hash['key'] = 'partial' %}`), and
- * `assign` also has the `<<` push operator. Keying on `name` alone — as every handler
- * used to — turns a write to one key into a claim about the whole variable.
- */
+/** A write to a variable, resolved out of whichever tag spelled it. */
 interface Write {
   name: string;
   /** The lvalue path: `[]` for a plain write, `undefined` when it is dynamic. */
@@ -184,13 +147,16 @@ interface Write {
   boolean?: boolean;
   /** Where the previous value stops being current and the new one starts. */
   at: number;
-  /**
-   * The end of the conditional branch the write sits in, if any. A write only one
-   * BRANCH performs is not a fact about the code after it — nor about a sibling branch,
-   * which is where `{% if a %}{% assign orders = orders.results %}{% elsif b %}` used to
-   * report `orders.results` as an unknown property.
-   */
+  /** The end of the conditional branch the write sits in: past it, the write is no fact. */
   scopeEnd?: number;
+}
+
+/**
+ * Whether a write goes THROUGH the name rather than TO it — including a dynamic key,
+ * which is still a write into `x` rather than a replacement of it.
+ */
+function isWriteThroughName(path: string[] | undefined, operator: Write['operator']): boolean {
+  return path === undefined || path.length > 0 || operator === '<<';
 }
 
 export function createShapeAnalyzer(
@@ -251,13 +217,9 @@ export function createShapeAnalyzer(
     const previous = previousValue?.shape;
     closeRange(write.name, write.at);
 
-    // A write THROUGH the name rather than TO it: `{% assign x['k'] = v %}`,
-    // `{% hash_assign x['k'] = v %}`, `{% assign x << v %}`.
-    const throughName =
-      write.path === undefined || write.path.length > 0 || write.operator === '<<';
+    const throughName = isWriteThroughName(write.path, write.operator);
 
-    // A write we cannot place — through an alias, a loop item, a dynamic key — still
-    // happened. Whatever this source returns may carry fields we never saw assigned.
+    // A write we cannot place still happened, so the return may carry unseen fields.
     if (
       write.path === undefined ||
       (write.path.length > 0 && !previous) ||
@@ -271,8 +233,7 @@ export function createShapeAnalyzer(
       shape: writtenShape(write, previous),
       boolean: write.boolean,
       range: [write.at, write.scopeEnd],
-      // Still the same reference: writing one key of a loop item does not make the
-      // name mean something local.
+      // Still the same reference: writing one key does not make the name local.
       alias: throughName ? previousValue?.alias : undefined,
     });
 
@@ -283,16 +244,8 @@ export function createShapeAnalyzer(
   };
 
   /**
-   * Bind a `for`/`tablerow` loop variable over the loop's BODY.
-   *
-   * `for` is a write, and the name it binds SHADOWS whatever that name held: after
-   * `graphql r = 'audience'`, `for r in grouped['followship:tag']` makes `r` an item of
-   * an opaque collection for the length of the body, so `r.l_id` is unverifiable —
-   * before this, every property of the ITEM was checked against the shape of the
-   * COLLECTION's source and reported as unknown.
-   *
-   * Liquid pushes a scope for the loop variable, so past `{% endfor %}` the name means
-   * again exactly what it meant before the loop.
+   * Bind a loop variable over the BODY. The name it binds shadows whatever that name
+   * held, and Liquid scopes it, so past `{% endfor %}` the name means what it did before.
    */
   const bindLoopVariable = (node: LiquidTag & { markup: ForMarkup }) => {
     const name = node.markup.variableName;
@@ -323,12 +276,8 @@ export function createShapeAnalyzer(
   };
 
   /**
-   * The shape of ONE ITEM of an iterated value, or `undefined` when unknowable.
-   *
-   * Only a list whose item shape is known says anything: a hash iterates as
-   * `[key, value]` pairs, a range as numbers, and a collection built by a filter
-   * (`| group_by:`, then indexed by key) is opaque — so those bind nothing rather than
-   * pass the collection's own shape off as the item's.
+   * ONE ITEM of an iterated value. Only a list with a known item shape says anything: a
+   * hash iterates as pairs, a range as numbers, a filter-built collection is opaque.
    */
   const iteratedItemShape = (
     collection: LiquidExpression,
@@ -345,14 +294,13 @@ export function createShapeAnalyzer(
     filters: LiquidFilter[],
     position: number,
   ): PropertyShape | undefined => {
-    // {% assign x = '{"a": 5}' | parse_json %} — including the `| default: '{…}'` fallback
+    // {% assign x = '{"a": 5}' | parse_json %}
     if (filters.some((filter) => filter.name === 'parse_json' || filter.name === 'to_hash')) {
-      // Only while every filter in the chain is one we can see through. A
-      // `| hash_merge:` after the `parse_json` adds keys the JSON string does not have,
-      // and claiming the string's shape anyway reported every one of them as unknown.
-      if (!filters.every((filter) => JSON_SHAPE_FILTERS.has(filter.name))) return undefined;
-      const json = jsonStringFrom(expression, filters);
-      return json === undefined ? undefined : inferShapeFromJSONString(json);
+      if (!filters.every((filter) => JSON_CHAIN_FILTERS.has(filter.name))) return undefined;
+      // The literal being parsed, and nothing else: a `| default:` fallback is an
+      // alternative, describing the value only in the branch where the expression is nil.
+      if (expression.type !== NodeTypes.String) return undefined;
+      return inferShapeFromJSONString(expression.value);
     }
 
     // {% assign x = {a: 5} %} / {% assign x = [1, 2] %}
@@ -363,15 +311,13 @@ export function createShapeAnalyzer(
       return filters.length > 0 ? undefined : literalShape(expression, position);
     }
 
-    // {% assign x = y.a %} / {% assign x = y | dig: 'a' %}
+    // {% assign x = y.a %} / {% assign x = y | dig: 'a', 'b' %} / {% assign x = y | fetch: 'a' %}
     if (expression.type === NodeTypes.VariableLookup && expression.name) {
-      const digPath = digPathOf(filters);
-      if (!digPath) return undefined;
+      // Cheap test first: resolving the read can reach the host's whole type system.
+      if (!filters.every((filter) => navigationFilter(filter.name))) return undefined;
       const read = readShape(expression, position);
       if (!read) return undefined;
-      if (digPath.length === 0) return read;
-      const result = lookupPropertyPath(read, digPath);
-      return result.error || !result.shape ? undefined : result.shape;
+      return applyNavigationFilters(read, filters);
     }
 
     return undefined;
@@ -396,12 +342,8 @@ export function createShapeAnalyzer(
     position: number,
   ): PropertyShape => {
     if (node.type === NodeTypes.JsonArrayLiteral) {
-      let itemShape: PropertyShape | undefined;
-      for (const element of node.elements) {
-        const elementShape = entryShape(element, position);
-        itemShape = itemShape ? mergeShapes(itemShape, elementShape) : elementShape;
-      }
-      return { kind: 'array', itemShape };
+      const items = node.elements.map((element) => entryShape(element, position));
+      return { kind: 'array', itemShape: foldAlternatives(items) };
     }
 
     const properties = new Map<string, PropertyShape>();
@@ -421,13 +363,9 @@ export function createShapeAnalyzer(
   };
 
   /**
-   * The shape of a value being written THROUGH a name — pushed onto a list, or set at a
-   * key — where a literal is worth taking at face value.
-   *
-   * `{% assign x = 'text' %}` claims nothing: naming a string as one would turn every
-   * `x.foo` in a project into an offense, and Liquid answers nil there rather than
-   * failing. `{% assign list << 'text' %}` is different: the claim is about the list's
-   * ITEMS, which is what makes `list.first.foo` wrong and completion useful.
+   * A value written THROUGH a name, where a literal is worth taking at face value —
+   * the claim is about the list's ITEMS or ONE KEY, not about the name itself.
+   * `{% assign x = 'text' %}` claims nothing, because Liquid answers nil for `x.foo`.
    */
   const writtenValueShape = (
     expression: ValueExpression,
@@ -450,7 +388,9 @@ export function createShapeAnalyzer(
     }
     if (node.type === NodeTypes.String) return { kind: 'primitive', primitiveType: 'string' };
     if (node.type === NodeTypes.Number) return { kind: 'primitive', primitiveType: 'number' };
-    if (node.type === NodeTypes.LiquidLiteral) return { kind: 'primitive' };
+    // A `nil` reached through a `{% liquid %}` variable wrapper is still a nil.
+    if (isNullLiteral(node)) return NIL_SHAPE;
+    if (node.type === NodeTypes.LiquidLiteral) return primitiveShapeOfLiteral(node.value);
     return UNKNOWN_SHAPE;
   };
 
@@ -471,9 +411,7 @@ export function createShapeAnalyzer(
     ) {
       const tracked = valueAt(expression.name, position);
       if (tracked?.boolean !== undefined) return tracked.boolean;
-      // A parameter the call site did not pass and the callee never assigns is nil, and
-      // nil can neither satisfy an `@include` nor trigger a `@skip` — it behaves exactly
-      // as `false` does for both.
+      // Nil neither satisfies an `@include` nor triggers a `@skip`, exactly as false.
       if (!tracked && provablyNil.has(expression.name)) return false;
       return 'unknown';
     }
@@ -489,8 +427,7 @@ export function createShapeAnalyzer(
     scopeEnd: number | undefined,
     schema: string | undefined,
   ) => {
-    // A document we could not read leaves the variable UNKNOWN rather than untouched: the
-    // tag still reassigned it, and the shape it had before is not what it holds now.
+    // The tag reassigned the variable even when its document is unreadable.
     const shape =
       document === undefined
         ? undefined
@@ -499,7 +436,7 @@ export function createShapeAnalyzer(
       name,
       path: [],
       operator: '=',
-      valueShape: shape ? applyDigFilters(shape, filters) : undefined,
+      valueShape: shape ? applyNavigationFilters(shape, filters) : undefined,
       at,
       scopeEnd,
     });
@@ -535,10 +472,8 @@ export function createShapeAnalyzer(
   };
 
   /**
-   * The shape a `{% function %}` call returns, by analyzing the callee with these
-   * arguments bound. `undefined` for anything unproven — a partial that does not
-   * resolve, a recursive chain, an exhausted depth budget. `MissingPartial` owns
-   * "this partial does not exist".
+   * The shape a `{% function %}` call returns. `undefined` for anything unproven;
+   * `MissingPartial` owns "this partial does not exist".
    */
   const resolveFunctionReturn = async (
     partialName: string,
@@ -568,24 +503,20 @@ export function createShapeAnalyzer(
     node: LiquidTag,
     ancestors: LiquidHtmlNode[] = [],
   ): Promise<void> => {
-    // The end of the tag: where the previous value stops being current and the new
-    // one starts. A read inside the tag (`{% assign a = a.b %}`, `{% function o = 'p',
-    // arg: o.c %}`) still resolves against the previous value.
+    // A read INSIDE the tag still resolves against the previous value.
     const at = node.blockEndPosition?.end ?? node.position.end;
     const scopeEnd = enclosingBranchEnd(ancestors);
 
-    // Markup the parser could not read (`{% function o = 'p', current_profile %}`) may
-    // have assigned anything, including the variable we are tracking. Keeping the old
-    // shape reported the new value's fields as unknown; `LiquidHTMLSyntaxError` owns
-    // telling the author about the markup itself.
+    // Unreadable markup may have assigned anything; `LiquidHTMLSyntaxError` owns saying so.
     if (typeof node.markup === 'string' && ASSIGNING_TAGS.has(node.name)) {
       closeEverything(at);
       return;
     }
 
-    // {% capture x %}…{% endcapture %} / {% increment x %} — assigns a value whose
-    // structure this check does not model.
-    if (UNMODELLED_ASSIGNMENTS.has(node.name) && typeof node.markup !== 'string') {
+    // The only tag that assigns a structure this check does not model. `increment` and
+    // `decrement` are NOT here: they write to a counter namespace an assigned variable
+    // shadows, so they change nothing this analyzer tracks.
+    if (node.name === NamedTags.capture && typeof node.markup !== 'string') {
       const target = node.markup as LiquidVariableLookup;
       if (target.name) {
         applyWrite({
@@ -618,7 +549,7 @@ export function createShapeAnalyzer(
           markup.value.expression,
           markup.value.filters ?? [],
           at,
-          path === undefined || path.length > 0 || markup.operator === '<<',
+          isWriteThroughName(path, markup.operator),
         ),
         boolean: booleanOf(
           resolveCondition(markup.value.expression, markup.value.filters ?? [], at),
@@ -637,10 +568,8 @@ export function createShapeAnalyzer(
         name,
         path: [],
         operator: '=',
-        // Only a body that is entirely text is JSON we can read. Interpolate a value
-        // into it — `{ "id": {{ object.id | json }} }`, the platformOS way to build
-        // JSON — and what is left after dropping the output tags is a DIFFERENT
-        // document that a tolerant parser still reads, one key short of the truth.
+        // Only an all-text body is the document that runs: dropping an interpolation
+        // leaves a DIFFERENT document that a tolerant parser still reads.
         valueShape: isPlainTextBlock(node)
           ? inferShapeFromJSONString(textContentOf(node))
           : undefined,
@@ -664,7 +593,8 @@ export function createShapeAnalyzer(
         markup.args,
         at,
         scopeEnd,
-        await deps.getSchema(),
+        // Only the arm that has a document reads the schema, and fetching it is not free.
+        document ? await deps.getSchema() : undefined,
       );
       return;
     }
@@ -672,16 +602,17 @@ export function createShapeAnalyzer(
     // {% graphql result, arg: value %}…inline…{% endgraphql %}
     if (isLiquidTagGraphQL(node) && isGraphQLInlineMarkup(node.markup)) {
       const markup = node.markup;
+      // No file holds an inline body's parse, so it is parsed here. All-text only, for
+      // the reason `{% parse_json %}` states above.
+      const document = isPlainTextBlock(node) ? parseGraphql(textContentOf(node)) : undefined;
       pushGraphQLShape(
         markup.name,
-        // An inline body has no file, so no `AppFile` holds its parse — the same parser
-        // the app injects, called directly on the text between the tags.
-        parseGraphql(textContentOf(node)),
+        document,
         markup.filters,
         markup.args,
         at,
         scopeEnd,
-        await deps.getSchema(),
+        document ? await deps.getSchema() : undefined,
       );
       return;
     }
@@ -735,9 +666,8 @@ export function createShapeAnalyzer(
     if (isLiquidTagReturn(node)) {
       const markup = node.markup;
       if (markup === null) return;
-      // A `nil` return says nothing about the shape of the value another branch
-      // returns, so it neither contributes nor poisons.
-      if (isNilExpression(markup.expression)) return;
+      // A `nil` return neither contributes nor poisons.
+      if (isNullLiteral(markup.expression)) return;
 
       const shape = resolveShape(markup.expression, markup.filters ?? [], node.position.start);
       if (shape) returnShapes.push(shape);
@@ -748,8 +678,7 @@ export function createShapeAnalyzer(
   const handleVariableLookup = (node: LiquidVariableLookup, ancestors: LiquidHtmlNode[]) => {
     if (node.lookups.length === 0) return;
 
-    // The target of a write is being DEFINED, not read: `{% hash_assign a['k'] = v %}`
-    // and `{% function a['k'] = 'p' %}` must not report `k` as an unknown property.
+    // The target of a write is being DEFINED, not read.
     const parent = ancestors[ancestors.length - 1];
     if (isWriteTarget(parent, node)) return;
 
@@ -758,11 +687,8 @@ export function createShapeAnalyzer(
 
   const returnShape = (): PropertyShape | undefined => {
     if (returnsUnresolvable || returnShapes.length === 0) return undefined;
-    // Branches that disagree about the KIND of value they return leave the caller
-    // with no single shape to check against.
-    const merged = returnShapes.reduce((a, b) =>
-      a.kind === b.kind ? mergeShapes(a, b) : UNKNOWN_SHAPE,
-    );
+    // The branches are ALTERNATIVES: exactly one of them ran.
+    const merged = returnShapes.reduce(mergeAlternatives);
     if (merged.kind === 'unknown') return undefined;
     return mutatedBeyondModel ? deepOpen(merged) : merged;
   };
@@ -776,26 +702,21 @@ function writtenShape(write: Write, previous: PropertyShape | undefined) {
 
   if (write.path.length === 0) {
     if (write.operator === '=') return write.valueShape;
-    // `<<` pushes onto an array. Only a base already known to be an array can be
-    // narrowed by it; for anything else (nil, a hash, an unknown) the result is not
-    // something we can claim.
+    // Only a base already known to be an array can be narrowed by a push.
     if (previous?.kind !== 'array') return undefined;
+    // The pushed element and the ones already there are ALTERNATIVES.
     const item = write.valueShape ?? UNKNOWN_SHAPE;
     return {
       kind: 'array' as const,
-      itemShape: previous.itemShape ? mergeShapes(previous.itemShape, item) : item,
+      itemShape: previous.itemShape ? mergeAlternatives(previous.itemShape, item) : item,
     };
   }
 
-  // `{% assign a['k'] << v %}` pushes onto a nested array; the key is known to exist,
-  // its contents are not.
+  // A push at a path: the key is known to exist, its contents are not.
   const valueShape = write.operator === '<<' ? UNKNOWN_SHAPE : (write.valueShape ?? UNKNOWN_SHAPE);
 
-  // A write at a path NARROWS a known base. With no base, the write is still the only
-  // evidence there is, and it proves "a hash with AT LEAST this key" — which is what
-  // `open` says. Claiming a closed `{ [key]: value }` instead, as this once did, said
-  // the variable has ONLY that key and reported every other read of it as unknown; an
-  // open shape reports none of them, and lets completion offer the key it does know.
+  // With no base the write is the only evidence, and it proves "a hash with AT LEAST
+  // this key" — which is what `open` says. A closed shape would claim it has only that key.
   if (!previous) return openShapeAtPath(write.path, valueShape);
 
   return mergeShapeAtPath(previous, write.path, valueShape);
@@ -819,15 +740,8 @@ interface CacheEntry {
 }
 
 /**
- * Memoized partial analyses, keyed on `(partial identity, partial source, bindings)` —
- * the arguments are part of the key because that is the whole point: `include_related:
- * true` and `include_related: false` are different questions with different answers.
- *
- * A cached entry also records every file the analysis READ, so a hit is revalidated
- * against their current contents before it is trusted. Keying on the callee's own
- * source is not enough: its answer depends on the `.graphql` documents and further
- * partials it reads, and a long-lived host (language server, MCP supervisor) would
- * otherwise keep serving a shape from a query file that has since been edited.
+ * Memoized partial analyses. An entry records every file the analysis READ, and a hit is
+ * revalidated against their current contents before it is trusted.
  */
 const analysisCache = createBoundedCache<CacheEntry>(RETURN_SHAPE_CACHE_LIMIT);
 
@@ -837,7 +751,9 @@ async function analyzePartial(
   deps: ShapeAnalyzerDeps,
   options: { depth: number; callChain: ReadonlySet<string> },
 ): Promise<PartialAnalysis> {
-  const key = [partial.uri, partial.source, bindingsKey(bindings)].join(' ');
+  // Identity only, NOT the partial's text: `isStale` re-reads what the analysis touched
+  // on every hit, which makes it load-bearing rather than belt-and-braces.
+  const key = [partial.uri, bindingsKey(bindings)].join('\0');
   const run = () => runPartialAnalysis(partial, bindings, deps, options);
 
   let computed = false;
@@ -861,17 +777,14 @@ async function runPartialAnalysis(
   options: { depth: number; callChain: ReadonlySet<string> },
 ): Promise<PartialAnalysis> {
   const reads = new Map<string, string>([[partial.uri, partial.source]]);
-  // A parameter the call site did not pass, and that the partial never assigns itself,
-  // holds nil for the whole of this analysis. `extractUndefinedVariables` is the one
-  // answer to "what does this source never define", and it sees the definitions this
-  // analyzer does not track (`capture`, `for`, `increment`).
+  // A parameter the call site did not pass and the partial never assigns holds nil.
+  // `extractUndefinedVariables` sees definitions this analyzer does not track.
   const provablyNil = new Set(
     extractUndefinedVariables(partial.source).required.filter((name) => !bindings.has(name)),
   );
   const analyzer = createShapeAnalyzer(deps, { ...options, bindings, provablyNil, reads });
 
-  // Only the tags matter here: the callee's own property reads are reported when the
-  // callee is linted as a file of its own.
+  // Only the tags: the callee's own reads are reported when it is linted as a file.
   await visit<SourceCodeType.LiquidHtml, void>(partial.ast, {
     async LiquidTag(node, ancestors) {
       await analyzer.handleLiquidTag(node, ancestors);
@@ -881,18 +794,14 @@ async function runPartialAnalysis(
   return { shape: analyzer.returnShape(), reads };
 }
 
+/** Runs on every cache HIT, so the reads overlap rather than queue. */
 async function isStale(analysis: PartialAnalysis, deps: ShapeAnalyzerDeps): Promise<boolean> {
-  for (const [uri, content] of analysis.reads) {
-    if ((await deps.readContent(uri)) !== content) return true;
-  }
-  return false;
+  const read = [...analysis.reads];
+  const current = await Promise.all(read.map(([uri]) => deps.readContent(uri)));
+  return read.some(([, content], i) => current[i] !== content);
 }
 
-/**
- * The bindings, as a key. Only what the callee can actually branch on goes in: a
- * boolean it may forward into an `@include`, and the STRUCTURE of a shape it may
- * return part of.
- */
+/** Only what the callee can branch on: a boolean, and the STRUCTURE of a shape. */
 function bindingsKey(bindings: ReadonlyMap<string, Binding>): string {
   return [...bindings]
     .map(([name, binding]) => `${name}=${binding.boolean ?? '?'}:${shapeKey(binding.shape)}`)
@@ -914,37 +823,43 @@ function shapeKey(shape: PropertyShape | undefined): string {
 }
 
 /**
- * Navigate a shape using the `dig` filters from a tag's result filters.
- * Returns the navigated shape, the original when there are no dig filters, or
- * `undefined` when the path is dynamic or leads nowhere.
+ * The navigated shape, the original when there are NO filters, or `undefined` for a
+ * dynamic key, a path that leads nowhere, or any filter that transforms.
  */
-function applyDigFilters(shape: PropertyShape, filters: LiquidFilter[]): PropertyShape | undefined {
-  const digPath = filters.filter((filter) => filter.name === 'dig');
-  if (digPath.length === 0) return shape;
+function applyNavigationFilters(
+  shape: PropertyShape,
+  filters: LiquidFilter[],
+): PropertyShape | undefined {
+  let current: PropertyShape | undefined = shape;
+  // Hop by hop rather than one flattened path: the hash requirement below is per-filter.
+  for (const filter of filters) {
+    current = navigateOne(current, filter);
+    if (!current) return undefined;
+  }
+  return current;
+}
 
-  const path = digPathOf(digPath);
+/** One hop of {@link applyNavigationFilters}, or `undefined` when it describes no value. */
+function navigateOne(shape: PropertyShape, filter: LiquidFilter): PropertyShape | undefined {
+  const navigates = navigationFilter(filter.name);
+  if (!navigates) return undefined;
+  // Both no key and one key past the arity raise rather than dig.
+  if (filter.args.length === 0 || filter.args.length > navigates.maxKeys) return undefined;
+
+  // The piped input must be a hash — a list raises and the page stops. An array in the
+  // MIDDLE of one filter's keys is fine.
+  if (shape.kind !== 'object') return undefined;
+
+  const path = buildLookupPath(filter.args);
   if (!path) return undefined;
 
   const result = lookupPropertyPath(shape, path);
   return result.error || !result.shape ? undefined : result.shape;
 }
 
-/** The string keys of a `dig` filter chain, or `undefined` when any is not static. */
-function digPathOf(filters: LiquidFilter[]): string[] | undefined {
-  const path: string[] = [];
-  for (const filter of filters) {
-    if (filter.name !== 'dig') return undefined;
-    const arg = filter.args?.[0];
-    if (arg?.type !== NodeTypes.String) return undefined;
-    path.push(arg.value);
-  }
-  return path;
-}
-
 /**
- * The end of the innermost conditional branch enclosing a write, or `undefined` when it
- * is on the straight-line path. `for`/`tablerow` bodies are branches too — a write in a
- * loop that may run zero times is exactly as uncertain.
+ * The innermost conditional branch enclosing a write, or `undefined` on the straight-line
+ * path. Loop bodies count: a write in a loop that may run zero times is as uncertain.
  */
 function enclosingBranchEnd(ancestors: LiquidHtmlNode[]): number | undefined {
   for (let i = ancestors.length - 1; i >= 0; i--) {
@@ -953,7 +868,8 @@ function enclosingBranchEnd(ancestors: LiquidHtmlNode[]): number | undefined {
   return undefined;
 }
 
-export function buildLookupPath(lookups: LiquidExpression[]): string[] | undefined {
+/** The static path a list of lookups or filter arguments spells. */
+export function buildLookupPath(lookups: LiquidArgument[]): string[] | undefined {
   const path: string[] = [];
 
   for (const lookup of lookups) {
@@ -962,20 +878,12 @@ export function buildLookupPath(lookups: LiquidExpression[]): string[] | undefin
     } else if (lookup.type === NodeTypes.Number) {
       path.push(String(lookup.value));
     } else {
-      // Dynamic lookup (variable) - can't validate
+      // Dynamic lookup (variable), or a named argument - can't validate
       return undefined;
     }
   }
 
   return path;
-}
-
-/** The JSON string a `parse_json` chain parses: the expression, or a `default:` fallback. */
-function jsonStringFrom(expression: ValueExpression, filters: LiquidFilter[]): string | undefined {
-  if (expression.type === NodeTypes.String) return expression.value;
-
-  const fallback = filters.find((filter) => filter.name === 'default')?.args?.[0];
-  return fallback?.type === NodeTypes.String ? fallback.value : undefined;
 }
 
 function isPlainTextBlock(node: LiquidTag & { children?: LiquidHtmlNode[] }): boolean {
@@ -993,17 +901,11 @@ function booleanOf(condition: ConditionValue): boolean | undefined {
   return condition === 'unknown' ? undefined : condition;
 }
 
-function isNilExpression(expression: ValueExpression): boolean {
-  return expression.type === NodeTypes.LiquidLiteral && expression.value === null;
-}
-
 function unwrapArgumentValue(value: LiquidNamedArgument['value']): {
   expression?: ValueExpression;
   filters: LiquidFilter[];
 } {
-  // A `graphql` tag's argument is a LiquidVariable (it may carry filters); every other
-  // tag's is a bare expression. A nested named argument is a hash pair, which is not a
-  // value we resolve.
+  // A `graphql` argument may carry filters; every other tag's is a bare expression.
   if (value.type === NodeTypes.LiquidVariable) {
     return { expression: value.expression, filters: value.filters ?? [] };
   }

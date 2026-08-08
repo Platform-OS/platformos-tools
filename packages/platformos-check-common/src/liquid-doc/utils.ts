@@ -1,4 +1,9 @@
-import { LiquidExpression, LiquidVariable, NodeTypes } from '@platformos/liquid-html-parser';
+import {
+  ComplexLiquidExpression,
+  LiquidExpression,
+  LiquidVariable,
+  NodeTypes,
+} from '@platformos/liquid-html-parser';
 import { getFileType, PlatformOSFileType } from '@platformos/platformos-common';
 import { assertNever } from '../utils';
 import { ObjectEntry, UriString } from '../types';
@@ -86,12 +91,10 @@ export function inferArgumentType(arg: LiquidExpression | LiquidVariable): Infer
  * Checks if a LiquidExpression is a null/nil literal.
  * null/nil is compatible with any type — it represents "no value".
  */
-export function isNullLiteral(arg: LiquidExpression | LiquidVariable): boolean {
+export function isNullLiteral(arg: ComplexLiquidExpression | LiquidVariable): boolean {
   if (arg.type === NodeTypes.LiquidVariable) {
     if (arg.filters.length > 0) return false;
-    const expr = arg.expression;
-    if (expr.type === NodeTypes.BooleanExpression) return false;
-    return isNullLiteral(expr);
+    return isNullLiteral(arg.expression);
   }
   if (arg.type === NodeTypes.LiquidLiteral) {
     return arg.value === null;

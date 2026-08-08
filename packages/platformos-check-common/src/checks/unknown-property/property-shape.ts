@@ -24,57 +24,41 @@ import { isError } from '../../utils';
 import { buildGraphQLSchema } from '../../utils/graphql-schema';
 
 export interface PropertyShape {
-  /**
-   * `unknown` is a value whose STRUCTURE is not known — the result of a filter we
-   * cannot see through, a partial we could not resolve, a custom GraphQL scalar.
-   * It is not the absence of a shape: the property is known to exist, so a read of
-   * it is legal, and every read THROUGH it is unverifiable rather than wrong.
-   */
+  /** `unknown` is a value that IS there and whose structure nobody can see into. */
   kind: 'object' | 'array' | 'primitive' | 'unknown';
-  /** For objects: map of property name to nested shape */
   properties?: Map<string, PropertyShape>;
-  /** For arrays: shape of array items */
   itemShape?: PropertyShape;
-  /** For primitives: the primitive type */
   primitiveType?: 'string' | 'number' | 'boolean' | 'null';
-  /**
-   * The property MAY be absent from the value — a GraphQL field behind an
-   * `@include`/`@skip` whose condition we cannot resolve. Reads of it, and through
-   * it, are unverifiable: we can neither confirm nor deny the field is there.
-   */
+  /** The property may be absent, so reads of it and through it are unverifiable. */
   optional?: true;
-  /**
-   * For objects: there may be properties this shape does not name — a GraphQL
-   * selection set carrying a fragment spread we could not resolve. What IS named is
-   * still known, so reads of those are verified as usual; a read of anything else
-   * cannot be called unknown.
-   */
+  /** The object may hold properties it does not name; what it does name is still known. */
   open?: true;
-  /**
-   * For objects: an EMPTY hash written to be filled in — `{% assign c = {} %}`, then
-   * `hash_assign c['errors'] = …`. It is open because it describes nothing yet, and
-   * unlike every other open shape it CLOSES on the first write it can see: the literal
-   * plus the writes are the whole picture. See {@link mergeShapeAtPath}.
-   */
+  /** An empty hash awaiting writes. Unlike any other open shape, it CLOSES on the first. */
   placeholder?: true;
 }
 
 export const UNKNOWN_SHAPE: PropertyShape = { kind: 'unknown' };
 
-/**
- * An object shape from a set of named properties.
- *
- * An EMPTY one is open. `{}` is not a description of a value, it is a placeholder a
- * platformOS partial fills later — `assign c = { "errors": {}, "valid": true }` and then
- * `hash_assign errors[field_name] = …` two partials away, through the reference Liquid
- * hands out. Reading `c.errors.email` off a closed empty object is a false positive,
- * and there are dozens of them on a real project. A write we can SEE is different: it
- * is evidence, and {@link mergeShapeAtPath} closes the level it writes into.
- */
+/** An ABSENT value: a written `nil`, a JSON `null`. Not {@link UNKNOWN_SHAPE}. */
+export const NIL_SHAPE: PropertyShape = { kind: 'primitive', primitiveType: 'null' };
+
+/** Takes the value rather than the node, so this module stays free of parser types. */
+export function primitiveShapeOfLiteral(value: unknown): PropertyShape {
+  if (value === null) return NIL_SHAPE;
+  if (typeof value === 'boolean') return { kind: 'primitive', primitiveType: 'boolean' };
+  return { kind: 'primitive' };
+}
+
+/** An empty literal is a placeholder something fills later, not a hash with no keys. */
 export function objectShape(properties: Map<string, PropertyShape>): PropertyShape {
   return properties.size === 0
     ? { kind: 'object', properties, open: true, placeholder: true }
     : { kind: 'object', properties };
+}
+
+/** A REBUILT object shape: the caller decides `open`, and `placeholder` never survives. */
+function objectWith(properties: Map<string, PropertyShape>, open: boolean): PropertyShape {
+  return open ? { kind: 'object', properties, open: true } : { kind: 'object', properties };
 }
 
 export interface LookupResult {
@@ -86,12 +70,21 @@ export interface LookupResult {
 /** A boolean whose value we either know or explicitly do not. Never guessed. */
 export type ConditionValue = boolean | 'unknown';
 
-/**
- * The `{% graphql %}` call site's named arguments, resolved to booleans where they
- * are provably boolean. Only booleans matter: they are what `@include`/`@skip` can
- * consume.
- */
+/** Call-site arguments resolved to booleans, which is all `@include`/`@skip` consume. */
 export type GraphQLArgumentValues = ReadonlyMap<string, ConditionValue>;
+
+/**
+ * The protocol-level field a `{% graphql %}` result MAY carry. Optional, not present: a
+ * successful result has no `errors` key at all.
+ */
+const GRAPHQL_ERRORS_SHAPE: PropertyShape = {
+  kind: 'array',
+  optional: true,
+  itemShape: {
+    kind: 'object',
+    properties: new Map([['message', { kind: 'primitive', primitiveType: 'string' }]]),
+  },
+};
 
 /** GraphQL types we can name a Liquid primitive for. Everything else is a custom scalar. */
 const PRIMITIVE_TYPE_BY_SCALAR: Record<string, 'string' | 'number' | 'boolean'> = {
@@ -111,19 +104,62 @@ function withOptional(shape: PropertyShape, optional: boolean): PropertyShape {
 }
 
 /**
- * Merge two shapes together, combining their properties.
- *
- * The conditional marker survives only when BOTH sides carry it: a field that one
- * branch selects unconditionally is unconditionally present, however many other
- * branches guard it.
+ * Merge two facts about ONE value — two selections of the same field, a fragment and the
+ * level it spreads into. Both sides are true, so the merge knows both.
  */
 export function mergeShapes(a: PropertyShape, b: PropertyShape): PropertyShape {
   return withOptional(mergeShapeKinds(a, b), a.optional === true && b.optional === true);
 }
 
+/**
+ * Merge two ALTERNATIVES — values only one of which is the one the code produced. The
+ * opposite of {@link mergeShapes} where it matters: the value may BE the one nobody can
+ * see into, so `unknown` absorbs instead of contributing nothing.
+ */
+export function mergeAlternatives(a: PropertyShape, b: PropertyShape): PropertyShape {
+  const merged = mergeAlternativeKinds(a, b);
+  if (merged.kind === 'unknown') return merged;
+  return withOptional(merged, a.optional === true || b.optional === true);
+}
+
+/** The one shape describing whichever of `shapes` a read reaches. */
+export function foldAlternatives(shapes: PropertyShape[]): PropertyShape | undefined {
+  return shapes.length === 0 ? undefined : shapes.reduce(mergeAlternatives);
+}
+
+function mergeAlternativeKinds(a: PropertyShape, b: PropertyShape): PropertyShape {
+  if (a.kind === 'unknown' || b.kind === 'unknown') return UNKNOWN_SHAPE;
+
+  if (a.kind === 'object' && b.kind === 'object') {
+    const properties = new Map<string, PropertyShape>();
+    for (const [key, shape] of a.properties ?? []) {
+      const other = b.properties?.get(key);
+      properties.set(key, other ? mergeAlternatives(shape, other) : withOptional(shape, true));
+    }
+    for (const [key, shape] of b.properties ?? []) {
+      if (!properties.has(key)) properties.set(key, withOptional(shape, true));
+    }
+    return objectWith(properties, a.open === true || b.open === true);
+  }
+
+  if (a.kind === 'array' && b.kind === 'array') {
+    const itemShape =
+      a.itemShape && b.itemShape ? mergeAlternatives(a.itemShape, b.itemShape) : undefined;
+    return { kind: 'array', itemShape };
+  }
+
+  if (a.kind === 'primitive' && b.kind === 'primitive') {
+    if (a.primitiveType === b.primitiveType) return a;
+    // A nil alternative may be absent, and `nil.foo` is nil rather than an error, so the
+    // merge must not decay to a bare primitive — which `lookupPropertyPath` reports on.
+    if (a.primitiveType === 'null' || b.primitiveType === 'null') return UNKNOWN_SHAPE;
+    return { kind: 'primitive' };
+  }
+
+  return UNKNOWN_SHAPE;
+}
+
 function mergeShapeKinds(a: PropertyShape, b: PropertyShape): PropertyShape {
-  // An unknown structure carries no information, so whatever the other side knows
-  // is what the merge knows.
   if (a.kind === 'unknown') return b;
   if (b.kind === 'unknown') return a;
 
@@ -135,11 +171,7 @@ function mergeShapeKinds(a: PropertyShape, b: PropertyShape): PropertyShape {
         properties.set(key, existing ? mergeShapes(existing, val) : val);
       }
     }
-    // Openness spreads: if either side may hold properties it does not name, so may
-    // the merge.
-    return a.open || b.open
-      ? { kind: 'object', properties, open: true }
-      : { kind: 'object', properties };
+    return objectWith(properties, a.open === true || b.open === true);
   }
   if (a.kind === 'array' && b.kind === 'array') {
     const itemShape =
@@ -148,7 +180,6 @@ function mergeShapeKinds(a: PropertyShape, b: PropertyShape): PropertyShape {
         : a.itemShape || b.itemShape;
     return { kind: 'array', itemShape };
   }
-  // Different kinds or primitives - prefer the first
   return a;
 }
 
@@ -167,7 +198,7 @@ function addProperty(
  */
 export function inferShapeFromJSON(value: unknown): PropertyShape {
   if (value === null) {
-    return { kind: 'primitive', primitiveType: 'null' };
+    return NIL_SHAPE;
   }
   if (typeof value === 'string') {
     return { kind: 'primitive', primitiveType: 'string' };
@@ -179,13 +210,10 @@ export function inferShapeFromJSON(value: unknown): PropertyShape {
     return { kind: 'primitive', primitiveType: 'boolean' };
   }
   if (Array.isArray(value)) {
-    // Merge shapes from all array elements
-    let itemShape: PropertyShape | undefined;
-    for (const item of value) {
-      const shape = inferShapeFromJSON(item);
-      itemShape = itemShape ? mergeShapes(itemShape, shape) : shape;
-    }
-    return { kind: 'array', itemShape };
+    return {
+      kind: 'array',
+      itemShape: foldAlternatives(value.map((item) => inferShapeFromJSON(item))),
+    };
   }
   if (typeof value === 'object') {
     const properties = new Map<string, PropertyShape>();
@@ -240,14 +268,7 @@ function asSelectableType(type: GraphQLNamedType | null | undefined): Selectable
   return isObjectType(type) || isInterfaceType(type) ? type : undefined;
 }
 
-/**
- * The shape of a field with no selection set.
- *
- * A custom scalar is `unknown`, not `primitive`: platformOS returns hashes through
- * them (`Record.properties: HashObject`), so calling them primitive turns
- * `record.properties.color` into a bogus "cannot access property on primitive".
- * Without a schema every leaf stays `primitive`, as before.
- */
+/** A custom scalar is `unknown`, not `primitive`: platformOS returns hashes through them. */
 function leafShape(fieldType: GraphQLOutputType | undefined): PropertyShape {
   if (!fieldType) return { kind: 'primitive' };
 
@@ -272,13 +293,7 @@ interface GraphQLShapeContext {
 /** Whether a selection ends up in the response. */
 type Presence = 'present' | 'absent' | 'conditional';
 
-/**
- * Resolve `@include(if:)` / `@skip(if:)` against the operation's variable values.
- *
- * `conditional` — the condition is a variable nobody proved a value for — is the case
- * that keeps this from being a false-positive machine: the field goes into the shape,
- * marked, and reads through it are not verified.
- */
+/** Resolve `@include(if:)` / `@skip(if:)` against the operation's variable values. */
 function evaluatePresence(
   directives: readonly DirectiveNode[] | undefined,
   ctx: GraphQLShapeContext,
@@ -313,11 +328,8 @@ function resolveConditionValue(value: ValueNode, ctx: GraphQLShapeContext): Cond
 }
 
 /**
- * Convert a GraphQL SelectionSet to a PropertyShape using schema for type info.
- *
- * `activeFragments` are the spreads open on the current chain. A cyclic pair
- * (`fragment a { ...b }` / `fragment b { ...a }`) is invalid GraphQL but reachable
- * from a half-typed editor buffer, so re-entry stops instead of recursing forever.
+ * `activeFragments` are the spreads open on the current chain: a cyclic pair is invalid
+ * GraphQL but reachable from a half-typed buffer, so re-entry stops rather than recurses.
  */
 function selectionSetToShape(
   selectionSet: SelectionSetNode,
@@ -359,10 +371,7 @@ function selectionSetToShape(
       continue;
     }
 
-    // A spread contributes its fragment's fields at THIS level. An unresolvable
-    // spread — defined in another file, not yet typed out, or cyclic — contributes
-    // nothing AND leaves the level open: what it would have added is unknown, so no
-    // read here can be called unknown either. Silence, never "no such field".
+    // An unresolvable spread contributes nothing AND leaves the level open.
     const spreadSelectionSet =
       selection.kind === 'InlineFragment'
         ? selection.selectionSet
@@ -401,20 +410,12 @@ function selectionSetToShape(
     if (spreadShape.open) open = true;
   }
 
-  return open ? { kind: 'object', properties, open: true } : { kind: 'object', properties };
+  return objectWith(properties, open);
 }
 
 /**
- * Extract the response shape a GraphQL operation produces.
- *
- * Takes the PARSED document, not a string: a file-based `{% graphql %}` gets the parse
- * its `AppFile` already holds, so a query called from thirty call sites is parsed once
- * rather than thirty times, and an inline `{% graphql %}…{% endgraphql %}` body — which
- * has no file — parses its own text through the same `parseGraphql`.
- *
- * @param node - The GraphQL query/mutation, parsed
- * @param schemaString - Optional GraphQL schema SDL string for accurate type inference
- * @param args - Argument values the `{% graphql %}` call site passed, for `@include`/`@skip`
+ * The response shape an operation produces. Takes the PARSED document, so a query called
+ * from thirty call sites is parsed once.
  */
 export function inferShapeFromGraphQL(
   node: GraphQLDocumentNode,
@@ -476,19 +477,10 @@ export function inferShapeFromGraphQL(
           new Set(),
         );
 
-        // platformOS always exposes a top-level 'errors' array on graphql results
-        // (GraphQL protocol-level errors), regardless of what's in the selection set.
         const properties = new Map(shape.properties);
-        if (!properties.has('errors')) {
-          properties.set('errors', {
-            kind: 'array',
-            itemShape: {
-              kind: 'object',
-              properties: new Map([['message', { kind: 'primitive', primitiveType: 'string' }]]),
-            },
-          });
-        }
-        return { kind: 'object', properties };
+        if (!properties.has('errors')) properties.set('errors', GRAPHQL_ERRORS_SHAPE);
+        // Spread, so an `open` marker on the root level survives adding `errors`.
+        return { ...shape, properties };
       }
     }
     return undefined;
@@ -498,11 +490,8 @@ export function inferShapeFromGraphQL(
 }
 
 /**
- * Look up a property path in a shape, returning the shape at that path.
- * Returns undefined shape with error info if the path doesn't exist or passes through a primitive.
- *
- * An `unknown` shape and a conditional property both end verification with no error:
- * there is nothing left to be right or wrong about.
+ * The shape at `path`, or an error when it does not exist or passes through a primitive.
+ * An `unknown` shape and an optional property end verification WITHOUT an error.
  */
 export function lookupPropertyPath(shape: PropertyShape, path: string[]): LookupResult {
   let current: PropertyShape = shape;
@@ -520,6 +509,9 @@ export function lookupPropertyPath(shape: PropertyShape, path: string[]): Lookup
         current = { kind: 'primitive', primitiveType: 'number' };
         continue;
       }
+      // A JSON `null` is a key with nothing in it, so a read through it is unverifiable
+      // rather than a type error — the same reason a written `nil` claims no shape.
+      if (current.primitiveType === 'null') return { shape: undefined };
       return { shape: undefined, error: 'primitive_access', errorAt: i };
     }
 
@@ -556,9 +548,7 @@ export function lookupPropertyPath(shape: PropertyShape, path: string[]): Lookup
         continue;
       }
 
-      // `size` is the number of keys on a hash, as it is a count on an array and a
-      // length on a string. Answered AFTER the properties, because a hash that has its
-      // own `size` key returns that value — Liquid looks the key up first.
+      // After the properties: Liquid looks the key up first, so a `size` key wins.
       if (key === 'size') {
         current = { kind: 'primitive', primitiveType: 'number' };
         continue;
@@ -575,14 +565,8 @@ export function lookupPropertyPath(shape: PropertyShape, path: string[]): Lookup
 }
 
 /**
- * The same shape with every object level OPEN — it may hold properties this shape
- * cannot name.
- *
- * For a partial that mutated something we could not follow: a `for` item, a
- * `{% assign line = ll %}` alias, a dynamic key. Liquid hands out references, so a
- * write through an alias lands in the value the caller receives, and every one of those
- * writes is a field this shape does not have. What the shape DOES name is still right,
- * so navigation and primitive checks survive; only "no such field" is withdrawn.
+ * Every object level OPEN, for a partial that mutated through a reference this analysis
+ * could not follow. Only "no such field" is withdrawn; what the shape names still holds.
  */
 export function deepOpen(shape: PropertyShape): PropertyShape {
   if (shape.kind === 'array') {
@@ -612,14 +596,9 @@ export function getAvailableProperties(shape: PropertyShape): string[] {
 }
 
 /**
- * Merge a value shape into `shape` at `path`, keeping everything already known.
- *
- * This is a WRITE THROUGH AN LVALUE PATH — `{% hash_assign a['k'] = v %}`,
- * `{% assign a['k'] = v %}`, `{% function a['k'] = 'p' %}` — so it narrows: the
- * written key is added or replaced and every sibling survives. A caller with no
- * shape for the base must not call this. Fabricating `{ k }` out of an empty object
- * claims the base has ONLY `k`, and `PropertyShape` cannot say "at least `k`", so
- * every other read of that variable was reported as unknown.
+ * A write through an lvalue path: the written key is added or replaced, every sibling
+ * survives. A caller with no shape for the base must NOT call this — there is no way to
+ * say "at least `k`", so a fabricated base claims the variable holds only what was written.
  */
 export function mergeShapeAtPath(
   shape: PropertyShape,
@@ -633,13 +612,12 @@ export function mergeShapeAtPath(
   if (shape.kind === 'array') {
     // A hash-style key written onto an array is not something we can model.
     if (!/^\d+$/.test(key)) return UNKNOWN_SHAPE;
-    // Writing an element narrows the ITEM shape, and the value stays an array. The
-    // item shape describes EVERY element, so the write is merged in rather than
-    // replacing what the other elements are known to have.
+    // The item shape describes EVERY element and the write proves ONE, so they are
+    // alternatives rather than evidence about the same value.
     const written = mergeShapeAtPath(shape.itemShape ?? UNKNOWN_SHAPE, rest, valueShape);
     return {
       kind: 'array',
-      itemShape: shape.itemShape ? mergeShapes(written, shape.itemShape) : written,
+      itemShape: shape.itemShape ? mergeAlternatives(written, shape.itemShape) : written,
     };
   }
 
@@ -659,13 +637,6 @@ export function mergeShapeAtPath(
         ),
   );
 
-  // A write into a PLACEHOLDER closes it: `{% assign f = {} %}` followed by
-  // `{% hash_assign f['page'] = 1 %}` is the whole of what `f` holds, which is what makes
-  // `f.tag` reportable. Any other openness survives the write — a shape that is open
-  // because we never saw the value (a partial's return, a write onto an unknown base, a
-  // fragment we could not resolve) does not become complete just because we watched one
-  // key go in.
-  return shape.open && !shape.placeholder
-    ? { kind: 'object', properties, open: true }
-    : { kind: 'object', properties };
+  // A write closes a PLACEHOLDER; any other openness survives it.
+  return objectWith(properties, shape.open === true && !shape.placeholder);
 }

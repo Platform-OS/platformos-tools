@@ -224,6 +224,19 @@ describe('Module: TypeSystem', () => {
       const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
       expect(inferredType).to.equal('image');
     });
+
+    it('should prefer the piped value when its type is known', async () => {
+      // `default` returns the piped value unless it is falsy, so that value's type is the
+      // answer whenever there is one. Taking the fallback's unconditionally named the
+      // wrong type for every chain whose input was typed.
+      const ast = toLiquidHtmlAST(`
+        {% assign d = context.models[0].thumbnail %}
+        {% assign x = d | default: 'placeholder' %}
+      `);
+      const xVariable = (ast as any).children[1].markup as AssignMarkup;
+      const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
+      expect(inferredType).to.equal('image');
+    });
   });
 
   it('should return the type of variables in for loop', async () => {

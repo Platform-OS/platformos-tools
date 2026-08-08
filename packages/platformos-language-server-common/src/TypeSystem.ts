@@ -36,6 +36,7 @@ import {
   createShapeAnalyzer,
   getValidParamTypes,
   inferShapeFromJSONString,
+  isAlternativeReturningFilter,
   lookupPropertyPath,
   parseParamType,
 } from '@platformos/platformos-check-common';
@@ -673,11 +674,20 @@ function inferType(
     case NodeTypes.LiquidVariable: {
       if (thing.filters.length > 0) {
         const lastFilter = thing.filters.at(-1)!;
-        if (lastFilter.name === 'default') {
-          // default filter is a special case, we need to return the type of the expression
-          // instead of the filter.
-          if (lastFilter.args.length > 0 && lastFilter.args[0].type !== NodeTypes.NamedArgument) {
-            return inferType(lastFilter.args[0], symbolsTable, objectMap, filtersMap);
+        // A filter returning one of its OPERANDS has no type of its own; the docset says
+        // `untyped`. `| default:` yields the piped value unless it is falsy.
+        if (isAlternativeReturningFilter(lastFilter.name)) {
+          const piped = inferType(
+            { ...thing, filters: thing.filters.slice(0, -1) },
+            symbolsTable,
+            objectMap,
+            filtersMap,
+          );
+          if (piped !== Untyped && piped !== Unknown) return piped;
+          // Nothing known about the piped value: the case the fallback was written for.
+          const fallback = lastFilter.args[0];
+          if (fallback && fallback.type !== NodeTypes.NamedArgument) {
+            return inferType(fallback, symbolsTable, objectMap, filtersMap);
           }
         }
         const filterEntry = filtersMap[lastFilter.name];

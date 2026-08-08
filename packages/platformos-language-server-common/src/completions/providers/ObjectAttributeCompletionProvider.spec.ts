@@ -339,12 +339,16 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       await expect(provider).to.complete(source, ['age', 'city', 'name']);
     });
 
-    it('should infer shape from default filter value', async () => {
+    it('should infer nothing from a default filter value, which may not be the value', async () => {
+      // A `default:` fallback is parsed only when the expression is nil, so its keys are
+      // the value's keys in one branch and nobody's in the other. The analyzer this
+      // provider shares with `UnknownProperty` claims no shape for it. The literal cases
+      // above are the control: they still complete.
       const source = `
         {% assign a = some_var | default: '{"fallback": true, "value": 42}' | parse_json %}
         {{ a.█ }}
       `;
-      await expect(provider).to.complete(source, ['fallback', 'value']);
+      await expect(provider).to.complete(source, []);
     });
 
     it('should work with parse_json block syntax', async () => {

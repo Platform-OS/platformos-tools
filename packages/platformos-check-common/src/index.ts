@@ -55,6 +55,7 @@ export * from './AugmentedPlatformOSDocset';
 export * from './types/platformos-liquid-docs';
 export * from './checks';
 export * from './context-utils';
+export * from './filter-semantics';
 export * from './find-root';
 export * from './fixes';
 export * from './ignore';

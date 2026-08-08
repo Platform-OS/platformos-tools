@@ -233,6 +233,11 @@ export async function runLiquidCheck(
   return offenses.filter((offense) => offense.uri === path.join(rootUri, fileName));
 }
 
+/** Just the messages of a run's offenses, for the whole-array equality a suite asserts. */
+export function messagesOf(offenses: readonly { message: string }[]): string[] {
+  return offenses.map((offense) => offense.message);
+}
+
 export async function runYAMLCheck(
   checkDef: CheckDefinition<SourceCodeType.YAML>,
   sourceCode: string,

@@ -8,8 +8,9 @@ import {
 import {
   PropertyShape,
   UNKNOWN_SHAPE,
-  mergeShapes,
+  foldAlternatives,
   objectShape,
+  primitiveShapeOfLiteral,
 } from '@platformos/platformos-check-common';
 
 /**
@@ -27,7 +28,6 @@ export {
   inferShapeFromJSON,
   inferShapeFromJSONString,
   lookupPropertyPath,
-  mergeShapes,
   type LookupResult,
 } from '@platformos/platformos-check-common';
 
@@ -38,15 +38,8 @@ export {
 export type ExpressionShapeResolver = (expr: LiquidExpression) => PropertyShape | undefined;
 
 /**
- * Infer shape from a JSON literal AST node (JsonHashLiteral or JsonArrayLiteral).
- *
- * The analyzer in check-common infers the same literals, but only through what IT can
- * see. This one takes a resolver, which is how a docset type reaches a literal:
- * `{ "user": context.current_user }` gets `current_user`'s documented properties, and
- * no diagnostic has a use for that.
- *
- * @param resolveExpression - Optional callback to resolve variable references and
- *   other expressions that require type system context.
+ * The resolver is how a docset type reaches a literal — `{ "user": context.current_user }`
+ * gets `current_user`'s documented properties, which no diagnostic has a use for.
  */
 export function inferShapeFromJsonLiteral(
   node: JsonHashLiteral | JsonArrayLiteral,
@@ -63,13 +56,10 @@ export function inferShapeFromJsonLiteral(
     return objectShape(properties);
   }
 
-  // JsonArrayLiteral
-  let itemShape: PropertyShape | undefined;
-  for (const element of node.elements) {
-    const shape = inferShapeFromExpression(element, resolveExpression);
-    itemShape = itemShape ? mergeShapes(itemShape, shape) : shape;
-  }
-  return { kind: 'array', itemShape };
+  const items = node.elements.map((element) =>
+    inferShapeFromExpression(element, resolveExpression),
+  );
+  return { kind: 'array', itemShape: foldAlternatives(items) };
 }
 
 function getJsonKeyName(key: LiquidExpression): string | undefined {
@@ -100,9 +90,7 @@ function inferShapeFromExpression(
     case NodeTypes.Number:
       return { kind: 'primitive', primitiveType: 'number' };
     case NodeTypes.LiquidLiteral:
-      if (expr.value === null) return { kind: 'primitive', primitiveType: 'null' };
-      if (typeof expr.value === 'boolean') return { kind: 'primitive', primitiveType: 'boolean' };
-      return { kind: 'primitive' };
+      return primitiveShapeOfLiteral(expr.value);
     default:
       return resolveExpression?.(expr) ?? UNKNOWN_SHAPE;
   }

@@ -26,14 +26,25 @@ describe('Module: MissingRenderPartialArguments', () => {
     expect(offenses).to.have.length(0);
   });
 
-  it('should not report when all required params are provided', async () => {
-    const offenses = await check(partialWithRequiredParams, `{% render 'card', title: 'Hello' %}`);
-    expect(offenses).to.have.length(0);
-  });
+  it('should not report an absent OPTIONAL param when every required one is provided', async () => {
+    // `[subtitle]` is the optional one, and it is absent. The control is the same partial
+    // with that same param declared REQUIRED: without it, "optional params are not
+    // reported" passes just as well against a check that reports nothing at all. The two
+    // assertions used to be two tests running the identical call.
+    const call = `{% render 'card', title: 'Hello' %}`;
+    const optional = await check(partialWithRequiredParams, call);
+    const sameParamRequired = await check(
+      partialWithRequiredParams.replace('[subtitle]', 'subtitle'),
+      call,
+    );
 
-  it('should not report for missing optional params', async () => {
-    const offenses = await check(partialWithRequiredParams, `{% render 'card', title: 'Hello' %}`);
-    expect(offenses).to.have.length(0);
+    expect({
+      optional: optional.map((offense) => offense.message),
+      sameParamRequired: sameParamRequired.map((offense) => offense.message),
+    }).toEqual({
+      optional: [],
+      sameParamRequired: ["Missing required argument 'subtitle' in render tag for partial 'card'."],
+    });
   });
 
   it('should report ERROR when a required param is missing', async () => {

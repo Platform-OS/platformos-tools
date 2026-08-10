@@ -31,9 +31,10 @@ export interface TargetParams {
  * reported every missing argument twice.
  *
  * The mirror of `partialInputs`, which asks the same question of the file being VISITED.
- * Shared by every check that judges a call site against an undocumented target, and cheap
- * to ask twice: `extractUndefinedVariables` memoizes on `(source, in-scope names)`, so the
- * second caller at a call site pays a cache hit and no parse.
+ * Shared by every check that judges a call site against an undocumented target, and cheap to
+ * ask twice for a target the `App` holds: `undefinedVariablesOf` memoizes the analysis on the
+ * `AppFile`, so the second caller at a call site pays a cache hit and no parse. A target the
+ * app does not hold has nothing to memo on and is analyzed per call site — see below.
  */
 export async function inferredTargetParams(
   context: Context<SourceCodeType.LiquidHtml>,
@@ -64,7 +65,9 @@ export async function inferredTargetParams(
   const file = context.app.get(locatedFile);
   if (file) await file.load().catch(() => undefined);
 
-  const { required, optional } = file?.loadedSource
+  // `loaded` and not a truthiness test on the source: an EMPTY partial is loaded, and
+  // falling through on it would re-read a file the app is already holding.
+  const { required, optional } = file?.loaded
     ? undefinedVariablesOf(file, inScope)
     : extractUndefinedVariables(await context.fs.readFile(locatedFile), inScope);
 

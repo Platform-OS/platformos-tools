@@ -230,7 +230,8 @@ export const RESPONSE_ENVELOPE_BYTES_PER_FILE = 512;
  * The allocator bounds DIAGNOSTICS, which is the only unbounded dimension; the
  * envelope is O(files) and already bounded by the batch file cap. Multiplying the two
  * out is what turns "the big list is capped" into a number a reader can check, and
- * `validate/response-bound.spec.ts` measures the worst legal request against it.
+ * `transport/validate-code.spec.ts`'s response-bound group measures the worst legal
+ * request against it.
  *
  * Takes the file count rather than importing `MAX_BATCH_FILES`, which lives in
  * `validate/batch-bounds.ts` and already imports this module.

@@ -1,10 +1,46 @@
 import { expect, describe, it } from 'vitest';
-import { runLiquidCheck, applyFix } from '../../../test';
+import { applyFix, messagesOf, runLiquidCheck } from '../../../test';
 import { LiquidHTMLSyntaxError } from '..';
+
+/**
+ * Message and FIXED SOURCE, whole, for every case.
+ *
+ * The table-driven tests here used to assert `length(1)` and a message SUBSTRING per
+ * iteration — `to.contain("Expression stops at truthy value 'true'")` — which says nothing
+ * about the half of the message that names what the platform will ignore, and that half is
+ * the whole point of the diagnostic. Several loops also dropped the fix entirely.
+ */
+const stopsAt = (value: string, ignored: string) =>
+  `Syntax is not supported: Expression stops at truthy value '${value}', and will ignore: '${ignored}'`;
+
+const cannotStartWith = (token: string) =>
+  `Syntax is not supported: Conditional cannot start with '${token}'. Use a variable or value instead`;
+
+const anythingAfter = (kept: string) =>
+  `Syntax is not supported: Conditional is invalid. Anything after '${kept}' will be ignored`;
+
+/** The offense messages, and the source each offense's own fix produces. */
+async function report(source: string) {
+  const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+
+  return {
+    messages: messagesOf(offenses),
+    fixes: offenses.map((offense) => applyFix(source, offense)),
+  };
+}
+
+/** `report` over a table, keyed by source so a failure names the case that broke. */
+async function reportAll(sources: string[]) {
+  const entries = await Promise.all(sources.map(async (s) => [s, await report(s)] as const));
+  return Object.fromEntries(entries);
+}
+
+/** The expected entry for a source that must produce no offense and so no fix. */
+const SILENT = { messages: [], fixes: [] };
 
 describe('Module: InvalidConditionalBooleanExpression', () => {
   it('should not report an offense for valid boolean expressions', async () => {
-    const testCases = [
+    const sources = [
       '{% if 1 > 2 %}hello{% endif %}',
       '{% if variable == 5 %}hello{% endif %}',
       "{% if 'abc' contains 'a' %}hello{% endif %}",
@@ -16,14 +52,11 @@ describe('Module: InvalidConditionalBooleanExpression', () => {
       "{% if user.name contains 'admin' or user.role == 'owner' %}hello{% endif %}",
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
+    expect(await reportAll(sources)).toEqual(Object.fromEntries(sources.map((s) => [s, SILENT])));
   });
 
   it('should not report an offense for valid single values', async () => {
-    const testCases = [
+    const sources = [
       '{% if variable %}hello{% endif %}',
       '{% if user.active %}hello{% endif %}',
       '{% if true %}hello{% endif %}',
@@ -31,404 +64,268 @@ describe('Module: InvalidConditionalBooleanExpression', () => {
       '{% if 1 %}hello{% endif %}',
       '{% if 0 %}hello{% endif %}',
       "{% if 'string' %}hello{% endif %}",
+      // `contains` is an operator name, and a bare one is a variable like any other.
       '{% if contains %}hello{% endif %}',
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
+    expect(await reportAll(sources)).toEqual(Object.fromEntries(sources.map((s) => [s, SILENT])));
   });
 
-  it('should report an offense when parser stops at numbers', async () => {
-    const source = '{% if 7 1 > 100 %}hello{% endif %}';
-    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+  it('should report an offense when the expression stops at a truthy value', async () => {
+    const numbers = await report('{% if 7 1 > 100 %}hello{% endif %}');
+    const strings = await report("{% if 'hello' 1 > 100 %}world{% endif %}");
 
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal(
-      "Syntax is not supported: Expression stops at truthy value '7', and will ignore: '1 > 100'",
-    );
-
-    const fixed = applyFix(source, offenses[0]);
-    expect(fixed).to.equal('{% if 7 %}hello{% endif %}');
-  });
-
-  it('should report an offense when parser stops at strings', async () => {
-    const source = "{% if 'hello' 1 > 100 %}world{% endif %}";
-    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
-
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal(
-      "Syntax is not supported: Expression stops at truthy value ''hello'', and will ignore: '1 > 100'",
-    );
-
-    const fixed = applyFix(source, offenses[0]);
-    expect(fixed).to.equal("{% if 'hello' %}world{% endif %}");
+    expect({ numbers, strings }).toEqual({
+      numbers: {
+        messages: [stopsAt('7', '1 > 100')],
+        fixes: ['{% if 7 %}hello{% endif %}'],
+      },
+      strings: {
+        messages: [stopsAt("'hello'", '1 > 100')],
+        fixes: ["{% if 'hello' %}world{% endif %}"],
+      },
+    });
   });
 
   it('should report an offense when parser stops at liquid literals', async () => {
-    const testCases = [
-      { source: '{% if true 1 > 0 %}hello{% endif %}', value: 'true' },
-      { source: '{% if false 1 > 0 %}hello{% endif %}', value: 'false' },
-      { source: '{% if nil 6 > 5 %}hello{% endif %}', value: 'nil' },
-      { source: '{% if empty 123 456 %}hello{% endif %}', value: 'empty' },
-      { source: '{% if blank 789 %}hello{% endif %}', value: 'blank' },
+    const cases = [
+      { source: '{% if true 1 > 0 %}hello{% endif %}', value: 'true', ignored: '1 > 0' },
+      { source: '{% if false 1 > 0 %}hello{% endif %}', value: 'false', ignored: '1 > 0' },
+      { source: '{% if nil 6 > 5 %}hello{% endif %}', value: 'nil', ignored: '6 > 5' },
+      { source: '{% if empty 123 456 %}hello{% endif %}', value: 'empty', ignored: '123 456' },
+      { source: '{% if blank 789 %}hello{% endif %}', value: 'blank', ignored: '789' },
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase.source);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain(
-        `Expression stops at truthy value '${testCase.value}'`,
-      );
-
-      const fixed = applyFix(testCase.source, offenses[0]);
-      expect(fixed).to.equal(`{% if ${testCase.value} %}hello{% endif %}`);
-    }
+    expect(await reportAll(cases.map((c) => c.source))).toEqual(
+      Object.fromEntries(
+        cases.map((c) => [
+          c.source,
+          {
+            messages: [stopsAt(c.value, c.ignored)],
+            fixes: [`{% if ${c.value} %}hello{% endif %}`],
+          },
+        ]),
+      ),
+    );
   });
 
   it('should report offenses in different liquid tag types', async () => {
-    const testCases = [
-      '{% if 7 1 > 100 %}hello{% endif %}',
-      "{% unless 'test' 42 > 0 %}hello{% endunless %}",
-      '{% if false %}no{% elsif 7 1 > 100 %}hello{% endif %}',
-    ];
+    const ifTag = '{% if 7 1 > 100 %}hello{% endif %}';
+    const unlessTag = "{% unless 'test' 42 > 0 %}hello{% endunless %}";
+    const elsifBranch = '{% if false %}no{% elsif 7 1 > 100 %}hello{% endif %}';
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain('Expression stops at truthy value');
-    }
+    expect(await reportAll([ifTag, unlessTag, elsifBranch])).toEqual({
+      [ifTag]: {
+        messages: [stopsAt('7', '1 > 100')],
+        fixes: ['{% if 7 %}hello{% endif %}'],
+      },
+      [unlessTag]: {
+        messages: [stopsAt("'test'", '42 > 0')],
+        fixes: ["{% unless 'test' %}hello{% endunless %}"],
+      },
+      [elsifBranch]: {
+        messages: [stopsAt('7', '1 > 100')],
+        fixes: ['{% if false %}no{% elsif 7 %}hello{% endif %}'],
+      },
+    });
   });
 
-  it('should report an offense for malformed expression starting with invalid token', async () => {
-    const source = '{% if > 2 %}hello{% endif %}';
-    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+  it('should report an offense for a conditional that starts with an operator or symbol', async () => {
+    // Every one of these is fixed the same way — to `false`, the only safe reading of a
+    // condition with no operand — which is the part the substring assertions never checked.
+    const tokens = ['>', '==', '<', '!=', '>=', '<=', '@', '#', '$', '&'];
+    const sources = tokens.map((token) => `{% if ${token} %}hello{% endif %}`);
 
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal(
-      "Syntax is not supported: Conditional cannot start with '>'. Use a variable or value instead",
+    expect(await reportAll(sources)).toEqual(
+      Object.fromEntries(
+        tokens.map((token) => [
+          `{% if ${token} %}hello{% endif %}`,
+          {
+            messages: [cannotStartWith(token)],
+            fixes: ['{% if false %}hello{% endif %}'],
+          },
+        ]),
+      ),
     );
-
-    const fixed = applyFix(source, offenses[0]);
-    expect(fixed).to.equal('{% if false %}hello{% endif %}');
-  });
-
-  it('should report an offense for bare operators with no operands', async () => {
-    const testCases = [
-      { source: '{% if > %}hello{% endif %}', token: '>' },
-      { source: '{% if == %}hello{% endif %}', token: '==' },
-      { source: '{% if < %}hello{% endif %}', token: '<' },
-      { source: '{% if != %}hello{% endif %}', token: '!=' },
-      { source: '{% if >= %}hello{% endif %}', token: '>=' },
-      { source: '{% if <= %}hello{% endif %}', token: '<=' },
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase.source);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain(`Conditional cannot start with '${testCase.token}'`);
-
-      const fixed = applyFix(testCase.source, offenses[0]);
-      expect(fixed).to.equal('{% if false %}hello{% endif %}');
-    }
-  });
-
-  it('should report an offense for other invalid starting characters', async () => {
-    const testCases = [
-      { source: '{% if @ %}hello{% endif %}', token: '@' },
-      { source: '{% if # %}hello{% endif %}', token: '#' },
-      { source: '{% if $ %}hello{% endif %}', token: '$' },
-      { source: '{% if & %}hello{% endif %}', token: '&' },
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase.source);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain(`Conditional cannot start with '${testCase.token}'`);
-
-      const fixed = applyFix(testCase.source, offenses[0]);
-      expect(fixed).to.equal('{% if false %}hello{% endif %}');
-    }
   });
 
   it('should report an offense for malformed expressions in complex expressions', async () => {
-    const testCases = [
-      '{% if > 5 and true %}hello{% endif %}',
-      '{% if == 2 or false %}hello{% endif %}',
-      '{% if < 10 and variable %}hello{% endif %}',
+    const cases = [
+      { source: '{% if > 5 and true %}hello{% endif %}', token: '>' },
+      { source: '{% if == 2 or false %}hello{% endif %}', token: '==' },
+      { source: '{% if < 10 and variable %}hello{% endif %}', token: '<' },
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain('Conditional cannot start with');
-
-      const fixed = applyFix(testCase, offenses[0]);
-      expect(fixed).to.equal('{% if false %}hello{% endif %}');
-    }
+    expect(await reportAll(cases.map((c) => c.source))).toEqual(
+      Object.fromEntries(
+        cases.map((c) => [
+          c.source,
+          {
+            messages: [cannotStartWith(c.token)],
+            fixes: ['{% if false %}hello{% endif %}'],
+          },
+        ]),
+      ),
+    );
   });
 
-  it('should report an offense for trailing tokens after comparison', async () => {
-    const source = '{% if 1 == 2 foobar %}hello{% endif %}';
-    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+  it('should report an offense for trailing tokens after a comparison', async () => {
+    const cases = [
+      { source: '{% if 1 == 2 foobar %}hello{% endif %}', kept: '1 == 2' },
+      { source: '{% if 10 > 4 baz qux %}hello{% endif %}', kept: '10 > 4' },
+      { source: "{% if 'abc' contains 'a' noise %}hello{% endif %}", kept: "'abc' contains 'a'" },
+      { source: '{% if price <= 50 extra %}hello{% endif %}', kept: 'price <= 50' },
+      { source: '{% if count != 0 junk %}hello{% endif %}', kept: 'count != 0' },
+    ];
 
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal(
-      "Syntax is not supported: Conditional is invalid. Anything after '1 == 2' will be ignored",
+    expect(await reportAll(cases.map((c) => c.source))).toEqual(
+      Object.fromEntries(
+        cases.map((c) => [
+          c.source,
+          {
+            messages: [anythingAfter(c.kept)],
+            fixes: [`{% if ${c.kept} %}hello{% endif %}`],
+          },
+        ]),
+      ),
     );
-
-    const fixed = applyFix(source, offenses[0]);
-    expect(fixed).to.equal('{% if 1 == 2 %}hello{% endif %}');
   });
 
   it('should report an offense for malformed comparisons like missing quotes', async () => {
-    const testCases = [
+    const cases = [
+      // A missing closing quote makes the REST of the tag part of the string, so what the
+      // platform keeps is not what the author sees. That is the case worth pinning exactly.
       {
         source: "{% if 'wat' == 'squat > 2 %}hello{% endif %}",
-        description: 'missing closing quote creates trailing comparison',
+        kept: "'wat' == 'squat",
+        fixed: "{% if 'wat' == 'squat %}hello{% endif %}",
       },
       {
         source: "{% if 'wat' == 'squat' > 2 %}hello{% endif %}",
-        description: 'extra comparison after valid comparison',
+        kept: "'wat' == 'squat'",
+        fixed: "{% if 'wat' == 'squat' %}hello{% endif %}",
       },
       {
         source: "{% if price == 'test' != 5 %}hello{% endif %}",
-        description: 'chained comparisons without logical operators',
+        kept: "price == 'test'",
+        fixed: "{% if price == 'test' %}hello{% endif %}",
       },
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase.source);
-      expect(offenses, `Failed for: ${testCase.description}`).to.have.length(1);
-      expect(offenses[0].message).to.contain('Anything after');
-    }
-  });
-
-  it('should report an offense for multiple trailing tokens', async () => {
-    const source = '{% if 10 > 4 baz qux %}hello{% endif %}';
-    const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
-
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.contain('Anything after');
-
-    const fixed = applyFix(source, offenses[0]);
-    expect(fixed).to.equal('{% if 10 > 4 %}hello{% endif %}');
-  });
-
-  it('should report an offense for trailing junk with different operators', async () => {
-    const testCases = [
-      "{% if 'abc' contains 'a' noise %}hello{% endif %}",
-      '{% if price <= 50 extra %}hello{% endif %}',
-      '{% if count != 0 junk %}hello{% endif %}',
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain('Anything after');
-    }
+    expect(await reportAll(cases.map((c) => c.source))).toEqual(
+      Object.fromEntries(
+        cases.map((c) => [c.source, { messages: [anythingAfter(c.kept)], fixes: [c.fixed] }]),
+      ),
+    );
   });
 
   it('should not report an offense for valid logical continuations', async () => {
-    const testCases = [
+    const sources = [
       '{% if 1 > 0 and 2 < 3 %}hello{% endif %}',
       '{% if x == 5 or y != 10 %}hello{% endif %}',
       '{% if price >= 100 and discount %}hello{% endif %}',
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
+    expect(await reportAll(sources)).toEqual(Object.fromEntries(sources.map((s) => [s, SILENT])));
   });
 
-  it('should not report an offense for truthy values followed by logical operators', async () => {
-    const testCases = [
-      '{% if true and variable %}hello{% endif %}',
-      '{% if false or variable %}hello{% endif %}',
-      '{% if 1 and user.active %}hello{% endif %}',
-      '{% if 0 or fallback %}hello{% endif %}',
-      "{% if 'string' and condition %}hello{% endif %}",
-      "{% if 'value' or default %}hello{% endif %}",
-      '{% if 42 and check %}hello{% endif %}',
-      '{% if 3.14 or backup %}hello{% endif %}',
-      '{% if nil and something %}hello{% endif %}',
-      '{% if empty or alternative %}hello{% endif %}',
-      '{% if blank and other %}hello{% endif %}',
-    ];
+  /**
+   * The `&&`/`||` HINT, on both branches that append it.
+   *
+   * `checkTrailingTokensAfterComparison` and `checkLaxParsingIssues` each test the ignored
+   * text for `&&|\|\|` and append "Use 'and'/'or' …". They are separate `if` arms reached by
+   * different token shapes, so one test cannot cover both: a comparison followed by junk
+   * lands in the first, a bare literal followed by junk in the second.
+   *
+   * Both arms are the entire reason an author gets told what they did wrong. Liquid has no
+   * `&&`, so it parses as junk after a truthy value and the condition silently becomes
+   * `{% if true %}` — the general message names the ignored text without ever saying that
+   * `&&` was the mistake. Each case is paired with its `and` spelling as the CONTROL, which
+   * must stay silent, so a rule that simply reported every conditional would fail here.
+   */
+  describe('the &&/|| hint', () => {
+    const LOGICAL_HINT = ". Use 'and'/'or' instead of '&&'/'||' for multiple conditions";
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
-  });
-
-  it('should not report an offense for complex expressions with truthy values and logical operators', async () => {
-    const testCases = [
-      '{% if true and variable > 5 %}hello{% endif %}',
-      "{% if 'test' or user.name == 'admin' %}hello{% endif %}",
-      '{% if 42 and price <= 100 %}hello{% endif %}',
-      '{% if false or count != 0 %}hello{% endif %}',
-      "{% if empty and product.title contains 'sale' %}hello{% endif %}",
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
-  });
-
-  it('should not report an offense for unknown operators errors after values (Liquid catches these)', async () => {
-    const testCases = [
-      '{% if my_var word > 5 %}hello{% endif %}',
-      '{% if jake johnson > 5 %}hello{% endif %}',
-      "{% if 'test' invalid > thing %}hello{% endif %}",
-      "{% if user.name custom 'admin' %}hello{% endif %}",
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
-  });
-
-  it('should not report an offense for unknown operators after variables', async () => {
-    const testCases = [
-      '{% if variable unknown > 5 %}hello{% endif %}',
-      "{% if user.role badop 'admin' %}hello{% endif %}",
-      '{% if price fake 100 %}hello{% endif %}',
-      '{% if "str" blue == something %}hello{% endif %}',
-      '{% if red blue > something %}hello{% endif %}',
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
-  });
-
-  it('should not report an offense for unknown operators in complex expressions', async () => {
-    const testCases = [
-      "{% if user.active and name fake 'test' %}hello{% endif %}",
-      "{% unless 'test' some > thing %}hello{% endunless %}",
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
-  });
-
-  it('SHOULD report an offense for a filter in a condition', async () => {
-    // THIS TEST ASSERTED THE OPPOSITE, and the premise was measured false. A filter in a
-    // condition is REJECTED by `pos-cli deploy --dry-run` — which fails the whole
-    // changeset, not just this template — so staying silent was a false approval.
-    //
-    // Adjudicated with paired dry-runs, each construct deployed with the filter and again
-    // without it, so a rejection caused by a bad fixture is distinguishable from one
-    // caused by the filter. All four rejected with the filter, all four accepted without:
-    //
-    //   {% if wat | upcase == 'A' %}          {% if 'a' | upcase == 'A' %}
-    //   {% if wat | upcase %}                 {% unless 'a' | upcase == 'A' %}
-    //
-    // Three of these previously produced NO diagnostic at all; only the truthy form was
-    // caught, and by accident — a heuristic about truthiness fired that never mentioned
-    // filters. Variables and literals behave identically, and so does an UNKNOWN filter
-    // name: the converter refuses the shape, not the filter.
-    const testCases = [
-      '{% if wat | something == something %}hello{% endif %}',
-      "{% if wat | upcase == 'A' %}hello{% endif %}",
-      "{% if 'a' | upcase == 'A' %}hello{% endif %}",
-      '{% if wat | upcase %}hello{% endif %}',
-      "{% unless 'a' | upcase == 'A' %}hello{% endunless %}",
-      "{% if false %}{% elsif 'a' | upcase == 'A' %}hello{% endif %}",
-      "{% if 'A' == 'a' | upcase %}hello{% endif %}",
-    ];
-
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses, testCase).to.have.length(1);
-      expect(offenses[0].message, testCase).to.contain('Filters are not allowed in a condition');
-    }
-  });
-
-  it('offers NO autofix for a filter in a condition', async () => {
-    // The repair needs an {% assign %} on a PRECEDING line, which this corrector cannot
-    // express — it may only replace the markup it was handed. A fix that simply dropped
-    // the filter would silently change what the condition tests, so none is offered.
-    const offenses = await runLiquidCheck(
-      LiquidHTMLSyntaxError,
-      "{% if 'a' | upcase == 'A' %}hello{% endif %}",
-    );
-
-    expect(offenses[0].fix).to.be.undefined;
-  });
-
-  it('still explains || separately, rather than calling it a filter', async () => {
-    // `|` and `||` are distinct tokens — measured — and someone writing `||` is reaching
-    // for JavaScript. Collapsing the two would replace a useful message with a confusing
-    // one.
-    const offenses = await runLiquidCheck(
-      LiquidHTMLSyntaxError,
-      '{% if "a" == "a" || "b" == "b" %}hello{% endif %}',
-    );
-
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.contain("Use 'and'/'or'");
-  });
-
-  it('should report an offense for misspelled logical operators', async () => {
-    const testCases = [
+    const cases = [
       {
-        source: '{% if "wat" == "squat" adn "wat" == "squat" %}hello{% endif %}',
-        misspelled: 'adn',
-        expectedFix: '"wat" == "squat"',
+        label: 'after a truthy literal',
+        source: '{% if true && false %}hello{% endif %}',
+        message: stopsAt('true', '&& false') + LOGICAL_HINT,
+        fixed: '{% if true %}hello{% endif %}',
+        control: '{% if true and false %}hello{% endif %}',
       },
       {
-        source: '{% if variable > 5 andd other < 10 %}hello{% endif %}',
-        misspelled: 'andd',
-        expectedFix: 'variable > 5',
+        label: 'after a truthy literal, || spelling',
+        source: '{% if true || false %}hello{% endif %}',
+        message: stopsAt('true', '|| false') + LOGICAL_HINT,
+        fixed: '{% if true %}hello{% endif %}',
+        control: '{% if true or false %}hello{% endif %}',
+      },
+      {
+        label: 'after a complete comparison',
+        source: '{% if 1 == 1 && 2 == 2 %}hello{% endif %}',
+        message: anythingAfter('1 == 1') + LOGICAL_HINT,
+        fixed: '{% if 1 == 1 %}hello{% endif %}',
+        control: '{% if 1 == 1 and 2 == 2 %}hello{% endif %}',
+      },
+      {
+        label: 'after a complete comparison, || spelling',
+        source: '{% if 1 == 1 || 2 == 2 %}hello{% endif %}',
+        message: anythingAfter('1 == 1') + LOGICAL_HINT,
+        fixed: '{% if 1 == 1 %}hello{% endif %}',
+        control: '{% if 1 == 1 or 2 == 2 %}hello{% endif %}',
       },
     ];
 
-    for (const testCase of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase.source);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain('Anything after');
-
-      const fixed = applyFix(testCase.source, offenses[0]);
-      expect(fixed).to.contain(testCase.expectedFix);
-    }
-  });
-
-  it('should report special message for JavaScript-style operators after literal values', async () => {
-    const testCases = [
-      '{% if true && false %}hello{% endif %}',
-      '{% if false || true %}hello{% endif %}',
-      '{% if "hello" && world %}hello{% endif %}',
-      '{% if 42 || something %}hello{% endif %}',
-    ];
-
-    for (const source of testCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
-      expect(offenses).to.have.length(1);
-      expect(offenses[0].message).to.contain(
-        "Use 'and'/'or' instead of '&&'/'||' for multiple conditions",
+    it('explains the operator, on both branches that can append the hint', async () => {
+      expect(await reportAll(cases.map((c) => c.source))).toEqual(
+        Object.fromEntries(
+          cases.map((c) => [c.source, { messages: [c.message], fixes: [c.fixed] }]),
+        ),
       );
-    }
+    });
+
+    it('CONTROL: says nothing about the same conditions spelled with and/or', async () => {
+      const controls = cases.map((c) => c.control);
+
+      expect(await reportAll(controls)).toEqual(
+        Object.fromEntries(controls.map((s) => [s, SILENT])),
+      );
+    });
   });
 
-  it('should NOT report an offense for valid logical operators', async () => {
-    const validCases = [
-      '{% if price > 100 and discount < 50 %}hello{% endif %}',
-      '{% if user.active or user.premium %}hello{% endif %}',
-      '{% if x == 1 and y == 2 or z == 3 %}hello{% endif %}',
+  /**
+   * A FILTER IN A CONDITION CARRIES NO FIX, and that is a decision rather than an omission.
+   *
+   * The repair needs an `{% assign %}` on a PRECEDING line — `{% assign a = x | upcase %}`
+   * then `{% if a == 'A' %}` — which a `StringCorrector` replacing one range cannot express.
+   * Every sibling detector in `InvalidConditionalNode.ts` returns `{ message, fix }`, so
+   * `fix: <lhs>` is the natural next edit here; it would be silently wrong. Dropping the
+   * filter changes WHAT THE CONDITION TESTS, and `checkAndAutofix` applies safe fixes
+   * without asking, so the author's branch would quietly start comparing the unfiltered
+   * value.
+   *
+   * `offense.fix` is read directly rather than through `applyFix`, which returns the source
+   * unchanged when there is no fix — indistinguishable from a fix that edits nothing.
+   */
+  it('offers NO autofix for a filter in a condition, in every form that reports one', async () => {
+    const sources = [
+      `{% if 'a' | upcase == 'A' %}hello{% endif %}`,
+      `{% unless 'a' | upcase == 'A' %}hello{% endunless %}`,
+      // The truthy form, which reached this diagnostic by a different route.
+      `{% if 'a' | upcase %}hello{% endif %}`,
     ];
 
-    for (const testCase of validCases) {
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, testCase);
-      expect(offenses).to.have.length(0);
-    }
+    const found = await Promise.all(
+      sources.map(async (source) => {
+        const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
+        return [source, offenses.map((offense) => offense.fix)];
+      }),
+    );
+
+    // One offense each, and its `fix` is absent — not merely a fix that does nothing.
+    expect(Object.fromEntries(found)).toEqual(
+      Object.fromEntries(sources.map((source) => [source, [undefined]])),
+    );
   });
 });

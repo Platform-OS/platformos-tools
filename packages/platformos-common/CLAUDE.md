@@ -209,7 +209,9 @@ it exists"); `isParsedFileType` is that sentence made enforceable.
 
 It is an explicit exclusion of one type rather than a whitelist of the other eighteen, and
 the direction matters: a NEW `PlatformOSFileType` defaults to READ, so a type added without
-a check fails `file-type-coverage.spec.ts` loudly instead of silently never being linted.
+a check fails the supervisor's file-type-coverage group (in
+`platformos-mcp-supervisor/src/transport/validate-code.spec.ts`) loudly instead of
+silently never being linted.
 Applied in exactly two places — here and `AppFile`'s constructor — so no consumer holds a
 private opinion about it.
 
@@ -236,7 +238,7 @@ This package owns **five** facts about a file, not just the directory one:
 
 | Fact | Source of truth | Enforced by |
 |---|---|---|
-| Which DIRECTORIES hold which type | `FILE_TYPE_DIRS` | `app/directory-knowledge.spec.ts`, first describe |
+| Which DIRECTORIES hold which type | `FILE_TYPE_DIRS` | `guards/directory-knowledge.spec.ts`, first describe |
 | Which EXTENSION each type has | `REFERENCE_EXTENSIONS` (+ `EXTENSION_AGNOSTIC_TYPES`), read via `getReferenceExtensions` | `path-utils.spec.ts` |
 | Which EXTENSIONS are sources | `SOURCE_FILE_EXTENSIONS`, and `SOURCE_FILE_GLOB` for walkers/watchers | same file, second describe |
 | Whether a type's contents are READ at all | `isParsedFileType` (Asset is not) | `path-utils.spec.ts`, `app/App.spec.ts` |
@@ -303,7 +305,7 @@ and `extractGraphqlVariables` (what a `{% graphql %}` call site may and must pas
 - The one caller with no file is an inline `{% graphql res %}…{% endgraphql %}` body,
   which calls `parseGraphql` directly on the text between the tags.
 
-Enforced by `platformos-check-common/src/graphql-parse-once.spec.ts` (a document is
+Enforced by `platformos-check-common/src/index.spec.ts` (a document is
 parsed once per run, and again after `setSource`) and by `identity-ownership.spec.ts`
 (no check package re-exports these).
 
@@ -322,6 +324,6 @@ Module translation keys use the prefix `modules/{name}/...`; these are routed to
 ## Key Invariants
 
 - **URIs, not filesystem paths**: all public APIs use `UriString` (a `vscode-uri`-compatible `file://...` string), never raw OS paths. A caller holding an OS path crosses over with `uriFromPath` — the only sanctioned conversion, and the reason `os-path.ts` is the one place that knows both spellings.
-- **Do not add environment-specific imports** (`fs`, `path`, etc.) — this package must remain browser-safe. Enforced by `src/app/package-boundaries.spec.ts`, which also pins the dependency list, because the `App` model only stays shareable while this package sits below the WORKSPACE packages that own the ASTs. "Below the parser stack" is about those and about browser safety, not about never reading a format: a platformOS fact defined in YAML (`extractSchemaTable`) or in GraphQL (`graphql/`) is read here, with `js-yaml` and `graphql`, and `App` still takes every parser by injection.
-- **Every workspace package must declare the `@platformos/*` siblings it imports**, enforced by `src/app/workspace-dependencies.spec.ts`. Yarn hoisting hid six missing declarations until it was added.
+- **Do not add environment-specific imports** (`fs`, `path`, etc.) — this package must remain browser-safe. Enforced by `src/guards/package-boundaries.spec.ts`, which also pins the dependency list, because the `App` model only stays shareable while this package sits below the WORKSPACE packages that own the ASTs. "Below the parser stack" is about those and about browser safety, not about never reading a format: a platformOS fact defined in YAML (`extractSchemaTable`) or in GraphQL (`graphql/`) is read here, with `js-yaml` and `graphql`, and `App` still takes every parser by injection.
+- **Every workspace package must declare the `@platformos/*` siblings it imports**, enforced by `src/guards/workspace-dependencies.spec.ts`. Yarn hoisting hid six missing declarations until it was added.
 - `FILE_TYPE_DIRS` drives both classification and search path generation. Keep it in sync with the server's `converters_config.rb`.

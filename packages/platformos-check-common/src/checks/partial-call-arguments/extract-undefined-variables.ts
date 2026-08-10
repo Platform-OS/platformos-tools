@@ -23,6 +23,7 @@ import {
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
 import { AppFile } from '@platformos/platformos-common';
+import { isLiquidDocument } from '../../utils';
 
 type Scope = { start?: number; end?: number };
 
@@ -72,7 +73,14 @@ export function extractUndefinedVariables(
   globalObjectNames: string[] = [],
   parsed?: LiquidHtmlNode,
 ): UndefinedVariables {
-  return computeUndefinedVariables(source, globalObjectNames, parsed);
+  let ast;
+  try {
+    ast = parsed ?? toLiquidHtmlAST(source);
+  } catch {
+    return { required: [], optional: [], selfDefaulted: [], defined: [] };
+  }
+
+  return analyze(ast, globalObjectNames);
 }
 
 /**
@@ -92,7 +100,7 @@ export function undefinedVariablesOf(
 ): UndefinedVariables {
   const analysis = file.derived(`undefinedVariables\u0000${globalObjectNames.join(',')}`, () => {
     const ast = file.ast;
-    return computeUndefinedVariables(
+    return extractUndefinedVariables(
       file.source,
       globalObjectNames,
       isLiquidDocument(ast) ? ast : undefined,
@@ -107,28 +115,7 @@ export function undefinedVariablesOf(
   };
 }
 
-/**
- * An `AppFile`'s `ast` is `unknown` — `platformos-common` sits below the parsers — and holds
- * an `Error` for a file that did not parse, so it is narrowed rather than asserted.
- */
-function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
-  return (
-    typeof ast === 'object' && ast !== null && (ast as LiquidHtmlNode).type === NodeTypes.Document
-  );
-}
-
-function computeUndefinedVariables(
-  source: string,
-  globalObjectNames: string[],
-  parsed?: LiquidHtmlNode,
-): UndefinedVariables {
-  let ast;
-  try {
-    ast = parsed ?? toLiquidHtmlAST(source);
-  } catch {
-    return { required: [], optional: [], selfDefaulted: [], defined: [] };
-  }
-
+function analyze(ast: LiquidHtmlNode, globalObjectNames: string[]): UndefinedVariables {
   const scopedVariables: Map<string, Scope[]> = new Map();
   const fileScopedVariables: Set<string> = new Set(globalObjectNames);
   /** Each USE of a variable — enough of one to place and name it. */

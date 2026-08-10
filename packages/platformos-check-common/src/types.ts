@@ -319,7 +319,7 @@ type CheckExitMethods<T extends SourceCodeType> = {
    * rather than an exit one.
    *
    * This said "in reverse order" until the behaviour was recorded from the running code
-   * (`visitors/traversal-order.spec.ts`). No shipped check declares an `:exit` method,
+   * (`visitors/index.spec.ts`). No shipped check declares an `:exit` method,
    * which is how prose describing the opposite of the implementation went unnoticed.
    * The behaviour is left as-is deliberately and tracked in TASK-73 — a check written
    * against the old comment would be subtly wrong, so the comment is what had to change

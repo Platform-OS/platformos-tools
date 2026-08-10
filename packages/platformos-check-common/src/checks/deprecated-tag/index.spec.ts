@@ -25,7 +25,7 @@ vi.mock('@platformos/liquid-html-parser', async (importOriginal) => {
  *
  * Two entries are the current docset with ONE field changed, and each says so: the change is
  * the case under test, and the names around it stay real. What the committed docset actually
- * says is asserted whole in `platformos-check-node/src/deprecated-tag-autofix.spec.ts`.
+ * says is asserted whole in `platformos-check-node/src/autofix.spec.ts`.
  *
  * The list is a SUBSET of the docset — `sign_in` is deliberately missing — which is itself
  * one of the cases below.

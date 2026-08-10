@@ -27,7 +27,7 @@ import { visit } from '../../visitor';
 import { createBoundedCache } from '../../utils/bounded-cache';
 import { extractUndefinedVariables } from '../partial-call-arguments/extract-undefined-variables';
 import { isNullLiteral } from '../../liquid-doc/utils';
-import { isAlternativeReturningFilter, navigationFilter } from '../../filter-semantics';
+import { alternativeSubstituteArg, navigationFilter } from '../../filter-semantics';
 import {
   ConditionValue,
   NIL_SHAPE,
@@ -77,6 +77,12 @@ type ValueExpression = ComplexLiquidExpression | LiquidVariable;
 
 /** How many partial analyses to keep: one per distinct (partial, arguments) pair. */
 const RETURN_SHAPE_CACHE_LIMIT = 512;
+
+/**
+ * How many interned SDLs to keep. A process sees ONE, and a second only after a docs update
+ * replaces it — so this is a leak bound rather than a working set.
+ */
+const SCHEMA_ID_CACHE_LIMIT = 4;
 
 /** A liquid file the analyzer can read: its identity, its content and its parse. */
 export interface AnalyzableFile {
@@ -764,10 +770,9 @@ function parseJsonChainShape(
 
   for (const filter of filters.slice(0, parseAt)) {
     // Nothing else transforms a value on its way INTO the parse in a way we can follow, and
-    // `filter-semantics.ts` owns which filters return an operand rather than a value.
-    if (!isAlternativeReturningFilter(filter.name)) return undefined;
-    // The argument standing in for the piped value, which that same table defines.
-    const fallback = filter.args[0];
+    // `filter-semantics.ts` owns both which filters return an operand rather than a value and
+    // which argument that operand is. Only a String literal here is a document we can read.
+    const fallback = alternativeSubstituteArg(filter);
     if (!fallback || fallback.type !== NodeTypes.String) return undefined;
     const parsed = inferShapeFromJSONString(fallback.value);
     if (!parsed) return undefined;
@@ -943,41 +948,22 @@ async function isStale(analysis: PartialAnalysis, deps: ShapeAnalyzerDeps): Prom
 /**
  * A short stand-in for an SDL, so a cache key carries an id rather than a whole schema.
  *
- * The map keys are the SDL strings themselves, which is why it does not grow with USE: a
- * docset memoizes its schema, and a rebuilt docset re-reads the same bytes, so a re-read
- * lands on the same string VALUE and the same entry. It does grow with distinct schemas, and
- * each is 304 KB of platformOS SDL held for as long as the map is — which is what
- * {@link clearShapeAnalysisCaches} is for.
+ * Keyed on the SDL string itself, which is why it does not grow with USE: a docset memoizes
+ * its schema, and a rebuilt docset re-reads the same bytes, so a re-read lands on the same
+ * string VALUE and the same entry. It grows only with DISTINCT schemas, and each is 304 KB of
+ * platformOS SDL — so it is CAPPED rather than left to a caller's goodwill: a long-lived host
+ * that picks up new docs would otherwise retain every schema it had ever seen, and nothing
+ * called the clear() this module used to export for that. Eviction costs a cache partition
+ * and nothing else, since an evicted schema simply interns again under a new id.
  *
- * Ids come from a counter and not from the map's size, so an entry that goes away can never
+ * Ids come from a counter and not from the cache's size, so an entry that ages out can never
  * hand its id to a different schema.
  */
-const schemaIds = new Map<string, string>();
+const schemaIds = createBoundedCache<string>(SCHEMA_ID_CACHE_LIMIT);
 let nextSchemaId = 1;
 
 function schemaIdentity(schema: string | undefined): string {
-  if (schema === undefined) return 'no-sdl';
-  const known = schemaIds.get(schema);
-  if (known) return known;
-
-  const id = `sdl${nextSchemaId++}`;
-  schemaIds.set(schema, id);
-  return id;
-}
-
-/**
- * Release everything this module holds between runs: the memoized partial analyses, each of
- * which retains the sources it read, and the interned schemas.
- *
- * Nothing needs it for CORRECTNESS — an analysis is revalidated on every hit and a schema id
- * is stable — so this is the memory half, for a long-lived host that has switched projects or
- * picked up a new docset, and for tests that must not inherit each other's entries. The same
- * shape as `clearUndefinedVariablesCache`, which its sibling cache exports for the same
- * reason.
- */
-export function clearShapeAnalysisCaches(): void {
-  analysisCache.clear();
-  schemaIds.clear();
+  return schema === undefined ? 'no-sdl' : schemaIds(schema, () => `sdl${nextSchemaId++}`);
 }
 
 /** Only what the callee can branch on: a boolean, and the STRUCTURE of a shape. */

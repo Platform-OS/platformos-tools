@@ -19,7 +19,7 @@ yarn type-check   # tsc --noEmit
 yarn test         # vitest
 
 # Single spec
-yarn test src/lint-buffer.spec.ts
+yarn test src/index.spec.ts
 ```
 
 ## Entrypoints (`src/index.ts`)
@@ -48,7 +48,8 @@ check. **Do not filter `getAppFilePaths` (or any `App`) by it.** Doing so made a
 ignored file invisible to cross-file checks, and the false positives then landed on
 files the config does *not* ignore: a project ignoring its vendored `modules/*` got
 `No page found for route '/inbox'` because the page defining `/inbox` lives in one.
-`ignored-files-visibility.spec.ts` fails if this comes back.
+`index.spec.ts`'s "files the config ignores are still visible to cross-file checks"
+group fails if this comes back.
 
 ### `{% doc %}` for a target outside the app (`doc-definitions.ts`)
 

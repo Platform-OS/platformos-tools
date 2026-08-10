@@ -59,8 +59,8 @@ export interface FilterReturnTypeMeasurement {
 /**
  * The sweep, one row per filter, sorted by name.
  *
- * Consumed by `filter-return-type-sweep.spec.ts`, which runs the real check over the
- * real docset and asserts that its verdict matches these measurements for every row. A
+ * Consumed by `index.spec.ts`'s sweep groups, which run the real check over the
+ * real docset and assert that its verdict matches these measurements for every row. A
  * docset update that changes a return_type therefore fails a test instead of silently
  * changing what the server refuses to write.
  */

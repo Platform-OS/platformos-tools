@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
  * EXPLAINS the directory rule to an agent in prose, which is a different job from
  * applying it, and check-node is its only dependency.
  */
-const packagesRoot = join(__dirname, '..', '..');
+const packagesRoot = join(__dirname, '..', '..', '..');
 const scannedPackages = ['platformos-check-common', 'platformos-check-node'];
 
 describe('file identity has one owner', () => {
@@ -55,6 +55,23 @@ describe('file identity has one owner', () => {
 
   it('is never re-exported by the check packages', async () => {
     expect(await reExportsOf(IDENTITY_SYMBOLS, ALLOWED)).toEqual([]);
+  });
+
+  /**
+   * THE CONTROL, for this scan and for the GraphQL one below — they are the same function
+   * over the same walk.
+   *
+   * Every assertion here says a scan found nothing, and a scan that found nothing because it
+   * scanned nothing says exactly the same thing: a renamed package, a moved `src`, or a
+   * matcher that quietly stopped matching. That last one is not hypothetical — the pattern
+   * only accepts SINGLE-quoted specifiers, so a formatting change alone would silence the
+   * rule for good, green all the way.
+   *
+   * Run without the allowlist, the scan must still find the one re-export this repo really
+   * has. That makes the emptiness above a fact about the code rather than about the scanner.
+   */
+  it('still finds the re-export the allowlist exempts, so an empty result means something', async () => {
+    expect(await reExportsOf(IDENTITY_SYMBOLS, new Set())).toEqual([...ALLOWED]);
   });
 });
 

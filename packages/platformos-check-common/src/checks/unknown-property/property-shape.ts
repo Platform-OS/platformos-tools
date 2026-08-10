@@ -139,17 +139,19 @@ export function mergeAlternatives(a: PropertyShape, b: PropertyShape): PropertyS
  * per unknown element.
  */
 function unverifiable(shape: PropertyShape): PropertyShape {
+  if (isUnverifiable(shape)) return shape;
+
   const properties = new Map<string, PropertyShape>();
   for (const [key, value] of shape.properties ?? []) properties.set(key, withOptional(value, true));
-  return isUnverifiable(shape) ? shape : objectWith(properties, true);
+  return objectWith(properties, true);
 }
 
 function isUnverifiable(shape: PropertyShape): boolean {
-  return (
-    shape.open === true &&
-    shape.placeholder !== true &&
-    [...(shape.properties ?? [])].every(([, value]) => value.optional === true)
-  );
+  if (shape.open !== true || shape.placeholder === true) return false;
+  for (const value of shape.properties?.values() ?? []) {
+    if (value.optional !== true) return false;
+  }
+  return true;
 }
 
 /** The one shape describing whichever of `shapes` a read reaches. */

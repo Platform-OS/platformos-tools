@@ -33,11 +33,13 @@ import {
   PlatformOSDocset,
   path,
   BasicParamTypes,
+  alternativeSubstituteArg,
   buildLookupPath,
   createShapeAnalyzer,
   getValidParamTypes,
   inferShapeFromJSONString,
   isAlternativeReturningFilter,
+  isLiquidDocument,
   lookupPropertyPath,
   parseParamType,
 } from '@platformos/platformos-check-common';
@@ -52,6 +54,7 @@ import {
 import {
   AbstractFileSystem,
   App,
+  AppFile,
   AppResolver,
   DocumentsLocator,
   GraphQLDocumentNode,
@@ -735,9 +738,9 @@ function alternativeFilterType(
   objectMap: ObjectMap,
   filtersMap: FiltersMap,
 ): PseudoType | ArrayType | ShapeType | UnionType | undefined {
-  const fallback = lastFilter.args[0];
-  // `{{ x | default }}` and `{{ x | default: allow_false: true }}` name no substitute at all.
-  const substitute = fallback && fallback.type !== NodeTypes.NamedArgument ? fallback : undefined;
+  // `{{ x | default }}` and `{{ x | default: allow_false: true }}` name no substitute at all,
+  // which `filter-semantics.ts` answers for — it owns the `alternative` row this reads.
+  const substitute = alternativeSubstituteArg(lastFilter);
   const substituteType = () =>
     substitute && inferType(substitute, symbolsTable, objectMap, filtersMap);
 
@@ -1568,15 +1571,10 @@ function shapeAnalyzerDeps(
         const uri = await locate('graphql', name);
         if (!uri) return undefined;
 
-        const file = app?.get(uri);
-        if (file) {
-          // A failed load leaves `ast` unparseable rather than throwing out of here, and
-          // the read below is then the second chance.
-          await file.load().catch(() => undefined);
-          if (isGraphqlDocument(file.ast)) return { uri, ast: file.ast };
-        }
+        const file = await loadedAppFile(uri, app);
+        if (file && isGraphqlDocument(file.ast)) return { uri, ast: file.ast };
 
-        const content = await readSource(uri, fs, app);
+        const content = await readContent(uri);
         return content === undefined ? undefined : { uri, ast: parseGraphql(content) };
       }),
 
@@ -1637,11 +1635,8 @@ async function readLiquidFile(
   fs: AbstractFileSystem | undefined,
   app: App | undefined,
 ): Promise<{ source: string; ast: LiquidHtmlNode } | undefined> {
-  const file = app?.get(uri);
+  const file = await loadedAppFile(uri, app);
   if (file) {
-    // A failed load leaves the file unparsed rather than throwing out of here, and the
-    // read below is then the second chance.
-    await file.load().catch(() => undefined);
     const { ast, loadedSource } = file;
     if (loadedSource !== undefined && isLiquidDocument(ast)) return { source: loadedSource, ast };
   }
@@ -1657,6 +1652,21 @@ async function readLiquidFile(
 }
 
 /**
+ * The `App`'s file for `uri`, its `load()` already awaited — the one prologue every read
+ * below shares, so none of them spells it a second time and they cannot come to disagree.
+ *
+ * A failed load leaves the file unread and unparsed rather than throwing out of here; the
+ * caller's filesystem fallback is then the second chance.
+ */
+async function loadedAppFile(uri: string, app: App | undefined): Promise<AppFile | undefined> {
+  const file = app?.get(uri);
+  if (!file) return undefined;
+
+  await file.load().catch(() => undefined);
+  return file;
+}
+
+/**
  * A file's text, BUFFER FIRST: the `App`'s copy when it has one, the filesystem otherwise.
  * ONE spelling of that rule for this whole module. `undefined` when neither can produce it.
  */
@@ -1665,11 +1675,8 @@ async function readSource(
   fs: AbstractFileSystem | undefined,
   app: App | undefined,
 ): Promise<string | undefined> {
-  const file = app?.get(uri);
-  if (file) {
-    await file.load().catch(() => undefined);
-    if (file.loadedSource !== undefined) return file.loadedSource;
-  }
+  const file = await loadedAppFile(uri, app);
+  if (file?.loadedSource !== undefined) return file.loadedSource;
 
   if (!fs) return undefined;
   try {
@@ -1677,17 +1684,6 @@ async function readSource(
   } catch {
     return undefined;
   }
-}
-
-/**
- * An `AppFile`'s `ast` is typed `unknown` — `platformos-common` sits below the parsers —
- * and holds an `Error` for a file that did not parse, so it is narrowed here rather than
- * asserted.
- */
-function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
-  return (
-    typeof ast === 'object' && ast !== null && (ast as LiquidHtmlNode).type === NodeTypes.Document
-  );
 }
 
 /**

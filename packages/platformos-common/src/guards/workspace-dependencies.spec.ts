@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 
 const packagesDir = join(__dirname, '..', '..', '..');
 
@@ -73,6 +73,46 @@ describe('workspace dependency declarations', () => {
     }
 
     expect(cycles(graph)).toEqual([]);
+  });
+
+  /**
+   * THE CONTROL FOR BOTH. Every assertion above says a scan found nothing, and a scan that
+   * found nothing because it scanned NOTHING says exactly the same thing — a moved `src`, a
+   * renamed `packages/`, a `sourceFiles` that swallowed its own `readdir` error (it does,
+   * deliberately, for packages with no `src`). Silence would then be permanent and total.
+   *
+   * So: the walk must still find this package, and the reader must still see the import that
+   * put this very file's subject on the map. Both are facts about the repository, not about
+   * the rule — if either changes legitimately, this fails and says which half.
+   */
+  it('scans a real package and really reads its imports, so an empty result means something', async () => {
+    const dirs = await workspacePackages();
+    const checkCommon = dirs.find((dir) => dir.endsWith('platformos-check-common'));
+    assert(checkCommon, `workspacePackages() found no platformos-check-common in ${packagesDir}`);
+
+    const imported = await importedWorkspacePackages(join(checkCommon, 'src'));
+
+    expect(imported.has('@platformos/platformos-common')).toBe(true);
+  });
+
+  /**
+   * And the cycle detector itself sees one when there is one, which the repo must not have.
+   *
+   * The nodes are NOT spelled `@platformos/…`, deliberately: the import reader above matches
+   * every quoted `@platformos/*` string under `src/`, spec files included, so a fixture
+   * spelled that way would be read as four undeclared imports of packages that do not exist.
+   * It failed exactly that way when this test was first written.
+   */
+  it('reports a cycle when the graph has one', () => {
+    const graph = new Map([
+      ['pkg-a', ['pkg-b']],
+      ['pkg-b', ['pkg-c']],
+      ['pkg-c', ['pkg-a']],
+      // Enters the cycle from outside, and must not report it a second time.
+      ['pkg-d', ['pkg-a']],
+    ]);
+
+    expect(cycles(graph)).toEqual(['pkg-a -> pkg-b -> pkg-c -> pkg-a']);
   });
 });
 

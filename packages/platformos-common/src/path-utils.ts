@@ -376,9 +376,9 @@ export function getModuleDirPaths(dir: string, moduleName: string): string[] {
  * AN EXPLICIT EXCLUSION, deliberately, rather than a whitelist of the other eighteen
  * types. A whitelist would give a NEW `PlatformOSFileType` the default "not read",
  * which is silent and wrong in the expensive direction — a newly-added YAML type would
- * stop being linted with nothing to notice it, the exact regression
- * `file-type-coverage.spec.ts` exists to catch. Defaulting a new type to "read" fails
- * loudly instead: it either has a check or that guard says so.
+ * stop being linted with nothing to notice it, the exact regression the supervisor's
+ * file-type-coverage group exists to catch. Defaulting a new type to "read" fails loudly
+ * instead: it either has a check or that guard says so.
  *
  * This is NOT the ignore-list the note below warns against, and the difference is the
  * one that mattered there: that list was a regex inside ONE predicate, so the language

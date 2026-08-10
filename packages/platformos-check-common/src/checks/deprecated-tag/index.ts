@@ -19,7 +19,7 @@ import { createBoundedCache } from '../../utils/bounded-cache';
  * other working tag, renaming to one the docs never recommended. Neither is visible from
  * outside: the offense is reported either way and only the fix changes. So an unrecognized
  * phrasing yields no rename rather than a guess. `index.spec.ts` carries both phrasings, and
- * `deprecated-tag-autofix.spec.ts` asserts the committed docset still resolves every tag it
+ * check-node's `autofix.spec.ts` asserts the committed docset still resolves every tag it
  * deprecates, so a drift fails there naming the tag.
  */
 const NAMED_REPLACEMENT = /^Use \{%-?\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*-?%\}/;

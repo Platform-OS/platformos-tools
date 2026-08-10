@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runLiquidCheck } from '../../../test';
+import { runLiquidCheck, messagesOf } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
 
 // Runtime-aligned via pos-cli sync against a live staging instance:
@@ -53,8 +53,9 @@ describe('detectInvalidOutputPush', () => {
     it('should suppress the generic InvalidEchoValue duplicate', async () => {
       // Without the dedicated check, InvalidEchoValue would also report "Syntax is not supported".
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, `{{ arr << "el" }}`);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain("'<<' (push) operator");
+      expect(messagesOf(offenses)).toEqual([
+        "The '<<' (push) operator is only valid inside '{% assign target << value %}'. Remove it or move the expression into an assign tag.",
+      ]);
     });
   });
 

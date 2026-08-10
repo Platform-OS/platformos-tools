@@ -1,8 +1,8 @@
 import { path as pathUtils } from '@platformos/platformos-check-common';
 import { describe, expect, it } from 'vitest';
-import { extractFileReferences } from '../index';
+import { extractFileReferences, extractStructural } from '../index';
 import { toSourceCode } from '../toSourceCode';
-import { Reference } from '../types';
+import { ModuleStructural, Reference } from '../types';
 import { fixturesRoot, getDependencies } from './test-helpers';
 
 /**
@@ -237,5 +237,42 @@ layout: "{{ context.constants.LAYOUT }}"
 <h1>x</h1>`;
 
     expect(await extract(rootUri, sourceUri, content)).toEqual([]);
+  });
+});
+
+describe('extractStructural: the per-file primitive', () => {
+  const rootUri = pathUtils.join(fixturesRoot, 'structural');
+  // `rootUri` is already a URI, so joining is the whole conversion — `URI.file` on one
+  // yields `file:///file%3A///…`, a plausible-looking URI for nowhere.
+  const uriOf = (part: string) => pathUtils.join(rootUri, ...part.split('/'));
+
+  const run = async (part: string, content: string): Promise<ModuleStructural | undefined> => {
+    const uri = uriOf(part);
+    return extractStructural(await toSourceCode(uri, content), uri);
+  };
+
+  it('extracts usage + routing facts from an in-flight buffer (no graph build)', async () => {
+    const content = `---
+layout: theme
+method: post
+---
+{% render 'card' %}
+{{ 'greeting.hi' | t }}
+{{ title | upcase }}`;
+    expect(await run('app/views/pages/contact.liquid', content)).toEqual({
+      renders_used: ['card'],
+      graphql_queries_used: [],
+      filters_used: ['t', 'upcase'],
+      tags_used: ['render'],
+      translation_keys: ['greeting.hi'],
+      doc_params: [],
+      slug: 'contact',
+      layout: 'theme',
+      method: 'post',
+    });
+  });
+
+  it('returns undefined for a non-Liquid (.graphql) buffer', async () => {
+    expect(await run('app/graphql/find.graphql', 'query find { records { id } }')).toBeUndefined();
   });
 });

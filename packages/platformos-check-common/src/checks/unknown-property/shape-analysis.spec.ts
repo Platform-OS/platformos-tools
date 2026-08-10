@@ -93,16 +93,28 @@ describe('Module: the partial-analysis memo', () => {
   }
 
   /**
-   * The deps the editor builds: it can explain `context.current_user`, and says so in its
-   * identity. The resolver answers for the WHOLE read, which is the seam's contract.
+   * The two consumers share ONE `analysisIdentity` on purpose, so the pair of tests below can
+   * only pass on the segment of the key the cache folds in ITSELF — the presence of a
+   * `resolveExternalShape`. Give them different identities and both pass with that segment
+   * deleted, which is what the interface's "an invariant it enforces is one no consumer has to
+   * remember" would then be promising with nothing behind it.
+   *
+   * The other direction — a differing `analysisIdentity` separating deps that are otherwise
+   * identical — is pinned separately below.
+   */
+  const SHARED_IDENTITY = 'spec/analyzer';
+
+  /**
+   * The deps the editor builds: it can explain `context.current_user`. The resolver answers for
+   * the WHOLE read, which is the seam's contract.
    */
   const editorDeps = (uri: string) =>
-    depsFor('spec/with-external-shapes', uri, (read) =>
+    depsFor(SHARED_IDENTITY, uri, (read) =>
       read.name === 'context' && read.lookups.length === 1 ? CURRENT_USER_SHAPE : undefined,
     );
 
   /** The deps a check builds: no resolver, so `context.current_user` is nothing it can see. */
-  const checkDeps = (uri: string) => depsFor('spec/no-external-shapes', uri);
+  const checkDeps = (uri: string) => depsFor(SHARED_IDENTITY, uri);
 
   /**
    * Editor deps whose partial can be EDITED between calls, with both reads answering from the
@@ -181,6 +193,30 @@ describe('Module: the partial-analysis memo', () => {
     await shapeOfShared(deps);
 
     expect(deps.revalidations).toEqual(1);
+  });
+
+  /**
+   * The OTHER half of `analysisIdentity`'s contract: a consumer-supplied string separates two
+   * deps that the cache cannot tell apart by itself.
+   *
+   * Both of these have no resolver, so the segment the pair above exercises is identical —
+   * only the identity differs. Counted through `readContent` rather than through the shape,
+   * because two deps that answer alike produce the same shape whether they shared an entry or
+   * not: the first call computes and revalidates nothing, so a second consumer that got its own
+   * entry revalidates nothing either, and one that was served the first's revalidates once.
+   */
+  it('separates two consumers by analysisIdentity alone', async () => {
+    const uri = 'file:///app/lib/queries/by-identity.liquid';
+    const first = depsFor('spec/consumer-a', uri);
+    const second = depsFor('spec/consumer-b', uri);
+
+    await shapeOfShared(first);
+    await shapeOfShared(second);
+
+    expect({ first: first.revalidations, second: second.revalidations }).toEqual({
+      first: 0,
+      second: 0,
+    });
   });
 
   /**

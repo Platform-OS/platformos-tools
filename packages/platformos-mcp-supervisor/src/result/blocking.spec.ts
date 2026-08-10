@@ -123,7 +123,8 @@ describe('Unit: blocksWrite', () => {
     // pinned here rather than merely deleted because they READ as obviously
     // belonging: "the file does not parse" is the strongest membership argument in
     // the file, and it was true of the checks and irrelevant to this server.
-    // `blocking-emission.spec.ts` holds the behavioural proof.
+    // the "every blocking check can actually block" group in
+    // `transport/validate-code.spec.ts` holds the behavioural proof.
     expect([BLOCKING_CHECKS.has('ValidJSON'), BLOCKING_CHECKS.has('JSONSyntaxError')]).toEqual([
       false,
       false,

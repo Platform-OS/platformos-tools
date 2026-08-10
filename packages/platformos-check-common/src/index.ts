@@ -73,6 +73,7 @@ export * as path from './path';
 // (`sourceParsers`) and reads the document the file already holds.
 export * from './to-source-code';
 export * from './types';
+export * from './utils/ast';
 export * from './utils/bounded-cache';
 export * from './utils/error';
 // NOT `./utils/graphql-schema`: a schema is only inspectable by the `graphql`

@@ -2,13 +2,12 @@ import {
   LiquidHtmlNode,
   LiquidTag,
   LiquidVariableLookup,
-  NodeTypes,
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
 import { DocumentsLocator, isGraphqlDocument, parseGraphql } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isError } from '../../utils';
+import { isError, isLiquidDocument } from '../../utils';
 import { lookupPropertyPath } from './property-shape';
 import {
   AnalyzableFile,
@@ -178,11 +177,3 @@ export const UnknownProperty: LiquidCheckDefinition = {
     };
   },
 };
-
-function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
-  return (
-    typeof ast === 'object' &&
-    ast !== null &&
-    (ast as { type?: unknown }).type === NodeTypes.Document
-  );
-}

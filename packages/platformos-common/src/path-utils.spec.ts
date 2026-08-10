@@ -1,18 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import {
+  APP_SOURCE_SUBTREES,
   ASSET_FILE_OPERATION_GLOB,
+  FILE_TYPE_DIRS,
+  FILE_TYPE_FILES,
+  MODULE_ROOTS,
   PlatformOSFileType,
   getFileType,
   getAppPaths,
   getAppPathsAcrossRoots,
   getModulePaths,
+  getReferenceExtensions,
   formatRank,
   getTranslationBase,
   isParsedFileType,
   isSupportedSourceFile,
   isPartial,
   isPage,
+  nameToCreationPath,
+  nameToPaths,
   parseAppPath,
+  pathToName,
+  uriToName,
 } from './path-utils';
 
 // Helper: build a realistic absolute URI under a project root
@@ -561,8 +570,8 @@ describe('isSupportedSourceFile', () => {
    *
    * Deliberately derived from the enum, so a NEW `PlatformOSFileType` shows up here
    * automatically and defaults to "read", which is the safe direction: a new type with no
-   * check fails `file-type-coverage.spec.ts` loudly, whereas a new type silently not read
-   * is the regression nothing catches.
+   * check fails the supervisor's file-type-coverage group loudly, whereas a new type
+   * silently not read is the regression nothing catches.
    */
   it('reads every file type except Asset', () => {
     const notParsed = Object.values(PlatformOSFileType).filter((type) => !isParsedFileType(type));
@@ -939,5 +948,402 @@ describe('formatRank', () => {
   it('gives a non-format dot no rank, and non-format-bearing types none at all', () => {
     expect(formatRank(PlatformOSFileType.Partial, 'user.avatar.liquid')).toEqual(0);
     expect(formatRank(PlatformOSFileType.Page, 'api/users.json.liquid')).toEqual(0);
+  });
+});
+
+/**
+ * `pathToName` and `nameToPaths` are inverses, and this is the test that says so.
+ *
+ * It is the guarantee the toolchain was missing. `platformos-graph` resolved
+ * `{{ 'app.js' | asset_url }}` to a root-level `assets/app.js` while
+ * `DocumentsLocator` resolved the same reference to `app/assets/app.js`, and nothing
+ * failed — because each had its own copy of the rule and neither was checked against
+ * the other direction. With one definition and this property, that bug cannot recur:
+ * a name derived from a path must lead back to that path.
+ */
+describe('pathToName ⇄ nameToPaths round trip', () => {
+  /** Every (type, dir, root) combination the directory structure allows. */
+  function everyLayout(): { fileType: PlatformOSFileType; path: string }[] {
+    const cases: { fileType: PlatformOSFileType; path: string }[] = [];
+
+    // Fixed-path types are absent from FILE_TYPE_DIRS by construction and covered
+    // separately below.
+    for (const [fileType, dirs] of Object.entries(FILE_TYPE_DIRS) as [
+      PlatformOSFileType,
+      readonly string[],
+    ][]) {
+      const leaves = [`thing${leafExtension(fileType)}`];
+
+      // A response format is not part of a layout's or partial's name, so the
+      // format-suffixed spelling must lead back to itself through the SAME name.
+      // `csv` rather than `html` on purpose: `html` was always enumerated, and the
+      // bug this pins was every OTHER format — `index.csv.liquid` had a name the
+      // candidate list could not resolve.
+      if (fileType === PlatformOSFileType.Layout || fileType === PlatformOSFileType.Partial) {
+        leaves.push(`thing.csv${leafExtension(fileType)}`);
+      }
+
+      for (const dir of dirs) {
+        for (const leaf of leaves) {
+          cases.push({ fileType, path: `app/${dir}/${leaf}` });
+          cases.push({ fileType, path: `app/${dir}/nested/deeply/${leaf}` });
+
+          for (const root of MODULE_ROOTS) {
+            for (const access of ['public', 'private'] as const) {
+              cases.push({ fileType, path: `${root}/mymod/${access}/${dir}/${leaf}` });
+              cases.push({ fileType, path: `${root}/mymod/${access}/${dir}/nested/${leaf}` });
+            }
+          }
+        }
+      }
+    }
+
+    return cases;
+  }
+
+  /**
+   * Derived, never switched on: classification anchors the extension for every type
+   * but the four in `EXTENSION_AGNOSTIC_TYPES`, so a hand-written switch here would
+   * generate unclassifiable paths the moment a type was added — which is exactly what
+   * it did for the two ActivityStreams types.
+   *
+   * `Asset` has no reference extension because an asset reference carries its own;
+   * `.css` stands in for one.
+   */
+  function leafExtension(fileType: PlatformOSFileType): string {
+    const [extension = '.css'] = getReferenceExtensions(fileType);
+    return extension;
+  }
+
+  it('leads every path back to itself through its own name', () => {
+    const broken: string[] = [];
+
+    for (const { fileType, path } of everyLayout()) {
+      const resolved = pathToName(path);
+      if (!resolved) {
+        broken.push(`${path}: pathToName returned undefined`);
+        continue;
+      }
+      if (resolved.fileType !== fileType) {
+        broken.push(`${path}: classified as ${resolved.fileType}, expected ${fileType}`);
+        continue;
+      }
+
+      const candidates = nameToPaths(resolved.fileType, resolved.name);
+      if (!candidates.includes(path)) {
+        broken.push(`${path}: name '${resolved.name}' resolves to ${candidates.join(', ')}`);
+      }
+    }
+
+    expect(broken).toEqual([]);
+  });
+
+  it('puts the canonical location first, so a not-yet-existing file has one answer', () => {
+    expect(nameToPaths(PlatformOSFileType.Partial, 'ui/card')[0]).toBe(
+      'app/views/partials/ui/card.liquid',
+    );
+    expect(nameToPaths(PlatformOSFileType.Layout, 'application')[0]).toBe(
+      'app/views/layouts/application.liquid',
+    );
+    expect(nameToPaths(PlatformOSFileType.GraphQL, 'user/find')[0]).toBe(
+      'app/graphql/user/find.graphql',
+    );
+    expect(nameToPaths(PlatformOSFileType.Asset, 'styles/theme.css')[0]).toBe(
+      'app/assets/styles/theme.css',
+    );
+  });
+
+  /**
+   * The format spellings a layout or partial name enumerates, in resolution
+   * order: plain first, then every entry of the platform's FORMAT_ENUM, `html`
+   * leading. Spelled out here so the pins below assert nameToPaths' ENTIRE
+   * answer rather than sampling it.
+   */
+  const FORMAT_SPELLINGS = [
+    '',
+    '.html',
+    '.json',
+    '.xml',
+    '.rss',
+    '.csv',
+    '.pdf',
+    '.css',
+    '.text',
+    '.js',
+    '.txt',
+    '.svg',
+    '.ics',
+  ];
+
+  it('orders module candidates app-overwrite first, public before private', () => {
+    // Each search path contributes every format spelling, plain first, because a
+    // layout is referenced as `application` whatever format its file carries.
+    expect(nameToPaths(PlatformOSFileType.Layout, 'modules/core/application')).toEqual(
+      [
+        'app/modules/core/public/views/layouts',
+        'app/modules/core/private/views/layouts',
+        'modules/core/public/views/layouts',
+        'modules/core/private/views/layouts',
+      ].flatMap((dir) => FORMAT_SPELLINGS.map((format) => `${dir}/application${format}.liquid`)),
+    );
+  });
+
+  it('finds a format-carrying layout or partial under its format-less name', () => {
+    // The documented example layout is `views/layouts/1col.html.liquid`, referenced as
+    // `1col` — the format is not part of the name.
+    expect(pathToName('app/views/layouts/1col.html.liquid')!.name).toBe('1col');
+    expect(pathToName('app/views/partials/card.html.liquid')!.name).toBe('card');
+    expect(nameToPaths(PlatformOSFileType.Layout, '1col')).toContain(
+      'app/views/layouts/1col.html.liquid',
+    );
+
+    // Only a KNOWN format is stripped, so a dot that is part of the name survives.
+    expect(pathToName('app/views/partials/user.avatar.liquid')!.name).toBe('user.avatar');
+  });
+
+  it('offers every directory alias a type has, in FILE_TYPE_DIRS order', () => {
+    expect(nameToPaths(PlatformOSFileType.Partial, 'card')).toEqual(
+      ['app/views/partials', 'app/lib'].flatMap((dir) =>
+        FORMAT_SPELLINGS.map((format) => `${dir}/card${format}.liquid`),
+      ),
+    );
+    expect(nameToPaths(PlatformOSFileType.GraphQL, 'find')).toEqual([
+      'app/graphql/find.graphql',
+      'app/graph_queries/find.graphql',
+    ]);
+  });
+
+  it('appends nothing to an asset name, which carries its own extension', () => {
+    expect(nameToPaths(PlatformOSFileType.Asset, 'theme.css')).toEqual(['app/assets/theme.css']);
+    expect(pathToName('app/assets/theme.css')!.name).toBe('theme.css');
+  });
+
+  it('keeps a format suffix in the name, since it selects a different file', () => {
+    // `api/users.json.liquid` and `api/users.liquid` are different files serving
+    // different formats, so the name has to distinguish them.
+    expect(pathToName('app/views/pages/api/users.json.liquid')!.name).toBe('api/users.json');
+    expect(nameToPaths(PlatformOSFileType.Page, 'api/users.json')).toEqual([
+      'app/views/pages/api/users.json.liquid',
+      'app/pages/api/users.json.liquid',
+    ]);
+  });
+
+  it('returns undefined for a path outside every recognized directory', () => {
+    expect(pathToName('scripts/helper.liquid')).toBe(undefined);
+    expect(pathToName('assets/app.js')).toBe(undefined);
+  });
+
+  describe('the two fixed-path files', () => {
+    // `config.yml` and `user.yml` are one file per app with no directory segment, and
+    // — uniquely — no module form: the server matches them with
+    // DIR_PREFIX_WITHOUT_MODULES.
+    it('classifies them under either app root, naming them without the extension', () => {
+      expect(pathToName('app/config.yml')).toEqual({
+        fileType: PlatformOSFileType.InstanceConfig,
+        name: 'config',
+        moduleName: undefined,
+      });
+      expect(pathToName('marketplace_builder/user.yml')!.fileType).toBe(
+        PlatformOSFileType.UserSchema,
+      );
+    });
+
+    it('round-trips, like every other type', () => {
+      expect(nameToPaths(PlatformOSFileType.InstanceConfig, 'config')).toEqual(['app/config.yml']);
+      expect(nameToPaths(PlatformOSFileType.UserSchema, 'user')).toEqual(['app/user.yml']);
+    });
+
+    it('answers to its one filename and nothing else', () => {
+      // There is exactly one config file per app: no `app/settings.yml`, and no
+      // `.yaml` spelling — `app/config.yaml` is an unclassified YAML file.
+      expect(nameToPaths(PlatformOSFileType.InstanceConfig, 'settings')).toEqual([]);
+      expect(getFileType('file:///project/app/config.yaml', 'file:///project')).toBe(undefined);
+    });
+
+    it('has no module form, so a modules/ copy is not one of them', () => {
+      expect(pathToName('modules/core/public/config.yml')).toBe(undefined);
+      expect(getModulePaths(PlatformOSFileType.InstanceConfig, 'core')).toEqual([]);
+      expect(nameToPaths(PlatformOSFileType.InstanceConfig, 'modules/core/config')).toEqual([]);
+    });
+
+    it('generates no directory search paths, since there is no directory', () => {
+      expect(getAppPaths(PlatformOSFileType.InstanceConfig)).toEqual([]);
+      expect(getModulePaths(PlatformOSFileType.InstanceConfig, 'core')).toEqual([]);
+    });
+
+    it('still has one place it would be created, since its location is fixed', () => {
+      expect(nameToCreationPath(PlatformOSFileType.InstanceConfig, 'config')).toBe(
+        'app/config.yml',
+      );
+      expect(nameToCreationPath(PlatformOSFileType.UserSchema, 'user')).toBe('app/user.yml');
+    });
+
+    it('does not claim every file in the project', () => {
+      // A type with no directories would compile to the empty pattern, and
+      // `new RegExp('')` matches everything.
+      expect(getFileType('file:///project/app/views/partials/card.liquid', 'file:///project')).toBe(
+        PlatformOSFileType.Partial,
+      );
+      expect(getFileType('file:///project/app/config.yml', 'file:///project')).toBe(
+        PlatformOSFileType.InstanceConfig,
+      );
+      expect(getFileType('file:///project/README.md', 'file:///project')).toBe(undefined);
+    });
+
+    it('keeps a directory type for a config.yml that lives inside a known directory', () => {
+      expect(getFileType('file:///project/app/translations/config.yml', 'file:///project')).toBe(
+        PlatformOSFileType.Translation,
+      );
+    });
+  });
+});
+
+describe('uriToName', () => {
+  it('resolves a nested partial to its full logical name', () => {
+    expect(
+      uriToName('file:///project/app/views/partials/ui/card.liquid', 'file:///project'),
+    ).toEqual({
+      fileType: PlatformOSFileType.Partial,
+      name: 'ui/card',
+      moduleName: undefined,
+    });
+  });
+
+  it('resolves a module file to its module-prefixed name', () => {
+    expect(
+      uriToName('file:///project/modules/core/public/lib/create.liquid', 'file:///project'),
+    ).toEqual({
+      fileType: PlatformOSFileType.Partial,
+      name: 'modules/core/create',
+      moduleName: 'core',
+    });
+  });
+
+  it('keeps an asset extension, nested directories included', () => {
+    expect(uriToName('file:///project/app/assets/js/app.js', 'file:///project')).toEqual({
+      fileType: PlatformOSFileType.Asset,
+      name: 'js/app.js',
+      moduleName: undefined,
+    });
+  });
+
+  it('answers undefined for a file outside every platformOS directory', () => {
+    expect(uriToName('file:///project/scripts/build.liquid', 'file:///project')).toBe(undefined);
+  });
+
+  it('does not care how the root is spelled — trailing slash included', () => {
+    expect(uriToName('file:///project/app/views/partials/card.liquid', 'file:///project/')).toEqual(
+      {
+        fileType: PlatformOSFileType.Partial,
+        name: 'card',
+        moduleName: undefined,
+      },
+    );
+  });
+});
+
+/**
+ * `APP_SOURCE_SUBTREES` is what lets a project walk skip most of a repository, so
+ * the property that matters is total coverage in BOTH directions:
+ *
+ * - nothing `parseAppPath` accepts may fall outside the subtrees, or the walk would
+ *   silently lose app files (the failure mode a directory-name blacklist has:
+ *   `app/views/pages/vendor/**` is real, and every `vendor` blacklist drops it);
+ * - nothing outside them may be accepted, or the subtrees would be a lie and a
+ *   consumer that trusted them would disagree with one that did not.
+ *
+ * Derived from the same constants `parseAppPath` derives its patterns from, so a new
+ * root or access level cannot reach one and not the other.
+ */
+describe('APP_SOURCE_SUBTREES covers exactly what parseAppPath accepts', () => {
+  const asRegExp = (subtree: string) => new RegExp(`^${subtree.split('*').join('[^/]+')}/`);
+
+  const covered = (path: string) =>
+    APP_SOURCE_SUBTREES.some((subtree) => asRegExp(subtree).test(path));
+
+  /** Every path shape the directory structure allows, one per (type, dir, root). */
+  function everyAppPath(): string[] {
+    const paths: string[] = [];
+
+    for (const [fileType, dirs] of Object.entries(FILE_TYPE_DIRS) as [
+      PlatformOSFileType,
+      readonly string[],
+    ][]) {
+      // Classification anchors the extension for every type but Page/Layout/Partial/
+      // Asset, so a hardcoded `thing.liquid` would generate paths this test then
+      // reports as uncovered — a broken generator, not a coverage gap.
+      const [extension = '.css'] = getReferenceExtensions(fileType);
+
+      for (const dir of dirs) {
+        paths.push(`app/${dir}/thing${extension}`);
+        paths.push(`marketplace_builder/${dir}/thing${extension}`);
+        for (const root of MODULE_ROOTS) {
+          for (const access of ['public', 'private']) {
+            paths.push(`${root}/mymod/${access}/${dir}/thing${extension}`);
+          }
+        }
+      }
+    }
+
+    for (const fileName of Object.values(FILE_TYPE_FILES)) {
+      paths.push(`app/${fileName}`);
+      paths.push(`marketplace_builder/${fileName}`);
+    }
+
+    return paths;
+  }
+
+  it('is the grammar, stated as a prefix', () => {
+    expect([...APP_SOURCE_SUBTREES]).toEqual([
+      'app',
+      'marketplace_builder',
+      'modules/*/public',
+      'modules/*/private',
+    ]);
+  });
+
+  it('contains every path parseAppPath accepts', () => {
+    const accepted = everyAppPath().filter((path) => parseAppPath(path) !== undefined);
+    const missed = accepted.filter((path) => !covered(path));
+
+    // Sanity: the generator produces real paths, so an empty `missed` means coverage
+    // rather than an empty input.
+    expect(accepted.length).toBe(everyAppPath().length);
+    expect(missed).toEqual([]);
+  });
+
+  it('rejects the same paths parseAppPath does, wherever the app directories appear', () => {
+    // Each of these spells a real app directory, and each is outside every subtree.
+    // `tmp/app/views/partials/x.liquid` is not a partial: from the ROOT it is under
+    // `tmp`. That is the whole rule, and it needs no list of bad directory names.
+    const outside = [
+      'tmp/app/views/partials/partial.liquid',
+      'node_modules/some-package/app/views/partials/header.liquid',
+      'vendor/marketplace_builder/views/pages/index.liquid',
+      'dist/modules/core/public/views/layouts/application.liquid',
+      'modules/core/react-app/node_modules/pkg/app/graphql/query.graphql',
+      'modules/core/views/partials/no-access-level.liquid',
+    ];
+
+    expect(outside.filter(covered)).toEqual([]);
+    expect(outside.filter((path) => parseAppPath(path) !== undefined)).toEqual([]);
+  });
+
+  it('accepts a page whose own directory is named like build output', () => {
+    // The corpus that motivated this: `app/views/pages/vendor/**` is a live site
+    // section on one real project, `app/lib/commands/.../build/*.liquid` are
+    // commands on another.
+    const real = [
+      'app/views/pages/vendor/dashboard.liquid',
+      'app/lib/commands/v2/projects/update/build/1.liquid',
+      'modules/user/public/graphql/tmp/draft.graphql',
+    ];
+
+    expect(real.filter((path) => !covered(path))).toEqual([]);
+    expect(real.map((path) => parseAppPath(path)?.fileType)).toEqual([
+      PlatformOSFileType.Page,
+      PlatformOSFileType.Partial,
+      PlatformOSFileType.GraphQL,
+    ]);
   });
 });

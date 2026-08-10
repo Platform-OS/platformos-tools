@@ -73,9 +73,10 @@ const DOCS_FILTERS = resolve(
  * `DOCSET_RETURN_TYPES`. `hash` is omitted because it maps to `object`, which reports
  * nothing, and this table exists to enumerate what DOES report.
  *
- * This is a copy of a TypeScript constant, so it can drift. `filter-return-type-sweep.spec.ts`
- * imports the real `DOCSET_RETURN_TYPES` and `variableTypeOf` and asserts every row
- * against them, so drift fails a test rather than quietly narrowing the sweep.
+ * This is a copy of a TypeScript constant, so it can drift. The sweep groups in
+ * `invalid-hash-assign-target/index.spec.ts` import the real `DOCSET_RETURN_TYPES` and
+ * `variableTypeOf` and assert every row against them, so drift fails a test rather than
+ * quietly narrowing the sweep.
  */
 const REPORTING_SPELLINGS = {
   string: 'string',
@@ -603,8 +604,8 @@ export interface FilterReturnTypeMeasurement {
 /**
  * The sweep, one row per filter, sorted by name.
  *
- * Consumed by \`filter-return-type-sweep.spec.ts\`, which runs the real check over the
- * real docset and asserts that its verdict matches these measurements for every row. A
+ * Consumed by \`index.spec.ts\`'s sweep groups, which run the real check over the
+ * real docset and assert that its verdict matches these measurements for every row. A
  * docset update that changes a return_type therefore fails a test instead of silently
  * changing what the server refuses to write.
  */

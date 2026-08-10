@@ -245,22 +245,81 @@ en:
 });
 
 /**
- * The SILENCE this check promises, with the control that makes it non-vacuous.
+ * The SILENCE this check promises, with the controls that make it non-vacuous.
  *
- * A duplicated key is not a syntax error: the converter accepts the file and the platform
- * resolves it last-wins (both measured — see `toYAMLNode`). Reporting it HERE would put a
- * false block on a write the platform would take, because this check is an ERROR and is in
- * `BLOCKING_CHECKS`. The discarded value is still a real defect, which is why the control
- * matters: `DuplicateYAMLKey` reports it as a non-blocking WARNING.
+ * A REPEATED KEY IS NOT A PARSE FAILURE. `pos-cli deploy --dry-run` accepts one at the top
+ * level, inside a property, and in a translation file, and resolves it last-wins (both
+ * measured — see `toYAMLNode`). Reporting it HERE would put a false block on a write the
+ * platform would take, because this check is an ERROR and is in `BLOCKING_CHECKS`.
+ *
+ * That false block SHIPPED. `yaml` defaults `uniqueKeys` to `true`, so a duplicated key
+ * became a hard refusal to write — while the check's own docstring and the server's
+ * agent-facing instructions both stated, correctly and from measurement, that duplicates
+ * are not reported. Two documents said it, no test asserted it, and the suite stayed green
+ * for the entire time the code did the opposite. Prose cannot fail: that is why every
+ * assertion below names the empty array explicitly instead of checking a count.
+ *
+ * THE CONTROLS MATTER AS MUCH AS THE SILENCE. A suppression wide enough to hide a real
+ * syntax error would pass every "nothing was reported" assertion ever written, so the
+ * silence is paired with two cases that must still be reported: a genuine parse failure in
+ * a file that ALSO has a duplicate, and the discarded value itself, which `DuplicateYAMLKey`
+ * reports as a non-blocking WARNING.
  */
 describe('Module: YAMLSyntaxError (duplicate keys belong to DuplicateYAMLKey)', () => {
-  const DUPLICATED = `en:
+  const offensesFor = async (app: MockApp) =>
+    (await check(app, [YAMLSyntaxError])).map((offense) => ({
+      uri: offense.uri.slice(offense.uri.indexOf('/app/') + 1),
+      check: offense.check,
+      message: offense.message,
+    }));
+
+  /** Both duplicate shapes the evaluation deployed and the converter accepted. */
+  const TOP_LEVEL_DUPLICATE = `name: car
+name: van
+`;
+  const NESTED_DUPLICATE = `name: car
+properties:
+  make: ford
+  make: audi
+`;
+
+  const DUPLICATED_TRANSLATION = `en:
   hello: Hello
   hello: Hi
 `;
 
-  it('does not report a duplicated mapping key', async () => {
-    expect(await runYAMLCheck(YAMLSyntaxError, DUPLICATED, 'app/translations/en.yml')).toEqual([]);
+  /**
+   * Every admitted YAML file type. ONE extension, because there is only one:
+   * `REFERENCE_EXTENSIONS` excludes `.yaml` deliberately — every YAML model in the backend
+   * anchors `\.yml\z` (`translation.rb:7`, `custom_model_type.rb:12`,
+   * `instance_profile_type.rb:7`, `transactable_type.rb:7`,
+   * `activity_streams/handler.rb:7`), so `app/translations/en.yaml` is never deployed.
+   * That exclusion is owned and tested by `platformos-common`'s `path-utils.spec.ts`; it
+   * is not re-asserted here.
+   *
+   * This loop USED to run over `['yml', 'yaml']`, on the premise that the second spelling
+   * was "an untested path through the same gate". There is no such path, so the `.yaml`
+   * half asserted silence over an app containing NOTHING — a suppression test that could
+   * not fail. It passed for exactly as long as `getApp` tolerated a path it dropped.
+   */
+  const EVERY_YAML_LOCATION = [
+    'app/schema/a',
+    'app/model_schemas/b',
+    'app/custom_model_types/c',
+    'app/transactable_types/d',
+    'app/user_profile_types/e',
+    'app/translations/en',
+  ];
+
+  const appWith = (content: string): MockApp =>
+    Object.fromEntries(EVERY_YAML_LOCATION.map((path) => [`${path}.yml`, content]));
+
+  it('says nothing about a top-level duplicate in any admitted YAML file', async () => {
+    expect(await offensesFor(appWith(TOP_LEVEL_DUPLICATE))).toEqual([]);
+  });
+
+  it('says nothing about a duplicate nested inside a property in any admitted YAML file', async () => {
+    expect(await offensesFor(appWith(NESTED_DUPLICATE))).toEqual([]);
   });
 
   it('stays silent even when the file also ends with a document terminator', async () => {
@@ -278,8 +337,47 @@ en:
     ).toEqual([]);
   });
 
+  it('says nothing about an unknown property either, the other claim both documents make', async () => {
+    // `instructions.ts` tells the agent that neither an unknown property nor a
+    // duplicated name is reported, "because the platform accepts both". The duplicate
+    // half of that sentence turned out to be false. This pins the other half so it
+    // cannot rot the same way — schema SHAPE is deliberately not validated here.
+    expect(
+      await offensesFor({
+        'app/schema/unknown.yml': `name: car
+not_a_real_property: 1
+properties:
+  make: ford
+`,
+      }),
+    ).toEqual([]);
+  });
+
+  it('CONTROL: still reports a genuine syntax error in a file that ALSO has a duplicate key', async () => {
+    // Suppressing `DUPLICATE_KEY` must not suppress the failure classes the check exists
+    // for, and a file carrying both is the case where a too-broad suppression hides one.
+    expect(
+      await offensesFor({
+        'app/schema/both.yml': `name: car
+name: van
+properties: [unclosed
+`,
+      }),
+    ).toEqual([
+      {
+        uri: 'app/schema/both.yml',
+        check: 'YAMLSyntaxError',
+        message: 'Flow sequence in block collection must be sufficiently indented and end with a ]',
+      },
+    ]);
+  });
+
   it('CONTROL: the same file is not silent overall — DuplicateYAMLKey reports it', async () => {
-    const offenses = await runYAMLCheck(DuplicateYAMLKey, DUPLICATED, 'app/translations/en.yml');
+    const offenses = await runYAMLCheck(
+      DuplicateYAMLKey,
+      DUPLICATED_TRANSLATION,
+      'app/translations/en.yml',
+    );
 
     expect(offenses.map((offense) => ({ check: offense.check, message: offense.message }))).toEqual(
       [

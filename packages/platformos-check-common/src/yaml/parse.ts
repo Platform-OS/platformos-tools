@@ -88,7 +88,7 @@ export function toYAMLNode(source: string): JSONNode {
   // names deploy fine, and the server instructions tell an agent they are not
   // reported. Both were measured and correct; the library default silently reinstated
   // the behaviour they rule out, and nothing failed, because nothing asserted the
-  // SILENCE. `duplicate-keys.spec.ts` now does.
+  // SILENCE. `checks/yaml-syntax-error/index.spec.ts` now does.
   // A LONE `\r` IS A LINE BREAK TO THE PLATFORM AND NOT TO THIS PARSER, so it is
   // normalized first — see `line-breaks.ts`. One byte for one byte, so every offset
   // below is still an offset into the caller's original source.

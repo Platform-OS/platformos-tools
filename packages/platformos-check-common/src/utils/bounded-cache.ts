@@ -10,9 +10,9 @@
  * as soon as a project pushed past `limit` distinct keys.
  *
  * Callers key on the exact input the result depends on. Where that input is the
- * file CONTENT — `extract-undefined-variables`, and the markup a
- * `DeprecatedTag` probe answers about — an entry can never be stale: changed
- * content is a different key, and the old entry ages out.
+ * TEXT the answer is about — the markup a `DeprecatedTag` probe parses, the SDL a
+ * schema id stands in for — an entry can never be stale: changed text is a
+ * different key, and the old entry ages out.
  *
  * A caller may instead key on IDENTITY and revalidate on the way out, which is
  * what the partial-analysis memo in `checks/unknown-property/shape-analysis.ts`

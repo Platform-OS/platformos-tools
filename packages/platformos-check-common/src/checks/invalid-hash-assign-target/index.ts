@@ -69,7 +69,7 @@ interface VariableTypeEntry {
  * both — that is the measurement, not a decision to treat two spellings alike.
  *
  * The measurements are recorded in `filter-return-type-oracle.ts` and re-asserted by
- * `filter-return-type-sweep.spec.ts` for every filter each spelling covers, so a docset
+ * `index.spec.ts`'s sweep groups for every filter each spelling covers, so a docset
  * change that invalidates one of these fails a test rather than silently changing what
  * the server refuses to write.
  *

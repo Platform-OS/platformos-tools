@@ -1,6 +1,6 @@
 import { expect, describe, it } from 'vitest';
 import { ValidFrontmatter } from '.';
-import { check } from '../../test';
+import { check, messagesOf } from '../../test';
 
 const PAGE = 'app/views/pages/test.html.liquid';
 const FORM = 'app/forms/test.liquid';
@@ -104,37 +104,43 @@ describe('ValidFrontmatter', () => {
       expect(offenses).to.have.length(0);
     });
 
-    it('warns on deprecated layout_path in Email', async () => {
-      const offenses = await check({ [EMAIL]: `---\nlayout_path: email_base\n---\nHi` }, [
-        ValidFrontmatter,
-      ]);
-      expect(offenses).to.containOffense('Use `layout` instead of `layout_path`.');
-    });
-
-    it('does not warn on layout in Email (non-deprecated)', async () => {
-      const files = {
-        'app/views/layouts/email_base.liquid': `{{ content }}`,
-        [EMAIL]: `---\nlayout: email_base\n---\nHi`,
-      };
-      const offenses = await check(files, [ValidFrontmatter]);
-      expect(offenses).to.have.length(0);
-    });
-
-    it('warns on deprecated headers field in ApiCall', async () => {
-      const offenses = await check(
-        { [API_CALL]: `---\nto: https://example.com\nrequest_type: GET\nheaders: "{}"\n---\n` },
+    it('warns on layout_path in Email but not on the layout that replaced it', async () => {
+      const layout = { 'app/views/layouts/email_base.liquid': `{{ content }}` };
+      const deprecated = await check(
+        { ...layout, [EMAIL]: `---\nlayout_path: email_base\n---\nHi` },
         [ValidFrontmatter],
       );
-      expect(offenses).to.containOffense('Use `request_headers` instead of `headers`.');
+      const replacement = await check({ ...layout, [EMAIL]: `---\nlayout: email_base\n---\nHi` }, [
+        ValidFrontmatter,
+      ]);
+
+      expect({
+        deprecated: messagesOf(deprecated),
+        replacement: messagesOf(replacement),
+      }).toEqual({
+        deprecated: ['Use `layout` instead of `layout_path`.'],
+        replacement: [],
+      });
     });
 
-    it('does not warn on non-deprecated fields', async () => {
-      const files = {
-        'app/views/layouts/application.liquid': `{{ content }}`,
-        [PAGE]: `---\nlayout: application\n---\n{{ content }}`,
-      };
-      const offenses = await check(files, [ValidFrontmatter]);
-      expect(offenses).to.have.length(0);
+    it('warns on headers in ApiCall but not on the request_headers that replaced it', async () => {
+      // Paired with its own modern spelling, which is what makes the silence about
+      // deprecation: this used to be paired with a Page carrying a `layout`, a field the
+      // rule under test has nothing to say about either way.
+      const apiCall = (field: string) =>
+        `---\nto: https://example.com\nrequest_type: GET\n${field}: "{}"\n---\n`;
+      const deprecated = await check({ [API_CALL]: apiCall('headers') }, [ValidFrontmatter]);
+      const replacement = await check({ [API_CALL]: apiCall('request_headers') }, [
+        ValidFrontmatter,
+      ]);
+
+      expect({
+        deprecated: messagesOf(deprecated),
+        replacement: messagesOf(replacement),
+      }).toEqual({
+        deprecated: ['Use `request_headers` instead of `headers`.'],
+        replacement: [],
+      });
     });
   });
 

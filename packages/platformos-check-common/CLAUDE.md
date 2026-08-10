@@ -55,8 +55,8 @@ It:
   `UnknownProperty` and the graph all read that one document. A check that wants tables
   or variables calls `extractGraphqlTables` / `extractGraphqlVariables` on it rather
   than parsing; an inline `{% graphql %}…{% endgraphql %}` body, which has no file,
-  calls `parseGraphql` itself. `graphql-parse-once.spec.ts` fails if any of them grows
-  a parse of its own.
+  calls `parseGraphql` itself. `index.spec.ts`'s "a .graphql file is parsed once per run"
+  fails if any of them grows a parse of its own.
 
 ### Check definition pattern
 

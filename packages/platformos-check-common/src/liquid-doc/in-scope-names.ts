@@ -50,8 +50,8 @@ export async function inScopeNames(
     byType.set(targetFileType, names);
   }
 
-  // A FRESH array on every call. Callers are free to extend the returned `inScope`, and it is
-  // also a cache KEY inside `extractUndefinedVariables` — one caller pushing onto a
-  // shared array would corrupt both the next caller's scope and that key.
+  // A FRESH array on every call. Callers are free to extend the returned `inScope`, and it
+  // also spells the `AppFile.derived` key `undefinedVariablesOf` memoizes on — one caller
+  // pushing onto a shared array would corrupt both the next caller's scope and that key.
   return [...names];
 }

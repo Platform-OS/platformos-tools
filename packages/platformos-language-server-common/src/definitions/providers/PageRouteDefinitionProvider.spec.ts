@@ -4,6 +4,25 @@ import { AbstractFileSystem, FileType } from '@platformos/platformos-common';
 import { DocumentManager } from '../../documents';
 import { DefinitionProvider } from '../DefinitionProvider';
 
+/** Every target range is zero: these providers point at the FILE, not a position inside it. */
+const WHOLE_FILE = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
+
+/**
+ * A whole `LocationLink`, spelled by the two things that vary: where it points, and the span
+ * the editor highlights at the cursor. `originSelectionRange` had no assertion at all while
+ * these tests read `result[0].targetUri` and stopped — so a provider that highlighted the
+ * wrong span, or one character too many, passed every one of them.
+ */
+const link = (targetUri: string, [line, start, end]: [number, number, number]) => ({
+  targetUri,
+  targetRange: WHOLE_FILE,
+  targetSelectionRange: WHOLE_FILE,
+  originSelectionRange: {
+    start: { line, character: start },
+    end: { line, character: end },
+  },
+});
+
 function createMockFs(files: Record<string, string>): AbstractFileSystem {
   const fileUris = new Map<string, string>();
   const dirEntries = new Map<string, [string, FileType][]>();
@@ -89,9 +108,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    assert(LocationLink.is(result[0]));
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    expect(result).toEqual([link('file:///project/app/views/pages/about.html.liquid', [0, 0, 15])]);
   });
 
   it('navigates to a dynamic route page', async () => {
@@ -112,8 +129,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/user.html.liquid');
+    expect(result).toEqual([link('file:///project/app/views/pages/user.html.liquid', [0, 0, 18])]);
   });
 
   it('navigates to POST page from form action', async () => {
@@ -134,8 +150,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
+    expect(result).toEqual([
+      link('file:///project/app/views/pages/contact.html.liquid', [0, 0, 22]),
+    ]);
   });
 
   it('navigates to DELETE page from form with _method inside a div wrapper', async () => {
@@ -156,8 +173,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/user-delete.html.liquid');
+    expect(result).toEqual([
+      link('file:///project/app/views/pages/user-delete.html.liquid', [0, 0, 22]),
+    ]);
   });
 
   it('returns null for external URLs', async () => {
@@ -216,8 +234,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/user.html.liquid');
+    expect(result).toEqual([link('file:///project/app/views/pages/user.html.liquid', [0, 0, 29])]);
   });
 
   it('navigates to page when <a> is deeply nested inside other elements', async () => {
@@ -238,8 +255,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    expect(result).toEqual([
+      link('file:///project/app/views/pages/about.html.liquid', [0, 27, 42]),
+    ]);
   });
 
   it('navigates when cursor is on the tag name of <a>', async () => {
@@ -260,9 +278,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    assert(LocationLink.is(result[0]));
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    expect(result).toEqual([link('file:///project/app/views/pages/about.html.liquid', [0, 0, 15])]);
   });
 
   it('navigates when cursor is on the href attribute name', async () => {
@@ -283,9 +299,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    assert(LocationLink.is(result[0]));
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    expect(result).toEqual([link('file:///project/app/views/pages/about.html.liquid', [0, 0, 15])]);
   });
 
   it('returns null when cursor is on a non-URL attribute of <a>', async () => {
@@ -326,8 +340,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
+    expect(result).toEqual([
+      link('file:///project/app/views/pages/contact.html.liquid', [0, 0, 22]),
+    ]);
   });
 
   it('navigates when cursor is on action attribute name of <form>', async () => {
@@ -348,8 +363,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
+    expect(result).toEqual([
+      link('file:///project/app/views/pages/contact.html.liquid', [0, 0, 22]),
+    ]);
   });
 
   it('returns null when cursor is on tag name of non-a/form element', async () => {
@@ -390,8 +406,7 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
     const result = await provider.definitions(params);
     assert(result);
-    expect(result).toHaveLength(1);
-    expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+    expect(result).toEqual([link('file:///project/app/views/pages/about.html.liquid', [0, 0, 50])]);
   });
 
   describe('assign-tracking', () => {
@@ -413,8 +428,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [1, 0, 18]),
+      ]);
     });
 
     it('navigates when href uses a variable built with append filters', async () => {
@@ -435,8 +451,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/pages/group-edit.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/group-edit.html.liquid', [1, 0, 18]),
+      ]);
     });
 
     it('navigates when cursor is on the <a tag name with an assigned variable href', async () => {
@@ -457,8 +474,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [1, 0, 18]),
+      ]);
     });
 
     it('navigates form action with assigned variable', async () => {
@@ -479,8 +497,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/contact.html.liquid', [1, 0, 23]),
+      ]);
     });
 
     it('returns null for an unresolvable assigned variable', async () => {
@@ -521,8 +540,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [1, 0, 18]),
+      ]);
     });
 
     it('navigates when assign and <a> are both inside the same block tag', async () => {
@@ -544,8 +564,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [0, 40, 58]),
+      ]);
     });
 
     it('navigates when assign is inside a {% liquid %} block in the same container', async () => {
@@ -567,8 +588,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [2, 2, 20]),
+      ]);
     });
   });
 
@@ -592,8 +614,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toContain('my-page.json.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/api/my-page.json.liquid', [0, 0, 26]),
+      ]);
     });
 
     it('navigates to only html page when URL has no format suffix', async () => {
@@ -615,8 +638,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result = await provider.definitions(params);
       assert(result);
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toContain('my-page.html.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/pages/api/my-page.html.liquid', [0, 0, 21]),
+      ]);
     });
   });
 
@@ -643,8 +667,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
         position: { line: firstLine, character: firstChar + 3 }, // Inside {{ url }}
       });
       assert(result1);
-      expect(result1).toHaveLength(1);
-      expect(result1[0].targetUri).toBe('file:///project/app/views/pages/about.html.liquid');
+      expect(result1).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [0, 27, 45]),
+      ]);
 
       // Second <a> — cursor inside the second href="{{ url }}"
       const secondHrefOffset = source.indexOf('{{ url }}', firstHrefOffset + 1);
@@ -656,8 +681,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
         position: { line: secondLine, character: secondChar + 3 }, // Inside {{ url }}
       });
       assert(result2);
-      expect(result2).toHaveLength(1);
-      expect(result2[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
+      expect(result2).toEqual([
+        link('file:///project/app/views/pages/contact.html.liquid', [0, 85, 103]),
+      ]);
     });
   });
 
@@ -735,7 +761,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
       // First request triggers build — /about is found
       const result1 = await provider.definitions(params);
       assert(result1);
-      expect(result1).toHaveLength(1);
+      expect(result1).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [0, 0, 15]),
+      ]);
 
       // Simulate branch switch: remove /about, add /contact
       delete files['app/views/pages/about.html.liquid'];
@@ -743,9 +771,12 @@ describe('Module: PageRouteDefinitionProvider', () => {
       rebuildIndex();
 
       // Without invalidation, the cached route table still finds /about
+      // Still the OLD /about, from the cache: the point of the test below it.
       const result2 = await provider.definitions(params);
       assert(result2);
-      expect(result2).toHaveLength(1); // Still finds old /about from cache
+      expect(result2).toEqual([
+        link('file:///project/app/views/pages/about.html.liquid', [0, 0, 15]),
+      ]);
 
       // Invalidate — forces a full rebuild on next request
       provider.invalidateRouteTable();
@@ -769,8 +800,9 @@ describe('Module: PageRouteDefinitionProvider', () => {
 
       const result4 = await provider.definitions(contactParams);
       assert(result4);
-      expect(result4).toHaveLength(1);
-      expect(result4[0].targetUri).toBe('file:///project/app/views/pages/contact.html.liquid');
+      expect(result4).toEqual([
+        link('file:///project/app/views/pages/contact.html.liquid', [0, 0, 17]),
+      ]);
     });
   });
 });

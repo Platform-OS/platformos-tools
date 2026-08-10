@@ -313,13 +313,37 @@ describe('Module: MatchingTranslations', async () => {
     ]);
   });
 
-  describe('when an en file has a duplicated mapping key', () => {
+  /**
+   * The second half of accepting duplicate keys, and the reason relaxing the YAML parser
+   * alone was not enough.
+   *
+   * `js-yaml` — a DIFFERENT parser from the one `YAMLSyntaxError` uses, and the one that
+   * loads translations — also rejects duplicate keys by default, and its callers treat a
+   * throw as "this file has no translations". So dropping the false block on its own
+   * produced a new false REPORT: a locale file with one repeated key contributed nothing,
+   * and every key in it was announced as missing. The two readers now agree, both taking
+   * the last value.
+   */
+  describe('when a translation file has a duplicated mapping key', () => {
     it('should still count the keys that file defines as present in en', async () => {
       const app = {
         'app/translations/en/admin.yml':
           'en:\n  admin:\n    title: Admin\n    title: Admin panel\n    check_all: Check all\n',
         'app/translations/pt-BR/admin.yml':
           'pt-BR:\n  admin:\n    title: Administração\n    check_all: Marcar todos\n',
+      };
+
+      const offenses = await check(app, [MatchingTranslations]);
+
+      expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+    });
+
+    it('should count the keys a TRANSLATED locale defines twice as present too', async () => {
+      // The other direction, and the regression relaxing the parser introduced on its own:
+      // `pt-BR.yml` HAS `hello`, twice, and was told the translation for it was missing.
+      const app = {
+        'app/translations/en.yml': 'en:\n  hello: Hello\n',
+        'app/translations/pt-BR.yml': 'pt-BR:\n  hello: Olá\n  hello: E aí\n',
       };
 
       const offenses = await check(app, [MatchingTranslations]);

@@ -561,7 +561,7 @@ describe('Integration: the project graph is warmed at server start', () => {
  * project's hermetic config enables only `MissingContentForLayout`, so a
  * "`render` of a sibling buffer resolves" assertion would pass whether or not the
  * overlay worked — vacuous. It is proven properly, with a failing contrast, in
- * check-node's `lint-buffers.spec.ts`, where `MissingPartial` is enabled.
+ * check-node's `index.spec.ts`, where `MissingPartial` is enabled.
  *
  * The speed claim is likewise pinned structurally (one adapter call per batch) in
  * `validate-files.spec.ts` rather than by a flaky timing assertion. Measured on a

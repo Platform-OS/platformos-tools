@@ -56,4 +56,104 @@ describe('Unit: findRoot', () => {
     const exists = fileExists({});
     expect(await findRoot(`${ROOT}/src/file.liquid`, exists)).toBe(null);
   });
+
+  /**
+   * Every one of these is a real directory in a real customer project. `app/` named a
+   * page directory, not a project, and the root came back as the directory holding it —
+   * so a `{% include %}` resolved against `app/views/pages/`, and pointed at
+   * `app/views/pages/app/views/partials/…`, which cannot exist.
+   */
+  describe('a marker directory inside a project source subtree', () => {
+    it('does not mistake a page directory called app/ for a root', async () => {
+      const exists = fileExists({
+        'app/views/pages/app/index.liquid': '{{ content }}',
+        'app/views/pages/api/auth/post.liquid': '{{ content }}',
+      });
+      expect(await findRoot(`${ROOT}/app/views/pages/api/auth/post.liquid`, exists)).toBe(ROOT);
+    });
+
+    it('does not mistake a partial directory called app/ for a root', async () => {
+      const exists = fileExists({
+        'app/views/partials/app/header.liquid': '{{ content }}',
+        'app/views/partials/api/auth/login.liquid': '{{ content }}',
+      });
+      expect(await findRoot(`${ROOT}/app/views/partials/api/auth/login.liquid`, exists)).toBe(ROOT);
+    });
+
+    it('does not mistake a page directory called marketplace_builder/ for a root', async () => {
+      const exists = fileExists({
+        'app/views/pages/marketplace_builder/index.liquid': '{{ content }}',
+        'app/views/pages/api/post.liquid': '{{ content }}',
+      });
+      expect(await findRoot(`${ROOT}/app/views/pages/api/post.liquid`, exists)).toBe(ROOT);
+    });
+
+    it('does not mistake app/ inside a module subtree for a root', async () => {
+      const exists = fileExists({
+        'modules/course/public/views/partials/app/card.liquid': '{{ content }}',
+        'modules/course/public/views/partials/admin/list.liquid': '{{ content }}',
+      });
+      expect(
+        await findRoot(`${ROOT}/modules/course/public/views/partials/admin/list.liquid`, exists),
+      ).toBe(ROOT);
+    });
+
+    it('does not mistake modules/ inside a module subtree for a root', async () => {
+      // The `app/`-ancestor scan this replaced could not see this one: nothing above
+      // `admin_partials` is called `app`.
+      const exists = fileExists({
+        'modules/course/public/views/partials/admin_partials/modules/x.liquid': '{{ content }}',
+      });
+      expect(
+        await findRoot(
+          `${ROOT}/modules/course/public/views/partials/admin_partials/modules/x.liquid`,
+          exists,
+        ),
+      ).toBe(ROOT);
+    });
+
+    it('does not mistake app/modules/<name>/ for a root', async () => {
+      const exists = fileExists({ 'app/modules/core/public/lib/x.liquid': '{{ content }}' });
+      expect(await findRoot(`${ROOT}/app/modules/core/public/lib/x.liquid`, exists)).toBe(ROOT);
+    });
+  });
+
+  /**
+   * The controls for the above. The guard suppresses marker DIRECTORIES, and a
+   * suppression wide enough to hide a real nested project would pass every assertion in
+   * the block above.
+   */
+  describe('a marker outside every source subtree still marks a root', () => {
+    it('finds a nested project whose own app/ sits outside the outer project subtrees', async () => {
+      const exists = fileExists({
+        'app/views/pages/index.liquid': '{{ content }}',
+        'packages/inner/app/views/pages/index.liquid': '{{ content }}',
+      });
+      expect(await findRoot(`${ROOT}/packages/inner/app/views/pages/index.liquid`, exists)).toBe(
+        `${ROOT}/packages/inner`,
+      );
+    });
+
+    it('finds a nested standalone module project by its modules/ directory', async () => {
+      const exists = fileExists({
+        'app/views/pages/index.liquid': '{{ content }}',
+        'vendor/pkg/modules/core/public/lib/x.liquid': '{{ content }}',
+      });
+      expect(await findRoot(`${ROOT}/vendor/pkg/modules/core/public/lib/x.liquid`, exists)).toBe(
+        `${ROOT}/vendor/pkg`,
+      );
+    });
+
+    it('honours an explicit .pos even inside a source subtree', async () => {
+      // A file marker is a statement, not an accident of naming.
+      const exists = fileExists({
+        'app/views/pages/index.liquid': '{{ content }}',
+        'app/views/pages/nested/.pos': 'sentinel',
+        'app/views/pages/nested/x.liquid': '{{ content }}',
+      });
+      expect(await findRoot(`${ROOT}/app/views/pages/nested/x.liquid`, exists)).toBe(
+        `${ROOT}/app/views/pages/nested`,
+      );
+    });
+  });
 });

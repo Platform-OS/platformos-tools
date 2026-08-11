@@ -144,8 +144,14 @@ export class PageRouteDefinitionProvider implements BaseDefinitionProvider {
       doc.positionAt(urlAttr.value[urlAttr.value.length - 1].position.end),
     );
 
+    // Several pages can match a URL while only the highest-precedence one serves it —
+    // an html page matches a `.json` URL, but loses to the json page that also does.
+    // Ties are kept: two pages with equal precedence are a genuine ambiguity to show.
+    const bestPrecedence = matches[0].precedence;
+    const serving = matches.filter((entry) => entry.precedence === bestPrecedence);
+
     const results: DefinitionLink[] = [];
-    for (const entry of matches) {
+    for (const entry of serving) {
       const targetRange = Range.create(0, 0, 0, 0);
       results.push(LocationLink.create(entry.uri, targetRange, targetRange, originRange));
     }

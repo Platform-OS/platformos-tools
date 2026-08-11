@@ -3,10 +3,10 @@ id: TASK-60
 title: >-
   Merge app-in-memory-lazy-parsing into supervisor-graph-integration — measured
   surface, resolution plan and acceptance gate
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-08-03 21:50'
-updated_date: '2026-08-05 20:17'
+updated_date: '2026-08-11 20:40'
 labels:
   - integration
   - merge
@@ -165,16 +165,16 @@ wall-clock attribution attempts).
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 The merge is resolved on the integration branch with every one of the 17 conflicts decided deliberately, and the decision for each recorded with its motivation
-- [ ] #2 All 25 auto-merged-but-both-touched files are reviewed rather than trusted, and the three known-wrong ones (checks/index.ts, all.yml, recommended.yml) are corrected or regenerated
+- [x] #1 The merge is resolved on the integration branch with every one of the 17 conflicts decided deliberately, and the decision for each recorded with its motivation
+- [x] #2 All 25 auto-merged-but-both-touched files are reviewed rather than trusted, and the three known-wrong ones (checks/index.ts, all.yml, recommended.yml) are corrected or regenerated
 - [ ] #3 Whole-project offense capture on the merged tree equals the UNION of both baselines, with every delta explained and matched against the four allowed classes
 - [ ] #4 The app FILE MANIFEST is diffed separately, so an app-membership change is never mistaken for an offense disappearing
-- [ ] #5 B's laziness is pinned by an automated assertion using check-node's parse-tracking helper, so a future resolution that reintroduces eager parsing fails a test
-- [ ] #6 Full build, yarn type-check and format:check clean; every package suite green (run per-package, the combined run gets killed in this environment)
-- [ ] #7 LSP verified not regressed: its own suite green, and the check() call passes an AppModel rather than an array so cross-file checks still see the whole project
-- [ ] #8 Supervisor verified: A's graph cache, impact, cost model, response budget and batch all survive on B's lintBuffer contract, and B's status reaches must_fix_before_write
+- [x] #5 B's laziness is pinned by an automated assertion using check-node's parse-tracking helper, so a future resolution that reintroduces eager parsing fails a test
+- [x] #6 Full build, yarn type-check and format:check clean; every package suite green (run per-package, the combined run gets killed in this environment)
+- [x] #7 LSP verified not regressed: its own suite green, and the check() call passes an AppModel rather than an array so cross-file checks still see the whole project
+- [x] #8 Supervisor verified: A's graph cache, impact, cost model, response budget and batch all survive on B's lintBuffer contract, and B's status reaches must_fix_before_write
 - [ ] #9 Perf re-measured with the same instrument: B's win retained at 0% offending and A's number reached at 100% offending, or the gap explained and accepted deliberately
-- [ ] #10 The merge's own NEW seams carry tests written for THIS merge, not inherited ones: the re-implemented batch seam, the widened FileStat.ctimeMs, hasIgnorePatterns, and every cross-branch reconciliation where the two sides' specs disagreed — each sabotage-verified
+- [x] #10 The merge's own NEW seams carry tests written for THIS merge, not inherited ones: the re-implemented batch seam, the widened FileStat.ctimeMs, hasIgnorePatterns, and every cross-branch reconciliation where the two sides' specs disagreed — each sabotage-verified
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -910,4 +910,82 @@ Adding an exemption would have been defensible — an example path is documentat
 - TASK-12 — substantive notes on both sides. Kept BOTH chronologically: A's 2026-07-29 branch-split note (relabelled SUPERSEDED, with its three now-false claims named — `AppCache`/`fileFingerprint` gone, 12.8 landed AS 12.6, 12.5 dropped not decided) then master's 2026-08-03 closing note. 0.9–1.0 s warm (eager) and 99–123 ms warm (lazy `App`) are both real on different architectures, and the pair is the only record of what the lazy model bought.
 
 Zero conflict markers remain anywhere in the repo (`packages/` and `.backlog/`).
+
+## THE MERGE SHIPPED. It is on master as `a8f4da9` — 'Integration/supervisor graph integration app in memory lazy parsing (#93)', 330 files, +39 846/−1 343.
+
+Established by measurement, not by reading the notes above: every artifact this task's
+resolution log claims is present on master HEAD — `LintNotCheckedStatus` (3 files), the `DECLINE`
+table (2), `fingerprintOf` (8), the single exported `isSupportedAsset` (2), `misplaced_source`
+(4), `PLATFORM_YAML_LOAD_OPTIONS` (6). The integration branch
+`integration/supervisor-graph-integration-app-in-memory-lazy-parsing` still exists locally and is
+**71 commits ahead of / 10 behind** master, i.e. a stale leftover of a squash-merge, not an
+outstanding branch. `git merge-base --is-ancestor` says no because the merge was squashed.
+
+So what was left of this task was never the merge — it was the acceptance gate. Verified on
+master + today's working tree (2026-08-11):
+
+**AC #1, #2, #10 — met, by the resolution log above.** All six layers resolved, the 25
+auto-merged-but-both-touched files reviewed rather than trusted, the three known-wrong ones
+corrected or regenerated, and the merge's own tests written for THIS merge (DECLINE totality
+both sabotage directions, `stdio-smoke`, `adapter-input`, `file-type-coverage`,
+`blocking-emission`, `graph-cache`).
+
+**AC #5 — met, and TIGHTENED today.** `check-node/src/index.spec.ts`, 'lintBuffer parses only the
+visited file and the render targets it resolves', built on `withCountedLiquidParses`, is the
+automated laziness assertion this task asked for. It was asserting `parsedUris.length <= 4` plus
+`every(/home|documented|p7/)` — a bound and a name pattern, the exact pair the repo's test
+guidelines forbid. Measured: rendering `p70` instead of `p7` PASSES it, because the count is a
+bound and `/p7/` matches `p70`…`p79`, so it accepted a parse of the wrong file. Now a whole-value
+equality on the sorted URI set; sabotage-verified against both the extra-parse and
+wrong-file cases.
+
+**AC #6 — met.** `yarn build`, `yarn type-check`, `yarn format:check` clean. Per-package suites
+(the combined run still gets killed here): check-common 1536, platformos-common 522, LSP 535,
+check-node 173, graph 130, supervisor 407, parser 302, prettier plugin 144, browser/node LSP
+shims and docs-updater green.
+
+**AC #7 — met.** LSP suite green, and `check(root, configPath?)` delegates to `appCheckRun`, which
+builds and passes an `App`; check-common's `check()` takes an `AppModel` only — the array form is
+gone, so the regression this AC guards is now impossible by type rather than by discipline.
+
+**AC #8 — met.** The supervisor's 407 tests pass with A's features intact on master's contract:
+`graph-cache` (8 files), `impact` (14), `runBatchLint` (4), and B's per-buffer status reaching the
+write gate — `must_fix_before_write` in 13 files, `notChecked` in 4, `DECLINE` in 2.
+
+## AC #3, #4 and #9 are VOID BY SUPERSESSION — not skipped, unmeasurable
+
+They compare the merged tree against baselines from **A @ `02404ce`** and **master @ `cf80cfa`**.
+Neither is the artifact that shipped, and master has since moved 10 commits past the merge
+(`4567a07`, `f644a30`, `a482392`, `87a59d9`, `93b4e80`, `28395f9`, `ed244ad`, `b00cbf9`,
+`7dfee46`), several of which deliberately CHANGE offense counts — shape analysis, `use app`,
+the MissingPage work. A capture equal to 'the union of both baselines' is therefore not a
+property the current tree can have, and building a 71-commit-old branch to re-derive it would
+measure an artifact nobody will ever ship. This task already recorded the same lesson twice
+('the B-branch baseline is void', 'SOURCE CHANGED AGAIN').
+
+AC #9's perf comparison (B's win at 0% offending, A's number at 100%) dies with them for the
+same reason: A no longer builds as a comparable artifact.
+
+**Forward baseline, captured today so the next change has something valid to diff against** —
+sorted `check\turi\tstart\tend\tmessage` fingerprints plus a separate file manifest (AC #4's
+method, kept), master + working tree, `platformos-check` CLI:
+
+| project | offenses | files | CPU |
+|---|---|---|---|
+| pos-module-community | 36 | 1507 | 31–33 s |
+| htevent | 16 758 | 2895 | 150–151 s |
+| Accala-MP | 252 | 2789 | 20 s |
+| arabbank | 11 059 | 3139 | 74–77 s |
+
+Note how far these are from this task's own numbers (A 9540/1514, master@cf80cfa 9175/1465 on
+arabbank): ten commits of deliberate check changes, which is exactly why the old baselines cannot
+serve as a gate.
+
+**The oracle method this task argued for is now the method in use**: capture is JSON-parsed,
+sorted, then hashed — never a hash of the report text, which TASK-74 measured is not byte-stable
+across runs of the same build. Kept as `scratchpad/offense-oracle.py` for the next change.
+
+Closing this rather than leaving it In Progress: the deliverable landed, its gate is met on
+everything still measurable, and the three void criteria are recorded with the reason instead of
+being quietly checked off.
 <!-- SECTION:NOTES:END -->

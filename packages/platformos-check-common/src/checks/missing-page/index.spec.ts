@@ -750,6 +750,105 @@ describe('Module: MissingPage', () => {
     });
   });
 
+  describe('parameter segments are filled by the path and nothing else', () => {
+    describe('an interior param segment (users/:user_id/action)', () => {
+      const INTERIOR = {
+        'app/views/pages/users/action.liquid':
+          '---\nslug: users/:user_id/action\nmethod: post\n---\nacted',
+      };
+
+      it('does not report a value in the param position', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<form action="/users/{{ user.id }}/action" method="post"></form>',
+          'app/views/pages/home.html.liquid',
+          {},
+          INTERIOR,
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      it('reports the collapsed path even when a control carries the param name', async () => {
+        const sourceCode = [
+          '<form action="/users/action" method="post">',
+          '  <select name="user_id"><option value="1">x</option></select>',
+          '</form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'app/views/pages/home.html.liquid',
+          {},
+          INTERIOR,
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/users/action' (POST)",
+        ]);
+      });
+    });
+
+    describe('an optional group (users/action(/:user_id))', () => {
+      it('does not report the bare path, nor the path with the segment supplied', async () => {
+        const optional = {
+          'app/views/pages/users/action.liquid':
+            '---\nslug: users/action(/:user_id)\nmethod: post\n---\nacted',
+        };
+
+        const bare = await runLiquidCheck(
+          MissingPage,
+          '<form action="/users/action" method="post"></form>',
+          'app/views/pages/home.html.liquid',
+          {},
+          optional,
+        );
+        const supplied = await runLiquidCheck(
+          MissingPage,
+          '<form action="/users/action/{{ user.id }}" method="post"></form>',
+          'app/views/pages/home.html.liquid',
+          {},
+          optional,
+        );
+
+        expect(bare).toEqual([]);
+        expect(supplied).toEqual([]);
+      });
+
+      it('still reports the same bare path when the segment is required instead', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<form action="/users/action" method="post"></form>',
+          'app/views/pages/home.html.liquid',
+          {},
+          {
+            'app/views/pages/users/action.liquid':
+              '---\nslug: users/action/:user_id\nmethod: post\n---\nacted',
+          },
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/users/action' (POST)",
+        ]);
+      });
+    });
+
+    it('reports a link that carries the value in the query string instead of the path', async () => {
+      const offenses = await runLiquidCheck(
+        MissingPage,
+        '<a href="/users/action?user_id=123">Act</a>',
+        'app/views/pages/home.html.liquid',
+        {},
+        { 'app/views/pages/users/action.liquid': '---\nslug: users/action/:user_id\n---\nacted' },
+      );
+
+      expect(offenses.map((o) => o.message)).toEqual([
+        "No page found for route '/users/action' (GET)",
+      ]);
+    });
+  });
+
   describe('assign variable scoping per position', () => {
     it('resolves each link against the variable value at that point in the document', async () => {
       const sourceCode =

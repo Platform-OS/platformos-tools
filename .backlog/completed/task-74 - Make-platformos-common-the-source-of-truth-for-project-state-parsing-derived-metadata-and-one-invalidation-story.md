@@ -3,11 +3,11 @@ id: TASK-74
 title: >-
   Make platformos-common the source of truth for project state: parsing, derived
   metadata and one invalidation story
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-08-09 17:55'
-updated_date: '2026-08-09 19:04'
+updated_date: '2026-08-11 19:29'
 labels:
   - architecture
   - platformos-common
@@ -243,4 +243,53 @@ build.
    `clearShapeAnalysisCaches` has no caller in the monorepo.
 5. Typing `AppFile.ast` deserves its own task — it needs jsonc and yaml moved down too, and
    this research shows it buys no correctness.
+
+## Those follow-ups are now DONE (2026-08-11) — steps 2-5 of doc-1's migration table
+
+Step 1 (`AppFile.revision` + `revisionOf`) had already landed. The rest, each verified the way
+doc-1 asked for:
+
+**Step 2 — `expandedPathsCache` staleness. FIXED, and it needed TWO invalidations, not one.**
+Clearing the expansion cache alone would have been decorative: `CachedFileSystem.readDirectory`
+is keyed per URI and the watcher invalidated only `dirname(createdFile)`, so writing
+`theme/v2/card.liquid` dropped the listing of `theme/v2` and left `theme/` — the directory the
+expansion actually lists — cached. `startServer.ts` now drops the whole ancestor chain on
+Created/Deleted (a `Map.delete` miss costs nothing, so it walks to the scheme root and needs no
+project root to stop at) AND clears the expanded paths. Reproduced end to end in
+`server/startServer.spec.ts`: go-to-definition on `{% theme_render_rc 'card' %}` answered `null`
+after the theme was replaced. Sabotage-verified in both directions — reverting the handler fails
+the LSP test, emptying `clearExpandedPathsCache` fails it and the locator probe.
+
+Also: doc-1's probe is now a test, and it replaced a VACUOUS one. `DocumentsLocator.spec.ts`'s
+'should clear expanded paths cache' asserted only that clearing left the answer unchanged on an
+UNCHANGED tree — it passes with the method reduced to an empty body. It now records all three
+answers (fresh → stale → recovered). Its mock filesystem snapshotted the file set at
+construction, so no staleness test could have been written against it at all; it derives the
+tree per call now.
+
+**Step 3 — `NestedGraphQLQuery` reads through the App.** `containsGraphQLTransitively` took a
+bare `{ readFile }`; it now takes a `readPartialAst` closure that tries `context.app.get(uri)`
+→ `load()` → `ast` (guarded by `isLiquidDocument`, the same shape `UnknownProperty.readPartial`
+uses) and keeps the `fs` fallback for a URI outside the walked subtrees. Verified by extending
+`index.spec.ts`'s parse-once family with a Liquid case, using the same marker discipline: the
+counting parser REWRITES a marker into `{% graphql %}`, so the offense can only appear if the
+check read the app's AST. Bypassing the app yields zero offenses — the test proves WHICH parse
+was used, not just how many happened, and also pins one parse for two call sites.
+
+**Step 4 — `backfill-docs` reads through the app it already holds**, and `getUsedVariables` now
+takes that AST instead of re-parsing. Its `DocumentsLocator` also gets the app, so resolution
+uses the index. The command had specs for each of its three helpers and NONE for itself; it now
+has one — what it writes, plus a case where the app carries an unsaved buffer and that content
+is what gets documented, which is the observable that distinguishes the two implementations
+(counting reads cannot: the old read went straight to `node:fs/promises`). Sabotage-verified.
+
+**Step 5 — already resolved.** Neither `clearShapeAnalysisCaches` nor the
+`clearUndefinedVariablesCache` citation exists anywhere in the tree or on master; a later commit
+removed both. Nothing to correct.
+
+**The larger decision doc-1 deliberately deferred — typing `AppFile.ast` — is now TASK-77**,
+carrying the measured numbers so the reverted spike is not re-run.
+
+Changeset: `.changeset/read-through-the-app-and-drop-stale-listings.md`. Every package suite
+green; build, type-check and format:check clean.
 <!-- SECTION:NOTES:END -->

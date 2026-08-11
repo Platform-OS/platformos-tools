@@ -17,11 +17,10 @@ import { BackfillOptions, BackfillResult, PartialUsage } from './types';
  * Extract the set of variable names used in a Liquid source file.
  * Only looks at top-level variable lookups (the root name, not nested properties).
  */
-async function getUsedVariables(source: string): Promise<Set<string>> {
+async function getUsedVariables(ast: unknown): Promise<Set<string>> {
   const usedVars = new Set<string>();
 
   try {
-    const ast = toLiquidHtmlAST(source);
     if (!isLiquidHtmlNode(ast)) {
       return usedVars;
     }
@@ -84,8 +83,35 @@ export async function backfillDocs(
   log('Processing:');
 
   // Create a DocumentsLocator for resolving partial paths
-  const documentsLocator = new DocumentsLocator(NodeFileSystem);
+  const documentsLocator = new DocumentsLocator(NodeFileSystem, app);
   const rootUri = URI.file(rootPath);
+
+  /**
+   * The partial's content and parse, from the `app` this command already built — the
+   * usage scan above has loaded and parsed every file in it, so reading the partial from
+   * disk again meant a second read and a second parse of a file already in memory.
+   *
+   * `getSharedApp` revalidates an in-memory source against its `mtime`/`size` before
+   * handing the app over, so this is not a staler answer than a fresh read; and where a
+   * caller has overlaid an unsaved buffer, that buffer is deliberately what gets
+   * documented. The `fs` path remains for a partial the app does not contain — the
+   * locator can resolve a URI outside the walked subtrees.
+   */
+  async function readPartialSource(
+    uri: string,
+    filePath: string,
+  ): Promise<{ source: string; ast: unknown }> {
+    const file = app.get(uri);
+    if (file) {
+      await file.load();
+      if (file.loadedSource !== undefined) {
+        return { source: file.loadedSource, ast: file.ast };
+      }
+    }
+
+    const source = await fs.readFile(filePath, 'utf8');
+    return { source, ast: toLiquidHtmlAST(source) };
+  }
 
   // Process each partial
   for (const usage of usageMap.values()) {
@@ -109,8 +135,9 @@ export async function backfillDocs(
 
       // Read the file content
       let source: string;
+      let ast: unknown;
       try {
-        source = await fs.readFile(filePath, 'utf8');
+        ({ source, ast } = await readPartialSource(resolvedUri, filePath));
       } catch (err) {
         log(`  [!] ${partialPath} - Failed to read file`);
         result.errors.push({
@@ -125,7 +152,7 @@ export async function backfillDocs(
       const existingParamNames = new Set(existingParams.map((p) => p.name));
 
       // Get variables actually used in the partial
-      const usedVariables = await getUsedVariables(source);
+      const usedVariables = await getUsedVariables(ast);
 
       // Generate param lines for new arguments only (if they're actually used)
       const newParamLines: string[] = [];

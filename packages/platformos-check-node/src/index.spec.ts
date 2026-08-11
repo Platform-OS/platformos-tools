@@ -1107,10 +1107,18 @@ describe('lazy app loading', () => {
     );
 
     expect(parsed.result).toEqual([]);
-    // The buffer, plus `documented` and `p7` reached through render resolution.
-    // Anything near 300 means the project is being parsed again.
-    expect(parsed.parsedUris.length).toBeLessThanOrEqual(4);
-    expect(parsed.parsedUris.every((uri) => /home|documented|p7/.test(uri))).toBe(true);
+    // The buffer, plus `documented` and `p7` reached through render resolution — the
+    // WHOLE set, not a bound on it plus a name pattern. Measured: rendering `p70` instead
+    // of `p7` passes `length <= 4` with `every(/home|documented|p7/)`, because the count is
+    // a bound and `/p7/` matches `p70`…`p79` — so the old pair accepted a parse of the
+    // wrong file. Anything near 300 means the project is being parsed again.
+    expect([...parsed.parsedUris].sort()).toEqual(
+      [
+        'app/views/pages/home.liquid',
+        'app/views/partials/documented.liquid',
+        'app/views/partials/p7.liquid',
+      ].map((relativePath) => workspace!.uri(relativePath)),
+    );
   });
 
   it('does not throw, or report, for a parse error in a file nobody visits', async () => {

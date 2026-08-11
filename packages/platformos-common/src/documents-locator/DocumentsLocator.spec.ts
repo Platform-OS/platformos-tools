@@ -8,19 +8,27 @@ import { App } from '../app';
 import { PlatformOSFileType } from '../path-utils';
 
 function createMockFileSystem(files: Record<string, string>): AbstractFileSystem {
-  const fileSet = new Set(Object.keys(files));
-
-  // Build directory tree from file paths
-  const dirs = new Set<string>();
-  for (const filePath of fileSet) {
-    const parts = filePath.split('/');
-    for (let i = 1; i < parts.length; i++) {
-      dirs.add(parts.slice(0, i).join('/'));
+  /**
+   * Derived per call rather than snapshotted at construction, so a test can add or
+   * remove a file mid-run. That is the only way to observe a cache serving an answer
+   * the filesystem no longer supports — snapshot it and every staleness test passes
+   * whatever the cache does.
+   */
+  function tree() {
+    const fileSet = new Set(Object.keys(files));
+    const dirs = new Set<string>();
+    for (const filePath of fileSet) {
+      const parts = filePath.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        dirs.add(parts.slice(0, i).join('/'));
+      }
     }
+    return { fileSet, dirs };
   }
 
   return {
     stat: vi.fn(async (uri: string): Promise<FileStat> => {
+      const { fileSet, dirs } = tree();
       if (fileSet.has(uri)) {
         return { type: FileType.File, size: files[uri].length };
       }
@@ -30,12 +38,13 @@ function createMockFileSystem(files: Record<string, string>): AbstractFileSystem
       throw new Error(`File not found: ${uri}`);
     }),
     readFile: vi.fn(async (uri: string): Promise<string> => {
-      if (fileSet.has(uri)) {
+      if (tree().fileSet.has(uri)) {
         return files[uri];
       }
       throw new Error(`File not found: ${uri}`);
     }),
     readDirectory: vi.fn(async (uri: string): Promise<FileTuple[]> => {
+      const { fileSet, dirs } = tree();
       const results: FileTuple[] = [];
       const seen = new Set<string>();
       const prefix = uri.endsWith('/') ? uri : uri + '/';
@@ -603,20 +612,38 @@ describe('DocumentsLocator', () => {
       expect(expansionCallsAfterFirst).toEqual([]);
     });
 
-    it('should clear expanded paths cache', async () => {
-      const fs = createMockFileSystem({
+    /**
+     * The three answers a caller gets when a theme directory is replaced: the cached
+     * expansion still names the directory that is gone, and clearing is what recovers.
+     *
+     * The middle assertion is the point. This test asserted only that clearing the cache
+     * left the answer unchanged on an UNCHANGED tree, which passes with
+     * `clearExpandedPathsCache` reduced to an empty body — it could not tell a working
+     * invalidation from no invalidation at all. Whoever holds this locator for longer
+     * than one file (the language server) has to call it on a created or deleted file, and
+     * `server/startServer.spec.ts` is where that duty is pinned.
+     */
+    it('serves the stale expansion until the cache is cleared', async () => {
+      const files: Record<string, string> = {
         'file:///project/app/views/partials/theme/v1/card.liquid': 'v1',
-      });
-      const locator = new DocumentsLocator(fs);
+      };
+      const locator = new DocumentsLocator(createMockFileSystem(files));
+      const searchPaths = ['theme/{{ version }}'];
 
-      const result1 = await locator.locateWithSearchPaths(rootUri, 'card', ['theme/{{ version }}']);
-      expect(result1).toBe('file:///project/app/views/partials/theme/v1/card.liquid');
+      const before = await locator.locateWithSearchPaths(rootUri, 'card', searchPaths);
+
+      delete files['file:///project/app/views/partials/theme/v1/card.liquid'];
+      files['file:///project/app/views/partials/theme/v2/card.liquid'] = 'v2';
+      const afterNewDirectory = await locator.locateWithSearchPaths(rootUri, 'card', searchPaths);
 
       locator.clearExpandedPathsCache();
+      const afterClearing = await locator.locateWithSearchPaths(rootUri, 'card', searchPaths);
 
-      // After clearing, a fresh expansion should work (same result since fs unchanged)
-      const result2 = await locator.locateWithSearchPaths(rootUri, 'card', ['theme/{{ version }}']);
-      expect(result2).toBe('file:///project/app/views/partials/theme/v1/card.liquid');
+      expect({ before, afterNewDirectory, afterClearing }).toEqual({
+        before: 'file:///project/app/views/partials/theme/v1/card.liquid',
+        afterNewDirectory: undefined,
+        afterClearing: 'file:///project/app/views/partials/theme/v2/card.liquid',
+      });
     });
 
     it('should handle module-prefixed partials with search paths', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runLiquidCheck, highlightedOffenses } from '../../../test';
+import { runLiquidCheck, highlightedOffenses, messagesOf } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
 
 describe('Module: InvalidTagSyntax', () => {
@@ -8,22 +8,21 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% render %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'render'");
+      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'render'"]);
     });
 
     it('should not report valid render', async () => {
       const sourceCode = `{% render 'partial' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid render with arguments', async () => {
       const sourceCode = `{% render 'partial', var1: 'hello', var2: 123 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should highlight the entire invalid render tag', async () => {
@@ -40,36 +39,35 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% function res 'path/to/function' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'function'");
+      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'function'"]);
     });
 
     it('should not report valid function', async () => {
       const sourceCode = `{% function res = 'path/to/function' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid function with arguments', async () => {
       const sourceCode = `{% function res = 'path/to/function', arg1: "hello" %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid function with JSON array argument', async () => {
       const sourceCode = `{% function res = 'path/to/function', items: ["a", "b"] %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid function with JSON hash argument', async () => {
       const sourceCode = `{% function res = 'path/to/function', config: { key: "val" } %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid multi-line function with JSON arguments inside liquid block', async () => {
@@ -80,15 +78,14 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should report function with missing partial after =', async () => {
       const sourceCode = `{% function res = %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'function'");
+      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'function'"]);
     });
 
     /**
@@ -129,7 +126,7 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
   });
 
@@ -138,36 +135,35 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% graphql %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'graphql'");
+      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'graphql'"]);
     });
 
     it('should not report valid graphql file-based syntax', async () => {
       const sourceCode = `{% graphql result = 'path/to/query' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report graphql with named argument value using a filter', async () => {
       const sourceCode = `{% graphql consumers = 'modules/core/events/consumers', name: name | fetch: "admin_liquid_partials" %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report graphql with named argument value using chained filters', async () => {
       const sourceCode = `{% graphql consumers = 'modules/core/events/consumers', name: name | fetch: "admin_liquid_partials" | fetch: "results" %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report graphql with multiple named arguments where one uses a filter', async () => {
       const sourceCode = `{% graphql consumers = 'modules/core/events/consumers', name: name | fetch: "admin_liquid_partials" | fetch: "results", limit: 10 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
   });
 
@@ -176,15 +172,14 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% include %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'include'");
+      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'include'"]);
     });
 
     it('should not report valid include', async () => {
       const sourceCode = `{% include 'partial' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
   });
 
@@ -193,42 +188,42 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% log x %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid export syntax', async () => {
       const sourceCode = `{% export data, namespace: "my_namespace" %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid redirect_to syntax', async () => {
       const sourceCode = `{% redirect_to '/path' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid print syntax', async () => {
       const sourceCode = `{% print x %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid yield syntax', async () => {
       const sourceCode = `{% yield 'content' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report form without arguments', async () => {
       const sourceCode = `{% form %}content{% endform %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report form with hyphenated keys and missing commas between attributes', async () => {
@@ -237,14 +232,14 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% form html-class: "foo-form", html-submitonce: "true" html-foo-bar: "true" %}content{% endform %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report form with a positional model name', async () => {
       const sourceCode = `{% form form, method: 'delete' %}content{% endform %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
   });
 
@@ -255,8 +250,7 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'render'");
+      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'render'"]);
     });
 
     it('should not report valid tags inside liquid block', async () => {
@@ -266,7 +260,7 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid multi-line return with JSON hash in liquid block', async () => {
@@ -277,7 +271,7 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid multi-line return with JSON array in liquid block', async () => {
@@ -289,7 +283,7 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report valid multi-line assign with JSON array followed by render', async () => {
@@ -303,7 +297,7 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
   });
 
@@ -314,14 +308,14 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% assign foo = '123' 555 text %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not fire InvalidTagSyntax on echo (has InvalidEchoValue)', async () => {
       const sourceCode = `{% echo = %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
   });
 
@@ -330,21 +324,21 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% if true %}a{% else %}b{% endif %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report break as invalid syntax', async () => {
       const sourceCode = `{% for item in array %}{% break %}{% endfor %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     it('should not report continue as invalid syntax', async () => {
       const sourceCode = `{% for item in array %}{% continue %}{% endfor %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
 
     /**
@@ -419,15 +413,14 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{%- render -%}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'render'");
+      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'render'"]);
     });
 
     it('should not report valid syntax with trimming delimiters', async () => {
       const sourceCode = `{%- render 'partial' -%}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(0);
+      expect(messagesOf(syntaxOffenses)).toEqual([]);
     });
   });
 
@@ -459,8 +452,9 @@ describe('Module: InvalidTagSyntax', () => {
         },
       );
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(syntaxOffenses).toHaveLength(1);
-      expect(syntaxOffenses[0].message).toContain("Expected syntax: {% render 'partial' %}");
+      expect(messagesOf(syntaxOffenses)).toEqual([
+        "Invalid syntax for tag 'render' Expected syntax: {% render 'partial' %}",
+      ]);
     });
   });
 });

@@ -49,8 +49,9 @@
  * (`ValidJSON`, `JSONSyntaxError` — see the exclusions below). That failure is
  * invisible from inside check-common, where both work perfectly, and invisible on
  * the wire, where a dead member and a clean file are byte-identical. Every member is
- * therefore driven end to end by `blocking-emission.spec.ts`; adding one here
- * without a fixture there fails the suite, which is the point.
+ * therefore driven end to end by the "every blocking check can actually block" group in
+ * `transport/validate-code.spec.ts`; adding one here without a fixture there fails the
+ * suite, which is the point.
  *
  * Severity is deliberately NOT changed. A dead argument stays an `error` in
  * `errors[]` and keeps `status: 'error'`; it just no longer gates the write. That
@@ -165,8 +166,9 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
  *   Note what this is NOT: the checks work. They fire correctly under `check()` and
  *   for the CLI and language server, which do lint standalone JSON. Nothing about
  *   them changed and nothing needs fixing in check-common. If this server ever
- *   admits `.json`, re-add both — `blocking-emission.spec.ts` will demand a fixture,
- *   and it holds the proof of why one could not be written before.
+ *   admits `.json`, re-add both — the "every blocking check can actually block" group in
+ *   `transport/validate-code.spec.ts` will demand a fixture, and it holds the proof of why
+ *   one could not be written before.
  *
  *   AND THEY WERE NOT WRONG WHEN WRITTEN, which is the part worth remembering.
  *   `toSourceCode` types any unrecognized extension as JSON, so before the

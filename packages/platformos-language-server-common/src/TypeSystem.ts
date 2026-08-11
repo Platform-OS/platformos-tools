@@ -10,6 +10,7 @@ import {
   LiquidTagIncrement,
   LiquidVariable,
   LiquidVariableLookup,
+  LiquidFilter,
   LiquidVariableOutput,
   NamedTags,
   NodeTypes,
@@ -32,11 +33,13 @@ import {
   PlatformOSDocset,
   path,
   BasicParamTypes,
+  alternativeSubstituteArg,
   buildLookupPath,
   createShapeAnalyzer,
   getValidParamTypes,
   inferShapeFromJSONString,
   isAlternativeReturningFilter,
+  isLiquidDocument,
   lookupPropertyPath,
   parseParamType,
 } from '@platformos/platformos-check-common';
@@ -51,6 +54,7 @@ import {
 import {
   AbstractFileSystem,
   App,
+  AppFile,
   AppResolver,
   DocumentsLocator,
   GraphQLDocumentNode,
@@ -190,6 +194,7 @@ export class TypeSystem {
       objectMap,
       filtersMap,
       rootUri ? this.getApp?.(rootUri) : undefined,
+      uri,
     );
   }
 
@@ -375,25 +380,33 @@ const LazyDeconstructedExpression = (
  */
 type SymbolsTable = Record<Identifier, TypeRange[]>;
 
+/**
+ * Every parameter is REQUIRED, `undefined` spelled out where a caller has nothing to give.
+ * Optional reads as convenience on a list this long and is not: the last of them decides this
+ * table's shape-analysis cache identity, so a default lets a new call site share another
+ * file's entries by forgetting an argument.
+ */
 async function buildSymbolsTable(
   partialAst: LiquidHtmlNode,
   seedSymbolsTable: SymbolsTable,
   liquidDrops: ObjectEntry[],
-  graphqlSchema?: string,
-  fs?: AbstractFileSystem,
-  documentsLocator?: DocumentsLocator,
-  rootUri?: string,
-  processingFiles?: Set<string>,
-  objectMap?: ObjectMap,
-  filtersMap?: FiltersMap,
-  app?: App,
+  graphqlSchema: string | undefined,
+  fs: AbstractFileSystem | undefined,
+  documentsLocator: DocumentsLocator | undefined,
+  rootUri: string | undefined,
+  processingFiles: Set<string> | undefined,
+  objectMap: ObjectMap | undefined,
+  filtersMap: FiltersMap | undefined,
+  app: App | undefined,
+  /** The file this table is FOR — see `analysisIdentity` in `shapeAnalyzerDeps`. */
+  uri: string,
 ): Promise<SymbolsTable> {
   // ONE answer to "what shape does this variable have", shared with `UnknownProperty`.
   // Do not track shapes here as well; a second copy drifts.
   //
   // Fed first, in source order, so the pass below can ask it about any position.
   const analyzer = createShapeAnalyzer({
-    ...shapeAnalyzerDeps(graphqlSchema, fs, documentsLocator, rootUri, app),
+    ...shapeAnalyzerDeps(graphqlSchema, fs, documentsLocator, rootUri, app, uri),
     // The docset half of the answer, which no diagnostic needs: `context.current_user`
     // has properties because the docset says so, not because this file assigned it.
     resolveExternalShape: (read, position) => externalShape(read, position),
@@ -675,20 +688,16 @@ function inferType(
       if (thing.filters.length > 0) {
         const lastFilter = thing.filters.at(-1)!;
         // A filter returning one of its OPERANDS has no type of its own; the docset says
-        // `untyped`. `| default:` yields the piped value unless it is falsy.
+        // `untyped`, so which operand it is has to be decided here.
         if (isAlternativeReturningFilter(lastFilter.name)) {
-          const piped = inferType(
-            { ...thing, filters: thing.filters.slice(0, -1) },
+          const alternative = alternativeFilterType(
+            thing,
+            lastFilter,
             symbolsTable,
             objectMap,
             filtersMap,
           );
-          if (piped !== Untyped && piped !== Unknown) return piped;
-          // Nothing known about the piped value: the case the fallback was written for.
-          const fallback = lastFilter.args[0];
-          if (fallback && fallback.type !== NodeTypes.NamedArgument) {
-            return inferType(fallback, symbolsTable, objectMap, filtersMap);
-          }
+          if (alternative !== undefined) return alternative;
         }
         const filterEntry = filtersMap[lastFilter.name];
         return filterEntry ? filterEntryReturnType(filterEntry) : Untyped;
@@ -701,6 +710,96 @@ function inferType(
       return Untyped;
     }
   }
+}
+
+/**
+ * Which operand of a `| default:` the value comes from, or `undefined` when neither can be
+ * named and the caller should fall back to the filter's declared return type.
+ *
+ * THE RULE, in order:
+ *
+ *  1. The piped operand PROVABLY does not flow — it is blank, and `default` substitutes for
+ *     any blank value — so the fallback is the value. A piped `''` is typed `string`, neither
+ *     `Untyped` nor `Unknown`, so step 2 alone would name the operand that never arrives.
+ *  2. The piped operand has a type — it may or may not be blank, and nothing here can tell —
+ *     so name it. That is what makes `{{ user | default: '' }}` complete as a user rather than
+ *     as a string, which is the common shape and what the author meant.
+ *  3. Nothing is known about the piped operand: the case the fallback was written for.
+ *
+ * Only step 1 is a proof; step 2 is a preference, and it is wrong for a piped value that
+ * happens to be blank at runtime. There is no third answer available: a union of the two
+ * would be the honest type, and `inferLookupType` resolves a `UnionType` to `Untyped`, so it
+ * would cost both operands' members rather than pick the wrong one.
+ */
+function alternativeFilterType(
+  thing: LiquidVariable,
+  lastFilter: LiquidFilter,
+  symbolsTable: SymbolsTable,
+  objectMap: ObjectMap,
+  filtersMap: FiltersMap,
+): PseudoType | ArrayType | ShapeType | UnionType | undefined {
+  // `{{ x | default }}` and `{{ x | default: allow_false: true }}` name no substitute at all,
+  // which `filter-semantics.ts` answers for — it owns the `alternative` row this reads.
+  const substitute = alternativeSubstituteArg(lastFilter);
+  const substituteType = () =>
+    substitute && inferType(substitute, symbolsTable, objectMap, filtersMap);
+
+  const piped = { ...thing, filters: thing.filters.slice(0, -1) };
+  // A filter between the value and the `default` produces something whose blankness is not
+  // ours to judge, so the proof is only available on a bare expression.
+  if (substitute && piped.filters.length === 0 && isProvablyBlank(piped.expression, symbolsTable)) {
+    return substituteType();
+  }
+
+  const pipedType = inferType(piped, symbolsTable, objectMap, filtersMap);
+  if (pipedType !== Untyped && pipedType !== Unknown) return pipedType;
+  // Inferred only now: on the common path the piped value answers, and the substitute may be
+  // a variable lookup whose own resolution is a walk of the symbols table.
+  return substituteType();
+}
+
+/**
+ * Whether an expression is a value `default` SUBSTITUTES FOR — proven, never guessed.
+ *
+ * Liquid's `default` fires on a blank value, not a false one:
+ * `input.respond_to?(:empty?) ? input.empty? : !input`. So `''`, `false`, `nil` and an empty
+ * literal are blank, and `0` is NOT — `0.empty?` does not exist and `!0` is false in Ruby, so
+ * a zero flows through. `blank` and `empty` are spellings of `''` in this parser, so they
+ * arrive here as literals already.
+ *
+ * A bare variable is followed to what it was assigned, because that is where the case comes
+ * from — nobody writes `'' | default:`, they write `{% assign title = '' %}` twenty lines
+ * earlier. `seen` stops `{% assign a = b %}{% assign b = a %}`, which a half-typed buffer
+ * produces, from recursing forever.
+ */
+function isProvablyBlank(
+  expression: ComplexLiquidExpression,
+  symbolsTable: SymbolsTable,
+  seen: Set<string> = new Set(),
+): boolean {
+  if (expression.type === NodeTypes.String) return expression.value === '';
+  if (expression.type === NodeTypes.LiquidLiteral) return !expression.value;
+  if (expression.type === NodeTypes.JsonHashLiteral) return expression.entries.length === 0;
+  if (expression.type === NodeTypes.JsonArrayLiteral) return expression.elements.length === 0;
+  if (expression.type !== NodeTypes.VariableLookup) return false;
+
+  // Only the name itself: `a.b` is a read out of a value whose contents are not tracked here.
+  const identifier = expression.name;
+  if (!identifier || expression.lookups.length > 0 || seen.has(identifier)) return false;
+  seen.add(identifier);
+
+  const typeRange = findLast(symbolsTable[identifier] ?? [], (range) =>
+    isCorrectTypeRange(range, expression),
+  );
+  const assigned = typeRange?.type;
+  // Anything already resolved to a type has lost the value it was assigned, and a filtered
+  // assignment produces a value this cannot see into.
+  if (typeof assigned === 'string') return false;
+  if (assigned?.kind !== NodeTypes.LiquidVariable || assigned.node.filters.length > 0) {
+    return false;
+  }
+
+  return isProvablyBlank(assigned.node.expression, symbolsTable, seen);
 }
 
 function inferLiquidDocParamType(node: LiquidDocParamNode, liquidDrops: ObjectEntry[]) {
@@ -1240,6 +1339,7 @@ async function inferFunctionReturnType(
       objectMap,
       filtersMap,
       app,
+      located,
     );
 
     // 5. Find all return statements and infer their types
@@ -1415,6 +1515,8 @@ function shapeAnalyzerDeps(
   documentsLocator: DocumentsLocator | undefined,
   rootUri: string | undefined,
   app: App | undefined,
+  /** The file whose symbols table this builds — see `analysisIdentity` below. */
+  uri: string,
 ): ShapeAnalyzerDeps {
   const locate = async (kind: 'graphql' | 'function', name: string) => {
     if (!fs || !documentsLocator || !rootUri) return undefined;
@@ -1425,14 +1527,8 @@ function shapeAnalyzerDeps(
     }
   };
 
-  const readContent = async (uri: string) => {
-    if (!fs) return undefined;
-    try {
-      return await fs.readFile(uri);
-    } catch {
-      return undefined;
-    }
-  };
+  /** Buffer first, then disk — see {@link readSource}, which every read here goes through. */
+  const readContent = (uri: string) => readSource(uri, fs, app);
 
   /**
    * A document a tag names is read and parsed ONCE per symbols table, not once per call
@@ -1450,18 +1546,33 @@ function shapeAnalyzerDeps(
   const partials = new Map<string, Promise<AnalyzablePartial | undefined>>();
 
   return {
+    /**
+     * What this deps object's `resolveExternalShape` answers depends on the seed symbols
+     * table, and the only part of that the URI chooses is the CONTEXTUAL variables — a binary
+     * of the file's kind (`getContextualEntries`: `['app']` for a partial or lib file,
+     * nothing otherwise). The globals are the same everywhere and `objectMap` ignores its URI
+     * altogether, so this is the whole of the dependence, not an approximation of it.
+     *
+     * Keyed on the KIND rather than the file, because the alternative over-partitions a cache
+     * that is module-level and capped: `runPartialAnalysis` builds the nested analyzer from
+     * these same deps, so a per-file identity keys a partial's entire `{% function %}` chain
+     * on whichever page reached it — forty pages sharing a five-deep chain would hold 240
+     * entries and recompute the chain forty times, where two suffice. Per-OBJECT identity
+     * would be worse still: a fresh deps object is built for every symbols table, so the memo
+     * would miss on every keystroke and never pay for itself.
+     *
+     * Nothing about the resolver's presence is stated here — the cache reads that off `deps`
+     * itself, which is what keeps the check next door from ever being handed one of these.
+     */
+    analysisIdentity: `language-server/TypeSystem\0${getContextualEntries(uri).join(',')}`,
+
     readGraphQL: (name) =>
       once(graphqlDocuments, name, async () => {
         const uri = await locate('graphql', name);
         if (!uri) return undefined;
 
-        const file = app?.get(uri);
-        if (file) {
-          // A failed load leaves `ast` unparseable rather than throwing out of here, and
-          // the read below is then the second chance.
-          await file.load().catch(() => undefined);
-          if (isGraphqlDocument(file.ast)) return { uri, ast: file.ast };
-        }
+        const file = await loadedAppFile(uri, app);
+        if (file && isGraphqlDocument(file.ast)) return { uri, ast: file.ast };
 
         const content = await readContent(uri);
         return content === undefined ? undefined : { uri, ast: parseGraphql(content) };
@@ -1476,6 +1587,13 @@ function shapeAnalyzerDeps(
       }),
 
     readContent,
+
+    /**
+     * The same number the linter's analyzer records, from the same `App` — which is what
+     * lets the two of them share the memo without either being able to serve the other a
+     * reading of a file neither of them has now.
+     */
+    revisionOf: (uri: string) => app?.get(uri)?.revision,
 
     async getSchema() {
       return graphqlSchema;
@@ -1517,19 +1635,16 @@ async function readLiquidFile(
   fs: AbstractFileSystem | undefined,
   app: App | undefined,
 ): Promise<{ source: string; ast: LiquidHtmlNode } | undefined> {
-  const file = app?.get(uri);
+  const file = await loadedAppFile(uri, app);
   if (file) {
-    // A failed load leaves the file unparsed rather than throwing out of here, and the
-    // read below is then the second chance.
-    await file.load().catch(() => undefined);
     const { ast, loadedSource } = file;
     if (loadedSource !== undefined && isLiquidDocument(ast)) return { source: loadedSource, ast };
   }
 
-  if (!fs) return undefined;
+  const source = await readSource(uri, fs, app);
+  if (source === undefined) return undefined;
 
   try {
-    const source = await fs.readFile(uri);
     return { source, ast: toLiquidHtmlAST(source) };
   } catch {
     return undefined;
@@ -1537,14 +1652,38 @@ async function readLiquidFile(
 }
 
 /**
- * An `AppFile`'s `ast` is typed `unknown` — `platformos-common` sits below the parsers —
- * and holds an `Error` for a file that did not parse, so it is narrowed here rather than
- * asserted.
+ * The `App`'s file for `uri`, its `load()` already awaited — the one prologue every read
+ * below shares, so none of them spells it a second time and they cannot come to disagree.
+ *
+ * A failed load leaves the file unread and unparsed rather than throwing out of here; the
+ * caller's filesystem fallback is then the second chance.
  */
-function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
-  return (
-    typeof ast === 'object' && ast !== null && (ast as LiquidHtmlNode).type === NodeTypes.Document
-  );
+async function loadedAppFile(uri: string, app: App | undefined): Promise<AppFile | undefined> {
+  const file = app?.get(uri);
+  if (!file) return undefined;
+
+  await file.load().catch(() => undefined);
+  return file;
+}
+
+/**
+ * A file's text, BUFFER FIRST: the `App`'s copy when it has one, the filesystem otherwise.
+ * ONE spelling of that rule for this whole module. `undefined` when neither can produce it.
+ */
+async function readSource(
+  uri: string,
+  fs: AbstractFileSystem | undefined,
+  app: App | undefined,
+): Promise<string | undefined> {
+  const file = await loadedAppFile(uri, app);
+  if (file?.loadedSource !== undefined) return file.loadedSource;
+
+  if (!fs) return undefined;
+  try {
+    return await fs.readFile(uri);
+  } catch {
+    return undefined;
+  }
 }
 
 /**

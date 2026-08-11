@@ -2,13 +2,12 @@ import {
   LiquidHtmlNode,
   LiquidTag,
   LiquidVariableLookup,
-  NodeTypes,
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
 import { DocumentsLocator, isGraphqlDocument, parseGraphql } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { isError } from '../../utils';
+import { isError, isLiquidDocument } from '../../utils';
 import { lookupPropertyPath } from './property-shape';
 import {
   AnalyzableFile,
@@ -94,6 +93,9 @@ export const UnknownProperty: LiquidCheckDefinition = {
     };
 
     const deps: ShapeAnalyzerDeps = {
+      // No `resolveExternalShape`: a diagnostic has no use for what the docset says
+      // `context.current_user` holds, and must not be served an analysis that used it.
+      analysisIdentity: 'check-common/UnknownProperty',
       /**
        * The `.graphql` document a tag names, with its parse. The `AppFile` owns that
        * parse, so a query named from thirty call sites is parsed once per run rather
@@ -114,6 +116,12 @@ export const UnknownProperty: LiquidCheckDefinition = {
       },
       readPartial,
       readContent,
+      /**
+       * The run's app is the only thing that knows a file changed, and it says so with a
+       * number — so a memoized analysis is revalidated without reading anything, and cannot
+       * be revalidated against a different copy of the file than it analyzed.
+       */
+      revisionOf: (uri) => context.app.get(uri)?.revision,
       getSchema,
     };
 
@@ -169,11 +177,3 @@ export const UnknownProperty: LiquidCheckDefinition = {
     };
   },
 };
-
-function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
-  return (
-    typeof ast === 'object' &&
-    ast !== null &&
-    (ast as { type?: unknown }).type === NodeTypes.Document
-  );
-}

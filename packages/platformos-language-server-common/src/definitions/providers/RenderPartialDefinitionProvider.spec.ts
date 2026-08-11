@@ -8,6 +8,25 @@ import { DocumentManager } from '../../documents';
 import { SearchPathsLoader } from '../../utils/searchPaths';
 import { RenderPartialDefinitionProvider } from './RenderPartialDefinitionProvider';
 
+/** Every target range is zero: these providers point at the FILE, not a position inside it. */
+const WHOLE_FILE = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
+
+/**
+ * A whole `LocationLink`, spelled by the two things that vary: where it points, and the span
+ * the editor highlights at the cursor. `originSelectionRange` had no assertion at all while
+ * these tests read `result[0].targetUri` and stopped — so a provider that highlighted the
+ * wrong span, or one character too many, passed every one of them.
+ */
+const link = (targetUri: string, [line, start, end]: [number, number, number]) => ({
+  targetUri,
+  targetRange: WHOLE_FILE,
+  targetSelectionRange: WHOLE_FILE,
+  originSelectionRange: {
+    start: { line, character: start },
+    end: { line, character: end },
+  },
+});
+
 const rootUri = 'file:///project';
 const uriString = 'file:///project/app/views/pages/index.liquid';
 
@@ -44,8 +63,7 @@ describe('RenderPartialDefinitionProvider', () => {
         'project/app/views/partials/card.liquid': 'card content',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/partials/card.liquid');
+      expect(result).toEqual([link('file:///project/app/views/partials/card.liquid', [0, 10, 16])]);
     });
 
     it('should NOT use search paths for regular render tags — falls back to default creation path', async () => {
@@ -57,8 +75,7 @@ describe('RenderPartialDefinitionProvider', () => {
         'project/app/views/partials/theme/dress/card.liquid': 'dress card',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/partials/card.liquid');
+      expect(result).toEqual([link('file:///project/app/views/partials/card.liquid', [0, 10, 16])]);
     });
   });
 
@@ -69,10 +86,9 @@ describe('RenderPartialDefinitionProvider', () => {
         'project/app/views/partials/theme/dress/card.liquid': 'dress card',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/views/partials/theme/dress/card.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/app/views/partials/theme/dress/card.liquid', [0, 19, 25]),
+      ]);
     });
 
     it('should fallback to standard resolution when no config exists', async () => {
@@ -80,8 +96,7 @@ describe('RenderPartialDefinitionProvider', () => {
         'project/app/views/partials/card.liquid': 'default card',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/partials/card.liquid');
+      expect(result).toEqual([link('file:///project/app/views/partials/card.liquid', [0, 19, 25])]);
     });
 
     it('should resolve inside {% liquid %} blocks', async () => {
@@ -105,10 +120,12 @@ describe('RenderPartialDefinitionProvider', () => {
 
       const result = await provider.definitions(params, node, ancestors);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/components/public/views/partials/components/atoms/heading.liquid',
-      );
+      expect(result).toEqual([
+        link(
+          'file:///project/modules/components/public/views/partials/components/atoms/heading.liquid',
+          [1, 18, 44],
+        ),
+      ]);
     });
   });
 
@@ -118,8 +135,7 @@ describe('RenderPartialDefinitionProvider', () => {
         'project/app/lib/commands/apply.liquid': 'apply content',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/lib/commands/apply.liquid');
+      expect(result).toEqual([link('file:///project/app/lib/commands/apply.liquid', [0, 21, 37])]);
     });
   });
 
@@ -129,8 +145,9 @@ describe('RenderPartialDefinitionProvider', () => {
         'project/app/views/partials/mytest/inner.liquid': 'inner content',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/partials/mytest/inner.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/partials/mytest/inner.liquid', [0, 18, 32]),
+      ]);
     });
   });
 
@@ -140,8 +157,9 @@ describe('RenderPartialDefinitionProvider', () => {
         'project/app/graphql/users/search.graphql': 'query { }',
       });
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/graphql/users/search.graphql');
+      expect(result).toEqual([
+        link('file:///project/app/graphql/users/search.graphql', [0, 15, 29]),
+      ]);
     });
   });
 
@@ -149,39 +167,39 @@ describe('RenderPartialDefinitionProvider', () => {
     it('render: missing partial resolves to app/views/partials', async () => {
       const result = await getDefinitions("{% render 'my/missing/partial' %}", 12, {});
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/views/partials/my/missing/partial.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/app/views/partials/my/missing/partial.liquid', [0, 10, 30]),
+      ]);
     });
 
     it('function: missing partial resolves to app/lib', async () => {
       const result = await getDefinitions("{% function result = 'commands/missing' %}", 24, {});
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/lib/commands/missing.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/lib/commands/missing.liquid', [0, 21, 39]),
+      ]);
     });
 
     it('background: missing partial resolves to app/views/partials', async () => {
       const result = await getDefinitions("{% background x = 'my/missing/partial' %}", 22, {});
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/views/partials/my/missing/partial.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/app/views/partials/my/missing/partial.liquid', [0, 18, 38]),
+      ]);
     });
 
     it('graphql: missing file resolves to app/graphql', async () => {
       const result = await getDefinitions("{% graphql g = 'users/missing' %}", 18, {});
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/graphql/users/missing.graphql');
+      expect(result).toEqual([
+        link('file:///project/app/graphql/users/missing.graphql', [0, 15, 30]),
+      ]);
     });
 
     it('theme_render_rc: missing file returns empty (no default path)', async () => {
       const result = await getDefinitions("{% theme_render_rc 'missing' %}", 20, {});
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 
@@ -189,7 +207,7 @@ describe('RenderPartialDefinitionProvider', () => {
     it('should return empty for non-string nodes', async () => {
       const result = await getDefinitions("{% assign x = 'hello' %}", 3, {});
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 

@@ -88,3 +88,16 @@ jobs:
 
       - name: Run the prettier3 idempotence tests
         run: yarn --cwd packages/prettier-plugin-liquid test:idempotence:3
+
+      # The TextMate grammar suite is mocha, at `syntaxes/tests/test.js`, so it matches
+      # neither vitest's include pattern nor any command above — 540 tokenization
+      # baselines that no automated run touched. The grammar is GENERATED from
+      # `liquid.yml`, so it is rebuilt first: `grammars/*.tmLanguage.json` is an
+      # artifact, and testing it unbuilt would pass a grammar its source no longer
+      # describes. `syntaxes` is a submodule, checked out and installed above by
+      # `submodules: true` and vscode-extension's `postinstall`.
+      - name: Build the TextMate grammar
+        run: yarn --cwd packages/vscode-extension/syntaxes build
+
+      - name: Run the TextMate grammar tests
+        run: yarn --cwd packages/vscode-extension/syntaxes test

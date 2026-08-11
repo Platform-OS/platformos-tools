@@ -33,7 +33,7 @@ import { YAMLConvertError } from '../../yaml/parse';
  * `DuplicateYAMLKey` reports that, as a WARNING and outside `BLOCKING_CHECKS`, which
  * is what keeps a semantic finding off the write gate this check sits on.
  *
- * THAT PARAGRAPH IS ENFORCED, not merely asserted — see `duplicate-keys.spec.ts`. It
+ * THAT PARAGRAPH IS ENFORCED, not merely asserted — see `index.spec.ts`. It
  * was true and untested for one release, during which the `yaml` package's
  * `uniqueKeys` default quietly turned a duplicated name into a hard refusal to write,
  * with this comment and the server's agent-facing instructions both still promising

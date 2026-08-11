@@ -186,7 +186,8 @@ describe('Unit: fileApplicability', () => {
       // gained `InstanceConfig` (`app/config.yml`) and `UserSchema` (`app/user.yml`) as
       // fixed-path singletons. This case used to sit in the declined list above with the
       // comment "a project config file, not a YAML *source*", which is now simply false:
-      // it is checked, and `file-type-coverage.spec.ts` pins that something examines it.
+      // it is checked, and `transport/validate-code.spec.ts`'s file-type-coverage group
+      // pins that something examines it.
       ['the app config singleton', 'app/config.yml'],
       ['the user schema singleton', 'app/user.yml'],
       // KNOWN WRONG ADVICE, admitted here on purpose rather than special-cased.

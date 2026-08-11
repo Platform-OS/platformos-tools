@@ -1,184 +1,178 @@
 import { describe, it, expect } from 'vitest';
-import { runLiquidCheck, applyFix } from '../../../test';
+import { applyFix, messagesOf, runLiquidCheck } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
+
+/**
+ * Every case asserts the message AND the source the fix produces, whole.
+ *
+ * Half of these used to stop at `fix).toBeDefined()`, which says a fix exists and nothing
+ * about what it does — a corrector that deleted the whole expression would satisfy it. The
+ * ones that did check the output were the reason the other half looked adequate.
+ */
+const EXTRA_PIPE = 'Syntax is not supported. Remove extra `|` character(s).';
+const TRAILING_PIPE = 'Syntax is not supported. Remove the trailing `|` character.';
+
+/** The offense messages, and the source each offense's own fix produces. */
+async function report(sourceCode: string) {
+  const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+
+  return {
+    messages: messagesOf(offenses),
+    fixes: offenses.map((offense) => applyFix(sourceCode, offense)),
+  };
+}
 
 describe('Module: InvalidPipeSyntax', () => {
   describe('Double pipe patterns', () => {
-    it('should detect and fix double pipes in variable output', async () => {
-      const sourceCode = `{{ 'hello' | upcase | | downcase }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      expect(offenses[0].fix).toBeDefined();
+    it('should report and fix a double pipe in every tag that takes filters', async () => {
+      const output = await report(`{{ 'hello' | upcase | | downcase }}`);
+      const spaced = await report(`{{ 'hello' | upcase |   | downcase }}`);
+      const assigned = await report(`{% assign result = 'hello' | upcase | | downcase %}`);
+      const echoed = await report(`{% echo 'hello' | upcase | | downcase %}`);
 
-      const fixedCode = applyFix(sourceCode, offenses[0]);
-      expect(fixedCode).toBe(`{{ 'hello' | upcase | downcase }}`);
+      expect({ output, spaced, assigned, echoed }).toEqual({
+        output: {
+          messages: [EXTRA_PIPE],
+          fixes: [`{{ 'hello' | upcase | downcase }}`],
+        },
+        // The whitespace between the two pipes goes with them.
+        spaced: {
+          messages: [EXTRA_PIPE],
+          fixes: [`{{ 'hello' | upcase | downcase }}`],
+        },
+        assigned: {
+          messages: [EXTRA_PIPE],
+          fixes: [`{% assign result = 'hello' | upcase | downcase %}`],
+        },
+        echoed: {
+          messages: [EXTRA_PIPE],
+          fixes: [`{% echo 'hello' | upcase | downcase %}`],
+        },
+      });
     });
 
-    it('should detect and fix double pipes with extra whitespace', async () => {
-      const sourceCode = `{{ 'hello' | upcase |   | downcase }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      expect(offenses[0].fix).toBeDefined();
-
-      const fixedCode = applyFix(sourceCode, offenses[0]);
-      expect(fixedCode).toBe(`{{ 'hello' | upcase | downcase }}`);
-    });
-
-    it('should detect and fix double pipes in assign tag', async () => {
-      const sourceCode = `{% assign result = 'hello' | upcase | | downcase %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      expect(offenses[0].fix).toBeDefined();
-
-      const fixedCode = applyFix(sourceCode, offenses[0]);
-      expect(fixedCode).toBe(`{% assign result = 'hello' | upcase | downcase %}`);
-    });
-
-    it('should detect and fix double pipes in echo tag', async () => {
-      const sourceCode = `{% echo 'hello' | upcase | | downcase %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      expect(offenses[0].fix).toBeDefined();
-
-      const fixedCode = applyFix(sourceCode, offenses[0]);
-      expect(fixedCode).toBe(`{% echo 'hello' | upcase | downcase %}`);
-    });
-
-    it('should handle multiple double pipes in one expression', async () => {
-      const sourceCode = `{{ 'hello' | upcase | | downcase | | reverse }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(2);
-
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      expect(offenses[1].message).toContain('Remove extra `|` character(s)');
-
-      expect(offenses[0].fix).toBeDefined();
-      expect(offenses[1].fix).toBeDefined();
+    it('should report each double pipe of an expression with a fix of its own', async () => {
+      // Each fix is applied to the ORIGINAL source, so each leaves the other offense in
+      // place: two independent corrections, not one rewrite.
+      expect(await report(`{{ 'hello' | upcase | | downcase | | reverse }}`)).toEqual({
+        messages: [EXTRA_PIPE, EXTRA_PIPE],
+        fixes: [
+          `{{ 'hello' | upcase | downcase | | reverse }}`,
+          `{{ 'hello' | upcase | | downcase | reverse }}`,
+        ],
+      });
     });
   });
 
   describe('Trailing pipe patterns', () => {
-    it('should detect and fix trailing pipe in variable output', async () => {
-      const sourceCode = `{{ 'hello' | upcase | }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain('Remove the trailing `|` character');
-      expect(offenses[0].fix).toBeDefined();
+    it('should report and fix a trailing pipe in every tag that takes filters', async () => {
+      const output = await report(`{{ 'hello' | upcase | }}`);
+      const assigned = await report(`{% assign result = 'hello' | upcase | %}`);
+      const echoed = await report(`{% echo 'hello' | upcase | %}`);
 
-      const fixedCode = applyFix(sourceCode, offenses[0]);
-      expect(fixedCode).toBe(`{{ 'hello' | upcase }}`);
+      expect({ output, assigned, echoed }).toEqual({
+        output: { messages: [TRAILING_PIPE], fixes: [`{{ 'hello' | upcase }}`] },
+        assigned: {
+          messages: [TRAILING_PIPE],
+          fixes: [`{% assign result = 'hello' | upcase %}`],
+        },
+        echoed: { messages: [TRAILING_PIPE], fixes: [`{% echo 'hello' | upcase %}`] },
+      });
     });
 
-    it('should detect and fix trailing pipe in assign tag', async () => {
-      const sourceCode = `{% assign result = 'hello' | upcase | %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain('Remove the trailing `|` character');
-      expect(offenses[0].fix).toBeDefined();
-
-      const fixedCode = applyFix(sourceCode, offenses[0]);
-      expect(fixedCode).toBe(`{% assign result = 'hello' | upcase %}`);
-    });
-
-    it('should detect and fix trailing pipe in echo tag', async () => {
-      const sourceCode = `{% echo 'hello' | upcase | %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
-      expect(offenses[0].message).toContain('Remove the trailing `|` character');
-      expect(offenses[0].fix).toBeDefined();
-
-      const fixedCode = applyFix(sourceCode, offenses[0]);
-      expect(fixedCode).toBe(`{% echo 'hello' | upcase %}`);
-    });
-
-    it('should detect and fix multiple trailing pipes', async () => {
-      const sourceCode = `{{ 'hello' | upcase | | }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(2); // Double pipe AND trailing pipe
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      expect(offenses[1].message).toContain('Remove the trailing `|` character');
-      expect(offenses[0].fix).toBeDefined();
-      expect(offenses[1].fix).toBeDefined();
+    /**
+     * Both faults at once. The extra-pipe fix removes the PIPE and leaves both spaces around
+     * it, so its output carries a double space the trailing-pipe fix's does not — harmless
+     * inside a tag, where Liquid does not care, and pinned because nothing here showed it
+     * before: `fix).toBeDefined()` was the whole of the old assertion.
+     *
+     * The two are asserted SEPARATELY, each against the original source, and that is not
+     * only a style choice: measured, their ranges OVERLAP, so `applyFixToString` — the
+     * applicator behind `pos-cli check run -a` — throws `Overlapping ranges are not allowed`
+     * when handed both. That is a defect in the check, not in this test, so it is described
+     * here rather than pinned as intended behaviour.
+     */
+    it('should report a doubled trailing pipe as both faults, each fixable', async () => {
+      expect(await report(`{{ 'hello' | upcase | | }}`)).toEqual({
+        messages: [EXTRA_PIPE, TRAILING_PIPE],
+        fixes: [`{{ 'hello' | upcase |  }}`, `{{ 'hello' | upcase | }}`],
+      });
     });
   });
 
   describe('Complex pipe scenarios', () => {
-    it('should handle mixed valid and invalid pipes', async () => {
-      const sourceCode = `{{ 'hello' | upcase | | downcase | reverse | }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(2);
-
-      // First should be double pipe
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      // Second should be trailing pipe
-      expect(offenses[1].message).toContain('Remove the trailing `|` character');
+    it('should report a double pipe and a trailing pipe in the same expression', async () => {
+      expect(await report(`{{ 'hello' | upcase | | downcase | reverse | }}`)).toEqual({
+        messages: [EXTRA_PIPE, TRAILING_PIPE],
+        fixes: [
+          `{{ 'hello' | upcase | downcase | reverse | }}`,
+          `{{ 'hello' | upcase | | downcase | reverse }}`,
+        ],
+      });
     });
 
-    it('should not interfere with valid filter parameter syntax', async () => {
-      const sourceCode = `{{ 'hello' | append: 'world' | upcase }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
-    });
+    it('should fix both faults inside a liquid tag, where the tags have no delimiters', async () => {
+      const source = [
+        '{% liquid',
+        "  assign foo = 'test' | upcase | | downcase |",
+        '  echo bar | reverse',
+        '%}',
+      ].join('\n');
 
-    it('should handle liquid tag with mixed pipe issues', async () => {
-      const sourceCode = `{% liquid
-        assign foo = 'test' | upcase | | downcase |
-        echo bar | reverse
-      %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(2);
-      expect(offenses[0].message).toContain('Remove extra `|` character(s)');
-      expect(offenses[1].message).toContain('Remove the trailing `|` character');
+      expect(await report(source)).toEqual({
+        messages: [EXTRA_PIPE, TRAILING_PIPE],
+        fixes: [
+          [
+            '{% liquid',
+            "  assign foo = 'test' | upcase | downcase |",
+            '  echo bar | reverse',
+            '%}',
+          ].join('\n'),
+          [
+            '{% liquid',
+            "  assign foo = 'test' | upcase | | downcase",
+            '  echo bar | reverse',
+            '%}',
+          ].join('\n'),
+        ],
+      });
     });
   });
 
   describe('Valid syntax should not be flagged', () => {
-    it('should not report on valid filter chains', async () => {
-      const sourceCode = `{{ 'hello' | upcase | append: 'world' | downcase }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
-    });
+    it('should not report on any well-formed filter chain', async () => {
+      const cases = {
+        chain: `{{ 'hello' | upcase | append: 'world' | downcase }}`,
+        simple: `{{ 'hello' | upcase }}`,
+        withArguments: `{{ product.title | append: ' - ' | append: shop.name }}`,
+        assigned: `{% assign title = product.title | upcase | truncate: 50 %}`,
+        echoed: `{% echo product.title | upcase | truncate: 50 %}`,
+        // A pipe INSIDE a string is text, not a filter separator.
+        pipeInAString: `{{ 'hello | world' | upcase }}`,
+        filterArgument: `{{ product.title | default: 'No title' }}`,
+      };
+      const reported = Object.fromEntries(
+        await Promise.all(
+          Object.entries(cases).map(async ([name, source]) => [
+            name,
+            (await report(source)).messages,
+          ]),
+        ),
+      );
 
-    it('should not report on simple filters', async () => {
-      const sourceCode = `{{ 'hello' | upcase }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
-    });
+      // The control: one malformed chain in the same shape as the first case still reports.
+      const malformed = await report(`{{ 'hello' | upcase | | append: 'world' }}`);
 
-    it('should not report on filters with arguments', async () => {
-      const sourceCode = `{{ product.title | append: ' - ' | append: shop.name }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
-    });
-
-    it('should not report on valid assign with filters', async () => {
-      const sourceCode = `{% assign title = product.title | upcase | truncate: 50 %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
-    });
-
-    it('should not report on valid echo with filters', async () => {
-      const sourceCode = `{% echo product.title | upcase | truncate: 50 %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
-    });
-  });
-
-  describe('Edge cases', () => {
-    it('should handle pipes in string literals correctly', async () => {
-      const sourceCode = `{{ 'hello | world' | upcase }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
-    });
-
-    it('should not report on conditional expressions with pipes', async () => {
-      const sourceCode = `{{ product.title | default: 'No title' }}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(0);
+      expect({ ...reported, malformed: malformed.messages }).toEqual({
+        chain: [],
+        simple: [],
+        withArguments: [],
+        assigned: [],
+        echoed: [],
+        pipeInAString: [],
+        filterArgument: [],
+        malformed: [EXTRA_PIPE],
+      });
     });
   });
 });

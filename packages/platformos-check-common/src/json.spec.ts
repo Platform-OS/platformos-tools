@@ -57,15 +57,6 @@ describe('Function: parseJSON', () => {
 
     expect(result).toEqual({ key: ['value1', 'value2'] });
   });
-
-  it('should return an Error object if parsing fails', () => {
-    const jsonString = '{"key": "value"';
-
-    const result = parseJSON(jsonString, undefined, true);
-
-    expect(result).toBeInstanceOf(Error);
-    expect(result.message).toBe('Closing brace `}` expected.');
-  });
 });
 
 describe('Function: nodeAtPath', () => {

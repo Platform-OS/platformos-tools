@@ -7,7 +7,7 @@
  *
  * The ORDER this produces is a contract, not an implementation detail: checks accumulate
  * state across nodes, so a different order gives different offenses on some files.
- * `traversal-order.spec.ts` pins the whole sequence for both ASTs. Two properties of it
+ * `index.spec.ts` pins the whole sequence for both ASTs. Two properties of it
  * are easy to break by "tidying" and are load-bearing:
  *
  * - **Array items are pushed in REVERSE.** The stack pops what was pushed last, so

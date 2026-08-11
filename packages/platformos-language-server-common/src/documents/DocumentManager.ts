@@ -518,7 +518,7 @@ function isUnder(uri: UriString, rootUri: UriString): boolean {
  * Add `extras` to `target` in place and return it, so `target`'s own properties —
  * including any lazy getters — are left exactly as they are. Use this instead of
  * `{ ...target, ...extras }`, which reads every getter to copy its value;
- * `lazy-composition.spec.ts` bans the spread package-wide.
+ * `DocumentManager.spec.ts` bans the spread package-wide.
  */
 function attach<T extends object, E extends object>(target: T, extras: E): T & E {
   return Object.defineProperties(

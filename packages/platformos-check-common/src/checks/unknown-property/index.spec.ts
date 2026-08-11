@@ -580,14 +580,6 @@ ${reads}`);
       }).toEqual({ multiKey: reported, chained: reported, hashDig: reported });
     });
 
-    it('should index an array with a numeric key on the way through', async () => {
-      const offenses = await run(`${IMAGES}
-{% assign val = data | dig: "images", 0 %}
-{{ val.url }}
-{{ val.zzz }}`);
-      expect(messagesOf(offenses)).toEqual(["Unknown property 'zzz' on 'val'."]);
-    });
-
     it('should follow the one key of a fetch, in either spelling', async () => {
       const reads = `{{ val.b }}\n{{ val.zzz }}`;
       const fetch = await run(`${SHALLOW}
@@ -651,8 +643,11 @@ ${reads}`);
       const listMidChain = await run(`${IMAGES}
 {% assign val = data | dig: "images" | dig: 0 %}
 {{ val.zzz }}`);
+      // The control, and the numeric key on the way through: ONE `dig` given both keys
+      // indexes the array without ever piping a list into a filter.
       const oneDigBothKeys = await run(`${IMAGES}
 {% assign val = data | dig: "images", 0 %}
+{{ val.url }}
 {{ val.zzz }}`);
 
       expect({
@@ -758,17 +753,47 @@ query { user { id email } }
     });
 
     it('should claim nothing when the shape comes from a `default:` the value may not need', async () => {
-      // The fallback is parsed only when the expression is nil, so its shape describes the
+      // The fallback is parsed only when the expression is blank, so its shape describes the
       // value in one branch and the expression — which this analysis cannot read — in the
       // other. Taking the fallback as certain reported every key the real value carried.
+      //
+      // The keys it names are not FORGOTTEN, they are unverifiable: completion offers
+      // `a` for this source (`ObjectAttributeCompletionProvider.spec.ts`), and neither the
+      // key it names nor any other can be reported here. So `x.a` is as silent as `x.b`.
       const fallback = await run(`{% assign x = maybe_json | default: '{"a": 1}' | parse_json %}
-{{ x.b }}`);
+{{ x.b }}
+{{ x.a.deeper }}`);
       const literal = await run(`{% assign x = '{"a": 1}' | parse_json %}
 {{ x.b }}`);
 
       expect({ fallback: messagesOf(fallback), literal: messagesOf(literal) }).toEqual({
         fallback: [],
         literal: ["Unknown property 'b' on 'x'."],
+      });
+    });
+
+    /**
+     * The same `default`, on the other side of the parse, where it means something else.
+     *
+     * `'[]' | parse_json` is an empty array, so Ruby's `default` fires on it and `x` holds the
+     * unparsed TEXT of the fallback. Reading the chain as "the array, with a `default` that
+     * changes nothing" reported `b` on a value that is not an array by the time it is read —
+     * measured, and the reason `default` is not a filter this chain may carry.
+     */
+    it('should claim nothing when a `default:` follows the parse', async () => {
+      const defaulted = await run(`{% assign x = '[]' | parse_json | default: '{"b": 2}' %}
+{{ x.b }}`);
+      // The control: the same chain without the `default` still reports, so the silence
+      // above is the filter's doing and not the fixture's.
+      const undefaulted = await run(`{% assign x = '[]' | parse_json %}
+{{ x.b }}`);
+
+      expect({
+        defaulted: messagesOf(defaulted),
+        undefaulted: messagesOf(undefaulted),
+      }).toEqual({
+        defaulted: [],
+        undefaulted: ["Unknown property 'b' on 'x'."],
       });
     });
   });
@@ -790,26 +815,28 @@ query { user { id email } }
       expect(messagesOf(offenses)).toEqual(["Unknown property 'missing' on 'x.a'."]);
     });
 
-    it('should stay open through a SECOND write onto a variable of unknown shape', async () => {
+    it('should stay open through further writes onto a variable of unknown shape', async () => {
       // The keys we watched go in are not the whole picture when the value came from
       // somewhere we could not see, so closing on the second write would report every
-      // other read of it as unknown.
-      const offenses = await run(`{% assign object = null | hash_merge: items: items %}
+      // other read of it as unknown. The control is the empty-literal test below, where a
+      // write DOES close the shape and an absent key is reported.
+      const twoWrites = await run(`{% assign object = null | hash_merge: items: items %}
 {% hash_assign object['name'] = 'x' %}
 {% hash_assign object['valid'] = true %}
 {{ object.name }}
 {{ object.items.ids }}`);
-      expect(messagesOf(offenses)).toEqual([]);
-    });
-
-    it('should not report anything after a write onto a variable of unknown shape', async () => {
-      const offenses = await run(`{% liquid
+      // The same rule as a real page writes it: the read is an argument to the next call.
+      const readAsArgument = await run(`{% liquid
   function relation = 'x', id: 1
   assign data = null | hash_merge: id: relation.id
   hash_assign relation['_incoming_changes'] = data
   function group_url = 'y', object: relation.r
 %}`);
-      expect(messagesOf(offenses)).toEqual([]);
+
+      expect({
+        twoWrites: messagesOf(twoWrites),
+        readAsArgument: messagesOf(readAsArgument),
+      }).toEqual({ twoWrites: [], readAsArgument: [] });
     });
 
     it('should close an empty hash literal on the first write, and stay closed', async () => {
@@ -1004,18 +1031,42 @@ query { user { id email } }
     // Measured: `hash_assign h['k'] = null` leaves `k` in `hash_keys`, and `nil.anything`
     // renders nothing without raising.
 
-    it('should answer the same for a written nil as for the JSON null it parses to', async () => {
-      // `.size` tells the two apart: defined on every value, so it resolves THROUGH a nil
-      // to a number and makes the read after it reportable.
+    /**
+     * `.size` does NOT tell a nil from a string, and this asserted for a while that it did.
+     * Measured on a live instance:
+     *
+     *   {% assign x = {"a": null} %}
+     *   {% if x.a.size == nil %}  -> YES        {% if x.a.size == 0 %}   -> NO
+     *   {% if "abc".size == 3 %}  -> YES  (control: `.size` really is a number on a string)
+     *
+     * So `.size` through a nil is nil, not a number, and the read after it is nil too.
+     * Reporting it was a false positive on the very construct the null guard exists for.
+     *
+     * The string case is more than that control: the null guard runs BEFORE the size
+     * shortcut, and the two branches are otherwise indistinguishable by output — `.size` on a
+     * nil and `.size` on a string both continue the walk. Swap them in `lookupPropertyPath`
+     * and only this pair moves.
+     */
+    it('should apply the null guard before the size shortcut, however the nil is spelled', async () => {
       const written = await run(`{% assign x = {"a": nil} %}
+{{ x.a.size.foo }}`);
+      const writtenNull = await run(`{% assign x = {"a": null} %}
 {{ x.a.size.foo }}`);
       const parsed = await run(`{% assign x = '{"a": null}' | parse_json %}
 {{ x.a.size.foo }}`);
+      const string = await run(`{% assign x = {"a": "text"} %}
+{{ x.a.size.foo }}`);
 
-      const reported = ["Cannot access property 'foo' on primitive value 'x.a.size'."];
-      expect({ written: messagesOf(written), parsed: messagesOf(parsed) }).toEqual({
-        written: reported,
-        parsed: reported,
+      expect({
+        written: messagesOf(written),
+        writtenNull: messagesOf(writtenNull),
+        parsed: messagesOf(parsed),
+        string: messagesOf(string),
+      }).toEqual({
+        written: [],
+        writtenNull: [],
+        parsed: [],
+        string: ["Cannot access property 'foo' on primitive value 'x.a.size'."],
       });
     });
 
@@ -1097,8 +1148,13 @@ query { user { id email } }
     });
 
     it('should claim nothing about an item when a LITERAL element has unknown shape', async () => {
+      // Both reads: the key no element names, and the key one element DOES. The known
+      // element's keys survive for the editor — completion after `list.first.` offers `a`
+      // (`ObjectAttributeCompletionProvider.spec.ts`) — and surviving must not mean they
+      // become claims: `mystery` may hold anything, including a number with no `deeper`.
       const withMystery = await run(`{% assign list = [{"a": 1}, mystery] %}
-{{ list.first.b }}`);
+{{ list.first.b }}
+{{ list.first.a.deeper }}`);
       const allKnown = await run(`{% assign list = [{"a": 1}, {"a": 2}] %}
 {{ list.first.b }}`);
 
@@ -1659,16 +1715,13 @@ fragment record on Record {
 
     it('should claim nothing when no schema says results is a list', async () => {
       // Without the SDL nothing says `results` is a list, so the shape is unknown all the
-      // way up. A callee URI of its own because the memo is keyed on (uri, bindings) and
-      // NOT on deps: reusing `find_by_id` serves the schema-ful answer an earlier test cached.
+      // way up. The SAME partial URI as the schema-ful tests above, deliberately: the memo
+      // key carries the schema, so the answer computed with one is never served to a run
+      // without it. This used to need a second URI for identical source.
       const offenses = await runPage(
-        `function relation = 'queries/relationships/untyped', id: 1, include_related: true
+        `function relation = 'queries/relationships/find_by_id', id: 1, include_related: true
   assign a = relation.bogus`,
-        {
-          ...app,
-          'app/lib/queries/relationships/untyped.liquid':
-            app['app/lib/queries/relationships/find_by_id.liquid'],
-        },
+        app,
         {},
       );
       expect(messagesOf(offenses)).toEqual([]);

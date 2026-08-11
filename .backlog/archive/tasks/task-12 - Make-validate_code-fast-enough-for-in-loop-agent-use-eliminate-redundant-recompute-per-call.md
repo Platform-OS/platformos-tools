@@ -88,7 +88,34 @@ AC#1 is checked on the basis of the graph branch's warm figure. Read it with the
 4. TASK-12.5 — decide what `mode: full|quick` should do (contract, not perf)
 5. TASK-12.11 — hermetic extension discovery, so fork parallelism can be restored (~20% CI time)
 6. TASK-12.12 — unify the duplicated shape inference (LSP vs check-common)
-7. TASK-12.10 — re-key the analysis cache on uri+fingerprint (low; measured as adequate today)
+7. ~~TASK-12.10 — re-key the analysis cache on uri+fingerprint~~ — CLOSED AS NOT WORTH IT
+   (2026-08-09), on measurement rather than on the estimate the card carried.
+
+   The card feared that `extract-undefined-variables`' 512-entry cap bounds entry COUNT while
+   the memory varies with file size. True, and measured: 512 entries over 50 KB partials retain
+   45.8 MB. But a content-keyed cache cannot exceed the project's own partial sources, and
+   across the four `~/projects/pos` projects those are 2.5 / 1.6 / 5.5 / 1.4 MB — 6716 files,
+   mean 1.6 KB, p50 537 B. The 50 KB figure is a synthetic worst case no real project reaches.
+
+   Both proposed fixes were built and thrown away. Re-keying on identity was rejected outright:
+   an identity key needs a freshness check, and the sibling memo in
+   `checks/unknown-property/shape-analysis.ts` shows how that fails — its revalidation read disk
+   while the analysis read the open buffer, serving stale shapes for a whole editing session.
+   A `maxKeyChars` budget on `createBoundedCache` worked (45.8 MB -> 3.2 MB, whole-project
+   offenses identical) and was still reverted: single-digit MB on a linter is not worth a second
+   eviction dimension to understand and keep correct.
+
+   THE CAP ITSELF WAS THE PROBLEM, and this card's A/B hid it. That A/B ("512 vs unbounded
+   statistically identical") was wall-clock on a loaded machine; re-measured by CPU time over
+   four interleaved pairs on arabbank, all leaning the same way, 512 costs 106 s against 99 s
+   uncapped — a 7% tax to save 3 MB, because 512 sits BELOW the 1107-2256 partials these
+   projects actually have, so a whole-project run thrashes it. Raised to 4096, above all of
+   them: 98.3 s against 98.8 s uncapped, same heap. The cap is now free and still bounds a
+   long-lived language-server session, where editing a partial mints a content key per
+   keystroke and nothing else would.
+
+   Worth keeping in view: the memoization is 2.2x, not marginal — 223 s uncached against 99 s
+   cached on the same project.
 
 TASK-9.16 was closed as delivered by TASK-12.3 — same `{ only: [uri] }` design, with its spike/audit/equivalence criteria satisfied and the evidence recorded there.
 

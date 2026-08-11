@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runLiquidCheck } from '../../../test';
+import { runLiquidCheck, messagesOf } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
 
 describe('detectInvalidAssignSyntax', () => {
@@ -17,8 +17,9 @@ describe('detectInvalidAssignSyntax', () => {
       it(`should report: ${label} — ${sourceCode}`, async () => {
         const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
         const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-        expect(syntaxOffenses).toHaveLength(1);
-        expect(syntaxOffenses[0].message).toContain("Invalid syntax for tag 'assign'");
+        expect(messagesOf(syntaxOffenses)).toEqual([
+          "Invalid syntax for tag 'assign'. Expected syntax: {% assign <var> = <value> %}",
+        ]);
       });
     }
   });

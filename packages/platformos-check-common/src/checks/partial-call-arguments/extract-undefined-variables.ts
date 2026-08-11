@@ -22,7 +22,8 @@ import {
   BackgroundMarkup,
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
-import { createBoundedCache } from '../../utils/bounded-cache';
+import { AppFile } from '@platformos/platformos-common';
+import { isLiquidDocument } from '../../utils';
 
 type Scope = { start?: number; end?: number };
 
@@ -50,27 +51,6 @@ export interface UndefinedVariables {
 }
 
 /**
- * How many distinct analyses to keep. A lint run asks about one entry per
- * DISTINCT referenced partial, so this comfortably covers a whole project while
- * bounding what a long-lived process (MCP supervisor, language server) retains.
- * Values are two short string arrays; the keys hold partial sources, which is
- * what the cap is really sizing.
- */
-const ANALYSIS_CACHE_LIMIT = 512;
-
-const analysisCache = createBoundedCache<UndefinedVariables>(ANALYSIS_CACHE_LIMIT);
-
-/**
- * Drop every memoized analysis. Entries are keyed by content and so can never be
- * stale, which is why nothing in a lint run calls this: it exists so tests stay
- * independent of one another, and so a long-lived host that has moved on from a
- * project has a way to release that project's sources.
- */
-export function clearUndefinedVariablesCache(): void {
-  analysisCache.clear();
-}
-
-/**
  * Parses a Liquid source string and returns a deduplicated list of variable names
  * that are used but never defined. Returns `{ required: [], optional: [] }` on parse errors.
  *
@@ -80,39 +60,17 @@ export function clearUndefinedVariablesCache(): void {
  * This mirrors the variable tracking logic from the UndefinedObject check but
  * packaged as a standalone synchronous function.
  *
- * Memoized, because callers ask the same question repeatedly: `PartialCallArguments`
- * analyzes the render TARGET at every call site, so a partial rendered from 40 places
- * would otherwise be parsed 40 times per lint run.
+ * PURE AND UNMEMOIZED. Callers ask this repeatedly — `PartialCallArguments` analyzes the
+ * render TARGET at every call site, so a partial rendered from 40 places is 40 calls — and the
+ * memo for that lives on the `AppFile`, through {@link undefinedVariablesOf}. A caller holding
+ * a file should use that; this is for a source with no file behind it.
  *
- * The analysis is a pure function of `(source, globalObjectNames)`, so both go into the
- * key and a cached entry can never be stale: edited content is simply a different key.
- * Results are copied out, so callers keep owning the arrays they receive.
- *
- * `parsed` lets a caller that already holds the parse of THIS source — a check asking
- * about the file it is visiting — spend no second parse on it. It must be the AST of
- * `source` and of nothing else; it is not part of the cache key, precisely because it
- * carries no information the source does not.
+ * `parsed` lets a caller that already holds the parse of THIS source spend no second parse on
+ * it. It must be the AST of `source` and of nothing else.
  */
 export function extractUndefinedVariables(
   source: string,
   globalObjectNames: string[] = [],
-  parsed?: LiquidHtmlNode,
-): UndefinedVariables {
-  const cached = analysisCache(`${globalObjectNames.join(',')}\u0000${source}`, () =>
-    computeUndefinedVariables(source, globalObjectNames, parsed),
-  );
-
-  return {
-    required: [...cached.required],
-    optional: [...cached.optional],
-    selfDefaulted: [...cached.selfDefaulted],
-    defined: [...cached.defined],
-  };
-}
-
-function computeUndefinedVariables(
-  source: string,
-  globalObjectNames: string[],
   parsed?: LiquidHtmlNode,
 ): UndefinedVariables {
   let ast;
@@ -122,6 +80,42 @@ function computeUndefinedVariables(
     return { required: [], optional: [], selfDefaulted: [], defined: [] };
   }
 
+  return analyze(ast, globalObjectNames);
+}
+
+/**
+ * The same analysis for a file the {@link AppModel} holds, memoized ON that file.
+ *
+ * The file owns its source and its parse and drops both when either stops being true, so the
+ * analysis rides along and needs no key of its own, no copy of the source, and no eviction
+ * policy — the `App` already evicts the files nobody is using. What the key does carry is the
+ * one input that is NOT the file: the in-scope global names, which vary by the caller's file
+ * type and change the answer.
+ *
+ * Arrays are copied out, so callers keep owning what they receive and cannot mutate the memo.
+ */
+export function undefinedVariablesOf(
+  file: AppFile,
+  globalObjectNames: string[] = [],
+): UndefinedVariables {
+  const analysis = file.derived(`undefinedVariables\u0000${globalObjectNames.join(',')}`, () => {
+    const ast = file.ast;
+    return extractUndefinedVariables(
+      file.source,
+      globalObjectNames,
+      isLiquidDocument(ast) ? ast : undefined,
+    );
+  });
+
+  return {
+    required: [...analysis.required],
+    optional: [...analysis.optional],
+    selfDefaulted: [...analysis.selfDefaulted],
+    defined: [...analysis.defined],
+  };
+}
+
+function analyze(ast: LiquidHtmlNode, globalObjectNames: string[]): UndefinedVariables {
   const scopedVariables: Map<string, Scope[]> = new Map();
   const fileScopedVariables: Set<string> = new Set(globalObjectNames);
   /** Each USE of a variable — enough of one to place and name it. */

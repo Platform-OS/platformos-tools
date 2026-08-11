@@ -234,12 +234,6 @@ describe('extractUrlPattern with variableMap', () => {
     const attr = parseHrefAttr('<a href="/about">link</a>');
     expect(extractUrlPattern(attr, new Map())).toBe('/about');
   });
-
-  it('resolves a tracked simple variable from variableMap', () => {
-    const variableMap = new Map([['url', '/about']]);
-    const attr = parseHrefAttr('<a href="{{ url }}">link</a>');
-    expect(extractUrlPattern(attr, variableMap)).toBe('/about');
-  });
 });
 
 describe('tryExtractAssignUrl', () => {

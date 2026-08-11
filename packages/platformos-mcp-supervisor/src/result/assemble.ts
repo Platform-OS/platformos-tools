@@ -78,8 +78,9 @@ export function assembleResult(
   // started looking at.
   //
   // That makes this an INVARIANT rather than a fact, and it is guarded as one:
-  // `validate/file-type-coverage.spec.ts` fails if a file type is ever admitted
-  // without something to examine it. Read it before adding a `PlatformOSFileType`.
+  // `transport/validate-code.spec.ts`'s file-type-coverage group fails if a file type is
+  // ever admitted without something to examine it. Read it before adding a
+  // `PlatformOSFileType`.
   const status: ValidateCodeStatus =
     errors.length > 0 ? 'error' : warnings.length > 0 ? 'warning' : 'ok';
 

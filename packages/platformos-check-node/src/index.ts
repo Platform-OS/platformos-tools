@@ -33,6 +33,14 @@ import { NodeFileSystem } from './NodeFileSystem';
 import { getSharedRouteTable, resetRouteTable } from './route-table';
 import { getSharedApp, resetSharedApp } from './shared-app';
 
+/**
+ * Deliberately re-exported EXPLICITLY, because the `export *` below carries an `autofix` of
+ * its own and an explicit re-export shadows a star one — measured, in either source order,
+ * since the local binding is hoisted ahead of `__exportStar`'s own-property check. See
+ * `./autofix` for which one has to win and why. It is a strict superset of check-common's, so
+ * nothing else needs re-exporting to reach that behaviour.
+ */
+export { autofix, saveToDiskFixApplicator } from './autofix';
 export * from '@platformos/platformos-check-common';
 // Where an app file can live, for an embedder that has to EXPLAIN the directory rule to
 // an agent. Explaining is the only job out here — classifying is `lintBuffer`'s.
@@ -512,7 +520,7 @@ export async function getApp(config: Config): Promise<AppModel> {
  *
  * The user's `ignore` is deliberately NOT applied: an ignored file is an ordinary part of
  * the app, and `ignore` only silences the offenses REPORTED on it, which is `check()`'s
- * job. See `ignored-files-visibility.spec.ts`.
+ * job. See `index.spec.ts`.
  *
  * Path work only — no `stat`, no read. The walk is {@link walkAppSourceFiles}, the same
  * one the graph build and the language server's preload use, anchored on

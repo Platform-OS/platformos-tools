@@ -1,3 +1,4 @@
+export * from './ast';
 export * from './object';
 export * from './array';
 export * from './position';

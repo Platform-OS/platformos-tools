@@ -132,8 +132,9 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
         // The TARGET is highlighted, not the whole tag: that is the part to change.
         start: { index: 15, line: 0, character: 15 },
         end: { index: 18, line: 0, character: 18 },
-        // No autofix, deliberately: `h.a.b` could mean `h['a']['b']` or `h.a['b']`, and
-        // choosing one silently rewrites the author's intent.
+        // No autofix from THIS detector. Not because `h.a.b` is ambiguous — measured, it,
+        // `h['a'].b` and `h['a']['b']` are the same nested write — but because `DeprecatedTag`
+        // already rewrites the tag to `{% assign %}`, which takes this spelling as written.
         fix: undefined,
         suggest: undefined,
       },

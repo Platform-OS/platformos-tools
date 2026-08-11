@@ -25,6 +25,25 @@ function setup(files: Record<string, string>) {
   return { documentManager, provider };
 }
 
+/** Every target range is zero: this provider points at the FILE, not a position inside it. */
+const WHOLE_FILE = { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } };
+
+/**
+ * A whole `LocationLink`, spelled by the two things that vary: where it points, and the
+ * frontmatter value the editor highlights at the cursor. `originSelectionRange` had no
+ * assertion at all while these tests read `result[0].targetUri` and stopped — so a provider
+ * that highlighted the wrong span, or the whole line, passed.
+ */
+const link = (targetUri: string, [line, start, end]: [number, number, number]) => ({
+  targetUri,
+  targetRange: WHOLE_FILE,
+  targetSelectionRange: WHOLE_FILE,
+  originSelectionRange: {
+    start: { line, character: start },
+    end: { line, character: end },
+  },
+});
+
 function makeParams(uri: string, line: number, character: number): DefinitionParams {
   return {
     textDocument: { uri },
@@ -45,8 +64,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/layouts/application.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/layouts/application.liquid', [1, 8, 19]),
+      ]);
     });
 
     it('resolves a module layout (public visibility)', async () => {
@@ -58,10 +78,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/views/layouts/base.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/modules/community/public/views/layouts/base.liquid', [1, 8, 30]),
+      ]);
     });
 
     it('resolves a module layout (private visibility)', async () => {
@@ -73,10 +92,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/private/views/layouts/base.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/modules/community/private/views/layouts/base.liquid', [1, 8, 30]),
+      ]);
     });
 
     it('prefers public over private when both module visibilities exist', async () => {
@@ -89,10 +107,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/views/layouts/base.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/modules/community/public/views/layouts/base.liquid', [1, 8, 30]),
+      ]);
     });
 
     it('resolves app/modules overwrite over the original module layout', async () => {
@@ -105,10 +122,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/modules/community/public/views/layouts/base.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/app/modules/community/public/views/layouts/base.liquid', [1, 8, 30]),
+      ]);
     });
 
     it('resolves a nested module layout path', async () => {
@@ -120,10 +136,12 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/views/layouts/themes/dark.liquid',
-      );
+      expect(result).toEqual([
+        link(
+          'file:///project/modules/community/public/views/layouts/themes/dark.liquid',
+          [1, 8, 37],
+        ),
+      ]);
     });
 
     it('returns empty when layout file does not exist', async () => {
@@ -133,7 +151,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
 
     it('returns empty when layout value is a Liquid expression', async () => {
@@ -145,7 +163,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 
@@ -162,8 +180,9 @@ describe('FrontmatterDefinitionProvider', () => {
       // line 1: layout: email_base
       const result = await provider.definitions(makeParams(emailUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/views/layouts/email_base.liquid');
+      expect(result).toEqual([
+        link('file:///project/app/views/layouts/email_base.liquid', [1, 8, 18]),
+      ]);
     });
 
     it('resolves a module layout from an email notification', async () => {
@@ -175,10 +194,12 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(emailUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/views/layouts/email_base.liquid',
-      );
+      expect(result).toEqual([
+        link(
+          'file:///project/modules/community/public/views/layouts/email_base.liquid',
+          [1, 8, 36],
+        ),
+      ]);
     });
 
     it('returns empty when email layout file does not exist', async () => {
@@ -188,7 +209,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(emailUri, 1, 10), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
 
     it('does not resolve layout for Layout file types', async () => {
@@ -201,7 +222,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(layoutUri, 1, 4), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 
@@ -218,10 +239,9 @@ describe('FrontmatterDefinitionProvider', () => {
       // line 2 (0-indexed): "  - is_authenticated"
       const result = await provider.definitions(makeParams(pageUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/authorization_policies/is_authenticated.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/app/authorization_policies/is_authenticated.liquid', [2, 4, 20]),
+      ]);
     });
 
     it('resolves a module authorization policy (public visibility)', async () => {
@@ -234,10 +254,12 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/authorization_policies/is_authenticated.liquid',
-      );
+      expect(result).toEqual([
+        link(
+          'file:///project/modules/community/public/authorization_policies/is_authenticated.liquid',
+          [2, 4, 38],
+        ),
+      ]);
     });
 
     it('resolves a module authorization policy (private visibility)', async () => {
@@ -250,10 +272,12 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/private/authorization_policies/is_authenticated.liquid',
-      );
+      expect(result).toEqual([
+        link(
+          'file:///project/modules/community/private/authorization_policies/is_authenticated.liquid',
+          [2, 4, 38],
+        ),
+      ]);
     });
 
     it('resolves app/modules overwrite over original module policy', async () => {
@@ -268,10 +292,12 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/modules/community/public/authorization_policies/is_authenticated.liquid',
-      );
+      expect(result).toEqual([
+        link(
+          'file:///project/app/modules/community/public/authorization_policies/is_authenticated.liquid',
+          [2, 4, 38],
+        ),
+      ]);
     });
 
     it('returns empty when authorization policy file does not exist', async () => {
@@ -281,7 +307,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(pageUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 
@@ -298,8 +324,7 @@ describe('FrontmatterDefinitionProvider', () => {
       // line 2: "  - welcome"
       const result = await provider.definitions(makeParams(formUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/emails/welcome.liquid');
+      expect(result).toEqual([link('file:///project/app/emails/welcome.liquid', [2, 4, 11])]);
     });
 
     it('resolves a module email notification (public visibility)', async () => {
@@ -312,10 +337,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/emails/welcome.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/modules/community/public/emails/welcome.liquid', [2, 4, 29]),
+      ]);
     });
 
     it('resolves app/modules overwrite over original module email notification', async () => {
@@ -330,10 +354,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/modules/community/public/emails/welcome.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/app/modules/community/public/emails/welcome.liquid', [2, 4, 29]),
+      ]);
     });
 
     it('returns empty when email notification file does not exist', async () => {
@@ -343,7 +366,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 
@@ -360,8 +383,7 @@ describe('FrontmatterDefinitionProvider', () => {
       // line 2: "  - sms_alert"
       const result = await provider.definitions(makeParams(formUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/smses/sms_alert.liquid');
+      expect(result).toEqual([link('file:///project/app/smses/sms_alert.liquid', [2, 4, 13])]);
     });
 
     it('resolves a module SMS notification (public visibility)', async () => {
@@ -373,10 +395,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/smses/sms_alert.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/modules/community/public/smses/sms_alert.liquid', [2, 4, 31]),
+      ]);
     });
 
     it('returns empty when SMS notification file does not exist', async () => {
@@ -386,7 +407,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 
@@ -404,8 +425,7 @@ describe('FrontmatterDefinitionProvider', () => {
       // line 2: "  - webhook"
       const result = await provider.definitions(makeParams(formUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe('file:///project/app/api_calls/webhook.liquid');
+      expect(result).toEqual([link('file:///project/app/api_calls/webhook.liquid', [2, 4, 11])]);
     });
 
     it('resolves a module API call notification (public visibility)', async () => {
@@ -418,10 +438,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/modules/community/public/api_calls/webhook.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/modules/community/public/api_calls/webhook.liquid', [2, 4, 29]),
+      ]);
     });
 
     it('resolves app/modules overwrite over original module API call notification', async () => {
@@ -436,10 +455,9 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 10), null as any, []);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].targetUri).toBe(
-        'file:///project/app/modules/community/public/api_calls/webhook.liquid',
-      );
+      expect(result).toEqual([
+        link('file:///project/app/modules/community/public/api_calls/webhook.liquid', [2, 4, 29]),
+      ]);
     });
 
     it('returns empty when API call notification file does not exist', async () => {
@@ -449,7 +467,7 @@ describe('FrontmatterDefinitionProvider', () => {
 
       const result = await provider.definitions(makeParams(formUri, 2, 5), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 
@@ -466,7 +484,7 @@ describe('FrontmatterDefinitionProvider', () => {
       // cursor on line 3 (the {{ content }} line)
       const result = await provider.definitions(makeParams(pageUri, 3, 5), null as any, []);
 
-      expect(result).toHaveLength(0);
+      expect(result).toEqual([]);
     });
   });
 });

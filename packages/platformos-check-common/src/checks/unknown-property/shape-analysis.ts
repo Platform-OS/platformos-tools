@@ -27,7 +27,7 @@ import { visit } from '../../visitor';
 import { createBoundedCache } from '../../utils/bounded-cache';
 import { extractUndefinedVariables } from '../partial-call-arguments/extract-undefined-variables';
 import { isNullLiteral } from '../../liquid-doc/utils';
-import { navigationFilter } from '../../filter-semantics';
+import { alternativeSubstituteArg, navigationFilter } from '../../filter-semantics';
 import {
   ConditionValue,
   NIL_SHAPE,
@@ -60,14 +60,29 @@ const ASSIGNING_TAGS = new Set<string>([
   NamedTags.tablerow,
 ]);
 
-/** Filters a `parse_json` chain may contain and still describe the literal it parses. */
-const JSON_CHAIN_FILTERS = new Set(['parse_json', 'to_hash', 'default']);
+/**
+ * The filter that turns a JSON string into a value — and, being idempotent, the only one that
+ * may FOLLOW the parse and still leave the chain describing the literal it parsed.
+ *
+ * `default` may not: after the parse the value is a Hash and the fallback is a plain String, so
+ * `'[]' | parse_json | default: '{"b": 2}'` holds the unparsed TEXT — Ruby's `default` fires on
+ * the empty array. BEFORE the parse the same filter means something else, which is
+ * {@link parseJsonChainShape}'s job.
+ */
+const parsesJson = (filter: LiquidFilter) =>
+  filter.name === 'parse_json' || filter.name === 'to_hash';
 
 /** Anything that can appear where a value is expected, with or without filters. */
 type ValueExpression = ComplexLiquidExpression | LiquidVariable;
 
 /** How many partial analyses to keep: one per distinct (partial, arguments) pair. */
 const RETURN_SHAPE_CACHE_LIMIT = 512;
+
+/**
+ * How many interned SDLs to keep. A process sees ONE, and a second only after a docs update
+ * replaces it — so this is a leak bound rather than a working set.
+ */
+const SCHEMA_ID_CACHE_LIMIT = 4;
 
 /** A liquid file the analyzer can read: its identity, its content and its parse. */
 export interface AnalyzableFile {
@@ -77,12 +92,40 @@ export interface AnalyzableFile {
 }
 
 export interface ShapeAnalyzerDeps {
+  /**
+   * WHO IS ASKING. Everything about these deps that changes an answer and is not one of the
+   * files the analysis reads, because the partial-analysis memo is shared across every analyzer
+   * in the process and they do not all answer alike.
+   *
+   * COARSE IS FINE, WRONG IS NOT: two deps that would answer differently must not share a
+   * string, two that answer alike may. Only what a CONSUMER alone knows belongs here — the
+   * cache folds in the schema and the presence of a
+   * {@link ShapeAnalyzerDeps.resolveExternalShape} itself, since it can see those, and an
+   * invariant it enforces is one no consumer has to remember.
+   * `shape-analysis.spec.ts` pins both directions.
+   */
+  analysisIdentity: string;
   /** The `.graphql` document a name refers to, PARSED — the parse the host already has. */
   readGraphQL(name: string): Promise<{ uri: string; ast: GraphQLDocumentNode } | undefined>;
   /** The partial a `{% function x = 'name' %}` calls. */
   readPartial(name: string): Promise<AnalyzableFile | undefined>;
-  /** What `uri` holds NOW, for revalidating a memoized analysis. */
+  /**
+   * What `uri` holds NOW, for revalidating a memoized analysis. MUST read from the same place
+   * {@link ShapeAnalyzerDeps.readPartial} and {@link ShapeAnalyzerDeps.readGraphQL} do — the
+   * open BUFFER first, where the host has one — or it compares an analysis of the buffer
+   * against the file on disk.
+   */
   readContent(uri: string): Promise<string | undefined>;
+  /**
+   * WHICH CONTENTS the host's `App` is holding for `uri`, or `undefined` when it holds no
+   * such file — `AppFile.revision`, handed through unchanged.
+   *
+   * Supplying it is what makes a stale answer STRUCTURALLY impossible rather than a rule
+   * someone has to keep: a revision is compared, never re-read, so there is no second read
+   * path that can disagree with the one the analysis used. A host without an `App` omits
+   * it and revalidation falls back to {@link ShapeAnalyzerDeps.readContent}.
+   */
+  revisionOf?(uri: string): number | undefined;
   /** The platformOS GraphQL SDL, or `undefined` when the docset has none. */
   getSchema(): Promise<string | undefined>;
   /**
@@ -107,8 +150,8 @@ export interface AnalyzerOptions {
   callChain?: ReadonlySet<string>;
   /** Variables this source uses and nothing defines — nil at runtime. Callees only. */
   provablyNil?: ReadonlySet<string>;
-  /** Every file this analysis reads, and what it read. Filled in as it goes. */
-  reads?: Map<string, string>;
+  /** Every file this analysis reads, and how to tell it has changed. Filled in as it goes. */
+  reads?: Reads;
 }
 
 export interface ShapeAnalyzer {
@@ -295,13 +338,7 @@ export function createShapeAnalyzer(
     position: number,
   ): PropertyShape | undefined => {
     // {% assign x = '{"a": 5}' | parse_json %}
-    if (filters.some((filter) => filter.name === 'parse_json' || filter.name === 'to_hash')) {
-      if (!filters.every((filter) => JSON_CHAIN_FILTERS.has(filter.name))) return undefined;
-      // The literal being parsed, and nothing else: a `| default:` fallback is an
-      // alternative, describing the value only in the branch where the expression is nil.
-      if (expression.type !== NodeTypes.String) return undefined;
-      return inferShapeFromJSONString(expression.value);
-    }
+    if (filters.some(parsesJson)) return parseJsonChainShape(expression, filters);
 
     // {% assign x = {a: 5} %} / {% assign x = [1, 2] %}
     if (
@@ -484,7 +521,7 @@ export function createShapeAnalyzer(
 
     const partial = await deps.readPartial(partialName);
     if (!partial) return undefined;
-    if (reads) reads.set(partial.uri, partial.source);
+    recordRead(reads, deps, partial.uri, partial.source);
     if (callChain.has(partial.uri)) return undefined;
 
     const bindings = resolveBindings(args, position);
@@ -494,7 +531,7 @@ export function createShapeAnalyzer(
     });
 
     // The callee's reads become ours, so one revalidation covers the whole chain.
-    if (reads) for (const [uri, content] of analysis.reads) reads.set(uri, content);
+    if (reads) for (const [uri, read] of analysis.reads) reads.set(uri, read);
 
     return analysis.shape;
   };
@@ -584,7 +621,7 @@ export function createShapeAnalyzer(
       const markup = node.markup;
       const graphqlFile = isLiquidString(markup.graphql) ? markup.graphql.value : undefined;
       const document = graphqlFile ? await deps.readGraphQL(graphqlFile) : undefined;
-      if (document && reads) reads.set(document.uri, document.ast.content);
+      if (document) recordRead(reads, deps, document.uri, document.ast.content);
 
       pushGraphQLShape(
         markup.name,
@@ -696,6 +733,55 @@ export function createShapeAnalyzer(
   return { handleLiquidTag, handleVariableLookup, lookups, shapeAt, returnShape };
 }
 
+/**
+ * The value a `… | parse_json` chain produces, or `undefined` when this analysis cannot see
+ * into it.
+ *
+ * ONE RULE FOR `default`, in both of the positions it can occupy: it yields an ALTERNATIVE,
+ * the piped value or the fallback, and never both. What that means for the shape depends
+ * entirely on which side of the parse it sits.
+ *
+ * AFTER the parse it is not readable at all — {@link parsesJson} says why — so the chain
+ * describes nothing.
+ *
+ * BEFORE the parse, `x | default: '<json>' | parse_json` is the standard platformOS "parse
+ * params with a default" idiom, and the fallback is a JSON string that IS parsed: the value is
+ * the parse of `x` in one branch and the parse of the fallback in the other. So both become
+ * alternatives, and what that leaves behind for an unreadable `x` is `mergeAlternatives`' to
+ * decide, not this function's.
+ */
+function parseJsonChainShape(
+  expression: ValueExpression,
+  filters: LiquidFilter[],
+): PropertyShape | undefined {
+  const parseAt = filters.findIndex(parsesJson);
+  if (!filters.slice(parseAt + 1).every(parsesJson)) return undefined;
+
+  // The subject: a String literal is the document that gets parsed; anything else is a value
+  // this analysis cannot read, which the fallbacks below may still describe half of.
+  const alternatives: PropertyShape[] = [];
+  if (expression.type === NodeTypes.String) {
+    const parsed = inferShapeFromJSONString(expression.value);
+    if (!parsed) return undefined;
+    alternatives.push(parsed);
+  } else {
+    alternatives.push(UNKNOWN_SHAPE);
+  }
+
+  for (const filter of filters.slice(0, parseAt)) {
+    // Nothing else transforms a value on its way INTO the parse in a way we can follow, and
+    // `filter-semantics.ts` owns both which filters return an operand rather than a value and
+    // which argument that operand is. Only a String literal here is a document we can read.
+    const fallback = alternativeSubstituteArg(filter);
+    if (!fallback || fallback.type !== NodeTypes.String) return undefined;
+    const parsed = inferShapeFromJSONString(fallback.value);
+    if (!parsed) return undefined;
+    alternatives.push(parsed);
+  }
+
+  return foldAlternatives(alternatives);
+}
+
 function writtenShape(write: Write, previous: PropertyShape | undefined) {
   // A dynamic lvalue (`{% hash_assign x[key] = v %}`) writes we-know-not-where.
   if (write.path === undefined) return undefined;
@@ -729,10 +815,34 @@ function openShapeAtPath(path: string[], valueShape: PropertyShape): PropertySha
   return { kind: 'object', properties: new Map([[key, value]]), open: true };
 }
 
+/**
+ * How the analysis will recognise that a file it read has changed.
+ *
+ * A REVISION where the host has an `App`: two numbers, compared synchronously, and the
+ * comparison cannot be made against a different read path than the analysis used —
+ * there is no read. Falls back to the CONTENT for a URI the app does not hold, which is
+ * where the old rule ("`readContent` must read from wherever `readPartial` did") still
+ * applies, now confined to the case that actually needs it.
+ */
+type Read = { revision: number } | { content: string };
+type Reads = Map<string, Read>;
+
+/** What the analysis read, and how each of those is revalidated. */
+function recordRead(
+  reads: Reads | undefined,
+  deps: ShapeAnalyzerDeps,
+  uri: string,
+  content: string,
+) {
+  if (!reads) return;
+  const revision = deps.revisionOf?.(uri);
+  reads.set(uri, revision === undefined ? { content } : { revision });
+}
+
 interface PartialAnalysis {
   shape: PropertyShape | undefined;
-  /** Every file the analysis read, and the content it read, transitively. */
-  reads: Map<string, string>;
+  /** Every file the analysis read, transitively, and how to tell it has changed. */
+  reads: Reads;
 }
 
 interface CacheEntry {
@@ -751,9 +861,20 @@ async function analyzePartial(
   deps: ShapeAnalyzerDeps,
   options: { depth: number; callChain: ReadonlySet<string> },
 ): Promise<PartialAnalysis> {
-  // Identity only, NOT the partial's text: `isStale` re-reads what the analysis touched
-  // on every hit, which makes it load-bearing rather than belt-and-braces.
-  const key = [partial.uri, bindingsKey(bindings)].join('\0');
+  // Everything the answer depends on that is NOT one of the files `isStale` re-reads. The SDL
+  // and the resolver's presence are read off `deps` rather than trusted to it: the schema is
+  // what makes `results` a list, and the resolver is what separates the two analyzers this
+  // process builds.
+  //
+  // The partial's TEXT is deliberately absent: `isStale` re-reads what the analysis touched on
+  // every hit, which makes it load-bearing rather than belt-and-braces.
+  const key = [
+    partial.uri,
+    bindingsKey(bindings),
+    deps.analysisIdentity,
+    deps.resolveExternalShape ? 'external-shapes' : 'no-external-shapes',
+    schemaIdentity(await deps.getSchema()),
+  ].join('\0');
   const run = () => runPartialAnalysis(partial, bindings, deps, options);
 
   let computed = false;
@@ -776,11 +897,16 @@ async function runPartialAnalysis(
   deps: ShapeAnalyzerDeps,
   options: { depth: number; callChain: ReadonlySet<string> },
 ): Promise<PartialAnalysis> {
-  const reads = new Map<string, string>([[partial.uri, partial.source]]);
+  const reads: Reads = new Map();
+  recordRead(reads, deps, partial.uri, partial.source);
   // A parameter the call site did not pass and the partial never assigns holds nil.
   // `extractUndefinedVariables` sees definitions this analyzer does not track.
   const provablyNil = new Set(
-    extractUndefinedVariables(partial.source).required.filter((name) => !bindings.has(name)),
+    // The partial's own parse, which the `AppFile` already owns — without it this re-parses
+    // the file the caller is holding open.
+    extractUndefinedVariables(partial.source, [], partial.ast).required.filter(
+      (name) => !bindings.has(name),
+    ),
   );
   const analyzer = createShapeAnalyzer(deps, { ...options, bindings, provablyNil, reads });
 
@@ -794,11 +920,50 @@ async function runPartialAnalysis(
   return { shape: analyzer.returnShape(), reads };
 }
 
-/** Runs on every cache HIT, so the reads overlap rather than queue. */
+/**
+ * Whether anything the analysis read has changed since it read it.
+ *
+ * The revision half is synchronous and allocates nothing, so a hit whose reads are all
+ * app-backed — which is every hit on a whole-project run — costs no I/O at all. Only the
+ * content half awaits, and it runs its reads together rather than queued.
+ */
 async function isStale(analysis: PartialAnalysis, deps: ShapeAnalyzerDeps): Promise<boolean> {
-  const read = [...analysis.reads];
-  const current = await Promise.all(read.map(([uri]) => deps.readContent(uri)));
-  return read.some(([, content], i) => current[i] !== content);
+  const byContent: [string, string][] = [];
+  for (const [uri, read] of analysis.reads) {
+    if ('revision' in read) {
+      // An app that no longer holds the file answers `undefined`, which is never a
+      // revision — so "the file left the app" counts as changed, as it must.
+      if (deps.revisionOf?.(uri) !== read.revision) return true;
+    } else {
+      byContent.push([uri, read.content]);
+    }
+  }
+
+  if (byContent.length === 0) return false;
+
+  const current = await Promise.all(byContent.map(([uri]) => deps.readContent(uri)));
+  return byContent.some(([, content], i) => current[i] !== content);
+}
+
+/**
+ * A short stand-in for an SDL, so a cache key carries an id rather than a whole schema.
+ *
+ * Keyed on the SDL string itself, which is why it does not grow with USE: a docset memoizes
+ * its schema, and a rebuilt docset re-reads the same bytes, so a re-read lands on the same
+ * string VALUE and the same entry. It grows only with DISTINCT schemas, and each is 304 KB of
+ * platformOS SDL — so it is CAPPED rather than left to a caller's goodwill: a long-lived host
+ * that picks up new docs would otherwise retain every schema it had ever seen, and nothing
+ * called the clear() this module used to export for that. Eviction costs a cache partition
+ * and nothing else, since an evicted schema simply interns again under a new id.
+ *
+ * Ids come from a counter and not from the cache's size, so an entry that ages out can never
+ * hand its id to a different schema.
+ */
+const schemaIds = createBoundedCache<string>(SCHEMA_ID_CACHE_LIMIT);
+let nextSchemaId = 1;
+
+function schemaIdentity(schema: string | undefined): string {
+  return schema === undefined ? 'no-sdl' : schemaIds(schema, () => `sdl${nextSchemaId++}`);
 }
 
 /** Only what the callee can branch on: a boolean, and the STRUCTURE of a shape. */

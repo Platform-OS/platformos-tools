@@ -6,15 +6,16 @@ import { SourceCodeType, Problem } from '../../..';
  * A `hash_assign` target whose final subscript uses DOT access, which the platform cannot
  * parse.
  *
- * MEASURED against `/api/app_builder/liquid_exec`, each row reading the value back so
- * "accepted" means the assignment actually happened rather than merely that it parsed:
+ * MEASURED on a live instance (`pos-cli exec liquid dev`; every row below re-run 2026-08-08),
+ * each reading the hash back so "assigns" means the write happened rather than merely that it
+ * parsed:
  *
- *   {% hash_assign h['k']    = 'V' %}  assigns
- *   {% hash_assign h["k"]    = 'V' %}  assigns
- *   {% hash_assign h.a['b']  = 'V' %}  assigns      <- a DOT is fine when it is not last
- *   {% hash_assign h[k]      = 'V' %}  assigns
- *   {% hash_assign h[0]      = 'V' %}  assigns
- *   {% hash_assign h['k-1']  = 'V' %}  assigns
+ *   {% hash_assign h['k']    = 'V' %}  -> {"k":"V"}
+ *   {% hash_assign h["k"]    = 'V' %}  -> {"k":"V"}
+ *   {% hash_assign h.a['b']  = 'V' %}  -> {"a":{"b":"V"}}   <- a DOT is fine when NOT last
+ *   {% hash_assign h[k]      = 'V' %}  -> {"kk":"V"}        <- k = 'kk'
+ *   {% hash_assign h[0]      = 'V' %}  -> {"0":"V"}
+ *   {% hash_assign h['k-1']  = 'V' %}  -> {"k-1":"V"}
  *   {% hash_assign h.k       = 'V' %}  RAISES
  *   {% hash_assign h.a.b     = 'V' %}  RAISES
  *   {% hash_assign h['a'].b  = 'V' %}  RAISES
@@ -27,12 +28,27 @@ import { SourceCodeType, Problem } from '../../..';
  * SO THE RULE IS POSITIONAL, not about the key: only the LAST lookup must be a bracket.
  * Reporting any dot in the chain would be a false block on `h.a['b']`, which works.
  *
- * AND IT IS `hash_assign`'s ALONE. `assign` and `function` write into a Hash through the same
- * runtime setter — `InvalidHashAssignTarget` treats all three alike for that reason — but they
- * do not share this PARSER. Measured, reading the hash back: `{% assign h.k = 'V' %}` writes
- * the key `k`, `{% assign h.a.b = 'V' %}` and `{% assign h['a'].b = 'V' %}` write `a.b`, and
- * every `function` target spelling reaches partial resolution rather than a syntax error.
- * Generalising this detector to them would refuse working code on a check that BLOCKS.
+ * THE LIMIT IS THIS TAG'S PARSER, NOT THE RUNTIME SETTER. `assign` and `function` write into a
+ * Hash through the same setter — `InvalidHashAssignTarget` treats all three alike for that
+ * reason — but they do not share this parse rule, and for `assign` A DOT IS A PATH SEPARATOR
+ * exactly as a bracket is:
+ *
+ *   {% assign h = {"a": {"b": "old"}} %}{% assign h.a.b    = 'NEW' %} -> {"a":{"b":"NEW"}}
+ *   {% assign h = {"a": {"b": "old"}} %}{% assign h['a'].b = 'NEW' %} -> {"a":{"b":"NEW"}}
+ *   {% assign h = {}                  %}{% assign h.k      = 'V'   %} -> {"k":"V"}
+ *   {% assign h = {"x": 1}            %}{% assign h.y.z    = 'V'   %} -> RAISES "h[y] is null,
+ *                                                                        expected Hash or Array"
+ *
+ * `h.a.b`, `h['a'].b` and `h['a']['b']` are the SAME write, and a missing intermediate raises
+ * rather than being created. So the two tags disagree in the only direction that costs nobody
+ * anything: the spelling `hash_assign` refuses is one its successor accepts and handles
+ * correctly, which is why nothing needs fixing on the platform side and why renaming the tag
+ * is a repair rather than a risk.
+ *
+ * TWO THINGS FOLLOW. Do not generalise this detector to `assign` — it BLOCKS, so that would
+ * refuse working code. And do not "repair" a dot target on the belief that `h.a.b` writes a key
+ * literally named `a.b`: it does not, and `deprecated-tag/index.spec.ts` pins the rename such a
+ * guard would suppress.
  *
  * WHY NOT `InvalidHashAssignTarget`. That check answers a TYPE question — is the container a
  * Hash or an Array, and does the subscript kind match — and it necessarily stays silent when
@@ -50,9 +66,15 @@ import { SourceCodeType, Problem } from '../../..';
  * Source POSITIONS are load-bearing, documented, and used by every check in this package, so
  * reading the notation back out of the source is the durable signal.
  *
- * NO AUTOFIX. `h.k` -> `h['k']` looks mechanical, but a dot chain can also mean the author
- * meant a different container level entirely (`h.a.b` might want `h['a']['b']` or
- * `h.a['b']`), and picking one silently rewrites intent. The message states the repair.
+ * NO AUTOFIX HERE, and not because the repair is unclear: the table above makes
+ * `h.a.b` -> `h['a']['b']` well defined, so it would be sound. It is that `DeprecatedTag`
+ * already rewrites the whole tag to `{% assign %}`, which takes the author's spelling
+ * unchanged and is where the platform wants them anyway — and two code actions disagreeing
+ * about what to change on one node is worse than one.
+ *
+ * That argument is only as strong as `DeprecatedTag` being enabled, which is per-project. A
+ * project that disables it gets this diagnostic and no fix at all. Revisit if that becomes a
+ * complaint, or if `hash_assign` ever outlives the deprecation.
  */
 export function detectInvalidHashAssignTargetSyntax(
   node: LiquidTag,

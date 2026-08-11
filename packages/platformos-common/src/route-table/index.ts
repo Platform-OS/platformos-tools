@@ -1,4 +1,4 @@
-export { RouteTable, extractRelativePagePath } from './RouteTable';
+export { RouteTable, extractRelativePagePath, isPlatformRoute } from './RouteTable';
 export {
   slugFromFilePath,
   formatFromFilePath,

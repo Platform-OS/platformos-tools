@@ -280,7 +280,7 @@ describe('RouteTable', () => {
       expect(rt.hasMatch('/api/data.json')).toBe(true);
     });
 
-    it('matches format extension in URL against the correct format page', async () => {
+    it('resolves a URL to every page that can serve it, highest precedence first', async () => {
       const fs = createMockFileSystem(
         Object.fromEntries([
           page('app/views/pages/api/my-page.html.liquid'),
@@ -290,25 +290,19 @@ describe('RouteTable', () => {
       const rt = new RouteTable(fs);
       await rt.build(ROOT);
 
-      // Without format suffix — defaults to html, only html page matches
-      const htmlDefaultMatches = rt.match('/api/my-page');
-      expect(htmlDefaultMatches.length).toBe(1);
-      expect(htmlDefaultMatches[0].format).toBe('html');
+      // No extension is html, and a json page never answers it.
+      expect(rt.match('/api/my-page').map((r) => r.format)).toEqual(['html']);
 
-      // With .json suffix — only the json page matches
-      const jsonMatches = rt.match('/api/my-page.json');
-      expect(jsonMatches.length).toBe(1);
-      expect(jsonMatches[0].format).toBe('json');
-      expect(jsonMatches[0].uri).toContain('my-page.json.liquid');
+      // The exact-format page wins, with html behind it as the fallback.
+      expect(rt.match('/api/my-page.json').map((r) => r.format)).toEqual(['json', 'html']);
+      expect(rt.match('/api/my-page.json')[0].uri).toContain('my-page.json.liquid');
 
-      // With .html suffix — only the html page matches
-      const htmlMatches = rt.match('/api/my-page.html');
-      expect(htmlMatches.length).toBe(1);
-      expect(htmlMatches[0].format).toBe('html');
+      // A json page cannot answer .html.
+      expect(rt.match('/api/my-page.html').map((r) => r.format)).toEqual(['html']);
 
-      // hasMatch respects format too
-      expect(rt.hasMatch('/api/my-page.json')).toBe(true);
-      expect(rt.hasMatch('/api/my-page.xml')).toBe(false);
+      // Every other known format falls back to the html page.
+      expect(rt.match('/api/my-page.xml').map((r) => r.format)).toEqual(['html']);
+      expect(rt.hasMatch('/api/my-page.xml')).toBe(true);
     });
 
     it('does not treat unknown extensions as format suffixes', async () => {

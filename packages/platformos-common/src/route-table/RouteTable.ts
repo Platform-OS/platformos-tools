@@ -134,6 +134,105 @@ function matchSegments(
   return ui;
 }
 
+/**
+ * Whether a page whose response format is `entryFormat` answers a URL asking for
+ * `requestedFormat` (`null` when the URL carried no known format extension).
+ *
+ * An html page is the fallback for every format; any other format answers only its own
+ * extension, and never the extension-less URL, which browser navigation resolves as html.
+ * Both directions are pinned in `checks/missing-page/index.spec.ts`.
+ */
+function formatMatches(entryFormat: string, requestedFormat: string | null): boolean {
+  if (entryFormat === 'html') return true;
+  return requestedFormat === entryFormat;
+}
+
+/** Whether a URL's segments are fully consumed by one route entry's segments. */
+function entryMatches(urlSegments: UrlSegment[], entry: RouteEntry): boolean {
+  // Try matching with required segments only
+  const afterRequired = matchSegments(urlSegments, entry.requiredSegments, 0);
+  if (afterRequired !== false && afterRequired === urlSegments.length) {
+    return true;
+  }
+
+  // Try matching with required + optional groups progressively
+  if (afterRequired !== false && entry.optionalGroups.length > 0) {
+    return matchOptionalGroups(urlSegments, entry.optionalGroups, afterRequired);
+  }
+
+  return false;
+}
+
+/**
+ * Try optional groups left-to-right greedily. Each group is tried in order; if it
+ * matches, its segments are consumed and the next group is attempted, and if it does
+ * not it is skipped. Greedy without backtracking is what the platform does.
+ */
+function matchOptionalGroups(
+  urlSegments: UrlSegment[],
+  groups: RouteSegment[][],
+  startIdx: number,
+): boolean {
+  let current = startIdx;
+
+  for (const group of groups) {
+    if (current === urlSegments.length) {
+      // Remaining optional groups can be omitted
+      return true;
+    }
+
+    const after = matchSegments(urlSegments, group, current);
+    if (after !== false) {
+      current = after;
+      if (current === urlSegments.length) return true;
+    }
+  }
+
+  return current === urlSegments.length;
+}
+
+const ALL_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options'];
+
+/**
+ * Routes the platform serves itself, which no page defines — so "no page found" is the
+ * wrong thing to say about them.
+ *
+ * Each one's methods are listed exactly, not widened to every method, because the
+ * difference is observable: `POST /_maintenance` is served and `GET /_maintenance` is a
+ * real 404. `checks/missing-page/index.spec.ts` pins that pair.
+ */
+const PLATFORM_ROUTE_SPECS: { slug: string; methods: string[] }[] = [
+  { slug: '404', methods: ALL_METHODS },
+  { slug: '422', methods: ALL_METHODS },
+  { slug: '500', methods: ALL_METHODS },
+  { slug: '502', methods: ALL_METHODS },
+  { slug: '504', methods: ALL_METHODS },
+  { slug: 'maintenance', methods: ALL_METHODS },
+  { slug: '_maintenance', methods: ['post'] },
+  { slug: '_maintenance/new', methods: ['get'] },
+  { slug: 'auth/:provider/callback', methods: ['get', 'post'] },
+  { slug: 'auth/failure', methods: ['get'] },
+  { slug: 'api/graph', methods: ['post', 'options'] },
+];
+
+const PLATFORM_ROUTES: RouteEntry[] = PLATFORM_ROUTE_SPECS.flatMap(({ slug, methods }) =>
+  methods.map((method) => buildRouteEntry(`platform:${slug}`, slug, method, 'html')),
+);
+
+/**
+ * Whether this URL is one the platform routes itself. Consulted before `hasMatch`,
+ * because a platform route has no page and so can never be found in the table.
+ */
+export function isPlatformRoute(urlPattern: string, method?: string): boolean {
+  const { segments: urlSegments, format } = parseUrlPattern(urlPattern);
+
+  return PLATFORM_ROUTES.some((entry) => {
+    if (method && entry.method !== method) return false;
+    if (!formatMatches(entry.format, format)) return false;
+    return entryMatches(urlSegments, entry);
+  });
+}
+
 type UrlSegment = { type: 'static'; value: string } | { type: 'dynamic' };
 
 interface ParsedUrlPattern {
@@ -246,15 +345,14 @@ export class RouteTable {
    */
   match(urlPattern: string, method?: string): RouteEntry[] {
     const { segments: urlSegments, format } = parseUrlPattern(urlPattern);
-    const effectiveFormat = format ?? 'html';
 
     const results: RouteEntry[] = [];
 
     for (const entries of this.routes.values()) {
       for (const entry of entries) {
         if (method && entry.method !== method) continue;
-        if (entry.format !== effectiveFormat) continue;
-        if (this.matchEntry(urlSegments, entry)) {
+        if (!formatMatches(entry.format, format)) continue;
+        if (entryMatches(urlSegments, entry)) {
           results.push(entry);
         }
       }
@@ -266,13 +364,12 @@ export class RouteTable {
 
   hasMatch(urlPattern: string, method?: string): boolean {
     const { segments: urlSegments, format } = parseUrlPattern(urlPattern);
-    const effectiveFormat = format ?? 'html';
 
     for (const entries of this.routes.values()) {
       for (const entry of entries) {
         if (method && entry.method !== method) continue;
-        if (entry.format !== effectiveFormat) continue;
-        if (this.matchEntry(urlSegments, entry)) return true;
+        if (!formatMatches(entry.format, format)) continue;
+        if (entryMatches(urlSegments, entry)) return true;
       }
     }
     return false;
@@ -293,53 +390,6 @@ export class RouteTable {
       all.push(...entries);
     }
     return all.sort((a, b) => a.precedence - b.precedence);
-  }
-
-  private matchEntry(urlSegments: UrlSegment[], entry: RouteEntry): boolean {
-    // Try matching with required segments only
-    const afterRequired = matchSegments(urlSegments, entry.requiredSegments, 0);
-    if (afterRequired !== false && afterRequired === urlSegments.length) {
-      return true;
-    }
-
-    // Try matching with required + optional groups progressively
-    if (afterRequired !== false && entry.optionalGroups.length > 0) {
-      return this.matchOptionalGroups(urlSegments, entry.optionalGroups, afterRequired);
-    }
-
-    return false;
-  }
-
-  /**
-   * Try optional groups left-to-right greedily — matching Rails' ActionDispatch::Journey
-   * semantics. Each group is tried in order; if it matches, its segments are consumed
-   * and the next group is attempted. If it doesn't match, it's skipped (optional).
-   *
-   * This greedy approach is correct because the platformOS backend converts slugs like
-   * `search(/:country)(/:city)` into Journey path strings and Journey matches
-   * left-to-right without backtracking.
-   */
-  private matchOptionalGroups(
-    urlSegments: UrlSegment[],
-    groups: RouteSegment[][],
-    startIdx: number,
-  ): boolean {
-    let current = startIdx;
-
-    for (const group of groups) {
-      if (current === urlSegments.length) {
-        // Remaining optional groups can be omitted
-        return true;
-      }
-
-      const after = matchSegments(urlSegments, group, current);
-      if (after !== false) {
-        current = after;
-        if (current === urlSegments.length) return true;
-      }
-    }
-
-    return current === urlSegments.length;
   }
 
   private addPageFromContent(uri: string, content: string): void {

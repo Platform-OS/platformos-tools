@@ -1,4 +1,5 @@
 import { HtmlElement, LiquidTag } from '@platformos/liquid-html-parser';
+import { isPlatformRoute } from '@platformos/platformos-common';
 import {
   shouldSkipUrl,
   isValuedAttrNode,
@@ -39,6 +40,8 @@ export const MissingPage: LiquidCheckDefinition = {
       const urlPattern = extractUrlPattern(attr, variableMap);
       if (urlPattern === null) return;
       if (shouldSkipUrl(urlPattern)) return;
+      // A platform route has no page, so the table can never find one for it.
+      if (isPlatformRoute(urlPattern, method)) return;
 
       // Asked here, not in `onCodePathStart`: the table costs a read of every page in
       // the project, and this is the first moment it is known to be needed. A file

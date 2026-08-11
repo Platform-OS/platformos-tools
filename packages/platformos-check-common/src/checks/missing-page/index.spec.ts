@@ -609,7 +609,8 @@ describe('Module: MissingPage', () => {
       expect(offenses.map((o) => o.message)).toEqual([]);
     });
 
-    it('reports when .json URL has no json format page (only html exists)', async () => {
+    // An html page is the fallback for every format, so it answers a .json URL.
+    it('does not report when a .json URL has only an html page (html serves any format)', async () => {
       const sourceCode = '<a href="/api/my-page.json">JSON</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
@@ -620,9 +621,7 @@ describe('Module: MissingPage', () => {
           'app/views/pages/api/my-page.html.liquid': '<h1>HTML only</h1>',
         },
       );
-      expect(offenses.map((o) => o.message)).toEqual([
-        "No page found for route '/api/my-page.json' (GET)",
-      ]);
+      expect(offenses).toEqual([]);
     });
 
     it('reports when URL has no format suffix but only json page exists', async () => {
@@ -703,7 +702,8 @@ describe('Module: MissingPage', () => {
       ]);
     });
 
-    it('reports when only an html page exists at the rss URL path', async () => {
+    // Same rule: an html page at `blog/rss` answers `/blog/rss.rss`.
+    it('does not report the rss URL when only an html page exists at that path', async () => {
       const sourceCode = '<a href="/blog/rss.rss">RSS</a>';
       const offenses = await runLiquidCheck(
         MissingPage,
@@ -714,9 +714,7 @@ describe('Module: MissingPage', () => {
           'app/views/pages/blog/rss.html.liquid': '<h1>Not a feed</h1>',
         },
       );
-      expect(offenses.map((o) => o.message)).toEqual([
-        "No page found for route '/blog/rss.rss' (GET)",
-      ]);
+      expect(offenses).toEqual([]);
     });
 
     it('reports when the module page serves the feed as xml (the platformos-blog scenario)', async () => {
@@ -901,6 +899,365 @@ describe('Module: MissingPage', () => {
       );
       expect(calls).toEqual(1);
       expect(offenses.map((o) => o.message)).toEqual(["No page found for route '/ghost' (GET)"]);
+    });
+  });
+
+  /**
+   * The shapes that carried a `platformos-check-disable MissingPage` in a real project.
+   * Most of them report correctly, so they are here as controls: a fix that also
+   * silences one of these is too wide. Each is paired with the spelling that resolves it.
+   */
+  describe('MissingPage: pos-module-community suppression sites', () => {
+    describe('platform-provided routes', () => {
+      it('does not report a POST to /_maintenance', async () => {
+        const sourceCode = [
+          '<form action="/_maintenance" accept-charset="UTF-8" method="post">',
+          '  <input type="hidden" name="authenticity_token" value="{{ context.authenticity_token }}">',
+          '</form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'modules/community/public/views/partials/maintenance.liquid',
+          {},
+          {},
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      // The exemption is per method, not per path: /_maintenance is create-only, so a GET
+      // to it is a real 404 and must still report.
+      it('still reports a GET to /_maintenance, which the platform does not serve', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<a href="/_maintenance">Maintenance</a>',
+          'modules/community/public/views/partials/maintenance.liquid',
+          {},
+          {},
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/_maintenance' (GET)",
+        ]);
+      });
+
+      it('does not report the GET form of it, /_maintenance/new', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<a href="/_maintenance/new">Maintenance</a>',
+          'modules/community/public/views/partials/maintenance.liquid',
+          {},
+          {},
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      it('does not report the error pages or the auth and graph endpoints', async () => {
+        const sourceCode = [
+          '<a href="/404">404</a>',
+          '<a href="/500">500</a>',
+          '<a href="/maintenance">Down</a>',
+          '<a href="/auth/google/callback">Callback</a>',
+          '<a href="/auth/failure">Failed</a>',
+          '<form action="/api/graph" method="post"></form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'app/views/pages/home.html.liquid',
+          {},
+          {},
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      // A path that merely looks like a platform route is not one.
+      it('still reports a lookalike path', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<a href="/auth/google/callbacks">x</a><a href="/api/graphs">y</a>',
+          'app/views/pages/home.html.liquid',
+          {},
+          {},
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/auth/google/callbacks' (GET)",
+          "No page found for route '/api/graphs' (GET)",
+        ]);
+      });
+    });
+
+    /**
+     * Controls. Each of these is a real suppression site whose offense is CORRECT, and
+     * each is paired with the spelling that fixes it — so a suppression wide enough to
+     * hide the defect fails here rather than passing quietly.
+     */
+    describe('true positives (must keep reporting)', () => {
+      const SETTINGS_UPDATE_PAGE = {
+        'modules/community/public/views/pages/profile/settings_update.liquid':
+          '---\nslug: settings_update\nmethod: put\n---\nupdated',
+      };
+
+      /**
+       * A `_method` override is only seen as literal markup. We deliberately do NOT
+       * resolve renders to find one, so a form that hides its override inside a component
+       * reports, and writing the input directly is the fix.
+       */
+      it('reports when _method is hidden inside a component render (we do not resolve partials)', async () => {
+        const sourceCode = [
+          "{% assign action = '/settings_update' %}",
+          '<form action="{{ action }}" method="post" data-settings-form>',
+          "  {% theme_render_rc 'components/atoms/input', name: '_method', type: 'hidden', value: 'put' %}",
+          '</form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'modules/community/public/views/pages/profile/settings.liquid',
+          {},
+          SETTINGS_UPDATE_PAGE,
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/settings_update' (POST)",
+        ]);
+      });
+
+      it('does not report once _method is written as a literal input (the shipped refactor)', async () => {
+        const sourceCode = [
+          "{% assign action = '/settings_update' %}",
+          '<form action="{{ action }}" method="post" data-settings-form>',
+          '  <input type="hidden" name="_method" value="put">',
+          '</form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'modules/community/public/views/pages/profile/settings.liquid',
+          {},
+          SETTINGS_UPDATE_PAGE,
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      /**
+       * Segment count is exact: a URL with one segment more than the slug does not match,
+       * and neither does one with a segment fewer. Only the param spelled in the path does.
+       */
+      const IMPERSONATION_PAGES_BARE = {
+        'modules/user/public/views/pages/sessions/impersonation/create.liquid':
+          '---\nslug: sessions/impersonations\nmethod: post\n---\ncreated',
+        'modules/user/public/views/pages/sessions/impersonation/destroy.liquid':
+          '---\nslug: sessions/impersonations\nmethod: delete\n---\ndestroyed',
+      };
+
+      it('reports a form whose action carries a segment the slug does not have', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<form action="/sessions/impersonations/{{ profile.user_id }}" method="post"></form>',
+          'modules/community/public/views/partials/admin/users/users/edit.liquid',
+          {},
+          IMPERSONATION_PAGES_BARE,
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/sessions/impersonations/:_liquid_' (POST)",
+        ]);
+      });
+
+      it('does not report that form once the id moves into an input instead', async () => {
+        const sourceCode = [
+          '<form action="/sessions/impersonations" method="post">',
+          '  <select name="user_id"><option value="{{ profile.user_id }}">x</option></select>',
+          '</form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'modules/community/public/views/partials/admin/users/users/edit.liquid',
+          {},
+          IMPERSONATION_PAGES_BARE,
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      /**
+       * The pair asked for directly: a page whose slug DOES carry `:user_id`, and a form
+       * that posts to the bare path carrying the value as a control instead.
+       *
+       * Measured: a form input never fills a route segment, whatever it is named — the
+       * name, `:id` specifically, and the positional `slug3` spelling were each ruled out
+       * against a live instance, every one 404. So BOTH halves of this pair are offenses;
+       * an input named `user_id` is not the thing that makes the route resolve. What the
+       * name can buy is a better MESSAGE (TASK-75), never silence.
+       */
+      it('reports a form posting to the bare path even when an input matches the missing param', async () => {
+        const withMatchingName = [
+          '<form action="/sessions/impersonations" method="post">',
+          '  <select name="user_id"><option value="1">x</option></select>',
+          '</form>',
+        ].join('\n');
+        const withUnrelatedName = [
+          '<form action="/sessions/impersonations" method="post">',
+          '  <select name="id"><option value="1">x</option></select>',
+          '</form>',
+        ].join('\n');
+        const pages = {
+          'modules/user/public/views/pages/sessions/impersonation/create.liquid':
+            '---\nslug: sessions/impersonations/:user_id\nmethod: post\n---\ncreated',
+        };
+
+        const matching = await runLiquidCheck(
+          MissingPage,
+          withMatchingName,
+          'modules/community/public/views/partials/admin/users/users/edit.liquid',
+          {},
+          pages,
+        );
+        const unrelated = await runLiquidCheck(
+          MissingPage,
+          withUnrelatedName,
+          'modules/community/public/views/partials/admin/users/users/edit.liquid',
+          {},
+          pages,
+        );
+
+        expect(matching.map((o) => o.message)).toEqual([
+          "No page found for route '/sessions/impersonations' (POST)",
+        ]);
+        expect(unrelated.map((o) => o.message)).toEqual([
+          "No page found for route '/sessions/impersonations' (POST)",
+        ]);
+      });
+
+      it('does not report once that same param is spelled in the action path', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<form action="/sessions/impersonations/{{ profile.user_id }}" method="post"></form>',
+          'modules/community/public/views/partials/admin/users/users/edit.liquid',
+          {},
+          {
+            'modules/user/public/views/pages/sessions/impersonation/create.liquid':
+              '---\nslug: sessions/impersonations/:user_id\nmethod: post\n---\ncreated',
+          },
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      /**
+       * A one-character difference in a module's page directory is a different route.
+       */
+      it('reports the /tests links that modules/tests serves as /_tests', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<a href="/tests/run">Run</a>',
+          'modules/community/public/lib/test/index.liquid',
+          {},
+          {
+            'modules/tests/public/views/pages/_tests/run.html.liquid': 'run',
+          },
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/tests/run' (GET)",
+        ]);
+      });
+
+      it('does not report the same link spelled /_tests', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<a href="/_tests/run">Run</a>',
+          'modules/community/public/lib/test/index.liquid',
+          {},
+          {
+            'modules/tests/public/views/pages/_tests/run.html.liquid': 'run',
+          },
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      /**
+       * A form with no `method` is a GET, and a json page answers neither a GET nor an
+       * extension-less URL. A render inside the form must not excuse either.
+       */
+      it('reports a GET form against a put-only json page, render tag and all', async () => {
+        const sourceCode = [
+          '<form action="/api/posts">',
+          '  <input type="hidden" name="post[id]" value="1">',
+          "  {% render 'modules/common-styling/forms/markdown', name: 'post[body]', id: 'x' %}",
+          '</form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'modules/community/public/views/partials/components/organisms/feed-entry.liquid',
+          {},
+          {
+            'modules/community/public/views/pages/api/posts/update.json.liquid':
+              '---\nslug: api/posts\nmethod: put\n---\n{}',
+            'modules/common-styling/public/views/partials/forms/markdown.liquid':
+              '<textarea></textarea>',
+          },
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/api/posts' (GET)",
+        ]);
+      });
+
+      it('does not report that form once it declares the put override and the json format', async () => {
+        const sourceCode = [
+          '<form action="/api/posts.json" method="post">',
+          '  <input type="hidden" name="_method" value="put">',
+          '  <input type="hidden" name="post[id]" value="1">',
+          '</form>',
+        ].join('\n');
+
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          sourceCode,
+          'modules/community/public/views/partials/components/organisms/feed-entry.liquid',
+          {},
+          {
+            'modules/community/public/views/pages/api/posts/update.json.liquid':
+              '---\nslug: api/posts\nmethod: put\n---\n{}',
+          },
+        );
+
+        expect(offenses).toEqual([]);
+      });
+
+      // The plainest case the suppressions were hiding: links to pages that do not exist.
+      it('reports links to pages the project does not have', async () => {
+        const offenses = await runLiquidCheck(
+          MissingPage,
+          '<a href="/search">Join</a><a href="/questions">Ask</a>',
+          'modules/community/public/views/partials/components/organisms/quicklinks.liquid',
+          {},
+          {
+            'modules/community/public/views/pages/index.html.liquid': 'home',
+          },
+        );
+
+        expect(offenses.map((o) => o.message)).toEqual([
+          "No page found for route '/search' (GET)",
+          "No page found for route '/questions' (GET)",
+        ]);
+      });
     });
   });
 });

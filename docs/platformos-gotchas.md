@@ -130,5 +130,9 @@ one change that is real.
 - Nested `hash_assign` subscripts (`x[0]['k']`) — a known, bounded gap.
 - `hash_assign` on a variable never assigned in the file. In a partial the variable may
   legitimately arrive as a render argument, so silence is correct.
-- Return types for the six undocumented filters, in the **language server** — it types them all
-  as `string` by default.
+- Filters the published docset does not carry at all. The vocabulary is the docset's alone —
+  `filters.json` carries `arity` and `return_type` for every entry it publishes, and this
+  repository holds no table to fall back on — so a filter absent from it goes unchecked by
+  `FilterArity` and `InvalidHashAssignTarget`, and the **language server** has no type for it.
+  That is unchecked, never rejected: absence is silence, so a docset lagging the platform costs
+  detections and cannot refuse working code.

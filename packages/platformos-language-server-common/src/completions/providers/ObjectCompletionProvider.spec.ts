@@ -26,14 +26,6 @@ describe('Module: ObjectCompletionProvider', async () => {
         },
       },
       {
-        name: 'app',
-        access: {
-          global: false,
-          template: [],
-          parents: [],
-        },
-      },
-      {
         name: 'current_user',
         access: { global: false, parents: [], template: [] },
         properties: [{ name: 'name' }, { name: 'email' }],
@@ -47,6 +39,7 @@ describe('Module: ObjectCompletionProvider', async () => {
         filters: async () => [],
         objects: async () => _objects,
         liquidDrops: async () => _objects,
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
     });
@@ -131,20 +124,10 @@ describe('Module: ObjectCompletionProvider', async () => {
     }
   });
 
-  it('should complete relative-path-dependent contextual variables', async () => {
-    const contexts: [string, string][] = [
-      ['app', 'app/views/partials/my-partial.liquid'],
-      ['app', 'app/lib/helpers/my-helper.liquid'],
-    ];
-    for (const [object, relativePath] of contexts) {
-      const source = `{{ ${object}█ }}`;
-      await expect(provider, source).to.complete({ source, relativePath }, [object]);
-      await expect(provider, source).to.complete(
-        { source, relativePath: 'app/views/layouts/main.liquid' },
-        [],
-      );
-    }
-  });
+  // A "relative-path-dependent contextual variables" test used to sit here, and its only subject
+  // was `app` being offered inside a partial or lib file. `app` is Shopify's theme app extension
+  // drop and is in no platformOS docset, so the completion it asserted could only ever come from
+  // the hard-coded exemption that produced it. Both are gone.
 
   it('should not complete anything if there is nothing to complete', async () => {
     await expect(provider).to.complete('{% assign x = "█" %}', []);

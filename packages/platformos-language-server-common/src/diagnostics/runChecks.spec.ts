@@ -7,7 +7,7 @@ import {
   SourceCodeType,
 } from '@platformos/platformos-check-common';
 import { nameToPaths, PlatformOSFileType, RouteTable } from '@platformos/platformos-common';
-import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
+import { MockFileSystem, publishedDocset } from '@platformos/platformos-check-common/src/test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Connection } from 'vscode-languageserver';
 import { DocumentManager } from '../documents';
@@ -74,13 +74,7 @@ describe('Module: runChecks', () => {
         checks: [LiquidFilter],
         rootUri,
       }),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       jsonValidationSet: {
         schemas: async () => [],
       },
@@ -232,13 +226,7 @@ describe('Module: runChecks', () => {
         checks: matchingTranslation,
         rootUri: rootUri,
       }),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       jsonValidationSet: {
         schemas: async () => [],
       },
@@ -328,13 +316,7 @@ describe('Module: runChecks', () => {
           checks: partialCallArguments,
           rootUri,
         }),
-        platformosDocset: {
-          graphQL: async () => null,
-          filters: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          tags: async () => [],
-        },
+        platformosDocset: publishedDocset,
         jsonValidationSet: {
           schemas: async () => [],
         },
@@ -418,13 +400,7 @@ describe('Module: runChecks', () => {
       return makeRunChecks(documentManager, diagnosticsManager, {
         fs: fileSystem,
         loadConfig: async () => ({ settings: {}, checks, rootUri }),
-        platformosDocset: {
-          graphQL: async () => null,
-          filters: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          tags: async () => [],
-        },
+        platformosDocset: publishedDocset,
         jsonValidationSet: {
           schemas: async () => [],
         },
@@ -518,13 +494,7 @@ describe('Module: runChecks', () => {
       return makeRunChecks(documentManager, diagnosticsManager, {
         fs: fileSystem,
         loadConfig: async () => ({ settings: {}, checks: docReadingChecks, rootUri }),
-        platformosDocset: {
-          graphQL: async () => null,
-          filters: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          tags: async () => [],
-        },
+        platformosDocset: publishedDocset,
         jsonValidationSet: { schemas: async () => [] },
         includeFilesFromDisk: () => true,
       });
@@ -662,13 +632,7 @@ describe('Module: runChecks', () => {
       return makeRunChecks(documentManager, diagnosticsManager, {
         fs: fileSystem,
         loadConfig: async () => ({ settings: {}, checks, rootUri }),
-        platformosDocset: {
-          graphQL: async () => null,
-          filters: async () => [],
-          objects: async () => [],
-          liquidDrops: async () => [],
-          tags: async () => [],
-        },
+        platformosDocset: publishedDocset,
         jsonValidationSet: { schemas: async () => [] },
         getRouteTable,
       });

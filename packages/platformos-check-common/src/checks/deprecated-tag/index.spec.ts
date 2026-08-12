@@ -2,7 +2,7 @@ import { expect, describe, it, vi } from 'vitest';
 import { toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 import { applyFix, autofix, highlightedOffenses, messagesOf, runLiquidCheck } from '../../test';
 import { PlatformOSDocset, TagEntry } from '../../types/platformos-liquid-docs';
-import { DeprecatedTag, deprecationReplacementTag } from './index';
+import { DeprecatedTag } from './index';
 
 // Spy on the real parser so "which sources were parsed?" is observable, which is how the memo
 // at the bottom of this file is asserted. Everything about the parser stays real. `vi.mock` is
@@ -19,9 +19,9 @@ vi.mock('@platformos/liquid-html-parser', async (importOriginal) => {
  * convenient paraphrase would be testing a mapping production never has — and would read, to
  * the next person, as a tag this platform has.
  *
- * NO ENTRY CARRIES `deprecation_replacement`, on purpose: this docset is the OLD shape, from
- * before the platform published the successor as data, so these cases exercise the prose
- * fallback. The new shape is `docsetStating` below.
+ * `deprecation_replacement` is the successor the shipped `tags.json` states, verbatim, and it
+ * is the only thing this check reads to decide a rename — the reasons are here because they
+ * are the offense MESSAGE, not because anything parses them.
  *
  * Two entries are the current docset with ONE field changed, and each says so: the change is
  * the case under test, and the names around it stay real. What the committed docset actually
@@ -44,22 +44,32 @@ const mockDependencies: { platformosDocset: PlatformOSDocset } = {
     async liquidDrops() {
       return [];
     },
+    async liquidDoc() {
+      return { annotations: [], param_types: [] };
+    },
     async tags() {
       return [
         {
           name: 'hash_assign',
           deprecated: true,
+          deprecation_replacement: 'assign',
           deprecation_reason:
             'Use {% assign %} tag instead, which now supports hash assignment syntax',
         },
         { name: 'assign' },
         // A block tag, so its `end` tag has to be renamed too.
-        { name: 'try_rc', deprecated: true, deprecation_reason: 'Use {% try %} instead.' },
+        {
+          name: 'try_rc',
+          deprecated: true,
+          deprecation_replacement: 'try',
+          deprecation_reason: 'Use {% try %} instead.',
+        },
         { name: 'try' },
         // The replacement's markup rule ACCEPTS what this tag's did not parse at all.
         {
           name: 'render_form',
           deprecated: true,
+          deprecation_replacement: 'include_form',
           deprecation_reason: 'Use {% include_form %} instead.',
         },
         { name: 'include_form' },
@@ -67,6 +77,7 @@ const mockDependencies: { platformosDocset: PlatformOSDocset } = {
         {
           name: 'execute_query',
           deprecated: true,
+          deprecation_replacement: 'graphql',
           deprecation_reason: 'Use {% graphql %} instead.',
         },
         { name: 'graphql' },
@@ -75,18 +86,20 @@ const mockDependencies: { platformosDocset: PlatformOSDocset } = {
         {
           name: 'sign_in_rc',
           deprecated: true,
+          deprecation_replacement: 'sign_in',
           deprecation_reason: 'Use {% sign_in %} instead.',
         },
-        // CHANGED FROM THE DOCSET: `query_graph`'s reason names `graphql`. Pointed at
+        // CHANGED FROM THE DOCSET: `query_graph` names `graphql` there. Pointed at
         // `execute_query` instead, it is an alias chain whose target is on its way out too —
         // the shape a docset lands in when one alias is retired in favour of another.
         {
           name: 'query_graph',
           deprecated: true,
+          deprecation_replacement: 'execute_query',
           deprecation_reason: 'Use {% execute_query %} instead.',
         },
         // `parse_json` carries `deprecated: false` in the docset committed today, and this
-        // reason verbatim in ~/projects/desksnearme, whose `parse_json_tag.rb` does annotate
+        // reason verbatim in the platform source, which does annotate
         // it `@deprecated` — the committed copy simply predates that. Deprecated here because
         // upstream says so and because it is the shape of the case: a BLOCK tag whose
         // migration, `{% assign x = { … } %}`, moves the body into the markup, so renaming it
@@ -94,11 +107,12 @@ const mockDependencies: { platformosDocset: PlatformOSDocset } = {
         {
           name: 'parse_json',
           deprecated: true,
+          deprecation_replacement: 'assign',
           deprecation_reason: 'Use {% assign %} tag instead, which now supports JSON literals',
         },
-        // CHANGED FROM THE DOCSET: `context_rc` has a reason there. Stripped of it here,
-        // because a docset entry with nothing to derive a replacement from is a state this
-        // check has to survive.
+        // CHANGED FROM THE DOCSET: `context_rc` states `context` there. Stripped of both
+        // fields here, because a deprecated entry naming no successor — which the upstream
+        // gate exists to prevent — is a state this check still has to survive.
         { name: 'context_rc', deprecated: true },
         { name: 'render' },
       ];
@@ -325,52 +339,17 @@ describe('Module: DeprecatedTag', () => {
   });
 
   /**
-   * The replacement is read from an ANCHORED form — a reason OPENS with `Use {% x %}` — not
-   * from whichever tag the prose mentions first. Every reason the docset ships today satisfies
-   * both rules, so the two diverge only on phrasings the docs have not written yet; these are
-   * about what happens when they do.
+   * THE SUCCESSOR IS NEVER READ OUT OF ENGLISH, and this is the test that proves it.
    *
-   * Reasons rather than tags, because the reason is the whole input: no tag has to be invented
-   * to ask the question, and none is.
-   */
-  describe('deprecationReplacementTag: which tag a reason names', () => {
-    it('reads the tag the reason opens with', () => {
-      expect(deprecationReplacementTag('Use {% include_form %} instead.')).toEqual('include_form');
-    });
-
-    it('reads it through whitespace control, which is delimiter syntax and not a name', () => {
-      expect(deprecationReplacementTag('Use {%- assign -%} instead.')).toEqual('assign');
-    });
-
-    it('names nothing when the reason opens by naming the deprecated tag', () => {
-      expect(
-        deprecationReplacementTag('{% render_form %} is deprecated; use {% include_form %}.'),
-      ).toBeUndefined();
-    });
-
-    it('names nothing when the reason opens by naming some other tag', () => {
-      expect(
-        deprecationReplacementTag(
-          'Deprecated because {% assign %} supersedes it; use {% include_form %}.',
-        ),
-      ).toBeUndefined();
-    });
-
-    it('names nothing for a reason that is absent, empty or plain prose', () => {
-      expect([
-        deprecationReplacementTag(undefined),
-        deprecationReplacementTag(''),
-        deprecationReplacementTag('This tag has been retired.'),
-      ]).toEqual([undefined, undefined, undefined]);
-    });
-  });
-
-  /**
-   * What that rule is FOR. A reason naming a working tag before it names the successor is not
-   * merely a lost fix: the first-mention rule derives `assign`, whose grammar accepts this
-   * markup, so the check would rewrite the tag to one the docs never recommended — unattended,
-   * since `pos-cli check run -a` writes to disk. The offense is reported either way, so the
-   * fix is the only place the difference is visible.
+   * The fixture is built so that parsing the prose would be VISIBLE: the reason names `assign`
+   * before it names `include_form`, and `assign`'s grammar accepts this markup — so any rule
+   * that reads the reason renames the tag to one the docs never recommended, unattended, since
+   * `pos-cli check run -a` writes to disk. The offense is reported either way, so the fix is
+   * the only place the difference shows.
+   *
+   * The paired control that must still FIRE is the rename below, driven by
+   * `deprecation_replacement`: without it, "nothing was renamed" would also pass with renaming
+   * removed altogether.
    */
   it('never renames to a tag the reason mentions but does not recommend', async () => {
     const sourceCode = `{% render_form foo['bar'] = 'baz' %}`;
@@ -388,17 +367,16 @@ describe('Module: DeprecatedTag', () => {
   });
 
   /**
-   * The platform states the successor as DATA now — `deprecation_replacement`, from
-   * `@alias`/`@replaced_by` in ~/projects/desksnearme — so the prose above is a fallback for
-   * docsets published before it did, not the contract.
+   * `deprecation_replacement` is the whole contract — published from `@alias`/`@replaced_by` in
+   * the platform's documentation source and gated there, so the docs build fails if a
+   * deprecation names no successor or names one the platform does not register.
    *
-   * The two are separated here by making them DISAGREE, which no real docset does: a reason
-   * naming one tag and the field naming another. Nothing else can tell which one a rename came
-   * from, since agreeing sources produce the same output whichever is read.
+   * The field is made to DISAGREE with the reason, which no real docset does, because agreeing
+   * sources produce the same rename whichever is read and would prove nothing about which was.
    */
-  describe('the successor the docset states, not the one its prose names', () => {
-    // Markup `include_form` accepts and `assign` does not, so the two sources produce
-    // visibly different outcomes rather than the same rename by two routes.
+  describe('the successor the docset states', () => {
+    // Markup `include_form` accepts and `assign` does not, so the two candidate successors
+    // produce visibly different outcomes rather than the same rename by two routes.
     const source = `{% hash_assign 'path/to/form' %}`;
 
     it('renames to the stated successor even where the reason names another tag', async () => {
@@ -411,10 +389,9 @@ describe('Module: DeprecatedTag', () => {
       ).toEqual(`{% include_form 'path/to/form' %}`);
     });
 
-    it('falls back to the reason for a docset that states nothing', async () => {
-      // Same tag, same source, field absent — `mockDependencies` is the old shape — so the
-      // reason's `assign` is consulted, rejects this markup, and nothing is renamed. The
-      // control for the assertion above rather than a second reading of it.
+    it('renames nothing for a docset that states no successor', async () => {
+      // Same tag, same source, field absent. A docset like this is a docs bug the upstream gate
+      // exists to prevent; the check's answer to one is silence, not a name recovered from prose.
       expect(await fixed(source)).toEqual(source);
     });
 

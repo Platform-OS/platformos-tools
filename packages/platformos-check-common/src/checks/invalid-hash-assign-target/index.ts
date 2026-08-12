@@ -12,23 +12,25 @@ import {
   FunctionMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import type { ReturnType } from '../../types/platformos-liquid-docs';
+import {
+  docsetReturnType,
+  filterChainType,
+  filterReturnTypes,
+  FilterTypeSource,
+  LiquidType,
+} from '../../liquid-types';
 import { isError } from '../../utils';
-import { UNDOCUMENTED_FILTER_RETURN_TYPES } from '../../undocumented-filters';
 
 /**
  * What a variable holds, as far as this check can tell.
  *
- * `range` is deliberately NOT folded into `array`. A range and an array are the same
- * thing to the old hand-written table, but they are not to the runtime: an Array
- * accepts `x[0] = …` and a range was only ever measured raising. Merging them would
- * force a guess in one direction or the other — either approve range index-assign
- * (unmeasured) or refuse array index-assign (measured working).
+ * The monorepo's one type vocabulary, which used to be declared here and in `liquid-doc/utils.ts`
+ * as two overlapping sets. `range` is deliberately NOT folded into `array`: an Array accepts
+ * `x[0] = …` and a range was only ever measured raising.
  *
  * `untyped` means UNKNOWN, not "no type". Nothing is ever reported for it.
  */
-type VariableType =
-  'number' | 'string' | 'boolean' | 'object' | 'array' | 'range' | 'date' | 'time' | 'untyped';
+type VariableType = LiquidType;
 
 /**
  * How the target is subscripted — `x['k']` vs `x[0]` vs `x[y]`.
@@ -46,147 +48,15 @@ interface VariableTypeEntry {
 }
 
 /**
- * Docset `return_type.type` values this check is willing to act on.
+ * The type a filter produces, or `untyped` when the docset does not say.
  *
- * EXACT MATCH, and everything absent from this table becomes `untyped`. Mapping a
- * spelling by resemblance would be guessing, and this check refuses writes — a wrong
- * guess here is a refusal of working code. An unrecognised return type costs a missed
- * detection, which is the direction that cannot manufacture a false block.
- *
- * THE FOUR ENTRIES BELOW THE LINE WERE ADDED FROM MEASUREMENT, NOT FROM THE SPELLING
- * LOOKING SCALAR-LIKE. Each was rendered on a live instance and its `hash_assign`
- * outcome recorded for both subscripts, and the falsifier — a `date`- or
- * `datetime`-typed value that legitimately accepts `hash_assign` — was looked for and
- * not found:
- *
- *   date             to_date, date_add, add_to_date  -> Date,  raises on both subscripts
- *   datetime         to_time                         -> Time,  raises on both subscripts
- *   time             add_to_time                     -> Time,  raises on both subscripts
- *   array of arrays  parse_csv, parse_csv_rc         -> Array, raises on a key,
- *                                                       RENDERS on an index
- *
- * `datetime` and `time` both resolve to `time` because the runtime returns a Time for
- * both — that is the measurement, not a decision to treat two spellings alike.
- *
- * The measurements are recorded in `filter-return-type-oracle.ts` and re-asserted by
- * `index.spec.ts`'s sweep groups for every filter each spelling covers, so a docset
- * change that invalidates one of these fails a test rather than silently changing what
- * the server refuses to write.
- *
- * Still deliberately ABSENT: `untyped` and `'string, nil'`. Those describe values whose
- * type depends on the input or is a union with nil, so no single measurement can
- * establish them and silence remains the only safe reading.
- */
-export const DOCSET_RETURN_TYPES: Readonly<Record<string, VariableType>> = {
-  string: 'string',
-  number: 'number',
-  boolean: 'boolean',
-  array: 'array',
-  hash: 'object',
-
-  date: 'date',
-  datetime: 'time',
-  time: 'time',
-  'array of arrays': 'array',
-};
-
-/**
- * Types for filters the DOCSET HAS NO DATA FOR — a data defect, not a modelling choice.
- *
- * `filters.json` carries a `return_type` for every shipped filter but these: `array_index_of`
- * has one whose `type` is the empty string, and `new_line_to_br` has none at all. There is
- * nothing to map, so no entry in {@link DOCSET_RETURN_TYPES} can reach them.
- *
- * THE REAL FIX IS UPSTREAM AND IS NOT AVAILABLE HERE. `data/filters.json` is re-downloaded
- * from documentation.platformos.com by the docs-updater's `postbuild`, so a correction
- * written into that file is reverted by the next build — and would look like the hole was
- * closed while this check quietly went back to reporting nothing. Until the documentation
- * API carries the field, the gap is named here instead of being papered over as if it were
- * a spelling someone chose not to interpret.
- *
- * MEASURED, LIKE EVERYTHING ELSE THAT REPORTS: `array_index_of` returns an Integer and
- * `new_line_to_br` a String, both raising on either subscript. `nl2br` is listed because
- * `AugmentedPlatformOSDocset.expandAliases` re-emits the entry — missing `return_type`
- * included — under the alias name, so the alias has the same hole.
- *
- * APPLIED ONLY WHERE THE DATA IS GENUINELY MISSING, never to an unrecognised spelling —
- * see {@link variableTypeOf}. That keeps this narrowly a workaround for absent data
- * rather than a second, quieter mapping table.
- */
-export const DOCSET_RETURN_TYPE_GAPS: Readonly<Record<string, VariableType>> = {
-  array_index_of: 'number',
-  new_line_to_br: 'string',
-  nl2br: 'string',
-};
-
-/**
- * The only part of a docset filter entry any of this reads.
- *
- * Structural on purpose, and narrower than the docset's own `ReturnType`: nothing here
- * looks at `name`, `description` or `array_value` on a return type, so requiring them
- * would stop a caller passing the shape it actually has — which is exactly what the
- * shipped `filters.json` and the sweep both do.
- */
-type FilterTypeSource = {
-  name: string;
-  return_type?: ReadonlyArray<Pick<ReturnType, 'type'>>;
-};
-
-/**
- * The single type a filter returns, or `untyped` when that cannot be established.
- *
- * A filter declaring SEVERAL return types is an enum-like union; it resolves only
- * when every branch maps to the same thing, because a union of "string or nil" is
- * not a string for the purpose of refusing a write.
- */
-function toVariableType(returnTypes: FilterTypeSource['return_type']): VariableType {
-  if (!returnTypes || returnTypes.length === 0) return 'untyped';
-
-  const mapped = new Set(returnTypes.map((entry) => DOCSET_RETURN_TYPES[entry.type] ?? 'untyped'));
-  const [only] = mapped;
-  return mapped.size === 1 ? only : 'untyped';
-}
-
-/** Whether the docset simply has no return-type data for this filter. */
-function hasNoReturnTypeData(returnTypes: FilterTypeSource['return_type']): boolean {
-  if (!returnTypes || returnTypes.length === 0) return true;
-  return returnTypes.length === 1 && returnTypes[0].type === '';
-}
-
-/**
- * The type a filter produces, as this check models it.
- *
- * THE DOCSET DECIDES FIRST, ALWAYS. Two measured fallbacks fill in behind it, and both
- * apply ONLY where the docset has nothing to say at all. The distinction is the point: an
- * unrecognised SPELLING is a modelling decision this check declines to make and stays
- * `untyped`; an ABSENT field is missing data, which is the one case a measurement is
- * allowed to answer. Letting either fallback win over a spelling would turn it into a
- * second mapping table with weaker rules, which is how the hand-written tables this check
- * used to carry went wrong.
- *
- * The two fallbacks are separate because their PROVENANCE differs, and collapsing them
- * would lose which problem is being worked around:
- *
- *   {@link DOCSET_RETURN_TYPE_GAPS}          the docset HAS the filter, and its
- *                                            `return_type` is empty or absent
- *   `UNDOCUMENTED_FILTER_RETURN_TYPES`       the docset does not have the filter at all;
- *                                            `AugmentedPlatformOSDocset` injects it as a
- *                                            bare `{ name }` from `undocumented-filters.ts`
- *
- * The gap table is consulted first only because it is the narrower population; no name
- * appears in both, and `undocumented-filters.spec.ts` asserts that.
+ * An unrecognised SPELLING stays `untyped` rather than being guessed at: this check refuses writes,
+ * so a wrong guess refuses working code. The table it resolves through — `DOCSET_TYPES`, legacy
+ * spellings included — is shared with every other consumer of a published type; it lived here until
+ * a second copy of the same knowledge grew in `liquid-doc/utils.ts`.
  */
 export function variableTypeOf(filter: FilterTypeSource): VariableType {
-  if (!hasNoReturnTypeData(filter.return_type)) return toVariableType(filter.return_type);
-
-  const gap = DOCSET_RETURN_TYPE_GAPS[filter.name];
-  if (gap) return gap;
-
-  // Measured against the runtime by `verify-undocumented-filters.mjs`, and expressed in
-  // the docset's own spelling so it resolves through the SAME table as everything else
-  // rather than introducing a second vocabulary.
-  const undocumented = UNDOCUMENTED_FILTER_RETURN_TYPES[filter.name];
-  return undocumented ? (DOCSET_RETURN_TYPES[undocumented] ?? 'untyped') : 'untyped';
+  return docsetReturnType(filter);
 }
 
 /**
@@ -413,45 +283,42 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
     /**
      * The return types of every filter the docset knows, keyed by name.
      *
-     * Built ONCE per file and memoized, because `filters()` is async and a document
-     * can hold many assignments. An absent docset yields an empty map, so every
-     * filtered value becomes `untyped` and nothing is reported for it — the check
-     * still works on unfiltered assignments, which is the majority of them.
+     * Cached on the docset's own filters array rather than per file: `filters()` is memoized by
+     * `AugmentedPlatformOSDocset`, so one map serves every file in a run. An absent docset yields
+     * `undefined`, so every filtered value becomes `untyped` and nothing is reported for it — the
+     * check still works on unfiltered assignments, which is the majority of them.
      */
-    let returnTypes: Promise<Map<string, VariableType>> | undefined;
-    const filterReturnTypes = () => {
-      returnTypes ??= (async () => {
-        const filters = (await context.platformosDocset?.filters()) ?? [];
-        return new Map(filters.map((filter) => [filter.name, variableTypeOf(filter)]));
-      })();
-      return returnTypes;
-    };
+    const returnTypes = async () =>
+      context.platformosDocset
+        ? filterReturnTypes(await context.platformosDocset.filters())
+        : undefined;
 
     /**
      * The type of an assigned value — expression, then whatever the last filter turns
      * it into.
      *
-     * FILTER RETURN TYPES COME FROM THE DOCSET, not from a list in this file. There
-     * used to be four hand-written arrays here, and they were wrong in the way
-     * hand-written tables are: `split` appeared in BOTH the string list and the array
-     * list, the string branch ran first, and so
-     * `{% assign x = '' | split: ',' %}{% hash_assign x[0] = 'v' %}` — which renders
-     * fine — was reported as a hash_assign on a string. Since this check refuses
-     * writes, that was a blocking refusal of working code, caused entirely by a typo
-     * nobody could see.
+     * FILTER RETURN TYPES COME FROM THE DOCSET, and a list of filter names must never
+     * be reintroduced here. This check REFUSES WRITES, so a name in the wrong bucket is
+     * a blocking refusal of working code — and a duplicate is invisible by construction,
+     * since nothing about a hand-written array makes two entries for one filter look
+     * wrong. `index.spec.ts` pins the case that cost us this once: a `split` result
+     * subscripted by index must stay silent.
      *
-     * The docset carries `return_type` for 166 of the 167 shipped filters, so the
-     * data already existed. What it does NOT carry is a guarantee of completeness:
-     * filters missing from it, and the generated undocumented ones, have no return
-     * type at all. Those resolve to `untyped` and produce nothing, which is the only
-     * safe reading — see {@link DOCSET_RETURN_TYPES}.
+     * What the docset does NOT carry is a guarantee of completeness. A filter it omits,
+     * or one whose `return_type` it cannot state, has no type here at all: those resolve
+     * to `untyped` and produce nothing, which is the only safe reading — see `DOCSET_TYPES`.
+     *
+     * THE LITERAL CASES BELOW ARE THIS CHECK'S OWN, and deliberately not shared with
+     * `inferArgumentType`, which answers a different question. Here the question is "what container
+     * is this", where a wrong answer BLOCKS a write: `empty` and a bare lookup are `untyped` because
+     * nothing is known about what they hold. There the question is "does this value satisfy a
+     * declared parameter", where `empty` is the empty string and a lookup is the generic `object`.
+     * Only the vocabulary and the docset lookup are shared.
      */
     const inferVariableType = async (variable: LiquidVariable): Promise<VariableType> => {
       const filters = variable.filters;
       if (filters && filters.length > 0) {
-        // The LAST filter decides: every earlier one is input to the next.
-        const last = filters[filters.length - 1];
-        return (await filterReturnTypes()).get(last.name) ?? 'untyped';
+        return filterChainType(filters, await returnTypes());
       }
 
       const expr = variable.expression;
@@ -623,20 +490,67 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
         // A SUBSCRIPT TARGET (`{% function h['k'] = 'path' %}`) parses — measured, all eight
         // spellings reach partial resolution rather than a syntax error — but what the write
         // then does is UNMEASURED: settling it needs a partial that exists, and the oracle
-        // instance has none. So the target is not judged, and the container is rebound to
-        // `untyped` exactly as for a plain target. That costs missed detections, which is the
-        // direction that cannot manufacture a false block in a check that refuses writes.
+        // instance has none. So the target is not JUDGED. It is not forgotten either: the
+        // container keeps its type, exactly as the `assign` branch does for the same shape.
+        // Not judging costs missed detections, which is the direction that cannot manufacture a
+        // false block in a check that refuses writes; forgetting the type also silenced the
+        // WRITES AFTER IT, which is a different and much worse trade.
         if (node.name === NamedTags.function && typeof node.markup !== 'string') {
           const markup = node.markup as FunctionMarkup;
           const varName = markup.name.name;
           if (varName) {
-            closeTypeRange(varName, node.position.start);
-            // Function returns are untyped unless we can infer them
-            variableTypes.push({
-              name: varName,
-              type: 'untyped',
-              range: [node.position.end],
-            });
+            /**
+             * `{% function items << 'path' %}` is the SAME append the `assign` branch judges, and
+             * it raises for the same reason — the runtime refuses `<<` onto anything but an Array.
+             * It went unjudged because the operator did not exist on this tag until the append
+             * form began to parse, so an append onto a String or a Hash passed the write gate
+             * while the identical `{% assign %}` was refused.
+             *
+             * Only a PLAIN target, matching `appendMessage`'s documented scope: an append through
+             * a subscript is checked by the runtime at the subscript, and nothing here tracks
+             * element types.
+             */
+            if (markup.operator === '<<' && markup.name.lookups.length === 0) {
+              const message = appendMessage(
+                varName,
+                findVariableType(varName, node.position.start) ?? 'untyped',
+              );
+
+              if (message) {
+                context.report({
+                  message,
+                  startIndex: markup.position.start,
+                  endIndex: markup.position.end,
+                });
+              }
+
+              narrowAfterWriteInto(varName, node, 'array');
+            } else if (markup.name.lookups.length > 0) {
+              /**
+               * A SUBSCRIPT TARGET. The write is not judged — see the note above — but the
+               * container must KEEP the type it had, which is what the `assign` branch does for
+               * the identical shape via `narrowAfterWriteInto(…, 'hash')`.
+               *
+               * Rebinding it to `untyped` here erased that type and blinded this BLOCKING check
+               * to the next real error:
+               *
+               *   {% assign x = {} %}{% function x['k'] << 'p' %}{% assign x << 'v' %}
+               *
+               * reported nothing, while dropping the middle tag — or spelling it `{% assign %}` —
+               * reported "Cannot use '<<' on 'x', which is a Hash." Unreachable before the append
+               * form parsed, because the whole branch was skipped while the markup was a string.
+               */
+              narrowAfterWriteInto(varName, node, 'hash');
+            } else {
+              closeTypeRange(varName, node.position.start);
+              // A plain target takes the partial's RETURN value, which is untyped unless we can
+              // infer it — so, unlike a subscript write, it genuinely replaces what was there.
+              variableTypes.push({
+                name: varName,
+                type: 'untyped',
+                range: [node.position.end],
+              });
+            }
           }
         }
 

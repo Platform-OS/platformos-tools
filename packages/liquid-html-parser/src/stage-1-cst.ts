@@ -94,7 +94,6 @@ export enum ConcreteNodeTypes {
   LiquidDocParamNameNode = 'LiquidDocParamNameNode',
   LiquidDocDescriptionNode = 'LiquidDocDescriptionNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
-  LiquidDocPromptNode = 'LiquidDocPromptNode',
   JsonHashLiteral = 'JsonHashLiteral',
   JsonArrayLiteral = 'JsonArrayLiteral',
   JsonKeyValuePair = 'JsonKeyValuePair',
@@ -155,11 +154,6 @@ export interface ConcreteLiquidDocExampleNode extends ConcreteBasicNode<Concrete
   name: 'example';
   content: ConcreteTextNode;
   isInline: boolean;
-}
-
-export interface ConcreteLiquidDocPromptNode extends ConcreteBasicNode<ConcreteNodeTypes.LiquidDocPromptNode> {
-  name: 'prompt';
-  content: ConcreteTextNode;
 }
 
 export interface ConcreteHtmlNodeBase<T> extends ConcreteBasicNode<T> {
@@ -561,6 +555,8 @@ export interface ConcreteLiquidTagRenderMarkup extends ConcreteBasicNode<Concret
 
 export interface ConcreteLiquidTagFunctionMarkup extends ConcreteBasicNode<ConcreteNodeTypes.FunctionMarkup> {
   name: ConcreteLiquidVariableLookup;
+  /** "=" to assign the partial's return value, "<<" to append it to an array. */
+  operator: string;
   partial: ConcreteStringLiteral | ConcreteLiquidVariableLookup;
   functionArguments: ConcreteLiquidNamedArgument[];
   filters: ConcreteLiquidFilter[];
@@ -756,10 +752,7 @@ export type LiquidHtmlCST = LiquidHtmlConcreteNode[];
 export type LiquidCST = LiquidConcreteNode[];
 
 export type LiquidDocConcreteNode =
-  | ConcreteLiquidDocParamNode
-  | ConcreteLiquidDocExampleNode
-  | ConcreteLiquidDocDescriptionNode
-  | ConcreteLiquidDocPromptNode;
+  ConcreteLiquidDocParamNode | ConcreteLiquidDocExampleNode | ConcreteLiquidDocDescriptionNode;
 
 interface Mapping {
   [k: string]: number | TemplateMapping | TopLevelFunctionMapping;
@@ -1094,7 +1087,7 @@ function toCST<T>(
       locEnd,
       source,
     },
-    assignOperator: (node: Node) => node.sourceString,
+    writeOperator: (node: Node) => node.sourceString,
     liquidAssignValue: 0,
     liquidAssignVariable: {
       type: ConcreteNodeTypes.LiquidVariable,
@@ -1202,6 +1195,9 @@ function toCST<T>(
     liquidTagFunctionMarkup: {
       type: ConcreteNodeTypes.FunctionMarkup,
       name: 0,
+      // Index 2 was the bare "=" terminal and is now `writeOperator`, so the positions of
+      // `partial`, `functionArguments` and `filters` are unchanged.
+      operator: 2,
       partial: 4,
       functionArguments: 5,
       filters: 6,
@@ -2097,14 +2093,6 @@ function toLiquidDocAST(source: string, matchingSource: string, offset: number) 
       isInline: function (this: Node) {
         return !this.children[1].sourceString.includes('\n');
       },
-    },
-    promptNode: {
-      type: ConcreteNodeTypes.LiquidDocPromptNode,
-      name: 'prompt',
-      locStart,
-      locEnd,
-      source,
-      content: 1,
     },
     multilineTextContent: textNode(),
     textValue: textNode(),

@@ -34,7 +34,7 @@ language server lints just the open buffers against the whole project.
 
 It:
 1. Wraps raw `Dependencies` with augmented helpers (file-exists, translations, etc.)
-2. Wraps the raw docset in `AugmentedPlatformOSDocset` (memoized, adds undocumented filters/tags)
+2. Wraps the raw docset in `AugmentedPlatformOSDocset` (memoized, expands filter aliases)
 3. Iterates over `SourceCodeType` values and runs each applicable `CheckDefinition`
    against each file via visitors. **Only LiquidHtml, GraphQL and YAML have a body**:
    `SOURCE_CODE_TYPE_BY_KEY` has no `.json` row, so no `AppFile` is ever typed JSON and
@@ -122,9 +122,14 @@ For checks the engine calls `visitLiquid` / `visitJSON` which support both entry
 
 Wraps the raw `PlatformOSDocset` (from dependency injection) with:
 - Memoization on all methods
-- Alias expansion for filters
-- Normalization of inconsistent `deprecated: false` + `deprecation_reason: 'true'` entries
-- Injection of undocumented-but-valid filters/tags
+- Alias expansion for filters — one entry per name in `aliases`, copied from the entry that
+  declares them, so `dig` carries `hash_dig`'s `arity` and `return_type`
+- `liquidDrops()`, an `objects()` filtered to what is reachable outside the global context
+
+It **adds no vocabulary of its own**. Filter and tag names, arity, parameters and return types
+come from `filters.json` / `tags.json` and nowhere else; the injection of undocumented entries
+and the local arity table that used to live here are both gone, and
+`AugmentedPlatformOSDocset.spec.ts` fails if an entry is ever appended beside a published one.
 
 ### Context utilities (`src/context-utils.ts`)
 

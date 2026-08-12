@@ -44,7 +44,7 @@ describe('Module: InvalidConditionalBooleanExpression', () => {
       '{% if 1 > 2 %}hello{% endif %}',
       '{% if variable == 5 %}hello{% endif %}',
       "{% if 'abc' contains 'a' %}hello{% endif %}",
-      "{% if product.title != '' %}hello{% endif %}",
+      "{% if item.title != '' %}hello{% endif %}",
       '{% if 1 and 2 %}hello{% endif %}',
       '{% if true or false %}hello{% endif %}',
       '{% if 10 > 5 and user.active %}hello{% endif %}',

@@ -1,6 +1,7 @@
 import { LiquidFilter, NodeTypes, toLiquidHtmlAST } from '@platformos/liquid-html-parser';
 import { describe, expect, it } from 'vitest';
 
+import filtersJson from '../../platformos-check-docs-updater/data/filters.json';
 import {
   alternativeSubstituteArg,
   isAlternativeReturningFilter,
@@ -43,6 +44,47 @@ describe('Unit: filter value semantics', () => {
   });
 
   /**
+   * THE ONE THING IN THIS TABLE THE DOCSET ALSO KNOWS: which names are aliases.
+   *
+   * The table is keyed by name and both consumers call it with a bare string, so an alias has to
+   * be spelled out — `dig` beside `hash_dig`, `fetch` beside `hash_fetch`. That is a copy of
+   * `filters.json`'s `aliases`, and a copy goes stale silently: a new alias upstream would be
+   * classified as an ordinary transforming filter, and every affected inference would simply
+   * return `undefined`. No existing test can see that, because "no shape inferred" is also the
+   * correct answer for most filters.
+   *
+   * So the copy is checked against the real shipped docset rather than trusted. This is the
+   * cheap half of the fix; the expensive half — resolving aliases through the docset at the
+   * call sites — buys nothing extra while this passes.
+   */
+  it('classifies every alias the shipped docset declares for a navigation filter', () => {
+    const aliasesOf = (name: string) =>
+      filtersJson.find((filter) => filter.name === name)?.aliases ?? [];
+
+    // Read off the docset, so a new alias appears here without this file being edited.
+    const spellings = (canonical: string) => [canonical, ...aliasesOf(canonical)];
+
+    expect({
+      hash_dig: spellings('hash_dig').map(navigationFilter),
+      hash_fetch: spellings('hash_fetch').map(navigationFilter),
+      // The control: `default` is the `alternative` row, and it must NOT be a navigation
+      // filter — an assertion that every name maps to *something* would pass with the two
+      // kinds confused.
+      default: navigationFilter('default'),
+    }).toEqual({
+      hash_dig: [
+        { kind: 'navigates', maxKeys: Infinity },
+        { kind: 'navigates', maxKeys: Infinity },
+      ],
+      hash_fetch: [
+        { kind: 'navigates', maxKeys: 1 },
+        { kind: 'navigates', maxKeys: 1 },
+      ],
+      default: undefined,
+    });
+  });
+
+  /**
    * WHICH ARGUMENT is the substitute, pinned once for both consumers.
    *
    * Nothing pinned it while each of them spelled `args[0]` privately: measured, changing the
@@ -51,8 +93,8 @@ describe('Unit: filter value semantics', () => {
    * this group is the only place that has to be right.
    *
    * A `NamedArgument` is an OPTION and never a substitute, which is the half most likely to be
-   * got wrong: `allow_false` is a real `default` argument (`filter-arity.ts` records
-   * `default: {min: 1, max: 3}`), so it is reachable rather than hypothetical.
+   * got wrong: `allow_false` is a real `default` argument — the platform publishes
+   * `default` as `{min: 1, max: 3}` — so it is reachable rather than hypothetical.
    */
   it('names the first POSITIONAL argument, and nothing else', () => {
     expect({

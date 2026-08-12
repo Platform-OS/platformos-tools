@@ -19,8 +19,8 @@
  * So the spec is not the oracle and neither parser is the oracle. Ruby is.
  *
  * NOT RUN IN CI: it needs a `ruby` on PATH, which CI is not guaranteed to have. Run it
- * by hand and commit the result, exactly like `verify-filter-arity.mjs` and
- * `verify-undocumented-filters.mjs` do with a live instance.
+ * by hand and commit the result, exactly like `verify-filter-return-types.mjs` does with
+ * a live instance.
  *
  *   node scripts/verify-yaml-key-identity.mjs
  *

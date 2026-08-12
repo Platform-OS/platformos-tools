@@ -23,8 +23,8 @@ describe('MarkdownRenderer', () => {
 
     describe('when the entry has syntax', () => {
       it('includes the syntax in the markdown', async () => {
-        expect(render({ ...DOC_ENTRY, syntax: 'string | image_tag' })).toEqual(
-          `### entry\n\`\`\`liquid\n{{ string | image_tag }}\n\`\`\`\n\n---\n\nsummary\n\n---\n\ndescription`,
+        expect(render({ ...DOC_ENTRY, syntax: 'string | strip' })).toEqual(
+          `### entry\n\`\`\`liquid\n{{ string | strip }}\n\`\`\`\n\n---\n\nsummary\n\n---\n\ndescription`,
         );
       });
 

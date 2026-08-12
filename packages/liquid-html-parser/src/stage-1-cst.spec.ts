@@ -172,7 +172,7 @@ describe('Unit: Stage 1 (CST)', () => {
           { expression: `x.y.z`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"]["z"]`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"].z`, name: 'x', lookups: ['y', 'z'] },
-          { expression: `["product"]`, name: null, lookups: ['product'] },
+          { expression: `["item"]`, name: null, lookups: ['item'] },
           { expression: `page.about-us`, name: 'page', lookups: ['about-us'] },
           { expression: `context.params.2fa`, name: 'context', lookups: ['params', '2fa'] },
           { expression: `["x"].y`, name: null, lookups: ['x', 'y'] },
@@ -1282,10 +1282,10 @@ describe('Unit: Stage 1 (CST)', () => {
             namedArguments: [],
           },
           {
-            expression: `"partial" for products as product`,
+            expression: `"partial" for items as item`,
             partialType: 'String',
             alias: {
-              value: 'product',
+              value: 'item',
             },
             renderVariableExpression: {
               kind: 'for',
@@ -1617,9 +1617,9 @@ describe('Unit: Stage 1 (CST)', () => {
             ],
           },
           {
-            expression: `"partial" for products as product`,
+            expression: `"partial" for items as item`,
             partialType: 'String',
-            alias: { value: 'product' },
+            alias: { value: 'item' },
             renderVariableExpression: { kind: 'for', name: { type: 'VariableLookup' } },
             namedArguments: [],
           },
@@ -1980,8 +1980,8 @@ describe('Unit: Stage 1 (CST)', () => {
     describe('Case: LiquidTagOpen', () => {
       it('should parse the form tag open markup as arguments', () => {
         [
-          { expression: `product`, args: [{ type: 'VariableLookup' }] },
-          { expression: `"product"`, args: [{ type: 'String' }] },
+          { expression: `item`, args: [{ type: 'VariableLookup' }] },
+          { expression: `"item"`, args: [{ type: 'String' }] },
         ].forEach(({ expression, args }) => {
           for (const { toCST, expectPath } of testCases) {
             cst = toCST(`{% form ${expression} -%}`);
@@ -2000,8 +2000,8 @@ describe('Unit: Stage 1 (CST)', () => {
         ['for', 'tablerow'].forEach((tagName) => {
           [
             {
-              expression: `product in all_products`,
-              variableName: 'product',
+              expression: `item in items`,
+              variableName: 'item',
               collection: { type: 'VariableLookup' },
               reversed: null,
               args: [],
@@ -2014,22 +2014,22 @@ describe('Unit: Stage 1 (CST)', () => {
               args: [],
             },
             {
-              expression: `product in all_products reversed`,
-              variableName: 'product',
+              expression: `item in items reversed`,
+              variableName: 'item',
               collection: { type: 'VariableLookup' },
               reversed: 'reversed',
               args: [],
             },
             {
-              expression: `product in all_products limit: 10`,
-              variableName: 'product',
+              expression: `item in items limit: 10`,
+              variableName: 'item',
               collection: { type: 'VariableLookup' },
               reversed: null,
               args: [{ type: 'NamedArgument', name: 'limit', value: { type: 'Number' } }],
             },
             {
-              expression: `product in all_products reversed limit: 10 offset:var`,
-              variableName: 'product',
+              expression: `item in items reversed limit: 10 offset:var`,
+              variableName: 'item',
               collection: { type: 'VariableLookup' },
               reversed: 'reversed',
               args: [
@@ -2758,11 +2758,7 @@ describe('Unit: Stage 1 (CST)', () => {
   @example
   content with stuff and there is the potential for an "@" character
 
-  @prompt
-    All of this should be indented and may contain something like an
-    email with the @gmail.com domain
-
-    As well as linebreaks
+  @param {string} email - may contain something like an @gmail.com domain
 {% enddoc %}`;
           cst = toCST(testStr);
 
@@ -2778,10 +2774,46 @@ describe('Unit: Stage 1 (CST)', () => {
             'content with stuff and there is the potential for an "@" character\n\n',
           );
 
-          expectPath(cst, '0.children.2.type').to.equal('LiquidDocPromptNode');
-          expectPath(cst, '0.children.2.content.value').to.equal(
-            '\n    All of this should be indented and may contain something like an\n    email with the @gmail.com domain\n\n    As well as linebreaks\n',
+          expectPath(cst, '0.children.2.type').to.equal('LiquidDocParamNode');
+          expectPath(cst, '0.children.2.paramDescription.value').to.equal(
+            'may contain something like an @gmail.com domain',
           );
+        });
+
+        /**
+         * `@prompt` was Shopify Magic's AI-provenance annotation and the grammar no longer models
+         * it. What matters is that a docblock an author already wrote still PARSES and still keeps
+         * its text: an annotation the grammar drops does not throw, it stops terminating the
+         * free-form content of the annotation before it.
+         */
+        it('reads an @prompt as the free-form content it now falls into', () => {
+          const testStr = `
+{% doc %}
+  @example
+  an example
+
+  @prompt
+    Build me a sale sticker
+{% enddoc %}`;
+          cst = toCST(testStr);
+
+          expectPath(cst, '0.children.0.type').to.equal('LiquidDocExampleNode');
+          expectPath(cst, '0.children.0.content.value').to.equal(
+            'an example\n\n  @prompt\n    Build me a sale sticker\n',
+          );
+          expectPath(cst, '0.children.1').to.equal(undefined);
+        });
+
+        it('reads an @prompt with no annotation before it as text', () => {
+          const testStr = `{% doc %}\n  @prompt\n  Build me a sale sticker\n{% enddoc %}`;
+          cst = toCST(testStr);
+
+          // One TextNode per line, which is what `fallbackNode` produces for any `@name` the
+          // grammar does not know — the printer emits those verbatim, so nothing is lost.
+          expectPath(cst, '0.children.0.type').to.equal('TextNode');
+          expectPath(cst, '0.children.0.value').to.equal('@prompt');
+          expectPath(cst, '0.children.1.type').to.equal('TextNode');
+          expectPath(cst, '0.children.1.value').to.equal('Build me a sale sticker');
         });
       }
     });
@@ -3185,7 +3217,7 @@ describe('Unit: Stage 1 (CST)', () => {
             namedArguments: [],
           },
           {
-            expression: `'partial' with product as item`,
+            expression: `'partial' with item as item`,
             partialType: 'String',
             alias: {
               value: 'item',
@@ -3199,10 +3231,10 @@ describe('Unit: Stage 1 (CST)', () => {
             namedArguments: [],
           },
           {
-            expression: `'partial' for products as product`,
+            expression: `'partial' for items as item`,
             partialType: 'String',
             alias: {
-              value: 'product',
+              value: 'item',
             },
             renderVariableExpression: {
               kind: 'for',
@@ -3399,11 +3431,11 @@ describe('Unit: Stage 1 (CST)', () => {
 
       it('should parse script and style tags as a dump', () => {
         cst = toLiquidHtmlCST(
-          '<script>\nconst a = {{ product | json }}\n</script><style>\n#id {}\n</style>',
+          '<script>\nconst a = {{ item | json }}\n</script><style>\n#id {}\n</style>',
         );
         expectPath(cst, '0.type').to.eql('HtmlRawTag');
         expectPath(cst, '0.name').to.eql('script');
-        expectPath(cst, '0.body').to.eql('\nconst a = {{ product | json }}\n');
+        expectPath(cst, '0.body').to.eql('\nconst a = {{ item | json }}\n');
         expectPath(cst, '1.type').to.eql('HtmlRawTag');
         expectPath(cst, '1.name').to.eql('style');
         expectPath(cst, '1.body').to.eql('\n#id {}\n');
@@ -3456,7 +3488,7 @@ describe('Unit: Stage 1 (CST)', () => {
       });
 
       it('should properly return block{Start,End}Loc{Start,End} locations of raw tags', () => {
-        const source = '<script>const a = {{ product | json }}</script>';
+        const source = '<script>const a = {{ item | json }}</script>';
         cst = toLiquidHtmlCST(source);
         expectPath(cst, '0.type').to.equal('HtmlRawTag');
         expectPath(cst, '0.blockStartLocStart').to.equal(0);
@@ -3606,10 +3638,10 @@ describe('Unit: Stage 1 (CST)', () => {
     it('should not throw when trying to parse unparseable code', () => {
       cst = toLiquidCST(`
         {%- liquid
-          assign var1 = product
+          assign var1 = item
         -%}
         <table>
-          {% tablerow var2 in collections.first.products %}
+          {% tablerow var2 in groups.first.items %}
             {% assign var3 = var2 %}
             {{ var3.title }}
       `);
@@ -3699,7 +3731,7 @@ describe('Unit: Stage 1 (CST)', () => {
     it('should parse incomplete parameters for filters', () => {
       const toCST = (source: string) => toLiquidHtmlCST(source, { mode: 'completion' });
 
-      cst = toCST(`{{ a[1].foo | image_url: 200, width: 100, h█ }}`);
+      cst = toCST(`{{ a[1].foo | with_opts: 200, width: 100, h█ }}`);
 
       expectPath(cst, '0.markup.filters.0.args.0.type').to.equal('Number');
       expectPath(cst, '0.markup.filters.0.args.1.type').to.equal('NamedArgument');

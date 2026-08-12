@@ -109,7 +109,7 @@ function findParentNode(partial: string, ancestors: LiquidHtmlNode[]): LiquidTag
   // This covers the scenario where we have a dangling block tag
   //
   // e.g.
-  // {% form "cart", cart %}
+  // {% form method: "post" %}
   //   hello
   // {% end %}
   //
@@ -222,7 +222,7 @@ function toCompletionItem(
  *
  * Probably shouldn't snippet complete:
  * {% if| cond %}{% endif %}
- * {% render| 'product' %}
+ * {% render| 'card' %}
  *
  * Probably should snippet complete:
  * {% if| %}

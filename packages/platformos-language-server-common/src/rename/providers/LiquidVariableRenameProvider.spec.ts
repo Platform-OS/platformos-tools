@@ -188,9 +188,9 @@ describe('LiquidVariableRenameProvider', () => {
     let textDocument: TextDocument;
 
     const documentSource = `{% assign counter = 0 %}
-{% assign prod = 'some product' %}
+{% assign prod = 'some item' %}
 {% liquid
-  LOOP prod in products
+  LOOP prod in items
     echo prod.title
     increment counter
   endLOOP
@@ -223,9 +223,9 @@ describe('LiquidVariableRenameProvider', () => {
           expect((result.documentChanges[0] as TextDocumentEdit).edits).to.applyEdits(
             textDocument,
             `{% assign counter = 0 %}
-{% assign prod = 'some product' %}
+{% assign prod = 'some item' %}
 {% liquid
-  ${tag} item in products
+  ${tag} item in items
     echo item.title
     increment counter
   end${tag}
@@ -253,9 +253,9 @@ describe('LiquidVariableRenameProvider', () => {
         expect((result.documentChanges[0] as TextDocumentEdit).edits).to.applyEdits(
           textDocument,
           `{% assign counter = 0 %}
-{% assign item = 'some product' %}
+{% assign item = 'some item' %}
 {% liquid
-  for prod in products
+  for prod in items
     echo prod.title
     increment counter
   endfor
@@ -280,9 +280,9 @@ describe('LiquidVariableRenameProvider', () => {
         expect((result.documentChanges[0] as TextDocumentEdit).edits).to.applyEdits(
           textDocument,
           `{% assign x = 0 %}
-{% assign prod = 'some product' %}
+{% assign prod = 'some item' %}
 {% liquid
-  for prod in products
+  for prod in items
     echo prod.title
     increment x
   endfor
@@ -292,9 +292,9 @@ describe('LiquidVariableRenameProvider', () => {
     });
 
     describe('liquid doc param', () => {
-      const documentSource = `{% doc %}@param prod - product{% enddoc %}
+      const documentSource = `{% doc %}@param prod - item{% enddoc %}
 {% liquid
-  for prod in products
+  for prod in items
     echo prod.title
   endfor
   echo prod
@@ -316,9 +316,9 @@ describe('LiquidVariableRenameProvider', () => {
         assert(result.documentChanges);
         expect((result.documentChanges[0] as TextDocumentEdit).edits).to.applyEdits(
           textDocument,
-          `{% doc %}@param ppp - product{% enddoc %}
+          `{% doc %}@param ppp - item{% enddoc %}
 {% liquid
-  for prod in products
+  for prod in items
     echo prod.title
   endfor
   echo ppp
@@ -337,9 +337,9 @@ describe('LiquidVariableRenameProvider', () => {
         assert(result.documentChanges);
         expect((result.documentChanges[0] as TextDocumentEdit).edits).to.applyEdits(
           textDocument,
-          `{% doc %}@param prod - product{% enddoc %}
+          `{% doc %}@param prod - item{% enddoc %}
 {% liquid
-  for ppp in products
+  for ppp in items
     echo ppp.title
   endfor
   echo prod

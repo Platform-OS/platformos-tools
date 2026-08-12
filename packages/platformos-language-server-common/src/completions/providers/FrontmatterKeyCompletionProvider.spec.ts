@@ -1,15 +1,9 @@
 import { describe, beforeEach, it, expect } from 'vitest';
-import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
+import { MockFileSystem, publishedDocset } from '@platformos/platformos-check-common/src/test';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
 
-const mockDocset = {
-  graphQL: async () => null,
-  filters: async () => [],
-  objects: async () => [],
-  liquidDrops: async () => [],
-  tags: async () => [],
-};
+const mockDocset = publishedDocset;
 
 /**
  * A manager wired the way startServer wires it: it carries the root finder, so
@@ -240,7 +234,9 @@ describe('Module: FrontmatterKeyCompletionProvider', async () => {
         source: `---\nslug: /home\n---\n{{ █ }}`,
         relativePath: 'app/views/pages/test.html.liquid',
       },
-      [],
+      // The object providers answer inside `{{ }}`, as they should; what must be absent here is a
+      // frontmatter key.
+      expect.not.arrayContaining([expect.objectContaining({ label: 'slug' })]),
     );
   });
 

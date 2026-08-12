@@ -2,19 +2,20 @@ import { describe, beforeEach, it, expect } from 'vitest';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
 import { DocDefinition } from '@platformos/platformos-check-common';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 
-const uri = 'file:///app/views/partials/product-card.liquid';
+const uri = 'file:///app/views/partials/item-card.liquid';
 
 describe('Module: RenderPartialParameterCompletionProvider', async () => {
   let provider: CompletionsProvider;
-  const mockPartialName = 'product-card';
+  const mockPartialName = 'item-card';
   const mockPartialDefinition: DocDefinition = {
     uri,
     liquidDoc: {
       parameters: [
         {
           name: 'title',
-          description: 'The title of the product',
+          description: 'The title of the item',
           type: 'string',
           required: true,
           nodeType: 'param',
@@ -54,13 +55,7 @@ describe('Module: RenderPartialParameterCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       getDocDefinitionForURI: async (_uri, partialName) => {
         if (mockPartialName === partialName) {
           return mockPartialDefinition;

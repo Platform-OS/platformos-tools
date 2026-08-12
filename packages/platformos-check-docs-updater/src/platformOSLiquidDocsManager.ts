@@ -1,6 +1,7 @@
 import {
   FilterEntry,
   JsonValidationSet,
+  LiquidDocVocabulary,
   ObjectEntry,
   SchemaDefinition,
   TagEntry,
@@ -10,11 +11,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   Resource,
-  downloadResource,
+  download,
   downloadPlatformOSLiquidDocs,
   exists,
   graphQLPath,
   resourcePath,
+  resourceUrl,
   root,
 } from './platformOSLiquidDocsDownloader';
 import { Logger, memo, noop, tap } from './utils';
@@ -38,6 +40,19 @@ export class PlatformOSLiquidDocsManager implements PlatformOSDocset, JsonValida
     return findSuitableResource(this.loaders('tags'), JSON.parse, [], this.log);
   });
 
+  /**
+   * The `{% doc %}` vocabulary, or an empty one when neither the cache nor `data/` carries the file —
+   * the features that read it are built to stay quiet on that.
+   */
+  liquidDoc = memo(async (): Promise<LiquidDocVocabulary> => {
+    return findSuitableResource(
+      this.loaders('liquid_doc'),
+      JSON.parse,
+      { annotations: [], param_types: [] },
+      this.log,
+    );
+  });
+
   graphQL = memo(async (): Promise<string | null> => {
     return findSuitableResource(this.graphqlLoaders(), (x: string) => x, null, this.log);
   });
@@ -51,6 +66,9 @@ export class PlatformOSLiquidDocsManager implements PlatformOSDocset, JsonValida
    * that the documentations that you have locally are out of date.
    *
    * The setup method then downloads the other files.
+   *
+   * The revision is compared WITHOUT being written: the bulk download writes `latest.json` itself, so a
+   * refresh that fails leaves the old revision in place and the next run retries.
    */
   setup = memo(async (): Promise<void> => {
     try {
@@ -58,9 +76,8 @@ export class PlatformOSLiquidDocsManager implements PlatformOSDocset, JsonValida
         await fs.mkdir(root, { recursive: true });
       }
 
-      const local = await this.latestRevision();
-      await downloadResource('latest', root, this.log);
-      const remote = await this.latestRevision();
+      const [local, remote] = await Promise.all([this.latestRevision(), this.remoteRevision()]);
+
       if (local !== remote) {
         await downloadPlatformOSLiquidDocs(root, this.log);
       }
@@ -80,6 +97,13 @@ export class PlatformOSLiquidDocsManager implements PlatformOSDocset, JsonValida
       this.log,
     );
     return latest['revision'] ?? '';
+  }
+
+  /** The published revision, read over the network and NOT written — see {@link setup}. */
+  private async remoteRevision(): Promise<string> {
+    const text = await download(resourceUrl('latest'), this.log);
+
+    return JSON.parse(text)['revision'] ?? '';
   }
 
   private async loadResource(name: Resource): Promise<string> {

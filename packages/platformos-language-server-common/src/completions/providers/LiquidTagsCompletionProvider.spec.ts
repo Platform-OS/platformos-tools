@@ -88,6 +88,7 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => tags,
       },
     });
@@ -107,7 +108,7 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
     await expect(provider).to.complete('{% comment %} hello there {% end', ['endcomment']);
     await expect(provider).to.complete('{% if cond %} hello {% else %} then {% end', ['endif']);
     await expect(provider).to.complete('{% for i in (1..3) %}{% end', ['endfor']);
-    await expect(provider).to.complete('{% form "cart", cart %} ... {% end', ['endform']);
+    await expect(provider).to.complete('{% form method: "post" %} ... {% end', ['endform']);
   });
 
   it('should not complete literal `liquid` tag', async () => {
@@ -133,14 +134,14 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
       'endif',
     ]);
     await expect(provider).to.complete('{% for i in (1..3) %}{% e', ['echo', 'endfor']);
-    await expect(provider).to.complete('{% form "cart", cart %} ... {% e', ['echo', 'endform']);
+    await expect(provider).to.complete('{% form method: "post" %} ... {% e', ['echo', 'endform']);
   });
 
   it('should not complete anything if the partial end tag does not match', async () => {
     await expect(provider).to.complete('{% comment %} hello there {% endz', []);
     await expect(provider).to.complete('{% if cond %} hello {% else %} then {% endz', []);
     await expect(provider).to.complete('{% for i in (1..3) %}{% endz', []);
-    await expect(provider).to.complete('{% form "cart", cart %} ... {% endz', []);
+    await expect(provider).to.complete('{% form method: "post" %} ... {% endz', []);
   });
 
   it('should complete empty statements', async () => {
@@ -156,7 +157,7 @@ describe('Module: LiquidTagsCompletionProvider', async () => {
     );
     await expect(provider).to.complete('{% for i in (1..3) %}{% ', allTags.concat('endfor'));
     await expect(provider).to.complete(
-      '{% form "cart", cart %} ... {% ',
+      '{% form method: "post" %} ... {% ',
       allTags.concat('endform'),
     );
   });

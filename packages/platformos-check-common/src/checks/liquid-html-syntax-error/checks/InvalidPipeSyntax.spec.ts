@@ -144,12 +144,12 @@ describe('Module: InvalidPipeSyntax', () => {
       const cases = {
         chain: `{{ 'hello' | upcase | append: 'world' | downcase }}`,
         simple: `{{ 'hello' | upcase }}`,
-        withArguments: `{{ product.title | append: ' - ' | append: shop.name }}`,
-        assigned: `{% assign title = product.title | upcase | truncate: 50 %}`,
-        echoed: `{% echo product.title | upcase | truncate: 50 %}`,
+        withArguments: `{{ item.title | append: ' - ' | append: context.language }}`,
+        assigned: `{% assign title = item.title | upcase | truncate: 50 %}`,
+        echoed: `{% echo item.title | upcase | truncate: 50 %}`,
         // A pipe INSIDE a string is text, not a filter separator.
         pipeInAString: `{{ 'hello | world' | upcase }}`,
-        filterArgument: `{{ product.title | default: 'No title' }}`,
+        filterArgument: `{{ item.title | default: 'No title' }}`,
       };
       const reported = Object.fromEntries(
         await Promise.all(

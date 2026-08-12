@@ -1,7 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
-import { UNDOCUMENTED_FILTERS } from './undocumented-filters';
-import { PlatformOSDocset } from './types';
+import { FilterEntry, PlatformOSDocset } from './types';
+import { publishedLiquidDoc } from './test/published-docset';
 
 describe('Module: AugmentedPlatformOSDocset', async () => {
   let platformosDocset: PlatformOSDocset;
@@ -51,46 +51,17 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         },
       ],
       liquidDrops: async () => [],
+      liquidDoc: async () => ({ annotations: [], param_types: [] }),
       tags: async () => [],
     });
   });
 
   describe('filters', async () => {
-    it('should return exactly the undocumented filters when the docset has none', async () => {
-      // This mock's `filters()` returns [], so everything here comes from the
-      // undocumented list — which makes the composition exactly assertable.
-      //
-      // It used to assert `length >= 10`, a threshold standing in for the 13
-      // hand-typed entries of the day. That hid what it was really checking: when the
-      // list was regenerated from a live instance and 12 fictional filters were
-      // dropped, the failure read as "expected at least 10, got 6" rather than naming
-      // the change. Comparing against the list itself pins the WIRING (official +
-      // aliases + undocumented, each as a `{ name }` entry) and lets
-      // `undocumented-filters.spec.ts` own the contents.
+    it('returns nothing of its own when the docset publishes no filters', async () => {
+      // The only entries this class adds to a docset are alias expansions.
       const filters = await platformosDocset.filters();
 
-      // THIS ASSERTION IS THE LANGUAGE SERVER BOUNDARY. `startServer.ts` builds this same
-      // `AugmentedPlatformOSDocset`, so whatever shape appears here is what the LSP's
-      // `TypeSystem` consumes — and `docsetEntryReturnType` defaults a filter with no
-      // `return_type` to `'string'`.
-      //
-      // Adding `return_type` to these entries would therefore retype them for completions
-      // and hover (`sum` -> number, `where` -> array, `find` -> hash, `has` -> boolean).
-      // That is very likely an IMPROVEMENT, but `TypeSystem.spec.ts` injects a mock docset
-      // and would not catch a regression, so the change cannot be verified where it lands.
-      //
-      // The measured types live in `UNDOCUMENTED_FILTER_RETURN_TYPES` instead, consumed
-      // only by `InvalidHashAssignTarget`. Keeping the entries bare makes the LSP delta
-      // provably zero — same code path, same input — rather than probably fine. If you
-      // want the LSP improvement, do it as its own change with tests that drive the real
-      // augmented docset, and expect this assertion to change with it.
-      expect(filters).toEqual(UNDOCUMENTED_FILTERS.map((name) => ({ name })));
-    });
-
-    it('should return valid filter entries', async () => {
-      const filters = await platformosDocset.filters();
-
-      expect(filters).to.deep.include({ name: 'h' });
+      expect(filters).toEqual([]);
     });
 
     it('should expand aliases from filter entries', async () => {
@@ -106,6 +77,7 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         ],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       });
 
@@ -138,6 +110,7 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         ],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       });
 
@@ -162,6 +135,7 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         ],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       });
 
@@ -182,6 +156,7 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         ],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       });
 
@@ -189,31 +164,6 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
       const officialNames = filters.filter((f) => f.name === 'upcase' || f.name === 'downcase');
 
       expect(officialNames).toHaveLength(2);
-    });
-
-    it('should normalize filters with deprecated:false but deprecation_reason:"true" to deprecated:true', async () => {
-      const docset = new AugmentedPlatformOSDocset({
-        graphQL: async () => null,
-        filters: async () => [
-          { name: 'asset_path', deprecated: false, deprecation_reason: 'true' },
-          { name: 'sha1', deprecated: false, deprecation_reason: 'true' },
-          { name: 'active_filter', deprecated: false, deprecation_reason: 'false' },
-        ],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      });
-
-      const filters = await docset.filters();
-      const assetPath = filters.find((f) => f.name === 'asset_path');
-      const sha1 = filters.find((f) => f.name === 'sha1');
-      const active = filters.find((f) => f.name === 'active_filter');
-
-      expect(assetPath?.deprecated).toBe(true);
-      expect(assetPath?.deprecation_reason).toBeUndefined();
-      expect(sha1?.deprecated).toBe(true);
-      expect(sha1?.deprecation_reason).toBeUndefined();
-      expect(active?.deprecated).toBeFalsy();
     });
   });
 
@@ -280,10 +230,86 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [{ name: 'assign', summary: 'from the docs' }],
       });
 
       expect(await docset.tags()).toEqual([{ name: 'assign', summary: 'from the docs' }]);
     });
+  });
+
+  describe('liquidDoc', async () => {
+    /**
+     * The `{% doc %}` vocabulary passes through untouched and is asked for ONCE per run: three features
+     * read it — the annotation completions, their hover, and the param-type list — and each of them asks
+     * per keystroke or per file.
+     */
+    it('passes the published vocabulary through, and asks for it once', async () => {
+      let calls = 0;
+      const docset = new AugmentedPlatformOSDocset({
+        graphQL: async () => null,
+        filters: async () => [],
+        objects: async () => [],
+        liquidDrops: async () => [],
+        tags: async () => [],
+        liquidDoc: async () => {
+          calls += 1;
+          return publishedLiquidDoc;
+        },
+      });
+
+      expect([await docset.liquidDoc(), await docset.liquidDoc()]).toEqual([
+        publishedLiquidDoc,
+        publishedLiquidDoc,
+      ]);
+      expect(calls).toBe(1);
+    });
+  });
+});
+
+/**
+ * THE DOCSET IS THE WHOLE FILTER VOCABULARY. This package holds no list of its own, and the
+ * augmentation must not grow one back: its only job on `filters()` is to re-emit each published
+ * entry under its aliases.
+ *
+ * The guard is worth its weight because the failure is quiet. A locally injected `{ name }` carries
+ * neither `arity` nor `return_type`, and both `InvalidHashAssignTarget` and `FilterArity` resolve a
+ * filter by name — so an entry appended beside a published one does not throw, it silently answers
+ * "unknown" for a filter the platform fully documents.
+ */
+describe('AugmentedPlatformOSDocset: the published filters, and nothing beside them', () => {
+  const docsetOf = (filters: FilterEntry[]) =>
+    new AugmentedPlatformOSDocset({
+      async filters() {
+        return filters;
+      },
+      async objects() {
+        return [];
+      },
+      async liquidDrops() {
+        return [];
+      },
+      async liquidDoc() {
+        return { annotations: [], param_types: [] };
+      },
+      async tags() {
+        return [];
+      },
+      async graphQL() {
+        return null;
+      },
+    } as any);
+
+  it('passes a published entry through untouched, adding nothing beside it', async () => {
+    // The whole list is asserted, not just that `where` is in it, so an added entry fails here.
+    const published: FilterEntry = {
+      name: 'where',
+      arity: { min: 2, max: 3 },
+      return_type: [{ type: 'array', array_value: '' }],
+    };
+
+    const filters = await docsetOf([published]).filters();
+
+    expect(filters).toEqual([published]);
   });
 });

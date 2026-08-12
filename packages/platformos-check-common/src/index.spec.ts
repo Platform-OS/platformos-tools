@@ -70,7 +70,6 @@ describe('Unit: check() with the `only` option', () => {
       'ImgWidthAndHeight',
       'MissingPartial',
       'TranslationKeyExists',
-      'UnknownFilter',
     ]);
   });
 

@@ -88,9 +88,8 @@ describe('Module: MissingPartial', () => {
   it('should not report theme_render_rc with variable lookup', async () => {
     const offenses = await check(
       {
-        'app/views/partials/partial.liquid':
-          "{% theme_render_rc 'existing' for products as product %}",
-        'app/views/partials/existing.liquid': '{{ product }}',
+        'app/views/partials/partial.liquid': "{% theme_render_rc 'existing' for items as item %}",
+        'app/views/partials/existing.liquid': '{{ item }}',
       },
       [MissingPartial],
     );
@@ -194,8 +193,8 @@ describe('Module: MissingPartial', () => {
         {
           'app/config.yml':
             'theme_search_paths:\n  - theme/{{ context.constants.MY_THEME }}\n  - theme/simple',
-          'app/views/partials/page.liquid': "{% theme_render_rc 'product' %}",
-          'app/views/partials/theme/simple/product.liquid': 'simple partial',
+          'app/views/partials/page.liquid': "{% theme_render_rc 'item' %}",
+          'app/views/partials/theme/simple/item.liquid': 'simple partial',
         },
         [MissingPartial],
       );
@@ -312,8 +311,8 @@ describe('Module: MissingPartial', () => {
         {
           'app/config.yml': 'theme_search_paths:\n  - theme/dress',
           'app/views/partials/page.liquid':
-            "{% theme_render_rc 'product', class: 'featured', size: 'large' %}",
-          'app/views/partials/theme/dress/product.liquid': '{{ class }} {{ size }}',
+            "{% theme_render_rc 'item', class: 'featured', size: 'large' %}",
+          'app/views/partials/theme/dress/item.liquid': '{{ class }} {{ size }}',
         },
         [MissingPartial],
       );
@@ -325,8 +324,8 @@ describe('Module: MissingPartial', () => {
       const offenses = await check(
         {
           'app/config.yml': 'theme_search_paths:\n  - theme/dress',
-          'app/views/partials/page.liquid': "{% theme_render_rc 'item' for products as product %}",
-          'app/views/partials/theme/dress/item.liquid': '{{ product }}',
+          'app/views/partials/page.liquid': "{% theme_render_rc 'item' for items as item %}",
+          'app/views/partials/theme/dress/item.liquid': '{{ item }}',
         },
         [MissingPartial],
       );

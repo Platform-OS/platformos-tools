@@ -100,6 +100,18 @@ export function detectInvalidLoopArguments(
   };
 }
 
+/**
+ * Whether the docset publishes `key` as an argument of `tagName`.
+ *
+ * `positional` NARROWS the answer and never widens it: a tag parameter that says nothing about how
+ * it is written matches either spelling. `tags.json` publishes `positional` on no tag parameter at
+ * all — all 72 of them omit it, while every filter parameter carries it — so requiring equality
+ * compared `undefined === false` and answered "unsupported" for every argument of every loop.
+ * `{% for x in y limit: 2 %}` and `{% for i in array reversed %}` were both reported as unknown
+ * arguments against the shipped documents, with an autofix that DELETED them; the only reason the
+ * suite stayed green is that this check's spec declared a docset of its own that publishes the
+ * field. Absence is not evidence, and a syntax error blocks a write.
+ */
 function isSupportedTagArgument(
   tags: TagEntry[] | undefined,
   tagName: string,
@@ -110,7 +122,9 @@ function isSupportedTagArgument(
     (tags ?? [])
       .find((tag) => tag.name === tagName)
       ?.parameters?.some(
-        (parameter) => parameter.name === key && parameter.positional === positional,
+        (parameter) =>
+          parameter.name === key &&
+          (parameter.positional === undefined || parameter.positional === positional),
       ) || false
   );
 }

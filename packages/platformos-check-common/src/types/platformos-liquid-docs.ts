@@ -17,8 +17,48 @@ export interface PlatformOSDocset {
   /** Returns Liquid tags available in platformOS. */
   tags(): Promise<TagEntry[]>;
 
+  /** Returns the `{% doc %}` vocabulary — its annotations, and the types a `@param` may name. */
+  liquidDoc(): Promise<LiquidDocVocabulary>;
+
   /** Returns graphql root query */
   graphQL(): Promise<string | null>;
+}
+
+/**
+ * What may be written inside `{% doc %}`. The runtime never interprets a doc block's body, so all of it
+ * is documentation and all of it is published; the parser's grammar keeps the only local copy of the
+ * annotation names, because a parse has no docset to ask.
+ *
+ * Empty for a docset published before this document existed, and then the features that read it go quiet
+ * rather than report against a list of their own.
+ */
+export interface LiquidDocVocabulary {
+  /** One entry per annotation an author may write — `param`, `example`, `description`. */
+  annotations: LiquidDocAnnotationEntry[];
+
+  /**
+   * The types a `@param` may name, with the prose to show beside each. The whole type vocabulary,
+   * `date` and `time` included; a consumer unions it with the object names from `objects()`.
+   */
+  param_types: LiquidDocParamTypeEntry[];
+}
+
+/** An annotation of a `{% doc %}` block — the name without its `@`, and what an editor shows for it. */
+export interface LiquidDocAnnotationEntry {
+  /** The annotation's name as written after the `@`, e.g. `param`. */
+  name: string;
+
+  /** Markdown prose describing what the annotation declares. */
+  description: string;
+
+  /** A complete `{% doc %}` … `{% enddoc %}` block using this annotation. */
+  example: string;
+}
+
+/** A type an author may write in `@param {…}`. */
+export interface LiquidDocParamTypeEntry {
+  name: string;
+  description: string;
 }
 
 /** A URI that will uniquely describe the schema */
@@ -99,8 +139,49 @@ export interface FilterEntry extends DocsetEntry {
   /** Return type */
   return_type?: ReturnType[];
 
-  /** e.g. cart | item_count_for_variant: {variant_id} */
+  /** e.g. string | truncate: length, truncate_string */
   syntax?: string;
+
+  /**
+   * Other registered spellings of this same filter, e.g. `dig` for `hash_dig`.
+   *
+   * Was read through an `as any` cast in `AugmentedPlatformOSDocset.expandAliases`, which is
+   * the one place that consumes it — the field has been published all along.
+   */
+  aliases?: string[];
+
+  /**
+   * The registered name of the filter that supersedes this one, when it is deprecated.
+   *
+   * The successor as DATA rather than as a sentence, which is what `DeprecatedFilter`'s rename
+   * suggestion needs. It used to be recovered by matching `replaced by [`name`]` against
+   * `deprecation_reason`, a pattern that none of the six real reasons uses — so the fix was
+   * never offered for any filter, and nothing failed, because an absent suggestion looks like a
+   * suggestion nobody wanted.
+   *
+   * Absent for a docset published before the platform emitted it, and then no rename is offered:
+   * `findRecommendedAlternative` reads this field and nothing else.
+   */
+  deprecation_replacement?: string;
+
+  /**
+   * How many arguments the filter accepts, the piped value counted as one.
+   *
+   * `max` is `null` for a variadic filter — `dig` and friends — which means "cannot refuse an
+   * argument", NOT "unknown"; a filter whose bounds are genuinely unknown has no `arity` at all.
+   *
+   * Absent for a docset published before the platform emitted it, and then the filter simply goes
+   * unchecked. Nothing in this repository answers in its place: upstream derives every bound from
+   * the Ruby signature, for Liquid's own filters too — they are documented in
+   * `docs/liquid/standardfilters.rb`, whose signatures a test there compares against the gem.
+   */
+  arity?: FilterArityRange;
+}
+
+/** @see FilterEntry.arity */
+export interface FilterArityRange {
+  min: number;
+  max: number | null;
 }
 
 export interface TagEntry extends DocsetEntry {
@@ -111,11 +192,8 @@ export interface TagEntry extends DocsetEntry {
    * needs: that autofix writes to the user's file unattended under `pos-cli check run -a`, and
    * deriving the target from `deprecation_reason` made it depend on how the prose was worded.
    *
-   * Absent for a docset published before the platform emitted it — `platformos-tools` reads
-   * the reason as a fallback for exactly that case. Upstream it is
-   * `deprecated_replacement` in `~/projects/desksnearme`
-   * (`docs/generators/liquid_tags/default/module/setup.rb`): an `@alias` publishes its
-   * canonical name, and a `@deprecated` tag with a class of its own declares `@replaced_by`.
+   * Absent for a docset published before the platform emitted it, and then the deprecation reason is
+   * read as a fallback.
    */
   deprecation_replacement?: string;
 
@@ -130,6 +208,16 @@ export interface TagEntry extends DocsetEntry {
 
   /** e.g. item, array, expression */
   syntax_keywords?: SyntaxKeyword[];
+
+  /**
+   * What the tag leaves behind, when it leaves anything.
+   *
+   * Modelled because 33 of the 56 shipped tags carry the key — and it is an EMPTY ARRAY in every
+   * one of them, which `docsetReturnType` reads as `untyped`: "the docset does not say", never a
+   * type. Nothing may treat an empty array as a claim, which is the same reading a filter with no
+   * `return_type` gets.
+   */
+  return_type?: ReturnType[];
 }
 
 export interface Access {
@@ -153,12 +241,32 @@ export interface Parent {
   property: string;
 }
 
+/**
+ * One argument of a filter or a tag, as the two documents actually publish it.
+ *
+ * The two shapes are NOT the same, and this interface is their union rather than the filter one
+ * borrowed for both. Measured on the shipped files: a filter parameter carries all six fields, and
+ * a TAG parameter carries only `description`, `name`, `required` and `types` — all 72 of them.
+ *
+ * So the three fields only filters publish are optional, and a reader must treat absence as "the
+ * docset does not say". `positional` was declared required, which is how `InvalidLoopArguments`
+ * came to compare `parameter.positional === false` against `undefined` for every tag argument and
+ * report `{% for x in y limit: 2 %}` — valid Liquid — as an unknown argument.
+ */
 export interface Parameter {
   description: string;
   name: string;
-  positional: boolean;
   required: boolean;
   types: string[];
+
+  /** Filters only: whether the argument is written by position rather than by name. */
+  positional?: boolean;
+
+  /** Filters only: whether the argument absorbs every remaining one. */
+  variadic?: boolean;
+
+  /** Filters only: the value used when the argument is omitted, as a source spelling. */
+  default?: string;
 }
 
 export interface SyntaxKeyword {
@@ -190,14 +298,18 @@ export type ReturnType = EnumReturnType | ArrayReturnType | OtherReturnType;
 export interface EnumReturnType {
   type: 'string';
   name: string;
+  /** Prose about the returned value. Published on every filter and object return type. */
+  description?: string;
 }
 
 export interface ArrayReturnType {
   type: 'array';
   array_value: string;
+  description?: string;
 }
 
 export interface OtherReturnType {
   type: 'string' | 'number' | 'untyped' | string;
   name: '';
+  description?: string;
 }

@@ -73,7 +73,7 @@ function getCompletionContext(
  * looks like this:
  *
  * <div>
- *   {% assign x = product %}
+ *   {% assign x = context.current_user %}
  *   {% assign y = x | plus: 20 %}
  *   {% assign z = █ %}
  *   <span>
@@ -84,7 +84,7 @@ function getCompletionContext(
  * Then the contents of the file up until the cursor position is this:
  *
  * <div>
- *   {% assign x = product %}
+ *   {% assign x = context.current_user %}
  *   {% assign y = x | plus: 20 %}
  *   {% assign z = █
  *
@@ -92,7 +92,7 @@ function getCompletionContext(
  * Fixed output:
  *
  * <div>
- *   {% assign x = product %}
+ *   {% assign x = context.current_user %}
  *   {% assign y = x | plus: 20 %}
  *   {% assign z = █%}
  *
@@ -177,7 +177,7 @@ function findCurrentNode(
   //     - If the node has attributes,
   //         then we visit the last attribute
   //     - If the node has a name,
-  //         then we visit the last name node (<a--{{ product.id }}>)
+  //         then we visit the last name node (<a--{{ page.id }}>)
   //
   //   It's different per node type, because each node type has a different
   //   concept of child node and because they have to be traversed in a
@@ -434,7 +434,6 @@ function findCurrentNode(
       case NodeTypes.LiquidDocParamNode:
       case NodeTypes.LiquidDocExampleNode:
       case NodeTypes.LiquidDocDescriptionNode:
-      case NodeTypes.LiquidDocPromptNode:
       case NodeTypes.RenderAliasExpression:
       case NodeTypes.JsonHashLiteral:
       case NodeTypes.JsonArrayLiteral:

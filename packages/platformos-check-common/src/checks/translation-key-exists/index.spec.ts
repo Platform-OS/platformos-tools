@@ -60,12 +60,12 @@ describe('Module: TranslationKeyExists', () => {
   });
 
   it('should handle key conflicts', async () => {
-    // The conflict: `product.quantity` is a leaf, so `product.quantity.decrease`
+    // The conflict: `item.quantity` is a leaf, so `item.quantity.decrease`
     // cannot resolve.
     const offenses = await check(
       {
-        'app/translations/en.yml': 'en:\n  product:\n    quantity: TODO\n',
-        'app/views/partials/code.liquid': '{{"product.quantity.decrease" | t}}',
+        'app/translations/en.yml': 'en:\n  item:\n    quantity: TODO\n',
+        'app/views/partials/code.liquid': '{{"item.quantity.decrease" | t}}',
       },
       [TranslationKeyExists],
     );

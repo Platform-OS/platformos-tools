@@ -6,12 +6,7 @@ import {
   NodeTypes,
   toLiquidHtmlAST,
 } from '@platformos/liquid-html-parser';
-import {
-  path as pathUtils,
-  BasicParamTypes,
-  ObjectEntry,
-  PropertyShape,
-} from '@platformos/platformos-check-common';
+import { path as pathUtils, ObjectEntry, PropertyShape } from '@platformos/platformos-check-common';
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { App, DocumentsLocator } from '@platformos/platformos-common';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -49,10 +44,21 @@ describe('Module: TypeSystem', () => {
   ];
 
   beforeEach(async () => {
+    /**
+     * The docset as INPUT: the shapes this system infers from, in platformOS's vocabulary.
+     *
+     * Every NAME here is one the platform publishes — `context`, `current_user`, `location`,
+     * `page` — with the `access` block copied from `objects.json`. What is synthetic is the
+     * STRUCTURE, and only where the published documents cannot reach the branch: no shipped
+     * object has an array-typed property, so `context.models` is the one invented edge, and it
+     * is invented as a platformOS data model rather than borrowed from another platform. The
+     * fixture that stood here declared `image`, a Shopify drop, and taught an API that does not
+     * exist to everyone who read it.
+     */
     const _objects: ObjectEntry[] = [
       {
         name: 'context',
-        access: { global: true, parents: [], template: [] },
+        access: { global: true, parents: [], template: [], app_file_type: null },
         return_type: [],
         properties: [
           {
@@ -69,18 +75,19 @@ describe('Module: TypeSystem', () => {
       },
       {
         // 'model' represents a generic user-defined data model in platformOS
-        // (e.g. a record returned from a GraphQL query)
+        // (e.g. a record returned from a GraphQL query). Synthetic: it carries the array and
+        // object-typed properties the published documents have none of.
         name: 'model',
         properties: [
           {
-            name: 'thumbnail',
-            description: 'a thumbnail image',
-            return_type: [{ type: 'image', name: '' }],
+            name: 'location',
+            description: 'where the model is',
+            return_type: [{ type: 'location', name: '' }],
           },
           {
-            name: 'images',
-            description: 'all images for the model',
-            return_type: [{ type: 'array', array_value: 'image' }],
+            name: 'locations',
+            description: 'every location for the model',
+            return_type: [{ type: 'array', array_value: 'location' }],
           },
           {
             name: 'title',
@@ -95,6 +102,7 @@ describe('Module: TypeSystem', () => {
       },
       {
         name: 'current_user',
+        access: { global: false, parents: [], template: [], app_file_type: null },
         properties: [
           {
             name: 'name',
@@ -109,24 +117,21 @@ describe('Module: TypeSystem', () => {
         ],
       },
       {
-        name: 'settings',
+        name: 'location',
+        access: { global: false, parents: [], template: [], app_file_type: null },
         return_type: [],
-        properties: [], // these should be populated dynamically
+        properties: [{ name: 'name', return_type: [{ type: 'string', name: '' }] }],
       },
       {
-        name: 'locale',
-        access: { global: false, parents: [], template: [] },
-        return_type: [],
-      },
-      {
-        name: 'app',
-        access: { global: false, parents: [], template: [] },
+        name: 'page',
+        access: { global: false, parents: [], template: [], app_file_type: null },
         return_type: [],
       },
     ];
     typeSystem = new TypeSystem({
       graphQL: async () => null,
       tags: async () => [],
+      liquidDoc: async () => ({ annotations: [], param_types: [] }),
       objects: async () => _objects,
       liquidDrops: async () => _objects,
       filters: async () => [
@@ -172,6 +177,7 @@ describe('Module: TypeSystem', () => {
       {
         graphQL: async () => null, // no schema: shapes come from the selection set
         tags: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         objects: async () => [],
         liquidDrops: async () => [],
         filters: async () => [],
@@ -220,10 +226,10 @@ describe('Module: TypeSystem', () => {
   });
 
   it('should return the type of object properties', async () => {
-    const ast = toLiquidHtmlAST(`{% assign x = context.models[0].thumbnail %}`);
+    const ast = toLiquidHtmlAST(`{% assign x = context.models[0].location %}`);
     const xVariable = (ast as any).children[0].markup as AssignMarkup;
     const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
-    expect(inferredType).to.equal('image');
+    expect(inferredType).to.equal('location');
   });
 
   it('should return the type of filtered variables', async () => {
@@ -253,7 +259,7 @@ describe('Module: TypeSystem', () => {
 
   describe('when using array builtin methods', () => {
     it('should return number for size', async () => {
-      const ast = toLiquidHtmlAST(`{{ context.models[0].images.size }}`);
+      const ast = toLiquidHtmlAST(`{{ context.models[0].locations.size }}`);
       const xVariable = (ast as any).children[0].markup as LiquidVariable;
       const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
       expect(inferredType).to.equal('number');
@@ -261,10 +267,10 @@ describe('Module: TypeSystem', () => {
 
     ['first', 'last'].forEach((method) => {
       it(`should return the value type of the array for ${method}`, async () => {
-        const ast = toLiquidHtmlAST(`{{ context.models[0].images.${method} }}`);
+        const ast = toLiquidHtmlAST(`{{ context.models[0].locations.${method} }}`);
         const xVariable = (ast as any).children[0].markup as LiquidVariable;
         const inferredType = await typeSystem.inferType(xVariable, ast, 'file:///file.liquid');
-        expect(inferredType).to.equal('image');
+        expect(inferredType).to.equal('location');
       });
     });
   });
@@ -280,37 +286,37 @@ describe('Module: TypeSystem', () => {
    */
   describe('when using the default filter', () => {
     it('answers with the operand that flows, deciding blankness the way Liquid does', async () => {
-      const withThumbnail = (assign: string) =>
-        `{% assign d = context.models[0].thumbnail %}\n${assign}`;
+      const withLocation = (assign: string) =>
+        `{% assign d = context.models[0].location %}\n${assign}`;
 
       expect({
         // Nothing is known about the piped value, so the fallback is the whole answer.
         untypedPipedLiteralFallback: await typeOfLastAssign(`{% assign x = x | default: 10 %}`),
         untypedPipedLookupFallback: await typeOfLastAssign(
-          withThumbnail(`{% assign x = unknown | default: d %}`),
+          withLocation(`{% assign x = unknown | default: d %}`),
         ),
         // A typed piped value reaches the output, so the fallback's type is not the answer.
         typedPiped: await typeOfLastAssign(
-          withThumbnail(`{% assign x = d | default: 'placeholder' %}`),
+          withLocation(`{% assign x = d | default: 'placeholder' %}`),
         ),
         // PROVABLY blank, and typed `string` — so nothing about the type alone separates
         // this from the case above; only the blankness does.
         provablyBlankPiped: await typeOfLastAssign(
-          withThumbnail(`{% assign title = '' %}\n{% assign x = title | default: d %}`),
+          withLocation(`{% assign title = '' %}\n{% assign x = title | default: d %}`),
         ),
         blankLiteralPiped: await typeOfLastAssign(
-          withThumbnail(`{% assign x = blank | default: d %}`),
+          withLocation(`{% assign x = blank | default: d %}`),
         ),
         // The control: a zero is not blank in Liquid, so it flows and stays a number.
         zeroPiped: await typeOfLastAssign(
-          withThumbnail(`{% assign count = 0 %}\n{% assign x = count | default: d %}`),
+          withLocation(`{% assign count = 0 %}\n{% assign x = count | default: d %}`),
         ),
       }).toEqual({
         untypedPipedLiteralFallback: 'number',
-        untypedPipedLookupFallback: 'image',
-        typedPiped: 'image',
-        provablyBlankPiped: 'image',
-        blankLiteralPiped: 'image',
+        untypedPipedLookupFallback: 'location',
+        typedPiped: 'location',
+        provablyBlankPiped: 'location',
+        blankLiteralPiped: 'location',
         zeroPiped: 'number',
       });
     });
@@ -330,40 +336,23 @@ describe('Module: TypeSystem', () => {
     expect(inferredType).to.equal('model');
   });
 
-  it('should support path-contextual variable types for partials', async () => {
-    let inferredType: string | ArrayType | ShapeType | UnionType;
-    const contexts: [string, string][] = [
-      ['app', 'app/views/partials/recommendations.liquid'],
-      ['app', 'app/lib/helpers/my-helper.liquid'],
-    ];
-    for (const [object, path] of contexts) {
-      const sourceCode = `{{ ${object} }}`;
-      const ast = toLiquidHtmlAST(sourceCode);
-      const variableOutput = ast.children[0];
-      assert(isLiquidVariableOutput(variableOutput));
-      inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        // This will be different on Windows ^^
-        pathUtils.normalize(URI.from({ scheme: 'file', path })),
-      );
-      expect(inferredType).to.eql(object);
-      inferredType = await typeSystem.inferType(
-        variableOutput.markup,
-        ast,
-        // This will be different on Windows ^^
-        pathUtils.normalize(URI.from({ scheme: 'file', path: 'file.liquid' })),
-      );
-      expect(inferredType).to.eql('unknown');
-    }
-  });
+  // A "path-contextual variable types for partials" test used to sit here. Its whole subject was
+  // `app` being in scope inside a partial or lib file — Shopify's theme app extension drop, which
+  // no platformOS docset contains. Filtering the real entries by it therefore matched nothing, so
+  // the mechanism and its test have gone together; scope is now `access.global` alone.
 
   describe('LiquidDoc inferred type', () => {
-    const liquidDocParamTypeToTypeMap = {
-      [BasicParamTypes.String]: 'string',
-      [BasicParamTypes.Number]: 'number',
-      [BasicParamTypes.Boolean]: 'boolean',
-      [BasicParamTypes.Object]: 'untyped',
+    // A DECLARED type on the left, the type this system carries on the right. `object` is `untyped`
+    // because it names no shape; `date` is itself, which is the type `to_date` publishes and the reason
+    // it is writable in a docblock at all; a name nothing recognises is `untyped` rather than an error —
+    // whether it was legal to write is `ValidDocParamTypes`' question, not this one's.
+    const liquidDocParamTypeToTypeMap: Record<string, string> = {
+      string: 'string',
+      number: 'number',
+      boolean: 'boolean',
+      date: 'date',
+      time: 'time',
+      object: 'untyped',
       invalid: 'untyped',
     };
 
@@ -503,16 +492,16 @@ query {
         'app/lib/middle/get_data.liquid': `{% function user_data = 'deep/get_user' %}
 {% return user_data %}`,
         'app/graphql/get_products.graphql': `query {
-  products {
+  items {
     id
     title
     price
   }
 }`,
-        'app/lib/products/fetch.liquid': `{% graphql result = 'get_products' %}
+        'app/lib/items/fetch.liquid': `{% graphql result = 'get_products' %}
 {% return result %}`,
-        'app/lib/products/wrapper.liquid': `{% function products = 'products/fetch' %}
-{% return products %}`,
+        'app/lib/items/wrapper.liquid': `{% function items = 'items/fetch' %}
+{% return items %}`,
       });
 
       const inline = await shapeOfLastOutput(
@@ -521,7 +510,7 @@ query {
         PAGE,
       );
       const fileBased = await shapeOfLastOutput(
-        `{% function products = 'products/wrapper' %}\n{{ products }}`,
+        `{% function items = 'items/wrapper' %}\n{{ items }}`,
         typeSystem,
         PAGE,
       );
@@ -532,7 +521,7 @@ query {
           errors: GRAPHQL_ERRORS,
         }),
         fileBased: object({
-          products: object({ id: primitive(), title: primitive(), price: primitive() }),
+          items: object({ id: primitive(), title: primitive(), price: primitive() }),
           errors: GRAPHQL_ERRORS,
         }),
       });
@@ -560,6 +549,7 @@ query {
           {
             graphQL: async () => null, // no schema: shapes come from the selection set
             tags: async () => [],
+            liquidDoc: async () => ({ annotations: [], param_types: [] }),
             objects: async () => [],
             liquidDrops: async () => [],
             filters: async () => [],
@@ -585,6 +575,73 @@ query {
           `${rootUri}/app/views/pages/test.liquid`,
         );
       };
+
+      /**
+       * `{% function data << 'partial' %}` APPENDS, so `data` holds an ARRAY of the partial's
+       * return values, not one of them. Typing it as the return value made hover and completion
+       * offer the returned hash's keys directly on `data`.
+       *
+       * The array is SPELLED rather than given up on. An earlier revision named the append
+       * `Untyped` because "there is no array-of<T> spelling in this type system", which was wrong
+       * about the file it was written in: `ArrayType`, an array-shaped `ShapeType` and the array arm
+       * of `inferShapeTypeLookupType` were all already there. `shape-analysis.ts` models the same
+       * array for `UnknownProperty`, and the two agreeing is the whole point.
+       *
+       * This form was unreachable until the parser accepted it — the markup was a raw string, so
+       * `isLiquidTagFunction` was false and no type was derived. That is why the suite stayed green
+       * through the parser change and this had to be added deliberately.
+       */
+      it('types an APPEND target as an array of the partial return value', async () => {
+        const files = {
+          'app/graphql/get_user.graphql': `query { user { id } }`,
+          'app/lib/users/fetch.liquid': `{% graphql result = 'get_user' %}\n{% return result %}`,
+        };
+        const { typeSystem } = appBacked(files, files);
+
+        /** The type of `read` after `{% function data <operator> 'users/fetch' %}`. */
+        const typeOf = async (operator: '=' | '<<', read: string) => {
+          const ast = toLiquidHtmlAST(
+            `{% function data ${operator} 'users/fetch' %}\n{{ ${read} }}`,
+          );
+          const variableOutput = ast.children[1];
+          assert(isLiquidVariableOutput(variableOutput));
+          return typeSystem.inferType(
+            variableOutput.markup,
+            ast,
+            `${rootUri}/app/views/pages/test.liquid`,
+          );
+        };
+
+        /** A structural type as its top-level keys; an array as the keys of its element. */
+        const keysOf = (type: unknown): unknown => {
+          const shape = (type as any)?.kind === 'shape' ? (type as any).shape : undefined;
+          if (!shape) return type;
+          if (shape.kind === 'array') {
+            return {
+              arrayOf: shape.itemShape ? keysOf({ kind: 'shape', shape: shape.itemShape }) : null,
+            };
+          }
+          return [...(shape.properties as Map<string, unknown>).keys()];
+        };
+
+        // Asserted as a SET of four, because each row is the control for the others: the assigning
+        // form must keep its own type (or the append row could mean inference broke outright), and
+        // the subscript rows are the user-visible payoff — `data[0].` offering the returned hash's
+        // keys is what "typed as an array of the element" buys over "untyped".
+        expect({
+          assigned: keysOf(await typeOf('=', 'data')),
+          assignedSubscript: keysOf(await typeOf('=', 'data[0]')),
+          appended: keysOf(await typeOf('<<', 'data')),
+          appendedSubscript: keysOf(await typeOf('<<', 'data[0]')),
+        }).toEqual({
+          assigned: ['user', 'errors'],
+          // Measured: a numeric subscript of the hash ITSELF resolves to nothing useful. This is
+          // the falsifier for the append row below — the element keys appear there and only there.
+          assignedSubscript: 'untyped',
+          appended: { arrayOf: ['user', 'errors'] },
+          appendedSubscript: ['user', 'errors'],
+        });
+      });
 
       it('reads a .graphql document from the App, not from disk', async () => {
         const onDisk = {
@@ -888,6 +945,52 @@ query {
           `{% parse_json data %}\n{"title": "{{ object.title }}"}\n{% endparse_json %}{{ data }}`,
         ),
       ).toEqual(object({ title: primitive('string') }));
+    });
+  });
+
+  /**
+   * `filters.json` DOES contain duplicate names, and JSON array order must not decide what they
+   * mean.
+   *
+   * `split` is published twice: the core Liquid entry says the elements are strings, the platformOS
+   * one publishes an empty `array_value`. `filtersMap` was a last-wins reduce, so whichever came
+   * second won — and a docset refresh swapped exactly those two rows, silently changing the element
+   * type of every `split` result from `string` to nothing. Hover and member completion on the
+   * elements went blank with no code change and no failing test, because the only test touching
+   * `split` mocks it with `array_value: 'string'` instead of reading the shipped file.
+   */
+  describe('a filter name the docset publishes twice', () => {
+    const CORE = { name: 'split', return_type: [{ type: 'array', array_value: 'string' }] };
+    const PLATFORMOS = { name: 'split', return_type: [{ type: 'array', array_value: '' }] };
+
+    const elementTypeWith = async (filters: any[]) => {
+      const ts = new TypeSystem({
+        graphQL: async () => null,
+        tags: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
+        objects: async () => [],
+        liquidDrops: async () => [],
+        filters: async () => filters,
+      });
+      return typeOfLastOutput(`{% assign parts = 'a,b,c' | split: ',' %}{{ parts }}`, ts);
+    };
+
+    it('resolves to the entry that carries a return type, whichever row comes first', async () => {
+      // Both orders, one assertion. Asserting a single order would pass on the broken reduce for
+      // exactly one of the two files the docs site might serve.
+      expect({
+        coreFirst: await elementTypeWith([CORE, PLATFORMOS]),
+        platformosFirst: await elementTypeWith([PLATFORMOS, CORE]),
+      }).toEqual({
+        coreFirst: { kind: 'array', valueType: 'string' },
+        platformosFirst: { kind: 'array', valueType: 'string' },
+      });
+    });
+
+    it('CONTROL: an empty return type is still what a filter published ONLY that way means', async () => {
+      // Without this, the rule above could be "always prefer a string element", which would invent
+      // data. A lone entry is used as published.
+      expect(await elementTypeWith([PLATFORMOS])).toEqual({ kind: 'array', valueType: '' });
     });
   });
 });

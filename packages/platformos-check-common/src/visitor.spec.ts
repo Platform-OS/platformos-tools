@@ -47,7 +47,7 @@ describe('findCurrentNode', () => {
     },
     {
       desc: 'at the end of a lookup',
-      source: '{{ product.title█ }}',
+      source: '{{ item.title█ }}',
       expected: NodeTypes.String,
       ancestors: [
         NodeTypes.Document,
@@ -58,7 +58,7 @@ describe('findCurrentNode', () => {
     },
     {
       desc: 'at the beginning of a lookup',
-      source: '{{ product.█title }}',
+      source: '{{ item.█title }}',
       expected: NodeTypes.String,
       ancestors: [
         NodeTypes.Document,
@@ -93,7 +93,7 @@ describe('findCurrentNode', () => {
     },
     {
       desc: 'at the start of a named-variable variable lookup',
-      source: '{{ product[█key] }}',
+      source: '{{ item[█key] }}',
       expected: NodeTypes.VariableLookup,
       ancestors: [
         NodeTypes.Document,

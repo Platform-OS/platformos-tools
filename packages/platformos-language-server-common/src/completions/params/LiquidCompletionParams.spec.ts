@@ -15,7 +15,7 @@ describe('Module: LiquidCompletionParams', async () => {
 
       describe('completionContext.partialAst', async () => {
         it('returns an ast of the file up to the cursor position', async () => {
-          const context = '{{ "hey" }}\n\n{{ product.id }}{% ren█ %}{% echo "not in the AST" %}';
+          const context = '{{ "hey" }}\n\n{{ item.id }}{% ren█ %}{% echo "not in the AST" %}';
 
           const { completionContext } = createLiquidParamsFromContext(context);
           expect(completionContext).to.exist;
@@ -33,10 +33,10 @@ describe('Module: LiquidCompletionParams', async () => {
           expectPath(partialAst, 'children.1.type').to.eql('LiquidVariableOutput');
           expectPath(partialAst, 'children.1.markup.type').to.eql('LiquidVariable');
           expectPath(partialAst, 'children.1.markup.expression.type').to.eql('VariableLookup');
-          expectPath(partialAst, 'children.1.markup.expression.name').to.eql('product');
+          expectPath(partialAst, 'children.1.markup.expression.name').to.eql('item');
           expectPath(partialAst, 'children.1.markup.expression.lookups.0.type').to.eql('String');
           expectPath(partialAst, 'children.1.markup.expression.lookups.0.value').to.eql('id');
-          expectPath(partialAst, 'children.1.markup.rawSource').to.eql('product.id');
+          expectPath(partialAst, 'children.1.markup.rawSource').to.eql('item.id');
 
           expectPath(partialAst, 'children.2.name').to.eql('ren');
           expectPath(partialAst, 'children.2.markup').to.eql('');
@@ -48,7 +48,7 @@ describe('Module: LiquidCompletionParams', async () => {
 
       describe('completionContext.node', async () => {
         it('returns the node under the cursor on simple cases', async () => {
-          const context = '{{ "hey" }}\n\n{{ product.id }}{% ren█ %}';
+          const context = '{{ "hey" }}\n\n{{ item.id }}{% ren█ %}';
 
           const { completionContext } = createLiquidParamsFromContext(context);
           expect(completionContext).to.exist;
@@ -57,15 +57,15 @@ describe('Module: LiquidCompletionParams', async () => {
           expectPath(node, 'name').to.eql('ren');
           expectPath(node, 'markup').to.eql('');
           expectPath(node, 'type').to.eql('LiquidTag');
-          expectPath(node, 'position.start').to.eql(29);
-          expectPath(node, 'position.end').to.eql(37);
+          expectPath(node, 'position.start').to.eql(26);
+          expectPath(node, 'position.end').to.eql(34);
         });
 
         it('returns the node under the cursor on nested contexts', async () => {
           const context = `
-            {% if product.compare_at_price > product.price %}
+            {% if item.compare_at_price > item.price %}
               <div>
-                <h1>The product {{ product.tit█ }} is on sale!</h1>
+                <h1>The item {{ item.tit█ }} is on sale!</h1>
               </div>
             {% endif %}
           `;
@@ -75,13 +75,13 @@ describe('Module: LiquidCompletionParams', async () => {
 
           const { node } = completionContext!;
           expectPath(node, 'type').to.eql('VariableLookup');
-          expectPath(node, 'name').to.eql('product');
+          expectPath(node, 'name').to.eql('item');
           expectPath(node, 'lookups.0.type').to.eql('String');
-          expectPath(node, 'lookups.0.position.start').to.eql(126);
-          expectPath(node, 'lookups.0.position.end').to.eql(129);
+          expectPath(node, 'lookups.0.position.start').to.eql(114);
+          expectPath(node, 'lookups.0.position.end').to.eql(117);
           expectPath(node, 'lookups.0.value').to.eql('tit');
-          expectPath(node, 'position.start').to.eql(118);
-          expectPath(node, 'position.end').to.eql(129);
+          expectPath(node, 'position.start').to.eql(109);
+          expectPath(node, 'position.end').to.eql(117);
         });
       });
 

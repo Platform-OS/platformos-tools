@@ -1,10 +1,14 @@
-import { InferredParamType } from '@platformos/platformos-check-common';
+import { LiquidType } from '@platformos/platformos-check-common';
 
 export type TagType = 'function' | 'render' | 'include';
 
 export interface ArgumentInfo {
   name: string;
-  inferredType: InferredParamType;
+  /**
+   * DECLARABLE, not merely inferred. This ends up inside a `{% doc %}` block in the user's file,
+   * so it may only be a type `@param` accepts — see `declarableParamType`.
+   */
+  inferredType: LiquidType;
   usageCount: number;
 }
 

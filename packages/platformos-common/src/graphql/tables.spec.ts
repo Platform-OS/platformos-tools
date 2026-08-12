@@ -16,8 +16,8 @@ describe('extractGraphqlTables', () => {
   });
 
   it('extracts the table from the `table: "..."` shorthand', () => {
-    const content = `query { records(filter: { table: "product" }) { results { id } } }`;
-    expect(tablesOf(content)).toEqual(['product']);
+    const content = `query { records(filter: { table: "item" }) { results { id } } }`;
+    expect(tablesOf(content)).toEqual(['item']);
   });
 
   it('returns every distinct table when several are present, in document order', () => {

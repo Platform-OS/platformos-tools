@@ -3,6 +3,7 @@ import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { HtmlData } from '../../docset';
 import { sortByName } from './common';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 
 const globalAttributeNames = [...HtmlData.globalAttributes].sort(sortByName).map((x) => x.name);
 const aTag = HtmlData.tags.find((x) => x.name === 'a')!;
@@ -14,13 +15,7 @@ describe('Module: HtmlAttributeCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
     });
   });
 

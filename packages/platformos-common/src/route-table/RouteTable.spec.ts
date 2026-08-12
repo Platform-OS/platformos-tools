@@ -112,13 +112,13 @@ describe('RouteTable', () => {
 
     it('handles index aliasing', async () => {
       const fs = createMockFileSystem(
-        Object.fromEntries([page('app/views/pages/products/index.html.liquid')]),
+        Object.fromEntries([page('app/views/pages/items/index.html.liquid')]),
       );
       const rt = new RouteTable(fs);
       await rt.build(ROOT);
 
-      expect(rt.hasMatch('/products')).toBe(true);
-      expect(rt.hasMatch('/products/index')).toBe(true);
+      expect(rt.hasMatch('/items')).toBe(true);
+      expect(rt.hasMatch('/items/index')).toBe(true);
     });
 
     it('does not report false match', async () => {
@@ -349,17 +349,14 @@ describe('RouteTable', () => {
     it('matches mixed static + :_liquid_ pattern', async () => {
       const fs = createMockFileSystem(
         Object.fromEntries([
-          page(
-            'app/views/pages/product-reviews.html.liquid',
-            '---\nslug: products/:id/reviews\n---\n',
-          ),
+          page('app/views/pages/item-reviews.html.liquid', '---\nslug: items/:id/reviews\n---\n'),
         ]),
       );
       const rt = new RouteTable(fs);
       await rt.build(ROOT);
 
-      expect(rt.hasMatch('/products/:_liquid_/reviews')).toBe(true);
-      expect(rt.hasMatch('/products/:_liquid_/settings')).toBe(false);
+      expect(rt.hasMatch('/items/:_liquid_/reviews')).toBe(true);
+      expect(rt.hasMatch('/items/:_liquid_/settings')).toBe(false);
     });
 
     it('does not match :_liquid_ when no route exists', async () => {
@@ -590,12 +587,12 @@ describe('RouteTable', () => {
 
     it('counts index alias as two entries', async () => {
       const fs = createMockFileSystem(
-        Object.fromEntries([page('app/views/pages/products/index.html.liquid')]),
+        Object.fromEntries([page('app/views/pages/items/index.html.liquid')]),
       );
       const rt = new RouteTable(fs);
       await rt.build(ROOT);
 
-      // products + products/index
+      // items + items/index
       expect(rt.routeCount()).toBe(2);
     });
 

@@ -59,10 +59,10 @@ describe('Module: TranslationStringDefinitionProvider', () => {
 
   it('returns null for non-existent translation key', async () => {
     const liquidContent = '{{ "unknown.key" | t }}';
-    documentManager.open('file:///templates/products.liquid', liquidContent, 1);
+    documentManager.open('file:///templates/items.liquid', liquidContent, 1);
 
     const params: DefinitionParams = {
-      textDocument: { uri: 'file:///templates/products.liquid' },
+      textDocument: { uri: 'file:///templates/items.liquid' },
       position: { line: 0, character: 7 }, // Position within "unknown.key"
     };
 

@@ -32,11 +32,10 @@ import {
   SourceCodeType,
   PlatformOSDocset,
   path,
-  BasicParamTypes,
+  DECLARABLE_TYPES,
   alternativeSubstituteArg,
   buildLookupPath,
   createShapeAnalyzer,
-  getValidParamTypes,
   inferShapeFromJSONString,
   isAlternativeReturningFilter,
   isLiquidDocument,
@@ -58,10 +57,18 @@ import {
   AppResolver,
   DocumentsLocator,
   GraphQLDocumentNode,
+  PlatformOSFileType,
   isGraphqlDocument,
+  isObjectInScope,
   parseGraphql,
 } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
+
+/**
+ * The platformOS type of the file a request is about — {@link DocumentManager.fileType}, handed in
+ * rather than re-derived, so the editor and `UndefinedObject` classify one file the same way.
+ */
+export type GetFileType = (uri: string) => Promise<PlatformOSFileType | undefined>;
 
 export class TypeSystem {
   private graphqlSchemaCache: string | undefined;
@@ -79,6 +86,12 @@ export class TypeSystem {
      * diagnostics already parsed, rather than a second parse of the same bytes.
      */
     private readonly getApp?: AppResolver,
+    /**
+     * The file's platformOS type, for the objects whose scope depends on it. Absent — a host
+     * that cannot classify — leaves every restricted object OUT, which is the direction that
+     * cannot offer a name the platform does not provide.
+     */
+    private readonly getFileType?: GetFileType,
   ) {}
 
   private async getGraphQLSchema(): Promise<string | undefined> {
@@ -140,7 +153,7 @@ export class TypeSystem {
   /**
    * An indexed representation of objects.json by name
    *
-   * e.g. objectMap['product'] returns the product ObjectEntry.
+   * e.g. objectMap['current_user'] returns the current_user ObjectEntry.
    */
   public objectMap = async (uri: string, ast: LiquidHtmlNode): Promise<ObjectMap> => {
     return this._objectMap();
@@ -155,11 +168,28 @@ export class TypeSystem {
     }, {} as ObjectMap);
   });
 
-  /** An indexed representation of filters.json by name */
+  /**
+   * An indexed representation of filters.json by name.
+   *
+   * ROW ORDER MUST NOT DECIDE THE ANSWER. `filters.json` once carried two entries named `split` —
+   * the core Liquid one, whose `return_type` names `string` as the element, and the platformOS one,
+   * whose `array_value` is empty — and a plain last-wins reduce made whichever the file happened to
+   * list second the authority. A docset refresh swapped exactly those two rows, and with them the
+   * loop-item type of every `{% for p in parts %}` over a `split` result, from `string` to nothing:
+   * hover and member completion on the elements went blank with no code change and no test failing.
+   *
+   * So the entry carrying a usable return type wins, and a later duplicate can only ADD data, never
+   * remove it. Resolving duplicates is the docset's business — `verify_filters_json.rb` gates them
+   * upstream, and the shipped `filters.json` currently has none — but this stays: the gate is
+   * upstream of a file this repository re-downloads, so an editor feature must not become
+   * order-dependent on the strength of a guarantee enforced somewhere else. `tags.json`, which has
+   * no such merge, still ships two `else` rows.
+   */
   public filtersMap = memo(async (): Promise<FiltersMap> => {
     const entries = await this.filterEntries();
     return entries.reduce((map, entry) => {
-      map[entry.name] = entry;
+      const existing = map[entry.name];
+      if (!existing || !hasReturnTypeData(existing)) map[entry.name] = entry;
       return map;
     }, {} as FiltersMap);
   });
@@ -202,17 +232,14 @@ export class TypeSystem {
    * The seedSymbolsTable contains all the global variables.
    *
    * This lets us have the ambient type of things first, but if someone
-   * reassigns product, then we'll be able to change the type of product on
+   * reassigns the variable, then we'll be able to change its type on
    * the appropriate range.
    *
    * This is not memo'ed because we would otherwise need to clone the thing.
    */
   private seedSymbolsTable = async (uri: string) => {
-    const [globalVariables, contextualVariables] = await Promise.all([
-      this.globalVariables(),
-      this.contextualVariables(uri),
-    ]);
-    return globalVariables.concat(contextualVariables).reduce((table, objectEntry) => {
+    const globalVariables = await this.globalVariables(uri);
+    return globalVariables.reduce((table, objectEntry) => {
       table[objectEntry.name] ??= [];
       table[objectEntry.name].push({
         identifier: objectEntry.name,
@@ -223,28 +250,29 @@ export class TypeSystem {
     }, {} as SymbolsTable);
   };
 
-  private globalVariables = memo(async () => {
-    const entries = await this.objectEntries();
-    return entries.filter(
-      (entry) => !entry.access || entry.access.global === true || entry.access.template.length > 0,
-    );
-  });
-
-  private contextualVariables = async (uri: string) => {
-    const entries = await this.objectEntries();
-    const contextualEntries = getContextualEntries(uri);
-    return entries.filter((entry) => contextualEntries.includes(entry.name));
+  /**
+   * The docset objects in scope in the file at `uri`, through the SAME predicate `UndefinedObject`
+   * judges them with.
+   *
+   * There used to be a second implementation here — `!entry.access || entry.access.global === true`
+   * — and `access.global` does not mean "in scope everywhere", it means "needs no parent". Against
+   * the shipped `objects.json` the two answers contradicted each other in four places: the editor
+   * offered `data` and `response` (api_call objects) in every partial, `content_for_layout` outside
+   * a layout, and `forloop` outside its loop, and the linter then reported `Unknown object` on the
+   * code the editor had just completed. The tool that suggests and the tool that judges must not
+   * disagree; where they do, the diagnostic wins.
+   *
+   * Not memoized. The answer depends on the file, and the scan is over ~25 entries; a per-file memo
+   * would cache a value whose key is the type rather than the URI, which is the kind of subtlety
+   * that put the second predicate here in the first place.
+   */
+  private globalVariables = async (uri: string) => {
+    const [entries, fileType] = await Promise.all([
+      this.objectEntries(),
+      this.getFileType?.(uri) ?? undefined,
+    ]);
+    return entries.filter((entry) => isObjectInScope(entry.access, fileType));
   };
-}
-
-const PARTIAL_FILE_REGEX = /(views[\/\\]partials[\/\\]|[\/\\]lib[\/\\])[^.]*\.liquid$/;
-
-function getContextualEntries(uri: string): string[] {
-  const normalizedUri = path.normalize(uri);
-  if (PARTIAL_FILE_REGEX.test(normalizedUri)) {
-    return ['app'];
-  }
-  return [];
 }
 
 /** An indexed representation on objects.json (by name) */
@@ -253,7 +281,7 @@ type ObjectMap = Record<ObjectEntryName, ObjectEntry>;
 /** An indexed representation on filters.json (by name) */
 type FiltersMap = Record<FilterEntryName, FilterEntry>;
 
-/** An identifier refers to the name of a variable, e.g. `x`, `product`, etc. */
+/** An identifier refers to the name of a variable, e.g. `x`, `current_user`, etc. */
 type Identifier = string;
 
 type ObjectEntryName = ObjectEntry['name'];
@@ -279,11 +307,11 @@ export type PseudoType = ObjectEntryName | String | Untyped | Unknown | 'number'
  * Just think of this:
  *
  *   {{ x }} # unknown
- *   {% assign x = all_products['cool-handle'] %}
- *   {{ x }} # product
- *   {% assign x = x.featured_image %}
- *   {{ x }} # image
- *   [% assign x = x.src %}]
+ *   {% assign x = context.current_user %}
+ *   {{ x }} # current_user
+ *   {% assign x = x.email %}
+ *   {{ x }} # string
+ *   {% assign x = x | upcase %}
  *   {{ x }} # string
  */
 interface TypeRange {
@@ -302,7 +330,7 @@ interface TypeRange {
   range: [start: number, end?: number];
 }
 
-/** Some things can be an array type (e.g. product.images) */
+/** Some things can be an array type (e.g. the result of `| split: ','`) */
 export type ArrayType = {
   kind: 'array';
   valueType: PseudoType;
@@ -535,7 +563,20 @@ async function buildSymbolsTable(
           objectMap &&
           filtersMap
         ) {
-          const returnType = isLiquidString(node.markup.partial)
+          /**
+           * THE OPERATOR DECIDES WHAT THE VARIABLE HOLDS. `{% function items << 'p' %}` APPENDS to
+           * `items`, so it holds an ARRAY of the partial's return values, not one of them — typing
+           * it as the return value made completion offer the returned hash's keys directly on
+           * `items`.
+           *
+           * The array is spelled, not given up on. An earlier revision named the append `Untyped`
+           * on the grounds that "there is no array-of<T> spelling here", and that was simply wrong
+           * about this file: {@link ArrayType} exists for a pseudo-type element, an array-shaped
+           * {@link ShapeType} exists for a structural one, and `inferShapeTypeLookupType` already
+           * resolves `[0]`, `first`, `last` and `size` on the latter. `shape-analysis.ts` models
+           * the same array for `UnknownProperty`; agreeing with it is the point.
+           */
+          const returned = isLiquidString(node.markup.partial)
             ? await inferFunctionReturnType(
                 node.markup.partial.value,
                 fs,
@@ -550,6 +591,8 @@ async function buildSymbolsTable(
                 app,
               ).catch(() => undefined)
             : undefined;
+
+          const returnType = node.markup.operator === '<<' ? arrayOf(returned) : returned;
           // A function result is in scope whatever it holds, so it is named either way.
           return { identifier, type: returnType ?? Untyped, range: [rangeStart] };
         }
@@ -802,14 +845,28 @@ function isProvablyBlank(
   return isProvablyBlank(assigned.node.expression, symbolsTable, seen);
 }
 
+/**
+ * The declared type of a `@param`, as a type this system can carry.
+ *
+ * INFERENCE, NOT VALIDATION, and the distinction is why this asks no docset what an author is allowed
+ * to write. A name it cannot represent becomes `Untyped`, which is what it already did for every
+ * unrecognised spelling; whether that name was legal is `ValidDocParamTypes`' question, and that check
+ * reads the published vocabulary to answer it. Two features would otherwise have to agree about the
+ * list, which is how this repository ended up with several copies of it.
+ */
 function inferLiquidDocParamType(node: LiquidDocParamNode, liquidDrops: ObjectEntry[]) {
   const paramTypeValue = node.paramType?.value;
 
   if (!paramTypeValue) return Untyped;
 
-  const validParamTypes = getValidParamTypes(liquidDrops);
+  // Every name this can DO something with: a type inference already speaks, or an object a value can
+  // be an instance of.
+  const knownParamTypes = new Set<string>([
+    ...DECLARABLE_TYPES,
+    ...liquidDrops.map((drop) => drop.name),
+  ]);
 
-  const parsedParamType = parseParamType(new Set(validParamTypes.keys()), paramTypeValue);
+  const parsedParamType = parseParamType(knownParamTypes, paramTypeValue);
 
   if (!parsedParamType) return Untyped;
 
@@ -819,9 +876,9 @@ function inferLiquidDocParamType(node: LiquidDocParamNode, liquidDrops: ObjectEn
 
   // Neither `object` nor `array` names an item type the type system can use — `array` is
   // already the array of unknowns that the `[]` suffix would produce.
-  if (type === BasicParamTypes.Object) {
+  if (type === 'object') {
     transformedParamType = Untyped;
-  } else if (type === BasicParamTypes.Array) {
+  } else if (type === 'array') {
     return arrayType(Untyped);
   } else {
     transformedParamType = type;
@@ -854,8 +911,8 @@ function inferLookupType(
    *
    * So, for x.images.first.src we do:
    * - curr = infer type of x                   | x
-   * - curr = x.images -> ArrayType<image>      | x.images
-   * - curr = images.first -> image             | x.images.first
+   * - curr = x.parts -> ArrayType<string>      | x.parts
+   * - curr = parts.first -> string             | x.parts.first
    * - curr = first.src -> string               | x.images.first.src
    *
    * Once were done iterating, the type of the lookup is curr.
@@ -870,8 +927,8 @@ function inferLookupType(
   for (let lookup of node.lookups) {
     // Here we redefine curr to be the returnType of the lookup.
 
-    // e.g. images[0] -> image
-    // e.g. images.first -> image
+    // e.g. parts[0] -> string
+    // e.g. parts.first -> string
     // e.g. images.size -> number
     if (isArrayType(curr)) {
       curr = inferArrayTypeLookupType(curr, lookup);
@@ -887,9 +944,9 @@ function inferLookupType(
       return Untyped;
     }
 
-    // e.g. product.featured_image -> image
-    // e.g. product.images -> ArrayType<images>
-    // e.g. product.name -> string
+    // e.g. context.current_user -> current_user
+    // e.g. x.parts -> ArrayType<string>
+    // e.g. current_user.email -> string
     else {
       curr = inferPseudoTypePropertyType(curr, lookup, objectMap);
     }
@@ -907,7 +964,7 @@ function inferLookupType(
  * Given a VariableLookup node, infer the type of its root (position-relative).
  *
  * e.g. for the following
- *   {% assign x = product %}
+ *   {% assign x = context.current_user %}
  *   {{ x.images.first }}
  *
  * This function infers the type of `x`.
@@ -922,7 +979,7 @@ function inferIdentifierType(
   const identifier = node.name;
 
   // We don't complete the global access edge case
-  // e.g. {{ ['all_products'] }}
+  // e.g. {{ ['current_user'] }}
   if (!identifier) {
     return Untyped;
   }
@@ -941,10 +998,10 @@ function inferIdentifierType(
 
 /**
  * infers the type of a lookup on an ArrayType
- * - images[0] becomes 'image'
- * - images[index] becomes 'image'
- * - images.first becomes 'image'
- * - images.last becomes 'image'
+ * - parts[0] becomes 'string'
+ * - parts[index] becomes 'string'
+ * - parts.first becomes 'string'
+ * - parts.last becomes 'string'
  * - images.size becomes 'number'
  * - anything else becomes 'untyped'
  */
@@ -1107,7 +1164,7 @@ function resolvedTypeToShape(
       case 'boolean':
         return { kind: 'primitive', primitiveType: 'boolean' };
       default:
-        // A documented object — `product`, `context` — has no shape: it has an ENTRY,
+        // A documented object — `current_user`, `context` — has no shape: it has an ENTRY,
         // with properties and documentation a shape cannot carry. Calling it a primitive,
         // as this did, made every caller stop resolving and show "any" instead.
         return undefined;
@@ -1131,9 +1188,9 @@ function inferPseudoTypePropertyType(
   const parentEntry: ObjectEntry | undefined = objectMap[curr];
 
   // When doing a non string lookup, we don't really know the type. e.g.
-  // products[0]
-  // products[true]
-  // products[(0..10)]
+  // parts[0]
+  // parts[true]
+  // parts[(0..10)]
   if (lookup.type !== NodeTypes.String) {
     return Untyped;
   }
@@ -1174,8 +1231,8 @@ function inferPseudoTypePropertyType(
   const property = parentEntry.properties?.find((property) => property.name === propertyName);
 
   // When the propety is not known, return Untyped. e.g.
-  // product.foo
-  // product.bar
+  // current_user.foo
+  // current_user.bar
   if (!property) {
     // Debating between returning Untyped or Unknown here
     // Might be that we have outdated docs. Prob better to return Untyped.
@@ -1183,8 +1240,8 @@ function inferPseudoTypePropertyType(
   }
 
   // When the property is known & we have docs for it, return its type. e.g.
-  // product.image
-  // product.images
+  // current_user.email
+  // context.current_user
   return objectEntryType(property);
 }
 
@@ -1199,6 +1256,20 @@ function objectEntryType(entry: ObjectEntry): PseudoType | ArrayType {
 /**
  * This function converts the return_type property in one of the .json
  * files into a PseudoType or ArrayType.
+ *
+ * DELIBERATELY NOT check-common's `docsetReturnType`, which answers the same question in the
+ * narrower `LiquidType` vocabulary. Two things are lost in that vocabulary and both are load-bearing
+ * here:
+ *
+ * - An OBJECT NAME. `PseudoType` includes every docset entry name, so `current_user` stays
+ *   `current_user` and hover and member completion resolve from its docset entry. Flattening it to
+ *   `object` is the mistake that cost ten LSP tests when the shape analyzer tried it.
+ * - An ELEMENT TYPE. `arrayType(array_value)` keeps what a `split` result holds, which is what types
+ *   the loop variable in `{% for part in parts %}`. `LiquidType` has one flat `array`.
+ *
+ * The diagnostics need neither, and paying for them would mean a type a check cannot act on. What
+ * the two DO share is the docset field they read; nothing here may grow an opinion about what a
+ * filter returns that `filters.json` does not state.
  */
 export function docsetEntryReturnType(
   entry: ObjectEntry | FilterEntry,
@@ -1221,6 +1292,19 @@ function isArrayReturnType(rt: ReturnType): rt is ArrayReturnType {
   return rt.type === 'array';
 }
 
+/**
+ * Whether the entry's `return_type` says anything {@link docsetEntryReturnType} can use.
+ *
+ * A PRESENT-BUT-EMPTY array element counts as nothing, which is the case that matters: the
+ * platformOS `split` entry publishes `[{ type: 'array', array_value: '' }]`, so a length check
+ * alone would rank it equal to the core entry's `array_value: 'string'` and let row order pick.
+ */
+function hasReturnTypeData(entry: ObjectEntry | FilterEntry): boolean {
+  const returnType = entry.return_type?.[0];
+  if (!returnType) return false;
+  return isArrayReturnType(returnType) ? !!returnType.array_value : !!returnType.type;
+}
+
 export function isArrayType(
   thing: PseudoType | ArrayType | ShapeType | UnionType,
 ): thing is ArrayType {
@@ -1231,6 +1315,23 @@ export function isShapeType(
   thing: PseudoType | ArrayType | ShapeType | UnionType,
 ): thing is ShapeType {
   return typeof thing !== 'string' && thing.kind === 'shape';
+}
+
+/**
+ * An array of `element`, in whichever of this file's two array spellings fits it.
+ *
+ * A structural element becomes an array-shaped {@link ShapeType}, which `shapeToType` produces
+ * from the analyzer's shapes and `inferShapeTypeLookupType` already knows how to subscript; a
+ * pseudo-type element becomes an {@link ArrayType}. An array OF an array, or of a union, has no
+ * spelling here and stays untyped — that one really is a gap, and it is a narrow one.
+ */
+function arrayOf(
+  element: PseudoType | ArrayType | ShapeType | UnionType | undefined,
+): PseudoType | ArrayType | ShapeType | undefined {
+  if (element === undefined) return undefined;
+  if (typeof element === 'string') return arrayType(element);
+  if (element.kind === 'shape') return shapeType({ kind: 'array', itemShape: element.shape });
+  return undefined;
 }
 
 /** Assumes findLast */
@@ -1547,24 +1648,25 @@ function shapeAnalyzerDeps(
 
   return {
     /**
-     * What this deps object's `resolveExternalShape` answers depends on the seed symbols
-     * table, and the only part of that the URI chooses is the CONTEXTUAL variables — a binary
-     * of the file's kind (`getContextualEntries`: `['app']` for a partial or lib file,
-     * nothing otherwise). The globals are the same everywhere and `objectMap` ignores its URI
-     * altogether, so this is the whole of the dependence, not an approximation of it.
+     * What this deps object's `resolveExternalShape` answers does NOT depend on the URI, so the
+     * identity is a constant.
      *
-     * Keyed on the KIND rather than the file, because the alternative over-partitions a cache
-     * that is module-level and capped: `runPartialAnalysis` builds the nested analyzer from
-     * these same deps, so a per-file identity keys a partial's entire `{% function %}` chain
-     * on whichever page reached it — forty pages sharing a five-deep chain would hold 240
-     * entries and recompute the chain forty times, where two suffice. Per-OBJECT identity
-     * would be worse still: a fresh deps object is built for every symbols table, so the memo
-     * would miss on every keystroke and never pay for itself.
+     * It used to carry the file's kind, because the seed symbols table added a contextual `app`
+     * for a partial or lib file. That object is Shopify's and is in no platformOS docset, so the
+     * two buckets the kind selected always held the same answer; the globals are the same
+     * everywhere and `objectMap` ignores its URI altogether.
+     *
+     * Not per-FILE, and this is the reason to keep it constant rather than "simplify" it later:
+     * the cache is module-level and capped, and `runPartialAnalysis` builds the nested analyzer
+     * from these same deps, so a per-file identity keys a partial's entire `{% function %}` chain
+     * on whichever page reached it — forty pages sharing a five-deep chain would hold 240 entries
+     * and recompute the chain forty times. Per-OBJECT identity would be worse still: a fresh deps
+     * object is built for every symbols table, so the memo would miss on every keystroke.
      *
      * Nothing about the resolver's presence is stated here — the cache reads that off `deps`
      * itself, which is what keeps the check next door from ever being handed one of these.
      */
-    analysisIdentity: `language-server/TypeSystem\0${getContextualEntries(uri).join(',')}`,
+    analysisIdentity: 'language-server/TypeSystem',
 
     readGraphQL: (name) =>
       once(graphqlDocuments, name, async () => {
@@ -1752,7 +1854,7 @@ function resolveExpressionShape(
       shape = result.shape;
     }
 
-    // A documented object is a TYPE, not a shape. Flattening `context` or a `product`
+    // A documented object is a TYPE, not a shape. Flattening `context` or a `current_user`
     // into a shape says only "some value" — while COSTING the caller the docset entry it
     // would otherwise have resolved, which is where the hover text and the property list
     // come from. Declining loses nothing: an unresolved read and a flattened one present

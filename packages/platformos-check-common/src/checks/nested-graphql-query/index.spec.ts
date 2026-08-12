@@ -6,7 +6,7 @@ describe('Module: NestedGraphQLQuery', () => {
   it('should not report graphql outside a loop', async () => {
     const offenses = await runLiquidCheck(
       NestedGraphQLQuery,
-      `{% graphql result = 'products/list' %}`,
+      `{% graphql result = 'items/list' %}`,
     );
     expect(offenses).to.have.length(0);
   });
@@ -14,7 +14,7 @@ describe('Module: NestedGraphQLQuery', () => {
   it('should report graphql inside a for loop', async () => {
     const offenses = await runLiquidCheck(
       NestedGraphQLQuery,
-      `{% for item in items %}{% graphql result = 'products/get' %}{% endfor %}`,
+      `{% for item in items %}{% graphql result = 'items/get' %}{% endfor %}`,
     );
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
@@ -25,7 +25,7 @@ describe('Module: NestedGraphQLQuery', () => {
   it('should report graphql inside a tablerow loop', async () => {
     const offenses = await runLiquidCheck(
       NestedGraphQLQuery,
-      `{% tablerow item in items %}{% graphql result = 'products/get' %}{% endtablerow %}`,
+      `{% tablerow item in items %}{% graphql result = 'items/get' %}{% endtablerow %}`,
     );
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
@@ -80,7 +80,7 @@ describe('Module: NestedGraphQLQuery', () => {
     const offenses = await check(
       {
         'app/views/pages/index.liquid': `{% for item in items %}{% function res = 'my_partial' %}{% endfor %}`,
-        'app/lib/my_partial.liquid': `{% graphql result = 'products/get' %}`,
+        'app/lib/my_partial.liquid': `{% graphql result = 'items/get' %}`,
       },
       [NestedGraphQLQuery],
     );
@@ -94,7 +94,7 @@ describe('Module: NestedGraphQLQuery', () => {
     const offenses = await check(
       {
         'app/views/pages/index.liquid': `{% for item in items %}{% render 'my_partial' %}{% endfor %}`,
-        'app/views/partials/my_partial.liquid': `{% graphql result = 'products/get' %}`,
+        'app/views/partials/my_partial.liquid': `{% graphql result = 'items/get' %}`,
       },
       [NestedGraphQLQuery],
     );
@@ -109,7 +109,7 @@ describe('Module: NestedGraphQLQuery', () => {
       {
         'app/views/pages/index.liquid': `{% for item in items %}{% function res = 'outer' %}{% endfor %}`,
         'app/lib/outer.liquid': `{% function inner_res = 'inner' %}`,
-        'app/lib/inner.liquid': `{% graphql result = 'products/get' %}`,
+        'app/lib/inner.liquid': `{% graphql result = 'items/get' %}`,
       },
       [NestedGraphQLQuery],
     );
@@ -144,7 +144,7 @@ describe('Module: NestedGraphQLQuery', () => {
     const offenses = await check(
       {
         'app/views/pages/index.liquid': `{% for item in items %}{% cache 'key' %}{% function res = 'my_partial' %}{% endcache %}{% endfor %}`,
-        'app/lib/my_partial.liquid': `{% graphql result = 'products/get' %}`,
+        'app/lib/my_partial.liquid': `{% graphql result = 'items/get' %}`,
       },
       [NestedGraphQLQuery],
     );

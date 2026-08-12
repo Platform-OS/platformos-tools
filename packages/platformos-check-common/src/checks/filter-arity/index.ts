@@ -1,6 +1,11 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
 
-import { FILTER_ARITY } from '../../filter-arity';
+import {
+  ResolvedArity,
+  acceptsArgumentCount,
+  filterArities,
+  resolveArity,
+} from '../../filter-arity-lookup';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
 
 /**
@@ -22,8 +27,8 @@ function argumentCount(args: { type: string }[]): number {
   return 1 + positional + (hasNamed ? 1 : 0);
 }
 
-const describeRange = ({ min, max }: { min: number; max: number }) =>
-  min === max ? `exactly ${min}` : `${min} to ${max}`;
+const describeRange = ({ min, max }: ResolvedArity) =>
+  max === null ? `at least ${min}` : min === max ? `exactly ${min}` : `${min} to ${max}`;
 
 export const FilterArity: LiquidCheckDefinition = {
   meta: {
@@ -44,17 +49,19 @@ export const FilterArity: LiquidCheckDefinition = {
   create(context) {
     return {
       async LiquidFilter(node) {
-        const arity = FILTER_ARITY[node.name];
+        const published = context.platformosDocset
+          ? filterArities(await context.platformosDocset.filters())
+          : new Map<string, ResolvedArity>();
+        const arity = resolveArity(node.name, published);
 
-        // UNKNOWN STAYS UNKNOWN. A filter with no measured arity — one the generator
-        // could not pin down (`dig` and friends are variadic), a module-provided
-        // filter, or anything newer than the last generation — must produce nothing.
-        // Guessing is how a gate starts refusing working code, and `UnknownFilter`
-        // already owns the separate question of whether the name exists at all.
+        // UNKNOWN STAYS UNKNOWN. A filter with no arity from either source — a module-provided
+        // filter, or anything newer than the docset — must produce nothing. Guessing is how a
+        // gate starts refusing working code, and `UnknownFilter` already owns the separate
+        // question of whether the name exists at all.
         if (!arity) return;
 
         const given = argumentCount(node.args);
-        if (given >= arity.min && given <= arity.max) return;
+        if (acceptsArgumentCount(arity, given)) return;
 
         context.report({
           // Phrased to line up with the runtime's own complaint — "wrong number of

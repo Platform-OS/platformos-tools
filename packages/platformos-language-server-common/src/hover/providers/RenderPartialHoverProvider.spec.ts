@@ -4,9 +4,9 @@ import { HoverProvider } from '../HoverProvider';
 
 import { GetDocDefinitionForURI, DocDefinition } from '@platformos/platformos-check-common';
 import { TranslationProvider } from '@platformos/platformos-common';
-import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
+import { MockFileSystem, publishedDocset } from '@platformos/platformos-check-common/src/test';
 
-const uri = 'file:///app/views/partials/product-card.liquid';
+const uri = 'file:///app/views/partials/item-card.liquid';
 
 describe('Module: RenderPartialHoverProvider', async () => {
   let provider: HoverProvider;
@@ -16,7 +16,7 @@ describe('Module: RenderPartialHoverProvider', async () => {
       parameters: [
         {
           name: 'title',
-          description: 'The title of the product',
+          description: 'The title of the item',
           type: 'string',
           required: true,
           nodeType: 'param',
@@ -28,7 +28,7 @@ describe('Module: RenderPartialHoverProvider', async () => {
       },
       examples: [
         {
-          content: '{{ product }}',
+          content: '{{ item }}',
           nodeType: 'example',
         },
       ],
@@ -40,7 +40,7 @@ describe('Module: RenderPartialHoverProvider', async () => {
       provider = createProvider(async () => mockPartialDefinition);
       // prettier-ignore
       const expectedHoverContent =
-`### product-card
+`### item-card
 
 **Description:**
 
@@ -48,14 +48,14 @@ describe('Module: RenderPartialHoverProvider', async () => {
 This is a description
 
 **Parameters:**
-- \`title\`: string - The title of the product
+- \`title\`: string - The title of the item
 
 **Examples:**
 \`\`\`liquid
-{{ product }}
+{{ item }}
 \`\`\``;
 
-      await expect(provider).to.hover(`{% render 'product-car█d' %}`, expectedHoverContent);
+      await expect(provider).to.hover(`{% render 'item-car█d' %}`, expectedHoverContent);
     });
 
     it('should return nothing if not in render tag', async () => {
@@ -68,13 +68,7 @@ This is a description
 const createProvider = (getPartialDefinition: GetDocDefinitionForURI) => {
   return new HoverProvider(
     new DocumentManager(),
-    {
-      graphQL: async () => null,
-      filters: async () => [],
-      objects: async () => [],
-      liquidDrops: async () => [],
-      tags: async () => [],
-    },
+    publishedDocset,
     new TranslationProvider(new MockFileSystem({})),
     async () => ({}),
     getPartialDefinition,

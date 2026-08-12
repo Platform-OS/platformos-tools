@@ -1,24 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { BasicParamTypes } from '@platformos/platformos-check-common';
 import { generateParamLine, generateDocTag } from './doc-generator';
 
 describe('Module: doc-generator', () => {
   describe('Unit: generateParamLine', () => {
     it('generates optional param line with brackets', () => {
-      const line = generateParamLine('name', BasicParamTypes.String, true);
+      const line = generateParamLine('name', 'string', true);
       expect(line).toBe('@param {string} [name]');
     });
 
     it('generates required param line without brackets', () => {
-      const line = generateParamLine('count', BasicParamTypes.Number, false);
+      const line = generateParamLine('count', 'number', false);
       expect(line).toBe('@param {number} count');
     });
 
     it('handles all basic param types', () => {
-      expect(generateParamLine('a', BasicParamTypes.String)).toBe('@param {string} [a]');
-      expect(generateParamLine('b', BasicParamTypes.Number)).toBe('@param {number} [b]');
-      expect(generateParamLine('c', BasicParamTypes.Boolean)).toBe('@param {boolean} [c]');
-      expect(generateParamLine('d', BasicParamTypes.Object)).toBe('@param {object} [d]');
+      expect(generateParamLine('a', 'string')).toBe('@param {string} [a]');
+      expect(generateParamLine('b', 'number')).toBe('@param {number} [b]');
+      expect(generateParamLine('c', 'boolean')).toBe('@param {boolean} [c]');
+      expect(generateParamLine('d', 'object')).toBe('@param {object} [d]');
     });
   });
 

@@ -83,6 +83,7 @@ export * from './utils/memo';
 export * from './utils/types';
 export * from './utils/object';
 export * from './visitor';
+export * from './liquid-types';
 export * from './liquid-doc/liquidDoc';
 export * from './liquid-doc/utils';
 export * from './url-helpers';

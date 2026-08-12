@@ -8,7 +8,7 @@ import {
   AppModel,
   SourceCodeType,
   visit,
-  BasicParamTypes,
+  declarableParamType,
   inferArgumentType,
 } from '@platformos/platformos-check-common';
 import { isLiquidHtmlNode } from '@platformos/liquid-html-parser';
@@ -39,17 +39,22 @@ function getPartialName(node: RenderMarkup | FunctionMarkup): string | undefined
 /**
  * Merge a new argument into the existing usage map.
  * When the same argument has different types across calls, use 'object'.
+ *
+ * The inferred type is narrowed to something an author could have WRITTEN. This is the one
+ * consumer that turns an inference into source text, and the vocabulary it infers from is wider
+ * than the one `@param` accepts: `{% render 'x', title: nil %}` used to produce the invalid
+ * `@param {null} title`, which `ValidDocParamTypes` reports the moment the file is generated.
  */
 function mergeArgument(existingArgs: Map<string, ArgumentInfo>, arg: LiquidNamedArgument): void {
   if (arg.value.type === NodeTypes.NamedArgument) return;
-  const inferredType = inferArgumentType(arg.value);
+  const inferredType = declarableParamType(inferArgumentType(arg.value));
   const existing = existingArgs.get(arg.name);
 
   if (existing) {
     existing.usageCount++;
     // If types differ, use 'object' as the fallback
     if (existing.inferredType !== inferredType) {
-      existing.inferredType = BasicParamTypes.Object;
+      existing.inferredType = 'object';
     }
   } else {
     existingArgs.set(arg.name, {

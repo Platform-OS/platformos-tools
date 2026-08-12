@@ -1,6 +1,36 @@
 import { expect, describe, it } from 'vitest';
-import { applyFix, runLiquidCheck } from '../../../test';
+import { applyFix, messagesOf, runLiquidCheck } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
+
+/**
+ * AGAINST THE SHIPPED `tags.json`, which is what a user's editor answers from.
+ *
+ * The declared docset below publishes `positional` on every tag parameter. The real one publishes
+ * it on none — and requiring `parameter.positional === false` therefore matched nothing, so every
+ * loop argument in the language was reported as unknown, with an autofix that deleted it. The
+ * declared docset could not show that, because the field it hinges on is one it invents.
+ */
+describe('detectInvalidLoopArguments, against the published documents', () => {
+  const check = (sourceCode: string) => runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+
+  it('accepts every loop argument the docset publishes', async () => {
+    expect({
+      namedNumber: messagesOf(await check(`{% for i in array limit: 2 %}{% endfor %}`)),
+      namedTwice: messagesOf(await check(`{% for i in array limit: 2 offset: 1 %}{% endfor %}`)),
+      positional: messagesOf(await check(`{% for i in array reversed %}{% endfor %}`)),
+      tablerow: messagesOf(
+        await check(`{% tablerow x in array cols: 2 limit: 10 %}{% endtablerow %}`),
+      ),
+    }).toEqual({ namedNumber: [], namedTwice: [], positional: [], tablerow: [] });
+  });
+
+  it('CONTROL: still reports an argument the docset does not publish', async () => {
+    // Without this, the silence above is satisfied by a check that reports nothing at all.
+    expect(messagesOf(await check(`{% for i in array bogus: 2 %}{% endfor %}`))).toEqual([
+      'Arguments must be provided in the format `for in <array> <positional arguments> <named arguments>`. Invalid/Unknown arguments: bogus: 2',
+    ]);
+  });
+});
 
 describe('detectInvalidLoopArguments', async () => {
   it('should not report when args are valid', async () => {
@@ -107,6 +137,13 @@ describe('detectInvalidLoopArguments', async () => {
   });
 });
 
+/**
+ * A DECLARED docset, for the branch the published one cannot reach: a tag parameter that says
+ * whether it is written by position. No shipped tag parameter carries `positional`, so the strict
+ * arm — `reversed: (1..2)` is wrong because `reversed` is positional — is unreachable with the real
+ * file and is exercised here instead. The tolerant arm, which is what every user gets, is measured
+ * against the shipped documents at the top of this file.
+ */
 function testCheck(sourceCode: string) {
   return runLiquidCheck(LiquidHTMLSyntaxError, sourceCode, undefined, {
     platformosDocset: {
@@ -139,6 +176,7 @@ function testCheck(sourceCode: string) {
       filters: () => Promise.resolve([]),
       objects: () => Promise.resolve([]),
       liquidDrops: () => Promise.resolve([]),
+      liquidDoc: () => Promise.resolve({ annotations: [], param_types: [] }),
     },
   });
 }

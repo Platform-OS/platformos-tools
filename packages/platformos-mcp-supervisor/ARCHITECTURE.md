@@ -110,8 +110,9 @@ never a serialized string protocol:
 - **`platformos-graph`** — the single cross-file dependency graph, used for
   cross-file checks and "did you mean?" nearest-match queries.
 - **`AugmentedPlatformOSDocset`** — the single docset wrapper (memoization,
-  alias expansion, undocumented-entry injection), fed by
-  `platformos-check-docs-updater`.
+  alias expansion), fed by `platformos-check-docs-updater`. It adds no filter or
+  tag vocabulary of its own: names, arity, parameters and return types come from
+  `filters.json` / `tags.json` and nowhere else.
 
 `Offense.fix` / `suggest` carry a `Fixer` *function*; concrete edits are
 obtained by running it through a check-common `StringCorrector` +

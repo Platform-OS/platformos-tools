@@ -74,9 +74,10 @@ function deprecatedFilterMessage(deprecated: FilterEntry, recommended?: FilterEn
   return `Deprecated filter '${deprecated.name}'.`;
 }
 
+/**
+ * The successor to offer as a rename, published from a `@replaced_by` annotation and gated by
+ * `verify_filters_json.rb`: a deprecated filter must name a successor, and it must be a real filter.
+ */
 function findRecommendedAlternative(deprecatedFilter: FilterEntry) {
-  const reason = deprecatedFilter.deprecation_reason;
-  const match = reason?.match(/replaced by \[`(.+?)`\]/);
-
-  return match?.[1];
+  return deprecatedFilter.deprecation_replacement?.trim() || undefined;
 }

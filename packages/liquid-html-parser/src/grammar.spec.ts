@@ -142,7 +142,7 @@ describe('Unit: liquidHtmlGrammar', () => {
     it('should parse or not parse HTML+Liquid', () => {
       grammars.forEach(({ grammar }) => {
         expectMatchSucceeded('<h6 data-src="hello world">').to.be.true;
-        expectMatchSucceeded('<a src="https://product"></a>').to.be.true;
+        expectMatchSucceeded('<a src="https://item"></a>').to.be.true;
         expectMatchSucceeded('<a src="https://google.com"></b>').to.be.true;
         expectMatchSucceeded(`<img src="hello" loading='lazy' enabled=true disabled>`).to.be.true;
         expectMatchSucceeded(`<img src="hello" loading='lazy' enabled=true disabled />`).to.be.true;
@@ -151,8 +151,8 @@ describe('Unit: liquidHtmlGrammar', () => {
         expectMatchSucceeded(`<-nope>`).to.be.false;
         expectMatchSucceeded(`<:nope>`).to.be.false;
         expectMatchSucceeded(`<1nope>`).to.be.false;
-        expectMatchSucceeded(`{{ product.feature }}`).to.be.true;
-        expectMatchSucceeded(`{{product.feature}}`).to.be.true;
+        expectMatchSucceeded(`{{ item.feature }}`).to.be.true;
+        expectMatchSucceeded(`{{item.feature}}`).to.be.true;
         expectMatchSucceeded(`{%- if A -%}`).to.be.true;
         expectMatchSucceeded(`{%-if A-%}`).to.be.true;
         expectMatchSucceeded(`{%- else-%}`).to.be.true;
@@ -164,13 +164,13 @@ describe('Unit: liquidHtmlGrammar', () => {
         expectMatchSucceeded(`{%- include 'layout' -%}`).to.be.true;
         expectMatchSucceeded(`{% render 'filename' for array as item %}`).to.be.true;
         expectMatchSucceeded(`{% assign variable_name = value %}`).to.be.true;
-        expectMatchSucceeded(`{% render "product", %}`).to.be.true;
-        expectMatchSucceeded(`{% render "product", product: product, %}`).to.be.true;
-        expectMatchSucceeded(`{% render "product" with foo as bar, %}`).to.be.true;
-        expectMatchSucceeded(`{% echo "product" | split: '', %}`).to.be.true;
-        expectMatchSucceeded(`{{ "product" | split: '', }}`).to.be.true;
-        expectMatchSucceeded(`{% function _res="product" %}`).to.be.true;
-        expectMatchSucceeded(`{% function res = "product", hello: "world" %}`).to.be.true;
+        expectMatchSucceeded(`{% render "item", %}`).to.be.true;
+        expectMatchSucceeded(`{% render "item", item: item, %}`).to.be.true;
+        expectMatchSucceeded(`{% render "item" with foo as bar, %}`).to.be.true;
+        expectMatchSucceeded(`{% echo "item" | split: '', %}`).to.be.true;
+        expectMatchSucceeded(`{{ "item" | split: '', }}`).to.be.true;
+        expectMatchSucceeded(`{% function _res="item" %}`).to.be.true;
+        expectMatchSucceeded(`{% function res = "item", hello: "world" %}`).to.be.true;
         expectMatchSucceeded(`{% graphql res="graphql" %}`).to.be.true;
         expectMatchSucceeded(`{% graphql res="graphql", param: "test" %}`).to.be.true;
         expectMatchSucceeded(`
@@ -263,7 +263,7 @@ describe('Unit: liquidHtmlGrammar', () => {
     it('should parse or not parse {% liquid %} lines', () => {
       grammars.forEach(({ grammar }) => {
         expectMatchSucceeded(`
-          if shop.money.format contains "{{ abc }}"
+          if context.language contains "{{ abc }}"
             echo "hi"
           endif
         `).to.be.true;

@@ -53,7 +53,6 @@ export enum NodeTypes {
   LiquidDocDescriptionNode = 'LiquidDocDescriptionNode',
   LiquidDocParamNode = 'LiquidDocParamNode',
   LiquidDocExampleNode = 'LiquidDocExampleNode',
-  LiquidDocPromptNode = 'LiquidDocPromptNode',
   JsonHashLiteral = 'JsonHashLiteral',
   JsonArrayLiteral = 'JsonArrayLiteral',
   JsonKeyValuePair = 'JsonKeyValuePair',

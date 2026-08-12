@@ -9,6 +9,10 @@ describe('Module: LiquidObjectHoverProvider', async () => {
   let provider: HoverProvider;
 
   beforeEach(async () => {
+    // `post` and `nested_type` are SYNTHETIC fixture types, not platformOS objects — no real
+    // docset entry has an array-valued property, which these tests need. They are spelled so that
+    // nobody mistakes them for published API, which the `image` and `app` entries they replaced
+    // could not manage: both are Shopify's.
     const _objects: ObjectEntry[] = [
       {
         name: 'context',
@@ -33,7 +37,7 @@ describe('Module: LiquidObjectHoverProvider', async () => {
         properties: [
           {
             name: 'thumbnail',
-            return_type: [{ type: 'image', name: '' }],
+            return_type: [{ type: 'nested_type', name: '' }],
           },
           {
             name: 'title',
@@ -53,12 +57,8 @@ describe('Module: LiquidObjectHoverProvider', async () => {
         return_type: [],
       },
       {
-        name: 'image',
-        description: 'image description',
-        access: { global: false, parents: [], template: [] },
-      },
-      {
-        name: 'app',
+        name: 'nested_type',
+        description: 'nested type description',
         access: { global: false, parents: [], template: [] },
       },
     ];
@@ -70,6 +70,7 @@ describe('Module: LiquidObjectHoverProvider', async () => {
         filters: async () => [],
         objects: async () => _objects,
         liquidDrops: async () => _objects,
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
       new TranslationProvider(new MockFileSystem({})),
@@ -152,23 +153,9 @@ describe('Module: LiquidObjectHoverProvider', async () => {
     await expect(provider).to.hover('{{ var█ }}', null);
   });
 
-  it('should support contextual objects by relative path', async () => {
-    const contexts: [string, string][] = [
-      ['app', 'app/views/partials/recommendations.liquid'],
-      ['app', 'app/lib/helpers/my-helper.liquid'],
-    ];
-    for (const [object, relativePath] of contexts) {
-      const source = `{{ ${object}█ }}`;
-      await expect(provider).to.hover(
-        { source, relativePath },
-        expect.stringContaining(`## ${object}`),
-      );
-      await expect(provider).to.hover(
-        { source, relativePath: 'app/views/layouts/main.liquid' },
-        null,
-      );
-    }
-  });
+  // A "contextual objects by relative path" test used to sit here, hovering `app` inside a partial
+  // or lib file. `app` is Shopify's theme app extension drop, absent from every platformOS docset,
+  // so the hover it asserted came entirely from the hard-coded exemption. Both are gone.
 
   it('should return null when hovering over an undefined variable', async () => {
     await expect(provider).to.hover(`{{ unknown█ }}`, null);

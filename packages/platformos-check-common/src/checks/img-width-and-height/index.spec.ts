@@ -30,7 +30,7 @@ describe('Module: ImgWidthAndHeight', () => {
 
   it('should report missing width and height attributes on img tags', async () => {
     const sourceCode = `
-      <a-{{ product.id }} href="example.com">content</a-{{ product.id }}>
+      <a-{{ item.id }} href="example.com">content</a-{{ item.id }}>
       <input type="submit">
       <img src="example.jpg">
     `;

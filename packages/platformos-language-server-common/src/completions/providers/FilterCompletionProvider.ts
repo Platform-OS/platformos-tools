@@ -107,7 +107,7 @@ export class FilterCompletionProvider implements Provider {
     // If the cursor is inside the filter or at the end and it's the same
     // value as the one we're offering a completion for then we want to restrict
     // the insert to just the name of the filter.
-    // e.g. `{{ product | imag█e_url: crop: 'center' }}` and we're offering `imag█e_url`
+    // e.g. `{{ name | trun█cate: 20 }}` and we're offering `trun█cate`
     const existingFilterOffset = remainingText.match(/[^a-zA-Z_]/)?.index ?? remainingText.length;
     if (node.name + remainingText.slice(0, existingFilterOffset) === entry.name) {
       newText = entry.name;
@@ -117,8 +117,8 @@ export class FilterCompletionProvider implements Provider {
 
     // If the cursor is at the beginning of the string we can consider all
     // options and should not replace any text.
-    // e.g. `{{ product | █image_url: crop: 'center' }}`
-    // e.g. `{{ product | █ }}`
+    // e.g. `{{ name | █truncate: 20 }}`
+    // e.g. `{{ name | █ }}`
     if (node.name === CURSOR) {
       end = start;
     }

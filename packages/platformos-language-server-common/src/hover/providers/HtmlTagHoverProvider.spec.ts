@@ -3,7 +3,7 @@ import { DocumentManager } from '../../documents';
 import { HoverProvider } from '../HoverProvider';
 
 import { TranslationProvider } from '@platformos/platformos-common';
-import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
+import { MockFileSystem, publishedDocset } from '@platformos/platformos-check-common/src/test';
 
 describe('Module: HtmlTagHoverProvider', async () => {
   let provider: HoverProvider;
@@ -11,13 +11,7 @@ describe('Module: HtmlTagHoverProvider', async () => {
   beforeEach(async () => {
     provider = new HoverProvider(
       new DocumentManager(),
-      {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      publishedDocset,
       new TranslationProvider(new MockFileSystem({})),
     );
   });

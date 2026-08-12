@@ -3,6 +3,7 @@ import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { HtmlData } from '../../docset';
 import { sortByName } from './common';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 
 const allTagNames = [...HtmlData.tags].sort(sortByName).map((x) => x.name);
 
@@ -12,13 +13,7 @@ describe('Module: HtmlTagCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
     });
   });
 

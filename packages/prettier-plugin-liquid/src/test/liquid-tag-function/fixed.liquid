@@ -48,3 +48,22 @@ printWidth: 1
   data: object
   | dig: 'results'
 %}
+
+It should preserve the append operator, which collects a partial result onto an array
+{% assign items = [] %}
+{% function items << 'partials/fetch_item', id: 1 %}
+{% function items << 'partials/fetch_item', id: 2 %}
+
+It should preserve the append operator with a bracket target
+{% function response['data'] << 'partials/fetch_user', id: 1 %}
+{% function response['a']['b'] << 'partials/fetch_user' %}
+
+It should normalise a dot target to brackets on append too
+{% function obj['prop'] << 'partial' %}
+
+It should preserve the append operator when breaking on long lines
+printWidth: 1
+{% function items << 'modules/core/api_calls/send',
+  data: object
+  | dig: 'results'
+%}

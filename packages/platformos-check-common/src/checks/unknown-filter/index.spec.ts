@@ -43,13 +43,13 @@ describe('Module: UnknownFilter', () => {
   });
 
   it('does not report on chain of known filters', async () => {
-    const sourceCode = `{{ "foo" | append: ".js" | item_count_for_variant }}`;
+    const sourceCode = `{{ "foo" | append: ".js" | array_include: 1 }}`;
     const offenses = await runLiquidCheck(UnknownFilter, sourceCode);
     expect(offenses).toHaveLength(0);
   });
 
   it('should not report an offense when a known filter is used (0)', async () => {
-    const sourceCode = `{{ 'hello' | item_count_for_variant }}`;
+    const sourceCode = `{{ 'hello' | array_include: 1 }}`;
     const offenses = await runLiquidCheck(UnknownFilter, sourceCode);
     expect(offenses).toHaveLength(0);
   });

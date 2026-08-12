@@ -89,6 +89,9 @@ export class CompletionsProvider {
       documentsLocator,
       findAppRootURI,
       (root) => documentManager.appModel(root),
+      // Object scope depends on the file's type — `data` belongs to an api_call, `content_for_layout`
+      // to a layout. The DocumentManager already holds it, so nothing re-derives it from the URI.
+      (uri) => documentManager.fileType(uri),
     );
     this.graphqlFieldCompletionProvider = new GraphQLFieldCompletionProvider(
       platformosDocset,
@@ -144,7 +147,7 @@ export class CompletionsProvider {
       new PartialCompletionProvider(getPartialNamesForURI),
       new RenderPartialParameterCompletionProvider(getDocDefinitionForURI),
       new FilterNamedParameterCompletionProvider(platformosDocset),
-      new LiquidDocTagCompletionProvider(fileTypeForURI),
+      new LiquidDocTagCompletionProvider(platformosDocset, fileTypeForURI),
       new LiquidDocParamTypeCompletionProvider(platformosDocset, fileTypeForURI),
       new FrontmatterKeyCompletionProvider(layoutNames, authPolicyNames, fileTypeForURI),
     ];

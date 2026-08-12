@@ -8,9 +8,13 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
   let provider: CompletionsProvider;
 
   beforeEach(async () => {
+    // SYNTHETIC names, deliberately. These fixtures need a shape platformOS does not publish — an
+    // object with an array-valued property — and the previous spelling borrowed Shopify's
+    // `item.images` / `image` for it, which reads as documentation of an API that does not
+    // exist. A name no docset could contain cannot be mistaken for one.
     const _objects: ObjectEntry[] = [
       {
-        name: 'settings',
+        name: 'no_properties',
         properties: [],
       },
       {
@@ -27,28 +31,28 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         properties: [{ name: 'prop3' }, { name: 'prop4' }],
       },
       {
-        name: 'product',
+        name: 'global_with_items',
         access: {
-          global: false,
+          global: true,
           parents: [],
-          template: ['product'],
+          template: [],
         },
         properties: [
           {
-            name: 'images',
+            name: 'items',
             return_type: [
               {
                 type: 'array',
-                array_value: 'image',
+                array_value: 'item_type',
               },
             ],
           },
         ],
       },
       {
-        name: 'image',
+        name: 'item_type',
         access: {
-          global: false, // image is a type, but not a global variable
+          global: false, // a type reached through a parent, never a variable of its own
           parents: [],
           template: [],
         },
@@ -71,21 +75,22 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         ],
         objects: async () => _objects,
         liquidDrops: async () => _objects,
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
     });
   });
 
   it('does not complete number lookups', async () => {
-    await expect(provider).to.complete('{{ product[01█ }}', []);
+    await expect(provider).to.complete('{{ global_with_items[01█ }}', []);
   });
 
   it('does not complete boolean lookups', async () => {
-    await expect(provider).to.complete('{{ product[tr█ }}', []);
+    await expect(provider).to.complete('{{ global_with_items[tr█ }}', []);
   });
 
   it('does complete string lookups', async () => {
-    await expect(provider).to.complete('{{ product["█ }}', ['images']);
+    await expect(provider).to.complete('{{ global_with_items["█ }}', ['items']);
   });
 
   it('has nothing to complete for numbers', async () => {
@@ -107,12 +112,12 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
       await expect(provider).to.complete('{{ global_access.█ }}', ['prop3', 'prop4']);
     });
 
-    it('returns the properties of non-global variables that could be global per template', async () => {
-      await expect(provider).to.complete('{{ product.█ }}', ['images']);
+    it('returns the properties of a global variable holding an array', async () => {
+      await expect(provider).to.complete('{{ global_with_items.█ }}', ['items']);
     });
 
     it('does not complete the properties of a non-global type', async () => {
-      await expect(provider).to.complete('{{ image.█ }}', []);
+      await expect(provider).to.complete('{{ item_type.█ }}', []);
     });
   });
 
@@ -127,7 +132,7 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
 
     it('returns the properties of the infered type of a deep lookup', async () => {
       const source = `
-        {% assign x = product.images.first %}
+        {% assign x = global_with_items.items.first %}
         {{ x.s█ }}
       `;
       await expect(provider).to.complete(source, ['src']);
@@ -135,8 +140,8 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
 
     it('returns the properties of the infered type of a series of threaded types', async () => {
       const source = `
-        {% assign x = product %}
-        {% assign y = x.images %}
+        {% assign x = global_with_items %}
+        {% assign y = x.items %}
         {% assign z = y.first %}
         {{ z.s█ }}
       `;
@@ -146,8 +151,8 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
     it('returns the properties of the infered type of a series of threaded types (liquid tag)', async () => {
       const source = `
         {% liquid
-          assign x = product
-          assign y = x.images
+          assign x = global_with_items
+          assign y = x.items
           assign z = y.first
           echo z.s█
         %}
@@ -162,8 +167,8 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
             {% # x is global_default %}
             {% assign x = global_default %}
 
-            {% # x is image only in for loop %}
-            {% ${tag} x in product.images %}
+            {% # x is item_type only in for loop %}
+            {% ${tag} x in global_with_items.items %}
               {{ x.s█ }}
             {% end${tag} %}
           `;
@@ -177,8 +182,8 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
         {% # x is global_default %}
         {% assign x = global_default %}
 
-        {% # x is image only in for loop %}
-        {% for x in product.images %}
+        {% # x is item_type only in for loop %}
+        {% for x in global_with_items.items %}
           {{ x.src }}
         {% endfor %}
 
@@ -212,15 +217,15 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
 
     it('returns the properties of the array_value', async () => {
       const sources = [
-        `{% assign x = product.images %}
+        `{% assign x = global_with_items.items %}
          {{ x.first.█ }}`,
-        `{% assign x = product.images %}
+        `{% assign x = global_with_items.items %}
          {{ x.last.█ }}`,
-        `{% assign x = product.images %}
+        `{% assign x = global_with_items.items %}
          {{ x[0].█ }}`,
-        `{% assign x = product.images %}
+        `{% assign x = global_with_items.items %}
          {{ x[1].█ }}`,
-        `{% assign x = product.images %}
+        `{% assign x = global_with_items.items %}
          {% assign lookup = 0 %}
          {{ x[lookup].█ }}`,
       ];
@@ -233,7 +238,7 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
   describe('Case: infered filter return type', () => {
     it('should return the properties of a string return type', async () => {
       const source = `
-        {% assign x = product.images.first.src | upcase | downcase %}
+        {% assign x = global_with_items.items.first.src | upcase | downcase %}
         {{ x.█ }}
       `;
       await expect(provider).to.complete(source, ['size']);
@@ -241,7 +246,7 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
 
     it('should return the properties of an array return type', async () => {
       const source = `
-        {% assign x = product.images.first.src | split: ',' %}
+        {% assign x = global_with_items.items.first.src | split: ',' %}
         {{ x.█ }}
       `;
       await expect(provider).to.complete(source, ['first', 'last', 'size']);

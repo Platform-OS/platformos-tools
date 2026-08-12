@@ -14,8 +14,8 @@ properties:
     const content = `properties:
   title:
     type: string
-name: product`;
-    expect(extractSchemaTable(content)).toBe('product');
+name: item`;
+    expect(extractSchemaTable(content)).toBe('item');
   });
 
   it('returns undefined when no `name:` is declared', () => {

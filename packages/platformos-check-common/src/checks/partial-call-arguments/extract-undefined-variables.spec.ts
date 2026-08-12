@@ -413,12 +413,12 @@ describe('Unit: undefinedVariablesOf memoization', () => {
   });
 
   it('keeps the analyses for different in-scope names apart', () => {
-    const file = appFile('{{ app.foo }}{{ widget }}');
+    const file = appFile('{{ context.foo }}{{ widget }}');
 
     expect({
       withoutGlobals: undefinedVariablesOf(file, []).required,
-      withGlobals: undefinedVariablesOf(file, ['app']).required,
-    }).toEqual({ withoutGlobals: ['app', 'widget'], withGlobals: ['widget'] });
+      withGlobals: undefinedVariablesOf(file, ['context']).required,
+    }).toEqual({ withoutGlobals: ['context', 'widget'], withGlobals: ['widget'] });
   });
 
   it('hands every caller its own arrays, so one caller cannot corrupt another', () => {

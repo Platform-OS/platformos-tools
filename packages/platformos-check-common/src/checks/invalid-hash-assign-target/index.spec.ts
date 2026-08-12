@@ -1,20 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import {
-  DOCSET_RETURN_TYPES,
-  DOCSET_RETURN_TYPE_GAPS,
-  InvalidHashAssignTarget,
-  variableTypeOf,
-} from './index';
-import {
-  FILTER_RETURN_TYPE_ORACLE,
-  HASH_RETURN_TYPE_FILTERS,
-  UNTYPED_RETURN_TYPE_SPELLINGS,
-  type FilterReturnTypeMeasurement,
-  type RuntimeOutcome,
-} from './filter-return-type-oracle';
-import filtersJson from '../../../../platformos-check-docs-updater/data/filters.json';
-import { UNDOCUMENTED_FILTERS } from '../../undocumented-filters';
+import { DOCSET_TYPES as DOCSET_RETURN_TYPES } from '../../liquid-types';
+import { InvalidHashAssignTarget, variableTypeOf } from './index';
 import { check, highlightedOffenses, MockApp, messagesOf, runLiquidCheck } from '../../test';
 import type { PlatformOSDocset } from '../../types';
 
@@ -249,11 +236,8 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
         { name: 'upcase', return_type: [{ type: 'string' }] },
         { name: 'size', return_type: [{ type: 'number' }] },
         { name: 'has', return_type: [{ type: 'boolean' }] },
-        // The two DOCSET DATA HOLES: no `return_type` at all, and one whose `type` is the
-        // empty string. Both are typed through DOCSET_RETURN_TYPE_GAPS from a direct
-        // runtime measurement, because the docset has nothing to map.
-        { name: 'new_line_to_br' },
-        { name: 'array_index_of', return_type: [{ type: '' }] },
+        { name: 'new_line_to_br', return_type: [{ type: 'string' }] },
+        { name: 'array_index_of', return_type: [{ type: 'number' }] },
         // Spellings the runtime settled, so they are interpreted rather than ignored.
         { name: 'to_time', return_type: [{ type: 'time' }] },
         { name: 'to_date', return_type: [{ type: 'date' }] },
@@ -442,13 +426,7 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
     ]);
   });
 
-  it('types the two filters the docset has NO return_type for, naming it as a data gap', async () => {
-    // AC#3, and the case that is a data defect rather than a modelling choice.
-    // `new_line_to_br` ships with no `return_type` and `array_index_of` with an empty one;
-    // `data/filters.json` is re-downloaded from documentation.platformos.com on every
-    // build, so the correction cannot live there. Both were measured directly — a String
-    // and an Integer, raising on either subscript — and typed through
-    // DOCSET_RETURN_TYPE_GAPS.
+  it('types new_line_to_br as a string and array_index_of as a number', async () => {
     expect([
       await offensesIn(`{% assign x = 'a' | new_line_to_br %}\n{% hash_assign x['k'] = 'v' %}`),
       await offensesIn(
@@ -472,41 +450,20 @@ describe('Module: InvalidHashAssignTarget — filter return types and subscripts
     ]);
   });
 
-  it('does NOT let the gap table override a spelling it declines to interpret', async () => {
-    // The rule that keeps DOCSET_RETURN_TYPE_GAPS from becoming a second, quieter mapping
-    // table: it answers only where the docset has NO data. `first_or_nil` carries a
-    // spelling (`string, nil`) this check refuses to interpret, so even if the gap table
-    // named it, the spelling would still win and the result would still be silence.
+  it('leaves a spelling it declines to interpret untyped', async () => {
     expect([
       variableTypeOf({ name: 'first_or_nil', return_type: [{ type: 'string, nil' }] }),
-      // A name the gap table DOES hold, but carrying a spelling — the spelling wins.
-      variableTypeOf({ name: 'new_line_to_br', return_type: [{ type: 'string, nil' }] }),
-      variableTypeOf({ name: 'new_line_to_br' }),
       variableTypeOf({ name: 'array_index_of', return_type: [{ type: '' }] }),
-      variableTypeOf({ name: 'not_a_real_filter' }),
-    ]).toEqual(['untyped', 'untyped', 'string', 'number', 'untyped']);
+    ]).toEqual(['untyped', 'untyped']);
   });
 
-  it('does NOT let the UNDOCUMENTED types override a spelling either', async () => {
-    // The same precedence rule for the second measured fallback, and it needs its own
-    // test for a reason worth writing down: NO undocumented filter carries a docset
-    // `return_type`, because being absent from the docset is what makes it undocumented.
-    // So the ordering cannot be distinguished by any real input — inverting it in the
-    // source changed nothing and every test still passed.
-    //
-    // A rule no data can exercise is a rule that quietly stops holding. These calls
-    // construct the collision directly: a name the undocumented map DOES hold, handed a
-    // spelling the check declines to interpret. The spelling has to win, or the map has
-    // become a second mapping table with weaker rules.
+  it('answers untyped for a filter the docset does not carry', async () => {
     expect([
-      variableTypeOf({ name: 'where', return_type: [{ type: 'string, nil' }] }),
-      variableTypeOf({ name: 'sum', return_type: [{ type: 'hash' }] }),
-      // ...and with no spelling to defer to, the measurement answers.
-      variableTypeOf({ name: 'where' }),
-      variableTypeOf({ name: 'sum' }),
-      variableTypeOf({ name: 'find' }),
-    ]).toEqual(['untyped', 'object', 'array', 'number', 'object']);
+      variableTypeOf({ name: 'not_a_real_filter' }),
+      variableTypeOf({ name: 'also_not_real', return_type: [] }),
+    ]).toEqual(['untyped', 'untyped']);
   });
+
   it('reports a primitive whatever the subscript is', async () => {
     // The runtime's complaint for a primitive is about the TARGET — "x is 5, expected
     // Hash or Array" — so unlike the Array case the subscript changes nothing.
@@ -770,6 +727,82 @@ describe('Module: InvalidHashAssignTarget — subscript writes', () => {
       ]).toEqual([[], [cannotAppend('x', 'Hash')]]);
     });
 
+    it('applies the same rule to the function tag, which also appends', async () => {
+      // `{% function items << 'p' %}` is the same append onto the same containers, and it went
+      // unjudged: the operator did not exist on this tag until the append form began to parse, so
+      // an append onto a String or a Hash cleared the write gate where the identical `{% assign %}`
+      // was refused.
+      //
+      // Asserted against the assign spelling row for row, because the claim is that the two are ONE
+      // rule — a table that only listed the function results could drift from it silently.
+      const containers: Array<[label: string, seed: string]> = [
+        ['array', ARRAY],
+        ['hash', HASH],
+        ['string', STRING],
+        ['number', NUMBER],
+        ['boolean', BOOLEAN],
+      ];
+
+      const measured = await Promise.all(
+        containers.map(async ([label, seed]) => [
+          label,
+          await messages(`${seed}{% function x << 'partials/p' %}`),
+          await messages(`${seed}{% assign x << 'v' %}`),
+        ]),
+      );
+
+      expect(measured).toEqual([
+        ['array', [], []],
+        ['hash', [cannotAppend('x', 'Hash')], [cannotAppend('x', 'Hash')]],
+        ['string', [cannotAppend('x', 'string')], [cannotAppend('x', 'string')]],
+        ['number', [cannotAppend('x', 'number')], [cannotAppend('x', 'number')]],
+        ['boolean', [cannotAppend('x', 'boolean')], [cannotAppend('x', 'boolean')]],
+      ]);
+    });
+
+    it('says nothing about a function append THROUGH a subscript, and leaves an Array an Array', async () => {
+      // Same two carve-outs as the assign spelling: a subscript append is the runtime's business at
+      // the subscript, and an append must not rebind the container to the appended type. The second
+      // row is the control that the visit still happens at all.
+      expect([
+        await messages(`${HASH}{% function x['k'] << 'partials/p' %}`),
+        await messages(`${ARRAY}{% function x << 'partials/p' %}{% assign x['k'] = 'v' %}`),
+      ]).toEqual([[], [needsIndex('assign', 'x')]]);
+    });
+
+    it('keeps the container type through a subscript function write, so later writes are judged', async () => {
+      // NOT JUDGING the subscript target is deliberate; FORGETTING what the container is was not.
+      // The function branch rebound the container to `untyped`, so the first row below reported
+      // nothing at all — while the identical code with the middle tag deleted, or spelled
+      // `{% assign %}`, reported the Hash append. A blocking check went blind to the write AFTER
+      // the one it declined to judge.
+      //
+      // The third row is the control in the other direction: the type is KEPT, not overwritten
+      // with 'hash', so an Array stays an Array and still demands an index.
+      expect([
+        await messages(`${HASH}{% function x['k'] << 'partials/p' %}{% assign x << 'v' %}`),
+        await messages(`${HASH}{% function x['k'] = 'partials/p' %}{% assign x << 'v' %}`),
+        await messages(`${ARRAY}{% function x[0] = 'partials/p' %}{% assign x['k'] = 'v' %}`),
+      ]).toEqual([
+        [cannotAppend('x', 'Hash')],
+        [cannotAppend('x', 'Hash')],
+        [needsIndex('assign', 'x')],
+      ]);
+    });
+
+    it('says nothing about an append onto the result of an element-returning filter', async () => {
+      // `find` returns an ELEMENT of the array it is handed, so its type is the array's element
+      // type and no probe can measure it: probing one against a fixture of hashes reads back
+      // `hash`, which is the fixture's shape and not the filter's. This check BLOCKS, so taking
+      // that reading refuses `{% assign row << 'v' %}` after any `| find` — i.e. on every array
+      // whose elements are arrays. The gem says `@liquid_return [untyped]`, and untyped is silence.
+      expect([
+        await messages(`{% assign row = rows | find: 'k', 1 %}{% assign row << 'v' %}`),
+        // The control, or the row above would pass with the append rule deleted outright.
+        await messages(`${HASH}{% assign x << 'v' %}`),
+      ]).toEqual([[], [cannotAppend('x', 'Hash')]]);
+    });
+
     it('leaves the Array it appended to an Array', async () => {
       // The second false block of the same shape: `<<` used to rebind the target to the
       // APPENDED value's type, so appending a number to an array made every later write to it
@@ -800,143 +833,29 @@ describe('Module: InvalidHashAssignTarget — subscript writes', () => {
 });
 
 /**
- * THE SWEEP. Every filter whose docset `return_type` makes this check willing to report,
- * driven through `assign` then `hash_assign` with both kinds of subscript, and settled
- * against what a live instance actually did.
- *
- * WHY ALL OF THEM AND NOT A SAMPLE. 173 filter names reach a reporting type, and this
- * check BLOCKS: a single wrong `return_type` among them is an unappealable refusal of
- * working code. Checking a dozen and finding them all correct says nothing about the
- * other 161, because sampling an accepting population cannot find an over-accepting
- * member. That is the same structural blindness that let twelve fictional names survive
- * in `undocumentedFilters` until a full sweep replaced the spot checks, and it is why
- * this file exists rather than a few more hand-picked cases.
- *
- * 173, NOT 140. Three things separate the docset's row count from the check's reach, and
- * each of them is a way a sweep can look complete while missing names:
- *
- *   140 reporting rows -> 138 names   `map` and `split` are each listed twice
- *   +28 alias names                   `expandAliases` re-emits every entry under each
- *                                     alias, `return_type` included, so `to_json`, `t`,
- *                                     `select`, `sort_by`, `map_attributes` and 23 more
- *                                     are reportable without appearing in filters.json
- *   +7 narrowed / gap-typed names     the date, datetime, time and array-of-arrays
- *                                     spellings, plus the two filters the docset carries
- *                                     no return_type for at all
- *
- * THE MEASUREMENTS ARE NOT MADE HERE. `filter-return-type-oracle.ts` is generated by
- * `scripts/verify-filter-return-types.mjs` against a real instance and committed; this
- * file is hermetic and runs in CI. The two halves are what make the sweep bite:
- *
- *   - the ORACLE says what the runtime does
- *   - this SPEC drives the real check over the real `filters.json`
- *
- * so a docset update that changes a `return_type` fails here instead of quietly changing
- * what the server refuses to write. When it does fail, re-run the generator: the fix is
- * either a corrected mapping in the check or a corrected row in the docset, and the
- * failure names which filter to look at.
- *
- * THE RESULT OF THE FIRST FULL SWEEP was that the docset is right about every one of the
- * 173, aliases and narrowed spellings included. That is a negative result, and it is worth having: the largest
- * unexamined surface in this check turned out to hold no over-accepting entry, and it is
- * now pinned rather than re-argued.
- */
-
-/**
- * Types that make the check REPORT. `object` and `untyped` are the two that never do.
- *
- * Derived from the check's own table rather than restated, so a spelling added there is
- * automatically in scope for the sweep instead of needing this list updated too.
- */
-const REPORTING_TYPES: ReadonlySet<string> = new Set<string>(
-  [...Object.values(DOCSET_RETURN_TYPES), ...Object.values(DOCSET_RETURN_TYPE_GAPS)].filter(
-    (type) => type !== 'object' && type !== 'untyped',
-  ),
-);
-
-interface DocsetFilter {
-  name: string;
-  aliases?: string[];
-  return_type?: Array<{ type: string }>;
-}
-
-/**
- * The reporting filters as the CHECK sees them.
- *
- * Mirrors `AugmentedPlatformOSDocset.filters()`: official entries, then one copy per
- * alias carrying the SAME return type. Order matters — the check builds a Map keyed by
- * name, so the last entry wins, which is also why `map` and `split` appearing twice in
- * `filters.json` collapses rather than conflicts.
- *
- * The undocumented filters the augmentation appends carry no `return_type` at all, so
- * they resolve to `untyped` and report nothing. They are NOT part of this population and
- * are NOT covered by `undocumented-filters.spec.ts` either — that file settles whether
- * the names exist, not what they return. See the dedicated test below, which names them
- * and their measured types so the gap is visible rather than assumed away.
- */
-const reportingFromDocset = (): Map<string, string> => {
-  const official = filtersJson as DocsetFilter[];
-  const aliases = official.flatMap((filter) =>
-    (filter.aliases ?? []).map((alias) => ({ ...filter, name: alias })),
-  );
-
-  const byName = new Map<string, string>();
-  for (const filter of [...official, ...aliases]) {
-    // The CHECK'S OWN resolver, not a reimplementation of it. Restating the mapping here
-    // would let the sweep agree with a copy of the rules while the real ones drifted.
-    const modelled = variableTypeOf(filter);
-    if (!REPORTING_TYPES.has(modelled)) continue;
-    byName.set(filter.name, modelled);
-  }
-  return byName;
-};
-
-/**
- * The real docset, handed to the check exactly as the runtime would.
- *
- * Deliberately NOT a hand-written mock. A mock proves the check can read a return type;
- * only the shipped data proves it reads THIS return type, for all 173, which is the
- * whole question. It is passed RAW: `runLiquidCheck` goes through the engine's own
- * `check()`, which wraps it in `AugmentedPlatformOSDocset` — so the aliases are expanded
- * by the real code path rather than by anything this file arranges.
- */
-const shippedDocset = {
-  async filters() {
-    return filtersJson;
-  },
-  async objects() {
-    return [];
-  },
-  async tags() {
-    return [];
-  },
-  async graphQL() {
-    return null;
-  },
-} as unknown as PlatformOSDocset;
-
-/**
  * Whether the check reports on `{% assign x = 'a' | <name> %}{% hash_assign x[…] %}`.
  *
- * THE ARGUMENTS ARE IRRELEVANT AND THAT IS THE POINT: the check reads the LAST filter's
- * name and looks its return type up in the docset. It never evaluates arguments, so
- * `'a' | ecdh_compute` exercises it identically to the fully-formed call the generator
- * had to build for the runtime — and no key material has to live in this repository.
+ * THE ARGUMENTS ARE IRRELEVANT AND THAT IS THE POINT: the check reads the LAST filter's name and
+ * looks its return type up in the docset. It never evaluates arguments, so `'a' | anything`
+ * exercises it identically to a fully-formed call.
  *
- * BOTH SHAPES ARE RUN because this check has already had one boundary defect that only
- * one of them could see: a range starts at the defining tag's end offset, and Liquid tags
- * may abut with nothing between them, so `{% assign %}{% hash_assign %}` and the same
- * pair split by a newline took different paths. A sweep that used one shape would have
- * had a blind spot exactly where the last bug was.
+ * BOTH SHAPES ARE RUN because this check has already had one boundary defect that only one of
+ * them could see: a range starts at the defining tag's end offset, and Liquid tags may abut with
+ * nothing between them, so `{% assign %}{% hash_assign %}` and the same pair split by a newline
+ * took different paths. Using one shape would leave a blind spot exactly where the last bug was.
  */
-const reportsFor = async (name: string, subscript: string): Promise<boolean> => {
+const reportsFor = async (
+  name: string,
+  subscript: string,
+  docset: PlatformOSDocset,
+): Promise<boolean> => {
   const assign = `{% assign x = 'a' | ${name} %}`;
   const hashAssign = `{% hash_assign x[${subscript}] = 'v' %}`;
 
   const shapes = await Promise.all(
     [`${assign}${hashAssign}`, `${assign}\n${hashAssign}`].map((source) =>
       runLiquidCheck(InvalidHashAssignTarget, source, 'app/views/partials/file.liquid', {
-        platformosDocset: shippedDocset,
+        platformosDocset: docset,
       }),
     ),
   );
@@ -952,381 +871,35 @@ const reportsFor = async (name: string, subscript: string): Promise<boolean> => 
   return adjacent;
 };
 
-/**
- * What the runtime did, for a row the transport could not carry an answer for.
- *
- * THREE FILTERS ARE UNMEASURABLE DIRECTLY, and the reason is a property of the probe
- * rather than of the runtime: `ecdh_compute`, `gzip_compress` and `hkdf` all return
- * binary, the runtime's complaint quotes the offending value back, and the resulting
- * response is an HTTP 406 that carries no body at all.
- *
- * They are settled by COMPOSITION rather than assumption, and only where the table
- * itself supports it: every one measured `type_of` as `String`, and every OTHER row that
- * measured `String` was measured raising for both subscripts. So the outcome is read off
- * the rows that share the runtime type — and if those rows ever disagree among
- * themselves, this throws instead of picking one. An inference the data stops supporting
- * must fail loudly, not silently become a guess.
- */
-const settledOutcome = (
-  row: FilterReturnTypeMeasurement,
-  bucket: 'keyAssign' | 'indexAssign',
-): RuntimeOutcome => {
-  if (row[bucket] !== 'unmeasured') return row[bucket];
-
-  const peers = new Set(
-    FILTER_RETURN_TYPE_ORACLE.filter(
-      (other) =>
-        other.name !== row.name &&
-        other.runtimeType === row.runtimeType &&
-        other[bucket] !== 'unmeasured',
-    ).map((other) => other[bucket]),
-  );
-
-  if (peers.size !== 1) {
-    throw new Error(
-      `${row.name}.${bucket} is unmeasured and cannot be settled: rows with runtimeType ` +
-        `"${row.runtimeType}" report ${peers.size === 0 ? 'nothing' : [...peers].join('/')}. ` +
-        `Re-run scripts/verify-filter-return-types.mjs or measure this filter directly.`,
-    );
-  }
-  return [...peers][0];
-};
-
-describe('Sweep: docset return types vs the runtime, for every reporting filter', () => {
-  it('covers exactly the filters the shipped docset makes reportable', async () => {
-    // THE TRIPWIRE. The oracle is measured data with a date on it; the docset ships
-    // separately and can gain, lose or retype a filter at any time. If those two sets
-    // ever differ, every assertion below is silently sweeping the wrong population — so
-    // this runs first and names the difference.
-    expect([...reportingFromDocset().keys()].sort()).toEqual(
-      FILTER_RETURN_TYPE_ORACLE.map((row) => row.name).sort(),
-    );
-  });
-
-  it('sweeps the alias names too, which appear nowhere in filters.json as filters', async () => {
-    // NAMED EXPLICITLY BECAUSE THIS WAS ALMOST MISSED. The sweep was built over
-    // `filters.json` and looked complete at 138 names; the check actually sees 173,
-    // because `expandAliases` re-emits every entry under each alias with the parent's
-    // `return_type` attached. Those 25 names are reportable, blocking, and absent from
-    // the docset's own filter list — so a sweep that reads only the docset covers them
-    // by accident or not at all.
-    //
-    // Pinned as a list rather than a count: a new alias on a reporting filter is a new
-    // name this check will refuse writes for, and it should arrive as a failure that
-    // says which one. Three joined the list when the date/array-of-arrays spellings and
-    // the two docset holes were narrowed — `add_to_date`, `parse_csv_rc` and `nl2br`.
-    expect(
-      FILTER_RETURN_TYPE_ORACLE.filter((row) => row.aliasOf).map(
-        (row) => `${row.name} < ${row.aliasOf}`,
-      ),
-    ).toEqual([
-      'add_to_array < array_add',
-      'add_to_date < date_add',
-      'any < array_any',
-      'compact < array_compact',
-      'date_before < is_date_before',
-      'flatten < array_flatten',
-      'in_groups_of < array_in_groups_of',
-      'intersection < array_intersect',
-      'is_included_in_array < array_include',
-      'jwe_encode_rc < jwe_encode',
-      'limit < array_limit',
-      'map_attributes < array_map',
-      'markdownify < markdown',
-      'nl2br < new_line_to_br',
-      'parse_csv_rc < parse_csv',
-      'prepend_to_array < array_prepend',
-      'reject < array_reject',
-      'rotate < array_rotate',
-      'select < array_select',
-      'shuffle_array < array_shuffle',
-      'sort_by < array_sort_by',
-      'subtract_array < array_subtract',
-      'sum_array < array_sum',
-      't < translate',
-      't_escape < translate_escape',
-      'to_json < json',
-      'to_xml_rc < to_xml',
-      'www_form_encode_rc < www_form_encode',
-    ]);
-  });
-
-  it('resolves every filter to the type the check itself derives, not to a restated rule', async () => {
-    // The other half of the tripwire: same names, same MODELLED type. A docset row
-    // retyped from `array` to `string` keeps its name and changes what the check refuses,
-    // and a mapping edit in `DOCSET_RETURN_TYPES` does the same without touching the
-    // docset at all. Both land here, because the right-hand side runs the check's own
-    // `variableTypeOf` over the shipped data.
-    const modelledNow = reportingFromDocset();
-    expect(
-      FILTER_RETURN_TYPE_ORACLE.map((row) => ({ name: row.name, modelled: row.modelled })),
-    ).toEqual(
-      FILTER_RETURN_TYPE_ORACLE.map((row) => ({
-        name: row.name,
-        modelled: modelledNow.get(row.name),
-      })),
-    );
-  });
-
-  it('fills a type from the gap table ONLY where the docset has no data at all', async () => {
-    // AC#3. `DOCSET_RETURN_TYPE_GAPS` is a workaround for missing upstream data, and the
-    // danger is that it quietly becomes a second mapping table with weaker rules. Two
-    // properties keep it honest, and both are asserted from the shipped docset:
-    //
-    //   1. every filter it names really does lack return-type data
-    //   2. every filter that lacks return-type data is named by it
-    //
-    // (2) is the one that bites later: if the docset loses a `return_type` for some other
-    // filter, that filter silently becomes untyped and this check goes blind to it. If
-    // the docs team FIXES these two upstream, (1) fails and tells us to delete the
-    // workaround — which is also the outcome we want.
-    const official = filtersJson as DocsetFilter[];
-    const withAliases = [
-      ...official,
-      ...official.flatMap((filter) =>
-        (filter.aliases ?? []).map((alias) => ({ ...filter, name: alias })),
-      ),
-    ];
-
-    const holes = withAliases
-      .filter(({ return_type: rt }) => !rt || rt.length === 0 || (rt.length === 1 && !rt[0].type))
-      .map((filter) => filter.name)
-      .sort();
-
-    expect({ holes, gapTable: Object.keys(DOCSET_RETURN_TYPE_GAPS).sort() }).toEqual({
-      holes: ['array_index_of', 'new_line_to_br', 'nl2br'],
-      gapTable: ['array_index_of', 'new_line_to_br', 'nl2br'],
-    });
-  });
-
-  it('never refuses a hash_assign the runtime accepts, and never accepts one it refuses', async () => {
-    // THE SWEEP ITSELF, in the only form that matters: the check's verdict against the
-    // runtime's, for all 173 filters and both subscripts.
-    //
-    // Asserted as an empty list of disagreements rather than 346 separate expectations,
-    // so a failure names every filter at once — a docset regression usually moves a
-    // whole spelling, not one entry, and seeing "45 array filters disagree" is a
-    // different diagnosis from seeing the first one fail.
-    const disagreements: Array<{
-      filter: string;
-      subscript: string;
-      checkReports: boolean;
-      runtime: RuntimeOutcome;
-    }> = [];
-
-    for (const row of FILTER_RETURN_TYPE_ORACLE) {
-      for (const [subscript, bucket] of [
-        [`'k'`, 'keyAssign'],
-        ['0', 'indexAssign'],
-      ] as const) {
-        const runtime = settledOutcome(row, bucket);
-        const checkReports = await reportsFor(row.name, subscript);
-
-        // `raised` is the runtime refusing the write, which is exactly when this check
-        // should report. Anything else is a false block or a false approval.
-        if (checkReports !== (runtime === 'raised')) {
-          disagreements.push({ filter: row.name, subscript, checkReports, runtime });
-        }
-      }
-    }
-
-    expect(disagreements).toEqual([]);
-  });
-
-  it('sweeps the whole reportable population, type by type', async () => {
-    // Pinned so a SHRINKING sweep is visible. "173 filters checked" reads the same
-    // whether the check can report on 173 names or 400, and a sweep that quietly stops
-    // covering 45 array filters is exactly the failure this whole file exists to prevent.
-    const byModelled: Record<string, number> = {};
-    for (const row of FILTER_RETURN_TYPE_ORACLE) {
-      byModelled[row.modelled] = (byModelled[row.modelled] ?? 0) + 1;
-    }
-
-    expect({ total: FILTER_RETURN_TYPE_ORACLE.length, byModelled }).toEqual({
-      total: 173,
-      // 138 docset names (140 rows; `map` and `split` are each listed twice), plus 32
-      // alias names the augmentation re-emits with the same return type, plus the three
-      // filters typed only through DOCSET_RETURN_TYPE_GAPS.
-      byModelled: { string: 87, array: 45, number: 19, boolean: 17, date: 3, time: 2 },
-    });
-  });
-
-  it('groups the date and time spellings the way the runtime does', async () => {
-    // The narrowing this sweep was extended for, asserted as data rather than as prose.
-    // `datetime` and `time` collapse onto one modelled type because the runtime returns a
-    // Time for both — if a future docset spelling were mapped by resemblance instead of
-    // by measurement, the row would show up here without a matching runtime type.
-    expect(
-      FILTER_RETURN_TYPE_ORACLE.filter((row) => row.modelled === 'date' || row.modelled === 'time')
-        .map((row) => `${row.name}: ${row.docsetSpelling} -> ${row.modelled} (${row.runtimeType})`)
-        .sort(),
-    ).toEqual([
-      'add_to_date: date -> date (Date)',
-      'add_to_time: time -> time (Time)',
-      'date_add: date -> date (Date)',
-      'to_date: date -> date (Date)',
-      'to_time: datetime -> time (Time)',
-    ]);
-  });
-
-  it('agrees with the runtime about which subscript an Array wants', async () => {
-    // The rule the old check did not know, stated as a property of the whole swept
-    // population rather than of one hand-picked filter: EVERY array-typed filter must
-    // refuse a key and accept an index, and every other reporting type must refuse both.
-    // A check that reported "not a Hash" for arrays would satisfy the sweep above for
-    // keys while being wrong about every index.
-    const shapes = new Set(
-      FILTER_RETURN_TYPE_ORACLE.map((row) =>
-        [
-          row.modelled === 'array' ? 'array' : 'other',
-          settledOutcome(row, 'keyAssign'),
-          settledOutcome(row, 'indexAssign'),
-        ].join('/'),
-      ),
-    );
-
-    expect([...shapes].sort()).toEqual(['array/raised/rendered', 'other/raised/raised']);
-  });
-});
-
-describe('Sweep: the filters this check deliberately says nothing about', () => {
-  it('lists every spelling it refuses to interpret, and what that silences', async () => {
-    // AC#5, and the reason it is worth a test: the silent population is invisible in the
-    // check's source, which names only the five spellings it DOES accept. Everything
-    // else becomes `untyped` by falling through a `??`. That is the safe direction — a
-    // missed detection, never a false block — but a NEW spelling appearing here is a
-    // group of filters the check just went blind to, and it should arrive as a failure.
-    // Both spellings are here on purpose rather than for want of a measurement. `untyped`
-    // describes values whose type depends on what was piped in — `first` of an Array of
-    // Hashes is a Hash — and `'string, nil'` is a union. No single probe can establish
-    // either, so silence stays the only safe reading. See DOCSET_RETURN_TYPES.
-    expect(UNTYPED_RETURN_TYPE_SPELLINGS).toEqual({
-      'string, nil': ['l', 'localize'],
-      untyped: [
-        'array_detect',
-        'deep_clone',
-        'default',
-        'delete_hash_key',
-        'detect',
-        'dig',
-        'fetch',
-        'first',
-        'hash_delete_key',
-        'hash_dig',
-        'hash_fetch',
-        'last',
-        'remove_hash_key',
-      ],
-    });
-  });
-
-  it('covers the UNDOCUMENTED filters too, each behaving as its measured type', async () => {
-    // THIS TEST USED TO ASSERT THE OPPOSITE, and the change is the point.
-    //
-    // `AugmentedPlatformOSDocset` appends `UNDOCUMENTED_FILTERS` as bare `{ name }`
-    // entries: real filters, proven to exist on an instance, but absent from the docs API
-    // and so carrying no `return_type`. Every one resolved to `untyped`, and this check
-    // said nothing about any of them — five of the six being types it WOULD report on.
-    // That was a real blind spot on names an agent reaches for by habit from Shopify
-    // Liquid, and it was pinned here as a known gap rather than left invisible.
-    //
-    // `verify-undocumented-filters.mjs` now measures each one's return type in the same
-    // pass that proves it exists, and `variableTypeOf` resolves it. So the assertion flips
-    // from "nothing is reported" to the exact per-filter behaviour:
-    //
-    //   find        -> hash     silent, and CORRECTLY so — a Hash is a valid target
-    //   find_index  -> number   reports on both subscripts
-    //   h           -> string   reports on both subscripts
-    //   has         -> boolean  reports on both subscripts
-    //   sum         -> number   reports on both subscripts
-    //   where       -> array    reports on a KEY, silent on an index
-    //
-    // `find` staying silent is what keeps this honest: a blanket "they all report now"
-    // would be wrong, and would mean the type was never really consulted.
-    expect([...UNDOCUMENTED_FILTERS]).toEqual(['find', 'find_index', 'h', 'has', 'sum', 'where']);
+describe('Module: InvalidHashAssignTarget — a return type it cannot interpret', () => {
+  it('reports nothing for a filter whose published spelling it does not recognise', async () => {
+    // Driven by an injected entry rather than the shipped docset, which publishes no unrecognised
+    // spelling today: the rule is that an unmapped spelling is silence, not a guess.
+    const docset = {
+      async filters() {
+        return [{ name: 'weird_filter', return_type: [{ type: 'chronomancer', name: '' }] }];
+      },
+      async objects() {
+        return [];
+      },
+      async tags() {
+        return [];
+      },
+      async graphQL() {
+        return null;
+      },
+    } as unknown as PlatformOSDocset;
 
     const reports = await Promise.all(
-      UNDOCUMENTED_FILTERS.flatMap((name) =>
-        [`'k'`, '0'].map(async (subscript) => ({
-          filter: `${name}[${subscript === '0' ? 'index' : 'key'}]`,
-          reports: await reportsFor(name, subscript),
-        })),
-      ),
+      [`'k'`, '0'].map(async (subscript) => ({
+        subscript,
+        reports: await reportsFor('weird_filter', subscript, docset),
+      })),
     );
 
     expect(reports).toEqual([
-      { filter: 'find[key]', reports: false },
-      { filter: 'find[index]', reports: false },
-      { filter: 'find_index[key]', reports: true },
-      { filter: 'find_index[index]', reports: true },
-      { filter: 'h[key]', reports: true },
-      { filter: 'h[index]', reports: true },
-      { filter: 'has[key]', reports: true },
-      { filter: 'has[index]', reports: true },
-      { filter: 'sum[key]', reports: true },
-      { filter: 'sum[index]', reports: true },
-      { filter: 'where[key]', reports: true },
-      { filter: 'where[index]', reports: false },
+      { subscript: `'k'`, reports: false },
+      { subscript: '0', reports: false },
     ]);
-  });
-
-  it('gives an undocumented Array filter the INDEX remedy, not the Hash one', async () => {
-    // AC#3's "correct remedy for each". `where` returns an Array, so a key subscript must
-    // get "use a numeric index" — the same wording every documented Array filter gets.
-    // Telling an author to convert it to a Hash would be wrong advice on working code,
-    // and is exactly what a type-blind "it reports now" implementation would produce.
-    const offenses = await runLiquidCheck(
-      InvalidHashAssignTarget,
-      `{% assign x = 'a' | where: 'k', 1 %}\n{% hash_assign x['k'] = 'v' %}`,
-      'app/views/partials/file.liquid',
-      { platformosDocset: shippedDocset },
-    );
-
-    expect(offenses.map((offense) => offense.message)).toEqual([
-      `Cannot use hash_assign on 'x' with a string key, because it is an Array. Use a numeric index instead.`,
-    ]);
-  });
-
-  it('separates the Hash-typed filters, which are silent because they are VALID targets', async () => {
-    // Not the same fact as the list above and must not be read as one. `hash` is a
-    // spelling the check RECOGNISES; it maps to `object`, and a Hash is a legitimate
-    // hash_assign target, so silence here is a correct verdict rather than ignorance.
-    expect(HASH_RETURN_TYPE_FILTERS).toEqual([
-      'add_hash_key',
-      'array_group_by',
-      'assign_to_hash_key',
-      'extract_url_params',
-      'group_by',
-      'hash_add_key',
-      'hash_except',
-      'hash_merge',
-      'hash_sort',
-      'jwt_decode',
-      'parse_json',
-      'parse_xml',
-      'to_hash',
-      'useragent',
-      'video_params',
-      'xml_to_hash',
-    ]);
-  });
-
-  it('reports nothing for an untyped filter, whichever subscript is used', async () => {
-    // The silence asserted as BEHAVIOUR, not just as a listing. One representative per
-    // unrecognised spelling, both subscripts — the listing above proves the mapping is
-    // known, this proves it is honoured.
-    const representatives = Object.values(UNTYPED_RETURN_TYPE_SPELLINGS).map((names) => names[0]);
-
-    const reports = await Promise.all(
-      representatives.flatMap((name) =>
-        [`'k'`, '0'].map(async (subscript) => ({
-          filter: name,
-          subscript,
-          reports: await reportsFor(name, subscript),
-        })),
-      ),
-    );
-
-    expect(reports.filter((entry) => entry.reports)).toEqual([]);
   });
 });

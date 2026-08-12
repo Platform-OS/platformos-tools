@@ -41,6 +41,7 @@ describe('Module: GraphQLFieldHoverProvider', () => {
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
       new TranslationProvider(new MockFileSystem({})),
@@ -87,6 +88,7 @@ describe('Module: GraphQLFieldHoverProvider', () => {
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
       new TranslationProvider(new MockFileSystem({})),
@@ -106,19 +108,19 @@ describe('Module: GraphQLFieldHoverProvider', () => {
   });
 
   it('should not interfere with .liquid file hover', async () => {
-    const source = '{{ product }}';
+    const source = '{{ item }}';
     const uri = 'file:///app/views/partials/test.liquid';
     documentManager.open(uri, source, 0);
 
     const textDocument = documentManager.get(uri)!.textDocument;
     const params: HoverParams = {
-      position: textDocument.positionAt(source.indexOf('product')),
+      position: textDocument.positionAt(source.indexOf('item')),
       textDocument: { uri },
     };
 
     // Should not crash — goes through normal Liquid pipeline
     const result = await provider.hover(params);
-    // product is not in the docset, so hover returns null
+    // item is not in the docset, so hover returns null
     expect(result).toBeNull();
   });
 });

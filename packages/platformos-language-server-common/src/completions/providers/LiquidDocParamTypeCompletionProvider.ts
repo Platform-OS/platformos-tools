@@ -4,11 +4,15 @@ import { LiquidCompletionParams } from '../params';
 import { Provider } from './common';
 import { FileTypeForURI } from '../../internal-types';
 import { makeSupportsLiquidDoc } from '../../utils/uri';
-import {
-  getValidParamTypes,
-  SupportedDocTagTypes,
-  PlatformOSDocset,
-} from '@platformos/platformos-check-common';
+import { getValidParamTypes, PlatformOSDocset } from '@platformos/platformos-check-common';
+
+/**
+ * `@param`'s spelling, which the PARSER owns: the grammar's `paramNode` rule is what makes this the one
+ * annotation with a type in braces, and the docset publishes the type list without saying which
+ * annotation takes it. The same exemption the grammar has, for the same reason — a completion here has
+ * to know the shape it is completing inside.
+ */
+const PARAM_ANNOTATION = '@param';
 
 export class LiquidDocParamTypeCompletionProvider implements Provider {
   private readonly supportsLiquidDoc: (uri: string) => Promise<boolean>;
@@ -46,15 +50,24 @@ export class LiquidDocParamTypeCompletionProvider implements Provider {
     const fragments = node.value.split(' ').filter(Boolean);
     if (
       fragments.length > 2 ||
-      fragments[0] !== `@${SupportedDocTagTypes.Param}` ||
+      fragments[0] !== PARAM_ANNOTATION ||
       !/^\{[a-zA-Z]*$/.test(fragments[1])
     ) {
       return [];
     }
 
-    const liquidDrops = await this.platformosDocset.liquidDrops();
+    const [vocabulary, liquidDrops] = await Promise.all([
+      this.platformosDocset.liquidDoc(),
+      this.platformosDocset.liquidDrops(),
+    ]);
 
-    return Array.from(getValidParamTypes(liquidDrops)).map(([label, description]) => {
+    // No published types means no completions — the alternative is offering the object names alone,
+    // which reads as "`string` is not a valid param type".
+    const validParamTypes = getValidParamTypes(vocabulary.param_types, liquidDrops);
+
+    if (!validParamTypes) return [];
+
+    return Array.from(validParamTypes).map(([label, description]) => {
       const documentation = description
         ? {
             kind: MarkupKind.Markdown,

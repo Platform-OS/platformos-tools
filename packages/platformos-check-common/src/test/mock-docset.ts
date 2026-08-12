@@ -1,4 +1,4 @@
-import { Dependencies } from '../types';
+import { Dependencies, LiquidDocVocabulary } from '../types';
 
 /**
  * A trimmed platformOS GraphQL schema, for checks that infer something from a query.
@@ -71,9 +71,22 @@ export function dependenciesWithSchema(sdl: string): Partial<Dependencies> {
       async liquidDrops() {
         return [];
       },
+      async liquidDoc() {
+        return NO_LIQUID_DOC;
+      },
       async tags() {
         return [];
       },
     },
   };
 }
+
+/**
+ * What a docset published before `liquid_doc.json` existed answers.
+ *
+ * The ONLY `{% doc %}` vocabulary written down in this repository, and it is the empty one — there is no
+ * hand-written list of annotations or types anywhere, because a test about the vocabulary reads the real
+ * published document (`published-docset.ts`). This exists for the docsets that predate it, which is every
+ * docset on a user's machine until documentation.platformos.com serves the endpoint.
+ */
+export const NO_LIQUID_DOC: LiquidDocVocabulary = { annotations: [], param_types: [] };

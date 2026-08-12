@@ -285,17 +285,16 @@ export type CheckDefinition<
  *     // Happens once per node, while going down the tree
  *   },
  *
- *   "AssignMarkup:exit": async (node, file) => {
- *     // Happens once per node, in reverse order
- *   },
- *
  *   async onCodePathEnd(file) {
  *     // Happens at the very end
  *   }
  * }
+ *
+ * There is one callback per node and no per-node exit callback: accumulate during the
+ * walk and act in `onCodePathEnd`.
  */
 export type Check<T> = T extends SourceCodeType
-  ? Partial<CheckNodeMethods<T> & CheckExitMethods<T> & CheckLifecycleMethods<T>>
+  ? Partial<CheckNodeMethods<T> & CheckLifecycleMethods<T>>
   : never;
 
 export type CheckNodeMethod<T extends SourceCodeType, NT> = (
@@ -306,26 +305,6 @@ export type CheckNodeMethod<T extends SourceCodeType, NT> = (
 type CheckNodeMethods<T extends SourceCodeType> = {
   /** Happens once per node, while going down the tree */
   [NT in NodeTypes[T]]: CheckNodeMethod<T, NT>;
-};
-
-type CheckExitMethods<T extends SourceCodeType> = {
-  /**
-   * Happens once per node, immediately AFTER its entry method and BEFORE any of its
-   * children — not after the subtree, despite the name.
-   *
-   * The walker dispatches entry, pushes the children, then dispatches exit, all in one
-   * iteration; the children are popped in later iterations. So `X:exit` runs while the
-   * subtree under `X` is still unvisited, which makes this a second entry callback
-   * rather than an exit one.
-   *
-   * This said "in reverse order" until the behaviour was recorded from the running code
-   * (`visitors/index.spec.ts`). No shipped check declares an `:exit` method,
-   * which is how prose describing the opposite of the implementation went unnoticed.
-   * The behaviour is left as-is deliberately and tracked in TASK-73 — a check written
-   * against the old comment would be subtly wrong, so the comment is what had to change
-   * first.
-   */
-  [NT in NodeTypes[T] as `${NT}:exit`]: CheckNodeMethod<T, NT>;
 };
 
 type CheckLifecycleMethods<T extends SourceCodeType> = {

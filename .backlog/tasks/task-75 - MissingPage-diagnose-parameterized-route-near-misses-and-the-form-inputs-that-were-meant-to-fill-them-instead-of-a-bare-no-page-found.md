@@ -106,6 +106,34 @@ If anyone believes they have a counter-example where an input *does* fill a segm
 probe against a live instance and record the result here before acting on it. Prose cannot fail;
 a probe can.
 
+### The counter-example that keeps coming back is a STALE DEPLOY
+
+Re-probed 2026-08-11 after `pos-module-user`'s `app/views/partials/admin/home/index.liquid`
+(a form posting to `/sessions/impersonations` with `<select name="user_id">`) was reported as a
+false positive. Same answer as the table above, and the instance that seems to disagree is
+explained rather than believed. On that instance:
+
+- `POST /sessions/impersonations` with `user_id=123` in the body → **200**
+- `POST /sessions/impersonations/123` → **404**
+
+the exact reverse of the repository — because the **deployed** `modules/user` predates
+`pos-module-user@f0bb64f` (2026-06-17), which changed the slug from `sessions/impersonations`
+to `sessions/impersonations/:user_id`. Under the old slug the bare path *is* the route and the
+extra segment is surplus, so both answers are ordinary path matching and no body param was
+read. **Compare a deploy, not a repository** — `pos-module.lock.json` said `user: 5.2.12`,
+whose checked-out source carries `:user_id`, and the instance still answered as the older code.
+A stale instance is the most convincing false counter-example available, because both of its
+answers are wrong in the direction that supports the wrong conclusion.
+
+Consequence for the app code: that form is **broken** against its own module's current page, as
+is any other caller still posting to the bare path. `f0bb64f` updated `pos-module-community`'s
+`admin/users/users/edit.liquid` to `/sessions/impersonations/{{ profile.user_id }}` and left
+this one behind.
+
+The semantics are pinned in `checks/missing-page/index.spec.ts` (describes `parameter segments
+are filled by the path and nothing else` and `true positives (must keep reporting)`) so they
+cannot regress while the message is being improved.
+
 ## Where the work lands
 
 - `packages/platformos-common/src/route-table/RouteTable.ts` — matching today answers one

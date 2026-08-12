@@ -15,14 +15,16 @@ import { visitJSON } from './json';
  * gives the same offenses on some files and different ones on others. Asserting the
  * whole sequence rather than a node count is what makes that visible.
  *
- * Two things in the recorded output are surprising, and BOTH are the current contract:
+ * Two things in the recorded output are worth knowing, and BOTH are the contract:
  *
- * 1. **`:exit` does not mean "after the subtree".** It fires in the same loop iteration
- *    as the entry method, immediately after the node's children are pushed and before
- *    any of them is popped — so every `X:exit` sits directly under its own `X`. It is
- *    effectively a second entry callback. `CheckExitMethods` in `types.ts` claims
- *    "Happens once per node, in reverse order", which is not what happens; no shipped
- *    check uses `:exit`, which is how the wrong prose survived. See TASK-73.
+ * 1. **Exactly one callback per node.** The recorder below offers a method for every
+ *    property asked of it, `` `${type}:exit` `` included, so these sequences are also
+ *    the proof that the walker never dispatches a second callback per node — a check
+ *    that wants to act after a subtree accumulates and acts in `onCodePathEnd`. The
+ *    per-node exit hook was removed in TASK-73: it fired BEFORE the subtree rather than
+ *    after, had no consumer among the shipped checks, and cost 33% of the walker's time
+ *    (a template-string allocation plus a lookup per node, measured over 80k node
+ *    visits). Re-adding it is a deliberate change that fails these two tests first.
  *
  * 2. **Sibling PROPERTIES come out in reverse declaration order, while sibling ARRAY
  *    ELEMENTS come out in document order.** The stack pops what was pushed last, so
@@ -73,37 +75,24 @@ describe('Unit: check-runner traversal order', () => {
 
     expect(events).toEqual([
       'Document',
-      'Document:exit',
       '  LiquidTag',
-      '  LiquidTag:exit',
       '    LiquidBranch',
-      '    LiquidBranch:exit',
       // The `<b>` element and the `{% assign %}` are array elements of `children`, so
       // they keep SOURCE order: element first, assign second. Push them forwards
       // instead of in reverse and this pair swaps.
       '      HtmlElement',
-      '      HtmlElement:exit',
       // … while this element's own properties do NOT keep declaration order:
       // `children` comes out before `name`.
       '        LiquidVariableOutput',
-      '        LiquidVariableOutput:exit',
       '          LiquidVariable',
-      '          LiquidVariable:exit',
       '            VariableLookup',
-      '            VariableLookup:exit',
       '        TextNode',
-      '        TextNode:exit',
       '      LiquidTag',
-      '      LiquidTag:exit',
       '        AssignMarkup',
-      '        AssignMarkup:exit',
       '          LiquidVariable',
-      '          LiquidVariable:exit',
       '            Number',
-      '            Number:exit',
       // The `{% if %}` condition, reached after the branch for the same reason.
       '    VariableLookup',
-      '    VariableLookup:exit',
     ]);
   });
 
@@ -116,31 +105,19 @@ describe('Unit: check-runner traversal order', () => {
 
     expect(events).toEqual([
       'Object',
-      'Object:exit',
       '  Property',
-      '  Property:exit',
       '    Object',
-      '    Object:exit',
       // A Property yields its VALUE before its KEY — property-order reversal again.
       '      Property',
-      '      Property:exit',
       '        Literal',
-      '        Literal:exit',
       '        Identifier',
-      '        Identifier:exit',
       '      Property',
-      '      Property:exit',
       '        Array',
-      '        Array:exit',
       // Array elements keep source order: `a` then `b`.
       '          Literal',
-      '          Literal:exit',
       '          Literal',
-      '          Literal:exit',
       '        Identifier',
-      '        Identifier:exit',
       '    Identifier',
-      '    Identifier:exit',
     ]);
   });
 });

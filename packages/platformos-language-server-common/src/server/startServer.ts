@@ -595,6 +595,24 @@ export function startServer(
    *
    * This is why the bulk of the cache invalidation logic is in this handler.
    */
+  /**
+   * A created or deleted file can bring a whole directory chain with it: writing
+   * `theme/v2/card.liquid` creates `theme/v2`, and the client reports the FILE only.
+   * Invalidating just the immediate parent leaves the listing of `theme/` stale, which is
+   * what made a new theme's partials unresolvable until the server restarted — the
+   * dynamic search path `theme/{{ … }}` expands by listing `theme/`.
+   *
+   * Dropping a listing nothing cached is a `Map.delete` miss, so walking to the scheme
+   * root costs nothing and needs no project root to stop at.
+   */
+  function invalidateDirectoryChain(uri: string) {
+    let dir = path.dirname(uri);
+    for (let previous = ''; dir !== previous; dir = path.dirname(dir)) {
+      fs.readDirectory.invalidate(dir);
+      previous = dir;
+    }
+  }
+
   connection.onDidChangeWatchedFiles(async (params) => {
     if (params.changes.length === 0) return;
 
@@ -644,9 +662,14 @@ export function startServer(
       switch (change.type) {
         case FileChangeType.Created:
           // A created file invalidates readDirectory, readFile and stat
-          fs.readDirectory.invalidate(path.dirname(change.uri));
+          invalidateDirectoryChain(change.uri);
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
+          // A directory that appeared is also a prefix a dynamic search path may now
+          // expand to, and that expansion is cached separately from the listings it was
+          // computed from. `app/config.yml` was its only invalidation point, and adding a
+          // theme does not touch the config.
+          documentsLocator.clearExpandedPathsCache();
           appGraphManager.create(change.uri);
           // If a file is created under out feet, we update its contents.
           updates.push(
@@ -685,9 +708,12 @@ export function startServer(
 
         case FileChangeType.Deleted:
           // A deleted file invalides readDirectory, readFile, and stat
-          fs.readDirectory.invalidate(path.dirname(change.uri));
+          invalidateDirectoryChain(change.uri);
           fs.readFile.invalidate(change.uri);
           fs.stat.invalidate(change.uri);
+          // The last file under a theme directory going away removes the prefix the
+          // expansion cache is holding, for the same reason as Created above.
+          documentsLocator.clearExpandedPathsCache();
           appGraphManager.delete(change.uri);
           if (changedPage) definitionsProvider.onPageFileDeleted(change.uri);
           // If a file is deleted, it's removed from the document manager

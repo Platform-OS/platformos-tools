@@ -476,6 +476,61 @@ describe('Module: server', () => {
     expect(result2[0].targetUri).toContain('theme/simple/card.liquid');
   });
 
+  /**
+   * A dynamic search path expands by LISTING the directory above it, and both that
+   * listing and the expansion it produced were cached with `app/config.yml` as their only
+   * invalidation point — while adding a theme does not touch the config. The client
+   * reports the created FILE, so the listing of `theme/` (the grandparent) has to be
+   * dropped too, not only the file's own directory.
+   *
+   * That the expansion is still CACHED — i.e. the fix is invalidation and not deletion —
+   * is pinned where it can fail, in `platformos-common`'s `DocumentsLocator.spec.ts`
+   * ('should cache expanded paths across calls' and 'serves the stale expansion until the
+   * cache is cleared'). Counting listings here cannot see it: everything is re-warmed by
+   * the re-check that the same notification triggers.
+   */
+  it('go-to-definition finds a theme directory created after the first resolution', async () => {
+    fileTree['app/config.yml'] = 'theme_search_paths:\n  - theme/{{ context.constants.THEME }}';
+    fileTree['app/views/partials/theme/v1/card.liquid'] = 'v1 card';
+
+    connection.setup();
+    await flushAsync();
+
+    connection.openDocument(filePath, "{% theme_render_rc 'card' %}");
+    await flushAsync();
+
+    const params = { textDocument: { uri: fileURI }, position: { line: 0, character: 21 } };
+    const first = (await connection.triggerRequest(DefinitionRequest.method, params)) as any[];
+    expect(first.map((location) => location.targetUri)).toEqual([
+      path.join(mockRoot, 'app/views/partials/theme/v1/card.liquid'),
+    ]);
+
+    // A new theme arrives and the old one goes. VS Code reports the FILES, never the
+    // directories that came and went with them.
+    fileTree['app/views/partials/theme/v2/card.liquid'] = 'v2 card';
+    delete fileTree['app/views/partials/theme/v1/card.liquid'];
+    connection.triggerNotification(DidChangeWatchedFilesNotification.type, {
+      changes: [
+        {
+          uri: path.join(mockRoot, 'app/views/partials/theme/v2/card.liquid'),
+          type: FileChangeType.Created,
+        },
+        {
+          uri: path.join(mockRoot, 'app/views/partials/theme/v1/card.liquid'),
+          type: FileChangeType.Deleted,
+        },
+      ],
+    });
+    await flushAsync();
+
+    // `?? []` rather than a non-null assertion: without the invalidation this request
+    // answers `null`, and the empty array makes that a value diff instead of a TypeError.
+    const second = (await connection.triggerRequest(DefinitionRequest.method, params)) as any[];
+    expect((second ?? []).map((location: any) => location.targetUri)).toEqual([
+      path.join(mockRoot, 'app/views/partials/theme/v2/card.liquid'),
+    ]);
+  });
+
   it('should invalidate search-paths cache immediately when app/config.yml is saved', async () => {
     connection.setup();
     await flushAsync();

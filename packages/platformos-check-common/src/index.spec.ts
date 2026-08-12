@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { allChecks } from './checks';
 import { GraphQLCheck } from './checks/graphql';
 import { GraphQLVariablesCheck } from './checks/graphql-variables';
+import { NestedGraphQLQuery } from './checks/nested-graphql-query';
 import { UnknownProperty } from './checks/unknown-property';
 import { CHECK_ERROR_CODE, check as coreCheck, Config, Dependencies, sourceParsers } from './index';
 import * as path from './path';
@@ -449,6 +450,78 @@ describe('a .graphql file is parsed once per run', () => {
       'GraphQLVariablesCheck: Unknown parameter id passed to GraphQL call',
       'GraphQLVariablesCheck: Unknown parameter nope passed to GraphQL call',
       "UnknownProperty: Unknown property 'nope' on 'result.records'.",
+    ]);
+  });
+});
+
+/**
+ * The same discipline for a LIQUID partial, and for the one check that follows a call
+ * chain across files: `NestedGraphQLQuery` walks `{% function %}`/`{% render %}` targets
+ * looking for a `{% graphql %}` inside them.
+ *
+ * The counting parser REWRITES a marker, so the app's parse is one no consumer can
+ * reproduce from the source: read the partial through the app and the tag is there, read
+ * and parse it yourself and it is not. The offense is therefore evidence about WHICH
+ * parse the check used, not only about how many parses happened.
+ */
+describe('a partial in a call chain is parsed once, by the app', () => {
+  const MARKER = 'ZZ_GRAPHQL_ZZ';
+  const PAGE_WITH_LOOP = 'app/views/pages/loop.liquid';
+  const SECOND_PAGE_WITH_LOOP = 'app/views/pages/loop-again.liquid';
+
+  const appDesc: MockApp = {
+    [PAGE_WITH_LOOP]: `{% for item in items %}{% function res = 'get_data' %}{% endfor %}`,
+    // A second call site in a different file: the partial is parsed once for BOTH.
+    [SECOND_PAGE_WITH_LOOP]: `{% for item in items %}{% function res = 'get_data' %}{% endfor %}`,
+    'app/views/partials/get_data.liquid': MARKER,
+  };
+
+  let liquidParses: string[];
+  let run: () => Promise<Offense[]>;
+
+  beforeEach(() => {
+    liquidParses = [];
+
+    const liquidParser = sourceParsers[SourceCodeType.LiquidHtml] as Parser;
+    const countingParsers: Parsers = {
+      ...sourceParsers,
+      [SourceCodeType.LiquidHtml]: (source, uri) => {
+        liquidParses.push(uri);
+        return liquidParser(source.replace(MARKER, `{% graphql result = 'x' %}`), uri);
+      },
+    };
+
+    const fs = new MockFileSystem({ '.platformos-check.yml': '', ...appDesc });
+    const app = AppModel.fromSources(mockRootUri, appDesc, fs, countingParsers);
+
+    run = () =>
+      coreCheck(
+        app,
+        {
+          settings: {},
+          checks: [NestedGraphQLQuery],
+          rootUri: mockRootUri,
+          onError: (error) => {
+            throw error;
+          },
+        },
+        createMockDependencies(fs, app),
+      );
+  });
+
+  it('reports through the app’s parse, and parses the partial once for two call sites', async () => {
+    const offenses = await run();
+
+    expect(offenses.map((offense) => `${offense.check}: ${offense.message}`).sort()).toEqual([
+      "NestedGraphQLQuery: N+1 pattern: {% function 'get_data' %} inside a {% for %} loop " +
+        'transitively calls a GraphQL query (get_data). Move the query before the loop and ' +
+        'pass data as a variable.',
+      "NestedGraphQLQuery: N+1 pattern: {% function 'get_data' %} inside a {% for %} loop " +
+        'transitively calls a GraphQL query (get_data). Move the query before the loop and ' +
+        'pass data as a variable.',
+    ]);
+    expect(liquidParses.filter((uri) => uri.endsWith('get_data.liquid'))).toEqual([
+      `${mockRootUri}app/views/partials/get_data.liquid`,
     ]);
   });
 });

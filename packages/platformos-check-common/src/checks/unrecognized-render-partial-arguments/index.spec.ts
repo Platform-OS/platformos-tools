@@ -35,7 +35,7 @@ describe('Module: UnrecognizedRenderPartialParams', () => {
         required_string: 'My Card',
         required_number: 1,
         required_boolean: true,
-        required_object: product,
+        required_object: item,
         unknown_param: 'unknown',
         second_unknown_param: 'second unknown',
         %}

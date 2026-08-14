@@ -146,15 +146,20 @@ Liquid <: Helpers {
   liquidTagEchoMarkup = liquidVariable<delimTag>
 
   liquidTagAssign = liquidTagRule<"assign", liquidTagAssignMarkup>
-  liquidTagAssignMarkup = assignTarget<delimTag> space* assignOperator space* liquidAssignValue<delimTag>
+  liquidTagAssignMarkup = assignTarget<delimTag> space* writeOperator space* liquidAssignValue<delimTag>
 
   // Assign-specific sub-rules
   assignTarget<delim> = variableSegment lookup<delim>*
-  // Only one operator per assign: either `=` (regular assignment) or `<<` (push).
+  // Only one operator per write: either `=` (regular assignment) or `<<` (push).
   // The two forms are mutually exclusive — `{% assign a << "item" %}` pushes onto `a`,
   // and `{% assign a = value %}` assigns to `a`. A compound shape like
   // `{% assign a = b << c %}` is INVALID per the platformOS runtime.
-  assignOperator = "<<" | "="
+  //
+  // Shared with `function`, whose append form collects a partial's return value into an array:
+  // `{% function items << 'path/to/partial' %}`. NOT shared with `hash_assign`, which was
+  // measured to reject it — "Syntax Error in 'hash_assign' - Valid syntax:
+  // hash_assign hash[key] = value" — so that tag keeps a bare "=".
+  writeOperator = "<<" | "="
 
   // The RHS of an assign: a regular value (expression + optional filters).
   liquidAssignValue<delim> = liquidAssignVariable<delim>
@@ -225,7 +230,13 @@ Liquid <: Helpers {
     liquidString<delimTag> renderVariableExpression? renderAliasExpression? renderArguments
 
   liquidTagFunction = liquidTagRule<"function", liquidTagFunctionMarkup>
-  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* "=" space* partialExpression resultFilterRenderArguments liquidFilter<delimTag>* space*
+  // `writeOperator`, not a bare "=", because the append form is real: `{% function items << 'p' %}`
+  // collects the partial's return value onto an array. Measured on a live instance — it reaches
+  // partial resolution ("can't find partial") where a genuine syntax error reports
+  // "Invalid syntax for function tag" — so the runtime parses it and this grammar has to as well.
+  // An lvalue target (`response["data"] << 'p'`) needs nothing extra: `liquidVariableLookup`
+  // already carries the lookups.
+  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* writeOperator space* partialExpression resultFilterRenderArguments liquidFilter<delimTag>* space*
 
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
   liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments liquidFilter<delimTag>* space*
@@ -749,7 +760,6 @@ LiquidDoc <: Helpers {
     | paramNode
     | exampleNode
     | descriptionNode
-    | promptNode
     | fallbackNode
   
   endOfDescription = strictSpace* openControl
@@ -760,8 +770,25 @@ LiquidDoc <: Helpers {
   strictSpace = " " | "\t"
   // We use this as an escape hatch to stop matching TextNode and try again when one of these characters is encountered
   openControl:=  strictSpace* ("@" | end)
-  // List of supported tags we use to identify boundaries
-  supportedTags = "@prompt" | "@example" | "@description" | "@param"
+  // The `{% doc %}` annotations, and THE ONE COPY of that vocabulary this repository keeps.
+  //
+  // Everything else about an annotation — which ones exist for an author, what each one means, the
+  // worked example an editor shows, the types a `@param` may name — is published by the platform in
+  // `liquid_doc.json` and read from the docset. This list cannot be, for exactly the reason
+  // `NamedTags` cannot: a parse is synchronous and has no docset, and the boundary between one
+  // annotation and the free-form text of the last one has to be decided while parsing.
+  //
+  // It once carried a fourth, `@prompt` — Shopify Magic's AI-provenance annotation, which arrived
+  // with the fork. platformOS publishes no such annotation, nothing in the toolchain ever read one,
+  // and the grammar was the only reason it existed. An `@prompt` an author already wrote still
+  // parses and still survives a format: it falls through to `fallbackNode` and its lines come out
+  // as text, which the printer emits verbatim. `stage-2-ast.spec.ts` and the `liquid-doc-prompt`
+  // formatter fixture pin both halves, because the printer REGENERATES source and a construct the
+  // AST stops carrying is deleted from the author's file silently.
+  //
+  // Nothing downstream may read this list as the vocabulary — `guards/liquid-doc-vocabulary.spec.ts`
+  // names this file as the single exemption and fails the build on a second copy anywhere else.
+  supportedTags = "@example" | "@description" | "@param"
 
 
   paramNode = "@param" strictSpace* paramType? strictSpace* (optionalParamName | paramName) (strictSpace* "-")? strictSpace* paramDescription
@@ -775,8 +802,6 @@ LiquidDoc <: Helpers {
   paramDescription = (~"]" anyExceptStar<endOfParam>)
   endOfParam = strictSpace* (newline | end)
   
-  // Prompt node is system-controlled, so we don't strip the leading spaces to maintain indentation
-  promptNode = "@prompt"  multilineTextContent
   exampleNode = "@example" space* multilineTextContent
   descriptionNode = "@description" space* multilineTextContent
 

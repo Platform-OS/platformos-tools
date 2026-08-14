@@ -38,7 +38,15 @@ export class HoverProvider {
     readonly getDocDefinitionForURI: GetDocDefinitionForURI = async () => undefined,
     readonly findAppRootURI: FindAppRootURI = async () => null,
   ) {
-    const typeSystem = new TypeSystem(platformosDocset);
+    const typeSystem = new TypeSystem(
+      platformosDocset,
+      undefined, // fs
+      undefined, // documentsLocator
+      undefined, // findAppRootURI
+      undefined, // getApp
+      // Object scope depends on the file's type — see CompletionsProvider.
+      (uri) => documentManager.fileType(uri),
+    );
     this.graphqlFieldHoverProvider = new GraphQLFieldHoverProvider(
       platformosDocset,
       documentManager,
@@ -55,7 +63,7 @@ export class HoverProvider {
       new TranslationHoverProvider(documentManager, translationProvider, findAppRootURI),
       new RenderPartialHoverProvider(getDocDefinitionForURI),
       new RenderPartialParameterHoverProvider(getDocDefinitionForURI),
-      new LiquidDocTagHoverProvider(documentManager),
+      new LiquidDocTagHoverProvider(documentManager, platformosDocset),
     ];
   }
 

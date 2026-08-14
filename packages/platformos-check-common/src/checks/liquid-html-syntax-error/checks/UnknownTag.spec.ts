@@ -211,6 +211,9 @@ describe('Module: UnknownTag', () => {
             async liquidDrops() {
               return [];
             },
+            async liquidDoc() {
+              return { annotations: [], param_types: [] };
+            },
             async tags() {
               return [{ name: 'custom_docset_tag' }];
             },

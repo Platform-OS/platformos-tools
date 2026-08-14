@@ -50,11 +50,11 @@ describe('Module: UndefinedObject', () => {
     const sourceCode = `
       {% doc %}
       {% enddoc %}
-      {{ product[my_object] }}
-      {{ product[my_object] }}
+      {{ context[my_object] }}
+      {{ context[my_object] }}
 
       {% comment %} string arguments should not be reported {% endcomment %}
-      {{ product["my_object"] }}
+      {{ context["my_object"] }}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
@@ -101,7 +101,7 @@ describe('Module: UndefinedObject', () => {
   it('should not report an offense when object is defined with an assign tag and it is used as an argument', async () => {
     const sourceCode = `
       {% assign prop = "title" %}
-      {{ product[prop] }}
+      {{ context[prop] }}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
@@ -135,7 +135,7 @@ describe('Module: UndefinedObject', () => {
 
   it('should not report an offense when object is defined in a for loop', async () => {
     const sourceCode = `
-      {% for c in collections %}
+      {% for c in items %}
         {{ c }}
       {% endfor %}
     `;
@@ -148,9 +148,9 @@ describe('Module: UndefinedObject', () => {
   it('should report an offense when object is defined in a for loop but used outside of the scope with doc tag', async () => {
     const sourceCode = `
       {% doc %}
-        @param {Array} collections
+        @param {Array} items
       {% enddoc %}
-      {% for c in collections %}
+      {% for c in items %}
         {{ c }}
       {% endfor %}{{ c }}
     `;
@@ -312,14 +312,14 @@ describe('Module: UndefinedObject', () => {
   it('should report an offense when object is defined in a for loop but used outside of the scope (multiple scopes) with doc tag', async () => {
     const sourceCode = `
       {% doc %}
-        @param {Array} collections
+        @param {Array} items
       {% enddoc %}
-      {% for c in collections %}
+      {% for c in items %}
         {% comment %} -- Scope 1 -- {% endcomment %}
         {{ c }}
       {% endfor %}
       {{ c }}
-      {% for c in collections %}
+      {% for c in items %}
         {% comment %} -- Scope 2 -- {% endcomment %}
         {{ c }}
       {% endfor %}
@@ -351,7 +351,7 @@ describe('Module: UndefinedObject', () => {
 
   it('should not report an offense when object is defined in a tablerow loop', async () => {
     const sourceCode = `
-      {% tablerow c in collections %}
+      {% tablerow c in items %}
         {{ c }}
       {% endtablerow %}
     `;
@@ -364,9 +364,9 @@ describe('Module: UndefinedObject', () => {
   it('should report an offense when object is defined in a tablerow loop but used outside of the scope with doc tag', async () => {
     const sourceCode = `
       {% doc %}
-        @param {Array} collections
+        @param {Array} items
       {% enddoc %}
-      {% tablerow c in collections %}
+      {% tablerow c in items %}
         {{ c }}
       {% endtablerow %}{{ c }}
     `;
@@ -381,7 +381,7 @@ describe('Module: UndefinedObject', () => {
     const sourceCode = `
       {% doc %}
       {% enddoc %}
-      {% form "cart" %}
+      {% form method: "post" %}
         {{ form }}
       {% endform %}{{ form }}
     `;
@@ -486,19 +486,19 @@ describe('Module: UndefinedObject', () => {
     const sourceCode = `
       {% doc %}
       {% enddoc %}
-      {{ image }}
+      {{ current_user }}
     `;
 
     const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
 
     expect(offenses).toHaveLength(1);
-    expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'image' used."]);
+    expect(offenses.map((e) => e.message)).toEqual(["Unknown object 'current_user' used."]);
   });
 
   it('should not report an offense for forloop/tablerowloop variables when in the correct context', async () => {
     for (const tag of ['for', 'tablerow']) {
       const sourceCode = `
-        {% ${tag} x in collections %}
+        {% ${tag} x in items %}
           {{ ${tag}loop }}
         {% end${tag} %}
       `;
@@ -513,20 +513,11 @@ describe('Module: UndefinedObject', () => {
     }
   });
 
-  it('should not report offenses for contextual objects without doc tag', async () => {
-    let offenses: Offense[];
-    const contexts: [string, string][] = [['app', 'app/views/partials/theme-app-extension.liquid']];
-    for (const [object, goodPath] of contexts) {
-      offenses = await runLiquidCheck(UndefinedObject, `{{ ${object} }}`, goodPath);
-      expect(offenses).toHaveLength(0);
-      offenses = await runLiquidCheck(
-        UndefinedObject,
-        `{{ ${object} }}`,
-        'app/views/partials/file.liquid',
-      );
-      expect(offenses).toHaveLength(0);
-    }
-  });
+  // There is no "contextual objects" test any more, and the absence is deliberate. It covered a
+  // hard-coded exemption that put `app` in scope in every partial — Shopify's theme app extension
+  // drop, kept when the de-Shopify pass removed `section`, `recommendations` and `block` from the
+  // same list. `app` is in no platformOS docset, so the exemption and its test went together.
+  // Scope now comes from `objects.json` alone; `isObjectInScope` is where that rule lives.
 
   it('should report an offense for forloop/tablerowloop used outside of context with doc tag', async () => {
     const sourceCode = `
@@ -715,7 +706,7 @@ describe('Module: UndefinedObject', () => {
 
   it('should not report offenses for global objects in a page file without doc tag', async () => {
     const sourceCode = `
-      {{ collections }}
+      {{ context }}
     `;
 
     const offenses = await runLiquidCheck(

@@ -104,7 +104,7 @@ describe('Module: UnusedAssign', () => {
       {% assign _ = 1 %}
       {% assign _unusedVar = 1 %}
       {% capture _ %}
-        {% form "cart", cart %}
+        {% form method: "post" %}
           {% assign some_var = cart.successfully_posted? %}
         {% endform %}
       {% endcapture %}

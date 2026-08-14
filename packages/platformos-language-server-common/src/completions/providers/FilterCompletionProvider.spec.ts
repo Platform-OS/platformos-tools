@@ -38,8 +38,8 @@ const filters: FilterEntry[] = [
     return_type: [{ type: 'array', array_value: 'string' }],
   },
   {
-    name: 'metafield_tag',
-    syntax: 'metafield | metafield_tag',
+    name: 'hash_tag',
+    syntax: 'hash_type | hash_tag',
     return_type: [{ type: 'string', name: '' }],
   },
   {
@@ -101,12 +101,14 @@ const objects: ObjectEntry[] = [
     name: 'array',
     return_type: [{ type: 'array', array_value: 'string' }],
   },
+  // SYNTHETIC input types. `metafield` and `item` stood here and are Shopify's; what these
+  // tests need is simply two object types with no filters of their own.
   {
-    name: 'metafield',
+    name: 'hash_type',
     return_type: [],
   },
   {
-    name: 'product',
+    name: 'record_type',
     return_type: [],
   },
 ];
@@ -115,7 +117,7 @@ const anyFilters = filtersNamesOfInputType('variable').concat(
   filters.filter((entry) => !entry.syntax).map((x) => x.name),
 );
 const stringFilters = filtersNamesOfInputType('string');
-const metafieldFilters = filtersNamesOfInputType('metafield');
+const hashFilters = filtersNamesOfInputType('hash_type');
 const arrayFilters = filtersNamesOfInputType('array');
 const allFilters = filters.map((x) => x.name).sort();
 
@@ -130,13 +132,14 @@ describe('Module: FilterCompletionProvider', async () => {
         filters: async () => filters,
         objects: async () => objects,
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
     });
   });
 
   it('completes with all the filters when no specific filters exist for that type', async () => {
-    await expect(provider).to.complete('{{ product | █ }}', allFilters);
+    await expect(provider).to.complete('{{ record_type | █ }}', allFilters);
   });
 
   it('completes with all the filters when the type is unknown', async () => {
@@ -152,12 +155,12 @@ describe('Module: FilterCompletionProvider', async () => {
   });
 
   it('should complete named types with named-type filters', async () => {
-    await expect(provider).to.complete('{{ metafield | █ }}', metafieldFilters.concat(anyFilters));
+    await expect(provider).to.complete('{{ hash_type | █ }}', hashFilters.concat(anyFilters));
   });
 
   it('should infer type in filter chains', async () => {
     await expect(provider).to.complete(
-      '{{ metafield | metafield_tag | █ }}',
+      '{{ hash_type | hash_tag | █ }}',
       stringFilters.concat(anyFilters),
     );
     await expect(provider).to.complete(
@@ -173,14 +176,14 @@ describe('Module: FilterCompletionProvider', async () => {
   });
 
   it('handles assignment the same way as output', async () => {
-    //                                     char 31 ⌄ ⌄ char 33
-    const liquid = '{% assign imageUrl = product | de█ %}';
+    //                                  char 28 ⌄ ⌄ char 30
+    const liquid = '{% assign x = record_type | de█ %}';
 
     const textEdit: TextEdit = {
       newText: 'default',
       range: {
-        end: { line: 0, character: 33 },
-        start: { line: 0, character: 31 },
+        end: { line: 0, character: 30 },
+        start: { line: 0, character: 28 },
       },
     };
 
@@ -195,7 +198,7 @@ describe('Module: FilterCompletionProvider', async () => {
     const textDocument = TextDocument.create('', 'liquid', 0, liquid.replace(CURSOR, ''));
 
     expect(TextDocument.applyEdits(textDocument, [textEdit])).toBe(
-      '{% assign imageUrl = product | default %}',
+      '{% assign x = record_type | default %}',
     );
   });
 

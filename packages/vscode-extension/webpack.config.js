@@ -129,11 +129,14 @@ const browserClientConfig = {
 
 const browserServerConfig = async () => {
   const docsManager = new PlatformOSLiquidDocsManager();
-  const [tags, filters, objects, schemas] = await Promise.all([
+  const [tags, filters, objects, schemas, liquidDoc] = await Promise.all([
     docsManager.tags(),
     docsManager.filters(),
     docsManager.objects(),
     docsManager.schemas(),
+    // Empty for a docset published before `liquid_doc.json` existed, and the browser server then
+    // offers no `{% doc %}` annotations rather than a list bundled from nowhere.
+    docsManager.liquidDoc(),
   ]);
 
   return {
@@ -155,6 +158,7 @@ const browserServerConfig = async () => {
         WEBPACK_FILTERS: JSON.stringify(filters),
         WEBPACK_OBJECTS: JSON.stringify(objects),
         WEBPACK_SCHEMAS: JSON.stringify(schemas),
+        WEBPACK_LIQUID_DOC: JSON.stringify(liquidDoc),
       }),
     ],
   };

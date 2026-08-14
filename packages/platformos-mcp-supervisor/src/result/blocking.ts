@@ -94,13 +94,15 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // class as `UnknownFilter` above — `Liquid::ArgumentError`, page 500 — and the
   // asymmetry of blocking one but not the other is what the evaluation flagged.
   //
-  // Admitted on measurement, not on the argument above: the arity data is generated
-  // from the runtime's own complaints (`scripts/verify-filter-arity.mjs`), and the
-  // check was swept over 8 real projects / ~11k liquid files, producing 2 offenses,
-  // BOTH verified true positives (one being `null | hash_merge`, which raises
-  // "given 1, expected 2"), and 0 false positives. A filter with no measured arity
-  // produces nothing, so the vocabulary gaps that made `UnknownFilter` expensive
-  // cannot make this one refuse working code.
+  // Admitted on measurement, not on the argument above: the check was swept over 8 real
+  // projects / ~11k liquid files, producing 2 offenses, BOTH verified true positives (one
+  // being `null | hash_merge`, which raises "given 1, expected 2"), and 0 false positives.
+  // A filter the docset publishes no arity for produces nothing, so the vocabulary gaps that
+  // made `UnknownFilter` expensive cannot make this one refuse working code.
+  //
+  // That sweep ran against a table measured from the runtime's own complaints, since deleted in
+  // favour of the published `arity`: upstream reproduced all 206 of its rows from the Ruby
+  // signatures and answers the four a runtime probe cannot measure, the variadic filters.
   'FilterArity',
 
   // A single-quoted key or value inside a `{% assign %}` JSON literal. Measured:

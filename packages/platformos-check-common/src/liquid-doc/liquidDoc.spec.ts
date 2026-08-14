@@ -98,7 +98,7 @@ describe('Unit: extractDocDefinition', () => {
     const ast = toAST(`
         {% doc %}
           @example
-          {{ product }}
+          {{ item }}
         {% enddoc %}
       `);
 
@@ -108,7 +108,7 @@ describe('Unit: extractDocDefinition', () => {
       liquidDoc: {
         examples: [
           {
-            content: '{{ product }}',
+            content: '{{ item }}',
             nodeType: 'example',
           },
         ],
@@ -120,8 +120,8 @@ describe('Unit: extractDocDefinition', () => {
     const ast = toAST(`
         {% doc %}
           @example
-          {{ product }}
-          {{ product.title }}
+          {{ item }}
+          {{ item.title }}
         {% enddoc %}
       `);
 
@@ -131,7 +131,7 @@ describe('Unit: extractDocDefinition', () => {
       liquidDoc: {
         examples: [
           {
-            content: '{{ product }}\n{{ product.title }}',
+            content: '{{ item }}\n{{ item.title }}',
             nodeType: 'example',
           },
         ],
@@ -142,9 +142,9 @@ describe('Unit: extractDocDefinition', () => {
   it('should extract example from @example and @param annotations', async () => {
     const ast = toAST(`
         {% doc %}
-          @param {String} product - The product
+          @param {String} item - The item
           @example
-          {{ product }} // This is an example
+          {{ item }} // This is an example
         {% enddoc %}
       `);
 
@@ -154,8 +154,8 @@ describe('Unit: extractDocDefinition', () => {
       liquidDoc: {
         parameters: [
           {
-            name: 'product',
-            description: 'The product',
+            name: 'item',
+            description: 'The item',
             type: 'String',
             required: true,
             nodeType: 'param',
@@ -163,7 +163,7 @@ describe('Unit: extractDocDefinition', () => {
         ],
         examples: [
           {
-            content: '{{ product }} // This is an example',
+            content: '{{ item }} // This is an example',
             nodeType: 'example',
           },
         ],
@@ -175,9 +175,9 @@ describe('Unit: extractDocDefinition', () => {
     const ast = toAST(`
         {% doc %}
           @example
-          {{ product }}
+          {{ item }}
           @example
-          {{ product.title }}
+          {{ item.title }}
         {% enddoc %}
       `);
 
@@ -187,11 +187,11 @@ describe('Unit: extractDocDefinition', () => {
       liquidDoc: {
         examples: [
           {
-            content: '{{ product }}',
+            content: '{{ item }}',
             nodeType: 'example',
           },
           {
-            content: '{{ product.title }}',
+            content: '{{ item.title }}',
             nodeType: 'example',
           },
         ],

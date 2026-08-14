@@ -10,12 +10,12 @@ import {
 } from '@platformos/liquid-html-parser';
 import { Context, LiquidDocParameter, SourceCodeType, StringCorrector } from '..';
 import {
-  BasicParamTypes,
   getDefaultValueForType,
   inferArgumentType,
   isNullLiteral,
   isTypeCompatible,
 } from './utils';
+import { DECLARABLE_TYPES, LiquidType } from '../liquid-types';
 import { CallSiteTag, isLiquidString } from '../checks/utils';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
@@ -112,18 +112,28 @@ export function reportDuplicateArguments(
 /**
  * Find type mismatch between the arguments provided for `content_for` tag and `render` tag
  * and their associated file's LiquidDoc
+ *
+ * `returnTypes` is the docset's filter → return type map, which is what lets a filtered argument
+ * be judged at all; without one every filtered argument infers `untyped` and stays silent.
  */
 export function findTypeMismatchParams(
   liquidDocParameters: Map<string, LiquidDocParameter>,
   providedParams: LiquidNamedArgument[],
+  returnTypes?: ReadonlyMap<string, LiquidType>,
 ) {
   const typeMismatchParams: LiquidNamedArgument[] = [];
 
   for (const arg of providedParams) {
-    // Skip if the value is a variable lookup (can't determine type statically)
-    // or if it has filters (graphql args may have filters, output type is unknown)
     if (arg.value.type === NodeTypes.LiquidVariable) {
-      if (arg.value.expression.type === NodeTypes.VariableLookup || arg.value.filters.length > 0) {
+      // A BARE variable lookup has no type here — there is no symbol table at a call site, so
+      // `title: page_title` says nothing about what `page_title` holds. A FILTERED one does:
+      // the last filter's published return type does not depend on its input, so `title: name |
+      // append: '!'` is a string whatever `name` is. This used to skip every filtered argument,
+      // which left the whole filtered half of the language unchecked.
+      if (
+        arg.value.filters.length === 0 &&
+        arg.value.expression.type === NodeTypes.VariableLookup
+      ) {
         continue;
       }
     } else if (arg.value.type === NodeTypes.VariableLookup) {
@@ -140,12 +150,15 @@ export function findTypeMismatchParams(
     const liquidDocParamDef = liquidDocParameters.get(arg.name);
     if (liquidDocParamDef && liquidDocParamDef.type) {
       const paramType = liquidDocParamDef.type.toLowerCase();
-      const supportedTypes = Object.keys(BasicParamTypes).map((type) => type.toLowerCase());
-      if (!supportedTypes.includes(paramType)) {
+      // A declared type inference cannot produce — an object name like `{current_user}`, or the
+      // `{string[]}` array spelling — is DECLARABLE but not enforced here, and that silence is
+      // deliberate rather than accidental: the docset accepts far more names than this file knows what
+      // satisfies. Widening it is its own change.
+      if (!DECLARABLE_TYPES.has(paramType as LiquidType)) {
         continue;
       }
 
-      if (!isTypeCompatible(paramType, inferArgumentType(arg.value))) {
+      if (!isTypeCompatible(paramType, inferArgumentType(arg.value, returnTypes))) {
         typeMismatchParams.push(arg);
       }
     }
@@ -161,6 +174,7 @@ export function reportTypeMismatches(
   context: Context<SourceCodeType.LiquidHtml>,
   typeMismatchArgs: LiquidNamedArgument[],
   liquidDocParameters: Map<string, LiquidDocParameter>,
+  returnTypes?: ReadonlyMap<string, LiquidType>,
 ) {
   for (const arg of typeMismatchArgs) {
     const paramDef = liquidDocParameters.get(arg.name);
@@ -168,7 +182,9 @@ export function reportTypeMismatches(
     if (arg.value.type === NodeTypes.NamedArgument) continue;
 
     const expectedType = paramDef.type.toLowerCase();
-    const actualType = inferArgumentType(arg.value);
+    // The SAME map the mismatch was found with. Inferring again without it would name the type
+    // `untyped` in a message about a mismatch that only a resolved type could have produced.
+    const actualType = inferArgumentType(arg.value, returnTypes);
 
     const suggestions = generateTypeMismatchSuggestions(
       expectedType,

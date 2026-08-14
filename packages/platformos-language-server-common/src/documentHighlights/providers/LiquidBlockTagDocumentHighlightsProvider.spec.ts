@@ -19,7 +19,7 @@ describe('Module: LiquidBlockTagDocumentHighlightsProvider', () => {
       position: Position.create(0, 4), // position within the tag name
     };
 
-    documentManager.open(params.textDocument.uri, '{% form "cart", cart %}...{% endform %}', 1);
+    documentManager.open(params.textDocument.uri, '{% form method: "post" %}...{% endform %}', 1);
     const document = documentManager.get(params.textDocument.uri)?.textDocument;
     assert(document);
 

@@ -22,11 +22,22 @@ export const ValidDocParamTypes: LiquidCheckDefinition = {
       return {};
     }
 
+    const docset = context.platformosDocset;
+
     // To avoid recalculating valid param types during platformos-check, constructing
     // the promise beforehand.
-    const validParamTypesPromise = context
-      .platformosDocset!.liquidDrops()
-      .then((entries) => new Set(getValidParamTypes(entries).keys()));
+    //
+    // `undefined` when the docset publishes no `param_types`, and then this check reports NOTHING.
+    // That is the same silence an unpublished filter arity gets, and here it is the only safe answer:
+    // the set of valid types would otherwise be the object names alone, and every `@param {string}` in
+    // the project would be reported as unsupported by a docset that simply predates the vocabulary.
+    const validParamTypesPromise = Promise.all([docset.liquidDoc(), docset.liquidDrops()]).then(
+      ([vocabulary, drops]) => {
+        const types = getValidParamTypes(vocabulary.param_types, drops);
+
+        return types && new Set(types.keys());
+      },
+    );
 
     return {
       async LiquidDocParamNode(node) {
@@ -34,7 +45,13 @@ export const ValidDocParamTypes: LiquidCheckDefinition = {
           return;
         }
 
-        const parsedParamType = parseParamType(await validParamTypesPromise, node.paramType.value);
+        const validParamTypes = await validParamTypesPromise;
+
+        if (!validParamTypes) {
+          return;
+        }
+
+        const parsedParamType = parseParamType(validParamTypes, node.paramType.value);
 
         if (parsedParamType) {
           return;

@@ -1,4 +1,5 @@
 import { expect, describe, it, beforeEach } from 'vitest';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 import { CompletionsProvider } from '../completions';
 import { DocumentManager } from '../documents';
 
@@ -10,29 +11,21 @@ describe('Module: CompletionItemsAssertion', () => {
     documentManager = new DocumentManager();
     provider = new CompletionsProvider({
       documentManager,
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [{ name: 'render' }],
-      },
+      platformosDocset: publishedDocset,
     });
   });
 
+  // `unl` matches one published tag, so the exact-list form of the matcher has something to be exact
+  // about without this file deciding which tags exist.
   it('should assert a list of labels', async () => {
-    await expect(provider).to.complete('{% rend', ['render']);
+    await expect(provider).to.complete('{% unl', ['unless']);
   });
 
   it('should assert a list of completion items', async () => {
-    await expect(provider).to.complete('{% rend', [
+    await expect(provider).to.complete('{% unl', [
       expect.objectContaining({
-        label: 'render',
-        sortText: 'render',
-        documentation: {
-          kind: 'markdown',
-          value: '### render',
-        },
+        label: 'unless',
+        sortText: 'unless',
         insertTextFormat: 2,
         kind: 14,
       }),

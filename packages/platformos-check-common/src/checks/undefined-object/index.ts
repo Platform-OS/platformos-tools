@@ -107,9 +107,13 @@ export const UndefinedObject: LiquidCheckDefinition = {
         }
 
         /**
-         * {% form 'cart', cart %}
+         * {% form method: 'post', url: '/items' %}
          *   {{ form }}
          * {% endform %}
+         *
+         * The platformOS spelling, whose parameters are named (`method`, `url`, `as`, the
+         * `html-*` family). The positional `{% form 'cart', cart %}` that stood here is
+         * Shopify's and parses to nothing this check would recognise.
          */
         if (node.name === 'form') {
           indexVariableScope(node.name, {
@@ -247,23 +251,25 @@ export const UndefinedObject: LiquidCheckDefinition = {
   },
 };
 
+/**
+ * The objects readable without a parent in a file of this type.
+ *
+ * THE DOCSET IS THE WHOLE ANSWER. There used to be a hard-coded exemption beside it — `app`, held
+ * in scope for every partial — and `app` is not a platformOS object at all; it is Shopify's theme
+ * app extension drop, inherited with the fork. Its one appearance across the four sample projects
+ * is `{{app.mobile.send_otp | t}}`, a translation key that lost its quotes, which is precisely the
+ * mistake this check exists to report and the exemption silenced.
+ *
+ * A name that belongs in scope belongs in `objects.json`, where the platform publishes it and a
+ * test upstream can call it. Do not reintroduce a local list.
+ */
 async function globalObjects(
   platformosDocset: PlatformOSDocset,
   fileType: PlatformOSFileType | undefined,
 ) {
   const objects = await platformosDocset.objects();
-  const contextualObjects = getContextualObjects(fileType);
 
-  return objects.filter(
-    (object) => contextualObjects.includes(object.name) || isObjectInScope(object, fileType),
-  );
-}
-
-function getContextualObjects(fileType: PlatformOSFileType | undefined): string[] {
-  // `app` is in scope inside a partial. Which paths ARE partials is
-  // platformos-common's business, never re-derived here — and it needs the project
-  // root to say so, which is why this takes the answer rather than a URI.
-  return fileType === PlatformOSFileType.Partial ? ['app'] : [];
+  return objects.filter((object) => isObjectInScope(object, fileType));
 }
 
 function isDefined(

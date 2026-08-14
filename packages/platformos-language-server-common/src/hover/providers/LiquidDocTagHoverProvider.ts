@@ -1,12 +1,21 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
-import { LiquidHtmlNode } from '@platformos/platformos-check-common';
+import { LiquidHtmlNode, PlatformOSDocset } from '@platformos/platformos-check-common';
 import { Hover, HoverParams, MarkupKind } from 'vscode-languageserver';
 import { BaseHoverProvider } from '../BaseHoverProvider';
-import { formatLiquidDocTagHandle, SUPPORTED_LIQUID_DOC_TAG_HANDLES } from '../../utils/liquidDoc';
+import { formatLiquidDocTagHandle } from '../../utils/liquidDoc';
 import { DocumentManager } from '../../documents';
 
+/**
+ * Describes a `{% doc %}` annotation from the DOCSET's prose and example.
+ *
+ * An annotation the docset does not publish gets no hover, which is also what happens when the docset
+ * predates the vocabulary: it goes quiet rather than describing a name from a list of its own.
+ */
 export class LiquidDocTagHoverProvider implements BaseHoverProvider {
-  constructor(private documentManager: DocumentManager) {}
+  constructor(
+    private documentManager: DocumentManager,
+    private platformosDocset: PlatformOSDocset,
+  ) {}
 
   async hover(
     currentNode: LiquidHtmlNode,
@@ -38,9 +47,10 @@ export class LiquidDocTagHoverProvider implements BaseHoverProvider {
       return null;
     }
 
-    const docTagData = SUPPORTED_LIQUID_DOC_TAG_HANDLES[currentNode.name];
+    const { annotations } = await this.platformosDocset.liquidDoc();
+    const annotation = annotations.find(({ name }) => name === currentNode.name);
 
-    if (!docTagData) {
+    if (!annotation) {
       return null;
     }
 
@@ -48,9 +58,9 @@ export class LiquidDocTagHoverProvider implements BaseHoverProvider {
       contents: {
         kind: MarkupKind.Markdown,
         value: formatLiquidDocTagHandle(
-          currentNode.name,
-          docTagData.description,
-          docTagData.example,
+          annotation.name,
+          annotation.description,
+          annotation.example,
         ),
       },
     };

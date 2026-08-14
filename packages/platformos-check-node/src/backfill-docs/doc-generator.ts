@@ -1,4 +1,4 @@
-import { InferredParamType } from '@platformos/platformos-check-common';
+import { LiquidType } from '@platformos/platformos-check-common';
 
 /**
  * Generate a single @param line for a doc tag.
@@ -10,7 +10,7 @@ import { InferredParamType } from '@platformos/platformos-check-common';
  */
 export function generateParamLine(
   name: string,
-  type: InferredParamType,
+  type: LiquidType,
   isOptional: boolean = true,
 ): string {
   const paramName = isOptional ? `[${name}]` : name;

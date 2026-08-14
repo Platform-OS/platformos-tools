@@ -5,49 +5,24 @@ import { TagEntry } from '../../types/platformos-liquid-docs';
 import { createBoundedCache } from '../../utils/bounded-cache';
 
 /**
- * READING A TAG NAME OUT OF ENGLISH, for a docset that does not state it.
+ * The successor THIS DOCSET STATES, which must also be a tag it knows and has not itself
+ * deprecated — what keeps a stale or mistaken name from becoming a rename.
  *
- * The platform now publishes the successor as data, in `deprecation_replacement`, and that is
- * what {@link resolveReplacementTag} prefers. This is the fallback for a `tags.json` published
- * before it did — CloudFront still holds those, and a user's cache may hold one for as long as
- * it takes the docs to redeploy.
- *
- * ANCHORED: a reason OPENS with `Use {% x %}`, and nothing else in the prose is read. "The
- * first tag mentioned anywhere" is a different rule that coincides with this one only while
- * every reason names its successor first, and is wrong in BOTH directions the moment one does
- * not — it can derive the deprecated tag's own name, silently disabling the rename, or some
- * other working tag, renaming to one the docs never recommended. Neither is visible from
- * outside: the offense is reported either way and only the fix changes. So an unrecognized
- * phrasing yields no rename rather than a guess. `index.spec.ts` carries both phrasings, and
- * check-node's `autofix.spec.ts` asserts the committed docset still resolves every tag it
- * deprecates, so a drift fails there naming the tag.
- */
-const NAMED_REPLACEMENT = /^Use \{%-?\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*-?%\}/;
-
-/** The tag a `deprecation_reason` names as its replacement, or `undefined`. */
-export function deprecationReplacementTag(reason: string | undefined): string | undefined {
-  return NAMED_REPLACEMENT.exec(reason ?? '')?.[1];
-}
-
-/**
- * The successor this docset states, or — for a docset that states none — the one its prose
- * names. Either way it must be a tag this docset KNOWS and has not itself deprecated, which
- * is what keeps a stale or mistaken name from becoming a rename: a successor this docset has
- * never heard of, or one on its way out too, yields nothing.
- *
- * Upstream, `deprecation_replacement` comes from `~/projects/desksnearme`
+ * The name is read as data and never out of `deprecation_reason`'s English. Upstream,
+ * `deprecation_replacement` comes from the platform's documentation source
  * (`docs/generators/liquid_tags/default/module/setup.rb`), where an `@alias` publishes the
  * canonical name of the class it shares and a `@deprecated` tag with a class of its own
  * declares `@replaced_by`. `verify_tags_json.rb` fails the docs build if a deprecation names
- * no successor, or names one the platform does not register.
+ * no successor, or names one the platform does not register — so a docset that deprecates a
+ * tag without naming its successor is a docs bug, and the right response here is no rename
+ * rather than a guess parsed out of prose. check-node's `autofix.spec.ts` asserts the
+ * committed docset still resolves every tag it deprecates, so a drift fails there by name.
  */
 export function resolveReplacementTag(
   deprecatedTag: TagEntry,
   tags: TagEntry[],
 ): string | undefined {
-  const replacement =
-    deprecatedTag.deprecation_replacement?.trim() ||
-    deprecationReplacementTag(deprecatedTag.deprecation_reason);
+  const replacement = deprecatedTag.deprecation_replacement?.trim();
   if (!replacement || replacement === deprecatedTag.name) return undefined;
 
   const known = tags.find((tag) => tag.name === replacement);

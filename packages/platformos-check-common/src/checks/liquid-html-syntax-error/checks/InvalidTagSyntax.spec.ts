@@ -1,6 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { runLiquidCheck, highlightedOffenses, messagesOf } from '../../../test';
+import { publishedDocset } from '../../../test/published-docset';
 import { LiquidHTMLSyntaxError } from '../index';
+
+/**
+ * The message a user really sees, with the `syntax` the DOCSET publishes for that tag appended — DERIVED
+ * from `tags.json` rather than written out here, so a docs release that improves a tag's documented
+ * syntax cannot fail this file while a check that stops quoting it still does.
+ *
+ * These expectations used to omit the hint entirely, because the test docset published no tags at all.
+ */
+async function invalidSyntaxMessage(tagName: string) {
+  const tag = (await publishedDocset.tags()).find((entry) => entry.name === tagName);
+
+  return `Invalid syntax for tag '${tagName}'${tag?.syntax ? ` Expected syntax: ${tag.syntax}` : ''}`;
+}
 
 describe('Module: InvalidTagSyntax', () => {
   describe('render tag', () => {
@@ -8,7 +22,7 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% render %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'render'"]);
+      expect(messagesOf(syntaxOffenses)).toEqual([await invalidSyntaxMessage('render')]);
     });
 
     it('should not report valid render', async () => {
@@ -39,7 +53,7 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% function res 'path/to/function' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'function'"]);
+      expect(messagesOf(syntaxOffenses)).toEqual([await invalidSyntaxMessage('function')]);
     });
 
     it('should not report valid function', async () => {
@@ -85,7 +99,7 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% function res = %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'function'"]);
+      expect(messagesOf(syntaxOffenses)).toEqual([await invalidSyntaxMessage('function')]);
     });
 
     /**
@@ -112,7 +126,7 @@ describe('Module: InvalidTagSyntax', () => {
       async (_shape, source) => {
         const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, source);
         expect(offenses.map((offense) => offense.message)).toEqual([
-          "Invalid syntax for tag 'function'",
+          await invalidSyntaxMessage('function'),
         ]);
       },
     );
@@ -130,12 +144,78 @@ describe('Module: InvalidTagSyntax', () => {
     });
   });
 
+  /**
+   * The append form of `{% function %}`, which collects a partial's return value onto an array.
+   *
+   * It used to be reported here, and that was a FALSE POSITIVE on Liquid the platform runs — two of
+   * the platform's own published `tags.json` examples among the casualties. Measured on a live
+   * instance with `pos-cli exec liquid`: a real parse failure returns "Invalid syntax for function
+   * tag" (control: `{% function 'no-target' %}`), whereas each form below returned "can't find
+   * partial", which only a successfully parsed tag can reach.
+   *
+   * Since `LiquidHTMLSyntaxError` blocks the MCP write gate, every file using the idiom was refused.
+   */
+  describe('function append operator (TASK-80)', () => {
+    /**
+     * EVERY message, unfiltered — which is the whole point for the silence assertions below.
+     *
+     * The rest of this file narrows to `message.includes('Invalid syntax for tag')`, and for a test
+     * that asserts something IS reported that costs nothing. For a test that asserts NOTHING is,
+     * it hides the failure it exists to catch: `LiquidHTMLSyntaxError` bundles a dozen sub-checks,
+     * so the published `tags.json` examples could start being reported by `InvalidFilterName` or
+     * `InvalidAssignSyntax` and the write gate would refuse them again with `toEqual([])` green.
+     */
+    const offensesIn = async (sourceCode: string) =>
+      messagesOf(await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode));
+
+    // Verbatim from tags.json, `function` examples 2 and 3 — the two the sweep flagged. Pinned here
+    // so the parser and the published documentation cannot disagree again without a test failing.
+    it('does not report the published tags.json examples', async () => {
+      const example2 = [
+        `{% assign items = [] %}`,
+        `{% function items << 'partials/fetch_item', id: 1 %}`,
+        `{% function items << 'partials/fetch_item', id: 2 %}`,
+      ].join('\n');
+      const example3 = [
+        `{% assign response = {} %}`,
+        `{% assign response["data"] = [] %}`,
+        `{% function response["data"] << 'partials/fetch_user', id: 1 %}`,
+        `{% function response["data"] << 'partials/fetch_user', id: 2 %}`,
+        `{% assign response["metadata"] = {} %}`,
+        `{% function response["metadata"]["total"] = 'partials/count_users' %}`,
+      ].join('\n');
+
+      expect(await offensesIn(example2)).toEqual([]);
+      expect(await offensesIn(example3)).toEqual([]);
+    });
+
+    // The control for the silence above: widening the grammar must not have made the tag accept
+    // anything at all. A missing target is still a syntax error.
+    it('still reports a function tag with no target', async () => {
+      expect(await offensesIn(`{% function << 'path/to/partial' %}`)).toEqual([
+        await invalidSyntaxMessage('function'),
+      ]);
+    });
+
+    /**
+     * The control in the other direction. `writeOperator` is shared by `assign` and `function` only,
+     * because `hash_assign` was measured to REJECT the append form: "Syntax Error in 'hash_assign' -
+     * Valid syntax: hash_assign hash[key] = value". Sharing it with every write tag would have
+     * silenced a real error.
+     */
+    it('still reports hash_assign with the append operator, which the runtime rejects', async () => {
+      expect(await offensesIn(`{% hash_assign my_hash << 'value' %}`)).toEqual([
+        await invalidSyntaxMessage('hash_assign'),
+      ]);
+    });
+  });
+
   describe('graphql tag', () => {
     it('should report invalid graphql syntax', async () => {
       const sourceCode = `{% graphql %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'graphql'"]);
+      expect(messagesOf(syntaxOffenses)).toEqual([await invalidSyntaxMessage('graphql')]);
     });
 
     it('should not report valid graphql file-based syntax', async () => {
@@ -172,7 +252,7 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{% include %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'include'"]);
+      expect(messagesOf(syntaxOffenses)).toEqual([await invalidSyntaxMessage('include')]);
     });
 
     it('should not report valid include', async () => {
@@ -250,7 +330,7 @@ describe('Module: InvalidTagSyntax', () => {
 %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'render'"]);
+      expect(messagesOf(syntaxOffenses)).toEqual([await invalidSyntaxMessage('render')]);
     });
 
     it('should not report valid tags inside liquid block', async () => {
@@ -413,7 +493,7 @@ describe('Module: InvalidTagSyntax', () => {
       const sourceCode = `{%- render -%}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       const syntaxOffenses = offenses.filter((o) => o.message.includes('Invalid syntax for tag'));
-      expect(messagesOf(syntaxOffenses)).toEqual(["Invalid syntax for tag 'render'"]);
+      expect(messagesOf(syntaxOffenses)).toEqual([await invalidSyntaxMessage('render')]);
     });
 
     it('should not report valid syntax with trimming delimiters', async () => {
@@ -441,6 +521,9 @@ describe('Module: InvalidTagSyntax', () => {
             },
             async liquidDrops() {
               return [];
+            },
+            async liquidDoc() {
+              return { annotations: [], param_types: [] };
             },
             async tags() {
               return [{ name: 'render', syntax: "{% render 'partial' %}" }];

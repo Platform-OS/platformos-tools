@@ -21,6 +21,7 @@ import {
 } from '../index';
 import * as path from '../path';
 import { MockFileSystem } from './MockFileSystem';
+import { publishedDocset } from './published-docset';
 import { MockApp } from './MockApp';
 
 export { StringCorrector };
@@ -108,107 +109,7 @@ export function createMockDependencies(
       }
       return extractDocDefinition(file.uri, file.ast);
     },
-    platformosDocset: {
-      async graphQL() {
-        return null;
-      },
-      async filters() {
-        return [
-          { name: 'item_count_for_variant' },
-          { name: 'append' },
-          { name: 'upcase' },
-          { name: 'downcase' },
-          { name: 'parameterize' },
-          { name: 'slugify' },
-        ];
-      },
-      async objects() {
-        return [
-          {
-            name: 'collections',
-          },
-          {
-            name: 'product',
-            access: {
-              global: false,
-              parents: [],
-              template: ['product'],
-            },
-          },
-          {
-            name: 'image',
-            access: {
-              global: false,
-              parents: [],
-              template: [],
-            },
-          },
-          {
-            name: 'context',
-            access: {
-              global: true,
-              parents: [],
-              template: [],
-            },
-          },
-          {
-            name: 'app',
-            access: {
-              global: false,
-              parents: [],
-              template: [],
-            },
-          },
-          // Real `access` shapes from the platformOS docset, where `global` means "needs no
-          // parent object" rather than "in scope everywhere". `data` and `response` are
-          // global yet exist only in an api_call; `forloop` is global yet exists only
-          // inside the loop that declares it. Without these, no test can catch a check
-          // that reads `global` on its own — which is how a partial reading `data` came to
-          // draw no offense at all.
-          {
-            name: 'data',
-            access: {
-              global: true,
-              parents: [],
-              template: [],
-              app_file_type: 'api_call',
-            },
-          },
-          {
-            name: 'response',
-            access: {
-              global: true,
-              parents: [],
-              template: [],
-              app_file_type: 'api_call',
-            },
-          },
-          {
-            name: 'forloop',
-            access: {
-              global: true,
-              parents: [{ object: 'forloop', property: 'parentloop' }],
-              template: [],
-            },
-          },
-          {
-            name: 'content_for_layout',
-            access: {
-              global: true,
-              parents: [],
-              template: [],
-              app_file_type: 'layout',
-            },
-          },
-        ];
-      },
-      async liquidDrops() {
-        return this.objects();
-      },
-      async tags() {
-        return [];
-      },
-    },
+    platformosDocset: publishedDocset,
   };
 }
 

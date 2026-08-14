@@ -86,7 +86,12 @@ impact
 WHAT IS ACTUALLY CHECKED
   Liquid  - syntax, unknown filters and tags, filters called with the wrong number
             of arguments, missing partials/assets, render arguments against
-            {% doc %}, layout correctness, and more. Three that block and are easy
+            {% doc %}, layout correctness, and more. TAG arguments are typed only
+            where the platformOS documentation publishes a type for them, which
+            today is a loop's limit, offset and cols — {% for x in y limit: 'ten' %}
+            warns and does not block. Every other tag argument is published
+            untyped, so nothing is reported about it; that silence is the
+            documentation's answer, not a guarantee the value is right. Three that block and are easy
             to trip over: a JSON literal in {% assign %} must use DOUBLE quotes
             ({'k': 1} is rejected by the deploy converter, failing the whole
             changeset); a write through a subscript — {% assign h['k'] = v %}, or

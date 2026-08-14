@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -8,7 +7,6 @@ import {
   TagEntry,
   applyFixToString,
   check as runChecks,
-  resolveReplacementTag,
 } from '@platformos/platformos-check-common';
 
 import { appCheckRun, autofix, getAppAndConfig, resetSharedApp } from './index';
@@ -95,42 +93,49 @@ describe('Unit: the exported autofix', () => {
 });
 
 /**
- * `DeprecatedTag`'s rename is RESOLVED from the docset, not tabulated in the check: the
- * successor is `deprecation_replacement` where the docset states one and is read out of
- * `deprecation_reason` where it does not, and the parser decides whether that successor
- * accepts the markup. Real docset data is the only input that can show either half works, so
- * this suite runs against the docset COMMITTED in `platformos-check-docs-updater` — the file
- * that package's `postbuild` re-downloads from production, so it is production's data, pinned.
+ * `DeprecatedTag`'s rename is RESOLVED, not tabulated: the successor is whatever the docset's
+ * `deprecation_replacement` states, and the PARSER decides whether that successor's grammar
+ * accepts the occurrence's markup. This suite is about that second half — the end-to-end path
+ * from a rename decision to bytes on disk — which is this package's own machinery.
  *
- * NO NETWORK, and that is a property of the wiring rather than a hope: the docset is read from
- * that committed file and injected, instead of going through `PlatformOSLiquidDocsManager`,
- * whose `setup()` compares the local revision against documentation.platformos.com and
- * downloads a fresh `tags.json` into a cache directory when they differ. Driving
- * `checkAndAutofix` here would have pinned nine assertions to live remote data — a rephrased
- * reason would fail as "the autofix regressed", and an offline machine would silently exercise
- * a different docset than CI.
+ * THE DOCSET IS A FIXTURE, NOT A SUBJECT. Whether `tags.json` names the right successor for a
+ * tag is verified where it is authored and gated, in
+ * `docs/scripts/verify_tags_json.rb`; re-asserting it here would duplicate that gate and fail
+ * on a docs release that is perfectly correct. So the entries below are declared, using real
+ * tag names and the successors the platform really states — enough to drive every branch, and
+ * decoupled from the docs' release cadence.
  *
- * Same stance as the exported-autofix group above — no test in this package depends on the
- * network — reached differently: that group has no interest in the docset and picks a check
- * that needs none, while this one's whole subject is the docset and so pins it explicitly.
- *
- * The two halves are separate on purpose. The first says the committed docset still resolves a
- * successor for every tag it deprecates, and fails NAMING the tag that drifted. The second
- * says the rename that implies is what lands on disk.
+ * NO NETWORK, as a property of the wiring rather than a hope: the docset is injected, instead
+ * of going through `PlatformOSLiquidDocsManager`, whose `setup()` compares the local revision
+ * against documentation.platformos.com and downloads a fresh `tags.json` when they differ.
  */
-// Read from the sibling package's checked-in `data/`, the same way this package's other specs
-// reach their fixtures. Synchronously, and not as an `import`: `rootDir` is `src`, so a JSON
-// import from outside it does not type-check, and a top-level `await` does not either under
-// this package's `module` setting.
-const COMMITTED_TAGS_PATH = path.join(
-  __dirname,
-  '../../platformos-check-docs-updater/data/tags.json',
-);
-const committedTags: TagEntry[] = JSON.parse(readFileSync(COMMITTED_TAGS_PATH, 'utf8'));
+const fixtureTags: TagEntry[] = [
+  // Renamed: the replacement's grammar accepts the markup unchanged.
+  { name: 'hash_assign', deprecated: true, deprecation_replacement: 'assign' },
+  { name: 'assign' },
+  { name: 'render_form', deprecated: true, deprecation_replacement: 'include_form' },
+  { name: 'include_form' },
+  { name: 'context_rc', deprecated: true, deprecation_replacement: 'context' },
+  { name: 'context' },
+  { name: 'function_rc', deprecated: true, deprecation_replacement: 'function' },
+  { name: 'function' },
+  { name: 'return_rc', deprecated: true, deprecation_replacement: 'return' },
+  { name: 'return' },
+  { name: 'sign_in_rc', deprecated: true, deprecation_replacement: 'sign_in' },
+  { name: 'sign_in' },
+  // A block tag, so both ends move or the result does not parse.
+  { name: 'try_rc', deprecated: true, deprecation_replacement: 'try' },
+  { name: 'try' },
+  // Left alone: `graphql` wants `graphql g = "path/to/query"`, so carrying this markup over
+  // would produce a template the platform cannot parse.
+  { name: 'execute_query', deprecated: true, deprecation_replacement: 'graphql' },
+  { name: 'query_graph', deprecated: true, deprecation_replacement: 'graphql' },
+  { name: 'graphql' },
+];
 
 const committedDocset: PlatformOSDocset = {
   async tags() {
-    return committedTags;
+    return fixtureTags;
   },
   async filters() {
     return [];
@@ -141,50 +146,20 @@ const committedDocset: PlatformOSDocset = {
   async liquidDrops() {
     return [];
   },
+  async liquidDoc() {
+    return { annotations: [], param_types: [] };
+  },
   async graphQL() {
     return null;
   },
 };
 
-describe('Integration: DeprecatedTag autofix against the committed docset', () => {
+describe('Integration: DeprecatedTag autofix writes the rename to disk', () => {
   let workspace: Workspace;
 
   afterEach(async () => {
     resetSharedApp();
     await workspace?.clean();
-  });
-
-  /**
-   * A tag whose successor the check cannot resolve is still REPORTED — only its rename
-   * disappears — so nothing downstream can notice one going missing. Asserted here as a whole
-   * map, against the same resolution the check uses, so a docset that drifts shows up as that
-   * tag mapping to `undefined` rather than as a mysterious diff in the file the next test
-   * writes.
-   *
-   * Both sources are exercised by the one assertion, because the committed docset is mid-
-   * migration: it carries no `deprecation_replacement` yet, so every row here comes from the
-   * prose fallback. Once the docs redeploy with the field the rows are unchanged and come from
-   * the field instead — which is the point of the field, and the reason this asserts the
-   * resolved answer rather than which of the two produced it.
-   */
-  it('the committed docset resolves a replacement for every tag it deprecates', () => {
-    const resolved = Object.fromEntries(
-      committedTags
-        .filter((tag) => tag.deprecated)
-        .map((tag) => [tag.name, resolveReplacementTag(tag, committedTags)]),
-    );
-
-    expect(resolved).toEqual({
-      context_rc: 'context',
-      execute_query: 'graphql',
-      function_rc: 'function',
-      hash_assign: 'assign',
-      query_graph: 'graphql',
-      render_form: 'include_form',
-      return_rc: 'return',
-      sign_in_rc: 'sign_in',
-      try_rc: 'try',
-    });
   });
 
   it('renames exactly the deprecated tags whose replacement accepts their markup', async () => {

@@ -173,10 +173,14 @@ export async function resolveLiquidReferences(
 
   const visitor: Visitor<SourceCodeType.LiquidHtml, ResolvedReference> = {
     // {{ 'app.js' | asset_url }}
-    // {{ 'image.png' | asset_img_url }}
-    // {{ 'icon.svg' | inline_asset_content }}
+    //
+    // `asset_url` is the ONLY filter that names an asset. `asset_img_url` and
+    // `inline_asset_content` stood beside it here and are Shopify's, inherited with the fork:
+    // neither is in `filters.json`, so no platformOS template can call one, and the four sample
+    // projects contain zero uses against 1142 of `asset_url`. A dead name in an edge rule is not
+    // harmless — it is a claim about the platform that the next reader has no reason to doubt.
     LiquidFilter: async (node, ancestors) => {
-      if (['asset_url', 'asset_img_url', 'inline_asset_content'].includes(node.name)) {
+      if (node.name === 'asset_url') {
         const parentNode = ancestors[ancestors.length - 1]!;
         if (parentNode.type !== NodeTypes.LiquidVariable) return;
         if (parentNode.expression.type !== NodeTypes.String) return;

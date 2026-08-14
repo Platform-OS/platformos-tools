@@ -253,11 +253,45 @@ distinguished by any real data, the ordering had to be asserted directly.
 
 ### Generated files
 
-`src/filter-arity.ts`, `src/undocumented-filters.ts`, `src/yaml/psych-key-identity.ts`
-and the `*-oracle.ts` fixtures are produced by `scripts/verify-*.mjs` against a live
-instance (or a live Ruby) and committed. `grammar/liquid-html.ohm.js` is generated
-too, but by the build rather than a script — see "Changing the grammar".
-When touching them:
+`src/yaml/psych-key-identity.ts` is produced by `scripts/verify-*.mjs` against a live Ruby and
+committed. `grammar/liquid-html.ohm.js` is generated too, but by the build rather than a
+script — see "Changing the grammar".
+
+**This repository is a CONSUMER of the platform's documentation, and never its auditor.**
+`filters.json` / `tags.json` are authored, tested and gated in the platform repository, beside the
+annotations they come from. Whether an entry is CORRECT is settled there. Here it is simply trusted.
+
+So do not write a test that asserts what the docset SAYS — that a filter has a given arity or
+return type, that a deprecated tag names a particular successor. Such a test duplicates a gate
+it cannot see, fails on a docs release that is perfectly correct, and rots without any change
+to this repository.
+
+**TESTS RUN AGAINST THE REAL DOCUMENTS.** `src/test/published-docset.ts` reads the shipped
+`data/{filters,objects,tags,liquid_doc}.json` and is what `createMockDependencies` hands every
+check under test, so a spec measures against the docset a user's editor actually answers from.
+A hand-written docset can only prove the code agrees with whoever wrote the mock — and it did
+not: two specs asserted an offense on `{{ x | t }}` and twelve asserted a syntax-error message
+with no `Expected syntax:` hint, neither of which any user has ever seen, because the mock
+published no tags and six filters.
+
+DERIVE the expectation from the file, never restate it — `publishedLiquidDoc.param_types.forEach`,
+the syntax hint read out of `tags.json` — so a docs release that adds a filter or an annotation
+cannot fail a test here, while OUR side falling behind does.
+
+**Declaring entries inside a test is for a BRANCH the published data cannot reach**, and it is
+the exception rather than the default: a deprecated filter that names no successor (upstream's
+gate forbids one), an entry with no `arity`, a docset predating `liquid_doc.json`. The subject
+there is the code path, and the declared entry is input rather than documentation —
+`docsetWithoutLiquidDoc` is the shipped documents with exactly one field emptied, which is the
+shape to prefer over a docset invented from nothing.
+
+A committed MEASUREMENT of the platform is the same mistake wearing a lab coat: the filter
+return-type oracle was 1,536 lines of it, went stale the moment documentation deployed, and
+needed a credentialed live sweep to refresh. Verifying an annotation belongs in the repository
+that authors it, beside the annotation, where an ordinary test can call the thing. A foreign
+format nobody upstream tests — Ruby Psych's YAML 1.1 key identity — is the case that survives.
+
+When touching the ones that remain:
 
 - Regenerating an unchanged instance must produce a **byte-identical** file —
   format the output inside the generator, not afterwards.
@@ -270,8 +304,8 @@ When touching them:
   snippet by concatenation, and assert the result is not degenerate.
 - Never hand-edit. `data/filters.json` in particular is re-downloaded by the
   docs-updater's `postbuild`, so edits there are reverted by the next build.
-- Test-only fixtures (`*-oracle.ts`) are excluded from `tsconfig.build.json` —
-  they must not ship in `dist`.
+- Any test-only fixture must be excluded from `tsconfig.build.json` — it must not
+  ship in `dist`. `**/*-oracle.ts` is still excluded there for the next one.
 
 ### Adding a check
 

@@ -179,13 +179,13 @@ describe('DocumentsLocator', () => {
 
     it('should locate a view file in app/views/partials', async () => {
       const fs = createMockFileSystem({
-        'file:///project/app/views/partials/product-card.liquid': '<div>product</div>',
+        'file:///project/app/views/partials/item-card.liquid': '<div>item</div>',
       });
       const locator = new DocumentsLocator(fs);
 
-      const result = await locator.locate(rootUri, 'render', 'product-card');
+      const result = await locator.locate(rootUri, 'render', 'item-card');
 
-      expect(result).toBe('file:///project/app/views/partials/product-card.liquid');
+      expect(result).toBe('file:///project/app/views/partials/item-card.liquid');
     });
 
     it('should locate a module partial in app/modules path', async () => {
@@ -258,7 +258,7 @@ describe('DocumentsLocator', () => {
       // THIS TEST USED TO ASSERT A PRECEDENCE THE PLATFORM DOES NOT DEFINE. It required
       // `.html.liquid` to win over `.liquid`, which read like a platform rule and is not one.
       //
-      // Measured in the platform source (`desksnearme`):
+      // Measured in the platform source:
       //   - `LiquidViewConverter.build_default_values` defaults `format` to `'html'`, so a
       //     bare `application.liquid` is an `html` view just like `application.html.liquid`;
       //   - `LiquidPathParser#parse` strips the format extension

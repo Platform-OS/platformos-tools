@@ -1,7 +1,13 @@
 import { expect, describe, it } from 'vitest';
 import { MissingDocParam } from './index';
 import { UndefinedObject } from '../undefined-object';
-import { applySuggestions, check, highlightedOffenses, runLiquidCheck } from '../../test';
+import {
+  applySuggestions,
+  check,
+  highlightedOffenses,
+  messagesOf,
+  runLiquidCheck,
+} from '../../test';
 import { Severity } from '../../types';
 
 const partialPath = 'app/views/partials/file.liquid';
@@ -62,15 +68,33 @@ describe('Module: MissingDocParam', () => {
     expect(offenses).toEqual([]);
   });
 
-  it('reports nothing for globally accessible objects or for app', async () => {
+  it('reports nothing for a globally accessible object', async () => {
     const sourceCode = `{% doc %}
   @param {string} title - the title
 {% enddoc %}
-{{ context.location.href }}{{ app.name }}{{ title }}`;
+{{ context.location.href }}{{ title }}`;
 
     const offenses = await runLiquidCheck(MissingDocParam, sourceCode);
 
     expect(offenses).toEqual([]);
+  });
+
+  it('reports app, which is Shopify vocabulary and in no platformOS docset', async () => {
+    // This test asserted the opposite for as long as the fork has existed: `app` was appended to
+    // every partial's scope by hand, so a name the platform never provides was treated as an
+    // argument the caller supplied. `app` is Shopify's theme app extension drop. Its one
+    // appearance across the four sample projects is `{{ app.mobile.send_otp | t }}` — a
+    // translation key that lost its quotes, which is precisely what this check exists to catch.
+    const sourceCode = `{% doc %}
+  @param {string} title - the title
+{% enddoc %}
+{{ app.name }}{{ title }}`;
+
+    const offenses = await runLiquidCheck(MissingDocParam, sourceCode);
+
+    expect(messagesOf(offenses)).toEqual([
+      "The parameter 'app' is used but not declared in the doc tag of this file.",
+    ]);
   });
 
   it('reports nothing on a partial with no doc block', async () => {

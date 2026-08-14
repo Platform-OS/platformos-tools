@@ -9,8 +9,8 @@ describe('MockFileSystem', () => {
     fs = new MockFileSystem({
       'app/views/layouts/layout.liquid': 'layout.liquid content',
       'app/views/layouts/password.liquid': 'password.liquid content',
-      'app/views/partials/product-card.liquid': 'product-card.liquid content',
-      'app/views/partials/product-variant.liquid': 'product-variant.liquid content',
+      'app/views/partials/item-card.liquid': 'item-card.liquid content',
+      'app/views/partials/item-variant.liquid': 'item-variant.liquid content',
       'assets/js/foo.js': 'foo.js content',
       'assets/js/bar.js': 'bar.js content',
       'assets/app.js': 'app.js content',

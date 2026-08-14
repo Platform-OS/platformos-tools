@@ -1,12 +1,20 @@
 import { describe, beforeEach, it, expect } from 'vitest';
+import { LiquidDocVocabulary } from '@platformos/platformos-check-common';
+import { NO_LIQUID_DOC, publishedLiquidDoc } from '@platformos/platformos-check-common/src/test';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
+
+/**
+ * Every annotation the REAL docset publishes, DERIVED — the list is the platform's to decide, and an
+ * expectation restating it would fail on a docs release instead of on a bug here.
+ */
+const PUBLISHED = publishedLiquidDoc.annotations.map(({ name }) => name);
 
 describe('Module: LiquidDocTagCompletionProvider', async () => {
   let provider: CompletionsProvider;
 
-  beforeEach(async () => {
-    provider = new CompletionsProvider({
+  const providerWith = (vocabulary: LiquidDocVocabulary) =>
+    new CompletionsProvider({
       // The test helper mounts every fixture under `/path/to`; classification is
       // anchored, so the providers need that root to tell a partial from a page.
       findAppRootURI: async () => '/path/to',
@@ -22,19 +30,39 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => vocabulary,
         tags: async () => [],
       },
     });
+
+  beforeEach(async () => {
+    provider = providerWith(publishedLiquidDoc);
+  });
+
+  /**
+   * A docset published before `liquid_doc.json` offers nothing — PAIRED with the control below, so the
+   * emptiness is caused by the unpublished vocabulary and not by a source the provider cannot handle.
+   */
+  it('offers nothing when the docset publishes no annotations', async () => {
+    await expect(providerWith(NO_LIQUID_DOC)).to.complete(
+      { source: `{% doc %} @█`, relativePath: 'app/views/partials/file.liquid' },
+      [],
+    );
+
+    await expect(providerWith(publishedLiquidDoc)).to.complete(
+      { source: `{% doc %} @█`, relativePath: 'app/views/partials/file.liquid' },
+      PUBLISHED,
+    );
   });
 
   it('offers completions within liquid doc tag for partials', async () => {
     await expect(provider).to.complete(
       { source: `{% doc %} @█`, relativePath: 'app/views/partials/file.liquid' },
-      ['param', 'example', 'description'],
+      PUBLISHED,
     );
     await expect(provider).to.complete(
       { source: `{% doc %} @par█`, relativePath: 'app/views/partials/file.liquid' },
-      ['param'],
+      PUBLISHED.filter((name) => name.startsWith('par')),
     );
   });
 
@@ -61,11 +89,13 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           @█`,
           relativePath: 'app/views/partials/file.liquid',
         },
-        ['param', 'example', 'description'],
+        PUBLISHED,
       );
     });
 
     it('offers completions when @ is at the start of a new line following a node that accepts free-form text', async () => {
+      // `@prompt` is no annotation — Shopify Magic's, dropped from the grammar — so this is the
+      // TEXT case: a line the parser did not recognise still leaves the next `@` completable.
       await expect(provider).to.complete(
         {
           source: `{% doc %}
@@ -73,7 +103,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           @█`,
           relativePath: 'app/views/partials/file.liquid',
         },
-        ['param', 'example', 'description'],
+        PUBLISHED,
       );
 
       await expect(provider).to.complete(
@@ -83,7 +113,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           @█`,
           relativePath: 'app/views/partials/file.liquid',
         },
-        ['param', 'example', 'description'],
+        PUBLISHED,
       );
 
       await expect(provider).to.complete(
@@ -93,7 +123,7 @@ describe('Module: LiquidDocTagCompletionProvider', async () => {
           @█`,
           relativePath: 'app/views/partials/file.liquid',
         },
-        ['param', 'example', 'description'],
+        PUBLISHED,
       );
     });
 

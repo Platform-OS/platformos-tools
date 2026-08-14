@@ -15,6 +15,7 @@ describe('Module: LiquidTagHoverProvider', async () => {
         filters: async () => [],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [
           { name: 'if', description: 'if statement description' },
           { name: 'echo', description: 'echo description' },

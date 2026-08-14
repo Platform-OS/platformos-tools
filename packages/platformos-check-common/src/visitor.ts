@@ -132,7 +132,7 @@ export function findCurrentNode(
 
 function isCovered(node: LiquidHtmlNode, offset: number): boolean {
   switch (node.type) {
-    // `product.█title` should cover `title`
+    // `current_user.█email` should cover `email`
     case LiquidHtmlNodeTypes.String:
     // `if █cond` should cover `cond`
     case LiquidHtmlNodeTypes.VariableLookup:

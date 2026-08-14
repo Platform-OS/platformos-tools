@@ -12,7 +12,8 @@ const mockDependencies = {
         {
           name: 'old_filter',
           deprecated: true,
-          deprecation_reason: '`old_filter` has been replaced by [`new_filter`](/docs/...).',
+          deprecation_reason: 'use [new_filter](#new_filter) filter',
+          deprecation_replacement: 'new_filter',
         },
         {
           name: 'deprecated_no_replacement',
@@ -31,6 +32,9 @@ const mockDependencies = {
     },
     async liquidDrops() {
       return [];
+    },
+    async liquidDoc() {
+      return { annotations: [], param_types: [] };
     },
     async tags() {
       return [];
@@ -141,5 +145,91 @@ describe('Module: DeprecatedFilter', () => {
     );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].suggest).toBeUndefined();
+  });
+  /**
+   * The successor as DATA. Before `deprecation_replacement` existed the only source was the
+   * `deprecation_reason` prose, matched with a "replaced by [`name`]" pattern — and the group of
+   * tests above pins that pattern against a fixture written to satisfy it. No filter the platform
+   * actually publishes is phrased that way: the second test below feeds `sha1`'s real reason,
+   * verbatim, and gets no suggestion. So the rename was never once offered in practice.
+   */
+  describe('the successor published as a field', () => {
+    const docsetWithField = {
+      platformosDocset: {
+        async graphQL() {
+          return null;
+        },
+        async filters() {
+          return [
+            {
+              name: 'sha1',
+              deprecated: true,
+              // Verbatim from the platform: it names the successor, in prose the regex cannot read.
+              deprecation_reason: 'use [digest](#digest) filter',
+              deprecation_replacement: 'digest',
+            },
+            { name: 'digest' },
+          ];
+        },
+        async objects() {
+          return [];
+        },
+        async liquidDrops() {
+          return [];
+        },
+        async liquidDoc() {
+          return { annotations: [], param_types: [] };
+        },
+        async tags() {
+          return [];
+        },
+      },
+    };
+
+    it('offers the rename from deprecation_replacement when the prose does not state it', async () => {
+      const sourceCode = `{{ value | sha1 }}`;
+      const offenses = await runLiquidCheck(
+        DeprecatedFilter,
+        sourceCode,
+        'app/views/partials/file.liquid',
+        docsetWithField,
+      );
+
+      expect(offenses.map((offense) => offense.message)).toEqual([
+        "Deprecated filter 'sha1', consider using 'digest'.",
+      ]);
+      expect(offenses[0].suggest!.map((suggestion) => suggestion.message)).toEqual([
+        "Replace 'sha1' with 'digest'",
+      ]);
+      expect(applySuggestions(sourceCode, offenses[0])).toEqual(['{{ value | digest }}']);
+    });
+
+    it('offers nothing from that same prose without the field', async () => {
+      // The control: identical entry minus `deprecation_replacement`. It isolates the field as
+      // the cause — the suggestion above is not the regex quietly succeeding.
+      const offenses = await runLiquidCheck(
+        DeprecatedFilter,
+        `{{ value | sha1 }}`,
+        'app/views/partials/file.liquid',
+        {
+          platformosDocset: {
+            ...docsetWithField.platformosDocset,
+            async filters() {
+              return [
+                {
+                  name: 'sha1',
+                  deprecated: true,
+                  deprecation_reason: 'use [digest](#digest) filter',
+                },
+                { name: 'digest' },
+              ];
+            },
+          },
+        },
+      );
+
+      expect(offenses.map((offense) => offense.message)).toEqual(["Deprecated filter 'sha1'."]);
+      expect(offenses[0].suggest).toBeUndefined();
+    });
   });
 });

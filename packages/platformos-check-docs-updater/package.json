@@ -25,7 +25,7 @@
     "build": "yarn build:ts",
     "build:ci": "yarn build",
     "build:ts": "tsc -b tsconfig.build.json",
-    "postbuild": "node scripts/cli.js download data",
+    "postbuild": "node scripts/cli.js download data --optional",
     "test": "vitest",
     "type-check": "tsc --noEmit"
   },

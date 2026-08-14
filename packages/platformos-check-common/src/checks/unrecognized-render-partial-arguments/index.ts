@@ -11,7 +11,8 @@ import {
   getPartialName,
   reportUnknownArguments,
 } from '../../liquid-doc/arguments';
-import { CallSiteTag, callSiteTag, isObjectInScope } from '../utils';
+import { CallSiteTag, callSiteTag } from '../utils';
+import { inScopeNames } from '../../liquid-doc/in-scope-names';
 import { PlatformOSFileType } from '@platformos/platformos-common';
 
 export const UnrecognizedRenderPartialArguments: LiquidCheckDefinition = {
@@ -67,15 +68,13 @@ export const UnrecognizedRenderPartialArguments: LiquidCheckDefinition = {
      * redundant rather than unknown — a {% doc %} block has no reason to declare what the
      * caller never had to supply. A render/function target always resolves through the
      * `partial` document type, which is why the scope question is asked for a partial.
+     *
+     * Through `inScopeNames`, which every other caller of this same question uses: this was a
+     * second scan with its own answer, and the two had already drifted — that one appended
+     * Shopify's `app` drop to a partial's scope and this one did not.
      */
-    const inScopeObjectNames = async (): Promise<Set<string>> => {
-      const objects = (await context.platformosDocset?.objects()) ?? [];
-      return new Set(
-        objects
-          .filter((object) => isObjectInScope(object, PlatformOSFileType.Partial))
-          .map((obj) => obj.name),
-      );
-    };
+    const inScopeObjectNames = async (): Promise<Set<string>> =>
+      new Set(await inScopeNames(context, PlatformOSFileType.Partial));
 
     const validate = async (node: RenderMarkup | FunctionMarkup, ancestors: LiquidHtmlNode[]) => {
       const partialName = getPartialName(node);

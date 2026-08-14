@@ -1,0 +1,21 @@
+It should keep the text of an @prompt an author already wrote
+{% doc %}
+  @param {string} title - the title
+  @prompt
+  Build me a sale sticker with a rotating symbol
+  and a second line
+{% enddoc %}
+
+It should break a line at an embedded annotation-like @, as it does for any unmodelled tag
+{% doc %}
+  @prompt
+  A rotating @ symbol
+{% enddoc %}
+
+It should not let a @prompt swallow the annotations after it
+{% doc %}
+  @prompt
+  Build me a sale sticker
+  @param {string} title - the title
+  @description This is a description
+{% enddoc %}

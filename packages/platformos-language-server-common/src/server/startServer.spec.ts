@@ -15,6 +15,7 @@ import { Dependencies } from '../types';
 import { CHECK_ON_CHANGE, CHECK_ON_OPEN, CHECK_ON_SAVE } from './Configuration';
 import { startServer } from './startServer';
 import { SearchPathsLoader } from '../utils/searchPaths';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -665,13 +666,7 @@ describe('Module: server', () => {
         checks: MissingTemplate,
         rootUri: mockRoot,
       }),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       jsonValidationSet: {
         schemas: async () => [],
       },

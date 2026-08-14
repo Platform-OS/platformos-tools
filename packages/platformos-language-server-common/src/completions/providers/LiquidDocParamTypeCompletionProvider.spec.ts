@@ -1,13 +1,14 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { DocumentManager } from '../../documents';
-import { BasicParamTypes } from '@platformos/platformos-check-common';
+import { LiquidDocVocabulary } from '@platformos/platformos-check-common';
+import { NO_LIQUID_DOC, publishedLiquidDoc } from '@platformos/platformos-check-common/src/test';
 
 describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
   let provider: CompletionsProvider;
 
-  beforeEach(async () => {
-    provider = new CompletionsProvider({
+  const providerWith = (vocabulary: LiquidDocVocabulary) =>
+    new CompletionsProvider({
       // The test helper mounts every fixture under `/path/to`; classification is
       // anchored, so the providers need that root to tell a partial from a page.
       findAppRootURI: async () => '/path/to',
@@ -24,12 +25,33 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
         objects: async () => [],
         liquidDrops: async () => [
           {
-            name: 'product',
+            name: 'current_user',
           },
         ],
+        liquidDoc: async () => vocabulary,
         tags: async () => [],
       },
     });
+
+  beforeEach(async () => {
+    provider = providerWith(publishedLiquidDoc);
+  });
+
+  /**
+   * A docset published before `liquid_doc.json` offers no types at all — not the object names on their
+   * own, which would read as "`string` is not a param type". PAIRED with the control, so the emptiness
+   * is the unpublished vocabulary rather than a source this provider never completes in.
+   */
+  it('offers nothing when the docset publishes no param types', async () => {
+    const source = `{% doc %} @param {█`;
+    const relativePath = 'app/views/partials/file.liquid';
+
+    await expect(providerWith(NO_LIQUID_DOC)).to.complete({ source, relativePath }, []);
+
+    await expect(providerWith(publishedLiquidDoc)).to.complete({ source, relativePath }, [
+      ...publishedLiquidDoc.param_types.map(({ name }) => name),
+      'current_user',
+    ]);
   });
 
   it("offers type completions within liquid doc's param type tag for partials", async () => {
@@ -38,7 +60,8 @@ describe('Module: LiquidDocParamTypeCompletionProvider', async () => {
     for (const source of sources) {
       await expect(provider).to.complete(
         { source, relativePath: 'app/views/partials/file.liquid' },
-        [...Object.values(BasicParamTypes), 'product'],
+        // DERIVED: the published types plus the one object the mock docset knows.
+        [...publishedLiquidDoc.param_types.map(({ name }) => name), 'current_user'],
       );
     }
   });

@@ -28,6 +28,9 @@ const mockDependencies = {
     async liquidDrops() {
       return [];
     },
+    async liquidDoc() {
+      return { annotations: [], param_types: [] };
+    },
     async tags() {
       return [];
     },
@@ -47,6 +50,9 @@ const noDeps = {
     },
     async liquidDrops() {
       return [];
+    },
+    async liquidDoc() {
+      return { annotations: [], param_types: [] };
     },
     async tags() {
       return [];

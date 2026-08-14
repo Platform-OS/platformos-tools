@@ -206,7 +206,7 @@ describe('Unit: Stage 2 (AST)', () => {
           { expression: `x.y.z`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"]["z"]`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"].z`, name: 'x', lookups: ['y', 'z'] },
-          { expression: `["product"]`, name: null, lookups: ['product'] },
+          { expression: `["item"]`, name: null, lookups: ['item'] },
           { expression: `page.about-us`, name: 'page', lookups: ['about-us'] },
           { expression: `["x"].y`, name: null, lookups: ['x', 'y'] },
           { expression: `["x"]["y"]`, name: null, lookups: ['x', 'y'] },
@@ -599,10 +599,10 @@ describe('Unit: Stage 2 (AST)', () => {
             namedArguments: [],
           },
           {
-            expression: `"partial" for products as product`,
+            expression: `"partial" for items as item`,
             partialType: 'String',
             alias: {
-              value: 'product',
+              value: 'item',
             },
             renderVariableExpression: {
               kind: 'for',
@@ -728,9 +728,9 @@ describe('Unit: Stage 2 (AST)', () => {
             ],
           },
           {
-            expression: `"partial" for products as product`,
+            expression: `"partial" for items as item`,
             partialType: 'String',
-            alias: { value: 'product' },
+            alias: { value: 'item' },
             renderVariableExpression: { kind: 'for', name: { type: 'VariableLookup' } },
             namedArguments: [],
           },
@@ -868,6 +868,76 @@ describe('Unit: Stage 2 (AST)', () => {
           expectPath(ast, 'children.0.markup.args.0.value.type').to.equal('NamedArgument');
           expectPath(ast, 'children.0.markup.args.0.value.name').to.equal('key');
           expectPath(ast, 'children.0.markup.args.0.value.value.type').to.equal('String');
+        }
+      });
+
+      /**
+       * `{% function items << 'partial' %}` collects a partial's return value onto an array, and is
+       * how a loop accumulates results. It did not parse: the markup fell back to a raw string and
+       * `InvalidTagSyntax` reported it, so two of the platform's own published `tags.json` examples
+       * were flagged as syntax errors and — `LiquidHTMLSyntaxError` being blocking — the MCP write
+       * gate refused any file using the idiom.
+       *
+       * MEASURED, on a live instance via `pos-cli exec liquid`. The discriminator is which error the
+       * runtime returns: a genuine parse failure says "Invalid syntax for function tag" (control:
+       * `{% function 'no-target' %}`), while a successful parse that cannot resolve the partial says
+       * "can't find partial". All three forms below returned the latter, so the runtime parses them.
+       *
+       * `hash_assign` is the control in the other direction and deliberately absent: it was measured
+       * to REJECT the append form — "Syntax Error in 'hash_assign' - Valid syntax:
+       * hash_assign hash[key] = value" — so `writeOperator` is shared with `assign` and `function`
+       * only. `stage-1-cst.spec.ts` pins that it still falls back to a string.
+       */
+      it('should parse the function append operator, including onto a lookup path', () => {
+        // The operator is asserted as part of a WHOLE projection: an operator silently defaulting to
+        // '=' is the failure that matters, and it is invisible in a test that only checks the target
+        // and the partial.
+        /** The whole FunctionMarkup projection for the first tag in `source`. */
+        const shapeOf = (toAST: (source: string) => LiquidHtmlNode, source: string) => {
+          const markup = (toAST(source) as any).children[0].markup;
+          return {
+            type: markup.type,
+            name: markup.name.name,
+            lookups: markup.name.lookups.map((lookup: any) => lookup.value),
+            operator: markup.operator,
+            partial: markup.partial.value,
+            args: markup.args.map((arg: any) => arg.name),
+          };
+        };
+
+        for (const { toAST } of testCases) {
+          expect(
+            shapeOf(toAST, `{% function items << 'partials/fetch_item', id: 1 %}`),
+          ).to.deep.equal({
+            type: 'FunctionMarkup',
+            name: 'items',
+            lookups: [],
+            operator: '<<',
+            partial: 'partials/fetch_item',
+            args: ['id'],
+          });
+
+          expect(
+            shapeOf(toAST, `{% function response['data'] << 'partials/fetch_user', id: 1 %}`),
+          ).to.deep.equal({
+            type: 'FunctionMarkup',
+            name: 'response',
+            lookups: ['data'],
+            operator: '<<',
+            partial: 'partials/fetch_user',
+            args: ['id'],
+          });
+
+          expect(
+            shapeOf(toAST, `{% function response['metadata']['total'] = 'partials/count_users' %}`),
+          ).to.deep.equal({
+            type: 'FunctionMarkup',
+            name: 'response',
+            lookups: ['metadata', 'total'],
+            operator: '=',
+            partial: 'partials/count_users',
+            args: [],
+          });
         }
       });
 
@@ -1787,7 +1857,7 @@ describe('Unit: Stage 2 (AST)', () => {
             namedArguments: [],
           },
           {
-            expression: `'partial' with product as item`,
+            expression: `'partial' with item as item`,
             partialType: 'String',
             alias: {
               value: 'item',
@@ -1801,10 +1871,10 @@ describe('Unit: Stage 2 (AST)', () => {
             namedArguments: [],
           },
           {
-            expression: `'partial' for products as product`,
+            expression: `'partial' for items as item`,
             partialType: 'String',
             alias: {
-              value: 'product',
+              value: 'item',
             },
             renderVariableExpression: {
               kind: 'for',
@@ -2157,7 +2227,7 @@ describe('Unit: Stage 2 (AST)', () => {
         const testCases = [
           '{% for x in y %}<details>{% endfor %}',
           '{% tablerow x in y %}<details>{% endtablerow %}',
-          '{% form "cart", cart %}<details>{% endform %}',
+          '{% form method: "post" %}<details>{% endform %}',
         ];
         for (const testCase of testCases) {
           try {
@@ -2218,8 +2288,8 @@ describe('Unit: Stage 2 (AST)', () => {
 
     it('should throw when trying to open a new branch when a Liquid node was not closed', () => {
       const testCases = [
-        '{% if cond %}{% form "cart", cart %}{% else %}{% endif %}',
-        '{% if cond %}{% form "cart", cart %}{% elsif cond %}{% endif %}',
+        '{% if cond %}{% form method: "post" %}{% else %}{% endif %}',
+        '{% if cond %}{% form method: "post" %}{% elsif cond %}{% endif %}',
       ];
       for (const testCase of testCases) {
         try {
@@ -2283,9 +2353,9 @@ describe('Unit: Stage 2 (AST)', () => {
     });
 
     it('should parse html comments as raw', () => {
-      ast = toLiquidHtmlAST(`<!--\n  hello {{ product.name }}\n-->`);
+      ast = toLiquidHtmlAST(`<!--\n  hello {{ item.name }}\n-->`);
       expectPath(ast, 'children.0.type').to.eql('HtmlComment');
-      expectPath(ast, 'children.0.body').to.eql('hello {{ product.name }}');
+      expectPath(ast, 'children.0.body').to.eql('hello {{ item.name }}');
       expectPosition(ast, 'children.0');
     });
 
@@ -2297,18 +2367,18 @@ describe('Unit: Stage 2 (AST)', () => {
     });
 
     it('should parse script tags as raw', () => {
-      ast = toLiquidHtmlAST(`<script>\n  const a = {{ product | json }};\n</script>`);
+      ast = toLiquidHtmlAST(`<script>\n  const a = {{ item | json }};\n</script>`);
       expectPath(ast, 'children.0.type').to.eql('HtmlRawNode');
       expectPath(ast, 'children.0.name').to.eql('script');
       expectPath(ast, 'children.0.body.type').to.eql('RawMarkup');
       expectPath(ast, 'children.0.body.kind').to.eql('javascript');
-      expectPath(ast, 'children.0.body.value').to.eql('\n  const a = {{ product | json }};\n');
+      expectPath(ast, 'children.0.body.value').to.eql('\n  const a = {{ item | json }};\n');
       expectPath(ast, 'children.0.body.nodes').to.have.lengthOf(3);
       expectPath(ast, 'children.0.body.nodes.0.type').to.eql('TextNode');
       expectPath(ast, 'children.0.body.nodes.1.type').to.eql('LiquidVariableOutput');
       expectPath(ast, 'children.0.body.nodes.2.type').to.eql('TextNode');
       expectPosition(ast, 'children.0.body.nodes.0').toEqual('const a =');
-      expectPosition(ast, 'children.0.body.nodes.1').toEqual('{{ product | json }}');
+      expectPosition(ast, 'children.0.body.nodes.1').toEqual('{{ item | json }}');
       expectPosition(ast, 'children.0.body.nodes.2').toEqual(';');
       expectPosition(ast, 'children.0');
     });
@@ -2351,7 +2421,7 @@ describe('Unit: Stage 2 (AST)', () => {
     it('should parse unclosed conditions with assignments', () => {
       ast = toLiquidAST(`
         {%- liquid
-          assign var1 = product
+          assign var1 = item
 
           if use_variant
             assign var2 = var1
@@ -2595,6 +2665,13 @@ describe('Unit: Stage 2 (AST)', () => {
       );
       expectPath(ast, 'children.0.body.nodes.1.isImplicit').to.eql(false);
 
+      /**
+       * `@prompt` was Shopify Magic's AI-provenance annotation, carried over with the fork and
+       * read by nothing here — no check validated it, the language server never offered it, and
+       * platformOS publishes no such annotation. The grammar stopped modelling it, so what an
+       * author who already wrote one gets is asserted here rather than assumed: the block still
+       * parses, and every line of it survives as text.
+       */
       ast = toLiquidAST(`
 {% doc -%}
   @prompt
@@ -2603,10 +2680,11 @@ describe('Unit: Stage 2 (AST)', () => {
 {% enddoc %}`);
       expectPath(ast, 'children.0.type').to.eql('LiquidRawTag');
       expectPath(ast, 'children.0.name').to.eql('doc');
-      expectPath(ast, 'children.0.body.nodes.0.type').to.eql('LiquidDocPromptNode');
-      expectPath(ast, 'children.0.body.nodes.0.name').to.eql('prompt');
-      expectPath(ast, 'children.0.body.nodes.0.content.value').to.eql(
-        '\n    This is a prompt\n    It can have multiple lines\n',
+      expectPath(ast, 'children.0.body.nodes.0.type').to.eql('TextNode');
+      expectPath(ast, 'children.0.body.nodes.0.value').to.eql('@prompt');
+      expectPath(ast, 'children.0.body.nodes.1.type').to.eql('TextNode');
+      expectPath(ast, 'children.0.body.nodes.1.value').to.eql(
+        'This is a prompt\n    It can have multiple lines',
       );
 
       ast = toLiquidAST(`
@@ -2625,20 +2703,22 @@ describe('Unit: Stage 2 (AST)', () => {
       expectPath(ast, 'children.0.body.nodes.0.content.value').to.eql(
         'this block was AI generated\n\n',
       );
-      expectPath(ast, 'children.0.body.nodes.1.type').to.eql('LiquidDocPromptNode');
-      expectPath(ast, 'children.0.body.nodes.1.name').to.eql('prompt');
-      expectPath(ast, 'children.0.body.nodes.1.content.value').to.eql('\n    First prompt\n\n');
-      expectPath(ast, 'children.0.body.nodes.2.type').to.eql('LiquidDocParamNode');
-      expectPath(ast, 'children.0.body.nodes.2.paramName.value').to.eql('paramName');
+      expectPath(ast, 'children.0.body.nodes.1.type').to.eql('TextNode');
+      expectPath(ast, 'children.0.body.nodes.1.value').to.eql('@prompt');
+      expectPath(ast, 'children.0.body.nodes.2.type').to.eql('TextNode');
+      expectPath(ast, 'children.0.body.nodes.2.value').to.eql('First prompt');
+      // The annotations after it are still annotations — a dropped one does not swallow them.
+      expectPath(ast, 'children.0.body.nodes.3.type').to.eql('LiquidDocParamNode');
+      expectPath(ast, 'children.0.body.nodes.3.paramName.value').to.eql('paramName');
     });
 
     it('should parse unclosed tables with assignments', () => {
       ast = toLiquidAST(`
         {%- liquid
-          assign var1 = product
+          assign var1 = item
         -%}
         <table>
-          {% tablerow var2 in collections.first.products %}
+          {% tablerow var2 in groups.first.items %}
             {% assign var3 = var2 %}
             {{ var3.title }}
       `);
@@ -2657,7 +2737,7 @@ describe('Unit: Stage 2 (AST)', () => {
     });
 
     it('should parse script tags as a text node', () => {
-      ast = toLiquidAST(`<script>\n  const a = {{ product | json }};\n</script>`);
+      ast = toLiquidAST(`<script>\n  const a = {{ item | json }};\n</script>`);
 
       expectPath(ast, 'children.0.type').to.eql('TextNode');
       expectPath(ast, 'children.0.value').to.eql(`<script>

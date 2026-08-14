@@ -5,9 +5,10 @@ import { LiquidExpression, LiquidFilter, NodeTypes } from '@platformos/liquid-ht
  * value across a filter chain. Anything absent transforms, and describes a value neither
  * analysis knows.
  *
- * Hand-written, and deliberately NOT derived from the generated `filter-arity.ts`: that
- * file is regenerated against a live instance and may drop a name it can no longer
- * determine, which for an arity is a missing bound and here would be a wrong answer.
+ * Hand-written, and deliberately NOT derived from the published `arity`: a missing bound there
+ * means "unchecked", which is harmless, where a missing entry here would be a wrong answer about
+ * what a value IS. This is a static-analysis model rather than documentation, which is why it stays
+ * after the filter data tables this package used to carry were deleted.
  */
 type FilterValueSemantics =
   /** Returns a value already inside its input, at the path its arguments name. */

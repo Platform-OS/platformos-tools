@@ -1774,6 +1774,64 @@ fragment record on Record {
    * `.first`. Every expectation below was checked against `pos-module-community` running
    * on a live instance, with the platform's tables renamed to the ones `RECORDS_SDL` knows.
    */
+  /**
+   * `{% function items << 'partial' %}` APPENDS the partial's return value; it does not replace the
+   * target with it. The write used to be recorded with a hard-coded `operator: '='`, which typed
+   * `items` as the returned hash and reported `items[0]` as an unknown property — a false positive
+   * on the accumulate-in-a-loop idiom, and on the platform's own published `tags.json` example for
+   * this tag. It was reachable only once the append form began to parse.
+   */
+  describe('{% function %} with the append operator', () => {
+    const FETCH: MockApp = {
+      'app/views/partials/fetch_item.liquid': `{% liquid
+  assign r = {"id": 1, "name": "x"}
+  return r
+%}`,
+    };
+
+    it('should type the target as an array of what the partial returns', async () => {
+      const reads = await run(
+        `{% assign items = [] %}
+{% function items << 'fetch_item' %}
+{{ items[0].id }}
+{{ items[0].name }}
+{{ items.first.name }}`,
+        FETCH,
+      );
+
+      // Every read is of a key the partial really returns, so nothing is reported — and the
+      // element shape is what makes that possible, not a blanket "unknown".
+      expect(messagesOf(reads)).toEqual([]);
+    });
+
+    it('CONTROL: should still report a key the appended element does not have', async () => {
+      // Paired with the test above, because an append modelled as UNKNOWN_SHAPE would also report
+      // nothing there. This is what distinguishes "typed as an array of the element" from
+      // "given up on".
+      const reads = await run(
+        `{% assign items = [] %}
+{% function items << 'fetch_item' %}
+{{ items[0].zzz }}`,
+        FETCH,
+      );
+
+      expect(messagesOf(reads)).toEqual(["Unknown property 'zzz' on 'items.0'."]);
+    });
+
+    it('should keep replacing the target on the assigning form', async () => {
+      // The other control: `=` must NOT be treated as an append. `result` is the hash itself, so a
+      // subscript read of it is the thing that is wrong.
+      const reads = await run(
+        `{% function result = 'fetch_item' %}
+{{ result.name }}
+{{ result.zzz }}`,
+        FETCH,
+      );
+
+      expect(messagesOf(reads)).toEqual(["Unknown property 'zzz' on 'result'."]);
+    });
+  });
+
   describe('a real platformOS chain, runtime-verified', () => {
     const app: MockApp = {
       'app/graphql/records/load.graphql': `query load($id: ID, $with_extra: Boolean = false) {

@@ -670,7 +670,18 @@ export function createShapeAnalyzer(
       applyWrite({
         name,
         path: buildLookupPath(markup.name.lookups),
-        operator: '=',
+        /**
+         * The tag's own operator. `{% function items << 'p' %}` APPENDS the partial's return
+         * value; hard-coding `'='` here said the target now IS that value, so `items` was typed
+         * as the returned hash and `{{ items[0].name }}` reported "Unknown property '0' on
+         * 'items'" — a false positive on the accumulate-into-an-array idiom, and on the
+         * platform's own published `tags.json` example for this tag.
+         *
+         * `writtenShape` already models the difference: with an array base it merges the pushed
+         * element into `itemShape`, so passing the operator TYPES the accumulated array rather
+         * than merely silencing it. It was harmless only while the append form failed to parse.
+         */
+        operator: markup.operator,
         valueShape: returned,
         at,
         scopeEnd,

@@ -1,9 +1,7 @@
 import {
-  BasicParamTypes,
   DocDefinition,
   getDefaultValueForType,
   LiquidDocParameter,
-  SupportedDocTagTypes,
 } from '@platformos/platformos-check-common';
 
 export function formatLiquidDocParameter(
@@ -26,37 +24,21 @@ export function formatLiquidDocTagHandle(label: string, description: string, exa
   return `### @${label}\n\n${description}\n\n` + `**Example**\n\n\`\`\`liquid\n${example}\n\`\`\``;
 }
 
-export const SUPPORTED_LIQUID_DOC_TAG_HANDLES = {
-  [SupportedDocTagTypes.Param]: {
-    description:
-      'Provides information about a parameter for the partial.\n' +
-      `- The type of parameter is optional and can be ${Object.values(BasicParamTypes)
-        .map((type) => `\`${type}\``)
-        .join(', ')}\n` +
-      ` or liquid object that isn't exclusively a global object in our [API Docs](https://documentation.platformos.com/api-reference/liquid/platformos-objects)\n` +
-      '- An optional parameter is denoted by square brackets around the parameter name\n' +
-      '- The description is optional Markdown text',
-    example:
-      '{% doc %}\n' +
-      "  @param {string} name - The person's name\n" +
-      "  @param {number} [fav_num] - The person's favorite number\n" +
-      "  @param {product} prod - The person's chosen product\n" +
-      '{% enddoc %}\n',
-    template: `param {$2} $1$0`,
-  },
-  [SupportedDocTagTypes.Example]: {
-    description: 'Provides an example on how to use the partial.',
-    example:
-      '{% doc %}\n' + '  @example {% render "partial-name", arg1: "value" %}\n' + '{% enddoc %}\n',
-    template: `example $0`,
-  },
-  [SupportedDocTagTypes.Description]: {
-    description: 'Provides information on what the partial does.',
-    example:
-      '{% doc %}\n' + '  @description This partial renders a product image.\n' + '{% enddoc %}\n',
-    template: `description $0`,
-  },
-};
+/**
+ * The snippet an editor inserts for an annotation — mechanism, not documentation.
+ *
+ * `@param` is the one annotation whose completion places the cursor somewhere other than the end of the
+ * line: `{$2}` for the type, `$1` for the name. Everything else takes free-form text after the name,
+ * which is what the generic answer produces, so this stays a one-entry table with a fallback rather
+ * than a row per annotation — the docset decides WHICH annotations exist, and an annotation it
+ * publishes that is not named here still gets a working snippet.
+ *
+ * `param` is spelled out because the PARSER names it too: `LiquidDocParamNode` is the only annotation
+ * with a structured markup rule, and that grammar is the one copy of the vocabulary that stays local.
+ */
+export function liquidDocAnnotationSnippet(name: string): string {
+  return name === 'param' ? `param {$2} $1$0` : `${name} $0`;
+}
 
 export function getParameterCompletionTemplate(name: string, type: string | null) {
   const paramDefaultValue = getDefaultValueForType(type);

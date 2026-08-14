@@ -9,21 +9,24 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
   let provider: HoverProvider;
 
   beforeEach(async () => {
+    // SYNTHETIC names. These tests need an object with an array-valued property, which no real
+    // platformOS object has; the previous spelling borrowed Shopify's `item`/`image` for it and
+    // so read as documentation of an API that does not exist.
     const _objects: ObjectEntry[] = [
       {
-        name: 'product',
-        description: 'product description',
+        name: 'record_type',
+        description: 'record_type description',
         return_type: [],
         properties: [
           {
-            name: 'featured_image',
-            description: 'featured_image description',
-            return_type: [{ type: 'image', name: '' }],
+            name: 'featured_item',
+            description: 'featured_item description',
+            return_type: [{ type: 'item_type', name: '' }],
           },
           {
-            name: 'images',
-            description: 'images description',
-            return_type: [{ type: 'array', array_value: 'image' }],
+            name: 'items',
+            description: 'items description',
+            return_type: [{ type: 'array', array_value: 'item_type' }],
           },
           {
             name: 'title',
@@ -32,8 +35,8 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
         ],
       },
       {
-        name: 'image',
-        description: 'description of the image type',
+        name: 'item_type',
+        description: 'description of the item type',
         properties: [
           {
             name: 'height',
@@ -56,6 +59,7 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
         filters: async () => [],
         objects: async () => _objects,
         liquidDrops: async () => _objects,
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
       new TranslationProvider(new MockFileSystem({})),
@@ -64,19 +68,19 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
 
   it('should return the hover description of the object property', async () => {
     const contexts = [
-      '{{ product.feat█ured_image }}',
-      '{{ product.featured_image█ }}',
-      '{% echo product.featured_image█ %}',
-      '{% liquid\n echo product.featured_image█ %}',
+      '{{ record_type.feat█ured_item }}',
+      '{{ record_type.featured_item█ }}',
+      '{% echo record_type.featured_item█ %}',
+      '{% liquid\n echo record_type.featured_item█ %}',
     ];
     for (const context of contexts) {
       await expect(provider).to.hover(
         context,
-        expect.stringContaining('featured_image description'),
+        expect.stringContaining('featured_item description'),
       );
       await expect(provider).to.hover(
         context,
-        expect.stringMatching(/##* featured_image: `image`/),
+        expect.stringMatching(/##* featured_item: `item_type`/),
       );
     }
   });
@@ -84,43 +88,43 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
   describe('when hovering over an array built-in method', () => {
     it('should return the hover description of the object property', async () => {
       const contexts = [
-        '{{ product.images.█first }}',
-        '{{ product.images.first█ }}',
-        '{{ product.images.last█ }}',
-        '{% echo product.images.first█ %}',
+        '{{ record_type.items.█first }}',
+        '{{ record_type.items.first█ }}',
+        '{{ record_type.items.last█ }}',
+        '{% echo record_type.items.first█ %}',
       ];
       for (const context of contexts) {
         await expect(provider).to.hover(
           context,
-          expect.stringMatching(/##* (first|last): `image`/),
+          expect.stringMatching(/##* (first|last): `item_type`/),
         );
         await expect(provider, context).to.hover(
           context,
-          expect.stringContaining('description of the image type'),
+          expect.stringContaining('description of the item type'),
         );
       }
     });
 
     it('should return not arbitrarily return the type of the last property', async () => {
       await expect(provider).to.hover(
-        '{{ product.images.first█.height }}',
-        expect.stringMatching(/##* first: `image`/),
+        '{{ record_type.items.first█.height }}',
+        expect.stringMatching(/##* first: `item_type`/),
       );
       await expect(provider).to.hover(
-        '{{ product.images.firs█t.height }}',
-        expect.stringMatching(/##* first: `image`/),
+        '{{ record_type.items.firs█t.height }}',
+        expect.stringMatching(/##* first: `item_type`/),
       );
     });
 
     it('should return the hover description number properties', async () => {
-      const contexts = ['{{ product.images.size█ }}', '{% echo product.images.size█ %}'];
+      const contexts = ['{{ record_type.items.size█ }}', '{% echo record_type.items.size█ %}'];
       for (const context of contexts) {
         await expect(provider).to.hover(context, expect.stringMatching(/##* size: `number`/));
       }
     });
 
     it('should return nothing if there are no docs for that attribute', async () => {
-      const contexts = ['{{ product.images.length█ }}', '{% echo product.images.length█ %}'];
+      const contexts = ['{{ record_type.items.length█ }}', '{% echo record_type.items.length█ %}'];
       for (const context of contexts) {
         await expect(provider).to.hover(context, null);
       }
@@ -130,9 +134,9 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
   describe('when hovering over built-in methods of built-in types', () => {
     it('should return info for size', async () => {
       const contexts = [
-        '{{ product.title.size█ }}',
-        '{{ product.title.first.size█ }}',
-        '{% echo product.title.size█ %}',
+        '{{ record_type.title.size█ }}',
+        '{{ record_type.title.first.size█ }}',
+        '{% echo record_type.title.size█ %}',
       ];
       for (const context of contexts) {
         await expect(provider).to.hover(context, expect.stringMatching(/##* size: `number`/));
@@ -141,10 +145,10 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
 
     it('should return info for first/last of strings', async () => {
       const contexts = [
-        '{{ product.title.last█ }}',
-        '{{ product.title.first█ }}',
-        '{{ product.title.first.first█ }}',
-        '{% echo product.title.first█ %}',
+        '{{ record_type.title.last█ }}',
+        '{{ record_type.title.first█ }}',
+        '{{ record_type.title.first.first█ }}',
+        '{% echo record_type.title.first█ %}',
       ];
       for (const context of contexts) {
         await expect(provider).to.hover(
@@ -155,7 +159,7 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
     });
 
     it('should return nothing for unknown attributes of built-ins', async () => {
-      const contexts = ['{{ product.title.length█ }}', '{% echo product.title.unknown█ %}'];
+      const contexts = ['{{ record_type.title.length█ }}', '{% echo record_type.title.unknown█ %}'];
       for (const context of contexts) {
         await expect(provider).to.hover(context, null);
       }
@@ -165,7 +169,7 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
   describe('when the parent is untyped', () => {
     it('should show a hover window (it is like any of any)', async () => {
       await expect(provider).to.hover(
-        `{% assign x = product.foo %}
+        `{% assign x = record_type.foo %}
          {{ x.bar█ }}`,
         expect.stringMatching(/##* bar: `untyped`/),
       );
@@ -173,7 +177,7 @@ describe('Module: LiquidObjectAttributeHoverProvider', async () => {
   });
 
   it('should return nothing if there are no docs for that attribute', async () => {
-    await expect(provider).to.hover(`{{ product.featured_foo█ }}`, null);
+    await expect(provider).to.hover(`{{ record_type.featured_foo█ }}`, null);
   });
 
   describe('when hovering over parse_json variables', () => {

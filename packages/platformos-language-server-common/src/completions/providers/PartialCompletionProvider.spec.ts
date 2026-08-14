@@ -1,6 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 
 describe('Module: RenderPartialCompletionProvider', async () => {
   let provider: CompletionsProvider;
@@ -8,20 +9,14 @@ describe('Module: RenderPartialCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       getTranslationsForURI: async (_) => ({}),
-      getPartialNamesForURI: async (_) => ['product-card', 'image'],
+      getPartialNamesForURI: async (_) => ['item-card', 'image'],
     });
   });
 
   it('should complete partials correctly', async () => {
-    await expect(provider).to.complete('{% render "', ['product-card', 'image']);
+    await expect(provider).to.complete('{% render "', ['item-card', 'image']);
   });
 });
 
@@ -29,13 +24,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
   it('should complete module paths - /modules/user/commands/test', async () => {
     const provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_uri, partial, _tag) => {
         if (partial === '/modules/user/commands') {
@@ -51,13 +40,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
   it('should complete root commands path - /commands/test2', async () => {
     const provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_uri, partial, _tag) => {
         if (partial === '/commands') {
@@ -73,13 +56,7 @@ describe('Module: PartialCompletionProvider with paths', async () => {
   it('should complete multiple files in directory', async () => {
     const provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       getTranslationsForURI: async (_) => ({}),
       getPartialNamesForURI: async (_uri, partial, _tag) => {
         if (partial === '/modules/user/commands') {

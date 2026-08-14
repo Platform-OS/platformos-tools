@@ -121,6 +121,9 @@ ValidHTMLTranslation:
 ValidRenderPartialArgumentTypes:
   enabled: true
   severity: 1
+ValidTagArgumentTypes:
+  enabled: true
+  severity: 1
 VariableName:
   enabled: true
   severity: 1

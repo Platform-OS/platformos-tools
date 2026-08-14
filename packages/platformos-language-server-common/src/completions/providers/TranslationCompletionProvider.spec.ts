@@ -1,6 +1,7 @@
 import { describe, beforeEach, it, expect } from 'vitest';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 
 describe('Module: TranslationCompletionProvider', async () => {
   let provider: CompletionsProvider;
@@ -8,13 +9,7 @@ describe('Module: TranslationCompletionProvider', async () => {
   beforeEach(async () => {
     provider = new CompletionsProvider({
       documentManager: new DocumentManager(),
-      platformosDocset: {
-        graphQL: async () => null,
-        filters: async () => [],
-        objects: async () => [],
-        liquidDrops: async () => [],
-        tags: async () => [],
-      },
+      platformosDocset: publishedDocset,
       getTranslationsForURI: async (_) => ({
         general: {
           username_html: '<b>username</b>',

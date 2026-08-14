@@ -42,11 +42,15 @@ export async function inScopeNames(
     // Which documented objects reach the TARGET depends on the target's type: most
     // `global` objects are not global to a partial — `data` and `response` belong to an
     // api_call, so a partial reading one is reading an argument nobody passed.
+    //
+    // THE DOCSET IS THE WHOLE ANSWER. `app` used to be appended here for a partial, and `app` is
+    // not a platformOS object at all — it is Shopify's theme app extension drop, inherited with
+    // the fork. `UndefinedObject` carried the same exemption and dropped it; keeping it here made
+    // this the one place in the toolchain where a name the platform does not provide counted as
+    // supplied, which silences the very mistake these checks exist to report.
     names = objects
       .filter((object) => isObjectInScope(object, targetFileType))
       .map((object) => object.name);
-    // `app` is not a documented object, so it never comes back from objects().
-    if (targetFileType === PlatformOSFileType.Partial) names = [...names, 'app'];
     byType.set(targetFileType, names);
   }
 

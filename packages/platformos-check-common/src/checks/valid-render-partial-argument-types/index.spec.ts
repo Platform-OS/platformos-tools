@@ -1,51 +1,91 @@
 import { describe, it, expect } from 'vitest';
-import { runLiquidCheck, applySuggestions } from '../../test';
+import { runLiquidCheck, applySuggestions, messagesOf } from '../../test';
 import { ValidRenderPartialArgumentTypes } from '.';
-import { BasicParamTypes } from '../../liquid-doc/utils';
+import { Dependencies, FilterEntry } from '../../types';
+import { publishedDocset } from '../../test/published-docset';
+
+/**
+ * A docset declared HERE, driving the check down a branch — the docset as INPUT, which is one of
+ * the two legal shapes for a test in this repository. The subject is what the check does with a
+ * published return type; whether the platform really types `append` as `string` is settled where
+ * `filters.json` is authored, and a test that restated it would fail on a correct docs release.
+ */
+function withFilters(filters: FilterEntry[]): Partial<Dependencies> {
+  return {
+    platformosDocset: {
+      async filters() {
+        return filters;
+      },
+      async objects() {
+        return [];
+      },
+      async liquidDrops() {
+        return [];
+      },
+      async liquidDoc() {
+        return { annotations: [], param_types: [] };
+      },
+      async tags() {
+        return [];
+      },
+      async graphQL() {
+        return null;
+      },
+    },
+  };
+}
+
+const returns = (name: string, type: string, aliases: string[] = []): FilterEntry => ({
+  name,
+  aliases,
+  return_type: [{ type, name: '' }],
+});
 
 describe('Module: ValidRenderPartialParamTypes', () => {
   describe('type validation', () => {
     const typeTests = [
       {
         type: 'string',
-        validValues: ["'hello'", "''", 'product'],
+        validValues: ["'hello'", "''", 'item'],
         invalidValues: [
-          { value: '123', actualType: BasicParamTypes.Number },
-          { value: 'true', actualType: BasicParamTypes.Boolean },
+          { value: '123', actualType: 'number' },
+          { value: 'true', actualType: 'boolean' },
         ],
       },
       {
         type: 'number',
-        validValues: ['0', '123', '-1', 'product'],
+        validValues: ['0', '123', '-1', 'item'],
         invalidValues: [
-          { value: "'hello'", actualType: BasicParamTypes.String },
-          { value: 'true', actualType: BasicParamTypes.Boolean },
+          { value: "'hello'", actualType: 'string' },
+          { value: 'true', actualType: 'boolean' },
         ],
       },
       {
         type: 'boolean',
-        validValues: ['true', 'false', 'nil', 'empty', 'product', '123', "'hello'"],
+        validValues: ['true', 'false', 'nil', 'empty', 'item', '123', "'hello'"],
         invalidValues: [],
       },
       {
-        // `object` is the generic non-primitive type, so it accepts an array too.
+        // `object` is the generic non-primitive type, so it accepts an array and a range too.
         type: 'object',
-        validValues: ['product', '(1..3)', '[1, 2]', '[]'],
+        validValues: ['item', '(1..3)', '[1, 2]', '[]'],
         invalidValues: [
-          { value: "'hello'", actualType: BasicParamTypes.String },
-          { value: '123', actualType: BasicParamTypes.Number },
-          { value: 'true', actualType: BasicParamTypes.Boolean },
-          { value: 'empty', actualType: BasicParamTypes.String },
+          { value: "'hello'", actualType: 'string' },
+          { value: '123', actualType: 'number' },
+          { value: 'true', actualType: 'boolean' },
+          { value: 'empty', actualType: 'string' },
         ],
       },
       {
         type: 'array',
-        validValues: ['[1, 2]', '["a", "b"]', '[]', 'product'],
+        validValues: ['[1, 2]', '["a", "b"]', '[]', 'item'],
         invalidValues: [
-          { value: "'hello'", actualType: BasicParamTypes.String },
-          { value: '123', actualType: BasicParamTypes.Number },
-          { value: 'true', actualType: BasicParamTypes.Boolean },
-          { value: '(1..3)', actualType: BasicParamTypes.Object },
+          { value: "'hello'", actualType: 'string' },
+          { value: '123', actualType: 'number' },
+          { value: 'true', actualType: 'boolean' },
+          // A range is its own type, not the generic `object` it used to be reported as. Only the
+          // MESSAGE moved: `object` still accepts a range (above), `array` still refuses one.
+          { value: '(1..3)', actualType: 'range' },
         ],
       },
     ];
@@ -97,9 +137,85 @@ describe('Module: ValidRenderPartialParamTypes', () => {
     }
   });
 
+  /**
+   * `date` and `time` are declarable, and this is what that buys.
+   *
+   * They spent a release publishable as a filter's RETURN type and rejected as a `@param` type, on the
+   * stated grounds that nothing infers them for an argument. That was false: `to_date` and `to_time`
+   * publish exactly those types, so a filtered argument resolves to one — and until the type could be
+   * written down, a literal passed where a date belongs was reported by nothing.
+   */
+  describe('date and time arguments', () => {
+    const partial = (type: string) => ({
+      'app/views/partials/card.liquid': `
+        {% doc %}
+          @param {${type}} on - When it happens
+        {% enddoc %}
+        <div>{{ on }}</div>
+      `,
+    });
+
+    // THE REAL `filters.json`, not two entries written here: the claim under test is that a value the
+    // platform documents as a `date` satisfies a `@param {date}`, and only the published document can
+    // say what `to_date` returns. `filter-semantics.spec.ts` reads the same file the same way.
+    const dateFilters = { platformosDocset: publishedDocset };
+
+    it('accepts a value the docset types as a date', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% render 'card', on: starts_at | to_date %}`,
+        undefined,
+        dateFilters,
+        partial('date'),
+      );
+
+      expect(offenses).toEqual([]);
+    });
+
+    it('accepts a value the docset types as a time', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% render 'card', on: '' | to_time %}`,
+        undefined,
+        dateFilters,
+        partial('time'),
+      );
+
+      expect(offenses).toEqual([]);
+    });
+
+    it('rejects a string literal where a date is declared', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% render 'card', on: 'yesterday' %}`,
+        undefined,
+        dateFilters,
+        partial('date'),
+      );
+
+      expect(messagesOf(offenses)).toEqual([
+        "Type mismatch for argument 'on': expected date, got string",
+      ]);
+    });
+
+    it('rejects a date where a time is declared, since the two are not the same type', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% render 'card', on: starts_at | to_date %}`,
+        undefined,
+        dateFilters,
+        partial('time'),
+      );
+
+      expect(messagesOf(offenses)).toEqual([
+        "Type mismatch for argument 'on': expected time, got date",
+      ]);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle mixed case type annotations', async () => {
-      const sourceCode = `{% render 'card', text: "hello", count: 5, flag: true, data: product %}`;
+      const sourceCode = `{% render 'card', text: "hello", count: 5, flag: true, data: item %}`;
       const offenses = await runLiquidCheck(
         ValidRenderPartialArgumentTypes,
         sourceCode,
@@ -121,7 +237,7 @@ describe('Module: ValidRenderPartialParamTypes', () => {
     });
 
     it('should ignore variable lookups', async () => {
-      const sourceCode = `{% render 'card', title: product_title %}`;
+      const sourceCode = `{% render 'card', title: item_title %}`;
       const offenses = await runLiquidCheck(
         ValidRenderPartialArgumentTypes,
         sourceCode,
@@ -256,6 +372,151 @@ describe('Module: ValidRenderPartialParamTypes', () => {
       expect(offenses[0].message).toBe(
         "Type mismatch for argument 'title': expected string, got number",
       );
+    });
+  });
+
+  describe('filtered arguments are typed from the docset', () => {
+    const partial = (type: string) => `
+      {% doc %}
+        @param {${type}} title - The title
+      {% enddoc %}
+      <div>{{ title }}</div>
+    `;
+
+    const DOCSET = withFilters([
+      returns('append', 'string'),
+      returns('plus', 'number'),
+      returns('translate', 'string', ['t']),
+      // Published, and deliberately carrying no return type — the shape of a filter whose type
+      // the platform could not state.
+      { name: 'mystery', aliases: [] },
+    ]);
+
+    const run = (source: string, type: string, deps: Partial<Dependencies> = DOCSET) =>
+      runLiquidCheck(ValidRenderPartialArgumentTypes, source, undefined, deps, {
+        'app/views/partials/card.liquid': partial(type),
+      });
+
+    it('reports a filtered argument whose published return type is wrong', async () => {
+      const offenses = await run(`{% render 'card', title: name | append: '!' %}`, 'number');
+
+      expect(messagesOf(offenses)).toEqual([
+        "Type mismatch for argument 'title': expected number, got string",
+      ]);
+    });
+
+    it('accepts a filtered argument whose published return type matches', async () => {
+      const offenses = await run(`{% render 'card', title: name | append: '!' %}`, 'string');
+
+      expect(messagesOf(offenses)).toEqual([]);
+    });
+
+    it('lets the LAST filter in a chain decide', async () => {
+      const offenses = await run(
+        `{% render 'card', title: name | append: '!' | plus: 1 %}`,
+        'string',
+      );
+
+      expect(messagesOf(offenses)).toEqual([
+        "Type mismatch for argument 'title': expected string, got number",
+      ]);
+    });
+
+    it('resolves a filter reached through an alias', async () => {
+      const offenses = await run(`{% render 'card', title: key | t %}`, 'number');
+
+      expect(messagesOf(offenses)).toEqual([
+        "Type mismatch for argument 'title': expected number, got string",
+      ]);
+    });
+
+    // The three silences below are each paired with a report above that uses the SAME argument
+    // shape, so none of them can pass by the check having stopped looking at filtered arguments.
+    it('says nothing when the docset publishes no return type for the filter', async () => {
+      const offenses = await run(`{% render 'card', title: name | mystery %}`, 'number');
+
+      expect(messagesOf(offenses)).toEqual([]);
+    });
+
+    it('says nothing when the filter is absent from the docset', async () => {
+      const offenses = await run(`{% render 'card', title: name | not_a_filter %}`, 'number');
+
+      expect(messagesOf(offenses)).toEqual([]);
+    });
+
+    it('says nothing when there is no docset at all', async () => {
+      const offenses = await run(`{% render 'card', title: name | append: '!' %}`, 'number', {
+        platformosDocset: undefined,
+      });
+
+      expect(messagesOf(offenses)).toEqual([]);
+    });
+
+    it('still says nothing about a bare variable lookup, which has no type here', async () => {
+      const offenses = await run(`{% render 'card', title: item_title %}`, 'number');
+
+      expect(messagesOf(offenses)).toEqual([]);
+    });
+
+    it('does not report a filtered alias value — the regression that reported correct code', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% render 'card' with key | t as title %}`,
+        undefined,
+        DOCSET,
+        { 'app/views/partials/card.liquid': partial('string') },
+      );
+
+      expect(messagesOf(offenses)).toEqual([]);
+    });
+
+    it('does report a filtered alias value whose published type is wrong', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% render 'card' with n | plus: 1 as title %}`,
+        undefined,
+        DOCSET,
+        { 'app/views/partials/card.liquid': partial('string') },
+      );
+
+      expect(messagesOf(offenses)).toEqual([
+        "Type mismatch for argument 'title': expected string, got number",
+      ]);
+    });
+  });
+
+  describe('function call sites', () => {
+    const target = `
+      {% doc %}
+        @param {string} title - The title
+      {% enddoc %}
+      {% return title %}
+    `;
+
+    it('reports a type mismatch at a function call site', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% function res = 'commands/build', title: 123 %}`,
+        undefined,
+        {},
+        { 'app/lib/commands/build.liquid': target },
+      );
+
+      expect(messagesOf(offenses)).toEqual([
+        "Type mismatch for argument 'title': expected string, got number",
+      ]);
+    });
+
+    it('accepts a correctly typed function argument', async () => {
+      const offenses = await runLiquidCheck(
+        ValidRenderPartialArgumentTypes,
+        `{% function res = 'commands/build', title: 'hello' %}`,
+        undefined,
+        {},
+        { 'app/lib/commands/build.liquid': target },
+      );
+
+      expect(messagesOf(offenses)).toEqual([]);
     });
   });
 

@@ -133,7 +133,6 @@ export type LiquidHtmlNode =
   | TextNode
   | LiquidDocParamNode
   | LiquidDocExampleNode
-  | LiquidDocPromptNode
   | LiquidDocDescriptionNode
   | JsonHashLiteral
   | JsonArrayLiteral
@@ -501,6 +500,18 @@ export interface RenderMarkup extends ASTNode<NodeTypes.RenderMarkup> {
 export interface FunctionMarkup extends ASTNode<NodeTypes.FunctionMarkup> {
   /** {% function res = 'partial' %} or {% function hash['key'] = 'partial' %} */
   name: LiquidVariableLookup;
+
+  /**
+   * `'='` assigns the partial's return value to the target; `'<<'` appends it to an array, which
+   * is how a loop collects results: `{% function items << 'partials/fetch_item', id: 1 %}`.
+   *
+   * MUST be printed rather than assumed. The printer regenerates the tag from this node, and it
+   * used to emit a hard-coded `' = '` — which was harmless only because the append form did not
+   * parse and so survived as raw markup. Turning an append into an assignment silently replaces
+   * an array with a single value.
+   */
+  operator: '=' | '<<';
+
   partial: LiquidString | LiquidVariableLookup;
   /**
    * WARNING: `args` could contain LiquidVariableLookup when we are in a completion context
@@ -874,8 +885,8 @@ export interface LiquidLiteral extends ASTNode<NodeTypes.LiquidLiteral> {
 export interface LiquidVariableLookup extends ASTNode<NodeTypes.VariableLookup> {
   /**
    * The root name of the lookup, `null` for the global access exception:
-   *   {{ product }}     -> name = 'product', lookups = []
-   *   {{ ['product'] }} -> name = null,      lookups = ['product']
+   *   {{ item }}     -> name = 'item', lookups = []
+   *   {{ ['item'] }} -> name = null,   lookups = ['item']
    */
   name: string | null;
 
@@ -1040,7 +1051,7 @@ export interface HtmlNodeBase<T> extends ASTNode<T> {
  *   {% endif %}
  *   attr2=unquoted
  *   attr3='singleQuoted'
- *   attr4="doubleQuoted + {{ product }}"
+ *   attr4="doubleQuoted + {{ item }}"
  *   {{ block_attributes }}
  * >
  * ```
@@ -1076,7 +1087,7 @@ export interface AttributeNodeBase<T> extends ASTNode<T> {
   /**
    * HTML attribute values are represented by the concatenation of Text and Liquid nodes.
    *
-   * `<tag attr="text and {{ product }} and text">`
+   * `<tag attr="text and {{ item }} and text">`
    */
   value: ValueNode[];
 
@@ -1092,9 +1103,9 @@ export interface TextNode extends ASTNode<NodeTypes.TextNode> {
 /** Represents a `@param` node in a LiquidDoc comment - `@param {paramType} [paramName]  - paramDescription` */
 export interface LiquidDocParamNode extends ASTNode<NodeTypes.LiquidDocParamNode> {
   name: 'param';
-  /** The name of the parameter (e.g. "product"). Only includes the name, not the optional delimiters or whitespace. */
+  /** The name of the parameter (e.g. "item"). Only includes the name, not the optional delimiters or whitespace. */
   paramName: TextNode;
-  /** Optional description of the parameter in a Liquid doc comment (e.g. "The product title") */
+  /** Optional description of the parameter in a Liquid doc comment (e.g. "The item title") */
   paramDescription: TextNode | null;
   /** Optional type annotation for the parameter (e.g. "{string}", "{number}") */
   paramType: TextNode | null;
@@ -1116,17 +1127,10 @@ export interface LiquidDocDescriptionNode extends ASTNode<NodeTypes.LiquidDocDes
 /** Represents a `@example` node in a LiquidDoc comment - `@example exampleContent` */
 export interface LiquidDocExampleNode extends ASTNode<NodeTypes.LiquidDocExampleNode> {
   name: 'example';
-  /** The contents of the example (e.g. "{{ product }}"). Can be multiline. */
+  /** The contents of the example (e.g. "{{ item }}"). Can be multiline. */
   content: TextNode;
   /** Whether this example starts on the same line as the @example annotation.  */
   isInline: boolean;
-}
-
-/** Represents a `@prompt` node in a LiquidDoc comment - `@prompt promptContent` */
-export interface LiquidDocPromptNode extends ASTNode<NodeTypes.LiquidDocPromptNode> {
-  name: 'prompt';
-  /** The contents of the prompt (e.g. "Build me a sale sticker for my shop with a rotating @ symbol"). Can be multiline. */
-  content: TextNode;
 }
 
 export interface ASTNode<T> {
@@ -1702,17 +1706,6 @@ function buildAst(
           source: node.source,
           content: toTextNode(node.content),
           isInline: node.isInline,
-        });
-        break;
-      }
-
-      case ConcreteNodeTypes.LiquidDocPromptNode: {
-        builder.push({
-          type: NodeTypes.LiquidDocPromptNode,
-          name: node.name,
-          position: position(node),
-          source: node.source,
-          content: toTextNode(node.content),
         });
         break;
       }
@@ -2363,6 +2356,7 @@ function toFunctionMarkup(node: ConcreteLiquidTagFunctionMarkup): FunctionMarkup
   return {
     name: toExpression(node.name) as LiquidVariableLookup,
     type: NodeTypes.FunctionMarkup,
+    operator: node.operator as '=' | '<<',
     partial: toExpression(node.partial) as LiquidString | LiquidVariableLookup,
     /**
      * When we're in completion mode we won't necessarily have valid named

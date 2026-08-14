@@ -50,5 +50,10 @@ export function isObjectInScope(
     return restrictedTo === undefined || restrictedTo === fileType;
   }
 
-  return access.global === true || access.template.length > 0;
+  // `global` alone. There used to be an `|| access.template.length > 0` beside it — Shopify's
+  // template scoping, where an object was in scope on the templates that named it. platformOS
+  // publishes `template: []` for all 25 of its objects, so the clause could never fire on real
+  // data; the one thing exercising it was an invented `item` fixture carrying
+  // `template: ['item']`. A rule that only its own mock can trigger is not a rule.
+  return access.global === true;
 }

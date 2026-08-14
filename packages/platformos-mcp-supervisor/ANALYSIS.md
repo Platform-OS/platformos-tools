@@ -39,7 +39,7 @@
 
   - Owns all detection logic as CheckDefinitions over the 4 source types.
   - Owns the structured Offense including structured fix/suggest correctors — and should be the only place fixes are authored.
-  - Owns the docset abstraction (PlatformOSDocset, augmentation, alias expansion, undocumented-entry injection).
+  - Owns the docset abstraction (PlatformOSDocset, augmentation, alias expansion) — but not the vocabulary: filter/tag names, arity and return types come from `filters.json` / `tags.json`.
   - Owns the check vocabulary (codes, severities, docs.description, recommended-set).
   - Should expose enough structured detail on each offense (the matched identifier, the suggestion, the fix) that downstream consumers never need to regex the message.
   - Stays runtime-agnostic, stateless, browser-safe.

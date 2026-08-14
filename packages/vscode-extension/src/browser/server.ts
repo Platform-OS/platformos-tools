@@ -16,12 +16,14 @@ declare global {
   export const WEBPACK_FILTERS: any[];
   export const WEBPACK_OBJECTS: any[];
   export const WEBPACK_SCHEMAS: any;
+  export const WEBPACK_LIQUID_DOC: any;
 }
 
 const tags = WEBPACK_TAGS;
 const filters = WEBPACK_FILTERS;
 const objects = WEBPACK_OBJECTS;
 const schemas = WEBPACK_SCHEMAS;
+const liquidDoc = WEBPACK_LIQUID_DOC;
 
 const worker = self as any as Worker;
 const connection = getConnection(worker);
@@ -48,6 +50,7 @@ const dependencies: Dependencies = {
     objects: async () => objects,
     liquidDrops: async () => objects,
     tags: async () => tags,
+    liquidDoc: async () => liquidDoc,
   },
   jsonValidationSet: {
     schemas: async () => schemas,

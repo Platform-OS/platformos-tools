@@ -14,9 +14,9 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
         graphQL: async () => null,
         filters: async () => [
           {
-            name: 'image_url',
-            syntax: 'string | image_url',
-            description: 'image_url description',
+            name: 'with_options',
+            syntax: 'string | with_options',
+            description: 'with_options description',
             parameters: [
               {
                 name: 'width',
@@ -31,6 +31,7 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
         ],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
       new TranslationProvider(new MockFileSystem({})),
@@ -42,12 +43,12 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
   });
 
   it('should return nothing if the parameter is unknown', async () => {
-    await expect(provider).to.hover(`{{ foo | image_url: pig█eons: 1000 }}`, null);
+    await expect(provider).to.hover(`{{ foo | with_options: pig█eons: 1000 }}`, null);
   });
 
   it('should return the hover description of parameter', async () => {
     await expect(provider).to.hover(
-      `{{ foo | image_url: wid█th: 1000 }}`,
+      `{{ foo | with_options: wid█th: 1000 }}`,
       '### width\nwidth description\n\n---\n\n[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/filters#width)',
     );
   });

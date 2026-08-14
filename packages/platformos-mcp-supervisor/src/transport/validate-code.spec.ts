@@ -1588,6 +1588,37 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   /**
+   * The instructions promise two things about tag argument types, and both are pinned here
+   * because prose cannot fail: a loop's `limit` IS typed and warns, and every other tag argument
+   * is published untyped and is therefore not reported at all.
+   *
+   * The pairing is the point. Asserting only the warning would pass on a check that types
+   * everything it can guess at, which is a false report on working code; asserting only the
+   * silence would pass with the whole mechanism deleted.
+   */
+  it('warns on a mistyped loop argument and stays silent on an untyped one, as the instructions claim', async () => {
+    const typed = await validate(
+      PAGE,
+      `{% assign y = 'a,b' | split: ',' %}{% for x in y limit: 'ten' %}{{ x }}{% endfor %}\n`,
+    );
+    const untyped = await validate(PAGE, `{% cache 'k', expire: 'soon' %}body{% endcache %}\n`);
+
+    expect({
+      typed: {
+        blocked: typed.must_fix_before_write,
+        warnings: [...new Set(typed.warnings.map((warning) => warning.check))],
+      },
+      untyped: {
+        blocked: untyped.must_fix_before_write,
+        warnings: [...new Set(untyped.warnings.map((warning) => warning.check))],
+      },
+    }).toEqual({
+      typed: { blocked: false, warnings: ['ValidTagArgumentTypes'] },
+      untyped: { blocked: false, warnings: [] },
+    });
+  });
+
+  /**
    * The instructions promise two things about duplicate YAML keys, and this pins BOTH against
    * the real pipeline so neither can drift into prose that is no longer true.
    *
@@ -1741,9 +1772,10 @@ type Oracle =
   /** Executed through `liquid_exec` and rendered. Round-4 evaluation, O1a. */
   | 'runtime'
   /**
-   * Follows from data GENERATED from the runtime: `filter-arity.ts` (read out of a
-   * live instance's own complaints) and `undocumented-filters.ts`. Reading those is
-   * reading a measurement, not an opinion.
+   * Follows from the filter vocabulary the platform PUBLISHES — name, arity and return type,
+   * each derived upstream from the Ruby signature and shipped in `filters.json`. No table in
+   * this repository answers any of the three, which is why reading it is reading a measurement
+   * rather than an opinion.
    */
   | 'generated-data'
   /**
@@ -2013,9 +2045,9 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
       content: "{{ 'a' | upcase }}{{ 'B' | downcase }}{{ 1 | plus: 2 }}\n",
       oracle: 'generated-data',
     },
-    // `undocumented-filters.ts` exists because the docset omits filters the runtime
-    // accepts. Reporting one of those is the false block that list prevents, and this
-    // is the assertion that keeps it load-bearing.
+    // Liquid's own filters, which the docs API used to omit while the runtime accepted them.
+    // Reporting one is a false block on working code; a local list of six names used to prevent
+    // it, and the platform publishing the whole vocabulary is what replaced that list.
     {
       name: 'undocumented but valid: sum',
       filePath: PAGE,

@@ -877,7 +877,7 @@ LiquidHTMLSyntaxError:
   it('reports the page and NOTHING under any assets directory', async () => {
     workspace = await makeTempWorkspace(PROJECT);
 
-    const { offenses } = await appCheckRun(workspace.rootUri.replace('file://', ''));
+    const { offenses } = await appCheckRun(URI.parse(workspace.rootUri).fsPath);
 
     // The whole offense set, exactly: one control and no assets. Asserting the complete
     // list rather than "no asset offenses" is what makes the control load-bearing — a
@@ -890,7 +890,7 @@ LiquidHTMLSyntaxError:
   it('still holds the assets in the app, so they resolve as files that exist', async () => {
     workspace = await makeTempWorkspace(PROJECT);
 
-    const { app } = await appCheckRun(workspace.rootUri.replace('file://', ''));
+    const { app } = await appCheckRun(URI.parse(workspace.rootUri).fsPath);
 
     // The other half of "nothing reads an asset, so the only question about one is
     // whether it exists". Not linted is not the same as absent: dropping assets from the
@@ -912,7 +912,7 @@ LiquidHTMLSyntaxError:
 
   it('tells a buffer-level caller the asset was not checked, rather than that it is clean', async () => {
     workspace = await makeTempWorkspace(PROJECT);
-    const root = workspace.rootUri.replace('file://', '');
+    const root = URI.parse(workspace.rootUri).fsPath;
 
     // `lintBuffer` is the seam the MCP supervisor validates through, and an empty
     // `offenses` array is exactly what an unchecked file and a clean file have in common.
@@ -920,12 +920,12 @@ LiquidHTMLSyntaxError:
     // write" and "we did not look".
     const asset = await lintBuffer({
       root,
-      filePath: `${root}/app/assets/x.liquid`,
+      filePath: path.join(root, 'app', 'assets', 'x.liquid'),
       content: BROKEN,
     });
     const page = await lintBuffer({
       root,
-      filePath: `${root}/app/views/pages/control.liquid`,
+      filePath: path.join(root, 'app', 'views', 'pages', 'control.liquid'),
       content: BROKEN,
     });
 

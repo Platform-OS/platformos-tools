@@ -22,6 +22,7 @@ describe('Module: LiquidFilterHoverProvider', async () => {
         ],
         objects: async () => [],
         liquidDrops: async () => [],
+        liquidDoc: async () => ({ annotations: [], param_types: [] }),
         tags: async () => [],
       },
       new TranslationProvider(new MockFileSystem({})),

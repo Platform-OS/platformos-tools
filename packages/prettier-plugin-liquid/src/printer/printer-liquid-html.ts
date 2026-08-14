@@ -3,7 +3,6 @@ import {
   LiquidDocDescriptionNode,
   LiquidDocExampleNode,
   LiquidDocParamNode,
-  LiquidDocPromptNode,
   NodeTypes,
   Position,
   RawMarkupKinds,
@@ -52,7 +51,6 @@ import {
   printLiquidDocParam,
   printLiquidDocExample,
   printLiquidDocDescription,
-  printLiquidDocPrompt,
 } from './print/liquid';
 import { printClosingTagSuffix, printOpeningTagPrefix } from './print/tag';
 import { bodyLines, hasLineBreakInRange, isEmpty, isTextLikeNode, reindent } from './utils';
@@ -502,7 +500,13 @@ function printNode(
     case NodeTypes.FunctionMarkup: {
       const name = path.call((p: any) => print(p), 'name');
       const partial = path.call((p: any) => print(p), 'partial');
-      const doc: Doc = [name, ' = ', partial];
+      /**
+       * The author's operator, not a hard-coded `=`. `{% function items << 'p' %}` appends the
+       * partial's return value to an array; printing `=` there would replace the array with a
+       * single value, in the author's file, on format. This was safe only while the append form
+       * failed to parse and survived as raw markup.
+       */
+      const doc: Doc = [name, ` ${node.operator} `, partial];
       if (node.args.length > 0) {
         doc.push(
           ',',
@@ -849,10 +853,6 @@ function printNode(
         print,
         args,
       );
-    }
-
-    case NodeTypes.LiquidDocPromptNode: {
-      return printLiquidDocPrompt(path as AstPath<LiquidDocPromptNode>, options, print, args);
     }
 
     case NodeTypes.JsonHashLiteral: {

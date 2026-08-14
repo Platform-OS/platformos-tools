@@ -15,6 +15,7 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
         filters: async () => [
           {
             name: 'with_options',
+            platformOS: true,
             syntax: 'string | with_options',
             description: 'with_options description',
             parameters: [
@@ -24,6 +25,14 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
                 types: ['number'],
                 positional: false,
                 required: false,
+              },
+              {
+                name: 'crop',
+                description: 'crop description',
+                types: ['string'],
+                positional: false,
+                required: true,
+                default: 'center',
               },
             ],
             return_type: [{ type: 'string', name: '' }],
@@ -49,7 +58,32 @@ describe('Module: LiquidFilterArgumentHoverProvider', async () => {
   it('should return the hover description of parameter', async () => {
     await expect(provider).to.hover(
       `{{ foo | with_options: wid█th: 1000 }}`,
-      '### width\nwidth description\n\n---\n\n[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/filters#width)',
+      [
+        '### width: `number`',
+        'width description',
+        '',
+        '---',
+        '',
+        // The FILTER's page. Rendered as a docset entry, the parameter advertised
+        // `…/liquid/filters#width`, which is where a filter named `width` would be documented.
+        '[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/platformos-filters#with-options)',
+      ].join('\n'),
+    );
+  });
+
+  it('should state that the parameter is required and what it defaults to', async () => {
+    await expect(provider).to.hover(
+      `{{ foo | with_options: cr█op: 'center' }}`,
+      [
+        '### crop: `string`',
+        'crop description',
+        '',
+        '*required*, *default:* `center`',
+        '',
+        '---',
+        '',
+        '[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/platformos-filters#with-options)',
+      ].join('\n'),
     );
   });
 });

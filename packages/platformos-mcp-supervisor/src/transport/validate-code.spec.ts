@@ -1589,32 +1589,70 @@ describe('Integration: every blocking check can actually block', () => {
 
   /**
    * The instructions promise two things about tag argument types, and both are pinned here
-   * because prose cannot fail: a loop's `limit` IS typed and warns, and every other tag argument
-   * is published untyped and is therefore not reported at all.
+   * because prose cannot fail: an argument the documentation TYPES warns and does not block, and
+   * an argument it says nothing about is not reported at all.
    *
    * The pairing is the point. Asserting only the warning would pass on a check that types
    * everything it can guess at, which is a false report on working code; asserting only the
    * silence would pass with the whole mechanism deleted.
+   *
+   * The instructions used to name the untyped side as "every other tag argument", which was the
+   * document's answer while `platformos_tags.liquid` published a hardcoded `"untyped"` and is not
+   * any more — 69 of the 72 published parameters now carry a type. So the silent fixture is an
+   * argument the documentation publishes NO parameter for, which is a claim about this pipeline
+   * rather than about how much the platform has documented so far.
    */
-  it('warns on a mistyped loop argument and stays silent on an untyped one, as the instructions claim', async () => {
+  it('warns on a mistyped tag argument and stays silent on an undocumented one, as the instructions claim', async () => {
     const typed = await validate(
       PAGE,
       `{% assign y = 'a,b' | split: ',' %}{% for x in y limit: 'ten' %}{{ x }}{% endfor %}\n`,
     );
-    const untyped = await validate(PAGE, `{% cache 'k', expire: 'soon' %}body{% endcache %}\n`);
+    const alsoTyped = await validate(PAGE, `{% cache 'k', expire: 'soon' %}body{% endcache %}\n`);
+    const undocumented = await validate(
+      PAGE,
+      `{% cache 'k', not_in_the_docs: 'soon' %}body{% endcache %}\n`,
+    );
+
+    const verdict = (result: Awaited<ReturnType<typeof validate>>) => ({
+      blocked: result.must_fix_before_write,
+      warnings: [...new Set(result.warnings.map((warning) => warning.check))],
+    });
 
     expect({
-      typed: {
-        blocked: typed.must_fix_before_write,
-        warnings: [...new Set(typed.warnings.map((warning) => warning.check))],
-      },
-      untyped: {
-        blocked: untyped.must_fix_before_write,
-        warnings: [...new Set(untyped.warnings.map((warning) => warning.check))],
-      },
+      typed: verdict(typed),
+      alsoTyped: verdict(alsoTyped),
+      undocumented: verdict(undocumented),
     }).toEqual({
       typed: { blocked: false, warnings: ['ValidTagArgumentTypes'] },
-      untyped: { blocked: false, warnings: [] },
+      alsoTyped: { blocked: false, warnings: ['ValidTagArgumentTypes'] },
+      undocumented: { blocked: false, warnings: [] },
+    });
+  });
+
+  /**
+   * The FILTER half of the same promise, and the half the instructions have to be careful about.
+   *
+   * A core Liquid filter coerces rather than refuses — `{{ 5 | upcase }}` renders, measured against a
+   * live instance — so the instructions promise nothing is reported about it, and that is true whether
+   * or not the docset yet separates `object` (a Hash) from `untyped` (several types accepted).
+   *
+   * The other half — a wrong Hash reported — depends on the docset carrying that separation, so what
+   * is pinned here is the part that cannot change under it: neither call BLOCKS. Promising the warning
+   * would be promising a docs release.
+   */
+  it('never blocks on a filter argument, and stays silent on one that coerces, as the instructions claim', async () => {
+    const coercing = await validate(PAGE, `{{ 5 | upcase }}\n`);
+    const wrongHash = await validate(PAGE, `{{ 123 | hash_add_key: 'k', 'v' }}\n`);
+
+    expect({
+      coercing: {
+        blocked: coercing.must_fix_before_write,
+        warnings: [...new Set(coercing.warnings.map((warning) => warning.check))],
+      },
+      wrongHash: { blocked: wrongHash.must_fix_before_write },
+    }).toEqual({
+      coercing: { blocked: false, warnings: [] },
+      wrongHash: { blocked: false },
     });
   });
 

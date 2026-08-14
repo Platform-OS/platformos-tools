@@ -89,6 +89,46 @@ describe('detectInvalidEchoValue', async () => {
     expect(fixed2).to.equal(`{% echo zero %} {% echo one two %} {% echo one %}`);
   });
 
+  it('should not report an array literal as the piped value', async () => {
+    // Regression: the grammar rejected an array literal in this position, so the markup degraded
+    // to a raw string and this check reported "Syntax is not supported" on code that renders —
+    // a false positive in a blocking check. Every case below was measured on a live instance:
+    // `{{ [1,2] | size }}` renders 2, and `{{ ["x"] | size }}` renders 1.
+    const testCases = [
+      `{{ [1,2] | size }}`,
+      `{{ [1,2] }}`,
+      `{{ [] }}`,
+      `{{ ["x"] | size }}`,
+      `{{ [ "a" , "b" ] | join: "-" }}`,
+      `{{ [[1,2],[3]] | size }}`,
+      `{{ [1,2] | size | plus: 10 }}`,
+      `{% echo [1,2] | size %}`,
+      `{% print [1,2] | size %}`,
+      `{% liquid echo [1,2] | size %}`,
+    ];
+
+    for (const sourceCode of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      expect(offenses, sourceCode).toEqual([]);
+    }
+  });
+
+  it('should still report an unsupported drop after accepting array literals', async () => {
+    // The CONTROL for the silence above: a suppression wide enough to hide a real defect would
+    // pass every "nothing was reported" assertion in the previous test. These are still reported,
+    // so the array literal is accepted because the grammar now parses it — not because this check
+    // stopped looking at drops and echoes.
+    const testCases = [`{{ 123 555 text }}`, `{% echo '123' 555 text %}`, `{{ | upcase }}`];
+
+    for (const sourceCode of testCases) {
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      expect(
+        offenses.map((offense) => offense.message),
+        sourceCode,
+      ).toEqual(['Syntax is not supported']);
+    }
+  });
+
   it('should report when there is no value', async () => {
     const testCases = [
       [`{% echo | upcase %}`, '{% echo blank %}'],

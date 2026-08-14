@@ -249,6 +249,31 @@ describe('Module: UnusedAssign', () => {
     expect(offenses).toEqual([]);
   });
 
+  it('should not report a variable used as an array literal element in a drop', async () => {
+    // A drop's leading `[` is an array literal, so `{{ [x] }}` stopped being a nameless lookup
+    // over `x` and became a JsonArrayLiteral CONTAINING a VariableLookup for `x`. If the visitor
+    // did not walk an array literal's elements, that reference would vanish and this check would
+    // report a variable the runtime really reads — measured, `{{ [x] }}` renders `["hello"]` and
+    // `{{ [x, "b"] | join: "-" }}` renders `hello-b`.
+    for (const usage of [
+      `{{ [x] }}`,
+      `{{ [x] | size }}`,
+      `{{ [x, "b"] | join: "-" }}`,
+      `{% echo [x] %}`,
+    ]) {
+      const offenses = await runLiquidCheck(UnusedAssign, `{% assign x = "hello" %}${usage}`);
+      expect(offenses, usage).toEqual([]);
+    }
+  });
+
+  it('should still report a variable that no array literal references', async () => {
+    // The CONTROL for the silence above: the traversal must not mark everything used.
+    const offenses = await runLiquidCheck(UnusedAssign, `{% assign x = "hello" %}{{ ["x"] }}`);
+    expect(offenses.map((offense) => offense.message)).toEqual([
+      "The variable 'x' is assigned but not used",
+    ]);
+  });
+
   it('should not report variables referenced in a string-markup fallback assign (parse failure)', async () => {
     // The stray `}` before `%}` causes the tolerant parser to fall back to
     // string markup. The AST contains no VariableLookup nodes for k/v, so

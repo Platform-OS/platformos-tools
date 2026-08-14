@@ -161,12 +161,33 @@ export function filterReturnTypes(
  * types is a union, and a union only resolves when every branch maps to the same thing.
  */
 export function docsetParameterType(parameter: Pick<Parameter, 'types'>): LiquidType {
-  const types = parameter.types;
-  if (!types || types.length === 0) return 'untyped';
+  const [only, ...rest] = docsetParameterTypes(parameter);
 
-  const mapped = new Set(types.map((name) => DOCSET_TYPES[name] ?? 'untyped'));
-  const [only] = mapped;
-  return mapped.size === 1 ? only : 'untyped';
+  return rest.length === 0 ? only : 'untyped';
+}
+
+/**
+ * EVERY type a documented argument accepts, for a reader that can act on more than one.
+ *
+ * A parameter may name a set the implementation enumerates — `strftime` takes a string, a number of
+ * seconds, a Date or a Time and raises on anything else, measured against a live instance — and the
+ * published `types` array carries all four. A value is wrong there only when it matches NONE of them.
+ *
+ * ONE UNRECOGNISED BRANCH COLLAPSES THE WHOLE SET to `untyped`: the union names something this
+ * repository cannot place, so "anything is accepted" is the only reading that cannot refuse working
+ * code. That is also what `untyped` itself means, and why it is never one branch among several.
+ *
+ * {@link docsetParameterType} is this answer narrowed to a single type for a caller that has nowhere
+ * to put a union — `tagParameterTypes`, whose map holds one type per parameter.
+ */
+export function docsetParameterTypes(parameter: Pick<Parameter, 'types'>): readonly LiquidType[] {
+  const types = parameter.types;
+  if (!types || types.length === 0) return ['untyped'];
+
+  const mapped = types.map((name) => DOCSET_TYPES[name] ?? 'untyped');
+  if (mapped.includes('untyped')) return ['untyped'];
+
+  return [...new Set(mapped)];
 }
 
 /**
@@ -174,11 +195,11 @@ export function docsetParameterType(parameter: Pick<Parameter, 'types'>): Liquid
  * {@link filterReturnTypes}, keyed weakly on the array `tags()` memoizes.
  *
  * A parameter whose type does not resolve gets NO ROW, and a tag left with no typed parameter gets
- * no row either: `untyped` is what a missing row already means. On the shipped `tags.json` that
- * leaves exactly `for` and `tablerow` — 67 of the 72 published parameters are `untyped` — so a
- * consumer is silent about everything else until the platform publishes real types. Silence is the
- * only safe reading: this repository is a CONSUMER of the docset, and a guessed type refuses
- * working code.
+ * no row either: `untyped` is what a missing row already means. How much that leaves is the
+ * document's business and has swung once already — 5 of 72 parameters were typed while the
+ * documentation site published a hardcoded `"untyped"`, and 69 of 72 the day that was fixed — so a
+ * consumer is silent about exactly what the platform has not published. Silence is the only safe
+ * reading: this repository is a CONSUMER of the docset, and a guessed type refuses working code.
  *
  * ROW ORDER MUST NOT DECIDE THE ANSWER, for the reason `filtersMap` states: `tags.json` ships two
  * entries named `else` and has no merge upstream, so a plain last-wins reduce would let whichever
@@ -233,6 +254,129 @@ export function tagParameterTypes(
 
   PARAMETER_TYPES_BY_DOCSET.set(tags, byTag);
   return byTag;
+}
+
+/** One documented argument of a filter, resolved to what a consumer can act on. */
+export interface FilterParameter {
+  name: string;
+  /**
+   * Every type the argument accepts, and a value is wrong only when it matches none of them.
+   *
+   * `['untyped']` where the docset makes no claim, and then nothing may be reported about it — it is
+   * never one branch among several, see {@link docsetParameterTypes}.
+   */
+  types: readonly LiquidType[];
+  /** False for an argument written `name: value`. Absent in the document means positional. */
+  positional: boolean;
+  /**
+   * Whether the argument absorbs every remaining one.
+   *
+   * The published type then describes the COLLECTION while each argument written at the call site is
+   * an ELEMENT of it: `hash_dig.keys` is `array`, and `{{ h | dig: 'a', 'b' }}` writes two strings.
+   * Comparing a written argument against `array` there reported seven correct calls in four projects.
+   */
+  variadic: boolean;
+}
+
+const FILTER_PARAMETERS_BY_DOCSET = new WeakMap<
+  readonly FilterEntry[],
+  ReadonlyMap<string, readonly FilterParameter[]>
+>();
+
+/**
+ * The documented arguments of every filter, in signature order, built once per docset.
+ *
+ * PARAMETER 0 IS THE PIPED VALUE — upstream derives the list from the Ruby signature, where the
+ * input is the first argument, and `arity` counts it as one. So `{{ 123 | hash_add_key: 'k', v }}`
+ * is checked against `hash`, `key`, `value` in that order.
+ *
+ * Unlike {@link tagParameterTypes} this keeps `untyped` rows: a caller matching a WRITTEN argument to
+ * a parameter needs the positions to line up, and dropping the untyped ones would shift every
+ * parameter after them onto the wrong argument.
+ */
+export function filterParameterTypes(
+  filters: readonly FilterEntry[],
+): ReadonlyMap<string, readonly FilterParameter[]> {
+  const cached = FILTER_PARAMETERS_BY_DOCSET.get(filters);
+  if (cached) return cached;
+
+  const byFilter = new Map<string, readonly FilterParameter[]>();
+
+  for (const filter of filters) {
+    if (!filter.parameters?.length) continue;
+
+    byFilter.set(
+      filter.name,
+      filter.parameters.map((parameter) => ({
+        name: parameter.name,
+        types: docsetParameterTypes(parameter),
+        positional: parameter.positional !== false,
+        variadic: parameter.variadic === true,
+      })),
+    );
+  }
+
+  FILTER_PARAMETERS_BY_DOCSET.set(filters, byFilter);
+  return byFilter;
+}
+
+/**
+ * Whether this docset's filter argument types may be read as CONTRACTS — "the filter refuses
+ * anything else" — rather than as "the type a template usually passes".
+ *
+ * THE MARKER IS THE PRESENCE OF `untyped` ON ANY FILTER PARAMETER, and it is a marker rather than a
+ * version number because it is the same fact: `untyped` exists so that a parameter accepting several
+ * types can say so, and until the platform had that spelling every such parameter was published as
+ * `object` — the same token `hash_add_key` uses for a Hash it raises without. The two senses cannot
+ * be told apart, and reading either as a contract reported 1,279 offenses across four production
+ * projects with not one real among them. 1,184 were `object` standing in for "anything".
+ *
+ * So a docset published before the separation makes NO argument-type claim this repository will act
+ * on, and `ValidFilterArgumentTypes` stays silent on it. A docset from after it does, and the check
+ * starts reporting with no change here — the same way `ValidTagArgumentTypes` waited for `tags.json`
+ * to carry types. Measured after the separation: 123 of 417 filter parameters are `untyped`,
+ * including every parameter of every core Liquid filter, because those coerce instead of refusing —
+ * `{{ 5 | upcase }}`, `{{ '5' | minus: 1 }}` and `{{ 'abc' | where: 'x', 1 }}` all render, measured
+ * against a live instance, while `{{ 123 | hash_add_key: 'k', v }}` raises.
+ */
+export function filterTypesAreContracts(filters: readonly FilterEntry[]): boolean {
+  const cached = CONTRACTS_BY_DOCSET.get(filters);
+  if (cached !== undefined) return cached;
+
+  // The literal SPELLING, not `docsetParameterType`, which also answers `untyped` for a parameter
+  // with no types at all and for a name it does not recognise. Neither is the platform saying
+  // "several types are accepted here", and reading an unannotated parameter as the marker would turn
+  // the whole check on against a docset that cannot support it.
+  const separated = filters.some((filter) =>
+    filter.parameters?.some((parameter) => parameter.types?.includes('untyped')),
+  );
+
+  CONTRACTS_BY_DOCSET.set(filters, separated);
+  return separated;
+}
+
+const CONTRACTS_BY_DOCSET = new WeakMap<readonly FilterEntry[], boolean>();
+
+/**
+ * Whether a value of `actualType` may be passed where a filter parameter accepts `expected`.
+ *
+ * NOT `isTypeCompatible`, and the whole difference is `object`. That one widens `object` to accept an
+ * array and a range, which is right for a `{% doc %}` `@param {object}` — an author writing it means
+ * "some structured value" — and wrong for a filter, where `object` is the Hash spelling and the
+ * runtime says so. Measured against a live instance: `{{ [] | hash_add_key: 'hello', 'world' }}`,
+ * `{{ [1,2] | hash_keys }}`, `{{ [1,2] | querify }}` and `{{ (1..3) | hash_add_key: 'a', 1 }}` each
+ * raise `first argument must be a hash` and take the page with them, while `{% assign h = {} %}` piped
+ * into the same call renders. A filter that genuinely takes either publishes BOTH — `to_xml` and
+ * `www_form_encode` are `object, array` — so widening here would only hide the ones that do not.
+ *
+ * `boolean` still accepts every value, for the reason it does everywhere: every value in Liquid is
+ * truthy or falsy, so nothing can contradict it.
+ */
+export function isFilterArgumentCompatible(expected: LiquidType, actualType: LiquidType): boolean {
+  if (expected === 'untyped' || actualType === 'untyped' || actualType === 'null') return true;
+  if (expected === 'boolean') return true;
+
+  return expected === actualType;
 }
 
 /**

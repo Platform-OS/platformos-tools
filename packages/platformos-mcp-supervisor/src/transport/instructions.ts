@@ -86,12 +86,19 @@ impact
 WHAT IS ACTUALLY CHECKED
   Liquid  - syntax, unknown filters and tags, filters called with the wrong number
             of arguments, missing partials/assets, render arguments against
-            {% doc %}, layout correctness, and more. TAG arguments are typed only
-            where the platformOS documentation publishes a type for them, which
-            today is a loop's limit, offset and cols — {% for x in y limit: 'ten' %}
-            warns and does not block. Every other tag argument is published
-            untyped, so nothing is reported about it; that silence is the
-            documentation's answer, not a guarantee the value is right. Three that block and are easy
+            {% doc %}, layout correctness, and more. TAG and FILTER arguments are
+            typed only where the platformOS documentation publishes a type for them,
+            and a filter's first argument is the value piped into it —
+            {% for x in y limit: 'ten' %} and {% cache 'k', expire: 'soon' %} warn,
+            and so does {{ 123 | hash_add_key: 'k', v }} wherever the documentation
+            distinguishes a Hash from "any value" (it is a hard 500 at render time).
+            Nothing here blocks. An argument the documentation leaves untyped accepts
+            more than one type and is never reported, which is every argument of every
+            core Liquid filter, because those coerce rather than refuse:
+            {{ 5 | upcase }} renders and is not reported. Where the documentation
+            publishes no type nothing is reported about the argument;
+            that silence is the documentation's answer, not a guarantee the value is
+            right. Three that block and are easy
             to trip over: a JSON literal in {% assign %} must use DOUBLE quotes
             ({'k': 1} is rejected by the deploy converter, failing the whole
             changeset); a write through a subscript — {% assign h['k'] = v %}, or

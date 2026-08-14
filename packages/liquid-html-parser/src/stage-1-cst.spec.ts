@@ -172,9 +172,12 @@ describe('Unit: Stage 1 (CST)', () => {
           { expression: `x.y.z`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"]["z"]`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"].z`, name: 'x', lookups: ['y', 'z'] },
-          { expression: `["item"]`, name: null, lookups: ['item'] },
           { expression: `page.about-us`, name: 'page', lookups: ['about-us'] },
           { expression: `context.params.2fa`, name: 'context', lookups: ['params', '2fa'] },
+          // A leading `[` is an array literal in this position, NOT a nameless lookup — see
+          // `liquidVariable` in the grammar. These two keep a nameless lookup only
+          // because the trailing suffix makes the array alternative fail its `&delim`; bare
+          // `{{ ["item"] }}` is covered by the JsonArrayLiteral case below.
           { expression: `["x"].y`, name: null, lookups: ['x', 'y'] },
           { expression: `["x"]["y"]`, name: null, lookups: ['x', 'y'] },
           { expression: `x[y]`, name: 'x', lookups: [v('y')] },
@@ -362,32 +365,53 @@ describe('Unit: Stage 1 (CST)', () => {
         }
       });
 
-      it('should NOT parse array syntax in output tag as JsonArrayLiteral', () => {
-        // liquidExpressionOrJsonLiteral is intentionally NOT used in output expressions;
-        // {{ ["x"] }} must remain a VariableLookup subscript, not a JsonArrayLiteral.
+      it('should parse a leading bracket in an output tag as a JsonArrayLiteral', () => {
+        // platformOS has no nameless "dynamic lookup": `{{ ["x"] }}` renders `["x"]`, and
+        // `{{ ["x"] | size }}` renders 1 even when `x` holds a 4-character string. Measured on a
+        // live instance — see `liquidVariable` in the grammar.
         for (const { toCST, expectPath } of testCases) {
           cst = toCST(`{{ ["x"] }}`);
           expectPath(cst, '0.type').to.equal('LiquidVariableOutput');
           expectPath(cst, '0.markup.type').to.equal('LiquidVariable');
+          expectPath(cst, '0.markup.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.expression.elements').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.expression.elements.0.type').to.equal('String');
+          expectPath(cst, '0.markup.expression.elements.0.value').to.equal('x');
+        }
+      });
+
+      it('should parse a number element the same way', () => {
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{{ [0] }}`);
+          expectPath(cst, '0.markup.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.expression.elements').to.have.lengthOf(1);
+          expectPath(cst, '0.markup.expression.elements.0.type').to.equal('Number');
+          expectPath(cst, '0.markup.expression.elements.0.value').to.equal('0');
+        }
+      });
+
+      it('should keep a subscript on a NAMED base as a VariableLookup', () => {
+        // The control for the two cases above: widening the head must not turn an ordinary
+        // indexed lookup into an array literal.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{{ h["x"] }}`);
           expectPath(cst, '0.markup.expression.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.expression.name').to.equal(null);
-          // lookups[0] is a String node — the key of the subscript
+          expectPath(cst, '0.markup.expression.name').to.equal('h');
           expectPath(cst, '0.markup.expression.lookups').to.have.lengthOf(1);
-          expectPath(cst, '0.markup.expression.lookups.0.type').to.equal('String');
           expectPath(cst, '0.markup.expression.lookups.0.value').to.equal('x');
         }
       });
 
-      it('should NOT parse number-subscript output as JsonArrayLiteral', () => {
-        // Same invariant as the string-subscript regression; a Number subscript must
-        // still produce a VariableLookup with an empty name, not a JsonArrayLiteral.
+      it('should still reject a hash literal in an output tag', () => {
+        // NOT an oversight and NOT symmetric with the array: `{{ {"a":1} }}` is a genuine
+        // platformOS syntax error. The runtime's variable scanner stops at the first `}`, so
+        // `{{ "a}b" }}` fails the same way. The markup degrades to a raw STRING, which is what
+        // lets the prettier printer emit it verbatim instead of deleting what it cannot model.
+        // (No check reports it today — that lexical quirk is modelled nowhere.)
         for (const { toCST, expectPath } of testCases) {
-          cst = toCST(`{{ [0] }}`);
-          expectPath(cst, '0.markup.expression.type').to.equal('VariableLookup');
-          expectPath(cst, '0.markup.expression.name').to.equal(null);
-          expectPath(cst, '0.markup.expression.lookups').to.have.lengthOf(1);
-          expectPath(cst, '0.markup.expression.lookups.0.type').to.equal('Number');
-          expectPath(cst, '0.markup.expression.lookups.0.value').to.equal('0');
+          cst = toCST(`{{ {"a":1} }}`);
+          expectPath(cst, '0.type').to.equal('LiquidVariableOutput');
+          expectPath(cst, '0.markup').to.equal('{"a":1}');
         }
       });
     });

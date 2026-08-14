@@ -112,6 +112,9 @@ UnusedDocParam:
 ValidDocParamTypes:
   enabled: true
   severity: 0
+ValidFilterArgumentTypes:
+  enabled: true
+  severity: 1
 ValidFrontmatter:
   enabled: true
   severity: 1

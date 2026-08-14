@@ -6,6 +6,7 @@ import {
   InsertTextFormat,
   TextEdit,
 } from 'vscode-languageserver';
+import { renderParameter } from '../../docset';
 import { CURSOR, LiquidCompletionParams } from '../params';
 import { Provider, createCompletionItem } from './common';
 import { AugmentedLiquidSourceCode } from '../../documents';
@@ -45,7 +46,8 @@ export class FilterNamedParameterCompletionProvider implements Provider {
       (p) => !p.positional && p.name.startsWith(partial),
     );
 
-    return filteredOptions.map(({ description, name, types }) => {
+    return filteredOptions.map((parameter) => {
+      const { description, name, types } = parameter;
       const { textEdit, format } = this.textEdit(node, params.document, name, types[0]);
 
       return createCompletionItem(
@@ -60,9 +62,13 @@ export class FilterNamedParameterCompletionProvider implements Provider {
           // the context that they are being requested in.
           sortText: `1${name}`,
           textEdit,
+          // Rendered as a docset entry instead, `locale` documented itself with a link to a
+          // `…/liquid/filters#locale` page that is not a filter's and does not exist.
+          documentation: {
+            kind: 'markdown',
+            value: renderParameter(parameter, foundFilter),
+          },
         },
-        'filter',
-        Array.isArray(types) ? types[0] : 'unknown',
       );
     });
   }

@@ -884,9 +884,14 @@ export interface LiquidLiteral extends ASTNode<NodeTypes.LiquidLiteral> {
  */
 export interface LiquidVariableLookup extends ASTNode<NodeTypes.VariableLookup> {
   /**
-   * The root name of the lookup, `null` for the global access exception:
-   *   {{ item }}     -> name = 'item', lookups = []
-   *   {{ ['item'] }} -> name = null,   lookups = ['item']
+   * The root name of the lookup, or `null` when there is no base to name:
+   *   {{ item }}      -> name = 'item', lookups = []
+   *   {% if x[k] %}   -> name = 'x',    lookups = ['k']
+   *
+   * A name of `null` comes from a subscript with no base, e.g. the `[k]` reached through
+   * `indexLookup`. It is NOT produced by `{{ ['item'] }}` — a leading `[` in a drop or an
+   * `{% echo %}` is an array literal on platformOS, not Shopify's dynamic lookup. See
+   * `liquidVariable` in the grammar for the measurements.
    */
   name: string | null;
 

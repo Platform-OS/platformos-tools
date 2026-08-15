@@ -32,6 +32,7 @@ import { UnusedDocParam } from './unused-doc-param';
 import { ValidHTMLTranslation } from './valid-html-translation';
 import { ValidDocParamTypes } from './valid-doc-param-types';
 import { ValidRenderPartialArgumentTypes } from './valid-render-partial-argument-types';
+import { ValidFilterArgumentTypes } from './valid-filter-argument-types';
 import { ValidTagArgumentTypes } from './valid-tag-argument-types';
 import { VariableName } from './variable-name';
 import { PartialCallArguments } from './partial-call-arguments';
@@ -77,6 +78,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   ValidHTMLTranslation,
   ValidDocParamTypes,
   ValidRenderPartialArgumentTypes,
+  ValidFilterArgumentTypes,
   ValidTagArgumentTypes,
   VariableName,
   PartialCallArguments,

@@ -1,7 +1,7 @@
 import { NodeTypes } from '@platformos/liquid-html-parser';
 import { LiquidHtmlNode, PlatformOSDocset } from '@platformos/platformos-check-common';
 import { Hover } from 'vscode-languageserver';
-import { render } from '../../docset';
+import { renderParameter } from '../../docset';
 import { BaseHoverProvider } from '../BaseHoverProvider';
 
 export class LiquidFilterArgumentHoverProvider implements BaseHoverProvider {
@@ -35,7 +35,7 @@ export class LiquidFilterArgumentHoverProvider implements BaseHoverProvider {
     return {
       contents: {
         kind: 'markdown',
-        value: render(argument, undefined, 'filter'),
+        value: renderParameter(argument, entry),
       },
     };
   }

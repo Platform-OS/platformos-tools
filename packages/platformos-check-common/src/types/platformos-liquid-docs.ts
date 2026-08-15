@@ -176,6 +176,18 @@ export interface FilterEntry extends DocsetEntry {
    * `docs/liquid/standardfilters.rb`, whose signatures a test there compares against the gem.
    */
   arity?: FilterArityRange;
+
+  /**
+   * Whether the `positional: false` parameters are ALL the named arguments the filter accepts.
+   *
+   * Three states, and absent is not a synonym for either answer: 10 shipped filters publish `true`,
+   * 16 publish `false` — `translate` among them, because every key it does not recognise is handed
+   * to I18n as an interpolation variable — and the rest say nothing.
+   *
+   * Only a reader that REFUSES a name needs it; completion and hover need the list alone. The hover
+   * says so when the list is a sample, so that its silence about a name is not read as a verdict.
+   */
+  named_parameters_exhaustive?: boolean;
 }
 
 /** @see FilterEntry.arity */
@@ -275,13 +287,24 @@ export interface SyntaxKeyword {
 }
 
 export interface Example {
+  /**
+   * The example itself, as Liquid source. 170 of the 176 shipped filters carry one, and the hover
+   * renders them.
+   *
+   * HTML-ESCAPED BY THE DOCUMENTATION PIPELINE, and published that way — `escape`'s example reads
+   * `'&lt;p&gt;…'`. Nothing here decodes it: the reference page renders `{{ e.raw_liquid }}`, which
+   * escapes again, so the site displays the entities too, and for `html_safe` and `parse_json` the
+   * entities ARE the example — decoding `&amp;` would delete what they demonstrate. Whether an
+   * entity is the author's or the pipeline's cannot be told apart from here.
+   */
+  raw_liquid?: string;
+
   /* don't care about this */
   // description: string;
   // display_type: string;
   // name: string;
   // parameter: boolean;
   // path: string;
-  // raw_liquid: string;
   // show_data_tab: boolean;
   // syntax: string;
 }

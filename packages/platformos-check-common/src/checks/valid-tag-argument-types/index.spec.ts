@@ -29,33 +29,78 @@ const typedParameters = async () => {
   );
 };
 
+/**
+ * A call this spec can legally write, per tag, with the argument under test in it.
+ *
+ * HAND-WRITTEN, and the one thing here that is: a tag's MARKUP is grammar, and `tags.json` publishes
+ * types rather than how to spell a call — `{% session variable: 'x' %}` parses no named argument at
+ * all, so a generated `{% <tag> <name>: <value> %}` proves nothing about most tags. WHICH pairs run
+ * is still derived: only the ones the shipped document types.
+ *
+ * A tag missing from here is not skipped silently — `covers every typed argument the docset publishes`
+ * measures the whole vocabulary against the table the check reads.
+ */
+const CALLS: Record<string, (parameter: string, value: string) => string> = {
+  for: (parameter, value) => `{% for x in y ${parameter}: ${value} %}{% endfor %}`,
+  tablerow: (parameter, value) => `{% tablerow x in y ${parameter}: ${value} %}{% endtablerow %}`,
+  cache: (parameter, value) => `{% cache 'k', ${parameter}: ${value} %}body{% endcache %}`,
+  log: (parameter, value) => `{% log 'msg', ${parameter}: ${value} %}`,
+  redirect_to: (parameter, value) => `{% redirect_to '/x', ${parameter}: ${value} %}`,
+};
+
+/** A literal of the wrong type for `type`, and the name the check gives what it read. */
+const wrongValueFor = (type: string) => (type === 'string' ? '5' : `'nope'`);
+const wrongTypeFor = (type: string) => (type === 'string' ? 'number' : 'string');
+
+/** The typed pairs {@link CALLS} can write a call for. */
+const exercisableParameters = async () => {
+  const published = await typedParameters();
+
+  return published
+    .filter(({ tag }) => tag in CALLS)
+    .map(({ tag, parameter, types }) => ({ tag, parameter, type: types[0] }));
+};
+
+/** The shipped tags with ONE parameter's type emptied — what a docset that does not say looks like. */
+const withoutTypeFor = async (tagName: string, parameterName: string): Promise<TagEntry[]> => {
+  const tags = await publishedDocset.tags();
+
+  return tags.map((tag) =>
+    tag.name === tagName
+      ? {
+          ...tag,
+          parameters: (tag.parameters ?? []).map((parameter) =>
+            parameter.name === parameterName ? { ...parameter, types: ['untyped'] } : parameter,
+          ),
+        }
+      : tag,
+  );
+};
+
 describe('Module: ValidTagArgumentTypes', () => {
   it('reports a literal that contradicts the published type', async () => {
-    // `limit` is published `number` — the ONE real attribute in the file that can prove the
-    // mechanism fires at all.
+    // One real attribute, spelled out, so the mechanism is shown firing before anything derived runs.
     expect(messagesOf(await check(`{% for x in y limit: 'ten' %}{% endfor %}`))).toEqual([
       "Type mismatch for argument 'limit' in for tag: expected number, got string",
     ]);
   });
 
   it('reports every typed argument the docset publishes, on the tag that publishes it', async () => {
-    // Derived from the shipped file: whatever it types, a string is wrong for. A docs release that
-    // types another attribute extends this test rather than breaking it.
-    const published = await typedParameters();
-    const closing: Record<string, string> = { for: '{% endfor %}', tablerow: '{% endtablerow %}' };
+    // Derived from the shipped file, value and message both: a docs release that types another
+    // attribute extends this test rather than breaking it.
+    const pairs = await exercisableParameters();
 
     const reported = await Promise.all(
-      published.map(async ({ tag, parameter, types }) => {
-        const source = `{% ${tag} x in y ${parameter}: 'nope' %}${closing[tag] ?? ''}`;
-        return {
-          tag,
-          parameter,
-          messages: messagesOf(await check(source)),
-          expected: [
-            `Type mismatch for argument '${parameter}' in ${tag} tag: expected ${types[0]}, got string`,
-          ],
-        };
-      }),
+      pairs.map(async ({ tag, parameter, type }) => ({
+        tag,
+        parameter,
+        messages: messagesOf(await check(CALLS[tag](parameter, wrongValueFor(type)))),
+        expected: [
+          `Type mismatch for argument '${parameter}' in ${tag} tag: expected ${type}, got ${wrongTypeFor(
+            type,
+          )}`,
+        ],
+      })),
     );
 
     expect(reported.map(({ messages }) => messages)).toEqual(
@@ -63,6 +108,21 @@ describe('Module: ValidTagArgumentTypes', () => {
     );
     // The docset really does type something; without this the loop above can pass on an empty list.
     expect(reported.length === 0).toBe(false);
+  });
+
+  it('covers every typed argument the docset publishes, spellable here or not', async () => {
+    // The end-to-end sweep above can only reach the tags `CALLS` spells. This reaches all of them:
+    // the table the check consults must carry every type the document publishes, so a tag whose
+    // markup this spec cannot write is still not quietly uncovered.
+    const published = await typedParameters();
+    const table = tagParameterTypes(await publishedDocset.tags());
+
+    expect(
+      published.map(
+        ({ tag, parameter }) => `${tag}.${parameter}=${table.get(tag)?.get(parameter)}`,
+      ),
+    ).toEqual(published.map(({ tag, parameter, types }) => `${tag}.${parameter}=${types[0]}`));
+    expect(published.length === 0).toBe(false);
   });
 
   it('accepts a value of the published type', async () => {
@@ -96,38 +156,40 @@ describe('Module: ValidTagArgumentTypes', () => {
   });
 
   describe('an argument the docset types `untyped`', () => {
-    it('is not reported, whatever is passed to it', async () => {
-      // 67 of the 72 published tag parameters are `untyped`. `cache`'s `expire` is one of them, and
-      // a string where a duration belongs is exactly the mistake a type would catch — the silence
-      // is the docset's answer, not this check's opinion.
-      expect(messagesOf(await check(`{% cache 'k', expire: 'soon' %}body{% endcache %}`))).toEqual(
-        [],
-      );
-    });
+    /**
+     * The pair is CHOSEN by the shipped document rather than named here, and the docset is that
+     * document with its ONE type emptied. Naming a parameter that happened to be untyped is how this
+     * pair came to fail on a docs release that typed it — an assertion about the documentation, not
+     * about the check.
+     */
+    const subject = async () => {
+      const [first] = await exercisableParameters();
+      return first;
+    };
 
-    it('CONTROL: the same fixture reports once the docset types the parameter', async () => {
-      // Without this, the silence above passes with the whole mechanism deleted — and would keep
-      // passing if the tag's arguments never reached the check at all.
-      const tags: TagEntry[] = (await publishedDocset.tags()).map((tag) =>
-        tag.name === 'cache'
-          ? {
-              ...tag,
-              parameters: (tag.parameters ?? []).map((parameter) =>
-                parameter.name === 'expire' ? { ...parameter, types: ['number'] } : parameter,
-              ),
-            }
-          : tag,
-      );
+    it('is not reported, whatever is passed to it', async () => {
+      const { tag, parameter, type } = await subject();
+      const tags = await withoutTypeFor(tag, parameter);
 
       const offenses = await runLiquidCheck(
         ValidTagArgumentTypes,
-        `{% cache 'k', expire: 'soon' %}body{% endcache %}`,
+        CALLS[tag](parameter, wrongValueFor(type)),
         undefined,
         { platformosDocset: { ...publishedDocset, tags: async () => tags } },
       );
 
-      expect(messagesOf(offenses)).toEqual([
-        "Type mismatch for argument 'expire' in cache tag: expected number, got string",
+      expect(messagesOf(offenses)).toEqual([]);
+    });
+
+    it('CONTROL: the same fixture reports against the shipped docset, which types it', async () => {
+      // Without this, the silence above passes with the whole mechanism deleted — and would keep
+      // passing if the tag's arguments never reached the check at all.
+      const { tag, parameter, type } = await subject();
+
+      expect(messagesOf(await check(CALLS[tag](parameter, wrongValueFor(type))))).toEqual([
+        `Type mismatch for argument '${parameter}' in ${tag} tag: expected ${type}, got ${wrongTypeFor(
+          type,
+        )}`,
       ]);
     });
   });
@@ -190,18 +252,14 @@ describe('Module: ValidTagArgumentTypes', () => {
     });
   });
 
-  it('is silent for every tag the docset leaves untyped', async () => {
-    // The whole typed vocabulary, derived: any tag outside it gets no row at all, so no argument
-    // of it can be reported however it is written.
+  it('is silent for a tag the docset publishes no parameters for', async () => {
+    // 30 of the 57 published tags publish no `parameters` at all, so `tagParameterTypes` gives them
+    // no row, and no row means nothing is reported however the tag is written. `assign` is one of
+    // them — asserted from the document rather than assumed, since being in that set is the whole
+    // reason the fixture below is silent.
     const typed = tagParameterTypes(await publishedDocset.tags());
 
-    expect(
-      messagesOf(
-        await check(
-          `{% log 'msg', type: 5 %}{% background j = 'p', delay: 'soon' %}{% assign a = 1 %}`,
-        ),
-      ),
-    ).toEqual([]);
-    expect([...typed.keys()].includes('log')).toBe(false);
+    expect([...typed.keys()].includes('assign')).toBe(false);
+    expect(messagesOf(await check(`{% assign a = 1 %}{% assign b = 'two' %}`))).toEqual([]);
   });
 });

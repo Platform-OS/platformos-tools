@@ -45,8 +45,8 @@ It should support spaces before the dot
 It should support spaces after the dot
 {{ x.y }}
 
-It should print global access variable lookups
-{{ [type] }}
+It should print a leading bracket as an array literal, not a dynamic lookup
+{{ [ type ] }}
 
-It should not convert the first global access string
-{{ ['product'] }}
+It should keep single quotes inside an array literal
+{{ [ 'product' ] }}

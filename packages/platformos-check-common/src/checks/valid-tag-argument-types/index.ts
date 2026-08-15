@@ -14,12 +14,13 @@ import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
  * the partial's own `{% doc %}` block; a tag argument is judged against `tags.json`, which is
  * documentation this repository consumes and never audits.
  *
- * That document types almost nothing today: 67 of its 72 published parameters are `untyped`, and
- * the whole typed vocabulary is `for`'s and `tablerow`'s `limit`, `offset` and `cols`, all `number`.
- * So this check is nearly silent, deliberately — `tagParameterTypes` gives an `untyped` parameter no
- * row, and no row means nothing is reported. It starts reporting the moment the platform publishes
- * real types, with no change here. Guessing in the meantime is the one thing it must not do: these
- * checks are read as gates, and a wrong guess refuses working code.
+ * The size of that vocabulary is not this check's business and has changed under it once already:
+ * the document typed 5 of its 72 parameters while `platformos_tags.liquid` published a hardcoded
+ * `"untyped"`, and 69 of 72 the day that line was fixed — so this check went from nearly silent to
+ * broadly useful without an edit here, which is the design. `tagParameterTypes` gives an `untyped`
+ * parameter no row, and no row means nothing is reported. Guessing at a type the document does not
+ * publish is the one thing it must not do: these checks are read as gates, and a wrong guess refuses
+ * working code.
  */
 export const ValidTagArgumentTypes: LiquidCheckDefinition = {
   meta: {

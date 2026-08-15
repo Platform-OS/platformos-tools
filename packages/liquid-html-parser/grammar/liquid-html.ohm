@@ -447,7 +447,51 @@ Liquid <: Helpers {
   // because we'd otherwise positively match the following string
   // instead of falling back to the other rule:
   // {{ 'string' | some_filter }}
-  liquidVariable<delim> = liquidComplexExpression<delim> liquidFilter<delim>* space* &delim
+  // An ARRAY LITERAL is a legal head here — in a `{{ }}`, an `{% echo %}`/`{% print %}`, or a
+  // `{% hash_assign %}` value — and it must be tried BEFORE `liquidComplexExpression`, because
+  // `liquidVariableLookup` has an `empty lookup+` alternative that matches `["x"]` as a subscript
+  // on no base. That is Shopify's dynamic lookup, where `{{ [type] }}` reads the variable NAMED BY
+  // the value of `type`. platformOS has no such form. Measured on a live instance
+  // (`pos-cli exec liquid`), with the lookup target assigned so the two readings differ:
+  //
+  //   {% assign type = "shirt" %}{% assign shirt = "SHIRTVAL" %}{{ [type] }}  =>  ["shirt"]
+  //   {% assign product = "PV" %}{{ ["product"] }}                            =>  ["product"]
+  //   {% assign x = "VARX" %}{{ ["x"] | size }}                               =>  1
+  //
+  // Every one is the array literal, rendered as JSON — never the lookup, whose values
+  // (`SHIRTVAL`, `PV`, and `4` for the length of `"VARX"`) do not appear. `h[type]` — a subscript
+  // on a NAMED base — does not reach this rule and still resolves.
+  //
+  // THE TAIL IS DUPLICATED PER ALTERNATIVE ON PURPOSE. Hoisting the head into its own
+  // `arrayLiteral | complexExpression` rule is the obvious refactor and it is WRONG: ordered
+  // choice COMMITS once an alternative matches, so for `{{ ["x"].y }}` the array would win, the
+  // trailing `&delim` would then fail on `.y`, and PEG would not re-enter the committed choice to
+  // try the lookup. The whole rule fails and the drop degrades to raw-string markup — measured,
+  // that is exactly what the hoisted form produced — which the syntax-error check reports as
+  // "Syntax is not supported", the way it still reports `{{ [1,2].y }}`. That would be a FALSE
+  // POSITIVE: `{{ ["x"].y }}` and `{{ ["x"]["y"] }}` both render `["x"]` on the platform. With the
+  // tail inside each alternative the `&delim` failure backtracks within THIS alternation and the
+  // lookup form is still reached, so those shapes keep the exact CST they have always had.
+  //
+  // Keeping them as a lookup does diverge from the runtime, which discards the `.y` and prints
+  // `["x"]`. That divergence is deliberate: it is the pre-existing behaviour, it reports nothing,
+  // and a node carrying only the array would make the printer DELETE `.y` from the author's file.
+  //
+  // Ohm requires every alternative of an ordered choice to have the same arity, and both here are
+  // 4 — so the positional CST mapping (`expression: 0`, `filters: 1`, `tokens[length - 2]`) is
+  // unchanged and needs no new entry.
+  //
+  // Only the ARRAY literal belongs in this position. A hash literal is a genuine platformOS
+  // syntax error in a drop, and not because it is a hash: the runtime's variable scanner stops at
+  // the first `}`, so `{{ "a}b" }}` fails identically ("Variable '{{ \"a}' was not properly
+  // terminated"). That lexical quirk is orthogonal and is modelled nowhere in this grammar.
+  //
+  // The array head produces the same LiquidVariable shape `{% assign %}` and `{% return %}`
+  // already build via `liquidAssignExpression`/`liquidReturnExpression`, so stage 2 and the
+  // prettier printer need no new node — see `LiquidVariable.expression` in stage-2-ast.
+  liquidVariable<delim> =
+    | liquidJsonArrayLiteral<delim> liquidFilter<delim>* space* &delim
+    | liquidComplexExpression<delim> liquidFilter<delim>* space* &delim
 
   // Expression plus optional filters, WITHOUT liquidVariable's trailing `space* &delim`
   // lookahead — so it can be used where more markup follows (arguments, list separators).
@@ -540,8 +584,11 @@ Liquid <: Helpers {
   argumentSeparator = space* "," space*
   argumentSeparatorOptionalComma = space* ","? space*
   // liquidExpressionOrJsonLiteral: used in argument value positions where JSON hash/array
-  // literals are accepted (named args, filter positional args). Does NOT extend liquidExpression
-  // itself so that {{ ["x"] }} drop expressions are still parsed as VariableLookup (empty lookup).
+  // literals are accepted (named args, filter positional args). It stays a SEPARATE rule rather
+  // than widening liquidExpression, because liquidExpression is also the operand of indexLookup,
+  // liquidRange and comparison — `a[0]`, `(1..n)`, `x > y` — and a JSON literal is not valid in
+  // any of those. The drop/echo head accepts an array literal through liquidVariable above,
+  // which is scoped to exactly that position.
   liquidExpressionOrJsonLiteral<delim> = liquidJsonHashLiteral<delim> | liquidJsonArrayLiteral<delim> | liquidExpression<delim>
   positionalArgument<delim> = liquidExpressionOrJsonLiteral<delim> ~(space* ":")
   namedArgument<delim> = variableSegment space* ":" space* namedArgumentValue<delim>

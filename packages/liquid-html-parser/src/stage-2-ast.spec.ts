@@ -206,8 +206,11 @@ describe('Unit: Stage 2 (AST)', () => {
           { expression: `x.y.z`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"]["z"]`, name: 'x', lookups: ['y', 'z'] },
           { expression: `x["y"].z`, name: 'x', lookups: ['y', 'z'] },
-          { expression: `["item"]`, name: null, lookups: ['item'] },
           { expression: `page.about-us`, name: 'page', lookups: ['about-us'] },
+          // A leading `[` is an array literal in this position, NOT a nameless lookup — see
+          // `liquidVariable` in the grammar. These two keep a nameless lookup only
+          // because the trailing suffix makes the array alternative fail its `&delim`; bare
+          // `{{ ["item"] }}` is covered by the JsonArrayLiteral case below.
           { expression: `["x"].y`, name: null, lookups: ['x', 'y'] },
           { expression: `["x"]["y"]`, name: null, lookups: ['x', 'y'] },
           { expression: `x[y]`, name: 'x', lookups: [v('y')] },
@@ -270,6 +273,50 @@ describe('Unit: Stage 2 (AST)', () => {
             expectPosition(ast, 'children.0.markup.expression');
           }
         });
+      });
+
+      it('should parse a piped array literal as a filtered JsonArrayLiteral', () => {
+        // `{{ [1,2] | size }}` renders 2 on the platform. It used to fail the strict markup rule,
+        // so the drop degraded to raw-string markup and InvalidTagSyntax reported a syntax error
+        // on code that renders — a false positive in a blocking check.
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{{ [1,2] | size }}`);
+          expectPath(ast, 'children.0.type').to.eql('LiquidVariableOutput');
+          expectPath(ast, 'children.0.markup.type').to.eql('LiquidVariable');
+          expectPath(ast, 'children.0.markup.expression.type').to.eql('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.expression.elements').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.expression.elements.0.value').to.eql('1');
+          expectPath(ast, 'children.0.markup.expression.elements.1.value').to.eql('2');
+          expectPath(ast, 'children.0.markup.filters').to.have.lengthOf(1);
+          expectPath(ast, 'children.0.markup.filters.0.name').to.eql('size');
+        }
+      });
+
+      it('should keep a variable element as a VariableLookup, not a string', () => {
+        // `{{ [x] }}` renders `["hello"]` for `x = "hello"` — the element is the variable's VALUE,
+        // so the node has to carry the reference. Flattening it to a String would hide the read
+        // from every consumer that walks for variable usage.
+        for (const { toAST, expectPath } of testCases) {
+          ast = toAST(`{{ [x, "b"] }}`);
+          expectPath(ast, 'children.0.markup.expression.type').to.eql('JsonArrayLiteral');
+          expectPath(ast, 'children.0.markup.expression.elements').to.have.lengthOf(2);
+          expectPath(ast, 'children.0.markup.expression.elements.0.type').to.eql('VariableLookup');
+          expectPath(ast, 'children.0.markup.expression.elements.0.name').to.eql('x');
+          expectPath(ast, 'children.0.markup.expression.elements.1.type').to.eql('String');
+          expectPath(ast, 'children.0.markup.expression.elements.1.value').to.eql('b');
+        }
+      });
+
+      it('should parse a piped array literal in echo and print', () => {
+        // Same rule (`liquidVariable`) as the drop; both measured rendering 2.
+        for (const tag of ['echo', 'print']) {
+          for (const { toAST, expectPath } of testCases) {
+            ast = toAST(`{% ${tag} [1,2] | size %}`);
+            expectPath(ast, 'children.0.markup.type').to.eql('LiquidVariable');
+            expectPath(ast, 'children.0.markup.expression.type').to.eql('JsonArrayLiteral');
+            expectPath(ast, 'children.0.markup.filters.0.name').to.eql('size');
+          }
+        }
       });
 
       it('should parse filters', () => {

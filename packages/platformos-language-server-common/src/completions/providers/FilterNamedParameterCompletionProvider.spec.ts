@@ -1,7 +1,10 @@
 import { describe, beforeEach, it, expect } from 'vitest';
-import { InsertTextFormat, type TextEdit } from 'vscode-languageserver';
+import { CompletionItemKind, InsertTextFormat, type TextEdit } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { FilterEntry } from '@platformos/platformos-check-common';
+import { publishedDocset } from '@platformos/platformos-check-common/src/test';
 
+import { renderParameter } from '../../docset';
 import { DocumentManager } from '../../documents';
 import { CompletionsProvider } from '../CompletionsProvider';
 import { CURSOR } from '../params';
@@ -39,9 +42,12 @@ describe('Module: ObjectCompletionProvider', async () => {
                 types: ['number'],
               },
             ],
-            // SYNTHETIC. No shipped platformOS filter publishes `positional: false` — all 342 parameters
-            // in filters.json are positional — so this provider is exercised by a fixture and nothing
-            // else. The name it used to carry, `with_options`, is Shopify's.
+            // SYNTHETIC, and INPUT rather than documentation: the cases below are about the text edit's
+            // algebra, so they need parameters at known columns, not real ones. What the provider does
+            // against the shipped docset is measured in `against the published docset` below — and had
+            // to be, because for as long as the documentation site published
+            // `positional: {{ param.positional | default: true }}`, every parameter of every filter came
+            // back positional and this provider completed nothing anywhere but here.
             name: 'with_options',
           },
         ],
@@ -234,6 +240,97 @@ describe('Module: ObjectCompletionProvider', async () => {
       const context = `{{ item | with_options: width: 100, crop: '█'`;
 
       await expect(provider).to.complete(context, []);
+    });
+  });
+
+  /**
+   * The shipped documents, with the expectation READ OUT of them rather than written down: a filter
+   * documenting one more named argument upstream cannot fail these, while this side going quiet does.
+   *
+   * The `complete` matcher compares the whole list, which here also holds the variables in scope, so
+   * these assert the provider's own items — the ones it marks `TypeParameter`.
+   */
+  describe('against the published docset', () => {
+    let published: CompletionsProvider;
+
+    beforeEach(() => {
+      published = new CompletionsProvider({
+        documentManager: new DocumentManager(),
+        platformosDocset: publishedDocset,
+      });
+    });
+
+    async function namedArgumentsOffered(source: string) {
+      const uri = 'file:///app/views/layouts/file.liquid';
+      published.documentManager.open(uri, source.replace(CURSOR, ''), 1);
+
+      const items = await published.completions({
+        textDocument: { uri },
+        position: { line: 0, character: source.indexOf(CURSOR) },
+      });
+
+      return items
+        .filter((item) => item.kind === CompletionItemKind.TypeParameter)
+        .map((item) => item.label);
+    }
+
+    async function filtersBy(predicate: (entry: FilterEntry) => boolean) {
+      const filters = await publishedDocset.filters();
+
+      return filters.filter(predicate);
+    }
+
+    const declaresNamedArguments = (entry: FilterEntry) =>
+      !!entry.parameters?.some((parameter) => parameter.positional === false);
+
+    it('offers every named argument of every filter that publishes one', async () => {
+      const filters = await filtersBy(declaresNamedArguments);
+
+      // A docset with no named argument anywhere would make the loop below assert nothing.
+      expect(filters.map((entry) => entry.name)).not.toEqual([]);
+
+      for (const entry of filters) {
+        const expected = entry
+          .parameters!.filter((parameter) => parameter.positional === false)
+          .map((parameter) => parameter.name);
+
+        expect(await namedArgumentsOffered(`{{ x | ${entry.name}: █ }}`), entry.name).toEqual(
+          expected,
+        );
+      }
+    });
+
+    /** The control: a suppression wide enough to hide a real defect passes the assertion above. */
+    it('offers no named argument for a filter that publishes none', async () => {
+      const filters = await filtersBy((entry) => !declaresNamedArguments(entry));
+
+      expect(filters.map((entry) => entry.name)).not.toEqual([]);
+
+      for (const entry of filters) {
+        expect(await namedArgumentsOffered(`{{ x | ${entry.name}: █ }}`), entry.name).toEqual([]);
+      }
+    });
+
+    it('documents a named argument as the filter argument it is', async () => {
+      const uri = 'file:///app/views/layouts/file.liquid';
+      const source = `{{ 'k' | translate: █ }}`;
+      published.documentManager.open(uri, source.replace(CURSOR, ''), 1);
+
+      const items = await published.completions({
+        textDocument: { uri },
+        position: { line: 0, character: source.indexOf(CURSOR) },
+      });
+      const locale = items.find((item) => item.label === 'locale')!;
+
+      const translate = (await publishedDocset.filters()).find(
+        (entry) => entry.name === 'translate',
+      )!;
+      const parameter = translate.parameters!.find((entry) => entry.name === 'locale')!;
+
+      expect(locale.documentation).toEqual({
+        kind: 'markdown',
+        value: renderParameter(parameter, translate),
+      });
     });
   });
 });

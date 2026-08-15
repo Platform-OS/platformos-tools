@@ -56,4 +56,19 @@ describe('Module: MissingAsset', () => {
 
     expect(offenses).to.have.length(0);
   });
+
+  it('should not report a PREFIX, which names no file', async () => {
+    // Measured: `{{ '' | asset_url }}` returns `…/assets/`, the CDN root a project reads to
+    // build `window.cdnUrl`, and a trailing-slash path returns that directory's URL, which
+    // is what an importmap base mapping is made of. Neither is a file reference.
+    const files = {
+      'app/views/partials/partial.liquid':
+        `<script>window.cdnUrl = '{{ "" | asset_url }}';</script>` +
+        `<script type="importmap">{"imports":{"/":"{{ 'modules/chat/js/' | asset_url }}"}}</script>`,
+    };
+
+    const offenses = await check(files, [MissingAsset]);
+
+    expect(offenses).to.have.length(0);
+  });
 });

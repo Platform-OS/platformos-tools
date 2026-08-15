@@ -29,6 +29,90 @@ describe('Module: TranslationKeyExists', () => {
     expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
   });
 
+  it('should not report a literal that is only a FRAGMENT of an assembled key', async () => {
+    // `t` is not applied to `'static-pages.'` — it is applied to what the appends build.
+    // Treating the head of the chain as the key reported a prefix nobody ever defines.
+    const offenses = await check(
+      {
+        'app/translations/en.yml': 'en:\n  static-pages:\n    faq:\n      title: FAQ\n',
+        'app/views/partials/code.liquid': `{{ 'static-pages.' | append: page.slug | append: '.title' | t: default: '' }}`,
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+  });
+
+  it('should still report a key that reaches t unchanged, whatever follows', async () => {
+    // Filters AFTER `t` transform the result, not the key, so the key is still checked.
+    const offenses = await check(
+      {
+        'app/translations/en.yml': 'en:\n  greeting: Hello\n',
+        'app/views/partials/code.liquid': `{{ 'nope.missing' | t | markdown }}`,
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses).to.have.length(1);
+  });
+
+  it('should find a key whose value is a PLURALIZATION', async () => {
+    // `members: { one: …, other: … }` is written as `'members' | t: count: n` — measured,
+    // the runtime resolves that and returns the selected form. Only the leaves used to be
+    // collected, so the ordinary way to write a plural was reported as undefined.
+    const offenses = await check(
+      {
+        'app/translations/en.yml':
+          'en:\n  members:\n    one: Member\n    other: Members\n  results:\n    one: "%{count} result"\n    other: "%{count} results"\n',
+        'app/views/partials/code.liquid': `{{ 'members' | t: count: 2 }}{{ 'results' | t: count: n }}`,
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+  });
+
+  it('should still address a pluralization member directly', async () => {
+    // The parent is ADDED, never substituted — `'members.one' | t` is legal too.
+    const offenses = await check(
+      {
+        'app/translations/en.yml': 'en:\n  members:\n    one: Member\n    other: Members\n',
+        'app/views/partials/code.liquid': `{{ 'members.one' | t }}`,
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+  });
+
+  it('should find a flat group a caller reads whole', async () => {
+    // `{{ 'photo_uploads' | t | to_json }}` hands an uploader its locale strings, and
+    // `{{ 'types' | t | dig: x }}` picks one out. Measured, `t` returns the map in both.
+    const offenses = await check(
+      {
+        'app/translations/en.yml':
+          'en:\n  photo_uploads:\n    myDevice: Upload\n    pluginNameCamera: Camera\n',
+        'app/views/partials/code.liquid': `{{ 'photo_uploads' | t | to_json }}`,
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses.map((offense) => offense.message)).to.deep.equal([]);
+  });
+
+  it('should still report a NAMESPACE that only holds further maps', async () => {
+    // A subtree is not something `t` is meant to render, so naming one stays a mistake.
+    const offenses = await check(
+      {
+        'app/translations/en.yml': 'en:\n  groups:\n    types:\n      public: Public\n',
+        'app/views/partials/code.liquid': `{{ 'groups' | t }}`,
+      },
+      [TranslationKeyExists],
+    );
+
+    expect(offenses).to.have.length(1);
+  });
+
   it('should find a key defined in a file that has a duplicated mapping key', async () => {
     // Strict js-yaml rejects such a file outright, which made every key in it look
     // undefined. The platform renders it, last value winning, and so does the reader

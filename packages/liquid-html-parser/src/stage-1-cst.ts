@@ -1116,6 +1116,18 @@ function toCST<T>(
       source,
     },
     liquidJsonKey: 0,
+    // Same String node as liquidDoubleQuotedString — the only difference is that the body
+    // rule behind it is escape-aware, which is legal inside JSON literals and nowhere else.
+    liquidJsonString: {
+      type: ConcreteNodeTypes.String,
+      single: () => false,
+      // body is an iteration node; use `.sourceString` for the raw text between quotes,
+      // escape pairs included.
+      value: (tokens: Node[]) => tokens[1].sourceString,
+      locStart,
+      locEnd,
+      source,
+    },
     liquidJsonBareKey: {
       type: ConcreteNodeTypes.VariableLookup,
       name: 0,
@@ -1617,8 +1629,7 @@ function toCST<T>(
     liquidDoubleQuotedString: {
       type: ConcreteNodeTypes.String,
       single: () => false,
-      // body is an iteration node (strings now support `\X` escape pairs); use
-      // `.sourceString` to get the raw text between quotes.
+      // body is an iteration node; use `.sourceString` to get the raw text between quotes.
       value: (tokens: Node[]) => tokens[1].sourceString,
       locStart,
       locEnd,

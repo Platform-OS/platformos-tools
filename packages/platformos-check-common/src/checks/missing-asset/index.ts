@@ -29,6 +29,13 @@ export const MissingAsset: LiquidCheckDefinition = {
 
         if (!isLiquidString(node.expression)) return;
 
+        // A PREFIX names no file, so there is no file to miss. `{{ '' | asset_url }}` is the
+        // documented way to get the assets root — measured, it returns `…/assets/` — and a
+        // path ending in `/` returns that directory's URL, which is what an importmap's base
+        // mapping (`"/": "{{ 'modules/chat/js/' | asset_url }}"`) is built from. Reporting
+        // either was a false BLOCK on the only spelling that produces them.
+        if (node.expression.value === '' || node.expression.value.endsWith('/')) return;
+
         let expression = node.expression;
         const result = await documentsLocator.locate(
           URI.parse(context.config.rootUri),

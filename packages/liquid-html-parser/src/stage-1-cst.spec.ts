@@ -1059,28 +1059,11 @@ describe('Unit: Stage 1 (CST)', () => {
         }
       });
 
-      it('should parse backslash-X escape sequences in string literals', () => {
-        // Escape support matches the platformOS runtime (Ruby JSON's parser accepts
-        // these inside hash/array string values). The CST preserves the raw escape
-        // sequence in `value` — consumers can decode as needed.
+      it('should parse backslash-X escape sequences inside JSON literals', () => {
+        // Escape support matches the platformOS runtime, which hands hash/array literals to
+        // Ruby's JSON parser. The CST preserves the raw escape sequence in `value` —
+        // consumers can decode as needed.
         for (const { toCST, expectPath } of testCases) {
-          // escaped double-quote inside double-quoted string
-          cst = toCST(`{% assign x = "He said \\"hello\\"" %}`);
-          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
-          expectPath(cst, '0.markup.value.expression.single').to.equal(false);
-          expectPath(cst, '0.markup.value.expression.value').to.equal('He said \\"hello\\"');
-
-          // escaped backslash inside double-quoted string
-          cst = toCST(`{% assign x = "a\\\\b" %}`);
-          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
-          expectPath(cst, '0.markup.value.expression.value').to.equal('a\\\\b');
-
-          // escaped single-quote inside single-quoted string
-          cst = toCST(`{% assign x = 'can\\'t' %}`);
-          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
-          expectPath(cst, '0.markup.value.expression.single').to.equal(true);
-          expectPath(cst, '0.markup.value.expression.value').to.equal("can\\'t");
-
           // escaped double-quote inside a JSON hash literal value (the motivating case)
           cst = toCST(`{% assign data = { "quote": "He said \\"hello\\"" } %}`);
           expectPath(cst, '0.markup.value.expression.type').to.equal('JsonHashLiteral');
@@ -1090,11 +1073,44 @@ describe('Unit: Stage 1 (CST)', () => {
           expectPath(cst, '0.markup.value.expression.entries.0.value.value').to.equal(
             'He said \\"hello\\"',
           );
+
+          // escaped double-quote inside a JSON hash literal key
+          cst = toCST(`{% assign data = { "he\\"y": 1 } %}`);
+          expectPath(cst, '0.markup.value.expression.entries.0.key.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.entries.0.key.value').to.equal('he\\"y');
+
+          // escaped backslash inside a JSON array literal element
+          cst = toCST(`{% assign data = ["a\\\\b"] %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('JsonArrayLiteral');
+          expectPath(cst, '0.markup.value.expression.elements.0.value').to.equal('a\\\\b');
+        }
+      });
+
+      it('should not treat backslashes as escapes in plain Liquid strings', () => {
+        // The runtime's lexer ends a plain string at the first matching quote, backslash or
+        // no backslash, so `'\'` is a well-formed one-backslash string — the building block
+        // for regex escaping — and `"a\"b"` is just `a\`.
+        for (const { toCST, expectPath } of testCases) {
+          cst = toCST(`{% assign x = '\\' %}`);
+          expectPath(cst, '0.markup.value.expression.type').to.equal('String');
+          expectPath(cst, '0.markup.value.expression.single').to.equal(true);
+          expectPath(cst, '0.markup.value.expression.value').to.equal('\\');
+
+          // a lone backslash stays a lone backslash even mid-string
+          cst = toCST(`{% assign x = 'a\\b' %}`);
+          expectPath(cst, '0.markup.value.expression.value').to.equal('a\\b');
+
+          cst = toCST(`{% assign x = "a\\b" %}`);
+          expectPath(cst, '0.markup.value.expression.single').to.equal(false);
+          expectPath(cst, '0.markup.value.expression.value').to.equal('a\\b');
+
+          // the string stops at the quote after the backslash, matching the runtime
+          cst = toCST(`{% assign x = 'can\\' %}`);
+          expectPath(cst, '0.markup.value.expression.value').to.equal('can\\');
         }
       });
 
       it('should preserve plain strings (no escape) unchanged', () => {
-        // Regression guard: the escape-aware body rule must not alter simple strings.
         for (const { toCST, expectPath } of testCases) {
           cst = toCST(`{% assign x = "plain text" %}`);
           expectPath(cst, '0.markup.value.expression.type').to.equal('String');

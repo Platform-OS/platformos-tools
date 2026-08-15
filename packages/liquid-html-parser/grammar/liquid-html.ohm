@@ -176,7 +176,7 @@ Liquid <: Helpers {
     "{" space* listOf<liquidJsonKeyValue<delim>, liquidJsonSep> space* "}"
   liquidJsonKeyValue<delim> =
     liquidJsonKey<delim> space* ":" space* liquidJsonValue<delim>
-  liquidJsonKey<delim> = liquidString<delim> | liquidJsonBareKey
+  liquidJsonKey<delim> = liquidJsonString<delim> | liquidString<delim> | liquidJsonBareKey
   liquidJsonBareKey = variableSegment
   liquidJsonArrayLiteral<delim> =
     "[" space* listOf<liquidJsonValue<delim>, liquidJsonSep> space* "]"
@@ -184,7 +184,18 @@ Liquid <: Helpers {
     | liquidJsonHashLiteral<delim>
     | liquidJsonArrayLiteral<delim>
     | liquidJsonItemVariable<delim>
+    | liquidJsonString<delim>
     | liquidExpression<delim>
+  // The runtime hands hash/array literals to Ruby's JSON parser, so backslash escape pairs
+  // ARE meaningful in their keys and unfiltered string values: `{ "q": "he said \"hi\"" }`
+  // is one string. JSON has no single-quoted strings — and the runtime rejects them inside
+  // a literal — so this is double-quote only. Filtered values are deliberately excluded:
+  // `{ "a": "x\"y" | upcase }` is a runtime syntax error, because the runtime strips filters
+  // before JSON-parsing, so it must stay a parse error here too.
+  liquidJsonString<delim> = "\"" liquidJsonStringBody<delim> "\""
+  liquidJsonStringBody<delim> = (liquidStringEscape | liquidJsonStringChar<delim>)*
+  liquidJsonStringChar<delim> = ~("\"" | "\\" | delim) any
+  liquidStringEscape = "\\" any
   // Like liquidVariable but without &delim lookahead, so it works inside JSON structures.
   // Requires at least one filter (liquidJsonFilter+) so plain expressions fall through to liquidExpression.
   // Uses liquidJsonFilter (no trailing comma) instead of liquidFilter to avoid consuming the
@@ -540,17 +551,18 @@ Liquid <: Helpers {
   booleanExpressionCondition<delim> = comparison<delim> | liquidExpression<delim>
 
   liquidString<delim> = liquidSingleQuotedString<delim> | liquidDoubleQuotedString<delim>
-  // Strings support backslash-X escape pairs (any character after a backslash is
-  // consumed as part of the string). This matches the platformOS runtime, which parses
-  // hash/array literal string values with Ruby's JSON library — so an escaped quote or
-  // an escaped backslash is valid inside a double-quoted string.
+  // Plain Liquid strings are NOT escape-aware: the runtime's lexer ends the string at the
+  // first matching quote, backslash or no backslash. `{% assign x = 'can\'t' %}` assigns
+  // `can\` (and the trailing `t'` is dropped), `{% assign x = "a\"b" %}` assigns `a\`, and
+  // `{% assign x = '\' %}` is a well-formed one-backslash string — a common building block
+  // for regex escaping. Only string values inside JSON hash/array literals honour escape
+  // pairs, because only those reach Ruby's JSON parser — see liquidJsonString.
   liquidSingleQuotedString<delim> = "'" liquidSingleQuotedStringBody<delim> "'"
   liquidDoubleQuotedString<delim> = "\"" liquidDoubleQuotedStringBody<delim> "\""
-  liquidSingleQuotedStringBody<delim> = (liquidStringEscape | liquidSingleQuotedStringChar<delim>)*
-  liquidDoubleQuotedStringBody<delim> = (liquidStringEscape | liquidDoubleQuotedStringChar<delim>)*
+  liquidSingleQuotedStringBody<delim> = liquidSingleQuotedStringChar<delim>*
+  liquidDoubleQuotedStringBody<delim> = liquidDoubleQuotedStringChar<delim>*
   liquidSingleQuotedStringChar<delim> = ~("'" | delim) any
   liquidDoubleQuotedStringChar<delim> = ~("\"" | delim) any
-  liquidStringEscape = "\\" any
 
   liquidNumber = liquidFloat | liquidInteger
   liquidInteger = "-"? digit+
@@ -759,9 +771,10 @@ LiquidStatement <: Liquid {
   // delimTag inline-comment marker. In LiquidStatement, delimTag includes `# ...` which
   // would otherwise cause the body rule to stop inside strings like '##label##'.
   // Strings in liquid blocks end at the matching quote or at a newline (no multi-line
-  // strings), but still support `\X` escape pairs.
+  // strings). JSON literal strings keep their `\X` escape pairs here too.
   liquidSingleQuotedStringChar<delim> := ~("'" | newline | end) any
   liquidDoubleQuotedStringChar<delim> := ~("\"" | newline | end) any
+  liquidJsonStringChar<delim> := ~("\"" | "\\" | newline | end) any
 
   // trailing whitespace, newline, + optional leading `;` and `# comment` before the next tag
   statementSep = space* ";"? space* ("#" (~newline any)*)? newline (space | newline)*

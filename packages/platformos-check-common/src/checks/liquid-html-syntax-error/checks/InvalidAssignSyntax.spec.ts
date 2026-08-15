@@ -426,10 +426,25 @@ describe('detectInvalidAssignSyntax', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('accepts escaped single-quote in single-quoted string', async () => {
-      const sourceCode = `{% assign x = 'can\\'t' %}`;
+    it('accepts a lone backslash as a single-quoted string', async () => {
+      // The runtime does NOT process escapes in plain strings — it ends the string at the
+      // first matching quote — so `'\'` is a well-formed one-backslash string. It is the
+      // building block for regex escaping (`| replace: '\', '\\'`), and treating the `\`
+      // as an escape here made the whole partial unparseable, which in turn broke every
+      // caller's view of its signature.
+      const sourceCode = `{% assign x = '\\' %}`;
       const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
       expect(offenses).toHaveLength(0);
+    });
+
+    it('reports an escaped single-quote in a single-quoted string', async () => {
+      // Same rule, other direction: `'can\'t'` is the string `can\` followed by the stray
+      // markup `t'`, because the runtime's lexer stops at the quote after the backslash.
+      // It renders (lax mode drops the remainder) but silently assigns `can\` instead of
+      // `can't`, so it is reported like any other trailing junk after an assign value.
+      const sourceCode = `{% assign x = 'can\\'t' %}`;
+      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
+      expect(offenses).toHaveLength(1);
     });
 
     it('accepts deeply nested JSON structures', async () => {

@@ -503,7 +503,7 @@ heuristic fixes per check (18 per-check fix functions covering
 `UndefinedObject`, `UnknownFilter`, `ConvertIncludeToRender`,
 `DeprecatedTag`, `MissingPartial`, `MissingRenderPartialArguments`,
 `NestedGraphQLQuery`, `TranslationKeyExists`,
-`InvalidHashAssignTarget`, `MetadataParamsCheck`, `UnknownProperty`,
+`InvalidWriteTarget`, `MetadataParamsCheck`, `UnknownProperty`,
 `LiquidHTMLSyntaxError`, plus 10 `pos-supervisor:*` structural fix
 dispatchers). The `ConvertIncludeToRender` fix rewrote a supported tag
 into one with different semantics — see the note on it in §5.8; it must

@@ -127,12 +127,16 @@ one change that is real.
 ## 4. What is *not* validated, and must not be assumed
 
 - The **shape** of a model schema. An unknown property deploys fine.
-- Nested `hash_assign` subscripts (`x[0]['k']`) — a known, bounded gap.
-- `hash_assign` on a variable never assigned in the file. In a partial the variable may
+- Nested subscript writes (`x[0]['k']`) — a known, bounded gap. The runtime complains about
+  the INTERMEDIATE value, which needs the type of `x[0]` rather than of `x`, and nothing
+  tracks element types. The FIRST subscript is still judged.
+- An append through a subscript (`x['k'] << v`) — the runtime checks the value AT the
+  subscript, so this is the same gap.
+- A subscript write on a variable never assigned in the file. In a partial the variable may
   legitimately arrive as a render argument, so silence is correct.
 - Filters the published docset does not carry at all. The vocabulary is the docset's alone —
   `filters.json` carries `arity` and `return_type` for every entry it publishes, and this
   repository holds no table to fall back on — so a filter absent from it goes unchecked by
-  `FilterArity` and `InvalidHashAssignTarget`, and the **language server** has no type for it.
+  `FilterArity` and `InvalidWriteTarget`, and the **language server** has no type for it.
   That is unchecked, never rejected: absence is silence, so a docset lagging the platform costs
   detections and cannot refuse working code.

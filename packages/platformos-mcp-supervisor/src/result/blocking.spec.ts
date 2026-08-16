@@ -30,7 +30,7 @@ describe('Unit: blocksWrite', () => {
       ['a declared contract was violated', 'MissingRenderPartialArguments'],
       ['the query fails when executed', 'GraphQLCheck'],
       ['the query fails when executed', 'GraphQLVariablesCheck'],
-      ['runtime error', 'InvalidHashAssignTarget'],
+      ['runtime error', 'InvalidWriteTarget'],
     ])('%s: %s', (_why, check) => {
       expect(blocksWrite([at(check)])).toBe(true);
     });
@@ -106,7 +106,7 @@ describe('Unit: blocksWrite', () => {
       'FilterArity',
       'GraphQLCheck',
       'GraphQLVariablesCheck',
-      'InvalidHashAssignTarget',
+      'InvalidWriteTarget',
       'JsonLiteralQuoteStyle',
       'LiquidHTMLSyntaxError',
       'MissingContentForLayout',
@@ -154,7 +154,7 @@ describe('Unit: blocksWrite', () => {
   });
 
   /**
-   * TASK-19.1 AC#5. `InvalidHashAssignTarget` used to be justified only by a shared
+   * TASK-19.1 AC#5. `InvalidWriteTarget` used to be justified only by a shared
    * "Runtime errors on execution" comment — the same comment that measurement
    * disproved for `ReservedVariableName`. It was then probed on its own: `hash_assign`
    * against a number, string, boolean or range each raises `HashAssignTagError`, while
@@ -167,8 +167,8 @@ describe('Unit: blocksWrite', () => {
    * member no longer carries a known false block.
    */
   it('blocks the hash_assign target error, on its own measured evidence', () => {
-    expect(BLOCKING_CHECKS.has('InvalidHashAssignTarget')).toBe(true);
-    expect(blocksWrite([at('InvalidHashAssignTarget')])).toBe(true);
+    expect(BLOCKING_CHECKS.has('InvalidWriteTarget')).toBe(true);
+    expect(blocksWrite([at('InvalidWriteTarget')])).toBe(true);
   });
 
   it('still reports a de-escalated finding as non-blocking, including the new member', () => {

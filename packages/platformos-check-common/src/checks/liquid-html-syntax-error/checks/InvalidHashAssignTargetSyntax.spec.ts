@@ -4,7 +4,8 @@ import { runLiquidCheck } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
 
 /**
- * TASK-49. A `hash_assign` target whose final subscript is dot access.
+ * TASK-49. A `hash_assign` target whose final subscript is dot access, or which has no
+ * subscript at all.
  *
  * WHY THIS IS ITS OWN DETECTOR, and why both directions are pinned. The platform raises
  * `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax: hash_assign hash[key] =
@@ -24,9 +25,19 @@ const messagesFor = async (source: string) =>
     .map((offense) => offense.message)
     .filter((message) => message.includes('hash_assign target must end in a bracket'));
 
+/**
+ * ONE message for both shapes the detector reports. The dot target and the bare target have the
+ * same repair — each is valid under `{% assign %}` — so telling them apart would buy the author
+ * nothing and cost a branch.
+ */
+const INVALID_TARGET =
+  "A hash_assign target must end in a bracket subscript — hash_assign h['key'] = value. " +
+  'platformOS raises Liquid::SyntaxError at parse time for any other form, so the file cannot ' +
+  'be deployed or rendered. Rename the tag to {% assign %}, which accepts all of them.';
+
 const HASH = `{% assign h = '{"a":{}}' | parse_json %}`;
 
-/** Measured to RAISE `Liquid::SyntaxError` — the final subscript is a dot. */
+/** Measured to RAISE `Liquid::SyntaxError` — the final subscript is a dot, or absent. */
 const PLATFORM_REJECTS: Array<[label: string, target: string]> = [
   ['single dot', `h.k`],
   ['dot chain', `h.a.b`],
@@ -35,6 +46,7 @@ const PLATFORM_REJECTS: Array<[label: string, target: string]> = [
   ['numeric bracket then dot', `h[0].b`],
   ['spaced dot', `h . k`],
   ['dot with question mark', `h.k?`],
+  ['no subscript at all', `h`],
 ];
 
 /** Measured to ASSIGN — the final subscript is a bracket. */
@@ -121,11 +133,7 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
     expect(offenses).toEqual([
       {
         check: 'LiquidHTMLSyntaxError',
-        message:
-          "A hash_assign target must end in a bracket subscript. Change the last '.' to " +
-          "bracket access — hash_assign h['key'] = value, not hash_assign h.key = value. " +
-          'platformOS raises Liquid::SyntaxError when parsing the dot form, so the file ' +
-          'cannot be deployed or rendered.',
+        message: INVALID_TARGET,
         uri: 'file:///app/views/partials/file.liquid',
         severity: 0,
         type: 'LiquidHtml',
@@ -141,8 +149,23 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
     ]);
   });
 
+  it('reports a bare target too, which no type check can catch', async () => {
+    // `{% hash_assign h = 'V' %}` PARSES in this repository — `liquidTagHashAssignMarkup` is a
+    // `liquidVariableLookup`, which matches a plain name — and raises on the platform whatever
+    // the target holds. A FALSE APPROVAL until 2026-08-16: `h` is a HASH here, so
+    // `InvalidWriteTarget` has nothing to say about it and this detector is the only thing
+    // between the author and a file that cannot be parsed.
+    //
+    // The control is the same buffer under `assign`, which takes a plain target: the repair the
+    // message names has to actually work.
+    expect([
+      await messagesFor(`${HASH}{% hash_assign h = 1 %}`),
+      await messagesFor(`${HASH}{% assign h = 1 %}`),
+    ]).toEqual([[INVALID_TARGET], []]);
+  });
+
   it('fires even when the container type is unknown, which is the whole point of the split', async () => {
-    // `InvalidHashAssignTarget` answers a TYPE question and necessarily stays silent when it
+    // `InvalidWriteTarget` answers a TYPE question and necessarily stays silent when it
     // cannot infer one — a render argument, a module value, a variable assigned in another
     // file. This defect does not depend on the type: the template cannot be parsed whatever
     // the variable holds. Put in that check, it would be silent exactly here.
@@ -171,7 +194,7 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
    * to generalise it is why this is pinned rather than left to the prose above.
    *
    * `assign` and `function` reach the same runtime setter as `hash_assign` — see
-   * `InvalidHashAssignTarget`, which does treat all of them alike — but they do not share its
+   * `InvalidWriteTarget`, which does treat all of them alike — but they do not share its
    * PARSER. Measured on a live instance, each row reading the hash back:
    *
    *   {% assign h.k     = 'V' %}   writes the key `k`   -> {"k":"V"}
@@ -179,10 +202,10 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
    *   {% assign h['a'].b = 'V' %}  writes `a.b`         -> {"a":{"b":"V"}}
    *   {% hash_assign h.k = 'V' %}  RAISES Liquid::SyntaxError at PARSE time
    *
-   * `function` was measured only as far as its target PARSING — every spelling reaches partial
-   * resolution rather than a syntax error — because settling its write needs a partial that
-   * exists and the oracle instance has none. Parsing is all this detector is about, so that is
-   * enough for it, and is not enough for `InvalidHashAssignTarget`.
+   * `function`'s write is measured too, and `InvalidWriteTarget` judges it — see
+   * `.changeset/invalid-write-target.md`, which retracts the earlier note here that called it
+   * unmeasurable. What does not generalise is this tag's PARSER: `{% function h.k = 'p' %}`
+   * reaches partial resolution rather than a syntax error.
    *
    * So extending this detector to those two tags would refuse code the platform runs, on a
    * check that BLOCKS the write.

@@ -906,7 +906,7 @@ describe('server instructions', () => {
       yamlParse: SERVER_INSTRUCTIONS.includes('one that does not parse is reported and blocks'),
       backedBy: [
         BLOCKING_CHECKS.has('JsonLiteralQuoteStyle'),
-        BLOCKING_CHECKS.has('InvalidHashAssignTarget'),
+        BLOCKING_CHECKS.has('InvalidWriteTarget'),
         BLOCKING_CHECKS.has('YAMLSyntaxError'),
       ],
     }).toEqual({
@@ -1029,7 +1029,7 @@ describe('server instructions', () => {
 
   it('states the hash_assign BRACKET rule, which is a parse error and not a type error', () => {
     // Two independent requirements share this tag, and the instructions have to carry both.
-    // The type rule (Hash takes a key, Array takes an index) is `InvalidHashAssignTarget`.
+    // The type rule (Hash takes a key, Array takes an index) is `InvalidWriteTarget`.
     // The NOTATION rule is a `Liquid::SyntaxError` at parse time — measured, with the value
     // read back: h['k'], h["k"], h.a['b'], h[k], h[0] all assign, while h.k, h.a.b and
     // h['a'].b cannot be parsed. Only the LAST subscript matters, which is why the example
@@ -1051,14 +1051,14 @@ describe('server instructions', () => {
     // back: `assign h.k = 'V'` writes the key `k`, and `assign x << v` raises unless `x` is an
     // Array, a Hash included.
     //
-    // Behaviour lives in `invalid-hash-assign-target/index.spec.ts`; this pins that the agent is told, and
+    // Behaviour lives in `invalid-write-target/index.spec.ts`; this pins that the agent is told, and
     // that both rules are carried by a check that BLOCKS.
     expect({
       namesAssign: SERVER_INSTRUCTIONS.includes("{% assign h['k'] = v %}"),
       scopesTheBracketRule: SERVER_INSTRUCTIONS.includes('Only hash_assign additionally'),
       saysAssignAcceptsThem: SERVER_INSTRUCTIONS.includes('assign accepts all'),
       statesAppend: SERVER_INSTRUCTIONS.includes('{% assign x << v %} needs an'),
-      backedBy: BLOCKING_CHECKS.has('InvalidHashAssignTarget'),
+      backedBy: BLOCKING_CHECKS.has('InvalidWriteTarget'),
     }).toEqual({
       namesAssign: true,
       scopesTheBracketRule: true,
@@ -1066,6 +1066,32 @@ describe('server instructions', () => {
       statesAppend: true,
       backedBy: true,
     });
+  });
+
+  it('names the function tag on both rules, since it reaches the same setter', () => {
+    // `{% function %}` obeys both rules identically — measured 2026-08-16 against
+    // `/api/app_builder/liquid_exec` with the container read back: a subscript target wants a
+    // Hash with a key or an Array with an index, and `<<` wants an Array. An agent told only
+    // about `assign` and `hash_assign` reads the silence as permission on the third spelling.
+    //
+    // Behaviour lives in `invalid-write-target/index.spec.ts`; this pins that the agent is told.
+    expect({
+      namesSubscriptWrite: SERVER_INSTRUCTIONS.includes("{% function h['k'] = 'p' %}"),
+      namesAppend: SERVER_INSTRUCTIONS.includes("as does {% function x << 'p' %}"),
+      backedBy: BLOCKING_CHECKS.has('InvalidWriteTarget'),
+    }).toEqual({ namesSubscriptWrite: true, namesAppend: true, backedBy: true });
+  });
+
+  it('names the bare hash_assign target as unparseable, not only the dot one', () => {
+    // `{% hash_assign h = v %}` raises `Liquid::SyntaxError` whatever `h` holds — measured
+    // 2026-08-16 — and no type check can catch it, since a Hash target is refused too.
+    //
+    // Behaviour lives in `InvalidHashAssignTargetSyntax.spec.ts`; this pins that the agent is
+    // told, and that the rule is carried by a check that BLOCKS.
+    expect({
+      stated: SERVER_INSTRUCTIONS.includes('a bare h cannot be parsed'),
+      backedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
+    }).toEqual({ stated: true, backedBy: true });
   });
 
   it('names the YAML DIALECT, because key identity is not inferable without it', () => {
@@ -1178,7 +1204,7 @@ const EMITS: Record<string, EmissionFixture> = {
     errors: ['JsonLiteralQuoteStyle'],
   },
 
-  InvalidHashAssignTarget: {
+  InvalidWriteTarget: {
     // The two tags are separated. Detection depends on the target's inferred type
     // being in scope at the `hash_assign`, which is check-common's business and is
     // pinned by that check's own spec; what this fixture proves is that a reported
@@ -1187,7 +1213,7 @@ const EMITS: Record<string, EmissionFixture> = {
     content: `{% assign x = 5 %}
 {% hash_assign x['k'] = 'v' %}
 `,
-    errors: ['InvalidHashAssignTarget'],
+    errors: ['InvalidWriteTarget'],
   },
 
   MissingContentForLayout: {
@@ -1289,7 +1315,7 @@ const NEVER_REACHES_THE_GATE: Record<string, UnreachableProof> = {
  * being minimal.
  *
  * WHY THIS EXISTS. Asserting that ONE buffer emits cannot detect a check that is
- * blind to a DIFFERENT buffer for the same defect. `InvalidHashAssignTarget` was
+ * blind to a DIFFERENT buffer for the same defect. `InvalidWriteTarget` was
  * exactly that: it tracked a variable's type over a range starting at the defining
  * tag's end offset and excluded a lookup at precisely that offset, so it went silent
  * when the two tags abutted and fired with one space between them. The fixture here
@@ -1373,16 +1399,21 @@ describe('Integration: every blocking check can actually block', () => {
 
   /**
    * `hash_assign` is deprecated, so the fixture above pins the gate against the spelling an
-   * author is being told to STOP writing. `assign` reaches the same runtime setter — measured,
-   * every container × subscript combination identical, with the container read back — and it
-   * carries a second rule of its own in `<<`, which needs an Array and refuses a Hash.
+   * author is being told to STOP writing. `assign` and `function` reach the same runtime setter
+   * — measured, every container × subscript combination identical, with the container read back
+   * — and both carry a second rule in `<<`, which needs an Array and refuses a Hash.
    *
-   * Both are asserted end-to-end HERE rather than only in check-common, because the claim that
-   * matters is that the offense reaches the gate and stops the write. A check can report and
+   * All three are asserted end-to-end HERE rather than only in check-common, because the claim
+   * that matters is that the offense reaches the gate and stops the write. A check can report and
    * still not block: `blocksWrite` needs severity `error` AND membership of `BLOCKING_CHECKS`,
    * and neither is visible from the check's own spec.
    */
-  it('blocks a subscript write and an append through assign, not only through hash_assign', async () => {
+  it('blocks a subscript write and an append through assign and function too', async () => {
+    // `{% function %}` names a partial, so it needs a real one — otherwise `MissingPartial`
+    // joins the verdict and the assertion stops being about this check. A function partial
+    // hands its value back through `{% return %}`; without one it returns nil.
+    write({ 'app/views/partials/p.liquid': "{% return 'x' %}\n" });
+
     const buffers = [
       // A subscript write onto a String. The runtime raises "x is abc, expected Hash or Array".
       `{% assign x = 'abc' %}{% assign x['k'] = 'v' %}`,
@@ -1391,6 +1422,10 @@ describe('Integration: every blocking check can actually block', () => {
       `{% assign x = 'abc' %}{% assign x.k = 'v' %}`,
       // An append onto a Hash. The runtime raises "x is {}, expected Array".
       `{% parse_json x %}{}{% endparse_json %}{% assign x << 1 %}`,
+      // The same two rules under `function`, which went unjudged on the subscript until its
+      // write semantics were measured (2026-08-16) rather than assumed unmeasurable.
+      `{% assign x = 'abc' %}{% function x['k'] = 'p' %}`,
+      `{% parse_json x %}{}{% endparse_json %}{% function x << 'p' %}`,
     ];
 
     const verdicts = [];
@@ -1407,7 +1442,7 @@ describe('Integration: every blocking check can actually block', () => {
       buffers.map(() => ({
         blocked: true,
         status: 'error',
-        errors: ['InvalidHashAssignTarget'],
+        errors: ['InvalidWriteTarget'],
       })),
     );
   });
@@ -1456,7 +1491,7 @@ describe('Integration: every blocking check can actually block', () => {
       .filter(([, fixture]) => adjacencyVariants(fixture.content).length > 1)
       .map(([code]) => code);
 
-    expect(withAxis).toEqual(['InvalidHashAssignTarget']);
+    expect(withAxis).toEqual(['InvalidWriteTarget']);
   });
 
   for (const [code, fixture] of Object.entries(EMITS)) {
@@ -2187,7 +2222,7 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     },
   ],
 
-  InvalidHashAssignTarget: [
+  InvalidWriteTarget: [
     // From the round-4 structural set: 31 cases, zero false blocks, each run in both
     // tag spacings. These are the shapes the runtime ACCEPTS — a Hash takes a key, an
     // Array takes an index — which is exactly the distinction the check models.
@@ -2351,7 +2386,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       JsonLiteralQuoteStyle: 3,
       GraphQLCheck: 2,
       GraphQLVariablesCheck: 1,
-      InvalidHashAssignTarget: 9,
+      InvalidWriteTarget: 9,
       MissingRenderPartialArguments: 1,
       MissingContentForLayout: 1,
     });
@@ -2378,7 +2413,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       JsonLiteralQuoteStyle: ['dry-run'],
       GraphQLCheck: ['schema'],
       GraphQLVariablesCheck: ['by-construction'],
-      InvalidHashAssignTarget: ['by-construction', 'runtime'],
+      InvalidWriteTarget: ['by-construction', 'runtime'],
       MissingRenderPartialArguments: ['by-construction'],
       MissingContentForLayout: ['by-construction'],
     });
@@ -2411,7 +2446,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       )
       .map(([code]) => code);
 
-    expect(withAxis).toEqual(['LiquidHTMLSyntaxError', 'InvalidHashAssignTarget']);
+    expect(withAxis).toEqual(['LiquidHTMLSyntaxError', 'InvalidWriteTarget']);
   });
 
   for (const [code, fixtures] of Object.entries(STAYS_SILENT)) {

@@ -318,6 +318,18 @@ export interface AssignMarkup extends ASTNode<NodeTypes.AssignMarkup> {
   /** bracket/dot lookups on the target (empty for simple assignment) */
   lookups: LiquidExpression[];
 
+  /**
+   * The span of the target alone — `x`, `x['k']`, `x.a.b` — which `name` and `lookups` together
+   * cannot reconstruct: a bracket lookup's node begins INSIDE the brackets, so the last lookup's
+   * end falls one short of the `]`.
+   *
+   * A `Position` rather than a node, deliberately. The CST has always carried `target` as a
+   * `ConcreteLiquidVariableLookup` and stage 2 dropped it; publishing the node instead would add a
+   * child to every `{% assign %}` in every project and change what the visitors and the printer
+   * traverse. A `Position` has no `type`, so `isNode` rejects it and it stays invisible to both.
+   */
+  targetPosition: Position;
+
   /** '=' for assignment, '<<' for array append */
   operator: '=' | '<<';
 
@@ -851,8 +863,17 @@ export interface LiquidBooleanExpression extends ASTNode<NodeTypes.BooleanExpres
 
 /** https://shopify.dev/docs/api/liquid/basics#string */
 export interface LiquidString extends ASTNode<NodeTypes.String> {
-  /** single or double quote? */
+  /** single or double quote? Meaningless when {@link unquoted} is set — there are no quotes. */
   single: boolean;
+
+  /**
+   * Set only on the key of a DOT lookup — the `k` in `h.k`, which the grammar reads as an
+   * identifier and models as a String because it names the same thing `h['k']` does.
+   *
+   * The one signal that tells `h.k` from `h['k']` after parsing. Absent on every real string
+   * literal, so `unquoted === true` is safe to test and its absence means "a quoted string".
+   */
+  unquoted?: true;
 
   /** The contents of the string, parsed, does not included the delimiting quote characters */
   value: string;
@@ -2202,6 +2223,7 @@ function toAssignMarkup(node: ConcreteLiquidTagAssignMarkup): AssignMarkup {
     type: NodeTypes.AssignMarkup,
     name: node.name,
     lookups: node.target.lookups.map(toExpression),
+    targetPosition: position(node.target),
     operator: node.operator as '=' | '<<',
     value: toLiquidVariable(node.value),
     position: position(node),
@@ -2643,6 +2665,9 @@ function toExpression(node: ConcreteLiquidExpression): LiquidExpression {
         type: NodeTypes.String,
         position: position(node),
         single: node.single,
+        // Spread rather than assigned, so a quoted string carries no `unquoted: undefined` key and
+        // its node shape is unchanged.
+        ...(node.unquoted && { unquoted: true as const }),
         value: node.value,
         source: node.source,
       };

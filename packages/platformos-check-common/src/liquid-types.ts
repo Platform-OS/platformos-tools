@@ -12,7 +12,7 @@ import { FilterEntry, Parameter, ReturnType, TagEntry } from './types';
  * something a filter never returns:
  *
  * - `range` is deliberately NOT folded into `array`. An Array accepts `x[0] = …` and a
- *   range was only ever measured raising, so `InvalidHashAssignTarget` needs to tell them
+ *   range was only ever measured raising, so `InvalidWriteTarget` needs to tell them
  *   apart. `object` accepts a range, which is where the two rejoin — see
  *   `isTypeCompatible`.
  * - `null` is a nil/null literal. It is not a valid `@param` type; it exists so a type

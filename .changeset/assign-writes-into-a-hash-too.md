@@ -7,7 +7,7 @@
 `hash_assign` is not the only tag that writes into a Hash, and it is the deprecated one.
 
 `{% assign h['k'] = v %}` and `{% assign h.k = v %}` reach the same runtime setter as
-`{% hash_assign %}`. `InvalidHashAssignTarget` knew only the old spelling, which cost two
+`{% hash_assign %}`. `InvalidWriteTarget` knew only the old spelling, which cost two
 defects in opposite directions — and both are settled by measurement against
 `/api/app_builder/liquid_exec`, every row reading the container back so "accepted" means the
 write happened rather than that the tag merely parsed.
@@ -42,10 +42,6 @@ to an array no longer makes every later write to it look like a write onto a num
 `{% assign h.k = v %}` writes the key `k`. So `InvalidHashAssignTargetSyntax` stays
 `hash_assign`-only — extending it would refuse working code on a blocking check — and a dot
 lookup counts as a plain KEY accessor everywhere else, exactly as the runtime treats it.
-
-`{% function h['k'] = 'partial' %}` parses in every target spelling but its write semantics
-could not be measured (it needs a partial that exists, and the oracle instance has none), so it
-is deliberately not judged and the gap is pinned by a test with a live control.
 
 The MCP server's instructions now describe the rules under `assign` rather than only under
 `hash_assign`, since telling an agent about a deprecated tag's constraints teaches it a rule

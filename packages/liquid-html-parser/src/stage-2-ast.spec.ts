@@ -529,6 +529,67 @@ describe('Unit: Stage 2 (AST)', () => {
         }
       });
 
+      it('spans the assign TARGET with targetPosition, which name and lookups cannot reconstruct', () => {
+        // `name` gives the start and a bracket lookup's node begins INSIDE the brackets, so the
+        // last lookup's end falls one short of the `]`. Asserting the SLICE rather than offsets
+        // states the contract in the terms a consumer needs it, and the notations below are every
+        // one the grammar accepts — including the whitespace variants, which are why this cannot
+        // be "last lookup end plus one".
+        const targets = [
+          `x`,
+          `x['k']`,
+          `x["k"]`,
+          `x[0]`,
+          `x.k`,
+          `x.a.b`,
+          `x['a']['b']`,
+          `x['a'].b`,
+          `x[ 'k' ]`,
+          `x [ 'k' ]`,
+          `x[y]`,
+        ];
+
+        for (const { toAST } of testCases) {
+          const sliced = targets.map((target) => {
+            const source = `{% assign ${target} = 'v' %}`;
+            const { targetPosition } = (toAST(source) as any).children[0].markup;
+            return source.slice(targetPosition.start, targetPosition.end);
+          });
+
+          expect(sliced).to.eql(targets);
+        }
+      });
+
+      it('marks a DOT lookup key as unquoted, and leaves every quoted string alone', () => {
+        // The one signal that tells `x.k` from `x['k']` after parsing — both model the key as a
+        // `String`, because they name the same key. `single` cannot do it: a double-quoted string
+        // is `single: false` too, which is the pair the third and fourth rows pin.
+        for (const { toAST } of testCases) {
+          const lookupOf = (target: string) =>
+            (toAST(`{% assign ${target} = 'v' %}`) as any).children[0].markup.lookups.at(-1);
+
+          expect(
+            [`x.k`, `x['k']`, `x["k"]`, `x[0]`, `x[y]`, `x['a'].b`, `x.a['b']`].map((target) => {
+              const { type, single, unquoted } = lookupOf(target);
+              return { target, type, single, unquoted };
+            }),
+          ).to.eql([
+            { target: `x.k`, type: 'String', single: false, unquoted: true },
+            { target: `x['k']`, type: 'String', single: true, unquoted: undefined },
+            { target: `x["k"]`, type: 'String', single: false, unquoted: undefined },
+            { target: `x[0]`, type: 'Number', single: undefined, unquoted: undefined },
+            { target: `x[y]`, type: 'VariableLookup', single: undefined, unquoted: undefined },
+            { target: `x['a'].b`, type: 'String', single: false, unquoted: true },
+            { target: `x.a['b']`, type: 'String', single: true, unquoted: undefined },
+          ]);
+
+          // A quoted string carries NO `unquoted` key at all, rather than one set to `undefined`:
+          // the node shape of every string that existed before this marker is unchanged.
+          expect(Object.keys(lookupOf(`x['k']`))).to.not.include('unquoted');
+          expect(Object.keys(lookupOf(`x.k`))).to.include('unquoted');
+        }
+      });
+
       it('should parse assign tags with JSON literals', () => {
         for (const { toAST, expectPath } of testCases) {
           // empty hash

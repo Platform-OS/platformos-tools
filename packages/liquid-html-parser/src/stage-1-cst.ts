@@ -683,6 +683,12 @@ export interface ConcreteLiquidBooleanExpression extends ConcreteBasicNode<Concr
 export interface ConcreteStringLiteral extends ConcreteBasicNode<ConcreteNodeTypes.String> {
   value: string;
   single: boolean;
+  /**
+   * Set only by `dotLookup` — `h.k`, whose key is an identifier the grammar reads without quotes.
+   * Absent on every actual string literal, which is what makes it a POSITIVE signal: `single` is
+   * `false` for a double-quoted string too, so it can never tell the two apart.
+   */
+  unquoted?: true;
 }
 
 export interface ConcreteNumberLiteral extends ConcreteBasicNode<ConcreteNodeTypes.Number> {
@@ -1696,6 +1702,11 @@ function toCST<T>(
     dotLookup: {
       type: ConcreteNodeTypes.String,
       value: 3,
+      // A dot key is not quoted at all. `single: false` used to be left UNSET here, which put
+      // `undefined` on a field declared `boolean` and made "has no `single`" the only way to
+      // recognise a dot lookup — a type violation that two consumers were reading as a contract.
+      single: () => false,
+      unquoted: () => true,
       locStart: (nodes: Node[]) => offset + nodes[2].source.startIdx,
       locEnd: (nodes: Node[]) => offset + nodes[nodes.length - 1].source.endIdx,
       source,

@@ -178,14 +178,19 @@ function isYamlFrontMatter(node: TextNode) {
  * one spelling that is always valid, and leaving a mixed `h.a['b']` would invite the next
  * reader to tidy away the one bracket doing the work.
  *
- * WHY NOT PRESERVE EACH LOOKUP'S ORIGINAL NOTATION, which would be the gentler fix. The only
- * available signal is that `dotLookup` builds a `String` node with no `single` field while a
- * bracket lookup sets one — and `LiquidString.single` is declared `boolean`, NOT optional. So
- * that distinction is a pre-existing type violation rather than a contract: nothing stops the
- * parser from filling `single` in on dot lookups as a tidy-up, and this printer would then
- * silently start emitting dots in targets and reintroduce the syntax error. Preserving
- * notation needs an explicit typed signal on the node first; until then, always-brackets
- * depends on nothing fragile.
+ * WHY NOT PRESERVE EACH LOOKUP'S ORIGINAL NOTATION, which would be the gentler fix. This used
+ * to read "there is no typed signal to preserve it BY" — the only distinction was that a dot
+ * lookup's `String` node was missing `single`, in violation of its own `boolean` declaration.
+ * That signal now exists and is positive: `LiquidString.unquoted`, set by and only by the
+ * parser's `dotLookup`.
+ *
+ * Always-brackets stays, on the reason that never depended on the signal: for `hash_assign` a
+ * dot in the LAST lookup is a platform parse error, so preserving an author's `h.k` would mean
+ * reproducing undeployable code on every format. Uniform brackets are the one spelling valid
+ * under every tag here. With `unquoted` available, preserving notation for `assign` and
+ * `function` — where a dot is legal — is now a change someone could choose to make; it is a
+ * change to what the formatter EMITS, so it belongs to a decision about output, not to this
+ * guard.
  *
  * `{% assign %}` is NOT decided here: its markup carries the name and the lookups separately
  * with no `VariableLookup` node to reach this function, so it brackets its own target — see

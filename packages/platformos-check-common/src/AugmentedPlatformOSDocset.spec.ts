@@ -273,7 +273,7 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
  * entry under its aliases.
  *
  * The guard is worth its weight because the failure is quiet. A locally injected `{ name }` carries
- * neither `arity` nor `return_type`, and both `InvalidHashAssignTarget` and `FilterArity` resolve a
+ * neither `arity` nor `return_type`, and both `InvalidWriteTarget` and `FilterArity` resolve a
  * filter by name — so an entry appended beside a published one does not throw, it silently answers
  * "unknown" for a filter the platform fully documents.
  */

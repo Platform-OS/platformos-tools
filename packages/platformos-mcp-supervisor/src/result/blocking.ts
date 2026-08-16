@@ -129,7 +129,7 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // than a hand-written list, and the check reads the SUBSCRIPT, which is what the
   // runtime actually constrains (a Hash takes a key, an Array takes an index). An
   // unknown return type produces nothing, so a docset gap cannot refuse working code.
-  'InvalidHashAssignTarget',
+  'InvalidWriteTarget',
 
   // --- The two deliberate exceptions to the membership rule. ---
   //

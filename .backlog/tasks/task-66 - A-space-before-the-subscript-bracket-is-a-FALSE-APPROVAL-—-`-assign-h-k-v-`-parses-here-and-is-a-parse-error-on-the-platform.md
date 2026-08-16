@@ -42,7 +42,7 @@ Measured on `/api/app_builder/liquid_exec`, with a hash seeded and read back:
 
 So the rule is narrow and easy to state: a space INSIDE the brackets is fine, a space BEFORE the `[` is not. The two were conflated.
 
-Nothing in the toolchain reports it. `InvalidHashAssignTargetSyntax` answers a different question (the target must END in a bracket, which this target does), and `InvalidHashAssignTarget` answers a type question. Both are correctly silent. The grammar's `lookup<delim>` permits the leading space, so the markup parses and no check objects.
+Nothing in the toolchain reports it. `InvalidHashAssignTargetSyntax` answers a different question (the target must END in a bracket, which this target does), and `InvalidWriteTarget` answers a type question. Both are correctly silent. The grammar's `lookup<delim>` permits the leading space, so the markup parses and no check objects.
 
 That makes it a **false approval**: the MCP supervisor returns `status: ok, must_fix_before_write: false` for a construct the deploy converter rejects — and a converter rejection fails the WHOLE changeset, taking every other file in the deploy with it. Same class as the `{% layout %}` defect.
 

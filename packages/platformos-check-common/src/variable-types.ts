@@ -1,10 +1,7 @@
 import {
-  AssignMarkup,
   ForMarkup,
-  FunctionMarkup,
   GraphQLInlineMarkup,
   GraphQLMarkup,
-  HashAssignMarkup,
   LiquidDocParamNode,
   LiquidHtmlNode,
   LiquidTag,
@@ -24,6 +21,7 @@ import {
 import { PlatformOSDocset, SourceCodeType, TypedAppFile } from './types';
 import { enclosingBranchEnd, isLiquidDocument } from './utils/ast';
 import { visit } from './visitor';
+import { writeTargetOf } from './write-targets';
 
 /**
  * WHAT A NAMED VARIABLE HOLDS, at an offset in one file.
@@ -32,7 +30,7 @@ import { visit } from './visitor';
  * `{% assign x = 403 %}{{ x | t }}` was not, although the runtime refuses both identically —
  * measured: `translate filter - first argument must be a string, received: 403`, twice.
  *
- * This is `InvalidHashAssignTarget`'s private tracker promoted, not a new model. That check kept
+ * This is `InvalidWriteTarget`'s private tracker promoted, not a new model. That check kept
  * ranges, narrowing and a literal switch that nothing else could reach; `shape-analysis.ts` kept the
  * SCOPING those ranges were missing. Both are here now, and check-common is back to two per-file
  * models of a variable — this one for its TYPE, `shape-analysis` for its STRUCTURE — rather than the
@@ -110,7 +108,7 @@ export function variableTypeSources(
  * Each row is a MEASURED runtime fact rather than a claim about a vocabulary, which is what kept it
  * from being the filter/tag table this repository deleted:
  *
- * - `capture` and `graphql` are the two `InvalidHashAssignTarget` already shipped and depends on;
+ * - `capture` and `graphql` are the two `InvalidWriteTarget` already shipped and depends on;
  *   `{% graphql g %}…{% endgraphql %}` leaves a value `hash_keys` answers `["records"]` for.
  * - `increment` / `decrement` write a counter that is READABLE under the same name — measured
  *   against a live instance, `{% increment c %}{{ c }}` renders `1` — but an assigned variable
@@ -503,61 +501,38 @@ async function collectWrites(ast: LiquidHtmlNode): Promise<Write[]> {
         return;
       }
 
-      // {% assign x = value %} / {% assign x['key'] = value %} / {% assign x << value %}
-      if (isAssign(node)) {
-        const markup = node.markup;
+      // The three tags that write through a target — `{% assign x['k'] = v %}`,
+      // `{% hash_assign x['k'] = v %}`, `{% function x << 'p' %}` and the plain forms of each.
+      // `write-targets.ts` unpicks the three markups; what the write DOES to the table is decided
+      // here, and whether it is LEGAL is `checks/invalid-write-target`'s question.
+      const write = writeTargetOf(node);
+      if (write) {
+        const name = write.name;
+        if (!name) return;
+
+        // `hash_assign` narrows to a Hash whatever its shape: the tag cannot be spelled without a
+        // subscript on the platform, so there is no replacing form of it to model. (This repository
+        // parses `{% hash_assign h = 'v' %}`, which `InvalidHashAssignTargetSyntax` reports.)
+        if (write.tag === NamedTags.hash_assign) {
+          writes.push({ kind: 'narrow', name, from, at, scopeEnd, becomes: 'object' });
+          return;
+        }
+
+        // A plain `function` target takes the partial's RETURN value, which nothing here can infer
+        // — but it genuinely REPLACES what was there, so the old binding must not survive it. That
+        // is what a `bind` with no binding says, and it is why `value` is `undefined` for it.
         writes.push(
-          writeInto(
-            markup.name,
-            markup.lookups.length > 0,
-            markup.operator,
-            from,
-            at,
-            scopeEnd,
-          ) ?? {
+          writeInto(name, write.lookups.length > 0, write.operator, from, at, scopeEnd) ?? {
             kind: 'bind',
-            name: markup.name,
+            name,
             from,
             at,
             scopeEnd,
-            binding: { kind: 'expression', value: markup.value, readAt: from },
+            binding: write.value
+              ? { kind: 'expression', value: write.value, readAt: from }
+              : undefined,
           },
         );
-        return;
-      }
-
-      // {% hash_assign x['key'] = value %} — the same subscript write under the deprecated spelling.
-      if (isHashAssign(node)) {
-        const name = node.markup.target.name;
-        if (name) writes.push({ kind: 'narrow', name, from, at, scopeEnd, becomes: 'object' });
-        return;
-      }
-
-      // {% function x = 'partial' %} / {% function x['k'] = … %} / {% function x << … %}
-      if (isFunction(node)) {
-        const markup = node.markup;
-        const name = markup.name.name;
-        if (name) {
-          // A plain target takes the partial's RETURN value, which nothing here can infer — but it
-          // genuinely REPLACES what was there, so the old binding must not survive it.
-          writes.push(
-            writeInto(
-              name,
-              markup.name.lookups.length > 0,
-              markup.operator,
-              from,
-              at,
-              scopeEnd,
-            ) ?? {
-              kind: 'bind',
-              name,
-              from,
-              at,
-              scopeEnd,
-              binding: undefined,
-            },
-          );
-        }
         return;
       }
 
@@ -621,7 +596,7 @@ function writeInto(
   // THE SUBSCRIPT WINS OVER THE OPERATOR, and the order matters: `{% assign x['k'] << 'v' %}`
   // appends to the value AT the key, so `x` itself stays whatever container it was. Reading the
   // `<<` first made it an Array and lost the Hash — caught by the `function` spelling of exactly
-  // this shape in `invalid-hash-assign-target/index.spec.ts`.
+  // this shape in `invalid-write-target/index.spec.ts`.
   if (subscripted) return { kind: 'narrow', name, from, at, scopeEnd, becomes: 'object' };
   if (operator === '<<') return { kind: 'narrow', name, from, at, scopeEnd, becomes: 'array' };
   return undefined;
@@ -665,18 +640,6 @@ function parsedJsonType(node: LiquidTag): Binding | undefined {
 function declaredType(paramType: TextNode | null): LiquidType | undefined {
   const declared = paramType?.value?.toLowerCase();
   return declared ? DOCSET_TYPES[declared] : undefined;
-}
-
-function isAssign(node: LiquidTag): node is LiquidTag & { markup: AssignMarkup } {
-  return node.name === NamedTags.assign;
-}
-
-function isHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {
-  return node.name === NamedTags.hash_assign;
-}
-
-function isFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
-  return node.name === NamedTags.function;
 }
 
 function isParseJson(node: LiquidTag): node is LiquidTag & { markup: { name: string } } {

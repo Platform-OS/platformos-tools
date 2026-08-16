@@ -39,7 +39,7 @@ import { PartialCallArguments } from './partial-call-arguments';
 import { GraphQLVariablesCheck } from './graphql-variables';
 import { GraphQLCheck } from './graphql';
 import { UnknownProperty } from './unknown-property';
-import { InvalidHashAssignTarget } from './invalid-hash-assign-target';
+import { InvalidWriteTarget } from './invalid-write-target';
 import { DuplicateFunctionArguments } from './duplicate-function-arguments';
 import { MissingRenderPartialArguments } from './missing-render-partial-arguments';
 import { NestedGraphQLQuery } from './nested-graphql-query';
@@ -85,7 +85,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   GraphQLVariablesCheck,
   GraphQLCheck,
   UnknownProperty,
-  InvalidHashAssignTarget,
+  InvalidWriteTarget,
   MissingRenderPartialArguments,
   NestedGraphQLQuery,
   MissingPage,

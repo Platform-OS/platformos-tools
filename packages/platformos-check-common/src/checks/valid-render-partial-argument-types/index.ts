@@ -4,12 +4,15 @@ import { LiquidDocParameter } from '../../liquid-doc/liquidDoc';
 import { inferArgumentType, isNullLiteral, isTypeCompatible } from '../../liquid-doc/utils';
 import { filterReturnTypes, LiquidType } from '../../liquid-types';
 import {
+  CallSiteVariables,
+  argumentType,
   findTypeMismatchParams,
   generateTypeMismatchSuggestions,
   getLiquidDocParams,
   getPartialName,
   reportTypeMismatches,
 } from '../../liquid-doc/arguments';
+import { variableTypeSources, variableTypesOf } from '../../variable-types';
 
 export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
   meta: {
@@ -39,13 +42,9 @@ export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
       node: RenderMarkup,
       liquidDocParameters: Map<string, LiquidDocParameter>,
       returnTypes: ReadonlyMap<string, LiquidType> | undefined,
+      variables: CallSiteVariables,
     ) {
-      if (
-        node.alias &&
-        node.variable?.name &&
-        node.variable.name.type !== NodeTypes.VariableLookup &&
-        !isNullLiteral(node.variable.name)
-      ) {
+      if (node.alias && node.variable?.name && !isNullLiteral(node.variable.name)) {
         const paramIsDefinedWithType = liquidDocParameters
           .get(node.alias.value)
           ?.type?.toLowerCase();
@@ -55,7 +54,10 @@ export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
           // outright, so `{% render 'card' with x | t as title %}` — correct code — was reported as
           // "expected string, got object". Nothing guards it now either: an unresolvable filter
           // infers `untyped`, which `isTypeCompatible` accepts.
-          const providedParamType = inferArgumentType(node.variable.name, returnTypes);
+          //
+          // A BARE lookup used to be excluded by a guard on the node type; it now resolves against
+          // the caller's own file, and is `untyped` — as before — when that file says nothing.
+          const providedParamType = argumentType(node.variable.name, returnTypes, variables);
           if (!isTypeCompatible(paramIsDefinedWithType, providedParamType)) {
             const suggestions = generateTypeMismatchSuggestions(
               paramIsDefinedWithType,
@@ -96,13 +98,24 @@ export const ValidRenderPartialArgumentTypes: LiquidCheckDefinition = {
       if (!liquidDocParameters) return;
 
       const types = await returnTypes();
+      // The CALLER's file: what it assigned to the names it is passing. The partial's own file is
+      // where the expected types come from, and the two never mix.
+      const variables: CallSiteVariables = {
+        types: await variableTypesOf(context.file),
+        sources: await variableTypeSources(context.platformosDocset),
+      };
 
       if (node.type === NodeTypes.RenderMarkup) {
-        findAndReportAliasType(node, liquidDocParameters, types);
+        findAndReportAliasType(node, liquidDocParameters, types, variables);
       }
 
-      const typeMismatchParams = findTypeMismatchParams(liquidDocParameters, node.args, types);
-      reportTypeMismatches(context, typeMismatchParams, liquidDocParameters, types);
+      const typeMismatchParams = findTypeMismatchParams(
+        liquidDocParameters,
+        node.args,
+        types,
+        variables,
+      );
+      reportTypeMismatches(context, typeMismatchParams, liquidDocParameters, types, variables);
     };
 
     return {

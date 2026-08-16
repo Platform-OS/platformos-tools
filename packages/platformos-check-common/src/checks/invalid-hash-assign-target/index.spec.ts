@@ -903,3 +903,50 @@ describe('Module: InvalidHashAssignTarget — a return type it cannot interpret'
     ]);
   });
 });
+
+/**
+ * SCOPE, which this check had none of until its type table was shared.
+ *
+ * It tracked ranges but not the BLOCKS they sit in, so a write in one arm of an `{% if %}` was a
+ * fact for the rest of the file and a loop variable inherited whatever the outer name held. Both
+ * are false-block shapes on a member of `BLOCKING_CHECKS`, and both are the shape
+ * `shape-analysis.ts` had already modelled for the neighbouring question.
+ */
+describe('Module: InvalidHashAssignTarget — scope', () => {
+  const messages = async (source: string) =>
+    (await runLiquidCheck(InvalidHashAssignTarget, source)).map((offense) => offense.message);
+
+  const cannotUse = (name: string, kind: string) =>
+    `Cannot use hash_assign on '${name}', which is a ${kind}. hash_assign expects a Hash or an Array.`;
+
+  const HASH_ASSIGN = "{% hash_assign x['k'] = 'v' %}";
+
+  it('does not carry a conditional write past the branch it sits in', async () => {
+    // Nobody knows whether the branch ran, so past `{% endif %}` nobody knows the type either.
+    // CONTROL: inside the branch the write IS a fact, and a straight-line one is a fact after it.
+    expect([
+      await messages(`{% if c %}{% assign x = 5 %}{% endif %}${HASH_ASSIGN}`),
+      await messages(`{% if c %}{% assign x = 5 %}${HASH_ASSIGN}{% endif %}`),
+      await messages(`{% assign x = 5 %}${HASH_ASSIGN}`),
+    ]).toEqual([[], [cannotUse('x', 'number')], [cannotUse('x', 'number')]]);
+  });
+
+  it('does not give a loop variable the type of the name it shadows', async () => {
+    // `{% for x in … %}` rebinds `x` over the body; the outer number says nothing about the item,
+    // and refusing the write on its authority refuses working code. CONTROL: a loop that binds a
+    // DIFFERENT name leaves the outer type in place, and the write is still refused.
+    expect([
+      await messages(`{% assign x = 5 %}{% for x in list %}${HASH_ASSIGN}{% endfor %}`),
+      await messages(`{% assign x = 5 %}{% for i in list %}${HASH_ASSIGN}{% endfor %}`),
+    ]).toEqual([[], [cannotUse('x', 'number')]]);
+  });
+
+  it('forgets what it knew when an assigning tag does not parse', async () => {
+    // Unreadable markup may have assigned anything, and `LiquidHTMLSyntaxError` owns saying so.
+    // CONTROL: a readable tag in the same position changes nothing.
+    expect([
+      await messages(`{% assign x = 5 %}{% assign %}${HASH_ASSIGN}`),
+      await messages(`{% assign x = 5 %}{% assign y = 1 %}${HASH_ASSIGN}`),
+    ]).toEqual([[], [cannotUse('x', 'number')]]);
+  });
+});

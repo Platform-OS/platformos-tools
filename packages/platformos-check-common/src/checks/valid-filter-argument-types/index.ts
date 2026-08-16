@@ -16,6 +16,12 @@ import {
   isFilterArgumentCompatible,
 } from '../../liquid-types';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
+import {
+  VariableTypeSources,
+  VariableTypes,
+  variableTypeSources,
+  variableTypesOf,
+} from '../../variable-types';
 
 /**
  * The filter counterpart of `ValidTagArgumentTypes`. `inferArgumentType` reads the value and the
@@ -70,6 +76,10 @@ export const ValidFilterArgumentTypes: LiquidCheckDefinition = {
 
         const parametersByFilter = filterParameterTypes(filters);
         const returnTypes = filterReturnTypes(filters);
+        // What the FILE says a name holds. Built once per file and shared with every other check
+        // that asks, so the extra walk is paid once rather than per filter call.
+        const variables = await variableTypesOf(context.file);
+        const sources = await variableTypeSources(platformosDocset);
 
         node.filters.forEach((filter, index) => {
           const parameters = parametersByFilter.get(filter.name);
@@ -93,7 +103,7 @@ export const ValidFilterArgumentTypes: LiquidCheckDefinition = {
             const actualType =
               value === undefined
                 ? (returnTypes.get(node.filters[index - 1].name) ?? 'untyped')
-                : typeOfValue(value, returnTypes);
+                : typeOfValue(value, returnTypes, variables, sources);
 
             // The whole chain is anchored on a name, so there is no position for "the piped value"
             // other than the filter itself — and the filter is what the reader has to change.
@@ -131,7 +141,7 @@ export const ValidFilterArgumentTypes: LiquidCheckDefinition = {
 
             report(
               parameter,
-              typeOfValue(value, returnTypes),
+              typeOfValue(value, returnTypes, variables, sources),
               at.position.start,
               at.position.end,
               false,
@@ -177,17 +187,6 @@ export const ValidFilterArgumentTypes: LiquidCheckDefinition = {
   },
 };
 
-/**
- * What a written value holds, or `untyped` when nothing can be said about it.
- *
- * A BARE variable lookup is `untyped` here, not `object`: there is no symbol table at a filter call,
- * so `{{ maybe_a_hash | hash_keys }}` says nothing about what `maybe_a_hash` holds. `inferArgumentType`
- * answers `object` for one, which is the right answer for a `@param {object}` in a `{% doc %}` block
- * and the wrong one here — it would report every `{{ x | upcase }}` in the codebase.
- *
- * A FILTERED one does resolve, from the last filter's published return type, which does not depend on
- * its input. The same line `findTypeMismatchParams` and `ValidTagArgumentTypes` draw.
- */
 /** Anything that can stand where a filter argument or a piped value stands. */
 type WrittenValue = ComplexLiquidExpression | LiquidVariable | LiquidNamedArgument;
 
@@ -198,9 +197,23 @@ function describe(types: readonly LiquidType[]): string {
   return `${types.slice(0, -1).join(', ')} or ${types[types.length - 1]}`;
 }
 
+/**
+ * What a written value holds, or `untyped` when nothing can be said about it.
+ *
+ * A BARE variable lookup is answered by the FILE — `{% assign x = 403 %}{{ x | t }}` raises exactly
+ * what `{{ 403 | t }}` raises, measured, and only this check's blindness to the assignment ever told
+ * them apart. A name the file never binds is still `untyped`, and so is a lookup INTO one
+ * (`{{ x.y | t }}`): nothing in that table tracks property types.
+ *
+ * `inferArgumentType` is not consulted for a lookup, and must not be: it answers `object`, which is
+ * the right answer for a `@param {object}` in a `{% doc %}` block and would report every
+ * `{{ x | upcase }}` in the codebase from here.
+ */
 function typeOfValue(
   value: WrittenValue,
   returnTypes: ReadonlyMap<string, LiquidType>,
+  variables: VariableTypes,
+  sources: VariableTypeSources,
 ): LiquidType {
   // A hash pair nested inside another argument is a structure, not a value.
   if (value.type === NodeTypes.NamedArgument) return 'untyped';
@@ -212,12 +225,17 @@ function typeOfValue(
   // nil is compatible with every type — it is "no value", not a wrong one.
   if (isNullLiteral(value)) return 'untyped';
 
-  if (value.type === NodeTypes.LiquidVariable) {
-    if (value.filters.length === 0 && value.expression.type === NodeTypes.VariableLookup) {
-      return 'untyped';
-    }
-  } else if (value.type === NodeTypes.VariableLookup) {
-    return 'untyped';
+  const lookup =
+    value.type === NodeTypes.VariableLookup
+      ? value
+      : value.type === NodeTypes.LiquidVariable && value.filters.length === 0
+        ? value.expression
+        : undefined;
+
+  if (lookup?.type === NodeTypes.VariableLookup) {
+    return lookup.name && lookup.lookups.length === 0
+      ? variables.typeAt(lookup.name, lookup.position.start, sources)
+      : 'untyped';
   }
 
   return inferArgumentType(value, returnTypes);

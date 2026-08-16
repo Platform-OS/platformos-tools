@@ -4,6 +4,7 @@ import { generateTypeMismatchSuggestions } from '../../liquid-doc/arguments';
 import { inferArgumentType, isNullLiteral, isTypeCompatible } from '../../liquid-doc/utils';
 import { filterReturnTypes, tagParameterTypes } from '../../liquid-types';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
+import { variableTypeSources, variableTypesOf } from '../../variable-types';
 
 /**
  * The tag counterpart of `ValidRenderPartialArgumentTypes`, sharing its engine:
@@ -51,6 +52,8 @@ export const ValidTagArgumentTypes: LiquidCheckDefinition = {
         if (!parameters) return;
 
         const returnTypes = filterReturnTypes(await platformosDocset.filters());
+        const variables = await variableTypesOf(context.file);
+        const sources = await variableTypeSources(platformosDocset);
 
         for (const arg of args) {
           const expectedType = parameters.get(arg.name);
@@ -59,25 +62,27 @@ export const ValidTagArgumentTypes: LiquidCheckDefinition = {
           // A hash pair (`key: 'val'` inside another argument) is a structure, not a value.
           if (arg.value.type === NodeTypes.NamedArgument) continue;
 
-          // A BARE variable lookup has no type here — there is no symbol table at a tag, so
-          // `limit: page_size` says nothing about what `page_size` holds. A FILTERED one does: the
-          // last filter's published return type does not depend on its input. The same line
-          // `findTypeMismatchParams` draws, for the same reason.
-          if (arg.value.type === NodeTypes.LiquidVariable) {
-            if (
-              arg.value.filters.length === 0 &&
-              arg.value.expression.type === NodeTypes.VariableLookup
-            ) {
-              continue;
-            }
-          } else if (arg.value.type === NodeTypes.VariableLookup) {
-            continue;
-          }
-
           // nil is compatible with every type — it is "no value", not a wrong one.
           if (isNullLiteral(arg.value)) continue;
 
-          const actualType = inferArgumentType(arg.value, returnTypes);
+          // A BARE variable lookup is answered by the FILE — `{% assign n = 'x' %}{% tag limit: n %}`
+          // passes a string where the document publishes a number. A name the file never binds, and
+          // a lookup INTO one, are still `untyped`. `inferArgumentType` is not consulted for either:
+          // it answers `object`, which would report every argument written as a variable.
+          const lookup =
+            arg.value.type === NodeTypes.VariableLookup
+              ? arg.value
+              : arg.value.type === NodeTypes.LiquidVariable && arg.value.filters.length === 0
+                ? arg.value.expression
+                : undefined;
+
+          const actualType =
+            lookup?.type === NodeTypes.VariableLookup
+              ? lookup.name && lookup.lookups.length === 0
+                ? variables.typeAt(lookup.name, lookup.position.start, sources)
+                : 'untyped'
+              : inferArgumentType(arg.value, returnTypes);
+
           if (isTypeCompatible(expectedType, actualType)) continue;
 
           context.report({

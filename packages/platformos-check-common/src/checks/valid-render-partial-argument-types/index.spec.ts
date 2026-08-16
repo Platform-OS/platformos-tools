@@ -761,3 +761,67 @@ describe('Module: ValidRenderPartialParamTypes', () => {
     });
   });
 });
+
+/**
+ * A VARIABLE THE CALLER'S FILE ASSIGNS.
+ *
+ * `{% render 'card', title: 403 %}` was reported against the partial's `@param {string} title`, and
+ * `{% assign t = 403 %}{% render 'card', title: t %}` was not. The two files never mix: the expected
+ * type comes from the CALLEE's `{% doc %}` and the actual type from the CALLER's own assignments.
+ */
+describe('Module: ValidRenderPartialArgumentTypes — a variable the caller assigns', () => {
+  const CARD = {
+    'app/views/partials/card.liquid': `{% doc %}\n  @param {string} title - The heading\n{% enddoc %}\n<h1>{{ title }}</h1>`,
+  };
+
+  const messages = async (source: string) =>
+    messagesOf(await runLiquidCheck(ValidRenderPartialArgumentTypes, source, undefined, {}, CARD));
+
+  const mismatch = (expected: string, actual: string) =>
+    `Type mismatch for argument 'title': expected ${expected}, got ${actual}`;
+
+  it('reports an assigned argument exactly as it reports the literal', async () => {
+    expect([
+      await messages(`{% render 'card', title: 403 %}`),
+      await messages(`{% assign t = 403 %}{% render 'card', title: t %}`),
+    ]).toEqual([[mismatch('string', 'number')], [mismatch('string', 'number')]]);
+  });
+
+  it('says nothing when the assigned argument is the declared type', async () => {
+    // CONTROL for the case above: the fixtures differ only in the assigned literal.
+    expect([
+      await messages(`{% assign t = 'Hello' %}{% render 'card', title: t %}`),
+      await messages(`{% assign t = 403 %}{% render 'card', title: t %}`),
+    ]).toEqual([[], [mismatch('string', 'number')]]);
+  });
+
+  it('reports an assigned alias written with `with … as`', async () => {
+    // The alias path had its own guard on the node type, which exempted every bare lookup.
+    // CONTROL: the declared type still accepts a string, and an unassigned name is still silent.
+    expect([
+      await messages(`{% assign t = 403 %}{% render 'card' with t as title %}`),
+      await messages(`{% assign t = 'Hello' %}{% render 'card' with t as title %}`),
+      await messages(`{% render 'card' with whatever as title %}`),
+    ]).toEqual([[mismatch('string', 'number')], [], []]);
+  });
+
+  it('reads the CALLER file, never the partial, for what a name holds', async () => {
+    // `title` is assigned a number inside the PARTIAL and passed correctly from the caller. Reading
+    // the wrong file's table would report this working call.
+    const shadowing = {
+      'app/views/partials/card.liquid': `{% doc %}\n  @param {string} title\n{% enddoc %}{% assign title = 403 %}`,
+    };
+
+    expect(
+      messagesOf(
+        await runLiquidCheck(
+          ValidRenderPartialArgumentTypes,
+          `{% assign title = 'Hello' %}{% render 'card', title: title %}`,
+          undefined,
+          {},
+          shadowing,
+        ),
+      ),
+    ).toEqual([]);
+  });
+});

@@ -19,3 +19,24 @@ export function isLiquidDocument(ast: unknown): ast is LiquidHtmlNode {
     (ast as { type?: unknown }).type === NodeTypes.Document
   );
 }
+
+/**
+ * The innermost conditional branch enclosing a node, or `undefined` on the straight-line
+ * path. Loop bodies count: a write in a loop that may run zero times is as uncertain.
+ *
+ * `{% tablerow %}` is the one loop this does NOT answer for, and the omission is the
+ * parser's rather than a choice — measured, a `for` body is wrapped in a `LiquidBranch`
+ * and a `tablerow` body is not, so its children have no branch ancestor to find. Both
+ * consumers still scope the loop VARIABLE correctly, since that comes from the tag; only
+ * a write inside a `tablerow` body outlives its loop.
+ *
+ * Shared by the two per-file models that track what a name holds — `shape-analysis` for
+ * its structure and `variable-types` for its type — so neither can drift from the other
+ * on where a write stops being a fact.
+ */
+export function enclosingBranchEnd(ancestors: LiquidHtmlNode[]): number | undefined {
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    if (ancestors[i].type === NodeTypes.LiquidBranch) return ancestors[i].position.end;
+  }
+  return undefined;
+}

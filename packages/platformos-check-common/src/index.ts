@@ -84,6 +84,10 @@ export * from './utils/types';
 export * from './utils/object';
 export * from './visitor';
 export * from './liquid-types';
+// ONE answer to "what TYPE does this variable hold", beside the one answer to what shape it has.
+// Four checks consume it; none of them keeps a second copy, which is what `InvalidHashAssignTarget`
+// used to do while three other checks reported nothing for a variable at all.
+export * from './variable-types';
 export * from './liquid-doc/liquidDoc';
 export * from './liquid-doc/utils';
 export * from './url-helpers';

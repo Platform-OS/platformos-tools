@@ -16,6 +16,7 @@ import {
   isTypeCompatible,
 } from './utils';
 import { DECLARABLE_TYPES, LiquidType } from '../liquid-types';
+import { VariableTypeSources, VariableTypes } from '../variable-types';
 import { CallSiteTag, isLiquidString } from '../checks/utils';
 import { DocumentsLocator } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
@@ -120,27 +121,12 @@ export function findTypeMismatchParams(
   liquidDocParameters: Map<string, LiquidDocParameter>,
   providedParams: LiquidNamedArgument[],
   returnTypes?: ReadonlyMap<string, LiquidType>,
+  variables?: CallSiteVariables,
 ) {
   const typeMismatchParams: LiquidNamedArgument[] = [];
 
   for (const arg of providedParams) {
-    if (arg.value.type === NodeTypes.LiquidVariable) {
-      // A BARE variable lookup has no type here — there is no symbol table at a call site, so
-      // `title: page_title` says nothing about what `page_title` holds. A FILTERED one does:
-      // the last filter's published return type does not depend on its input, so `title: name |
-      // append: '!'` is a string whatever `name` is. This used to skip every filtered argument,
-      // which left the whole filtered half of the language unchecked.
-      if (
-        arg.value.filters.length === 0 &&
-        arg.value.expression.type === NodeTypes.VariableLookup
-      ) {
-        continue;
-      }
-    } else if (arg.value.type === NodeTypes.VariableLookup) {
-      continue;
-    } else if (arg.value.type === NodeTypes.NamedArgument) {
-      continue;
-    }
+    if (arg.value.type === NodeTypes.NamedArgument) continue;
 
     // null/nil is compatible with any type — skip type checking
     if (isNullLiteral(arg.value)) {
@@ -158,13 +144,57 @@ export function findTypeMismatchParams(
         continue;
       }
 
-      if (!isTypeCompatible(paramType, inferArgumentType(arg.value, returnTypes))) {
+      if (!isTypeCompatible(paramType, argumentType(arg.value, returnTypes, variables))) {
         typeMismatchParams.push(arg);
       }
     }
   }
 
   return typeMismatchParams;
+}
+
+/** What the CALLER's file knows about the names it is passing, when it knows anything. */
+export interface CallSiteVariables {
+  types: VariableTypes;
+  sources: VariableTypeSources;
+}
+
+/**
+ * The type of a value written at a call site, the call site's own file included.
+ *
+ * A BARE variable lookup used to be skipped outright, because there was no symbol table at a call
+ * site — `title: page_title` said nothing about what `page_title` held. There is one now, so
+ * `{% assign page_title = 403 %}{% render 'card', title: page_title %}` is judged against the
+ * partial's `@param {string} title` exactly as `title: 403` already was. A name the caller's file
+ * never binds is `untyped`, and so is a lookup INTO one.
+ *
+ * A FILTERED value resolves from the last filter's published return type, which does not depend on
+ * its input — so `title: name | append: '!'` is a string whatever `name` is.
+ *
+ * `inferArgumentType` is what answers everything else, and must NOT be reached for a lookup: it
+ * answers `object`, the right answer for a `@param {object}` and a report of every variable
+ * argument in the codebase from here.
+ */
+export function argumentType(
+  value: LiquidNamedArgument['value'],
+  returnTypes?: ReadonlyMap<string, LiquidType>,
+  variables?: CallSiteVariables,
+): LiquidType {
+  const lookup =
+    value.type === NodeTypes.VariableLookup
+      ? value
+      : value.type === NodeTypes.LiquidVariable && value.filters.length === 0
+        ? value.expression
+        : undefined;
+
+  if (lookup?.type === NodeTypes.VariableLookup) {
+    if (!variables || !lookup.name || lookup.lookups.length > 0) return 'untyped';
+    return variables.types.typeAt(lookup.name, lookup.position.start, variables.sources);
+  }
+
+  if (value.type === NodeTypes.NamedArgument) return 'untyped';
+
+  return inferArgumentType(value, returnTypes);
 }
 
 /**
@@ -175,6 +205,7 @@ export function reportTypeMismatches(
   typeMismatchArgs: LiquidNamedArgument[],
   liquidDocParameters: Map<string, LiquidDocParameter>,
   returnTypes?: ReadonlyMap<string, LiquidType>,
+  variables?: CallSiteVariables,
 ) {
   for (const arg of typeMismatchArgs) {
     const paramDef = liquidDocParameters.get(arg.name);
@@ -182,9 +213,9 @@ export function reportTypeMismatches(
     if (arg.value.type === NodeTypes.NamedArgument) continue;
 
     const expectedType = paramDef.type.toLowerCase();
-    // The SAME map the mismatch was found with. Inferring again without it would name the type
-    // `untyped` in a message about a mismatch that only a resolved type could have produced.
-    const actualType = inferArgumentType(arg.value, returnTypes);
+    // The SAME inputs the mismatch was found with. Resolving again without them would name the
+    // type `untyped` in a message about a mismatch only a resolved type could have produced.
+    const actualType = argumentType(arg.value, returnTypes, variables);
 
     const suggestions = generateTypeMismatchSuggestions(
       expectedType,

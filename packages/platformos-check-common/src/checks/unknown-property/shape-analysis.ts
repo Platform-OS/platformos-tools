@@ -25,6 +25,7 @@ import { GraphQLDocumentNode, parseGraphql } from '@platformos/platformos-common
 import { SourceCodeType } from '../../types';
 import { visit } from '../../visitor';
 import { createBoundedCache } from '../../utils/bounded-cache';
+import { enclosingBranchEnd } from '../../utils/ast';
 import { extractUndefinedVariables } from '../partial-call-arguments/extract-undefined-variables';
 import { isNullLiteral } from '../../liquid-doc/utils';
 import { alternativeSubstituteArg, navigationFilter } from '../../filter-semantics';
@@ -1031,17 +1032,6 @@ function navigateOne(shape: PropertyShape, filter: LiquidFilter): PropertyShape 
 
   const result = lookupPropertyPath(shape, path);
   return result.error || !result.shape ? undefined : result.shape;
-}
-
-/**
- * The innermost conditional branch enclosing a write, or `undefined` on the straight-line
- * path. Loop bodies count: a write in a loop that may run zero times is as uncertain.
- */
-function enclosingBranchEnd(ancestors: LiquidHtmlNode[]): number | undefined {
-  for (let i = ancestors.length - 1; i >= 0; i--) {
-    if (ancestors[i].type === NodeTypes.LiquidBranch) return ancestors[i].position.end;
-  }
-  return undefined;
 }
 
 /** The static path a list of lookups or filter arguments spells. */

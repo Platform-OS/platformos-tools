@@ -2,23 +2,14 @@ import {
   AssignMarkup,
   LiquidTag,
   LiquidExpression,
-  LiquidHtmlNode,
-  LiquidVariable,
   NodeTypes,
   NamedTags,
   HashAssignMarkup,
-  GraphQLMarkup,
-  GraphQLInlineMarkup,
   FunctionMarkup,
 } from '@platformos/liquid-html-parser';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import {
-  docsetReturnType,
-  filterChainType,
-  filterReturnTypes,
-  FilterTypeSource,
-  LiquidType,
-} from '../../liquid-types';
+import { docsetReturnType, FilterTypeSource, LiquidType } from '../../liquid-types';
+import { variableTypeSources, variableTypesOf } from '../../variable-types';
 import { isError } from '../../utils';
 
 /**
@@ -219,159 +210,27 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
     const ast = context.file.ast;
     if (isError(ast)) return {};
 
-    // Track variable types
-    const variableTypes: VariableTypeEntry[] = [];
-
-    // Helper to close previous type ranges when a variable is reassigned
-    const closeTypeRange = (variableName: string, endPosition: number) => {
-      for (let i = variableTypes.length - 1; i >= 0; i--) {
-        if (variableTypes[i].name === variableName && variableTypes[i].range[1] === undefined) {
-          variableTypes[i].range[1] = endPosition;
-          break;
-        }
-      }
-    };
-
     /**
-     * The type in effect for `variableName` at `position`, or `undefined` if none is
-     * known there.
+     * What the variable holds where the tag is written, from the file's ONE type table.
      *
-     * THE START BOUND IS INCLUSIVE, and that is the whole fix. A range STARTS at the
-     * defining tag's `position.end`, which is an offset a real tag can begin at
-     * exactly, because Liquid tags may abut with nothing between them:
+     * This check used to keep that table privately — ranges, narrowing, a literal switch and a
+     * docset lookup, none of it reachable from anywhere else — while `ValidFilterArgumentTypes`,
+     * `ValidTagArgumentTypes` and `ValidRenderPartialArgumentTypes` each reported nothing at all
+     * for a variable, on the stated grounds that no such table existed. It is shared now, and the
+     * rules that were only here (the inclusive start bound, the narrowing below) and the rules
+     * that were only in `shape-analysis` (branch scoping, loop shadowing, forgetting on an
+     * unreadable tag) are both in it.
      *
-     *   {% assign x = 5 %}{% hash_assign x['k'] = 'v' %}
-     *                     ^ range start AND lookup position are both 18
-     *
-     * An exclusive `position <= start` excluded that case, so the check went silent
-     * on a buffer the runtime raises `HashAssignTagError` for, while firing on the
-     * same code with a single space inserted. The defect therefore looked like the
-     * check being dead rather than a boundary being wrong, and an evaluation reported
-     * it as such. A node that begins exactly where the previous one ended IS after
-     * it, and no two nodes share an offset, so nothing is admitted wrongly.
-     *
-     * THE END BOUND IS NOT SYMMETRIC WITH IT, despite reading that way. A range is
-     * closed at the START offset of the tag that redefines the variable, and that
-     * tag's own lookup — if it performs one — happens BEFORE the close, while the
-     * range is still open. Every later lookup sits at a strictly greater offset. So
-     * no lookup can land on a closed range's end, and `>` versus `>=` is not
-     * currently distinguishable by any buffer: verified by flipping it, which changes
-     * no test. It is written as the inclusive reading because that is what the range
-     * means; do not infer from the symmetry that both bounds were measured.
-     *
-     * Later entries win, which is what resolves a reassignment whose ranges abut.
+     * The position is the tag's START, which is where the PREVIOUS binding is still current — this
+     * tag's own effect on the table begins at its end.
      */
-    const findVariableType = (variableName: string, position: number): VariableType | undefined => {
-      let result: VariableType | undefined;
+    const typeAt = async (name: string, node: LiquidTag): Promise<VariableType> => {
+      const [variables, sources] = await Promise.all([
+        variableTypesOf(context.file),
+        variableTypeSources(context.platformosDocset),
+      ]);
 
-      for (const entry of variableTypes) {
-        if (entry.name !== variableName) continue;
-        const [start, end] = entry.range;
-        if (position < start) continue;
-        // `end !== undefined`, not `end`: "no upper bound" is an OPEN range, which is
-        // exactly `undefined` — truthiness would also reopen a range closed at offset
-        // 0. Defensive rather than a live fix: an entry's start is a preceding tag's
-        // end, so a close at 0 cannot occur. Written this way because the predicate
-        // should be right by construction, not by an argument about offsets.
-        if (end !== undefined && position > end) continue;
-        result = entry.type;
-      }
-
-      return result;
-    };
-
-    /**
-     * The return types of every filter the docset knows, keyed by name.
-     *
-     * Cached on the docset's own filters array rather than per file: `filters()` is memoized by
-     * `AugmentedPlatformOSDocset`, so one map serves every file in a run. An absent docset yields
-     * `undefined`, so every filtered value becomes `untyped` and nothing is reported for it — the
-     * check still works on unfiltered assignments, which is the majority of them.
-     */
-    const returnTypes = async () =>
-      context.platformosDocset
-        ? filterReturnTypes(await context.platformosDocset.filters())
-        : undefined;
-
-    /**
-     * The type of an assigned value — expression, then whatever the last filter turns
-     * it into.
-     *
-     * FILTER RETURN TYPES COME FROM THE DOCSET, and a list of filter names must never
-     * be reintroduced here. This check REFUSES WRITES, so a name in the wrong bucket is
-     * a blocking refusal of working code — and a duplicate is invisible by construction,
-     * since nothing about a hand-written array makes two entries for one filter look
-     * wrong. `index.spec.ts` pins the case that cost us this once: a `split` result
-     * subscripted by index must stay silent.
-     *
-     * What the docset does NOT carry is a guarantee of completeness. A filter it omits,
-     * or one whose `return_type` it cannot state, has no type here at all: those resolve
-     * to `untyped` and produce nothing, which is the only safe reading — see `DOCSET_TYPES`.
-     *
-     * THE LITERAL CASES BELOW ARE THIS CHECK'S OWN, and deliberately not shared with
-     * `inferArgumentType`, which answers a different question. Here the question is "what container
-     * is this", where a wrong answer BLOCKS a write: `empty` and a bare lookup are `untyped` because
-     * nothing is known about what they hold. There the question is "does this value satisfy a
-     * declared parameter", where `empty` is the empty string and a lookup is the generic `object`.
-     * Only the vocabulary and the docset lookup are shared.
-     */
-    const inferVariableType = async (variable: LiquidVariable): Promise<VariableType> => {
-      const filters = variable.filters;
-      if (filters && filters.length > 0) {
-        return filterChainType(filters, await returnTypes());
-      }
-
-      const expr = variable.expression;
-      switch (expr.type) {
-        case NodeTypes.Number:
-          return 'number';
-        case NodeTypes.String:
-          return 'string';
-        case NodeTypes.LiquidLiteral:
-          // true, false, nil, blank, empty
-          if (expr.keyword === 'true' || expr.keyword === 'false') {
-            return 'boolean';
-          }
-          return 'untyped';
-        case NodeTypes.Range:
-          // NOT `array` — see the VariableType doc. Measured raising on key-assign;
-          // index-assign was never measured, so it stays its own type rather than
-          // inheriting Array's permissions.
-          return 'range';
-        case NodeTypes.BooleanExpression:
-          return 'boolean';
-        default:
-          return 'untyped';
-      }
-    };
-
-    /**
-     * Record what a variable holds AFTER a write that goes INTO it rather than replacing it.
-     *
-     * A subscript write and an append both leave the container in place, so the variable does
-     * NOT take the value's type — which is the whole difference from a plain `{% assign %}`.
-     * Getting this wrong is a false block rather than a missed detection: rebinding `h` to
-     * `string` after `{% assign h['k'] = 'V' %}` makes the very next `hash_assign` on the same
-     * hash look like a write onto a string, and this check refuses writes.
-     *
-     * The type is NARROWED, not merely kept. A write that reaches the runtime at all proves the
-     * container was of the right kind, so an untyped variable becomes what the operation
-     * requires — an Array for `<<`, a Hash for a subscript write unless it was already an Array,
-     * which a subscript write does not convert.
-     *
-     * The language server's `TypeSystem` already modelled this — its `AssignMarkup` visitor
-     * returns `Untyped` for exactly these two shapes — so hover and completion were right while
-     * the check that BLOCKS was wrong. Worth knowing before adding a third model of the same
-     * question somewhere else.
-     */
-    const narrowAfterWriteInto = (name: string, node: LiquidTag, becomes: 'array' | 'hash') => {
-      const existing = findVariableType(name, node.position.start) ?? 'untyped';
-      closeTypeRange(name, node.position.start);
-      variableTypes.push({
-        name,
-        type: becomes === 'array' || existing === 'array' ? 'array' : 'object',
-        range: [node.position.end],
-      });
+      return variables.typeAt(name, node.position.start, sources);
     };
 
     return {
@@ -387,11 +246,10 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
             // author's own spelling. `<<` through a subscript is deliberately absent: the
             // runtime asks about the value AT the subscript, not about the container.
             if (markup.operator === '=') {
-              const name = markup.name;
               const message = subscriptWriteMessage(
                 'assign',
-                name,
-                findVariableType(name, node.position.start) ?? 'untyped',
+                markup.name,
+                await typeAt(markup.name, node),
                 accessorOf(lookups),
               );
 
@@ -403,13 +261,8 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
                 });
               }
             }
-
-            narrowAfterWriteInto(markup.name, node, 'hash');
           } else if (markup.operator === '<<') {
-            const message = appendMessage(
-              markup.name,
-              findVariableType(markup.name, node.position.start) ?? 'untyped',
-            );
+            const message = appendMessage(markup.name, await typeAt(markup.name, node));
 
             if (message) {
               context.report({
@@ -418,71 +271,8 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
                 endIndex: markup.position.end,
               });
             }
-
-            narrowAfterWriteInto(markup.name, node, 'array');
-          } else {
-            // A plain assignment REPLACES the variable, so it takes the value's type.
-            closeTypeRange(markup.name, node.position.start);
-            variableTypes.push({
-              name: markup.name,
-              type: await inferVariableType(markup.value),
-              range: [node.position.end],
-            });
           }
-        }
-
-        // {% increment x %} / {% decrement x %}
-        if (
-          (node.name === NamedTags.increment || node.name === NamedTags.decrement) &&
-          typeof node.markup !== 'string' &&
-          node.markup.name
-        ) {
-          closeTypeRange(node.markup.name, node.position.start);
-          variableTypes.push({
-            name: node.markup.name,
-            type: 'number',
-            range: [node.position.end],
-          });
-        }
-
-        // {% capture x %}...{% endcapture %}
-        if (node.name === NamedTags.capture && typeof node.markup !== 'string') {
-          const variableName = (node.markup as { name?: string }).name;
-          if (variableName) {
-            closeTypeRange(variableName, node.position.start);
-            variableTypes.push({
-              name: variableName,
-              type: 'string',
-              range: [node.blockEndPosition?.end ?? node.position.end],
-            });
-          }
-        }
-
-        // {% parse_json x %}...{% endparse_json %}
-        if (isLiquidTagParseJson(node)) {
-          const variableName = node.markup.name;
-          if (variableName) {
-            closeTypeRange(variableName, node.position.start);
-            variableTypes.push({
-              name: variableName,
-              type: 'object',
-              range: [node.blockEndPosition?.end ?? node.position.end],
-            });
-          }
-        }
-
-        // {% graphql result %}...{% endgraphql %} or {% graphql result = 'file' %}
-        if (isLiquidTagGraphQL(node)) {
-          const markup = node.markup;
-          const variableName = markup.name;
-          if (variableName) {
-            closeTypeRange(variableName, node.position.start);
-            variableTypes.push({
-              name: variableName,
-              type: 'object',
-              range: [node.blockEndPosition?.end ?? node.position.end],
-            });
-          }
+          return;
         }
 
         // {% function result = 'path' %}
@@ -490,68 +280,30 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
         // A SUBSCRIPT TARGET (`{% function h['k'] = 'path' %}`) parses — measured, all eight
         // spellings reach partial resolution rather than a syntax error — but what the write
         // then does is UNMEASURED: settling it needs a partial that exists, and the oracle
-        // instance has none. So the target is not JUDGED. It is not forgotten either: the
-        // container keeps its type, exactly as the `assign` branch does for the same shape.
-        // Not judging costs missed detections, which is the direction that cannot manufacture a
-        // false block in a check that refuses writes; forgetting the type also silenced the
-        // WRITES AFTER IT, which is a different and much worse trade.
-        if (node.name === NamedTags.function && typeof node.markup !== 'string') {
-          const markup = node.markup as FunctionMarkup;
+        // instance has none. So the target is not JUDGED, which costs missed detections — the
+        // direction that cannot manufacture a false block in a check that refuses writes.
+        //
+        // `{% function items << 'path' %}` IS judged: it is the same append the `assign` branch
+        // judges and raises for the same reason, the runtime refusing `<<` onto anything but an
+        // Array. Only a PLAIN target, matching `appendMessage`'s documented scope — an append
+        // through a subscript is checked by the runtime at the subscript, and nothing tracks
+        // element types.
+        if (isLiquidTagFunction(node)) {
+          const markup = node.markup;
           const varName = markup.name.name;
-          if (varName) {
-            /**
-             * `{% function items << 'path' %}` is the SAME append the `assign` branch judges, and
-             * it raises for the same reason — the runtime refuses `<<` onto anything but an Array.
-             * It went unjudged because the operator did not exist on this tag until the append
-             * form began to parse, so an append onto a String or a Hash passed the write gate
-             * while the identical `{% assign %}` was refused.
-             *
-             * Only a PLAIN target, matching `appendMessage`'s documented scope: an append through
-             * a subscript is checked by the runtime at the subscript, and nothing here tracks
-             * element types.
-             */
-            if (markup.operator === '<<' && markup.name.lookups.length === 0) {
-              const message = appendMessage(
-                varName,
-                findVariableType(varName, node.position.start) ?? 'untyped',
-              );
 
-              if (message) {
-                context.report({
-                  message,
-                  startIndex: markup.position.start,
-                  endIndex: markup.position.end,
-                });
-              }
+          if (varName && markup.operator === '<<' && markup.name.lookups.length === 0) {
+            const message = appendMessage(varName, await typeAt(varName, node));
 
-              narrowAfterWriteInto(varName, node, 'array');
-            } else if (markup.name.lookups.length > 0) {
-              /**
-               * A SUBSCRIPT TARGET. The write is not judged — see the note above — but the
-               * container must KEEP the type it had, which is what the `assign` branch does for
-               * the identical shape via `narrowAfterWriteInto(…, 'hash')`.
-               *
-               * Rebinding it to `untyped` here erased that type and blinded this BLOCKING check
-               * to the next real error:
-               *
-               *   {% assign x = {} %}{% function x['k'] << 'p' %}{% assign x << 'v' %}
-               *
-               * reported nothing, while dropping the middle tag — or spelling it `{% assign %}` —
-               * reported "Cannot use '<<' on 'x', which is a Hash." Unreachable before the append
-               * form parsed, because the whole branch was skipped while the markup was a string.
-               */
-              narrowAfterWriteInto(varName, node, 'hash');
-            } else {
-              closeTypeRange(varName, node.position.start);
-              // A plain target takes the partial's RETURN value, which is untyped unless we can
-              // infer it — so, unlike a subscript write, it genuinely replaces what was there.
-              variableTypes.push({
-                name: varName,
-                type: 'untyped',
-                range: [node.position.end],
+            if (message) {
+              context.report({
+                message,
+                startIndex: markup.position.start,
+                endIndex: markup.position.end,
               });
             }
           }
+          return;
         }
 
         // {% hash_assign x['key'] = value %} — the same subscript write, under the older,
@@ -565,7 +317,7 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
             const message = subscriptWriteMessage(
               'hash_assign',
               variableName,
-              findVariableType(variableName, node.position.start) ?? 'untyped',
+              await typeAt(variableName, node),
               accessorOf(markup.target.lookups ?? []),
             );
 
@@ -576,8 +328,6 @@ export const InvalidHashAssignTarget: LiquidCheckDefinition = {
                 endIndex: markup.target.position.end,
               });
             }
-
-            narrowAfterWriteInto(variableName, node, 'hash');
           }
         }
       },
@@ -590,16 +340,8 @@ function isLiquidTagAssign(node: LiquidTag): node is LiquidTag & { markup: Assig
   return node.name === NamedTags.assign && typeof node.markup !== 'string';
 }
 
-function isLiquidTagParseJson(
-  node: LiquidTag,
-): node is LiquidTag & { markup: { name: string }; children: LiquidHtmlNode[] } {
-  return node.name === NamedTags.parse_json && typeof node.markup !== 'string';
-}
-
-function isLiquidTagGraphQL(
-  node: LiquidTag,
-): node is LiquidTag & { markup: GraphQLMarkup | GraphQLInlineMarkup } {
-  return node.name === NamedTags.graphql && typeof node.markup !== 'string';
+function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {
+  return node.name === NamedTags.function && typeof node.markup !== 'string';
 }
 
 function isLiquidTagHashAssign(node: LiquidTag): node is LiquidTag & { markup: HashAssignMarkup } {

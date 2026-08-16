@@ -155,6 +155,48 @@ export function filterReturnTypes(
 }
 
 /**
+ * The type a TAG leaves in the variable it assigns, by tag name — the tag counterpart of
+ * {@link filterReturnTypes}, resolved through the same {@link docsetReturnType} and cached on the
+ * array `tags()` memoizes.
+ *
+ * `tags.json` carries `return_type` under the same name filters use, so a tag that documents what it
+ * produces is read here with no new vocabulary and no new resolution rule. Every shipped entry
+ * publishes `[]` for it today — and four do not carry the key at all — so this map is EMPTY against
+ * the current document and every tag-assigned variable is `untyped`.
+ *
+ * That is the design rather than a gap to work around: the same thing was true of
+ * `tagParameterTypes` while the documentation site published a hardcoded `"untyped"`, and the day
+ * that was fixed `ValidTagArgumentTypes` went from typing 5 of 72 parameters to 69 with no edit
+ * here. A `@return` annotation on `Capture`, `ParseJson`, `Graphql` or `Increment` in the
+ * application repository turns the corresponding rows on the same way.
+ */
+const TAG_RETURN_TYPES_BY_DOCSET = new WeakMap<
+  readonly TagEntry[],
+  ReadonlyMap<string, LiquidType>
+>();
+
+export function tagReturnTypes(tags: readonly TagEntry[]): ReadonlyMap<string, LiquidType> {
+  const cached = TAG_RETURN_TYPES_BY_DOCSET.get(tags);
+  if (cached) return cached;
+
+  const types = new Map<string, LiquidType>();
+  for (const tag of tags) {
+    const type = docsetReturnType(tag);
+    // A CONTRADICTION is not a fact, for the reason `tagParameterTypes` states: `tags.json` ships
+    // two entries named `else` and has no merge upstream, so a plain last-wins reduce would let
+    // row order decide. Two rows disagreeing leaves no row, which is what `untyped` already means.
+    if (type === 'untyped') continue;
+    const existing = types.get(tag.name);
+    if (existing === undefined) types.set(tag.name, type);
+    else if (existing !== type) types.set(tag.name, 'untyped');
+  }
+  for (const [name, type] of [...types]) if (type === 'untyped') types.delete(name);
+
+  TAG_RETURN_TYPES_BY_DOCSET.set(tags, types);
+  return types;
+}
+
+/**
  * The single type a documented ARGUMENT accepts, or `untyped` when that cannot be established.
  *
  * Same resolution as {@link docsetReturnType}, on the other end of the call: several published

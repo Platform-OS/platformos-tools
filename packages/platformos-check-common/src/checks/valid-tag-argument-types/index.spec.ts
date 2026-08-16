@@ -263,3 +263,50 @@ describe('Module: ValidTagArgumentTypes', () => {
     expect(messagesOf(await check(`{% assign a = 1 %}{% assign b = 'two' %}`))).toEqual([]);
   });
 });
+
+/**
+ * A VARIABLE THE FILE ASSIGNS, which used to be exempt from this check entirely.
+ *
+ * `{% for x in y limit: 'nope' %}` was reported and `{% assign n = 'nope' %}{% for x in y limit: n %}`
+ * was not, on the stated grounds that a tag has no symbol table beside it. `for.limit` is published
+ * `number` — read out of `tags.json` below rather than restated — so a string contradicts it.
+ */
+describe('Module: ValidTagArgumentTypes — a variable this file assigns', () => {
+  const mismatch = (name: string, tag: string, expected: string, actual: string) =>
+    `Type mismatch for argument '${name}' in ${tag} tag: expected ${expected}, got ${actual}`;
+
+  const limitIsNumber = async () =>
+    typesOf(await publishedDocset.tags(), 'for')?.limit === 'number';
+
+  it('reports an assigned value exactly as it reports the literal', async () => {
+    // Guarded on the document: if `for.limit` ever stops being published `number`, this case is
+    // measuring nothing and says so rather than passing vacuously.
+    expect(await limitIsNumber()).toBe(true);
+
+    expect([
+      messagesOf(await check(`{% for x in y limit: 'nope' %}{% endfor %}`)),
+      messagesOf(await check(`{% assign n = 'nope' %}{% for x in y limit: n %}{% endfor %}`)),
+    ]).toEqual([
+      [mismatch('limit', 'for', 'number', 'string')],
+      [mismatch('limit', 'for', 'number', 'string')],
+    ]);
+  });
+
+  it('says nothing when the assigned value is the published type', async () => {
+    // CONTROL for the case above: the fixtures differ only in the assigned literal.
+    expect([
+      messagesOf(await check(`{% assign n = 5 %}{% for x in y limit: n %}{% endfor %}`)),
+      messagesOf(await check(`{% assign n = 'nope' %}{% for x in y limit: n %}{% endfor %}`)),
+    ]).toEqual([[], [mismatch('limit', 'for', 'number', 'string')]]);
+  });
+
+  it('says nothing about a name the file never assigns', async () => {
+    // The behaviour every variable argument used to get. CONTROL: the assigned spelling reports.
+    expect([
+      messagesOf(await check(`{% for x in y limit: page_size %}{% endfor %}`)),
+      messagesOf(
+        await check(`{% assign page_size = 'nope' %}{% for x in y limit: page_size %}{% endfor %}`),
+      ),
+    ]).toEqual([[], [mismatch('limit', 'for', 'number', 'string')]]);
+  });
+});

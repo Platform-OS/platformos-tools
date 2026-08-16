@@ -6,53 +6,35 @@ import { reconcileFlowScalarContinuations } from './flow-scalar-continuations';
 /**
  * Find keys a YAML mapping defines more than once.
  *
- * WHY THIS IS NOT A PARSE ERROR, and why it is worth finding anyway. A repeated key is
- * legal input: `pos-cli deploy --dry-run` accepts it, and the platform resolves it
- * LAST-WINS — measured 2026-08-02 by deploying a translations file with a key defined
- * twice at the top level and twice inside a nested map, then reading both back through
- * `liquid_exec`. Both returned the second value; a key that was never defined returns
- * "translation missing", so the resolution is real rather than a fallback.
+ * NOT A PARSE ERROR, and worth finding anyway. A repeated key is legal input: `pos-cli
+ * deploy --dry-run` accepts it and the platform resolves it LAST-WINS (measured by
+ * deploying a translations file with a key defined twice at each level and reading both
+ * back through `liquid_exec`). So the file deploys and works, and the earlier value is
+ * silently gone — in a translations file, a string the author wrote and will never see.
  *
- * That measurement is the whole basis for the remedy this produces, and it is recorded
- * here because it did not exist before. Every earlier claim of "last-wins" in this
- * repository — including one in `parse.ts` — rode along in a sentence about `--dry-run`
- * ACCEPTING the file, which is a different question. Acceptance was measured; resolution
- * was assumed.
+ * THE PARSER AND THE PLATFORM DISAGREE ABOUT SCALARS, which is the hard part. npm `yaml`
+ * implements YAML 1.2; Psych/libyaml implements YAML 1.1, so "does the platform see one key
+ * or two" cannot be answered from the default parse:
  *
- * So the file deploys and works, and the earlier value is silently gone. In a
- * translations file that is a string the author wrote and will never see.
+ *   `yes:` / `true:`   Psych gives boolean `true` for both — one key, a discarded value.
+ *   `1:` / `1.0:`      Psych keeps `Integer(1)` and `Float(1.0)` as two keys, so reporting
+ *                      a duplicate here is a FALSE POSITIVE on legal input.
  *
- * THE PARSER AND THE PLATFORM DISAGREE ABOUT SCALARS, and that is the hard part of this
- * module. npm `yaml` implements YAML **1.2**; Psych/libyaml implements YAML **1.1**. The
- * question here — "does the platform see one key or two" — therefore cannot be answered
- * from the default parse, and an earlier version of this file got it wrong in BOTH
- * directions at once:
+ * So the document is re-parsed at version 1.1 for identity purposes only, which fixes the
+ * boolean family and 1.1 octal in one move — not sufficient on its own, since npm's 1.1 mode
+ * is not Psych either (see {@link UNCOMPARABLE}).
  *
- *   `yes:` / `true:`   reported as distinct, "because YAML 1.2 resolves `yes` to a
- *                      string". True of this parser, FALSE of the platform: Psych gives
- *                      boolean `true` for both, so a value was being silently discarded
- *                      and the check stayed quiet while documenting that it was right to.
- *   `1:` / `1.0:`      reported as a duplicate. Psych keeps `Integer(1)` and `Float(1.0)`
- *                      as two keys, so this was a FALSE POSITIVE on legal input, inviting
- *                      an author to delete a working key.
+ * INTEGER AND FLOAT ARE DIFFERENT KEYS even at the same numeric value, because Ruby's Hash
+ * uses `eql?` and `1.eql?(1.0)` is false. JS has one number type, so the distinction has to
+ * come from the SOURCE TEXT.
  *
- * So the document is re-parsed at **version 1.1** for identity purposes only, which fixes
- * the boolean family and 1.1 octal in one move. That is not sufficient on its own —
- * npm's 1.1 mode is not Psych either — see {@link UNCOMPARABLE}.
+ * SOUNDNESS OVER COMPLETENESS. Where the two parsers cannot be reconciled this reports
+ * NOTHING: a missed duplicate costs one silently-dropped value, a false one asks an author to
+ * delete working code. `duplicate-keys.spec.ts` asserts the soundness direction exhaustively
+ * against `psych-key-identity.ts`, which is generated from Ruby itself.
  *
- * INTEGER AND FLOAT ARE DIFFERENT KEYS even at the same numeric value, because Ruby's
- * Hash uses `eql?`: `1.eql?(1.0)` is false. JS has one number type, so the distinction
- * has to come from the SOURCE TEXT.
- *
- * SOUNDNESS OVER COMPLETENESS. Where the two parsers cannot be reconciled, this reports
- * NOTHING. A missed duplicate costs one silently-dropped value; a false one asks an
- * author to delete working code, and this linter has spent five evaluation rounds
- * learning which of those is more expensive. `duplicate-keys.spec.ts` asserts the
- * soundness direction exhaustively against `psych-key-identity.ts`, which is generated
- * from Ruby itself.
- *
- * ALSO NOT A DUPLICATE: `<<` twice. Merge keys are repeatable under YAML 1.1 merge
- * semantics and what the platform does with them has not been measured.
+ * ALSO NOT A DUPLICATE: `<<` twice. Merge keys are repeatable under YAML 1.1 merge semantics
+ * and what the platform does with them has not been measured.
  */
 
 /** One key defined more than once in the same mapping. */
@@ -76,31 +58,24 @@ const MERGE_KEY = '<<';
  * Source spellings where npm `yaml` and Psych are MEASURED to disagree, so the resolved value
  * cannot be trusted.
  *
- * These are no longer dropped entirely. They get a RAW identity keyed on the source text, so a
- * token still collides with an identical spelling of itself — see {@link identityOf}. Two
- * byte-identical keys are one key under any parser, so the disagreement that puts a token here
- * simply does not arise when it is compared against itself. Returning nothing meant `.inf: 1`
- * twice went unreported for 11 tokens.
+ * These are not dropped entirely: they get a RAW identity keyed on the source text, so a
+ * token still collides with an identical spelling of itself (see {@link identityOf}). Two
+ * byte-identical keys are one key under any parser, so the disagreement that puts a token
+ * here does not arise when it is compared against itself.
  *
  * Every entry is a measurement, not a precaution. Left in, each one produces a false
  * positive — the expensive direction:
  *
- *   `y` `Y` `n` `N`   npm 1.1 resolves these to booleans; Psych leaves them STRINGS, and
- *                     keeps `y:` and `Y:` as TWO keys — measured, so the case is NOT folded
- *                     for them. A document with `y:` and `true:` would otherwise be reported
- *                     as a duplicate the platform does not have.
- *   `1e3` and kin     Psych does not treat unquoted scientific notation as a number at
- *                     all — it is the String "1e3" — while npm resolves it to 1000, so
- *                     `1e3:` and `1000:` would look like a collision.
- *   `0X10` uppercase  Psych resolves lowercase `0x10` to Integer 16 and uppercase `0X10`
- *                     to the String "0X10". npm accepts both as 16.
- *   `1:30` base-60    A YAML 1.1 sexagesimal. Both parsers resolve it to a number and
- *                     they disagree about WHICH: Psych 5400, npm 90.
- *   `.inf` `.nan`     npm reports a null VALUE for these, which would collide with a
- *                     genuine `null:` key.
- *   timestamps        npm builds a Date; Ruby's safe loader refuses to, so which object
- *                     the platform ends up with depends on a loader this repo has not
- *                     established.
+ *   `y` `Y` `n` `N`   npm 1.1 resolves these to booleans; Psych leaves them STRINGS and keeps
+ *                     `y:` and `Y:` as TWO keys, so the case is NOT folded for them.
+ *   `1e3` and kin     Psych reads unquoted scientific notation as the String "1e3"; npm
+ *                     resolves it to 1000, so `1e3:` and `1000:` would look like a collision.
+ *   `0X10` uppercase  Psych resolves lowercase `0x10` to Integer 16 and uppercase `0X10` to
+ *                     the String "0X10"; npm accepts both as 16.
+ *   `1:30` base-60    A YAML 1.1 sexagesimal both parsers resolve to a number, disagreeing
+ *                     about WHICH: Psych 5400, npm 90.
+ *   `.inf` `.nan`     npm reports a null VALUE for these, which would collide with `null:`.
+ *   timestamps        npm builds a Date; Ruby's safe loader refuses to.
  *
  * The spec asserts that every pattern here really is a disagreement, so the list cannot
  * quietly grow into a way of silencing inconvenient cases.
@@ -120,23 +95,15 @@ const UNCOMPARABLE: readonly RegExp[] = [
 /**
  * Psych's boolean spellings, which are CASE-INSENSITIVE over the whole word.
  *
- * MEASURED, and deliberately not the YAML 1.1 spec's list, which is wrong in both directions
- * for this parser:
+ * MEASURED, and deliberately not the YAML 1.1 spec's list, which is wrong in both
+ * directions for this parser: `TrUe` `yEs` `oFf` and kin all resolve to booleans in Psych
+ * while npm's 1.1 mode leaves them STRINGS, and `y` `Y` `n` `N` are STRINGS in Psych despite
+ * the spec listing them as booleans (they stay in {@link UNCOMPARABLE}).
  *
- *   `TrUe` `tRUE` `truE` `FaLsE` `yEs` `nO` `oN` `oFf`   all resolve to booleans in Psych.
- *                                                        npm's 1.1 mode leaves them STRINGS,
- *                                                        so `TrUe:` and `true:` were one key
- *                                                        on the platform and two here — a
- *                                                        silently discarded value.
- *   `y` `Y` `n` `N`                                      STRINGS in Psych, despite the spec
- *                                                        listing them as booleans. They stay
- *                                                        in {@link UNCOMPARABLE}.
- *
- * QUOTED SPELLINGS NEVER REACH THESE PATTERNS, and not for the reason it first appears. A
- * quoted key's `source` EXCLUDES its delimiters — measured — so `"yes"` arrives as the bare
- * text `yes` and would match. What keeps it out is the scalar-TYPE guard above, which returns
- * a String identity before any of this runs. Reasoning from the source text instead reported
- * `yes:` and `"yes":` as one key, which Psych keeps as two.
+ * QUOTED SPELLINGS NEVER REACH THESE PATTERNS, and not for the reason it first appears: a
+ * quoted key's `source` EXCLUDES its delimiters, so `"yes"` arrives as the bare text `yes`
+ * and would match. What keeps it out is the scalar-TYPE guard above, which returns a String
+ * identity first.
  */
 const PSYCH_TRUE = /^(true|yes|on)$/i;
 const PSYCH_FALSE = /^(false|no|off)$/i;
@@ -181,43 +148,29 @@ function identityOf(pair: Pair): string | undefined {
   // two merge keys started reporting as a duplicate.
   if (source === MERGE_KEY) return undefined;
 
-  // A QUOTED OR BLOCK SCALAR IS A STRING ON BOTH SIDES, and none of the plain-scalar reasoning
-  // below applies to it. This has to be decided by the scalar's TYPE, not by looking for quotes
-  // in `source` — measured, `source` EXCLUDES the delimiters, so `"yes"` arrives here as the
-  // bare text `yes`, indistinguishable from the plain `yes` that Psych resolves to a boolean.
-  //
-  // Getting this wrong is a FALSE POSITIVE, which is the expensive direction: a first version
-  // of the boolean handling below reasoned that "a quoted key's source includes its quotes" and
-  // immediately reported `yes:` and `"yes":` as one key, which Psych keeps as two. It also
-  // repairs a latent case that predates this change — `".inf"` would have shared an identity
-  // with the plain `.inf`, and those are a String and a Float to Psych.
+  // A QUOTED OR BLOCK SCALAR IS A STRING ON BOTH SIDES, and none of the plain-scalar
+  // reasoning below applies to it. Decided by the scalar's TYPE, not by looking for quotes in
+  // `source` — which EXCLUDES the delimiters, so `"yes"` arrives here as the bare text `yes`,
+  // indistinguishable from the plain `yes` that Psych resolves to a boolean. Reasoning from
+  // the source text instead reports `yes:` and `"yes":` as one key, which Psych keeps as two.
   if (pair.key.type !== undefined && pair.key.type !== Scalar.PLAIN) {
     return `string ${String(pair.key.value)}`;
   }
 
   // IDENTICAL SOURCE TEXT NEEDS NO RESOLUTION, which is why an uncomparable token still gets
-  // an identity rather than being dropped.
-  //
-  // {@link UNCOMPARABLE} exists because npm `yaml` and Psych resolve these spellings
-  // DIFFERENTLY, so comparing one against a different spelling risks a false positive. That
-  // argument does not apply to a token compared against ITSELF: the same bytes resolve to the
-  // same object under any one parser, so two byte-identical keys are one key on every
-  // platform, deterministically. Returning `undefined` here meant `.inf: 1` twice in one
-  // mapping went unreported — Psych keeps `{Infinity => 2}`, a value silently discarded —
-  // along with 10 other tokens.
+  // an identity rather than being dropped: the same bytes resolve to the same object under
+  // any one parser, so two byte-identical keys are one key on every platform. Returning
+  // `undefined` here meant `.inf: 1` twice in one mapping went unreported.
   //
   // Prefixed so it can never alias a RESOLVED identity: `raw 1e3` and `number int 1000` are
-  // different strings, which is correct, because Psych reads `1e3` as the String "1e3" and
-  // keeps two keys. So the raw identity is not merely sound, it is silent in exactly the
-  // cases where returning `undefined` was silent, and reports the one case it could not.
+  // different strings, which is correct, because Psych reads `1e3` as the String "1e3".
+  //
   // Case is folded for the inf/nan family ONLY, and the boundary is measured in both
   // directions rather than applied uniformly:
   //
   //   `.inf` + `.Inf`   ONE key   -> must share an identity, so the case is folded
-  //   `y` + `Y`         TWO keys  -> folding them would be a FALSE POSITIVE, so case is kept
+  //   `y` + `Y`         TWO keys  -> folding them would be a FALSE POSITIVE
   //   `-.inf` + `.inf`  TWO keys  -> the sign is significant, so it survives the fold
-  //
-  // Folding everything reaching this branch would have looked tidier and been wrong.
   if (UNCOMPARABLE.some((pattern) => pattern.test(source))) {
     const canonical = CASE_FOLDED_RAW.test(source) ? source.toLowerCase() : source;
     return `raw ${canonical}`;
@@ -255,20 +208,18 @@ function entryRange(pair: Pair): { start: number; end: number } | undefined {
  * be accurate about the pairwise shadowing and useless about the outcome.
  */
 export function findDuplicateKeys(source: string): DuplicateKey[] {
-  // VERSION 1.1, unlike `toYAMLNode`, and only here. The platform's parser is Psych,
-  // which is a 1.1 implementation, so `yes` is boolean `true` and `014` is 12 — both
-  // measured. Verified that this changes neither the item structure nor the ranges, so
-  // offsets from this parse are the ones `toYAMLNode` would have given.
+  // VERSION 1.1, unlike `toYAMLNode`, and only here. The platform's parser is Psych, a 1.1
+  // implementation, so `yes` is boolean `true` and `014` is 12 — both measured. Verified that
+  // this changes neither the item structure nor the ranges, so offsets from this parse are
+  // the ones `toYAMLNode` would have given.
   //
-  // The GLOBAL parse deliberately stays at 1.2. Moving it would retype every scalar every
-  // check sees — a translation key literally named `yes` would become boolean `true` —
-  // which is a much larger decision than this one and needs its own measurement.
+  // The GLOBAL parse deliberately stays at 1.2: moving it would retype every scalar every
+  // check sees — a translation key named `yes` would become boolean `true` — which needs its
+  // own measurement.
   //
-  // `uniqueKeys: false` matches `toYAMLNode`: a repeated key must not be a parse error.
-  // Both pairs survive in `items` either way, which is what makes this findable at all.
-  //
-  // Lone carriage returns are normalized for the same reason `toYAMLNode` does it: the
-  // platform treats them as line breaks and this parser does not.
+  // `uniqueKeys: false` matches `toYAMLNode`: a repeated key must not be a parse error, and
+  // both pairs surviving in `items` is what makes this findable at all. Lone carriage returns
+  // are normalized for the same reason `toYAMLNode` does it.
   const options = {
     prettyErrors: false,
     uniqueKeys: false,
@@ -279,14 +230,12 @@ export function findDuplicateKeys(source: string): DuplicateKey[] {
 
   // A QUOTED SCALAR CONTINUED AT OR BELOW ITS KEY'S INDENTATION does not parse under YAML 1.2
   // — see `flow-scalar-continuations.ts`. This parse is SEPARATE from `toYAMLNode`'s because
-  // it needs 1.1 scalar resolution for key identity, so it needs the reconciliation
-  // separately too: without it a duplicate key anywhere in such a file was silently missed,
-  // which is a coverage gap the false-block fix would otherwise have left behind.
+  // it needs 1.1 scalar resolution, so it needs the reconciliation separately too; without it
+  // a duplicate key anywhere in such a file was silently missed.
   //
-  // The reconciliation is byte-for-byte, so every range reported below is still an offset
-  // into the caller's original source. Scalar VALUES are not re-folded here, unlike in
-  // `toYAMLNode`: this function only ever compares KEYS, and a multi-line quoted key would
-  // land in `UNCOMPARABLE` on its source text long before folding could matter.
+  // The reconciliation is byte-for-byte, so every range reported below is still an offset into
+  // the caller's original source. Scalar VALUES are not re-folded here, unlike in
+  // `toYAMLNode`: this function only ever compares KEYS.
   const reconciled =
     doc.errors.filter((error) => error.code !== 'MULTIPLE_DOCS').length > 0
       ? reconcileFlowScalarContinuations(normalized, options)

@@ -125,13 +125,6 @@ describe('Module: server', () => {
     // template, a build artifact, `app/tmp/x.liquid` or anything under `node_modules` is
     // never delivered at all. Spelled out rather than imported from `APP_WATCH_GLOBS`, so
     // adding a file type shows up here as a diff rather than as a tautology.
-    //
-    // Assets are absent on purpose. Nothing reads an asset, so the only question ever
-    // asked about one is whether it exists, and `DocumentsLocator` answers that with a
-    // `stat`, which cannot go stale the way an index entry can.
-    //
-    // Every brace group holds a single path segment: the LSP's glob syntax does not
-    // promise a `{}` containing `/`.
     const DIRS = [
       'views/{pages,layouts,partials}',
       '{pages,lib,authorization_policies,emails,api_calls,smses,migrations,form_configurations,' +
@@ -483,12 +476,6 @@ describe('Module: server', () => {
    * invalidation point — while adding a theme does not touch the config. The client
    * reports the created FILE, so the listing of `theme/` (the grandparent) has to be
    * dropped too, not only the file's own directory.
-   *
-   * That the expansion is still CACHED — i.e. the fix is invalidation and not deletion —
-   * is pinned where it can fail, in `platformos-common`'s `DocumentsLocator.spec.ts`
-   * ('should cache expanded paths across calls' and 'serves the stale expansion until the
-   * cache is cleared'). Counting listings here cannot see it: everything is re-warmed by
-   * the re-check that the same notification triggers.
    */
   it('go-to-definition finds a theme directory created after the first resolution', async () => {
     fileTree['app/config.yml'] = 'theme_search_paths:\n  - theme/{{ context.constants.THEME }}';

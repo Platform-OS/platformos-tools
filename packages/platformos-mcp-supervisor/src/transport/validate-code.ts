@@ -1,27 +1,20 @@
 /**
  * Registration of the `validate_code` MCP tool — the supervisor's entire surface.
  *
- * ONE TOOL, TWO INPUT SHAPES. Validating one file and validating a coordinated
- * multi-file change are the same operation on a different number of buffers, so
- * they are one tool. A second tool would force the agent to choose, and there is no
- * name for the pair that makes the choice obvious — `validate_code` vs
- * `validate_files` certainly did not.
+ * ONE TOOL, TWO INPUT SHAPES. Validating one file and validating a coordinated multi-file
+ * change are the same operation on a different number of buffers, so they are one tool:
  *
  *   validate_code({ file_path, content })   -> a single result
  *   validate_code({ files: [...] })         -> one result per file + a batch gate
  *
- * The single form is unchanged from the original contract, so nothing that already
- * calls it needs to know any of this. There is no `many` flag: which form was sent
- * is evident from the arguments, and a parameter whose value the tool can already
- * infer is the same empty promise `mode: full|quick` was.
+ * There is no `many` flag — which form was sent is evident from the arguments.
  *
- * PASSING SEVERAL FILES IS MORE ACCURATE, not just faster. With every buffer
- * overlaid at once a partial created alongside its caller resolves; checked one file
- * at a time it is reported missing. The description says so, because that is the
- * reason an agent should reach for the batch form.
+ * PASSING SEVERAL FILES IS MORE ACCURATE, not just faster: with every buffer overlaid at
+ * once a partial created alongside its caller resolves, where one at a time it is reported
+ * missing. The description says so, because that is why an agent should reach for it.
  *
- * This module owns only the MCP surface: schema, description, registration, and
- * mapping input shape to output shape. All logic lives in `validate/`.
+ * This module owns only the MCP surface: schema, description, registration, and mapping
+ * input shape to output shape. All logic lives in `validate/`.
  */
 import { z, type ZodRawShape } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -64,18 +57,9 @@ const content = z.string();
 /**
  * An example path of each kind, for the agent-facing prose below.
  *
- * DERIVED from `platformos-common`'s tables, not spelled out. Two reasons, and the
- * second is the one that made this worth the indirection:
- *
- * 1. These strings are copied. They are the shape an agent imitates when it invents a
- *    path, so an example naming a directory the platform stopped accepting teaches the
- *    mistake — quietly, and to every caller.
- * 2. `platformos-common` owns every platformOS directory name, and
- *    `app/directory-knowledge.spec.ts` fails the build on a second copy anywhere else.
- *    That guard has an empty exemption list on purpose. An example path is documentation
- *    rather than classification, so exempting it would have been defensible and is still
- *    the wrong trade: deriving it costs one lookup and cannot go stale, and the file
- *    already derives its deployed-subtree list the same way.
+ * DERIVED from `platformos-common`'s tables, not spelled out: an agent imitates these
+ * strings when it invents a path, so an example naming a directory the platform stopped
+ * accepting teaches the mistake to every caller.
  *
  * The first entry of `getAppPaths` is the canonical directory for the type; the rest are
  * legacy aliases, which are exactly what an example should not suggest.
@@ -209,10 +193,8 @@ export async function runValidateCode(
     isBatch ? `validate_code: ${buffers.length} file(s)` : `validate_code: ${buffers[0].filePath}`,
   );
 
-  // A batch is a new way to hand the server unbounded work, AND a new way to send a
-  // request that contradicts itself. Neither is possible with a single buffer, so
-  // both refusals are request-level and belong here, before any work starts. First
-  // refusal wins; the cheaper, content-only check runs first.
+  // Both refusals are request-level and impossible with a single buffer, so they are
+  // decided here, before any work starts. First refusal wins; the cheaper check runs first.
   const refusal = isBatch
     ? (batchTooLarge(buffers) ?? collidingBufferPaths(ctx.projectDir, buffers))
     : undefined;
@@ -255,10 +237,9 @@ type RequestedBuffers =
 /**
  * Read the two accepted input forms into the one internal shape.
  *
- * The SDK validates types; what it cannot express here is "exactly one form". Both
- * failures are the caller's malformed request rather than a property of any file, so
- * they are reported as such instead of being guessed at — silently preferring one
- * form would validate something the caller did not ask about.
+ * The SDK validates types; what it cannot express is "exactly one form". Both failures are
+ * the caller's malformed request rather than a property of any file, and are reported as
+ * such — silently preferring one form would validate something the caller did not ask about.
  */
 function requestedBuffers(params: ValidateCodeParams): RequestedBuffers {
   const hasSingle = params.file_path !== undefined || params.content !== undefined;

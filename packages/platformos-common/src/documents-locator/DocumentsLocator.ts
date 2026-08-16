@@ -24,27 +24,23 @@ export type DocumentType =
   | 'theme_render_rc';
 
 /**
- * Which platformOS file type each reference kind resolves to — the ONE place the
- * relation is written down.
+ * Which platformOS file type each reference kind resolves to — the ONE place the relation is
+ * written down.
  *
- * `Record<DocumentType, …>`, so adding a member to {@link DocumentType} without saying
- * what it resolves to is a compile error rather than a silent `undefined` at runtime.
- * That is the whole reason this is a table and not a `switch`: a `switch` can be
- * exhaustive OR have a runtime fallback, and this needs both — see {@link
- * DocumentsLocator.locate}.
+ * `Record<DocumentType, …>`, so adding a member to {@link DocumentType} without saying what it
+ * resolves to is a compile error rather than a silent `undefined` at runtime. That is why this
+ * is a table and not a `switch`: a `switch` can be exhaustive OR have a runtime fallback, and
+ * this needs both — see {@link DocumentsLocator.locate}.
  *
- * `layout` is here because the graph resolves a page's frontmatter `layout:` to a node
- * (`graph/traverse.ts`) and `MissingContentForLayout` asks the same question. It needs no
- * extension list of its own: `App.findOrLocate` resolves a layout through the same
- * response-format machinery as everything else, so the legacy `application.html.liquid`
- * spelling is found under the name `application` — verified on a real project — while a
- * name with no file behind it still comes back unresolved.
+ * `layout` is here because the graph resolves a page's frontmatter `layout:` to a node and
+ * `MissingContentForLayout` asks the same question. It needs no extension list of its own:
+ * `App.findOrLocate` resolves a layout through the same response-format machinery as everything
+ * else, so the legacy `application.html.liquid` spelling is found under the name `application`.
  *
  * The four partial-valued entries are not redundant: `render`, `include`, `background`,
- * `function` and `theme_render_rc` are five different TAGS that all name a Partial, and
- * they diverge elsewhere — `function` is created in `app/lib` rather than
- * `app/views/partials` ({@link DocumentsLocator.locateDefault}), and `theme_render_rc`
- * resolves through the theme search paths.
+ * `function` and `theme_render_rc` are five different TAGS that all name a Partial, and they
+ * diverge elsewhere — `function` is created in `app/lib`, and `theme_render_rc` resolves
+ * through the theme search paths.
  */
 const FILE_TYPE_BY_DOCUMENT_TYPE: Readonly<Record<DocumentType, PlatformOSFileType>> = {
   render: PlatformOSFileType.Partial,

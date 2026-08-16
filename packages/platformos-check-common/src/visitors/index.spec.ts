@@ -5,42 +5,13 @@ import { visitLiquid } from './liquid';
 import { visitJSON } from './json';
 
 /**
- * A CHARACTERIZATION test: it pins the exact sequence the two check-runner walkers
- * produce TODAY, recorded from the running code rather than reasoned about, so that
- * unifying them into one implementation cannot quietly change it.
- *
- * Traversal order is not an implementation detail. Checks accumulate state across nodes
- * — `UnusedAssign` pairs an assign with a later lookup, `UnclosedHTMLElement` matches
- * opens against closes — so a walker that visits the same nodes in a different order
- * gives the same offenses on some files and different ones on others. Asserting the
- * whole sequence rather than a node count is what makes that visible.
- *
- * Two things in the recorded output are worth knowing, and BOTH are the contract:
- *
- * 1. **Exactly one callback per node.** The recorder below offers a method for every
- *    property asked of it, `` `${type}:exit` `` included, so these sequences are also
- *    the proof that the walker never dispatches a second callback per node — a check
- *    that wants to act after a subtree accumulates and acts in `onCodePathEnd`. The
- *    per-node exit hook was removed in TASK-73: it fired BEFORE the subtree rather than
- *    after, had no consumer among the shipped checks, and cost 33% of the walker's time
- *    (a template-string allocation plus a lookup per node, measured over 80k node
- *    visits). Re-adding it is a deliberate change that fails these two tests first.
- *
- * 2. **Sibling PROPERTIES come out in reverse declaration order, while sibling ARRAY
- *    ELEMENTS come out in document order.** The stack pops what was pushed last, so
- *    properties reverse; the inner loop pushes array items backwards specifically to
- *    undo that, so array items do not. Hence an `HtmlElement` yields its `children`
- *    (`LiquidVariableOutput`) before its `name` (`TextNode`), while the two
- *    `HtmlElement` siblings inside `children` stay in source order.
+ * A CHARACTERIZATION test: it pins the exact sequence the two check-runner walkers produce
+ * TODAY, recorded from the running code rather than reasoned about, so that unifying them into
+ * one implementation cannot quietly change it.
  */
 describe('Unit: check-runner traversal order', () => {
   /**
    * Records every method the walker dispatches, indented by ancestor depth.
-   *
-   * A `Proxy` rather than an enumerated check object: the walker looks up
-   * `check[node.type]`, so this records whatever it asks for without the test having to
-   * list node types — and so a node type appearing that the test did not anticipate
-   * shows up in the output instead of being silently skipped.
    */
   function recorder() {
     const events: string[] = [];

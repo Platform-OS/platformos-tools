@@ -8,13 +8,6 @@ import { getOffset, getPosition } from './position';
  * language server copies those into LSP `Range`s without converting them. So the
  * property worth asserting is not "the numbers look right" but "we agree with the
  * LSP's own document model, everywhere".
- *
- * The oracle is `TextDocument` from `vscode-languageserver-textdocument` — the
- * implementation VS Code and the language server themselves use. Checking against it
- * rather than against hand-written expectations is the difference between pinning the
- * behaviour and pinning my reading of the specification. The hand-written tables
- * further down are kept anyway, for the two cases that motivated this file: they say
- * what changed in terms a reader can check without running anything.
  */
 
 /** Every offset a source has, including the one PAST its last character. */

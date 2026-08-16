@@ -4,21 +4,8 @@ import { runLiquidCheck } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
 
 /**
- * TASK-49. A `hash_assign` target whose final subscript is dot access, or which has no
+ * A `hash_assign` target whose final subscript is dot access, or which has no
  * subscript at all.
- *
- * WHY THIS IS ITS OWN DETECTOR, and why both directions are pinned. The platform raises
- * `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax: hash_assign hash[key] =
- * value` at PARSE time, so the file can neither be deployed nor rendered — and a converter
- * rejection takes the WHOLE changeset. Until this landed the supervisor returned
- * `status: ok, must_fix_before_write: false` for it.
- *
- * The rule is POSITIONAL and was measured, not inferred: only the LAST lookup must be a
- * bracket. `h.a['b']` assigns fine, so reporting any dot in the chain would be a false block
- * on working code — which on a BLOCKING check is the most expensive mistake available.
- *
- * Every row below was rendered on a live instance with the value read back, so "accepted"
- * means the assignment actually happened rather than merely that the template parsed.
  */
 const messagesFor = async (source: string) =>
   (await runLiquidCheck(LiquidHTMLSyntaxError, source))
@@ -65,17 +52,6 @@ const PLATFORM_ACCEPTS: Array<[label: string, target: string]> = [
 /**
  * NOT this detector's business, and NOT accepted by the platform either — recorded so the
  * distinction is not lost.
- *
- * `h [ 'k' ]`, with a space between the name and the `[`, raises `Syntax Error in
- * 'hash_assign'` for the same reason a dot target does: at PARSE time. It was previously
- * listed above as an accepted spelling, which was a mis-measurement — a space INSIDE the
- * brackets is fine, a space BEFORE them is not, and the two were conflated.
- *
- * `assign` refuses it too (`Syntax Error in 'assign'`), so this is not a `hash_assign`
- * peculiarity. Our grammar parses both, so nothing reports either: a FALSE APPROVAL of a
- * construct the converter rejects, which fails the whole changeset. It needs a grammar change
- * to detect, so it is filed rather than bolted onto a detector that answers a different
- * question.
  */
 const PLATFORM_REJECTS_BUT_NOT_FOR_NOTATION: Array<[label: string, target: string]> = [
   ['space before the brackets', `h [ 'k' ]`],
@@ -155,9 +131,6 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
     // the target holds. A FALSE APPROVAL until 2026-08-16: `h` is a HASH here, so
     // `InvalidWriteTarget` has nothing to say about it and this detector is the only thing
     // between the author and a file that cannot be parsed.
-    //
-    // The control is the same buffer under `assign`, which takes a plain target: the repair the
-    // message names has to actually work.
     expect([
       await messagesFor(`${HASH}{% hash_assign h = 1 %}`),
       await messagesFor(`${HASH}{% assign h = 1 %}`),
@@ -192,23 +165,6 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
   /**
    * The rule does NOT generalise to the other tags that write into a Hash, and the temptation
    * to generalise it is why this is pinned rather than left to the prose above.
-   *
-   * `assign` and `function` reach the same runtime setter as `hash_assign` — see
-   * `InvalidWriteTarget`, which does treat all of them alike — but they do not share its
-   * PARSER. Measured on a live instance, each row reading the hash back:
-   *
-   *   {% assign h.k     = 'V' %}   writes the key `k`   -> {"k":"V"}
-   *   {% assign h.a.b   = 'V' %}   writes `a.b`         -> {"a":{"b":"V"}}
-   *   {% assign h['a'].b = 'V' %}  writes `a.b`         -> {"a":{"b":"V"}}
-   *   {% hash_assign h.k = 'V' %}  RAISES Liquid::SyntaxError at PARSE time
-   *
-   * `function`'s write is measured too, and `InvalidWriteTarget` judges it — see
-   * `.changeset/invalid-write-target.md`, which retracts the earlier note here that called it
-   * unmeasurable. What does not generalise is this tag's PARSER: `{% function h.k = 'p' %}`
-   * reaches partial resolution rather than a syntax error.
-   *
-   * So extending this detector to those two tags would refuse code the platform runs, on a
-   * check that BLOCKS the write.
    */
   describe('the dot rule belongs to hash_assign alone', () => {
     const DOT_TARGETS = [`h.k`, `h.a.b`, `h['a'].b`];

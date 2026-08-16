@@ -353,10 +353,6 @@ describe('getFileType', () => {
    * A known directory is not enough. Every backend model but Page, InstanceView and
    * Asset anchors its extension in `PHYSICAL_PATH`, so a file in the right directory
    * with the wrong extension is not deployed and must not be classified.
-   *
-   * Asserted through BOTH classifiers: `getFileType` matches a directory anywhere in a
-   * URI while `parseAppPath` anchors at the project root, and the two deriving their
-   * extension rule from one table is the only reason they cannot drift.
    */
   describe('the extension is part of the type, where the backend says so', () => {
     const rejected = [
@@ -514,12 +510,6 @@ describe('isSupportedSourceFile', () => {
    * The response format decides the body language, and the platform's FORMAT_ENUM
    * (`custom_view.rb:9`) decides what is a format. So `css` and `js` bodies are not
    * read, while a segment the enum does not list is part of the file's NAME.
-   *
-   * `.scss.liquid` is the interesting case: `scss` is not a platform format, so the
-   * platform reads that file as a partial called `foo.scss` rendered as html. Keeping it
-   * out would mean naming it in an ignore list — the thing the whitelist exists to avoid
-   * — so it is read. No file like it exists across the four real projects measured;
-   * `frame` is the only non-format segment they actually use.
    */
   it.each([
     ['app/views/partials/foo.scss.liquid', true],
@@ -536,18 +526,6 @@ describe('isSupportedSourceFile', () => {
 
   /**
    * THE ASSET RULE, and the regression it closes.
-   *
-   * A bare `.liquid` has no response format, so `sourceCodeTypeOf` falls back to
-   * `html.liquid` — a key that HAS a row — and `app/assets/x.liquid` was read as
-   * Liquid+HTML and linted like a page. Measured before the fix: a broken one produced
-   * `LiquidHTMLSyntaxError`, and through the MCP supervisor a `must_fix_before_write:
-   * true` — a false block on a file the platform serves verbatim.
-   *
-   * Asserted as the CONJUNCTION rather than as one `false`, because the two halves are
-   * what make it a type rule and not an extension rule: the file IS deployed, and a
-   * parser for its spelling DOES exist. Only the type says no. A future change that
-   * dropped assets from classification entirely would satisfy a bare `toBe(false)` while
-   * breaking asset resolution everywhere.
    */
   it('does not read an asset whose extension a parser would otherwise accept', () => {
     const asset = uri('app/assets/x.liquid');
@@ -567,11 +545,6 @@ describe('isSupportedSourceFile', () => {
    * The CONTROL for the rule above. `isParsedFileType` excludes exactly one type, and
    * excluding a second would silently stop linting a whole family — so the set is pinned
    * by enumeration rather than by spot checks.
-   *
-   * Deliberately derived from the enum, so a NEW `PlatformOSFileType` shows up here
-   * automatically and defaults to "read", which is the safe direction: a new type with no
-   * check fails the supervisor's file-type-coverage group loudly, whereas a new type
-   * silently not read is the regression nothing catches.
    */
   it('reads every file type except Asset', () => {
     const notParsed = Object.values(PlatformOSFileType).filter((type) => !isParsedFileType(type));
@@ -953,13 +926,6 @@ describe('formatRank', () => {
 
 /**
  * `pathToName` and `nameToPaths` are inverses, and this is the test that says so.
- *
- * It is the guarantee the toolchain was missing. `platformos-graph` resolved
- * `{{ 'app.js' | asset_url }}` to a root-level `assets/app.js` while
- * `DocumentsLocator` resolved the same reference to `app/assets/app.js`, and nothing
- * failed — because each had its own copy of the rule and neither was checked against
- * the other direction. With one definition and this property, that bug cannot recur:
- * a name derived from a path must lead back to that path.
  */
 describe('pathToName ⇄ nameToPaths round trip', () => {
   /** Every (type, dir, root) combination the directory structure allows. */
@@ -1006,9 +972,6 @@ describe('pathToName ⇄ nameToPaths round trip', () => {
    * but the four in `EXTENSION_AGNOSTIC_TYPES`, so a hand-written switch here would
    * generate unclassifiable paths the moment a type was added — which is exactly what
    * it did for the two ActivityStreams types.
-   *
-   * `Asset` has no reference extension because an asset reference carries its own;
-   * `.css` stands in for one.
    */
   function leafExtension(fileType: PlatformOSFileType): string {
     const [extension = '.css'] = getReferenceExtensions(fileType);
@@ -1245,15 +1208,6 @@ describe('uriToName', () => {
 /**
  * `APP_SOURCE_SUBTREES` is what lets a project walk skip most of a repository, so
  * the property that matters is total coverage in BOTH directions:
- *
- * - nothing `parseAppPath` accepts may fall outside the subtrees, or the walk would
- *   silently lose app files (the failure mode a directory-name blacklist has:
- *   `app/views/pages/vendor/**` is real, and every `vendor` blacklist drops it);
- * - nothing outside them may be accepted, or the subtrees would be a lie and a
- *   consumer that trusted them would disagree with one that did not.
- *
- * Derived from the same constants `parseAppPath` derives its patterns from, so a new
- * root or access level cannot reach one and not the other.
  */
 describe('APP_SOURCE_SUBTREES covers exactly what parseAppPath accepts', () => {
   const asRegExp = (subtree: string) => new RegExp(`^${subtree.split('*').join('[^/]+')}/`);

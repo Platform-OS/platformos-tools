@@ -16,25 +16,19 @@ import {
 } from '@platformos/platformos-common';
 
 /**
- * The `getDocDefinition` a lint run over `app` answers with: the `{% doc %}`
- * contract of the partial at a root-relative path, or `undefined` when that file
- * has none.
+ * The `getDocDefinition` a lint run over `app` answers with: the `{% doc %}` contract of the
+ * partial at a root-relative path, or `undefined` when that file has none.
  *
- * **Nothing is read here, and nothing is enumerated either.** The map fills in on
- * demand, one memo per path actually asked about, and the `load()` is INSIDE the
- * memo body — so a file costs a read and a parse only if some check resolves a
- * `{% render %}` / `{% function %}` to it. Awaiting the loads at map time instead
- * would load the whole project and undo the point of the lazy `App` model; seeding
- * the map from `app.sourceCodes()` would not read anything, but it still allocated a
- * closure and an entry for all ~3100 files of a real project on every call, to serve
- * the handful of lookups a single-file lint makes.
+ * **Nothing is read here, and nothing is enumerated either.** The map fills in on demand, one
+ * memo per path actually asked about, with the `load()` INSIDE the memo body — so a file costs
+ * a read and a parse only if some check resolves a `{% render %}` to it. Awaiting the loads at
+ * map time would load the whole project; seeding from `app.sourceCodes()` still allocated a
+ * closure and an entry for all ~3100 files of a real project on every call.
  *
- * Resolving through the passed `app` — rather than from disk — is also what lets
- * `lintBuffer`'s overlaid buffer be cross-referenced with its UNSAVED `{% doc %}`
- * params rather than the stale on-disk version.
+ * Resolving through the passed `app` — rather than from disk — is also what lets `lintBuffer`'s
+ * overlaid buffer be cross-referenced with its UNSAVED `{% doc %}` params.
  *
- * A target the app does not contain still has a contract: see
- * {@link docDefinitionOutsideApp}.
+ * A target the app does not contain still has a contract: see {@link docDefinitionOutsideApp}.
  */
 export function makeGetDocDefinition(
   app: App,

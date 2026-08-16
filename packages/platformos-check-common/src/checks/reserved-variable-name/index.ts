@@ -10,7 +10,7 @@ export const ReservedVariableName: LiquidCheckDefinition = {
       description:
         "Disallows using reserved Liquid literals ('true', 'false', 'nil', 'null', 'empty', 'blank') as variable names. Reading such a name always returns the built-in literal, never the assigned value.",
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/reserved-variable-name',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

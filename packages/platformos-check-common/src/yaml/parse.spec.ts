@@ -5,16 +5,6 @@ import type { LiteralNode, ObjectNode } from '../jsonc/types';
 
 /**
  * The FAILURE contract, pinned at the layer that owns it.
- *
- * `YAMLSyntaxError` reads these values and turns them into offenses, so its spec
- * proves the two ends agree. What it cannot show is the shape in between — and this
- * layer used to have none: the parse error was reduced to a message string, and the
- * offsets the parser had already computed were dropped. Anything wanting a line and
- * column had to parse English back out of the message.
- *
- * Three properties are worth holding here rather than through a check, because each
- * is a decision about the parser rather than about reporting: which errors are the
- * FILE's fault, that offsets address real positions, and that recovery is preserved.
  */
 describe('Unit: toYAMLNode failure contract', () => {
   /** The failures a source produces, or `null` if it parsed. */
@@ -56,10 +46,6 @@ describe('Unit: toYAMLNode failure contract', () => {
     // `yaml` reports `[length, length + 1]` whenever input runs out mid-construct.
     // `length` is a real position — end of input, which `getPosition` places on the
     // empty last line — so only the `+ 1` is clamped away, leaving an empty range.
-    //
-    // Every construct that can be left open is covered, with and without a trailing
-    // newline, because this is the shape the comment in `parse.ts` claims and a
-    // single fixture would only demonstrate it for one of them.
     const sources = [
       'name: "oops\n',
       'name: "oops',

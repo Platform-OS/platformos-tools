@@ -11,11 +11,11 @@ const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => 
   ...over,
 });
 
-// A neutral "not computed yet" impact used where the test does not exercise the
+// A neutral "not computed" impact used where the test does not exercise the
 // blast radius itself (it is threaded verbatim by assembleResult).
 const NO_IMPACT: ValidateCodeImpact = {
   scope: 'direct',
-  status: 'computing',
+  status: 'unavailable',
   dependents: { total: 0, by_kind: {}, sample: [] },
 };
 
@@ -114,16 +114,6 @@ describe('Unit: assembleResult', () => {
 
 /**
  * The result carries ONLY fields that are actually populated.
- *
- * `proposed_fixes`, `clusters`, `scorecard`, `tips`, `domain_guide` and
- * `parse_error` were emitted as permanently-empty stubs. An agent cannot tell an
- * always-`[]` field from a meaningful one, so every one of them was a standing
- * invitation to conclude "no fixes available" or "no parse error" from a field that
- * was never going to say anything else. They are removed until the tasks that
- * populate them land (TASK-8.x).
- *
- * These assertions pin the EXACT key set, so reintroducing a stub fails here rather
- * than silently widening the agent surface again.
  */
 describe('Unit: the result contract carries no permanently-empty stubs', () => {
   const REMOVED = [
@@ -189,14 +179,8 @@ describe('Unit: the result contract carries no permanently-empty stubs', () => {
 });
 
 /**
- * TASK-19: `status` and `must_fix_before_write` answer DIFFERENT questions, and an
- * agent depends on being able to read them independently.
- *
- *   status                -> what was FOUND (any error at all?)
- *   must_fix_before_write -> will the file be BROKEN if written?
- *
- * The second is strictly narrower. Collapsing them — which is what
- * `errors.length > 0` did — is what made a dead argument block a write.
+ * `status` and `must_fix_before_write` answer DIFFERENT questions, and an agent depends on
+ * reading them independently.
  */
 describe('Unit: status and the write gate are separate signals', () => {
   const errorFrom = (check: string) => diag({ severity: 'error', check });
@@ -252,11 +236,9 @@ describe('Unit: status and the write gate are separate signals', () => {
 });
 
 /**
- * TASK-19 follow-up: diagnostics are returned in READING ORDER (line, then column).
- *
- * `check()` batches by check code, so the raw order is grouped by check — an
- * `ImgWidthAndHeight` on line 5 arrived before a `MissingPartial` on line 1. An
- * agent walking the list to fix a file then jumps around it.
+ * Diagnostics are returned in READING ORDER (line, then column). `check()` batches by check
+ * code, so the raw order is grouped by check — an `ImgWidthAndHeight` on line 5 arrives
+ * before a `MissingPartial` on line 1, and an agent walking the list jumps around the file.
  */
 describe('Unit: diagnostics are returned in reading order', () => {
   const at = (line: number, column: number, check = 'Check') =>
@@ -275,9 +257,8 @@ describe('Unit: diagnostics are returned in reading order', () => {
   });
 
   it('breaks an exact-position tie by check code, deterministically', () => {
-    // Without a stable tiebreak, byte-identical input could yield different output
-    // between runs — which would undermine the offense-comparison verification used
-    // throughout the performance work.
+    // Without a stable tiebreak, byte-identical input could yield different output between
+    // runs, undermining offense-comparison verification.
     const first = assembleResult([at(1, 1, 'Zebra'), at(1, 1, 'Alpha')], NO_IMPACT);
     const second = assembleResult([at(1, 1, 'Alpha'), at(1, 1, 'Zebra')], NO_IMPACT);
 
@@ -335,5 +316,66 @@ describe('Unit: diagnostics are returned in reading order', () => {
     assembleResult(input, NO_IMPACT);
 
     expect(input).toEqual(snapshot);
+  });
+});
+
+/**
+ * ORDER-INDEPENDENCE, stated as the property that can actually be violated: assembly is a
+ * set of independent transforms over one input, not a chain where each step reads what the
+ * last one wrote.
+ */
+describe('Unit: the result does not depend on the order diagnostics arrive in', () => {
+  const d = (
+    check: string,
+    severity: ValidateCodeDiagnostic['severity'],
+    line: number,
+    column: number,
+  ): ValidateCodeDiagnostic => ({ check, severity, message: `${check} fired`, line, column });
+
+  const FINDINGS: ValidateCodeDiagnostic[] = [
+    d('ImgWidthAndHeight', 'error', 5, 1), // non-blocking error
+    d('UnknownProperty', 'warning', 2, 4),
+    d('ParserBlockingScript', 'info', 9, 1),
+    d('UnknownFilter', 'error', 2, 4), // exact tie with the warning above, on position
+    d('MatchingTranslations', 'warning', 1, 1),
+    d('MissingPartial', 'error', 12, 3), // BLOCKING, and last in input order
+  ];
+
+  /** Deterministic permutations — a fixed set, so a failure is reproducible. */
+  const permutations: Array<[string, ValidateCodeDiagnostic[]]> = [
+    ['as given', FINDINGS],
+    ['reversed', [...FINDINGS].reverse()],
+    ['grouped by check code', [...FINDINGS].sort((a, b) => a.check.localeCompare(b.check))],
+    ['grouped by severity', [...FINDINGS].sort((a, b) => a.severity.localeCompare(b.severity))],
+    ['rotated', [...FINDINGS.slice(3), ...FINDINGS.slice(0, 3)]],
+  ];
+
+  it('produces an identical result for every input permutation', () => {
+    const results = permutations.map(([, input]) => assembleResult(input, NO_IMPACT));
+    const [first, ...rest] = results;
+
+    // Whole-value equality against the first, so a difference anywhere in the envelope
+    // fails — not merely a difference in the lists.
+    for (const result of rest) expect(result).toEqual(first);
+  });
+
+  it('gates identically however the blocking error is positioned', () => {
+    expect(permutations.map(([name, input]) => [name, assembleResult(input, NO_IMPACT)])).toEqual(
+      permutations.map(([name]) => [
+        name,
+        expect.objectContaining({ status: 'error', must_fix_before_write: true }),
+      ]),
+    );
+  });
+
+  it('resolves an exact-position tie the same way from either input order', () => {
+    // `UnknownFilter` and `UnknownProperty` share 2:4 but sit in different buckets, so
+    // the tie that matters is within one. Two errors at one position, both orders.
+    const a = d('UnknownFilter', 'error', 2, 4);
+    const b = d('MissingPartial', 'error', 2, 4);
+
+    expect(assembleResult([a, b], NO_IMPACT).errors).toEqual(
+      assembleResult([b, a], NO_IMPACT).errors,
+    );
   });
 });

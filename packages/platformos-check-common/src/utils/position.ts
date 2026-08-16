@@ -2,44 +2,32 @@ import lineColumn from 'line-column';
 import { Position } from '../types';
 
 /**
- * Character offset -> `{ line, character }`, in the Language Server Protocol's
- * document model.
+ * Character offset -> `{ line, character }`, in the Language Server Protocol's document model.
  *
- * WHY THAT MODEL AND NOT ANOTHER. This is the only producer of `Offense.start` and
- * `Offense.end` (see `createContext` in `../index.ts`), and those positions are
- * consumed RAW by the language server: `offenseToDiagnostic` copies `line` and
- * `character` straight into an LSP `Range` with no conversion. The MCP supervisor is
- * the one consumer that converts, adding 1 to each for its agent-facing 1-based
- * line/column. So whatever this function means, VS Code renders — and the invariant
- * that keeps the extension honest is that this agrees, offset for offset, with the
- * LSP's own `TextDocument.positionAt`. `position.spec.ts` asserts exactly that
- * against the real implementation rather than against a restatement of it.
+ * WHY THAT MODEL. This is the only producer of `Offense.start`/`Offense.end`, and the language
+ * server consumes them RAW — `offenseToDiagnostic` copies `line` and `character` straight into
+ * an LSP `Range`. So whatever this function means, VS Code renders, and the invariant that
+ * keeps the extension honest is that it agrees offset for offset with the LSP's own
+ * `TextDocument.positionAt`, which `position.spec.ts` asserts against the real implementation.
  *
- * BOTH VALUES ARE 0-BASED, and `character` counts UTF-16 code units, so an
- * astral-plane character advances it by 2. That is the LSP's default position
- * encoding and what the supervisor's `+ 1` assumes.
+ * BOTH VALUES ARE 0-BASED, and `character` counts UTF-16 code units, so an astral-plane
+ * character advances it by 2 — the LSP's default encoding, and what the supervisor's `+ 1`
+ * assumes.
  *
  * TWO DEFECTS THIS REPLACED, both measured against `TextDocument.positionAt`:
  *
- *   1. CRLF. The previous implementation asked `line-column` for the column, and
- *      `line-column` counts a carriage return as an ordinary character of the line
- *      it terminates. An offset pointing at the `\n` of a `\r\n` therefore came back
- *      one PAST the end of the line's content — `10` on an 8-character line. The LSP
- *      walks such an offset back to the start of the terminator; we now do the same.
- *      Only offsets landing ON a terminator were ever affected, which is why three
- *      rounds of CRLF testing missed it: every fixture used a mid-line diagnostic.
- *
- *   2. END OF INPUT. `fromIndex` returns null past the last character, and the old
- *      code worked around that by clamping the lookup to `source.length - 1`. An
- *      offset of exactly `source.length` — a real position, and the one the `yaml`
- *      parser reports for every unterminated construct, as `[length, length + 1]` —
- *      was therefore reported on top of the last character instead of after it. The
- *      same clamp turned an EMPTY source into `line: -1, character: -1`, since
- *      `fromIndex(-1)` is null.
+ *   1. CRLF. `line-column` counts a carriage return as an ordinary character of the line it
+ *      terminates, so an offset pointing at the `\n` of a `\r\n` came back one PAST the end of
+ *      the line's content. Only offsets landing ON a terminator were affected, which is why
+ *      three rounds of CRLF testing missed it.
+ *   2. END OF INPUT. `fromIndex` returns null past the last character, and clamping the lookup
+ *      to `source.length - 1` reported an offset of exactly `source.length` — the position the
+ *      `yaml` parser gives every unterminated construct — on top of the last character, and
+ *      turned an EMPTY source into `line: -1, character: -1`.
  *
  * LINE TERMINATORS ARE `\r\n`, `\n` AND A LONE `\r`, again because the LSP says so.
- * `line-column` splits on `\n` alone, so a classic-Mac file was one long line to us
- * and many lines to the editor rendering our diagnostics.
+ * `line-column` splits on `\n` alone, so a classic-Mac file was one long line to us and many
+ * lines to the editor rendering our diagnostics.
  */
 
 const LINE_FEED = 0x0a;

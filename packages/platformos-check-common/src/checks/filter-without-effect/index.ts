@@ -11,8 +11,8 @@ import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
  * A filter the platform parses but never applies, so it is dead code.
  *
  * WHICH RUBY PARSER RECEIVES THE VALUE decides the answer, and each position was measured
- * against a live instance — the grammar cannot tell you, because it accepts a filter in far
- * more places than the runtime honours one:
+ * against a live instance — the grammar cannot tell you, because it accepts a filter in far more
+ * places than the runtime honours one:
  *
  *   `Liquid::Variable`             APPLIES    {{ }}, assign, hash_assign, session,
  *                                            echo, print, return
@@ -26,22 +26,19 @@ import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
  * A TRAILING filter — one written after a tag's last argument — is NOT a separate rule but the
  * same one applied to that last argument, because `TAG_ATTRIBUTES` keeps scanning past the `|`.
  * Measured: `{% function r = 'p', a: 1 | dig: 'x' %}` hands the partial a stray `dig` argument
- * and leaves `r` unfiltered, while `{% function r = 'p', items: [1, 2] | reverse %}` really
- * does reverse `items`, a JSON literal being the one argument shape whose parser consumes
- * filters. `graphql`'s FILE form is the sole tag that genuinely splits its markup on the first
- * `|` and filters its RESULT; `function`, `background` and `graphql`'s INLINE form only look
- * like they do, and all three were measured to drop it.
+ * and leaves `r` unfiltered, while `{% function r = 'p', items: [1, 2] | reverse %}` really does
+ * reverse `items`, a JSON literal being the one argument shape whose parser consumes filters.
+ * `graphql`'s FILE form is the sole tag that genuinely splits its markup on the first `|`.
  *
- * Applying positions are allowlisted rather than ignoring ones, because the applying set
- * changes only when a new write tag appears while the ignoring set grows with every tag
- * platformOS adds — so a new tag is reported by default. The cost is that a missing entry is
- * a false positive; `index.spec.ts` holds both groups as measured fixtures for that reason.
+ * Applying positions are allowlisted rather than ignoring ones, because the applying set changes
+ * only when a new write tag appears while the ignoring set grows with every tag platformOS adds
+ * — so a new tag is reported by default, and a missing entry is a false positive `index.spec.ts`
+ * holds measured fixtures against.
  *
- * ON AST FIDELITY: the grammar parks a trailing filter on the MARKUP node
- * (`FunctionMarkup.filters` and friends) even where the runtime binds it to the last argument.
- * That is deliberate and must not be read as "this is a result filter" — the prettier printer
- * regenerates source from the AST, and the markup node is where the author's filter round-trips
- * verbatim. This check, not the AST shape, is what carries the runtime meaning.
+ * ON AST FIDELITY: the grammar parks a trailing filter on the MARKUP node where the runtime
+ * binds it to the last argument. That is deliberate and must not be read as "this is a result
+ * filter" — the prettier printer regenerates source from the AST, and the markup node is where
+ * the author's filter round-trips verbatim.
  *
  * Never blocking: the file deploys and renders.
  */
@@ -120,7 +117,7 @@ export const FilterWithoutEffect: LiquidCheckDefinition = {
       description:
         'Reports a filter applied in a platformOS tag operand or argument value. The deploy converter accepts it, but the runtime parses those markups with its own scanner and never applies the filter, so the value is used unfiltered.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/filter-without-effect',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,

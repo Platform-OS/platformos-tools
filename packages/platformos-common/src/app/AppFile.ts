@@ -188,24 +188,20 @@ export class AppFile {
   }
 
   /**
-   * WHICH CONTENTS this file is holding — a position on a process-wide logical clock,
-   * moved by every {@link setSource} and every {@link invalidate}, and by nothing else.
+   * WHICH CONTENTS this file is holding — a position on a process-wide logical clock, moved by
+   * every {@link setSource} and every {@link invalidate}, and by nothing else.
    *
-   * It is what lets an analysis somewhere ELSE record what it read and check later
-   * whether that is still true, without keeping a copy of it. Two numbers compare in
-   * constant time and synchronously; the alternative is re-reading every file the
-   * analysis touched, on every cache hit, through whichever read path the memo's owner
-   * happened to pick — and picking a different one from the analysis is precisely the
-   * defect this exists to make unspellable.
+   * It lets an analysis elsewhere record what it read and check later whether that is still
+   * true, without keeping a copy: two numbers compare in constant time and synchronously, where
+   * the alternative is re-reading every file the analysis touched through whichever read path
+   * the memo's owner happened to pick.
    *
-   * GLOBAL AND MONOTONIC, not per-file. `App.update` REPLACES the file object for a URI
-   * (its read and parse are stale by definition), and a per-file counter would restart
-   * at zero on the replacement — so a recording made against the old file would compare
-   * equal to a brand new one and be trusted. A global clock cannot hand a later file an
-   * earlier number, so "same revision" means "same contents" for the whole process.
+   * GLOBAL AND MONOTONIC, not per-file. `App.update` REPLACES the file object for a URI, and a
+   * per-file counter would restart at zero on the replacement — so a recording made against the
+   * old file would compare equal to a brand new one and be trusted.
    *
-   * NOT {@link lastTouch}, which moves on every READ: a memo validated against that
-   * would miss on every hit, since asking is itself a touch.
+   * NOT {@link lastTouch}, which moves on every READ: a memo validated against that would miss
+   * on every hit, since asking is itself a touch.
    */
   get revision(): number {
     return this.revisionValue;
@@ -254,22 +250,20 @@ export class AppFile {
   }
 
   /**
-   * A value DERIVED from this file — an analysis of its parse — memoized for exactly as long
-   * as the parse is, and dropped by the same two places that drop it.
+   * A value DERIVED from this file — an analysis of its parse — memoized for exactly as long as
+   * the parse is, and dropped by the same two places that drop it.
    *
-   * WHY IT LIVES HERE. The alternative is a module-level cache in whichever package computes
-   * the analysis, keyed on the file's CONTENT so it cannot go stale. That works, and it costs
-   * a second copy of every source it has ever seen plus an eviction policy to bound them. This
-   * file already holds the source and the parse, already knows when they stop being true, and
-   * the {@link App} already evicts the files nobody is using — so hanging the analysis off it
-   * needs no key, no copy and no eviction of its own.
+   * WHY IT LIVES HERE. The alternative is a module-level cache keyed on the file's CONTENT so it
+   * cannot go stale, which costs a second copy of every source it has seen plus an eviction
+   * policy. This file already holds the source and the parse and knows when they stop being
+   * true, and the {@link App} already evicts the files nobody is using.
    *
    * `key` distinguishes analyses, and must include whatever the computation depends on BEYOND
    * this file: `undefinedVariables` reads a list of in-scope global names, so that list is part
    * of its key. Anything else is a stale answer.
    *
    * `unknown` for the same reason {@link ast} is: this package sits below the packages that
-   * define these analyses, so it stores them without knowing what they are.
+   * define these analyses.
    */
   derived<T>(key: string, compute: () => T): T {
     this.lastTouchValue = ++touchClock;

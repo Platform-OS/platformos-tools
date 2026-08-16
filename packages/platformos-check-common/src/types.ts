@@ -57,23 +57,17 @@ export type SourceCode<T = SourceCodeType> = T extends SourceCodeType
   : never;
 
 /**
- * An {@link AppFile} of a known {@link SourceCodeType}, carrying the AST that type
- * implies.
+ * An {@link AppFile} of a known {@link SourceCodeType}, carrying the AST that type implies.
  *
- * `platformos-common` sits below the parsers that produce ASTs, so an `AppFile`'s
- * `ast` is typed `unknown` — everything else about it (`uri`, `type`, `source`,
- * `version`) already matches `SourceCode` exactly. This is the one type that
- * re-attaches the missing knowledge, and it is applied where the runtime test that
- * justifies it happens: `filesOfType`, which has just compared `file.type` against
- * the very discriminant `sourceParsers` is keyed on.
+ * `platformos-common` sits below the parsers that produce ASTs, so an `AppFile`'s `ast` is
+ * typed `unknown` while everything else about it already matches `SourceCode`. This type
+ * re-attaches the missing knowledge, and is applied where the runtime test that justifies it
+ * happens: `filesOfType`, which has just compared `file.type` against the discriminant
+ * `sourceParsers` is keyed on.
  *
- * The conditional distributes, deliberately and for the same reason `SourceCode`
- * does — a non-distributed `{ type: SourceCodeType; ast: AST[SourceCodeType] | Error }`
- * decorrelates the two and is not assignable to `SourceCode<SourceCodeType>`.
- *
- * A `TypedAppFile<T>` IS a `SourceCode<T>`, so it goes to every check and every
- * visitor unchanged, and it keeps the file's own identity (`fileType`, `name`,
- * `relativePath`) available to the engine without re-deriving it from the path.
+ * The conditional distributes for the same reason `SourceCode` does — a non-distributed
+ * `{ type: SourceCodeType; ast: AST[SourceCodeType] | Error }` decorrelates the two and is
+ * not assignable to `SourceCode<SourceCodeType>`.
  */
 export type TypedAppFile<T extends SourceCodeType = SourceCodeType> = T extends SourceCodeType
   ? AppFile & { type: T; ast: AST[T] | Error }
@@ -95,11 +89,9 @@ export { LiquidHtmlNode, LiquidHtmlNodeTypes };
  * A `.json` buffer the EDITOR holds open, never a file of the app.
  *
  * `SOURCE_CODE_TYPE_BY_KEY` has no `.json` row, so `AppFile.type` is never
- * `SourceCodeType.JSON` and no such file can reach a check. The type survives for
- * `toSourceCode`'s editor fallback alone — the language server's `DocumentManager`
- * models every buffer the editor opens, `.json` included, so the JSON language
- * service can answer hover and completion for one. There is deliberately no
- * `JSONCheck`/`JSONCheckDefinition` beside this: nothing checks a JSON file.
+ * `SourceCodeType.JSON` and no such file reaches a check. The type survives for
+ * `toSourceCode`'s editor fallback alone, so the JSON language service can answer hover and
+ * completion for an open buffer. There is deliberately no `JSONCheck` beside it.
  */
 export type JSONSourceCode = SourceCode<SourceCodeType.JSON>;
 
@@ -111,10 +103,9 @@ export type YAMLCheckDefinition<S extends Schema = Schema> = CheckDefinition<
 export type YAMLCheck = Check<SourceCodeType.YAML>;
 
 /**
- * The GraphQL AST, owned by `platformos-common` and re-exported here — never
- * redeclared, exactly like {@link SourceCodeType}. It carries the parsed document as
- * well as the source, so a `.graphql` file is parsed once by the `App` that holds it
- * and every check reads that one parse.
+ * The GraphQL AST, owned by `platformos-common` and re-exported here — never redeclared,
+ * exactly like {@link SourceCodeType}. It carries the parsed document as well as the source,
+ * so a `.graphql` file is parsed once by the `App` that holds it.
  */
 export type { GraphQLDocumentNode };
 
@@ -389,19 +380,16 @@ export interface Dependencies {
   getDocDefinition?: (relativePath: string) => Promise<DocDefinition | undefined>;
 
   /**
-   * A provider for the run's RouteTable, called at most once per run and only if
-   * a check actually asks for routes — which no check does unless the file under
-   * it links somewhere. The provider OWNS making its table current: check-node's
-   * reconciles a process-level table against the pages on disk, the language
-   * server's builds its persistent, event-maintained table on first use. Absent
-   * means the run builds a throwaway table itself when asked.
+   * A provider for the run's RouteTable, called at most once per run and only if a check
+   * actually asks for routes. The provider OWNS making its table current: check-node's
+   * reconciles a process-level table against the pages on disk, the language server's builds
+   * its persistent, event-maintained table on first use. Absent means the run builds a
+   * throwaway table itself when asked.
    *
-   * A provider, never an awaited table, on purpose: knowing a route means
-   * reading every page in the project, and 87-97% of real-world Liquid contains
-   * no `<a href>`/`<form action>` whose URL survives `shouldSkipUrl` — resolving
-   * up front was whole-project I/O for nothing. The call also lands while
-   * `lintBuffer`'s buffer overlay is in place, which is what lets an unsaved
-   * page's own frontmatter define its own route.
+   * A provider, never an awaited table: knowing a route means reading every page in the
+   * project, and 87-97% of real-world Liquid contains no `<a href>`/`<form action>` whose
+   * URL survives `shouldSkipUrl`. The call also lands while `lintBuffer`'s buffer overlay is
+   * in place, which is what lets an unsaved page's frontmatter define its own route.
    */
   routeTable?: () => Promise<RouteTable>;
 }
@@ -413,15 +401,14 @@ export interface AugmentedDependencies extends Dependencies {
   /**
    * The run's {@link AppModel}.
    *
-   * `check` fills this in so checks can resolve a `{% render %}` /
-   * `{% graphql %}` / `{% asset %}` name through the app's index — an O(1) lookup
-   * — instead of `stat`-ing candidate directories in order, which cost ~40,000
-   * `stat` calls per whole-project run on a 400-partial project. Hand it to
-   * `DocumentsLocator`, which still walks for a name the index has no answer for.
+   * `check` fills this in so checks can resolve a `{% render %}` / `{% graphql %}` /
+   * `{% asset %}` name through the app's index — an O(1) lookup — instead of `stat`-ing
+   * candidate directories in order, which cost ~40,000 `stat` calls per whole-project run on
+   * a 400-partial project. Hand it to `DocumentsLocator`, which still walks for a name the
+   * index has no answer for.
    *
-   * Not optional: it was, and a caller that passed a plain array of sources got
-   * `undefined` here with no diagnostic, which is how the language server spent
-   * this whole branch resolving every name by walking candidate paths.
+   * Not optional: a caller that passed a plain array of sources used to get `undefined` here
+   * with no diagnostic.
    */
   app: AppModel;
   fileExists: (uri: UriString) => Promise<boolean>;

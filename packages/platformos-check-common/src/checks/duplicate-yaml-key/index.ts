@@ -6,40 +6,27 @@ import { findDuplicateKeys } from '../../yaml/duplicate-keys';
 /**
  * Report a YAML key defined more than once, whose earlier value is silently discarded.
  *
- * NOT A DEPLOYABILITY QUESTION, AND IT MUST NEVER BLOCK. `pos-cli deploy --dry-run`
- * accepts a repeated key and the platform resolves it last-wins — so this file works,
- * and `must_fix_before_write` has nothing to say about it. Blocking on legal input is
- * this server's most expensive failure mode and the reason `YAMLSyntaxError` had to be
- * narrowed in the first place. Two independent things keep that from happening here:
- * the severity below, and `blocksWrite`, which requires severity `error` AND membership
- * of `BLOCKING_CHECKS`. This check satisfies neither.
+ * NOT A DEPLOYABILITY QUESTION, AND IT MUST NEVER BLOCK. `pos-cli deploy --dry-run` accepts a
+ * repeated key and the platform resolves it last-wins, so the file works. Two independent
+ * things keep it off the write gate: the severity below, and `blocksWrite`, which requires
+ * severity `error` AND membership of `BLOCKING_CHECKS`.
  *
- * WHY IT IS A WARNING AND NOT AN ERROR OR AN INFO — the decision, recorded rather than
- * inherited. The precedent is `DuplicateRenderPartialArguments`: the same defect one
- * level up, a duplicate the runtime tolerates while discarding a value, and it is a
- * WARNING. The same situation should not get a different severity for being in YAML.
+ * A WARNING, NOT AN ERROR OR AN INFO. The precedent is `DuplicateRenderPartialArguments` — the
+ * same defect one level up, a duplicate the runtime tolerates while discarding a value, and it
+ * is a WARNING. Against ERROR: the platform accepts the file. Against INFO: this is silent DATA
+ * LOSS, not a style preference, and nothing else in the system will ever say so.
  *
- * Against ERROR: the platform accepts the file, and `errors[]` is where an agent looks
- * for things that stop the code working.
+ * The distinction from the false-block failures this linter has paid for is that the input
+ * there was legal AND INTENDED. A key written twice is legal and essentially never intended —
+ * a typo or a bad merge, every time.
  *
- * Against INFO: this is silent DATA LOSS, not a style preference. A translation string
- * the author wrote never reaches a user and nothing else in the system will ever say so.
- *
- * The distinction from the false-block failures of earlier rounds is worth stating,
- * because "the platform accepts it" was the argument that closed those: that input was
- * legal AND INTENDED. A key written twice is legal and essentially never intended —
- * there is no authoring pattern where you define the same key twice and want the first
- * one thrown away. It is a typo or a bad merge, every time.
- *
- * WHY THIS IS A SEPARATE CHECK. `YAMLSyntaxError` answers "does this file parse", its
- * docstring commits it to syntax only, and it is in `BLOCKING_CHECKS`. Adding a semantic
- * finding to it would put this on the write gate, which is precisely wrong.
+ * A SEPARATE CHECK from `YAMLSyntaxError`, which answers "does this file parse" and is in
+ * `BLOCKING_CHECKS`; adding a semantic finding to it would put this on the write gate.
  *
  * THE RANGE IS THE DISCARDED ENTRY, not the duplicate — a deliberate departure from
- * `DuplicateRenderPartialArguments`, which anchors on the later occurrence. Here the
- * later occurrence is the one that WINS (measured), so highlighting it would point the
- * author at the working value and, worse, invite them to delete it. The earlier entry is
- * the dead one, and that is what gets the squiggle.
+ * `DuplicateRenderPartialArguments`, which anchors on the later occurrence. Here the later
+ * occurrence is the one that WINS (measured), so highlighting it would point the author at the
+ * working value and invite them to delete it.
  */
 export const DuplicateYAMLKey: YAMLCheckDefinition = {
   meta: {
@@ -49,7 +36,7 @@ export const DuplicateYAMLKey: YAMLCheckDefinition = {
       description:
         'Reports a YAML key that is defined more than once in the same mapping. The file deploys and the last value wins, so the earlier value is silently discarded.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/duplicate-yaml-key',
     },
     type: SourceCodeType.YAML,
     severity: Severity.WARNING,

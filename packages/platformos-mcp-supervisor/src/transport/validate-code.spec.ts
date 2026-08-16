@@ -4,14 +4,9 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import {
-  SourceCodeType,
-  path as pathUtils,
-  toSourceCode,
-} from '@platformos/platformos-check-common';
-// From `platformos-common`, not check-common, which no longer re-exports it: that package
-// is the single owner of what a path IS, and an import line here says which layer owns
-// the fact (`guards/identity-ownership.spec.ts` fails on a re-export growing back).
+import { SourceCodeType, toSourceCode } from '@platformos/platformos-check-common';
+// From `platformos-common`, the single owner of what a path IS; check-common no longer
+// re-exports it (`guards/identity-ownership.spec.ts` fails on a re-export growing back).
 import { PlatformOSFileType, isSupportedSourceFile } from '@platformos/platformos-common';
 
 import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code.js';
@@ -26,8 +21,10 @@ import {
 } from '../cost-model.js';
 import { MAX_BUFFER_BYTES } from '../adapter-input.js';
 import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from '../validate/batch-bounds.js';
-import { GraphCache } from '../graph-cache/graph-cache.js';
 import type { LintNotCheckedStatus } from '../lint/lint-batch.js';
+import { allChecks } from '@platformos/platformos-check-common';
+import { checkDocs } from '../check-docs.js';
+import type { DocsetVocabulary } from '../enrich/enrich.js';
 import type { ValidateAdapters } from '../validate/validate-buffers.js';
 import type {
   NotApplicableReason,
@@ -38,17 +35,13 @@ import type {
 } from '../result/types.js';
 
 /**
- * `validate_code` is the supervisor's ENTIRE surface: one file via
- * `file_path`/`content`, or several via `files`. Both forms drive the same
- * orchestrator (`validateBuffers`), so this file pins the TOOL contract — shape
- * adaptation, the write gate, refusals, and bounded work.
- *
- * Adapters are always injected, so nothing here touches a real project — which
- * matters under fake timers, where real config I/O would never settle.
+ * `validate_code` is the supervisor's ENTIRE surface: one file via `file_path`/`content`,
+ * or several via `files`. Both forms drive the same orchestrator (`validateBuffers`), so
+ * this file pins the TOOL contract — shape adaptation, the write gate, refusals, and
+ * bounded work.
  */
 const ctx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
   projectDir: '/srv/app',
-  graphCache: new GraphCache({ rootUri: 'file:///srv/app' }),
   log,
 });
 
@@ -63,7 +56,25 @@ const diagnostic = (
   severity: ValidateCodeDiagnostic['severity'] = 'error',
 ): ValidateCodeDiagnostic => ({ check, severity, message: `${check} fired`, line: 1, column: 1 });
 
-/** Adapters whose lint returns the given diagnostics per caller key. */
+/**
+ * The same diagnostic AS RETURNED — enrichment attaches the check's documentation URL on
+ * the way out. Derived from the registry rather than pasted.
+ */
+const enriched = (
+  check: string,
+  severity: ValidateCodeDiagnostic['severity'] = 'error',
+): ValidateCodeDiagnostic => {
+  const url = checkDocs(check)?.url;
+  return url ? { ...diagnostic(check, severity), see_also: url } : diagnostic(check, severity);
+};
+
+/**
+ * Adapters whose lint returns the given diagnostics per caller key.
+ *
+ * ALL THREE seams are stubbed, the docset included: left to its default it resolves the
+ * process docset over the network, which no test here is about. The empty vocabulary is
+ * what they assume — `see_also` still attaches, and no symbol resolves to a signature.
+ */
 const adaptersFor = (
   byFile: Record<string, ValidateCodeDiagnostic[]> = {},
 ): Partial<ValidateAdapters> => ({
@@ -72,6 +83,7 @@ const adaptersFor = (
     notChecked: new Map(),
   }),
   impact: async () => COMPUTED,
+  docset: async () => ({ filters: [], tags: [], objects: [] }),
 });
 
 const PAGE = 'app/views/pages/index.liquid';
@@ -97,15 +109,10 @@ const validateOne = (
 
 /**
  * A real temp project on disk, plus the operations the INTEGRATION groups below perform on
- * it. Those groups inject no adapters — they drive the same call path the MCP handler takes,
- * which needs a project a lint can actually resolve against.
+ * it. Those groups inject no adapters — they drive the same call path the MCP handler takes.
  *
  * Call it in a `describe` body: it registers the per-test setup and teardown on that suite,
- * so each case gets its own directory and none of them can see another's files. `prefix`
- * only names the directory, which is what makes a leaked one identifiable.
- *
- * The directory is deliberately NOT returned. Nothing in any of the four groups needed it
- * except these three helpers, and each group had written all three out again.
+ * so each case gets its own directory.
  */
 function tempProject(prefix: string) {
   let projectDir = '';
@@ -122,7 +129,6 @@ function tempProject(prefix: string) {
 
   const context = (): SupervisorContext => ({
     projectDir,
-    graphCache: new GraphCache({ rootUri: pathUtils.toUri(projectDir) }),
     log: () => {},
   });
 
@@ -259,6 +265,37 @@ describe('validate_code: the multi-file form', () => {
     expect([calls, sawBuffers]).toEqual([1, 3]);
   });
 
+  /**
+   * The blast radius reads the project per REQUEST, not per file, and the proof has to be
+   * identity: every buffer is handed the SAME `ProjectScan`, whose `sources()` is memoized.
+   * A scan built per buffer returns identical answers and simply multiplies the I/O.
+   */
+  it('shares ONE project scan across the batch, rather than one per file', async () => {
+    const scans = new Set<unknown>();
+
+    await validateMany(
+      [
+        { file_path: PAGE, content: 'a' },
+        { file_path: PARTIAL, content: 'b' },
+        { file_path: 'app/views/layouts/theme.liquid', content: 'c' },
+      ],
+      {
+        lint: async ({ buffers }) => ({
+          diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+          notChecked: new Map(),
+        }),
+        impact: async (_params, scan) => {
+          scans.add(scan);
+          return COMPUTED;
+        },
+      },
+    );
+
+    // Identity is the assertion: `ProjectScan.sources()` is memoized per object, so one
+    // object means one project read (pinned in `project-scan.spec.ts`).
+    expect(scans.size).toEqual(1);
+  });
+
   it('gates the whole changeset when ANY file blocks', async () => {
     const result = await validateMany(
       [
@@ -316,7 +353,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
     );
 
     expect(result.files[0].result.not_applicable_reason).toEqual('outside_project');
-    expect(result.files[1].result.errors).toEqual([diagnostic('MissingPartial')]);
+    expect(result.files[1].result.errors).toEqual([enriched('MissingPartial')]);
     expect(result.must_fix_before_write).toBe(true);
   });
 
@@ -357,11 +394,11 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
   });
 
   it('declines a config-IGNORED file rather than reporting it clean', async () => {
-    // `check()` skips ignored files silently, so "no offenses" would mean "never
-    // looked at" — the write gate approving a file nothing checked.
+    // `check()` skips ignored files silently, so "no offenses" would mean "never looked
+    // at" — the write gate approving a file nothing checked.
     const result = await validateOne('{% if %}{{ unclosed', {
-      // The LINT seam reports this — it holds the config. There is no separate
-      // ignore adapter to stub, which is the point: one source of truth.
+      // The LINT seam reports this — it holds the config. There is no separate ignore
+      // adapter to stub, which is the point: one source of truth.
       lint: async () => ({
         diagnostics: new Map(),
         notChecked: new Map<string, LintNotCheckedStatus>([[PAGE, 'excluded-by-config']]),
@@ -375,8 +412,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
   });
 
   it('never reaches the lint for a file the pure gate already declined', async () => {
-    // The pure gate is synchronous and runs first, so an off-project path costs no
-    // I/O at all — no lint pass, and therefore no config load.
+    // The pure gate is synchronous and runs first, so an off-project path costs no I/O.
     let linted = false;
     await validateOne(
       'x',
@@ -394,8 +430,8 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
   });
 
   it('loads the project ONCE for a whole multi-file request', async () => {
-    // The config-exclusion answer rides along with the single lint pass rather than
-    // costing a second config load, so one pass IS one load.
+    // The config-exclusion answer rides along with the single lint pass, so one pass IS
+    // one config load.
     let passes = 0;
     await runValidateCode(
       ctx(),
@@ -461,15 +497,10 @@ describe('validate_code: bounded work', () => {
   });
 
   /**
-   * TASK-22. Results are keyed by the caller's `file_path` string, but buffers are
-   * overlaid and deduplicated by normalized URI (last one wins). Two entries naming
-   * one file therefore used to lint ONE buffer and report its verdict for BOTH — so
-   * the losing buffer was never validated yet came back with a status, and reversing
-   * the argument order flipped which one was lied about.
-   *
-   * This is the eval's exact reproduction (FINDINGS.md F-13, group `X-dup-keys`): a
-   * broken buffer and a clean one under the same path returned `status: "ok"` for
-   * both, i.e. a false approval manufactured with no check involved at all.
+   * Results are keyed by the caller's `file_path` string, but buffers are overlaid and
+   * deduplicated by normalized URI (last one wins), so two entries naming one file would
+   * lint ONE buffer and report its verdict for BOTH — a false approval with no check
+   * involved, whose direction flipped with the argument order.
    */
   it.each([
     ['broken buffer first', '{{ x | no_such_filter }}', '<p>clean</p>'],
@@ -509,9 +540,8 @@ describe('validate_code: bounded work', () => {
   });
 
   it('never reaches the lint for a self-contradictory request', async () => {
-    // The refusal is decidable from the request alone, so it must cost nothing —
-    // and, more importantly, no buffer may be linted when we will not report its
-    // result honestly.
+    // The refusal is decidable from the request alone, and no buffer may be linted when
+    // we will not report its result honestly.
     const lint = vi.fn();
 
     await runValidateCode(
@@ -529,8 +559,8 @@ describe('validate_code: bounded work', () => {
   });
 
   it('still validates a batch that names each file once', async () => {
-    // The guard must not cost the legitimate case, including the mixed
-    // relative/absolute spelling the caller-string keying exists to support.
+    // The guard must not cost the legitimate case, including the mixed relative/absolute
+    // spelling the caller-string keying exists to support.
     const files = [
       { file_path: PAGE, content: 'a' },
       { file_path: `/srv/app/${PARTIAL}`, content: 'b' },
@@ -563,10 +593,9 @@ describe('validate_code: bounded work', () => {
   });
 
   it('gives a large batch the LONGER deadline its size earns, not the floor', async () => {
-    // The bug this closes: a fixed 60 s deadline against a cap that admitted ~115 s
-    // of work, so the worst legal batch timed out — returning `timed_out` for EVERY
-    // file, which is no validation at all, silently. The deadline now scales with
-    // the bytes admitted, so being still-running at the floor is CORRECT here.
+    // The deadline scales with the bytes admitted, so being still-running at the floor is
+    // CORRECT here; a fixed deadline against a larger cap returned `timed_out` for EVERY
+    // file in the worst legal batch.
     const big = 'x'.repeat(100 * 1024);
     const files = [
       { file_path: PAGE, content: big },
@@ -600,8 +629,8 @@ describe('validate_code: bounded work', () => {
         'timed_out',
         'timed_out',
       ]);
-      // The message must quote the deadline actually applied, not the floor — it is
-      // the only place the caller can see how long it was held.
+      // The message must quote the deadline actually applied, not the floor — it is the
+      // only place the caller can see how long it was held.
       expect(
         result.files.map((entry) =>
           entry.result.next_step?.startsWith(
@@ -679,7 +708,7 @@ describe('validate_code: bounded work', () => {
   });
 
   it('runs lint and impact CONCURRENTLY, not one after the other', async () => {
-    // Serializing them added the whole blast-radius cost to every call. Asserted by
+    // Serializing them would add the whole blast-radius cost to every call. Asserted by
     // observing that impact starts while the lint is still in flight.
     let lintStarted = false;
     let impactSawLintRunning = false;
@@ -783,8 +812,8 @@ describe('VALIDATE_CODE_INPUT', () => {
   });
 
   it('TOLERATES a stale caller still sending mode, dropping it', () => {
-    // `mode` was removed; an agent mid-session must not start failing over a
-    // parameter that never did anything.
+    // `mode` was removed; an agent mid-session must not start failing over a parameter
+    // that never did anything.
     const parsed = schema.safeParse({ file_path: PAGE, content: 'x', mode: 'quick' });
 
     expect(parsed.success).toBe(true);
@@ -793,18 +822,15 @@ describe('VALIDATE_CODE_INPUT', () => {
 });
 
 /**
- * The description and the server instructions ARE the agent's entire understanding
- * of this tool. A wrong or stale claim there is worse than a bug in the code: it
- * converts "I do not know" into false confidence, silently.
- *
- * These pin the claims most likely to rot, and the ones whose rotting is dangerous.
+ * The description and the server instructions ARE the agent's entire understanding of this
+ * tool, so a stale claim there converts "I do not know" into false confidence. These pin
+ * the claims most likely to rot, and the ones whose rotting is dangerous.
  */
 describe('validate_code: the agent-facing surface', () => {
   const { VALIDATE_CODE_DESCRIPTION } = TOOL_TEXT;
 
   it('states the either/or rule exactly ONCE, in the description', () => {
-    // It used to be repeated in all three parameter descriptions — three copies of
-    // one rule, in the exact place an agent is deciding what to send.
+    // One rule, stated once, in the place an agent is deciding what to send.
     const inParams = Object.values(VALIDATE_CODE_INPUT).filter((field) =>
       /omit|never both|either/i.test((field as { description?: string }).description ?? ''),
     );
@@ -820,12 +846,8 @@ describe('validate_code: the agent-facing surface', () => {
   });
 
   it('claims YAML only now that YAML syntax is actually validated', () => {
-    // This assertion was the exact inverse until `YAMLSyntaxError` landed (TASK-21).
-    // The description advertised "Liquid/GraphQL/YAML" while nothing checked a .yml
-    // at all, so it was narrowed to two languages on purpose; the third is back
-    // because the claim became true, not because the wording was inconvenient.
-    // Coverage is still not total — see the instructions, which say what is and is
-    // not checked for YAML.
+    // Coverage is not total — see the instructions, which say what is and is not checked
+    // for YAML.
     expect(VALIDATE_CODE_DESCRIPTION).toContain('Liquid, GraphQL and YAML');
   });
 
@@ -855,296 +877,95 @@ describe('server instructions', () => {
       expect(SERVER_INSTRUCTIONS).toContain(reason);
     }
   });
-
-  it('states what YAML coverage now IS, and what it still is not', () => {
-    // Previously this pinned the opposite claim — 'YAML SYNTAX IS NOT VALIDATED' —
-    // which was true and load-bearing until `YAMLSyntaxError` landed. The danger has
-    // moved rather than disappeared: an agent that reads "YAML is validated" may take
-    // a clean model schema as a shape guarantee, which it is not. Both halves are
-    // pinned so neither can quietly become the whole story.
-    expect(SERVER_INSTRUCTIONS).toContain('one that does not parse is reported and blocks');
-    expect(SERVER_INSTRUCTIONS).toContain('The SHAPE of a model');
-    expect(SERVER_INSTRUCTIONS).not.toContain('YAML SYNTAX IS NOT VALIDATED');
-
-    // A duplicated key USED to be listed here as not reported, which was true and
-    // measured until `DuplicateYAMLKey` landed. The sentence had to change in the same
-    // commit as the check, because an instruction that overstates what is NOT reported
-    // turns a warning the agent receives into something it was told could not happen.
-    // Both halves are pinned: that it is reported, and that it does not block.
-    expect(SERVER_INSTRUCTIONS).toContain('A key defined TWICE');
-    expect(SERVER_INSTRUCTIONS).toContain('does NOT block');
-    expect(SERVER_INSTRUCTIONS).not.toContain('a duplicated name is not');
-
-    // AND that look-alike detection is bounded. The `yes:`/`true:` examples above sit under
-    // "WHAT IS ACTUALLY CHECKED", so naming three collisions without qualifying the rest
-    // reads as a coverage claim. It is not one: four spellings are MEASURED not to be
-    // detected (`1:30`/`5400`, and the quoted-vs-plain forms of `0X10`, `1e3`, `y` — see
-    // `duplicate-keys.spec.ts`, which pins that list exactly). An agent that treats silence
-    // there as proof the keys are distinct has been misled by us.
-    //
-    // The strong half is stated alongside it, because it is the part worth relying on: a key
-    // repeated with the SAME spelling is always reported. That became true in TASK-51 and is
-    // asserted against the real pipeline by the "every blocking check can actually block"
-    // group below.
-    const collapsedYaml = SERVER_INSTRUCTIONS.replace(/\s+/g, ' ');
-    expect(collapsedYaml).toContain('look-alike detection is not exhaustive');
-    expect(collapsedYaml).toContain('SAME spelling is always reported');
+  /**
+   * "The SHAPE of a model schema is not checked" is a SILENCE, so no diagnostic can carry
+   * it and an agent reading a clean YAML result as a shape guarantee is the false
+   * confidence this text exists to prevent. `instructions-coverage.spec.ts` holds the
+   * behavioural half.
+   */
+  it('keeps the YAML claim no diagnostic can deliver, and drops the one that fires', () => {
+    expect({
+      keptTheSilence: SERVER_INSTRUCTIONS.includes('The SHAPE of a model schema is not checked'),
+      droppedWhatFires: SERVER_INSTRUCTIONS.includes('one that does not parse is reported'),
+    }).toEqual({ keptTheSilence: true, droppedWhatFires: false });
   });
 
   it('tells the agent to validate BEFORE writing', () => {
     expect(SERVER_INSTRUCTIONS).toContain('BEFORE writing');
   });
+  /**
+   * THE INVARIANT: the instructions name NO platform rule at all. Every such rule fires a
+   * real diagnostic that carries its check's documentation URL, so prose here would be a
+   * staler second copy paid for in context on every session. Each phrase below is one that
+   * was once required; re-adding a gotcha fails here and is pointed at the check that owns
+   * it.
+   */
+  it('restates no platform rule — the diagnostics carry those, with links', () => {
+    const reintroduced = [
+      'must use DOUBLE quotes',
+      'needs a Hash with a key or an Array',
+      'end in a BRACKET',
+      'rejected by the converter',
+      'YAML 1.1',
+      'hash_add_key',
+      'content_for_layout',
+    ].filter((phrase) => SERVER_INSTRUCTIONS.includes(phrase));
 
-  it('only advertises specific blocking behaviour that the gate still has', () => {
-    // The instructions single out two constructs as blocking because both are easy
-    // to trip over and one is deploy-fatal. Naming a specific rule is more useful
-    // than "and more" — and more dangerous, because prose outlives the code it
-    // describes. This ties each named claim to the set that has to back it.
-    expect({
-      jsonLiteral: SERVER_INSTRUCTIONS.includes('must use DOUBLE quotes'),
-      hashAssign: SERVER_INSTRUCTIONS.includes('needs a Hash with a key or an Array'),
-      yamlParse: SERVER_INSTRUCTIONS.includes('one that does not parse is reported and blocks'),
-      backedBy: [
-        BLOCKING_CHECKS.has('JsonLiteralQuoteStyle'),
-        BLOCKING_CHECKS.has('InvalidWriteTarget'),
-        BLOCKING_CHECKS.has('YAMLSyntaxError'),
-      ],
-    }).toEqual({
-      jsonLiteral: true,
-      hashAssign: true,
-      yamlParse: true,
-      backedBy: [true, true, true],
-    });
+    expect(reintroduced).toEqual([]);
+  });
+
+  it('states the coverage it DOES claim as a derived count, not a hand-written list', () => {
+    // Derived from the registry, so it cannot describe a build that no longer exists.
+    expect(SERVER_INSTRUCTIONS).toContain(`${allChecks.length} checks run against your buffer`);
   });
 
   it('describes the size refusal in terms of BOTH bounds it can come from', () => {
-    // `too_large` used to say "split the file", which is the wrong instruction for a
-    // request that is legal per file and over the batch cap — the caller would shrink
-    // files that were never the problem.
+    // "Split the file" is the wrong instruction for a request that is legal per file and
+    // over the batch cap — the caller would shrink files that were never the problem.
     expect(SERVER_INSTRUCTIONS).toContain('or the request as a whole');
   });
 
   it('explains that errors[] can be non-empty while the gate is false', () => {
-    // The single most confusing thing about the result, and the one an agent is
-    // most likely to get wrong by assuming error => blocked.
+    // The single most confusing thing about the result: error does not imply blocked.
     expect(SERVER_INSTRUCTIONS).toContain('must_fix_before_write is false');
   });
 
   it('does NOT tell an agent a malformed request is unfixable', () => {
-    // `internal_error` covers two very different things, and three of its cases are
-    // the CALLER's mistake: both input forms, neither, or one file listed twice.
-    // The old wording — "a bug in the validator; retrying will not help" — told an
-    // agent to give up on a request it could fix by deduplicating.
+    // `internal_error` covers two different things, and three of its cases are the
+    // CALLER's mistake — both input forms, neither, or one file listed twice — which are
+    // worth retrying once fixed.
     expect(SERVER_INSTRUCTIONS).not.toContain('retrying will not help');
     expect(SERVER_INSTRUCTIONS).toContain(`is yours
                        to fix`);
   });
 
   it('states the once-per-file rule, which the server enforces by refusing', () => {
-    // `validate/batch-coherence.ts` declines a request naming one file twice, so the
-    // rule has to be findable BEFORE the agent trips it.
+    // `validate/batch-coherence.ts` declines a request naming one file twice, so the rule
+    // has to be findable BEFORE the agent trips it.
     expect(SERVER_INSTRUCTIONS).toContain('List each file at most once');
     expect(TOOL_TEXT.VALIDATE_CODE_DESCRIPTION).toContain('List each file at most once');
   });
 
   it('says columns are UTF-16 code units, which is not inferable', () => {
-    // Verified behaviour: an emoji advances the column by 2. An agent counting code
+    // Verified behaviour: an emoji advances the column by 2, so an agent counting code
     // points misplaces every column after one.
     expect(SERVER_INSTRUCTIONS).toContain('UTF-16 code units');
   });
 
   it('scopes the ordering claim to each list rather than across all three', () => {
-    // `assembleResult` sorts, THEN partitions, so concatenating errors + warnings +
-    // infos does not walk the file in order. The old wording implied it did.
+    // `assembleResult` sorts, THEN partitions, so concatenating errors + warnings + infos
+    // does not walk the file in order.
     expect(SERVER_INSTRUCTIONS).toContain('WITHIN ITSELF');
   });
 
-  it('explains that a computing blast radius is not "nothing depends on this"', () => {
-    // Zeroed dependents during the graph build read exactly like a real answer.
+  it('explains that an unavailable blast radius is not "nothing depends on this"', () => {
+    // Zeroed dependents on a failed or timed-out lookup read exactly like a real answer.
     expect(SERVER_INSTRUCTIONS).toContain('NOT a claim that nothing depends');
-  });
-
-  it('names filter arity among what is checked, now that it blocks', () => {
-    expect(SERVER_INSTRUCTIONS).toContain(`wrong number
-            of arguments`);
-  });
-
-  it('states all THREE outcomes for a filter, because there are three and not two', () => {
-    // A filter in a platformOS tag has three distinct fates, and an agent told only two of
-    // them draws the wrong conclusion about the third:
-    //
-    //   condition (if/unless/elsif, for … in)  converter REJECTS -> blocks
-    //   any other tag operand or argument      converter accepts, runtime IGNORES -> warns
-    //   {{ }}, assign, hash_assign, session,   applied
-    //     echo, print, return
-    //   an argument value that IS a JSON       applied
-    //     literal, and a trailing filter on
-    //     {% graphql res = 'file' %}
-    //
-    // The applied rows were WRONG here for a release, in the direction that costs the most: the
-    // text said "function/graphql result", so an agent was told `{% function r = 'p', a: 1 |
-    // dig: 'x' %}` filters the result. Measured against a live instance, it does not — only
-    // graphql's FILE form splits its markup on the first `|`. `function`, `background` and the
-    // INLINE graphql block share that grammar rule and discard the filter, and no probe short of
-    // reading the assigned value back can tell the four apart.
-    //
-    // The middle row is the one that was wrong here before. The text used to say a filter in
-    // a tag OPERAND "is fine", naming ten tags — which invited exactly the generalisation
-    // that gets an author into trouble, because the filter parses and then does nothing.
-    // Measured against liquid_exec over 15 positions with 5 positive controls; the decisive
-    // probe is `{% case 'a' | upcase %}` with `{% when 'A' %}` and `{% when 'a' %}`, where
-    // the UNFILTERED branch wins.
-    //
-    // Behaviour is pinned in check-common's `filter-without-effect/index.spec.ts` and end to
-    // end by the "every blocking check can actually block" group below; this pins that the
-    // agent is TOLD all three.
-    // Substrings are chosen to survive a REWRAP: a substring that spans a line break encodes
-    // the wrapping, and fails on a reflow that changed nothing about the claim — a test that
-    // fails for the wrong reason trains people to edit the test.
-    const collapsed = SERVER_INSTRUCTIONS.replace(/\s+/g, ' ');
-
-    expect({
-      rejected: collapsed.includes('FILTER INSIDE A CONDITION'),
-      ignored: collapsed.includes('IGNORES it, so the value arrives unfiltered'),
-      applied: collapsed.includes('Filters apply only where the whole value is a Liquid variable'),
-      // The applying list must name hash_assign and the JSON-literal argument, and must say
-      // which trailing filters only LOOK like result filters. Each of these was a live defect.
-      appliesForHashAssign: collapsed.includes('assign, hash_assign, echo, print, return, session'),
-      appliesForJsonLiteral: collapsed.includes('where an argument value IS a JSON literal'),
-      trailingFilterQualified: collapsed.includes('only LOOKS like that and is discarded'),
-      // The blocking half must really block, and the ignored half must NOT.
-      blockingBackedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
-      warningNotBlocking: BLOCKING_CHECKS.has('FilterWithoutEffect'),
-    }).toEqual({
-      rejected: true,
-      ignored: true,
-      applied: true,
-      appliesForHashAssign: true,
-      appliesForJsonLiteral: true,
-      trailingFilterQualified: true,
-      blockingBackedBy: true,
-      warningNotBlocking: false,
-    });
-  });
-
-  it('states the hash_assign BRACKET rule, which is a parse error and not a type error', () => {
-    // Two independent requirements share this tag, and the instructions have to carry both.
-    // The type rule (Hash takes a key, Array takes an index) is `InvalidWriteTarget`.
-    // The NOTATION rule is a `Liquid::SyntaxError` at parse time — measured, with the value
-    // read back: h['k'], h["k"], h.a['b'], h[k], h[0] all assign, while h.k, h.a.b and
-    // h['a'].b cannot be parsed. Only the LAST subscript matters, which is why the example
-    // names an accepted dot (`h.a['b']`) as well as a refused one.
-    //
-    // Behaviour lives in `InvalidHashAssignTargetSyntax.spec.ts`; this pins that the agent is
-    // told, and that the rule is carried by a check that BLOCKS.
-    expect({
-      stated: SERVER_INSTRUCTIONS.includes('must end in a BRACKET'),
-      showsAnAcceptedDot: SERVER_INSTRUCTIONS.includes("h.a['b'] are fine"),
-      backedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
-    }).toEqual({ stated: true, showsAnAcceptedDot: true, backedBy: true });
-  });
-
-  it('scopes the bracket rule to hash_assign and names the two rules assign has instead', () => {
-    // `hash_assign` is deprecated and `assign` writes into a Hash too, so an agent told only
-    // about `hash_assign` learns a rule that does not apply to the tag it should be writing —
-    // and, worse, does not learn the two that DO. Both are measured with the container read
-    // back: `assign h.k = 'V'` writes the key `k`, and `assign x << v` raises unless `x` is an
-    // Array, a Hash included.
-    //
-    // Behaviour lives in `invalid-write-target/index.spec.ts`; this pins that the agent is told, and
-    // that both rules are carried by a check that BLOCKS.
-    expect({
-      namesAssign: SERVER_INSTRUCTIONS.includes("{% assign h['k'] = v %}"),
-      scopesTheBracketRule: SERVER_INSTRUCTIONS.includes('Only hash_assign additionally'),
-      saysAssignAcceptsThem: SERVER_INSTRUCTIONS.includes('assign accepts all'),
-      statesAppend: SERVER_INSTRUCTIONS.includes('{% assign x << v %} needs an'),
-      backedBy: BLOCKING_CHECKS.has('InvalidWriteTarget'),
-    }).toEqual({
-      namesAssign: true,
-      scopesTheBracketRule: true,
-      saysAssignAcceptsThem: true,
-      statesAppend: true,
-      backedBy: true,
-    });
-  });
-
-  it('names the function tag on both rules, since it reaches the same setter', () => {
-    // `{% function %}` obeys both rules identically — measured 2026-08-16 against
-    // `/api/app_builder/liquid_exec` with the container read back: a subscript target wants a
-    // Hash with a key or an Array with an index, and `<<` wants an Array. An agent told only
-    // about `assign` and `hash_assign` reads the silence as permission on the third spelling.
-    //
-    // Behaviour lives in `invalid-write-target/index.spec.ts`; this pins that the agent is told.
-    expect({
-      namesSubscriptWrite: SERVER_INSTRUCTIONS.includes("{% function h['k'] = 'p' %}"),
-      namesAppend: SERVER_INSTRUCTIONS.includes("as does {% function x << 'p' %}"),
-      backedBy: BLOCKING_CHECKS.has('InvalidWriteTarget'),
-    }).toEqual({ namesSubscriptWrite: true, namesAppend: true, backedBy: true });
-  });
-
-  it('names the bare hash_assign target as unparseable, not only the dot one', () => {
-    // `{% hash_assign h = v %}` raises `Liquid::SyntaxError` whatever `h` holds — measured
-    // 2026-08-16 — and no type check can catch it, since a Hash target is refused too.
-    //
-    // Behaviour lives in `InvalidHashAssignTargetSyntax.spec.ts`; this pins that the agent is
-    // told, and that the rule is carried by a check that BLOCKS.
-    expect({
-      stated: SERVER_INSTRUCTIONS.includes('a bare h cannot be parsed'),
-      backedBy: BLOCKING_CHECKS.has('LiquidHTMLSyntaxError'),
-    }).toEqual({ stated: true, backedBy: true });
-  });
-
-  it('names the YAML DIALECT, because key identity is not inferable without it', () => {
-    // The linter parses YAML 1.2 (npm `yaml`); the platform parses YAML 1.1 (Ruby
-    // Psych). An agent that reads `yes:` and `true:` as two keys — which they are in
-    // every JS parser it has ever seen — writes a file that silently loses a value.
-    expect(SERVER_INSTRUCTIONS).toContain('YAML 1.1');
-    expect(SERVER_INSTRUCTIONS).toContain('can still be ONE key');
   });
 });
 
 /**
  * Every member of `BLOCKING_CHECKS` must actually be able to block a write.
- *
- * WHY THIS FILE EXISTS, and what shipped without it. `BLOCKING_CHECKS` is the only
- * place this server makes an independent judgement, and every member is a promise
- * that something gets caught. Two green suites used to sit on either side of that
- * promise without either one testing it:
- *
- *   blocking.spec.ts   asserts `blocksWrite([{check: 'X'}])` is true. That is a Set
- *                      lookup. It passes whether or not the check exists.
- *   the check's spec   asserts the check reports, given a hand-built context. It
- *                      passes whether or not the supervisor ever routes a file to it.
- *
- * Nothing observed "the check is registered, enabled, defended in a comment, and
- * emits nothing." An external evaluation found exactly that, and the shape of the
- * failure is why it went unnoticed for so long:
- *
- *   - SILENT. "This check is dead" and "this file is fine" are byte-identical on
- *     the wire: `status: ok`, `must_fix_before_write: false`.
- *   - FAILS OPEN. An unrecognised code is deliberately non-blocking (see
- *     `blocksWrite`), so every failure of this kind resolves to a FALSE APPROVAL.
- *     It cannot fail safe.
- *   - SELF-CONCEALING. The 12-line comment in `blocking.ts` argues the check
- *     belongs, so a reader checking their work finds confirmation.
- *   - IT LOOKS LIKE A FIX. The check's known false block disappeared at the same
- *     time, and nobody investigates a false block going away.
- *
- * SO: real buffers, the real pipeline, one fixture per member, and the table is
- * checked against the set — a member without a fixture fails, rather than being
- * quietly uncovered.
- *
- * WHY THE WHOLE PIPELINE and not `check()` or `runBatchLint`. Emission is only half
- * the promise; the other half is that the supervisor ROUTES a file to the check at
- * all. Those fail independently — `ValidJSON` and `JSONSyntaxError` emit perfectly
- * well under `check()` and are unreachable here, which is why they are no longer in
- * the set — so a test one layer down would have reported them green and left the
- * hole open.
- *
- * WHY THE DEFAULT CONFIG. No `.platformos-check.yml` is written, so these run under
- * the config a real project gets. "Enabled in the shipped default" is part of what
- * is being promised; `extends: platformos-check:nothing` plus an explicit enable
- * would assert around it.
  */
 
 /** A project on disk, plus the buffer under edit, that must produce one code. */
@@ -1162,12 +983,11 @@ interface EmissionFixture {
 }
 
 /**
- * Fixtures are MINIMAL on purpose: the smallest buffer that produces the code, so a
- * failure points at the check rather than at whichever of six constructs broke.
+ * Fixtures are MINIMAL on purpose: the smallest buffer that produces the code, so a failure
+ * points at the check rather than at whichever of six constructs broke.
  *
- * Positions and message text are NOT asserted. They belong to check-common and are
- * pinned by its own specs; duplicating them here would couple this file to wording
- * it does not own, and break it for edits that change nothing about the promise.
+ * Positions and message text are NOT asserted — they belong to check-common and are pinned
+ * by its own specs.
  */
 const EMITS: Record<string, EmissionFixture> = {
   LiquidHTMLSyntaxError: {
@@ -1205,10 +1025,8 @@ const EMITS: Record<string, EmissionFixture> = {
   },
 
   InvalidWriteTarget: {
-    // The two tags are separated. Detection depends on the target's inferred type
-    // being in scope at the `hash_assign`, which is check-common's business and is
-    // pinned by that check's own spec; what this fixture proves is that a reported
-    // offense reaches the gate and blocks.
+    // The two tags are separated. What this fixture proves is that a reported offense
+    // reaches the gate and blocks; the detection itself is check-common's business.
     filePath: PAGE,
     content: `{% assign x = 5 %}
 {% hash_assign x['k'] = 'v' %}
@@ -1224,17 +1042,10 @@ const EMITS: Record<string, EmissionFixture> = {
 
   MissingRenderPartialArguments: {
     // A DOCUMENTED partial: the `{% doc %}` block is an explicit contract, and this
-    // blocking check owns it ALONE. `PartialCallArguments` deliberately does not fire
-    // here — it covers only partials with no contract, inferring required params from
-    // undefined variables in the source — so one mistake produces one finding.
-    //
-    // The absence matters, because `blocking.ts` argues that leaving
-    // `PartialCallArguments` non-blocking is safe. The argument used to be "both fire
-    // together, so the blocking half is covered"; it is now "the documented case is
-    // covered by a BLOCKING check and this code never sees it". Asserting the exact
-    // error list is what makes that claim observed rather than restated: the control
-    // that `PartialCallArguments` still fires at all lives immediately below, so the
-    // silence here cannot come from a check that simply stopped working.
+    // blocking check owns it ALONE. `PartialCallArguments` deliberately does not fire here
+    // — it covers only partials with no contract — so one mistake produces one finding.
+    // Asserting the exact error list is what makes that observed rather than restated; the
+    // control that `PartialCallArguments` still fires at all lives immediately below.
     project: {
       'app/views/partials/card.liquid': `{% doc %}
   @param title {string} Title
@@ -1248,9 +1059,8 @@ const EMITS: Record<string, EmissionFixture> = {
   },
 
   YAMLSyntaxError: {
-    // A model schema whose second property sits one column left of the sequence
-    // item above it. `--dry-run` rejects this and fails the whole changeset; before
-    // the check existed the supervisor returned `ok` with nothing in `errors[]`.
+    // A model schema whose second property sits one column left of the sequence item above
+    // it. `--dry-run` rejects this and fails the whole changeset.
     filePath: 'app/schema/car.yml',
     content: `name: car
 properties:
@@ -1280,24 +1090,8 @@ properties:
 };
 
 /**
- * Codes REMOVED from `BLOCKING_CHECKS` because nothing this server accepts can
- * produce them, with the buffers that prove it.
- *
- * `ValidJSON` and `JSONSyntaxError` both declare `type: SourceCodeType.JSON`, and
- * check-common runs a check only against files of its own type. No buffer this
- * server accepts is ever parsed as JSON — `isSupportedSourceFile` admits `.liquid`,
- * `.graphql` and `.yml`/`.yaml` and nothing else, and those three parse as
- * `LiquidHtml`, `GraphQL` and `YAML`. A `.json` buffer is declined
- * `unsupported_type` before any check runs, so both entries were promising coverage
- * the input filter forecloses.
- *
- * KEPT AS A STANDING PROOF rather than deleted with the entries, for two reasons.
- * They read as obviously belonging — "the file does not parse" is the strongest
- * membership argument in `blocking.ts`, and it was TRUE of the checks and irrelevant
- * to this server — so the removal will look like an oversight to the next reader.
- * And if `.json` ever becomes a supported type, the exhaustiveness guard will demand
- * fixtures for both the moment they are re-added; these assertions are what will
- * fail first, saying exactly what changed and why they were out.
+ * Codes REMOVED from `BLOCKING_CHECKS` because nothing this server accepts can produce
+ * them, with the buffers that prove it.
  */
 interface UnreachableProof {
   filePath: string;
@@ -1311,30 +1105,8 @@ const NEVER_REACHES_THE_GATE: Record<string, UnreachableProof> = {
 };
 
 /**
- * Whitespace between two Liquid tags, varied — the axis a fixture cannot exercise by
- * being minimal.
- *
- * WHY THIS EXISTS. Asserting that ONE buffer emits cannot detect a check that is
- * blind to a DIFFERENT buffer for the same defect. `InvalidWriteTarget` was
- * exactly that: it tracked a variable's type over a range starting at the defining
- * tag's end offset and excluded a lookup at precisely that offset, so it went silent
- * when the two tags abutted and fired with one space between them. The fixture here
- * used the separated form, so this suite was green while a member of
- * `BLOCKING_CHECKS` had a hole. Separation between tags is formatting; it must never
- * change a verdict.
- *
- * WHY THE TRANSFORMATION IS THE FIXTURE'S OWN TEXT rather than an injected probe.
- * Prefixing or appending a benign `{% assign %}` in both spacings was measured
- * across all ten members and changed NOTHING anywhere — including for the one check
- * that has the defect, because the probe's adjacency is not the pair the check
- * reasons about. It would have produced twenty extra lint calls and zero signal. The
- * axis only exists between tags the check actually relates to each other, which
- * means it exists only where a fixture already contains two of them.
- *
- * That makes the axis THIN by measurement, not by neglect: fixtures above are
- * deliberately minimal, and most are a single construct with no inter-tag boundary
- * to vary. Which members genuinely carry the axis is pinned below rather than left
- * implicit, so a fixture that quietly loses it is a visible change.
+ * Whitespace between two Liquid tags, varied — the axis a fixture cannot exercise by being
+ * minimal.
  */
 const TAGS_APART = /%\}\s+\{%/g;
 const TAGS_TOGETHER = /%\}\{%/g;
@@ -1358,21 +1130,15 @@ describe('Integration: every blocking check can actually block', () => {
   const { write, validate } = tempProject('mcp-sup-emission-');
 
   it('has a fixture for every member of BLOCKING_CHECKS, and none for a non-member', () => {
-    // The exhaustiveness guard, and the reason this file is more than a collection
-    // of examples. Adding a member without evidence that it fires fails HERE, at the
-    // moment the promise is made, rather than in production where a check that emits
-    // nothing is indistinguishable from a clean file.
-    //
-    // Every member must appear in EMITS. There is no second list to fall back into:
-    // a code that cannot be demonstrated blocking does not belong in the set, which
-    // is exactly the conclusion the two below were removed on.
+    // The exhaustiveness guard: adding a member without evidence that it fires fails HERE,
+    // rather than in production where a check that emits nothing is indistinguishable from
+    // a clean file. There is no second list to fall back into.
     expect(Object.keys(EMITS).sort()).toEqual([...BLOCKING_CHECKS].sort());
   });
 
   it('does not gate on the two removed codes, however the buffer is spelled', () => {
-    // Guards the removal itself. Re-adding either without also making `.json`
-    // reachable puts back a member that cannot ever fire, and the guard above would
-    // then demand a fixture that provably cannot be written.
+    // Guards the removal itself: re-adding either without making `.json` reachable puts
+    // back a member that cannot ever fire.
     expect(Object.keys(NEVER_REACHES_THE_GATE).map((code) => BLOCKING_CHECKS.has(code))).toEqual([
       false,
       false,
@@ -1399,14 +1165,9 @@ describe('Integration: every blocking check can actually block', () => {
 
   /**
    * `hash_assign` is deprecated, so the fixture above pins the gate against the spelling an
-   * author is being told to STOP writing. `assign` and `function` reach the same runtime setter
-   * — measured, every container × subscript combination identical, with the container read back
-   * — and both carry a second rule in `<<`, which needs an Array and refuses a Hash.
-   *
-   * All three are asserted end-to-end HERE rather than only in check-common, because the claim
-   * that matters is that the offense reaches the gate and stops the write. A check can report and
-   * still not block: `blocksWrite` needs severity `error` AND membership of `BLOCKING_CHECKS`,
-   * and neither is visible from the check's own spec.
+   * author is being told to STOP writing. `assign` and `function` reach the same runtime
+   * setter — measured, every container × subscript combination identical — and both carry a
+   * second rule in `<<`, which needs an Array and refuses a Hash.
    */
   it('blocks a subscript write and an append through assign and function too', async () => {
     // `{% function %}` names a partial, so it needs a real one — otherwise `MissingPartial`
@@ -1422,8 +1183,8 @@ describe('Integration: every blocking check can actually block', () => {
       `{% assign x = 'abc' %}{% assign x.k = 'v' %}`,
       // An append onto a Hash. The runtime raises "x is {}, expected Array".
       `{% parse_json x %}{}{% endparse_json %}{% assign x << 1 %}`,
-      // The same two rules under `function`, which went unjudged on the subscript until its
-      // write semantics were measured (2026-08-16) rather than assumed unmeasurable.
+      // The same two rules under `function`, whose write semantics were measured rather
+      // than assumed unmeasurable.
       `{% assign x = 'abc' %}{% function x['k'] = 'p' %}`,
       `{% parse_json x %}{}{% endparse_json %}{% function x << 'p' %}`,
     ];
@@ -1448,18 +1209,11 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   /**
-   * THE CONTROL for the silence in the `MissingRenderPartialArguments` fixture.
-   *
-   * That fixture asserts `PartialCallArguments` does NOT fire for a DOCUMENTED partial,
-   * and `blocking.ts` leans on the ownership split to argue that leaving the code
-   * non-blocking is safe. An assertion that something does not fire is worth nothing on
-   * its own — a check that had silently stopped working entirely would satisfy it — so
-   * this proves the same code still fires on the case it does own, from the same
-   * pipeline, and still does not gate the write.
-   *
-   * Two facts in one assertion on purpose, because either alone is misleading: it FIRES
-   * (so the silence above is about ownership, not breakage) and it does NOT BLOCK (so
-   * the entry in the non-blocking list is real behaviour rather than a list membership).
+   * THE CONTROL for the silence in the `MissingRenderPartialArguments` fixture, which
+   * asserts `PartialCallArguments` does NOT fire for a DOCUMENTED partial. An assertion
+   * that something does not fire is worth nothing alone — a check that had stopped working
+   * entirely would satisfy it — so this proves the same code still fires on the case it
+   * does own, from the same pipeline, and still does not gate the write.
    */
   it('PartialCallArguments still fires for an UNDOCUMENTED partial, and does not block', async () => {
     // No `{% doc %}` block, so the required param is INFERRED from the undefined
@@ -1483,10 +1237,9 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   it('records which fixtures actually exercise tag adjacency', () => {
-    // Not an exemption list — an OBSERVATION, pinned so it cannot drift silently.
-    // A fixture rewritten into a single tag stops testing the axis, and the only way
-    // to notice is to state today's answer and let a change fail. Equally, adding a
-    // multi-tag fixture shows up here as new coverage rather than passing unremarked.
+    // Not an exemption list — an OBSERVATION, pinned so it cannot drift silently. A fixture
+    // rewritten into a single tag stops testing the axis, and stating today's answer is the
+    // only way to notice.
     const withAxis = Object.entries(EMITS)
       .filter(([, fixture]) => adjacencyVariants(fixture.content).length > 1)
       .map(([code]) => code);
@@ -1509,9 +1262,8 @@ describe('Integration: every blocking check can actually block', () => {
       }
 
       // Stated as AGREEMENT: every spelling must produce the SAME verdict, and the
-      // expectation is written once. A member is never given a second hand-written
-      // answer to satisfy, so a check that behaves differently across shapes fails
-      // here instead of being encoded as though it were intended.
+      // expectation is written once, so a check that behaves differently across shapes
+      // fails here instead of being encoded as though it were intended.
       const agreed = { blocked: true, errors: [...fixture.errors].sort() };
       expect(verdicts).toEqual(variants.map(() => agreed));
     });
@@ -1537,17 +1289,8 @@ describe('Integration: every blocking check can actually block', () => {
 
   /**
    * The server instructions name filters-in-conditions as a blocking construct and
-   * filters-in-tag-operands as explicitly NOT reported. Both halves are pinned HERE,
-   * through the real pipeline, because prose cannot fail.
-   *
-   * The pairing is the point. A gate wide enough to block every `|` in a tag would
-   * satisfy the first table on its own, and a grammar wide enough to accept every `|`
-   * would satisfy the second on its own. Only running both catches a fix that traded
-   * one direction for the other — which is exactly what the naive fix here does.
-   *
-   * Both tables were settled against `pos-cli deploy --dry-run`, each construct
-   * deployed with the filter and again without it. The refusals are converter
-   * REJECTIONS, which fail the whole changeset rather than one file.
+   * filters-in-tag-operands as explicitly NOT reported. Both halves are pinned HERE, through
+   * the real pipeline, because prose cannot fail.
    */
   const FILTER_REFUSED_BY_THE_CONVERTER = [
     "{% if 'a' | upcase == 'A' %}y{% endif %}\n",
@@ -1575,13 +1318,11 @@ describe('Integration: every blocking check can actually block', () => {
       });
     }
 
-    // WHAT THIS DOES AND DOES NOT PROVE, measured by sabotage rather than assumed.
-    // The block here is OVER-DETERMINED: deleting `checkFilterInCondition` leaves it
-    // green (a truthiness heuristic fires instead, with a worse message), and widening
-    // the grammar to accept these leaves it green too (stage 2 then throws on a shape
-    // its mapping does not model). So this pins the CLAIM the instructions make — these
-    // constructs block — and not which rule produces it. The rule's own identity and
-    // wording are pinned in check-common's `InvalidConditionalNode.spec.ts`.
+    // The block here is OVER-DETERMINED, measured by sabotage: deleting
+    // `checkFilterInCondition` leaves it green (a truthiness heuristic fires instead), and
+    // so does widening the grammar (stage 2 then throws). So this pins the CLAIM the
+    // instructions make — these constructs block — not which rule produces it. That is
+    // pinned in check-common's `InvalidConditionalNode.spec.ts`.
     expect(verdicts).toEqual(
       FILTER_REFUSED_BY_THE_CONVERTER.map(() => ({
         blocked: true,
@@ -1592,17 +1333,6 @@ describe('Integration: every blocking check can actually block', () => {
 
   it('does not BLOCK a filter in a tag operand, but does warn that it has no effect', async () => {
     // The control for the test above, in both halves.
-    //
-    // NOT BLOCKED is the false-block half: the converter accepts every one of these, and a
-    // write gate the agent cannot override is the most expensive thing this server can get
-    // wrong. `errors` must stay empty, because a non-blocking ERROR would still be reported
-    // to the agent as something it must deal with.
-    //
-    // WARNED is the other half, and it is why asserting silence alone was not enough. The
-    // runtime IGNORES the filter — measured, 15 positions, `{% case 'a' | upcase %}` matching
-    // its unfiltered branch being decisive — so approving these without a word would ship
-    // code that does not do what its author wrote. Asserting only `errors: []` would pass
-    // just as happily if `FilterWithoutEffect` were deleted.
     const verdicts = [];
     for (const content of FILTER_ACCEPTED_BY_THE_CONVERTER) {
       const result = await validate(PAGE, content);
@@ -1623,19 +1353,9 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   /**
-   * The instructions promise two things about tag argument types, and both are pinned here
-   * because prose cannot fail: an argument the documentation TYPES warns and does not block, and
-   * an argument it says nothing about is not reported at all.
-   *
-   * The pairing is the point. Asserting only the warning would pass on a check that types
-   * everything it can guess at, which is a false report on working code; asserting only the
-   * silence would pass with the whole mechanism deleted.
-   *
-   * The instructions used to name the untyped side as "every other tag argument", which was the
-   * document's answer while `platformos_tags.liquid` published a hardcoded `"untyped"` and is not
-   * any more — 69 of the 72 published parameters now carry a type. So the silent fixture is an
-   * argument the documentation publishes NO parameter for, which is a claim about this pipeline
-   * rather than about how much the platform has documented so far.
+   * The instructions promise two things about tag argument types, both pinned here because
+   * prose cannot fail: an argument the documentation TYPES warns and does not block, and an
+   * argument it says nothing about is not reported at all.
    */
   it('warns on a mistyped tag argument and stays silent on an undocumented one, as the instructions claim', async () => {
     const typed = await validate(
@@ -1665,15 +1385,10 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   /**
-   * The FILTER half of the same promise, and the half the instructions have to be careful about.
-   *
-   * A core Liquid filter coerces rather than refuses — `{{ 5 | upcase }}` renders, measured against a
-   * live instance — so the instructions promise nothing is reported about it, and that is true whether
-   * or not the docset yet separates `object` (a Hash) from `untyped` (several types accepted).
-   *
-   * The other half — a wrong Hash reported — depends on the docset carrying that separation, so what
-   * is pinned here is the part that cannot change under it: neither call BLOCKS. Promising the warning
-   * would be promising a docs release.
+   * The FILTER half of the same promise, and the half the instructions have to be careful
+   * about. A core Liquid filter COERCES rather than refuses — `{{ 5 | upcase }}` renders,
+   * measured against a live instance — so nothing is reported about it, whether or not the
+   * docset yet separates `object` (a Hash) from `untyped` (several types accepted).
    */
   it('never blocks on a filter argument, and stays silent on one that coerces, as the instructions claim', async () => {
     const coercing = await validate(PAGE, `{{ 5 | upcase }}\n`);
@@ -1692,16 +1407,8 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   /**
-   * The instructions promise two things about duplicate YAML keys, and this pins BOTH against
-   * the real pipeline so neither can drift into prose that is no longer true.
-   *
-   * The strong promise — a key repeated with the SAME spelling is always reported — only became
-   * true in TASK-51. Before it, `identityOf` returned no identity for 11 token shapes, so
-   * `.inf: 1` twice was silent while the platform kept one key and discarded a value.
-   *
-   * The bounded promise is the control: four spellings are measured NOT to be detected, so the
-   * instructions say look-alike detection is not exhaustive. Asserting only the first half would
-   * let that qualifier be deleted as redundant.
+   * The instructions promise two things about duplicate YAML keys, and this pins BOTH
+   * against the real pipeline.
    */
   it('reports a duplicate YAML key with the same spelling, without blocking', async () => {
     const previouslyMissed = ['y', '0X10', '1e3', '.inf', '.nan', '1:30', '2026-01-01'];
@@ -1724,10 +1431,10 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   it('stays silent on the look-alike pairs it cannot decide, which is why the instructions say so', async () => {
-    // Each is ONE key to Psych and TWO to npm `yaml`, with no reconciliation available — `1:30`
-    // is 5400 to Ruby and 90 here, and a quoted spelling is indistinguishable from a plain one
-    // by source text. Reported as a gap in the instructions rather than guessed at, because a
-    // duplicate claimed where the platform keeps two keys invites deleting a working key.
+    // Each is ONE key to Psych and TWO to npm `yaml`, with no reconciliation available —
+    // `1:30` is 5400 to Ruby and 90 here. Reported as a gap in the instructions rather than
+    // guessed at, because a duplicate claimed where the platform keeps two keys invites
+    // deleting a working key.
     const undecidable: Array<[string, string]> = [
       ['1:30', '5400'],
       ['"0X10"', '0X10'],
@@ -1748,32 +1455,19 @@ describe('Integration: every blocking check can actually block', () => {
   });
 
   it('routes no supported file type to the JSON checks, which is WHY those two were removed', () => {
-    // The cause behind the two results above, asserted structurally so it does not
-    // rest on two hand-picked paths: every extension `isSupportedSourceFile` admits,
-    // paired with the type check-common parses it as.
-    //
-    // JSON appears exactly once, and only against `false`. `toSourceCode` DOES fall back
-    // to JSON for an unrecognised extension — that is an editor fallback for the language
-    // server's `DocumentManager`, which holds every open buffer including real `.json`
-    // files — so the invariant this test states cannot be "JSON never appears". It is the
-    // conjunction: nothing the server ADMITS parses as JSON, and anything that would
-    // parse as JSON is declined before a check runs.
-    //
-    // `isSupportedSourceFile` is ANCHORED in master and takes the root, because a known
-    // directory name is not enough on its own: `seed/post_import/app/migrations/x.liquid`
-    // is not a migration. Passing the root is what makes each answer below a claim about
-    // a path IN a project rather than about a substring.
+    // The cause behind the two results above, asserted structurally so it does not rest on
+    // two hand-picked paths: every extension `isSupportedSourceFile` admits, paired with
+    // the type check-common parses it as.
     const rootUri = 'file:///p';
     const samples = [
       'file:///p/app/views/pages/index.liquid',
       'file:///p/app/graphql/get_thing.graphql',
       'file:///p/app/translations/en.yml',
       'file:///p/app/model_schemas/thing.yml',
-      // THE NEGATIVE CONTROL, and not a hypothetical: `.yaml` reads as a YAML file to
-      // every human and is not a platformOS extension — every YAML model on the backend
-      // anchors `\.yml\z`. So it is refused, and it is also the one sample that reaches
-      // the JSON fallback. A fixture list of nothing but `true` rows could not tell the
-      // two halves of the invariant apart.
+      // THE NEGATIVE CONTROL: `.yaml` reads as a YAML file to every human and is not a
+      // platformOS extension — every YAML model on the backend anchors `\.yml\z` — so it is
+      // refused, and it is also the one sample that reaches the JSON fallback. A list of
+      // nothing but `true` rows could not tell the two halves of the invariant apart.
       'file:///p/app/model_schemas/thing.yaml',
     ];
 
@@ -1792,47 +1486,30 @@ describe('Integration: every blocking check can actually block', () => {
 /**
  * Every member of `BLOCKING_CHECKS` must stay SILENT on input the platform accepts.
  *
- * WHY THIS SUITE EXISTS. The "every blocking check can actually block" group above is
- * its mirror and proves each member CAN block. Between them they state the whole
- * promise, and until this suite existed only half of it was defended: every guard in
- * this repository asserted that checks fire, and none asserted where a check must not.
+ * The mirror of the "can actually block" group above; between them they state the whole
+ * promise. The half defended here shipped a false block once already: `yaml` defaults
+ * `uniqueKeys` to `true`, so a duplicated key that `--dry-run` accepts became
+ * `must_fix_before_write: true` while two documents stated, from correct measurement, that
+ * duplicates are not reported. Prose cannot fail.
  *
- * That gap shipped a false block. `yaml` defaults `uniqueKeys` to `true`, so a
- * duplicated key — which `pos-cli deploy --dry-run` accepts — became
- * `must_fix_before_write: true`, while the check's own docstring and the server's
- * agent-facing instructions both stated, from correct measurement, that duplicates are
- * not reported. Two documents said so. Nothing could fail. The suite stayed green for
- * the entire time the code did the opposite.
+ * THE ASYMMETRY THAT JUSTIFIES THE COST. A missed detection returns a broken file the agent
+ * finds out about later; a FALSE BLOCK is an unappealable refusal, with no override. Every
+ * one found so far was found by an external evaluator driving a live instance, never by a
+ * suite — this file is how that becomes a CI failure instead.
  *
- * THE ASYMMETRY THAT JUSTIFIES THE COST. A missed detection returns a broken file the
- * agent finds out about later. A FALSE BLOCK is an unappealable refusal: the agent
- * cannot write correct code, and there is no override. Across four evaluation rounds
- * the false-block count never moved, and every one was found by an external evaluator
- * driving a live instance — never by this suite. This file is how that stops being
- * true, because a false block becomes a CI failure rather than an eval finding.
+ * WHAT MAKES A FIXTURE ADMISSIBLE: only input whose validity was ESTABLISHED. Every entry
+ * records the oracle that settled it (see {@link Oracle}), because a fixture asserted valid
+ * on its author's confidence pins a guess.
  *
- * WHAT MAKES A FIXTURE ADMISSIBLE. Only input whose validity was ESTABLISHED. Every
- * entry records the oracle that settled it (see {@link Oracle}), because a fixture
- * asserted to be valid on nothing but its author's confidence pins a guess. Round 4
- * recorded three of its own fixture errors, two of them "invalid" YAML that was
- * actually valid; writing this file produced a fourth — see `GraphQLCheck` below.
+ * WHY THE WHOLE PIPELINE. Silence has two independent causes — the check declining to
+ * report, and the supervisor never routing the file to it — and only the first is
+ * interesting here. End to end, a fixture that goes quiet because routing broke fails in
+ * the emission suite instead of passing quietly in this one.
  *
- * WHY THE WHOLE PIPELINE. Same reason as the emission suite: silence has two
- * independent causes, the check declining to report and the supervisor never routing
- * the file to it, and only the first is interesting here. Running end to end means a
- * fixture that goes quiet because routing broke fails in the emission suite instead of
- * passing quietly in this one.
- *
- * CONTROLS LIVE IN THE EMISSION SUITE, deliberately not duplicated here. An assertion
- * that nothing was reported is satisfied equally well by a check that stopped working,
- * so silence is only meaningful while something else proves the check still fires.
- * That is exactly what the "every blocking check can actually block" group above
- * asserts, for every member, from a real buffer. Both suites now live in this file, so
- * a run of it exercises the silence and its controls together — but they remain two
- * groups, because the control has to be able to fail on its own.
- * The single exception is the YAML control below, kept because
- * suppressing `DUPLICATE_KEY` is the specific edit that could widen into hiding a real
- * parse failure.
+ * CONTROLS LIVE IN THE EMISSION SUITE, deliberately not duplicated: an assertion that
+ * nothing was reported is satisfied equally well by a check that stopped working. The
+ * single exception is the YAML control below, because suppressing `DUPLICATE_KEY` is the
+ * specific edit that could widen into hiding a real parse failure.
  */
 
 /**
@@ -1845,10 +1522,9 @@ type Oracle =
   /** Executed through `liquid_exec` and rendered. Round-4 evaluation, O1a. */
   | 'runtime'
   /**
-   * Follows from the filter vocabulary the platform PUBLISHES — name, arity and return type,
-   * each derived upstream from the Ruby signature and shipped in `filters.json`. No table in
-   * this repository answers any of the three, which is why reading it is reading a measurement
-   * rather than an opinion.
+   * Follows from the filter vocabulary the platform PUBLISHES — name, arity and return
+   * type, each derived upstream from the Ruby signature and shipped in `filters.json`. No
+   * table in this repository answers any of the three.
    */
   | 'generated-data'
   /**
@@ -1883,11 +1559,9 @@ const deeplyNested = (levels: number): string => {
 /**
  * Valid-but-unusual YAML, imported from the round-4 evaluation rather than re-derived.
  *
- * That round deployed 52 shapes individually through `--dry-run` and the converter
- * accepted 50; the two it refused are the duplicate-key case that TASK-33 fixed, and
- * they are included here for that reason. Re-deriving this corpus would mean either
- * re-running a live instance or guessing, and the guess is what this file exists to
- * prevent.
+ * That round deployed 52 shapes individually through `--dry-run` and the converter accepted
+ * 50; the two it refused are the duplicate-key case, included for that reason. Re-deriving
+ * the corpus would mean re-running a live instance or guessing.
  */
 const VALID_YAML: Record<string, string> = {
   anchor_and_alias: `base: &b
@@ -2024,8 +1698,7 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
 
   LiquidHTMLSyntaxError: [
     // Liquid the parser must accept. `by-construction` because the claim is only that
-    // these parse — the evaluations render pages built from exactly these constructs,
-    // but no single shape here was deployed on its own.
+    // these parse — the evaluations render pages built from exactly these constructs.
     {
       name: 'if block',
       filePath: PAGE,
@@ -2118,9 +1791,9 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
       content: "{{ 'a' | upcase }}{{ 'B' | downcase }}{{ 1 | plus: 2 }}\n",
       oracle: 'generated-data',
     },
-    // Liquid's own filters, which the docs API used to omit while the runtime accepted them.
-    // Reporting one is a false block on working code; a local list of six names used to prevent
-    // it, and the platform publishing the whole vocabulary is what replaced that list.
+    // Liquid's own filters, which the docs API used to omit while the runtime accepted
+    // them. Reporting one is a false block on working code; the platform publishing the
+    // whole vocabulary is what replaced the local list of six names that prevented it.
     {
       name: 'undocumented but valid: sum',
       filePath: PAGE,
@@ -2156,9 +1829,8 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
       oracle: 'generated-data',
     },
     // `array_map` is one of four filters the generator could not determine and left
-    // ABSENT rather than guessed. A filter with no measured arity must produce
-    // nothing, whatever it is passed — that is what stops a data gap refusing working
-    // code, and it is the property the check was admitted to the blocking set on.
+    // ABSENT rather than guessed. A filter with no measured arity must produce nothing,
+    // whatever it is passed — the property the check was admitted to the blocking set on.
     {
       name: 'a filter with no measured arity',
       filePath: PAGE,
@@ -2191,12 +1863,10 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
   ],
 
   GraphQLCheck: [
-    // A FIXTURE ERROR WORTH RECORDING. Both of these began as
-    // `records { results { id } }`, which I believed valid; the schema requires
-    // `per_page`, so the check reported them and the "silence" fixtures were simply
-    // wrong. The probe caught it before it became an assertion. This is the same shape
-    // as the eval's own fixture errors: an observation about my input read as an
-    // observation about the tool.
+    // A FIXTURE ERROR WORTH RECORDING. Both of these began as `records { results { id } }`;
+    // the schema requires `per_page`, so the check reported them and the "silence"
+    // fixtures were simply wrong. An observation about the input, read as an observation
+    // about the tool.
     {
       name: 'valid query with a declared variable',
       filePath: 'app/graphql/get_thing.graphql',
@@ -2253,9 +1923,8 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
 `,
       oracle: 'runtime',
     },
-    // Never assigned in this file. It raises at runtime HERE, but in a partial the
-    // same variable legitimately arrives as a render argument, so silence is the
-    // deliberate reading. Pinned so it is not "fixed" by accident.
+    // Never assigned in this file. It raises at runtime HERE, but in a partial the same
+    // variable legitimately arrives as a render argument, so silence is deliberate.
     {
       name: 'target never assigned in this file',
       filePath: PAGE,
@@ -2281,9 +1950,9 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
 `,
       oracle: 'runtime',
     },
-    // The shape that a rule generalised from `hash_assign` would refuse. Measured with
-    // the hash read back: it writes the key `k`. `hash_assign h.k` raises a PARSE-time
-    // syntax error, and that difference is notation, not semantics.
+    // The shape a rule generalised from `hash_assign` would refuse. Measured with the hash
+    // read back: it writes the key `k`. `hash_assign h.k` raises a PARSE-time syntax error,
+    // and that difference is notation, not semantics.
     {
       name: 'assign: DOT target on a hash, which hash_assign cannot parse',
       filePath: PAGE,
@@ -2361,18 +2030,15 @@ describe('Integration: every blocking check stays silent on input the platform a
   });
 
   it('has must-stay-silent coverage for every member of BLOCKING_CHECKS', () => {
-    // The exhaustiveness guard, and the reason this file is more than a collection of
-    // examples. A new blocking code must arrive with BOTH halves of its promise: a
-    // fixture in the emission suite proving it fires, and at least one here proving
-    // where it does not. Half a promise is what produced TASK-33.
+    // The exhaustiveness guard: a new blocking code must arrive with BOTH halves of its
+    // promise — a fixture in the emission suite proving it fires, and at least one here
+    // proving where it does not.
     expect(Object.keys(STAYS_SILENT).sort()).toEqual([...BLOCKING_CHECKS].sort());
   });
 
   it('has at least one fixture per member, with the corpus size pinned per code', () => {
-    // Pinned, not merely non-empty. Fixtures are the only thing standing between this
-    // suite and a comfortable green, and the cheapest way to make a failure disappear
-    // is to delete the case that produced it. A count that changes has to be changed
-    // here too, in the diff, where it is visible.
+    // Pinned, not merely non-empty: the cheapest way to make a failure disappear is to
+    // delete the case that produced it, so a changed count has to be changed here too.
     expect(
       Object.fromEntries(
         Object.entries(STAYS_SILENT).map(([code, fixtures]) => [code, fixtures.length]),
@@ -2393,10 +2059,8 @@ describe('Integration: every blocking check stays silent on input the platform a
   });
 
   it('records the oracle behind every fixture, and which codes rest on which', () => {
-    // An OBSERVATION, pinned so provenance cannot quietly weaken. `by-construction` is
-    // the weakest claim available — it says only that the fixture's own project makes
-    // it valid — so a code drifting toward it is a real loss of evidence, and this
-    // fails when that happens rather than leaving it to a reader to notice.
+    // An OBSERVATION, pinned so provenance cannot quietly weaken. `by-construction` is the
+    // weakest claim available, so a code drifting toward it is a real loss of evidence.
     const oraclesByCode = Object.fromEntries(
       Object.entries(STAYS_SILENT).map(([code, fixtures]) => [
         code,
@@ -2433,13 +2097,9 @@ describe('Integration: every blocking check stays silent on input the platform a
   }
 
   it('records which fixtures actually exercise tag adjacency', () => {
-    // The same observation the emission suite pins, for the same reason: a fixture
-    // rewritten into a single tag stops testing the axis, and stating today's answer
-    // is the only way a change to that shows up.
-    // Measured, not predicted: I expected `UnknownFilter` to carry the axis and it does
-    // not. Its fixtures pair a `{% assign %}` with an `{{ output }}`, and the axis only
-    // exists between two `{% %}` tags, which is the boundary the transformation varies
-    // and the one the defect lived on.
+    // The same observation the emission suite pins, and measured rather than predicted:
+    // `UnknownFilter` does NOT carry the axis, because its fixtures pair a `{% assign %}`
+    // with an `{{ output }}` and the axis only exists between two `{% %}` tags.
     const withAxis = Object.entries(STAYS_SILENT)
       .filter(([, fixtures]) =>
         fixtures.some((fixture) => adjacencyVariants(fixture.content).length > 1),
@@ -2499,15 +2159,11 @@ properties: [unclosed
   }, 120_000);
 
   it('reports a duplicate key as a non-blocking WARNING, not as silence and not as a block', async () => {
-    // THE DISTINCTION THIS SUITE NOW HAS TO CARRY. The duplicate-key fixtures above
-    // assert `fromCheck: []` for `YAMLSyntaxError` and `blocked: false` — both still
-    // true, and neither says anything about whether some OTHER check speaks up. Once
-    // `DuplicateYAMLKey` landed, "no diagnostic at all" and "no block" stopped being the
-    // same claim, and only the second one is the promise this server makes.
-    //
-    // So the absence of a block is asserted together with the PRESENCE of the advisory.
-    // Asserting only the silence would let the check be deleted without a failure;
-    // asserting only the warning would let it drift onto the write gate.
+    // Once `DuplicateYAMLKey` landed, "no diagnostic at all" and "no block" stopped being
+    // the same claim, and only the second is the promise this server makes. So the absence
+    // of a block is asserted together with the PRESENCE of the advisory: asserting only the
+    // silence would let the check be deleted, asserting only the warning would let it drift
+    // onto the write gate.
     const observed = [];
     for (const [name, content] of [
       [
@@ -2543,32 +2199,6 @@ properties:
 
 /**
  * Every file type this server ADMITS must have at least one check that examines it.
- *
- * WHY THIS IS AN INVARIANT AND NOT A FACT. `status: 'ok'` is documented as "the file
- * WAS checked", and `must_fix_before_write: false` is only worth anything if
- * something actually looked. An evaluation found three YAML file-type families where
- * the lint ran and ZERO checks applied — the only two YAML checks returned
- * immediately on any path outside `/translations/` — so a broken model schema came
- * back `ok`. Nothing distinguished that from a file that had been examined and found
- * clean, because on the wire there is no difference.
- *
- * `YAMLSyntaxError` closed that gap, and re-measuring afterwards found no admitted
- * type left uncovered. This file exists so that stays true. The backlog already
- * contains work to ADD file types (scalar patterns, ActivityStreams), and adding one
- * without a check that reads it silently recreates the defect — in the quietest way
- * available, since the new type would simply start returning `ok` for everything.
- *
- * EXHAUSTIVE TWICE, on purpose. `Record<PlatformOSFileType, …>` makes a new enum
- * member a COMPILE error, and the runtime pin below repeats it with a readable
- * message. The compile-time half is the one that cannot be forgotten; the runtime
- * half is the one that explains itself.
- *
- * WHAT IS ASSERTED. That a deliberately broken buffer of each type produces at least
- * one diagnostic — the observable proxy for "something read this file". The exact set
- * of codes is deliberately NOT pinned here: which check objects is check-common's
- * business and will change as checks are added, whereas "somebody objected" is the
- * property this file owns. The four YAML families are the exception and are pinned
- * exactly, because which check covers them is the whole point of the fix.
  */
 
 /** A file of this type, with content something is expected to object to. */
@@ -2632,11 +2262,9 @@ const COVERAGE: Record<PlatformOSFileType, Examined | typeof NOT_ADMITTED> = {
     content: BROKEN_YAML,
   },
 
-  // Admitted later than the four above, and the reason this file is a guard rather than
-  // a record: each one arrived as a `PlatformOSFileType` with no check written for it,
-  // which is exactly the silent regression described at the top. They are covered by
-  // `YAMLSyntaxError` for the same reason the families above are — it examines any YAML
-  // source, whatever directory it sits in.
+  // Admitted later than the four above, and the reason this file is a guard rather than a
+  // record: each arrived as a `PlatformOSFileType` with no check written for it. They are
+  // covered by `YAMLSyntaxError`, which examines any YAML source whatever directory it is in.
   [PlatformOSFileType.ActivityStreamsHandler]: {
     filePath: 'app/activity_streams/handlers/h.yml',
     content: BROKEN_YAML,
@@ -2668,24 +2296,6 @@ const COVERAGE: Record<PlatformOSFileType, Examined | typeof NOT_ADMITTED> = {
 
 /**
  * Real assets, in every spelling that matters.
- *
- * WHY A LIST RATHER THAN ONE PATH. This row used to be tested with `app/assets/x.liquid`
- * alone, and that single fixture was measurably the WRONG one: at the time,
- * `isSupportedSourceFile('app/assets/x.liquid', root)` returned `true` — `getFileType`
- * said `Asset`, but a bare `.liquid` has no response format, so `sourceCodeTypeOf` fell
- * back to `html.liquid` and a parser claimed it. The gate refused the file for an
- * unrelated reason, so the test passed while asserting the opposite of what its comment
- * claimed.
- *
- * Both halves are now fixed. `platformos-common` owns the rule (`isParsedFileType`) and
- * applies it in `AppFile` and `isSupportedSourceFile` alike, so an asset is not a source
- * anywhere in the toolchain — the CLI and the language server included, not just this
- * server's gate. These spellings therefore all decline for the SAME reason rather than by
- * accident, and the bare-`.liquid` case is pinned separately below because it is the only
- * one a parser would otherwise have accepted.
- *
- * `.json` is here because a standalone `.json` is an asset on this platform — JSON
- * responses come from `.json.liquid` — so nothing parses it either.
  */
 const REAL_ASSETS = [
   'app/assets/logo.png',
@@ -2744,10 +2354,6 @@ describe('Integration: every admitted file type is examined by something', () =>
         // false block on a file the platform serves as bytes, for the syntax of a language
         // nothing there evaluates. `theme.css.liquid`, the form the platform DOES process,
         // was exempt the whole time.
-        //
-        // Kept as its own test rather than folded into the list above because it is the
-        // only asset spelling a parser accepts: revert the `Asset` branch in
-        // `fileApplicability` and this is the single row that fails.
         const result = await validate('app/assets/x.liquid', BROKEN_LIQUID);
 
         expect({
@@ -2779,11 +2385,6 @@ describe('Integration: every admitted file type is examined by something', () =>
     // the identity of the check that now covers them is the substance of the fix
     // rather than an implementation detail. If this ever reports a different code —
     // or none — the gap has reopened somewhere.
-    //
-    // EVERY spelling of every YAML type is listed, including the two fixed-path
-    // singletons, because the coverage question is per PATH and not per type: a check
-    // that reads `app/schema` and skips `app/model_schemas` leaves a hole in a type this
-    // file would otherwise call covered.
     const yamlFiles = [
       'app/schema/c.yml',
       'app/model_schemas/c.yml',
@@ -2811,27 +2412,6 @@ describe('Integration: every admitted file type is examined by something', () =>
 
 /**
  * The response bound, measured end to end on the shapes that motivated it.
- *
- * `result/response-budget.spec.ts` proves the allocator's rules over synthetic
- * results. This file answers the question that only the whole pipeline can: what does
- * the WORST LEGAL REQUEST actually return now, in bytes.
- *
- * BEFORE, measured on this build with the cap removed:
- *
- *   ```
- *     128 KiB single buffer   4 228 diagnostics    634 KiB   ~162 000 tokens
- *     266 KiB, 4-file batch   8 784 diagnostics  1 313 KiB   ~336 000 tokens
- *   ```
- *
- * Every dimension of the REQUEST was bounded and the RESPONSE was bounded by nothing,
- * at roughly six times the size of the input that produced it. One legal call could
- * return more tokens than most context windows hold — with no error, and nothing in
- * the payload saying anything unusual had happened.
- *
- * WHAT IS ASSERTED, and why it is a relationship rather than a number: the exact byte
- * count depends on message wording that check-common owns, so pinning it would make
- * this file fail on edits that change nothing about the bound. `maxResponseBytes`
- * states the arithmetic; these cases check the real payload against it.
  */
 describe('Integration: the response is bounded, and says so when it withholds', () => {
   // Named `ctx` locally, shadowing the injected-adapter one above: this group calls
@@ -2841,12 +2421,6 @@ describe('Integration: the response is bounded, and says so when it withholds', 
   /**
    * A buffer of exactly `bytes` made of one repeated offending construct, padded with
    * spaces.
-   *
-   * Both details are deliberate and both were fixture errors during round 4: a tail
-   * that cuts a tag in half raises a syntax error that short-circuits every other
-   * check and collapses the diagnostic count to one, and a buffer one byte over the
-   * cap is refused outright — which reads like a server bug rather than a bad
-   * fixture.
    */
   const brokenBuffer = (bytes: number): string => {
     const unit = "{{ 'a' | no_such_filter_xyz }}\n";
@@ -2925,9 +2499,8 @@ describe('Integration: the response is bounded, and says so when it withholds', 
   }, 120_000);
 
   it('does not touch a realistic call: no truncation field, nothing withheld', async () => {
-    // The measured common case — a small broken edit — costs a few hundred bytes and
-    // is three orders of magnitude below the cap. A bound that changed this would be
-    // solving the tail at the expense of the path taken before every write.
+    // The measured common case — a small broken edit — is two orders of magnitude below
+    // the 32 KiB diagnostic cap. A bound that changed this would be solving the tail at
     const result = (await runValidateCode(ctx(), {
       file_path: 'app/views/pages/index.liquid',
       content: `{% render 'no_such_partial' %}
@@ -2939,12 +2512,188 @@ describe('Integration: the response is bounded, and says so when it withholds', 
       blocked: result.must_fix_before_write,
       truncated: result.truncated,
       errorsReturned: result.errors.length,
-      underOneKiB: bytesOf(result) < 1024,
+      underTwoKiB: bytesOf(result) < 2048,
     }).toEqual({
       blocked: true,
       truncated: undefined,
       errorsReturned: 2,
-      underOneKiB: true,
+      underTwoKiB: true,
     });
   }, 60_000);
+});
+
+/**
+ * Enrichment sits between the lint and the answer, and it must not be able to damage
+ * either one.
+ */
+describe('validate_code: enrichment is bounded — it cannot cost findings or the gate', () => {
+  const BROKEN = 'app/views/pages/broken.liquid';
+
+  /** Adapters whose docset resolution is observable, and optionally broken. */
+  const withDocset = (
+    behaviour: { throws?: boolean } = {},
+  ): { adapters: Partial<ValidateAdapters>; calls: () => number } => {
+    let calls = 0;
+    return {
+      calls: () => calls,
+      adapters: {
+        lint: async ({ buffers }) => ({
+          diagnostics: new Map(buffers.map((b) => [b.filePath, [diagnostic('MissingPartial')]])),
+          sources: new Map(buffers.map((b) => [b.filePath, { startIndexes: [0] }])),
+          notChecked: new Map(),
+        }),
+        impact: async () => COMPUTED,
+        docset: async () => {
+          calls += 1;
+          if (behaviour.throws) throw new Error('docset unavailable');
+          return { filters: [], tags: [], objects: [] };
+        },
+      },
+    };
+  };
+
+  it('resolves the docset ONCE per request, however many files it carries', async () => {
+    // The property the batch form exists for: a fixed cost must not become a per-file
+    // cost. Counted rather than timed, so it cannot pass on a fast machine.
+    const { adapters, calls } = withDocset();
+
+    await runValidateCode(
+      ctx(),
+      {
+        files: Array.from({ length: 5 }, (_, i) => ({
+          file_path: `app/views/pages/p${i}.liquid`,
+          content: 'x',
+        })),
+      },
+      adapters,
+    );
+
+    expect(calls()).toEqual(1);
+  });
+
+  /**
+   * A request with nothing to enrich must not pay to enrich it.
+   */
+  it('does not resolve the docset when there is nothing to enrich', async () => {
+    let calls = 0;
+    const adapters: Partial<ValidateAdapters> = {
+      lint: async ({ buffers }) => ({
+        diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+        notChecked: new Map(),
+      }),
+      impact: async () => COMPUTED,
+      docset: async () => {
+        calls += 1;
+        return { filters: [], tags: [], objects: [] };
+      },
+    };
+
+    const clean = (await runValidateCode(
+      ctx(),
+      { file_path: BROKEN, content: 'x' },
+      adapters,
+    )) as ValidateCodeResult;
+    const declined = (await runValidateCode(
+      ctx(),
+      { file_path: 'README.md', content: '# hi' },
+      adapters,
+    )) as ValidateCodeResult;
+
+    // The answers are unaffected — this is about what was NOT done to produce them.
+    expect({
+      docsetResolutions: calls,
+      cleanStatus: clean.status,
+      declinedStatus: declined.status,
+    }).toEqual({ docsetResolutions: 0, cleanStatus: 'ok', declinedStatus: 'not_applicable' });
+  });
+
+  it('still returns every finding, and the same gate, when the docset fails', async () => {
+    const { adapters } = withDocset({ throws: true });
+
+    const result = (await runValidateCode(
+      ctx(),
+      { file_path: BROKEN, content: 'x' },
+      adapters,
+    )) as ValidateCodeResult;
+
+    // The finding survives, the gate is unchanged, and the diagnostic is simply
+    // un-enriched — no `see_also`. A thrown enricher must not read as a clean file.
+    expect({
+      status: result.status,
+      must_fix_before_write: result.must_fix_before_write,
+      errors: result.errors,
+    }).toEqual({
+      status: 'error',
+      must_fix_before_write: true,
+      errors: [diagnostic('MissingPartial')],
+    });
+  });
+
+  it('CONTROL: the same call enriches when the docset resolves', async () => {
+    // Without this, the test above would pass with enrichment deleted entirely.
+    const { adapters } = withDocset();
+
+    const result = (await runValidateCode(
+      ctx(),
+      { file_path: BROKEN, content: 'x' },
+      adapters,
+    )) as ValidateCodeResult;
+
+    expect(result.errors).toEqual([enriched('MissingPartial')]);
+  });
+});
+
+/**
+ * The one path a stub cannot stand in for: a REAL offense, resolved against the REAL tree
+ * the lint captured, rendered into the answer.
+ */
+describe('validate_code: a hint survives the whole path, from a real lint to the answer', () => {
+  const project = tempProject('mcp-sup-hint-e2e-');
+  const PAGE_PATH = 'app/views/pages/hint.liquid';
+
+  /** `{% for %}`'s published entry — the symbol a bad `limit:` argument is answered by. */
+  const FOR_TAG: DocsetVocabulary = {
+    filters: [],
+    tags: [{ name: 'for', description: 'Iterates over an array.' }] as DocsetVocabulary['tags'],
+    objects: [],
+  };
+
+  const validateWith = async (content: string, vocabulary: DocsetVocabulary) =>
+    (await runValidateCode(
+      project.context(),
+      { file_path: PAGE_PATH, content },
+      { docset: async () => vocabulary },
+    )) as ValidateCodeResult;
+
+  const findingFor = (result: ValidateCodeResult, check: string) =>
+    [...result.errors, ...result.warnings, ...result.infos].find((d) => d.check === check);
+
+  it('renders the published entry for the symbol the offense is about', async () => {
+    const result = await validateWith(
+      "{% for x in (1..3) limit: 'ten' %}{{ x }}{% endfor %}",
+      FOR_TAG,
+    );
+
+    expect(findingFor(result, 'ValidTagArgumentTypes')?.hint).toEqual(
+      '### for\nIterates over an array.\n\n---\n\n' +
+        '[platformOS Reference](https://documentation.platformos.com/api-reference/liquid/loops#for)',
+    );
+  });
+
+  it('CONTROL: the same finding, with the same tree, when the docset publishes nothing', async () => {
+    // Proves the hint above came from the VOCABULARY rather than from anything the lint
+    // or this test authored — and that a symbol with no entry degrades to no hint rather
+    // than to an invented one. The finding itself is unchanged either way.
+    const result = await validateWith("{% for x in (1..3) limit: 'ten' %}{{ x }}{% endfor %}", {
+      filters: [],
+      tags: [],
+      objects: [],
+    });
+
+    const finding = findingFor(result, 'ValidTagArgumentTypes');
+    expect({ found: finding !== undefined, hint: finding?.hint }).toEqual({
+      found: true,
+      hint: undefined,
+    });
+  });
 });

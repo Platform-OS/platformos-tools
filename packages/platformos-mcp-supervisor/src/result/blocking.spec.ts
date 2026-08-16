@@ -1,16 +1,14 @@
+import { allChecks } from '@platformos/platformos-check-common';
 import { describe, expect, it } from 'vitest';
 
 import { BLOCKING_CHECKS, blocksWrite } from './blocking.js';
 import type { ValidateCodeDiagnostic } from './types.js';
 
 /**
- * TASK-19. `must_fix_before_write` was `errors.length > 0`, inheriting check-common
- * severities that are calibrated for a linter in an editor rather than for a write
- * gate. The reported symptom: passing an argument a partial does not declare is
- * `Severity.ERROR`, but platformOS ignores it and the page renders fine — so the
- * gate told an agent it must fix dead code before writing.
- *
- * The gate now answers only "will this file be broken if I write it?".
+ * `must_fix_before_write` is not `errors.length > 0`: check-common severities are
+ * calibrated for a linter in an editor rather than for a write gate, so passing an argument
+ * a partial does not declare is `Severity.ERROR` while platformOS ignores it and the page
+ * renders fine. The gate answers only "will this file be broken if I write it?".
  */
 const at = (check: string, severity: ValidateCodeDiagnostic['severity'] = 'error') => ({
   check,
@@ -57,9 +55,8 @@ describe('Unit: blocksWrite', () => {
   });
 
   it('treats an UNRECOGNIZED check code as non-blocking', () => {
-    // Load-bearing. check-common gains checks over time and community extensions
-    // contribute their own; a gate that blocked on codes it had never heard of
-    // would silently over-block every time the engine grew.
+    // Load-bearing: check-common gains checks over time, and a gate that blocked on codes
+    // it had never heard of would silently over-block every time the engine grew.
     expect(blocksWrite([at('SomeBrandNewCheck')])).toBe(false);
     expect(blocksWrite([at('community-extension:Whatever')])).toBe(false);
   });
@@ -118,13 +115,10 @@ describe('Unit: blocksWrite', () => {
   });
 
   it('does not block the two codes NO accepted buffer can ever produce', () => {
-    // Removed on reachability, not on severity — both are `SourceCodeType.JSON`
-    // checks, and this server never routes a JSON-typed file to anything. They are
-    // pinned here rather than merely deleted because they READ as obviously
-    // belonging: "the file does not parse" is the strongest membership argument in
-    // the file, and it was true of the checks and irrelevant to this server.
-    // the "every blocking check can actually block" group in
-    // `transport/validate-code.spec.ts` holds the behavioural proof.
+    // Removed on reachability, not on severity — both are `SourceCodeType.JSON` checks, and
+    // this server never routes a JSON-typed file to anything. Pinned rather than merely
+    // deleted because they READ as obviously belonging; the "every blocking check can
+    // actually block" group in `transport/validate-code.spec.ts` holds the behavioural proof.
     expect([BLOCKING_CHECKS.has('ValidJSON'), BLOCKING_CHECKS.has('JSONSyntaxError')]).toEqual([
       false,
       false,
@@ -132,15 +126,9 @@ describe('Unit: blocksWrite', () => {
   });
 
   /**
-   * TASK-19.1. Three entries were measured against a live instance and found wrong.
-   * These pin the corrections individually, so a future edit that "restores" one has
-   * to argue with the evidence rather than silently reverting it.
-   *
-   * `MissingAsset`: `{{ 'no_such.css' | asset_url }}` renders, page HTTP 200, deploy
-   * accepted — `asset_url` is string construction and never resolves the asset.
-   * `ReservedVariableName`: `{% assign blank = 'oops' %}` renders `[]`, page HTTP 200.
-   * `JsonLiteralQuoteStyle`: `{% assign o = {'k': 'v'} %}` raises `Invalid JSON in
-   * assign` AND is rejected by `--dry-run`, failing the whole changeset.
+   * Three entries were measured against a live instance and found wrong. These pin the
+   * corrections individually, so a future edit that "restores" one has to argue with the
+   * evidence rather than silently reverting it.
    */
   it('does not block the two findings measured to render a working page', () => {
     expect(BLOCKING_CHECKS.has('MissingAsset')).toBe(false);
@@ -154,17 +142,10 @@ describe('Unit: blocksWrite', () => {
   });
 
   /**
-   * TASK-19.1 AC#5. `InvalidWriteTarget` used to be justified only by a shared
-   * "Runtime errors on execution" comment — the same comment that measurement
-   * disproved for `ReservedVariableName`. It was then probed on its own: `hash_assign`
-   * against a number, string, boolean or range each raises `HashAssignTagError`, while
-   * the object form it permits renders HTTP 200. So it stays, on its own evidence
-   * rather than a neighbour's.
-   *
-   * It used to over-report on filter-produced arrays, which was a precision bug in
-   * the check rather than grounds to de-block — de-blocking would have approved the
-   * number, string and boolean cases that genuinely raise. Fixed in TASK-27, so the
-   * member no longer carries a known false block.
+   * `InvalidWriteTarget` stays on its OWN evidence rather than a neighbour's shared
+   * "runtime errors" justification, which measurement disproved for `ReservedVariableName`:
+   * `hash_assign` against a number, string, boolean or range each raises
+   * `HashAssignTagError`, while the object form it permits renders HTTP 200.
    */
   it('blocks the hash_assign target error, on its own measured evidence', () => {
     expect(BLOCKING_CHECKS.has('InvalidWriteTarget')).toBe(true);
@@ -183,16 +164,10 @@ describe('Unit: blocksWrite', () => {
   });
 
   /**
-   * `PartialCallArguments` reports two different things under ONE code: a dead
-   * argument (harmless) and a missing required one (real). There is no structured
-   * discriminator on the offense and non-goal #2 forbids regex over messages, so it
-   * cannot be split here — it is non-blocking wholesale.
-   *
-   * That is only safe because the blocking half is covered independently, which was
-   * verified against the real engine: a partial WITH a `{% doc %}` block also raises
-   * `MissingRenderPartialArguments`. What stays unblocked is a DOC-LESS partial
-   * whose required params are INFERRED from usage — deliberately, because blocking a
-   * write on a heuristic is the false block this task removes.
+   * `PartialCallArguments` reports two different things under ONE code: a dead argument
+   * (harmless) and a missing required one (real). There is no structured discriminator on
+   * the offense and non-goal #2 forbids regex over messages, so it is non-blocking
+   * wholesale.
    */
   it('still blocks a missing required arg via the doc-based check', () => {
     expect(blocksWrite([at('MissingRenderPartialArguments'), at('PartialCallArguments')])).toBe(
@@ -201,9 +176,31 @@ describe('Unit: blocksWrite', () => {
   });
 
   it('does not block a doc-less inferred requirement (documented trade-off)', () => {
-    // Only PartialCallArguments fires for a doc-less partial — verified against the
-    // real engine. An inferred requirement is a heuristic, and the failure mode is a
-    // nil value rather than a crash.
+    // Only PartialCallArguments fires for a doc-less partial. An inferred requirement is a
+    // heuristic, and the failure mode is a nil value rather than a crash.
     expect(blocksWrite([at('PartialCallArguments')])).toBe(false);
+  });
+});
+
+/**
+ * The gate is POLICY, and policy about check codes goes stale silently.
+ */
+describe('Unit: BLOCKING_CHECKS is tied to the check registry', () => {
+  const registered = new Set(allChecks.map((check) => check.meta.code));
+
+  it('names only checks that exist in check-common', () => {
+    expect([...BLOCKING_CHECKS].filter((code) => !registered.has(code)).sort()).toEqual([]);
+  });
+
+  /**
+   * The CONVERSE is deliberately not asserted, and this test exists to say so rather than
+   * leave the absence looking like an oversight.
+   */
+  it('does not require every registered check to be classified: silence is the default', () => {
+    const unclassified = [...registered].filter((code) => !BLOCKING_CHECKS.has(code));
+
+    // Most checks are not blocking, and that is the intended state, not a gap.
+    expect(unclassified.length > 0).toBe(true);
+    expect(blocksWrite([at(unclassified[0])])).toBe(false);
   });
 });

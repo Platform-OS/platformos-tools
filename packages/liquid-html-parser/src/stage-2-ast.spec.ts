@@ -985,16 +985,6 @@ describe('Unit: Stage 2 (AST)', () => {
        * `InvalidTagSyntax` reported it, so two of the platform's own published `tags.json` examples
        * were flagged as syntax errors and — `LiquidHTMLSyntaxError` being blocking — the MCP write
        * gate refused any file using the idiom.
-       *
-       * MEASURED, on a live instance via `pos-cli exec liquid`. The discriminator is which error the
-       * runtime returns: a genuine parse failure says "Invalid syntax for function tag" (control:
-       * `{% function 'no-target' %}`), while a successful parse that cannot resolve the partial says
-       * "can't find partial". All three forms below returned the latter, so the runtime parses them.
-       *
-       * `hash_assign` is the control in the other direction and deliberately absent: it was measured
-       * to REJECT the append form — "Syntax Error in 'hash_assign' - Valid syntax:
-       * hash_assign hash[key] = value" — so `writeOperator` is shared with `assign` and `function`
-       * only. `stage-1-cst.spec.ts` pins that it still falls back to a string.
        */
       it('should parse the function append operator, including onto a lookup path', () => {
         // The operator is asserted as part of a WHOLE projection: an operator silently defaulting to
@@ -1630,17 +1620,9 @@ describe('Unit: Stage 2 (AST)', () => {
       });
 
       it('should parse try_rc, the alias, with the same branch structure as try', () => {
-        // TASK-56. The platform registers `try_rc` against the same handler as `try`, and
+        // The platform registers `try_rc` against the same handler as `try`, and
         // both were absent from our vocabulary, so `{% try_rc %}` and `{% endtry_rc %}` were
         // each reported as unknown tags — a BLOCK on code the platform runs.
-        //
-        // The close-tag spelling is MEASURED, not derived from the canonical name:
-        // `{% try_rc %}…{% endtry %}` is rejected by the runtime with "'endtry' is not a
-        // valid delimiter for try_rc tags. use endtry_rc".
-        //
-        // Asserted as EQUIVALENCE to `try` rather than against a hand-written shape. That is
-        // the actual contract — it is the same tag under a second name — and it means a
-        // future change to how branched tags are built cannot leave the alias behind.
         for (const { toAST, expectPath, expectPosition } of testCases) {
           const canonical = toAST(`{% try %}content{% catch err %}{% log err %}{% endtry %}`);
           ast = toAST(`{% try_rc %}content{% catch err %}{% log err %}{% endtry_rc %}`);

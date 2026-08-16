@@ -12,23 +12,6 @@ const PINNED = new Date(1700000000000);
 
 /**
  * Block until the filesystem's timestamp clock has ticked past `since`.
- *
- * WHY THIS IS NEEDED, and why it is not a workaround for a broken assertion.
- * `fingerprintOf` discriminates via `ctimeMs`, which is only as fine as the filesystem
- * clock. Measured on ext4: two back-to-back rewrites produce an IDENTICAL `ctimeMs` ~69%
- * of the time, smallest non-zero delta ~1 ms, and `{ bigint: true }` nanosecond stats show
- * the same floor because the kernel coarsens the stored value.
- *
- * So a test that rewrites a file microseconds after reading its fingerprint is asserting
- * something NO stat-based fingerprint can deliver — it fails most of the time against a
- * perfectly correct implementation. That is noise, and noise is worse than no test.
- *
- * Separating the two changes into different ticks removes that confound and leaves the
- * assertion the test actually exists for. The sub-tick blindness is a real bound and is
- * pinned separately below rather than hidden here.
- *
- * Polls rather than sleeping a fixed amount, so it holds on filesystems with much coarser
- * granularity (1 s on some NFS mounts, 2 s on FAT/exFAT).
  */
 async function awaitFilesystemTick(directory: string, since: number): Promise<void> {
   const probe = path.join(directory, '.tick-probe');

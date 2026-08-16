@@ -16,16 +16,6 @@ const MARKER = '‸';
 
 /**
  * The type of `name` where the marker sits, or at the end of the file when there is none.
- *
- * The marker's index in the marked source IS its index in the stripped one, since everything before
- * it is untouched — so the query position needs no adjustment.
- *
- * PUT THE MARKER WHERE A READ CAN ACTUALLY BE. A consumer queries a `VariableLookup`'s own
- * `position.start`, and those offsets are a strict subset of the ones a marker can name: a branch's
- * end, a loop body's end and a `forget`'s offset are all places where a range opens and another
- * closes, and a marker placed on one asks a question no lookup can ask. Answering it either way
- * proves nothing, so the cases below keep the marker inside the region they are about — which is
- * also how the four checks read the table.
  */
 const typeOf = async (
   name: string,

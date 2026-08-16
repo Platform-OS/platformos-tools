@@ -162,7 +162,7 @@ export const InvalidWriteTarget: LiquidCheckDefinition = {
       description:
         "Reports a write through a subscript (assign, hash_assign, function) against a target the runtime rejects: a value that is neither a Hash nor an Array, or an Array subscripted with a string key instead of a numeric index. Also reports '<<' against a target that is not an Array.",
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/invalid-write-target',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

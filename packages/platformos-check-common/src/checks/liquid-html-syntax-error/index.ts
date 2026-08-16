@@ -43,6 +43,7 @@ export const LiquidHTMLSyntaxError: LiquidCheckDefinition = {
     name: 'Prevent LiquidHTML Syntax Errors',
     docs: {
       description: 'This check exists to inform the user of Liquid HTML syntax errors.',
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/liquid-html-syntax-error',
       recommended: true,
     },
     type: SourceCodeType.LiquidHtml,

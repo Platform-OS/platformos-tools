@@ -22,7 +22,7 @@ export const ValidFrontmatter: LiquidCheckDefinition = {
       description:
         'Validates YAML frontmatter properties (required fields, allowed values, deprecated keys) for known platformOS file types.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/valid-frontmatter',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.WARNING,

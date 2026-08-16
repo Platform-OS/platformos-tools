@@ -20,33 +20,9 @@ export interface RequiredDependencies {
   /**
    * loadConfig(uri)
    *
-   * In local environments, it's possible for one Language Server to deal
-   * with a workspace that contains many different configurations. In the
-   * browser, it isn't.
-   *
-   * loadConfig is the runtime-agnostic solution.
-   *
-   * @example
-   *
-   * Here's an example VS Code workspace a developer could run
-   * ```
-   * my-app/
-   *   .pos
-   *   app/
-   *     views/
-   *       layouts/
-   *       pages/
-   *       partials/
-   *     lib/
-   *     assets/
-   * another-app/
-   *   .pos
-   *   app/
-   *     views/
-   *       pages/
-   * ```
-   *
-   * In this situation, we have 2 different "roots."
+   * In local environments one Language Server may serve a workspace containing several
+   * projects, each with its own root (`my-app/.pos`, `another-app/.pos`); in the browser it
+   * cannot. This is the runtime-agnostic way to ask which config governs a file.
    *
    * @param uri - a file path
    * @returns {Promise<Config>}

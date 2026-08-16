@@ -5,48 +5,33 @@ import { YAMLConvertError } from '../../yaml/parse';
 /**
  * Report YAML that does not parse.
  *
- * WHY THIS CHECK EXISTS. Every other source type this engine loads already had one
- * — `LiquidHTMLSyntaxError` for Liquid, `JSONSyntaxError` / `ValidJSON` for JSON —
- * and YAML did not. The parse failure was computed and stored on `file.ast` by
- * `toYAMLAST`, and then nothing ever read it. The only two YAML checks
- * (`MatchingTranslations`, `ValidHTMLTranslation`) are translation CONTENT checks,
- * and both bail on an unparseable document, so a malformed `.yml` produced no
- * diagnostic at all.
+ * WHY THIS CHECK EXISTS. Every other source type this engine loads already had one, and YAML
+ * did not: the parse failure was computed and stored on `file.ast` by `toYAMLAST`, and then
+ * nothing ever read it. The only two YAML checks are translation CONTENT checks and both bail
+ * on an unparseable document, so a malformed `.yml` produced no diagnostic at all.
  *
- * That is the expensive kind of silence. Measured against a live instance, every
- * one of the four YAML file types the linter admits — model / custom model types,
- * transactable types, instance profile types and translations — returned a clean
- * result for genuinely invalid YAML, while `pos-cli deploy --dry-run` REJECTED the
- * same file. A converter rejection fails the WHOLE changeset, not just the file
- * that caused it, so an agent told "nothing to fix" here takes every other file in
- * the deploy down with it.
+ * That is the expensive kind of silence. Measured against a live instance, every one of the
+ * four admitted YAML file types returned a clean result for genuinely invalid YAML while
+ * `pos-cli deploy --dry-run` REJECTED the same file — and a converter rejection fails the WHOLE
+ * changeset.
  *
- * SYNTAX ONLY, DELIBERATELY. Semantic defects were probed separately against the
- * converter and it accepts them: an unknown property `type:`, and duplicate
- * property names, both deploy fine. So the entire cost of the gap is parseability,
- * and a schema model would be work with no measured payoff. If that changes, it is
- * a different check — this one answers "does this file parse?" and nothing else.
+ * SYNTAX ONLY, DELIBERATELY. Semantic defects were probed separately and the converter accepts
+ * them: an unknown property `type:`, and duplicate property names, both deploy fine. A schema
+ * model would be work with no measured payoff, and would be a different check.
  *
- * THAT IS EXACTLY WHAT HAPPENED WITH DUPLICATE KEYS, and the split held. A repeated
- * key still deploys, so it is still not a syntax error and still not reported here —
- * but the platform keeps the LAST value, so an earlier one is silently discarded.
- * `DuplicateYAMLKey` reports that, as a WARNING and outside `BLOCKING_CHECKS`, which
- * is what keeps a semantic finding off the write gate this check sits on.
+ * DUPLICATE KEYS ARE THE WORKED EXAMPLE of that split. A repeated key still deploys, so it is
+ * not reported here — but the platform keeps the LAST value, so an earlier one is silently
+ * discarded, and `DuplicateYAMLKey` reports that as a WARNING outside `BLOCKING_CHECKS`.
  *
- * THAT PARAGRAPH IS ENFORCED, not merely asserted — see `index.spec.ts`. It
- * was true and untested for one release, during which the `yaml` package's
- * `uniqueKeys` default quietly turned a duplicated name into a hard refusal to write,
- * with this comment and the server's agent-facing instructions both still promising
- * the opposite. A claim about what a check does NOT report needs a test exactly as
- * much as a claim about what it does.
+ * THAT PARAGRAPH IS ENFORCED, not merely asserted — see `index.spec.ts`. It was true and
+ * untested for one release, during which the `yaml` package's `uniqueKeys` default quietly
+ * turned a duplicated name into a hard refusal to write. A claim about what a check does NOT
+ * report needs a test exactly as much as a claim about what it does.
  *
- * REPORTS EVERY FAILURE, not just the first, matching `JSONSyntaxError`. The `yaml`
- * parser recovers and keeps going, so a document can carry several independent
- * problems. Measured on realistic malformations (bad indent under a sequence item,
- * unclosed flow sequence, tab indentation, unterminated quote, misaligned sequence)
- * the count is exactly one each; the multi-error case needs deliberately mangled
- * input. Truncating to the first would hide genuinely separate errors to guard
- * against a volume that does not occur.
+ * REPORTS EVERY FAILURE, not just the first, matching `JSONSyntaxError`: the `yaml` parser
+ * recovers and keeps going, so a document can carry several independent problems. Measured on
+ * realistic malformations the count is exactly one each, so truncating to the first would hide
+ * genuinely separate errors to guard against a volume that does not occur.
  */
 export const YAMLSyntaxError: YAMLCheckDefinition = {
   meta: {

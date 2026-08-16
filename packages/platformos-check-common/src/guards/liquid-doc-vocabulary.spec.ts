@@ -6,34 +6,29 @@ import { describe, expect, it } from 'vitest';
 const packagesDir = join(__dirname, '..', '..', '..');
 
 /**
- * The `{% doc %}` vocabulary is published by the platform, and this fails the build on a second copy.
+ * The `{% doc %}` vocabulary is published by the platform, and this fails the build on a second
+ * copy.
  *
- * WHY A TEST AND NOT A CONVENTION. There were three copies before this: a list of annotation names in a
- * check package, the prose and worked examples the editor displayed in the language server, and a set of
- * five declarable types where the platform publishes seven. None of them looked wrong. Each was somebody
- * writing down what they knew, in the package that needed it, and the drift only became visible when
- * someone compared them — the grammar accepted an annotation the other two had never heard of, and the
- * editor's own example named a Shopify object as the type of a platformOS parameter.
+ * A TEST AND NOT A CONVENTION because there were three copies before it — a list of annotation
+ * names in a check package, the prose the editor displayed, and a set of five declarable types
+ * where the platform publishes seven — and none of them looked wrong. The drift only became
+ * visible when someone compared them: the grammar accepted an annotation the other two had
+ * never heard of, and the editor's own example named a Shopify object.
  *
  * TWO RULES, because the vocabulary has two halves and they fail differently:
  *
- * 1. The ANNOTATION NAMES may be written down only where a parse or a print needs them. Those places
- *    cannot ask a docset — a parse is synchronous, and the printer regenerates source from an AST — and
- *    they are listed below. Anywhere else, a list of annotation names is a list that can disagree with
- *    what the platform publishes, and the editor's completions came from exactly such a list.
- * 2. The DECLARABLE TYPES cannot be policed by name at all: `string`, `number` and `object` are also
- *    JSON Schema's words, the shape analyzer's words, frontmatter's words and the language server's own
- *    type names, so scanning for them reports every neighbouring vocabulary. What is checkable is
- *    STRUCTURAL, and it is the thing that actually went wrong: `parseParamType` decides whether an
- *    author's `@param {…}` names a valid type, and its set must come from the published document —
- *    `getValidParamTypes`, or the derived `DECLARABLE_TYPES` for the narrower question of what this
- *    monorepo can infer. A hand-built set passed to it is the old bug with a new spelling.
+ * 1. The ANNOTATION NAMES may be written down only where a parse or a print needs them — those
+ *    places cannot ask a docset, and they are listed below. Anywhere else, a list of annotation
+ *    names is a list that can disagree with what the platform publishes.
+ * 2. The DECLARABLE TYPES cannot be policed by name at all: `string`, `number` and `object` are
+ *    also JSON Schema's words, the shape analyzer's and frontmatter's. What is checkable is
+ *    STRUCTURAL: `parseParamType` decides whether an author's `@param {…}` names a valid type,
+ *    and its set must come from the published document.
  *
  * WHAT IS NOT A COPY: behaviour keyed by a name is not a claim about what exists.
- * `getDefaultValueForType` says a `number` completes to `0` and everything else to nothing;
- * `isTypeCompatible` says a `boolean` accepts anything. A type the platform adds tomorrow falls through
- * both. The patterns below look for COLLECTIONS — an array, a `Set`, an enum, a union, a table keyed by
- * quoted names — which is what all three of the real copies were.
+ * `getDefaultValueForType` and `isTypeCompatible` both fall through for a type the platform
+ * adds tomorrow. The patterns below look for COLLECTIONS — an array, a `Set`, an enum, a union,
+ * a table keyed by quoted names — which is what all three real copies were.
  */
 
 /** The annotations, as the docset publishes them. The subject of the scan, not a source of truth. */
@@ -47,7 +42,7 @@ const ANNOTATIONS = ['param', 'example', 'description'];
  * the list cannot rot into a set of paths that match nothing.
  */
 const PARSE_TIME_OWNERS = new Set([
-  // The list itself, and the one copy AC#5 of TASK-84 preserves: the boundary between one annotation and
+  // The list itself, and the one copy that is preserved: the boundary between one annotation and
   // the free-form text of the last one is decided while parsing. The same exemption `NamedTags` has.
   'liquid-html-parser/grammar/liquid-html.ohm',
   // The CST and AST node kinds the grammar above produces. They must change WITH the grammar, and a

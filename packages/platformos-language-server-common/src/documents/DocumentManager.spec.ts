@@ -334,14 +334,6 @@ describe('Module: DocumentManager', () => {
 /**
  * `DocumentManager` is the language server's view of the SAME `App` the linter and
  * the graph build hold — not a second, LSP-shaped store of source codes beside it.
- *
- * What these pin:
- *
- * - opening a workspace parses nothing (the parse is `AppFile`'s, on first `ast`), so a
- *   file nobody looks at costs a read and nothing else;
- * - `set` asks "is this part of an app" WITH a root, the way every other consumer does;
- * - the graph and the checks read the same file objects, so each file is parsed once for
- *   both rather than once each.
  */
 describe('Module: DocumentManager as an App adapter', () => {
   const root = 'mock-fs:';
@@ -481,10 +473,6 @@ describe('Module: DocumentManager as an App adapter', () => {
      * be `''`, so a document exists here exactly when its contents do — the same set
      * the `Map<uri, SourceCode>` this replaced held, since it only got an entry once
      * the read returned.
-     *
-     * Getting this wrong is silent and expensive: `runChecks` resolves a partial's
-     * `{% doc %}` through `get()`, so a file that answered before it was read would
-     * cost every cross-file diagnostic that depends on it.
      */
     it('does not hand out a file whose contents have not been read', () => {
       const unread = 'mock-fs:/app/views/partials/added.liquid';
@@ -546,12 +534,6 @@ describe('Module: DocumentManager as an App adapter', () => {
 
   /**
    * The question `set` could not ask before this class held an `App`.
-   *
-   * A platformOS file is one whose position RELATIVE TO THE PROJECT ROOT matches the
-   * directory structure — that is what `getFileType`, `AppGraph` and every check ask.
-   * `set` had no root, so it asked `sourceCodeTypeOf` instead ("can we parse it"),
-   * and the app-membership question was deferred to `app(root)`. Now the app the URI
-   * falls under supplies the root and both are answered in one place.
    */
   describe('classification with a root', () => {
     const script = 'mock-fs:/scripts/build.liquid';
@@ -733,11 +715,6 @@ const packageRoot = join(__dirname, '..', '..');
 
 /**
  * Building the language server's view of a file must not read the file's AST.
- *
- * `{ ...sourceCode, textDocument }` did exactly that: spreading evaluates getters,
- * so it parsed every file in the workspace to copy the result. That is invisible
- * while sources are eager, and it silently destroys the lazy `AppFile` the rest of
- * this epic is built on — which is why it is pinned here rather than trusted.
  */
 describe('language server file composition', () => {
   it('does not read ast when attaching textDocument to a lazily-parsed file', async () => {

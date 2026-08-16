@@ -6,13 +6,6 @@ import { childUri, fsPath, join, normalize, relative, toUri } from './path';
 
 /**
  * These pin the conversion that used to be hand-rolled at every call site.
- *
- * The DRIVE-COLON case runs meaningfully on any host: `vscode-uri` decides to
- * percent-encode from the path's shape, not from `process.platform`, so the exact
- * divergence that broke Windows CI is reproducible here. That matters — a guard that
- * only ran on Windows would not have caught this before it shipped.
- *
- * Separator handling is genuinely host-dependent and is asserted separately below.
  */
 describe('Unit: toUri', () => {
   it('does NOT percent-encode a Windows drive colon, unlike URI.file().toString()', () => {

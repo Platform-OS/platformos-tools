@@ -9,11 +9,6 @@ import { isError } from './utils';
  * can express: the language server's `DocumentManager` holds every buffer the editor
  * opens, `.json` included, so the JSON language service can answer hover and completion
  * for one. `App` still contains no JSON file and no check ever sees one.
- *
- * Two halves, and both need pinning, because a fallback that produces the right `type`
- * with an unparsed `ast` is exactly as broken as no fallback at all — and until this
- * file existed the only thing standing between that and a green suite was one
- * incidental assertion in an LSP definition-provider spec.
  */
 describe('Unit: toSourceCode — the editor-buffer JSON fallback', () => {
   const JSON_URI = 'file:///project/tsconfig.json';

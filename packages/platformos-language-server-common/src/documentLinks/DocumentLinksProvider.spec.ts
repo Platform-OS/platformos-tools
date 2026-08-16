@@ -186,14 +186,6 @@ describe('DocumentLinksProvider', () => {
   });
   /**
    * One malformed translation file must not cost the file every link it has.
-   *
-   * `{{ '…' | t }}` resolves through `TranslationProvider.findTranslationFile`, which
-   * parses the project's translation YAML. When that threw, the whole visit was one
-   * promise, so the rejection took out `textDocument/documentLink` for the entire file:
-   * the `render` link beside it disappeared too, even though it had already resolved.
-   * Hover and go-to-definition are separate requests and kept working, so it read as
-   * "links stopped being created" rather than as an error, which is what made it hard to
-   * place.
    */
   describe('when a translation file does not parse', () => {
     it('still returns the links that do resolve', async () => {

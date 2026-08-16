@@ -1,133 +1,49 @@
 /**
- * What a lint COSTS — and therefore how much work one request may admit, and how
- * long the server waits for it.
+ * What a lint COSTS — and therefore how much work one request may admit, and how long the
+ * server waits for it.
  *
- * WHY THIS MODULE EXISTS. Three numbers used to be chosen independently:
+ * The byte caps and the deadline are ONE relationship, written here as arithmetic and
+ * derived rather than chosen. Adding per-node work moves {@link LINT_MS_PER_KIB} and every
+ * dependent bound follows; `cost-model.spec.ts` fails if any of them stops fitting. A batch
+ * admitted past its deadline returns `timed_out` for EVERY file in the request, so the two
+ * drifting apart fails quietly and in the expensive direction.
  *
- *   MAX_BUFFER_BYTES  128 KiB   measured against the lint
- *   MAX_BATCH_BYTES   4 x that  a round multiple, chosen for tidiness
- *   LINT_DEADLINE_MS  60 s      measured against ONE worst-case buffer
+ * THE DEADLINE SCALES WITH THE REQUEST because a fixed one and a meaningful batch cap
+ * cannot both exist: hold it at 60 s and the largest admissible batch is ~133 KiB, smaller
+ * than a single legal buffer. Scaling costs little — this deadline is a backstop for ASYNC
+ * stalls (see `deadline.ts`) rather than a CPU bound.
  *
- * Only the first and third were ever related to each other, and nothing recorded
- * that relationship anywhere a reader could check it. So when `FilterArity` was
- * added — a check that walks every `LiquidFilter`, moving throughput from ~55 to
- * ~75 ms/KiB — the per-buffer bound stayed inside the deadline and the BATCH bound
- * silently crossed it. Measured: the worst legal batch went from 27.9 s to 37.8 s
- * idle, which at the load factor below is 60-113 s against a 60 s deadline.
- *
- * That failure is quiet and fails in the expensive direction. A batch past the
- * deadline returns `not_applicable: timed_out` for EVERY file in the request, so a
- * large-but-legal changeset gets no validation at all, exactly when being wrong
- * costs the most. Nothing in the type system, and nothing in a test, connected the
- * cap to the deadline it had to fit inside.
- *
- * So the relationship is written down here, once, as arithmetic — and both bounds
- * are derived from it rather than chosen. Adding per-node work now moves
- * {@link LINT_MS_PER_KIB} and every dependent bound follows; the accompanying spec
- * fails if any of them stops fitting.
- *
- * WHY THE DEADLINE SCALES WITH THE REQUEST, rather than staying a constant. It is
- * forced, not preferred. Hold the deadline at 60 s and invert the arithmetic below
- * and the largest admissible batch is ~133 KiB — SMALLER than one legal buffer, so
- * a one-file batch at `MAX_BUFFER_BYTES` would be refused for being too large. A
- * fixed deadline and a meaningful batch cap cannot both exist. Scaling also costs
- * almost nothing: this deadline is a backstop for ASYNC stalls (see `deadline.ts`
- * — it cannot fire during a synchronous parse at all), and a request that admitted
- * more work has to be allowed to take longer for the same reason it was admitted.
- *
- * Every number here is MEASURED, and the measurement is named. A plausible constant
- * is how this file rots back into three unrelated magic numbers.
+ * Every number here is MEASURED, and the measurement is named. A plausible constant is how
+ * this file rots back into unrelated magic numbers.
  */
 
 /**
  * Wall-clock cost of linting one KiB of buffer, on an idle machine, warm cache.
  *
  * Measured end to end (`runValidateCode`, the whole request path), not against the parse
- * alone — every enabled check walks the AST after it, and every offense is then mapped to
- * a line/character position.
+ * alone. Reproduce with `scripts/measure-lint-cost.mjs`, which builds a synthetic project
+ * and prints the rate for a single buffer and for batch shapes; the slowest observed was
+ * ~51 ms/KiB, on CLEAN markup rather than the diagnostic-dense shape.
  *
- * RE-MEASURED 2026-08-02, and the numbers are reproducible rather than quoted:
- * `scripts/measure-lint-cost.mjs` builds the project, runs the shapes and prints this
- * table. Machine: Intel i7-6820HQ @ 2.70GHz, 8 threads, 31 GB, node v25.6.0, idle,
- * against the script's synthetic 40-partial project.
- *
- * WORST of three separate idle runs, each itself a best-of-three — not the best run.
- * Run-to-run spread was about 10% on the same machine (clean single came in at 44.2, 48.4
- * and 50.8 ms/KiB), and taking the favourable one would quietly restate a ceiling as an
- * average:
- *
- *   ```
- *     128 KiB single, clean markup   ->  6.5 s   (50.8 ms/KiB)   <- slowest
- *     128 KiB single, 4 228 offenses ->  4.6 s   (35.6 ms/KiB)
- *     266 KiB batch, 4 files         -> 10.7 s   (40.1 ms/KiB)
- *     266 KiB batch, 50 files        ->  9.6 s   (36.2 ms/KiB)
- *   ```
- *
- * CLEAN MARKUP IS THE SLOWEST SHAPE, which is not what anyone expects and is the reason
- * the script measures both. Realistic markup — `{% doc %}`, loops, renders, filter chains
- * — costs more per byte than markup that is one broken filter per line, because parse and
- * check work dominates and a repeated one-line construct is cheap to walk. Sizing this
- * constant on the diagnostic-dense shape alone would under-count the COMMON case by a
- * third.
- *
- * DO NOT LOWER THIS TO MATCH A FASTER MEASUREMENT — and the 2026-08-02 re-measurement is
- * exactly that situation, so it did not move. 50.8 against a modelled 75 is a 32% margin,
- * and the rule holds for the same reasons it always did: the rate varies by several times
- * with the project and the markup and is deliberately set at the SLOWEST observed value.
- * A run against a 21-file project came in at 12-17 ms/KiB across every legal batch shape;
- * 127 KiB of one repeated character validates roughly 3x faster than real markup; a
- * project with more files to resolve references against is slower again. One favourable
- * machine on one project composition is not a reason to shrink every derived bound.
- * Being wrong FAST costs a longer wait before a stall is declared; being wrong SLOW admits
- * a request that cannot finish, which returns `timed_out` for every file in it.
- *
- * ON THE ROUND-4 "REGRESSION", which is why this was re-measured. An external evaluation
- * reported throughput falling to 68.5 ms/KiB and named two candidate causes without
- * isolating either. THE CHANGE WAS ENVIRONMENTAL. The commit BEFORE the position-mapping
- * fix, measured today with the same script on this machine, runs at 45.4 ms/KiB — a 1.5x
- * difference from that report with no code change at all between the two numbers, which
- * matches the report's own caveat that its runs were uncontrolled.
- *
- * The position fix is real but NARROW, measured as a paired A/B across the commit
- * (base, HEAD, base again — the two base runs agreed to within 1%):
- *
- *   ```
- *     dense single buffer   42.1 -> 29.6 ms/KiB   (-29%, -1.58 s)
- *     clean single buffer   45.4 -> 44.2          (noise)
- *     266 KiB batch, 4      36.2 -> 37.1          (noise)
- *     266 KiB batch, 50     26.8 -> 26.8          (unchanged)
- *   ```
- *
- * It buys nothing on either BATCH shape — and those are what {@link MAX_BATCH_BYTES} is
- * derived from, so the cap's margin was never the thing that improved.
- *
- * WHICH CHECK IS EXPENSIVE IS STILL UNKNOWN, and is recorded as unknown rather than
- * guessed. Per-check attribution by disabling one check at a time was attempted and
- * abandoned: the measurement noise on this workload is hundreds of milliseconds against
- * per-check effects of tens, demonstrated by JSON- and YAML-typed checks — which cannot
- * touch a Liquid buffer — being credited with real costs. The reasoning is kept in
- * `scripts/measure-lint-cost.mjs` so the same dead end is not walked twice. Answering it
- * needs per-visitor instrumentation, not subtraction of two noisy totals.
+ * DO NOT LOWER THIS TO MATCH A FASTER MEASUREMENT. The rate varies by several times with
+ * the project and the markup, so the constant is deliberately set above the slowest
+ * observed value. Being wrong FAST costs a longer wait before a stall is declared; being
+ * wrong SLOW admits a request that cannot finish and returns `timed_out` for every file.
  */
 export const LINT_MS_PER_KIB = 75;
 
 /**
  * How much slower the same lint runs on a contended machine than on an idle one.
  *
- * Measured at ~2.3x (128 KiB: ~10 s idle, ~23 s under load). Held at 3 because it
- * is an upper bound on someone else's machine, which is not ours to observe, and
- * because being wrong low here produces a false `timed_out` — a silent no-answer —
- * while being wrong high costs only a longer wait before declaring a stall.
+ * Measured at ~2.3x (128 KiB: ~10 s idle, ~23 s under load), held at 3 because it bounds
+ * someone else's machine. Being wrong low produces a false `timed_out` — a silent
+ * no-answer — while being wrong high costs only a longer wait before declaring a stall.
  */
 export const LOAD_FACTOR = 3;
 
 /**
- * How far beyond the expected loaded worst case the deadline sits.
- *
- * The deadline must never fire on work that was legal to admit; it exists to catch
- * a stall. 2x is the margin the existing 60 s deadline already carried over one
- * worst-case buffer (128 KiB: ~23 s loaded), so this preserves a calibration that
- * has held rather than inventing a new one.
+ * How far beyond the expected loaded worst case the deadline sits. The deadline must never
+ * fire on work that was legal to admit; it exists to catch a stall.
  */
 export const DEADLINE_MARGIN = 2;
 
@@ -137,66 +53,41 @@ export const DEADLINE_MS_PER_KIB = LINT_MS_PER_KIB * LOAD_FACTOR * DEADLINE_MARG
 /**
  * Deadline floor, applied to every request however small.
  *
- * Small requests are not dominated by their buffers: a cold first call also builds
- * the app, loads the config and reconciles the graph (~0.8 s idle, ~1.6 s loaded on
- * a 162-file project — and larger projects exist). The floor covers that fixed cost
- * with room to spare, and it is what keeps the single-file path — every call below
- * 133 KiB, which is every call in practice — behaving exactly as it did before the
- * deadline began to scale.
+ * Small requests are not dominated by their buffers: a cold first call also builds the app,
+ * loads the config and reconciles the graph (~0.8 s idle, ~1.6 s loaded on a 162-file
+ * project). The floor covers that fixed cost with room to spare.
  */
 export const MIN_LINT_DEADLINE_MS = 60_000;
 
 /**
- * Deadline ceiling, and therefore the real origin of {@link maxBytesWithin}'s
- * answer for the batch cap.
+ * Deadline ceiling, and therefore the origin of {@link maxBytesWithin}'s answer for the
+ * batch cap.
  *
- * This is the one POLICY number here rather than a measured one: how long the
- * server is willing to hold a request open before concluding it has stalled. Two
- * minutes is past the point where an agent has any use for the answer, so nothing
- * is gained by waiting longer — and every extra second of ceiling buys a larger
- * admissible batch, which is work a stalled request would then be holding.
+ * POLICY rather than measurement: how long the server holds a request open before
+ * concluding it has stalled. Two minutes is past the point where an agent has any use for
+ * the answer, and every extra second of ceiling buys a larger admissible batch.
  */
 export const MAX_LINT_DEADLINE_MS = 120_000;
 
 /**
  * How much of the AGENT'S CONTEXT one `validate_code` answer may spend.
  *
- * The only POLICY number in this file besides {@link MAX_LINT_DEADLINE_MS}, and the
- * one bound here that is not about the server's own work at all. Every dimension of
- * a REQUEST is bounded — buffer bytes, batch files, batch bytes, and the deadline
- * derived from them. The RESPONSE was bounded by nothing, and measured at roughly
- * SIX TIMES the size of the input that produced it:
+ * POLICY, like {@link MAX_LINT_DEADLINE_MS}, and the one bound here that is not about the
+ * server's own work. Unbounded, a legal call was measured returning ~336 000 tokens — more
+ * than most context windows hold, with nothing in the payload saying so.
  *
- *   ```
- *     128 KiB single buffer, all broken   4 228 diagnostics    634 KiB   ~162 000 tokens
- *     266 KiB batch, all broken           8 784 diagnostics  1 313 KiB   ~336 000 tokens
- *   ```
- *
- * A single legal call could return more tokens than most context windows hold, with
- * no error and nothing in the payload saying anything unusual had happened. The
- * transport is not the limit — a 1.28 MiB JSON-RPC frame was measured arriving
- * intact — so this is a deliberate judgement about spend, not a technical ceiling.
- *
- * 8 000 tokens is a few percent of a typical window. It is chosen against the
- * MEASURED shape of real calls rather than the pathological ones: across the 21
- * files of the evaluation substrate the median answer is ~45 tokens, the worst is
- * ~122, and a realistic broken edit costs ~219. At ~153 bytes per diagnostic this
- * budget holds roughly 200 findings, so every measured real case is three orders of
- * magnitude below the cap and cannot be touched by it. What the cap defends against
- * is the tail: one generated or minified file, or one cascading syntax error in a
- * large partial, quietly consuming most of an agent's working context.
+ * At ~153 bytes per diagnostic this budget holds roughly 200 findings. Measured real calls
+ * cost tens to hundreds of tokens, so the cap cannot touch them; what it defends against is
+ * the tail — a generated file, or one cascading syntax error in a large partial.
  */
 export const RESPONSE_TOKEN_BUDGET = 8_000;
 
 /**
  * Bytes per token, for converting the budget above into something countable.
  *
- * An ESTIMATE and deliberately a crude one — this JSON is mostly ASCII prose and
- * punctuation, where ~4 bytes/token is the usual rule of thumb. The exact tokenizer
- * is the client's and not ours to know, so the honest move is to state the
- * assumption here rather than imply a precision the number does not have. Being
- * wrong by 25% moves the cap between ~150 and ~250 diagnostics, which changes
- * nothing about which calls it affects.
+ * A crude ESTIMATE — this JSON is mostly ASCII prose, where ~4 bytes/token is the usual
+ * rule of thumb, and the real tokenizer is the client's. Being wrong by 25% moves the cap
+ * between ~150 and ~250 diagnostics, which changes nothing about which calls it affects.
  */
 export const BYTES_PER_TOKEN = 4;
 
@@ -211,27 +102,20 @@ export const BYTES_PER_TOKEN = 4;
 export const MAX_RESPONSE_DIAGNOSTIC_BYTES = RESPONSE_TOKEN_BUDGET * BYTES_PER_TOKEN;
 
 /**
- * What one file costs in a response BEFORE any diagnostics: its status, gate,
- * `impact` object, empty lists, and — when findings were withheld — the truncation
- * note.
+ * What one file costs in a response BEFORE any diagnostics: its status, gate, `impact`
+ * object, empty lists, and — when findings were withheld — the truncation note.
  *
- * Measured, not assumed: a 50-file batch of clean files serializes to 11.4 KiB, or
- * 234 bytes per file, and the note adds ~150. Held at 512 because this multiplies by
- * the file count and the fields it covers are the ones most likely to GROW — the
- * TASK-8 work reintroduces `hint`, `domain_guide` and friends, and a per-file
- * envelope that quietly doubles would break the bound below without touching the
- * allocator that enforces it.
+ * Measured, not assumed: a 50-file batch of clean files serializes to 234 bytes per file,
+ * and the note adds ~150. Held at 512 because this multiplies by the file count.
  */
 export const RESPONSE_ENVELOPE_BYTES_PER_FILE = 512;
 
 /**
  * The whole response bound, stated as arithmetic rather than enforced directly.
  *
- * The allocator bounds DIAGNOSTICS, which is the only unbounded dimension; the
- * envelope is O(files) and already bounded by the batch file cap. Multiplying the two
- * out is what turns "the big list is capped" into a number a reader can check, and
- * `transport/validate-code.spec.ts`'s response-bound group measures the worst legal
- * request against it.
+ * The allocator bounds DIAGNOSTICS, the only unbounded dimension; the envelope is O(files)
+ * and already bounded by the batch file cap. `transport/validate-code.spec.ts` measures the
+ * worst legal request against this.
  *
  * Takes the file count rather than importing `MAX_BATCH_FILES`, which lives in
  * `validate/batch-bounds.ts` and already imports this module.
@@ -247,10 +131,8 @@ const kib = (bytes: number): number => Math.ceil(bytes / 1024);
  * How long to wait for a lint that was handed `bytes` of buffer.
  *
  * Never below {@link MIN_LINT_DEADLINE_MS}. Callers do not clamp to
- * {@link MAX_LINT_DEADLINE_MS} — the byte caps do that, upstream, by refusing the
- * request outright. A deadline silently smaller than the work it is timing is the
- * exact defect this module exists to prevent, so the ceiling is enforced where the
- * work is admitted, not where it is timed.
+ * {@link MAX_LINT_DEADLINE_MS} — the byte caps do that upstream by refusing the request
+ * outright, so the ceiling is enforced where the work is admitted, not where it is timed.
  */
 export function lintDeadlineMs(bytes: number): number {
   return Math.max(MIN_LINT_DEADLINE_MS, kib(bytes) * DEADLINE_MS_PER_KIB);
@@ -259,10 +141,9 @@ export function lintDeadlineMs(bytes: number): number {
 /**
  * The most bytes whose {@link lintDeadlineMs} still fits inside `deadlineMs`.
  *
- * The inverse of the function above, floored to a whole KiB so the answer is exact
- * at the boundary — one byte more and the deadline exceeds `deadlineMs`. Used to
- * derive the batch cap from the deadline ceiling instead of picking a round
- * multiple of the per-buffer bound, which is what drifted.
+ * The inverse of the function above, floored to a whole KiB so the answer is exact at the
+ * boundary — one byte more and the deadline exceeds `deadlineMs`. Used to derive the batch
+ * cap from the deadline ceiling instead of from a round multiple of the per-buffer bound.
  */
 export function maxBytesWithin(deadlineMs: number): number {
   return Math.floor(deadlineMs / DEADLINE_MS_PER_KIB) * 1024;

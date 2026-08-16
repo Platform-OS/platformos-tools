@@ -29,8 +29,9 @@ yarn test src/index.spec.ts
 | `check(root, configPath?)` | Lint a whole project on disk → `Offense[]`. |
 | `appCheckRun(root, configPath?, log?)` | As `check`, plus the resolved `App` + `Config`. |
 | `checkAndAutofix(root, configPath?)` | Lint then write safe autofixes to disk. |
-| `lintBuffer({ root, filePath, content, configPath?, log? })` | Lint ONE in-memory buffer in the context of its on-disk project (cross-file checks resolve against real files; the buffer is overlaid in memory). Returns `{ status, offenses }` — the buffer file's `Offense[]` with `fix`/`suggest` intact, plus whether the file was checked at all (`checked` / `excluded-by-config` / `misplaced-source` / `not-a-platformos-file` / `not-a-source-file`), because an empty list otherwise reads as "no problems" for a file nothing looked at. The typed seam for embedders (e.g. the MCP supervisor) — a direct library call, **no LSP, no subprocess, no message-string round-trip**. See README. |
+| `lintBuffer({ root, filePath, content, configPath?, log? })` | Lint ONE in-memory buffer in the context of its on-disk project (cross-file checks resolve against real files; the buffer is overlaid in memory). Returns `{ status, offenses, ast? }` — the buffer file's `Offense[]` with `fix`/`suggest` intact, whether the file was checked at all (`checked` / `excluded-by-config` / `misplaced-source` / `not-a-platformos-file` / `not-a-source-file`), because an empty list otherwise reads as "no problems" for a file nothing looked at, and the parsed Liquid tree of the content that was CHECKED. The typed seam for embedders (e.g. the MCP supervisor) — a direct library call, **no LSP, no subprocess, no message-string round-trip**. See README. |
 | `getApp(config)` / `getAppAndConfig(root, configPath?)` | The lazy `App` model for the project (walked and reconciled — **no reads, no parses**) and the resolved config. |
+| `getPlatformOSDocset()` | **THE** `AugmentedPlatformOSDocset` for this process — the same object the lint reads from. For an embedder answering a question about the VOCABULARY (a filter's signature, a tag's parameters) rather than about a file. |
 
 `appCheckRun` and `lintBuffer` both delegate to the private `lintApp(app, config,
 log, only?)` helper, which serves `getDocDefinition` from the passed `app`
@@ -115,6 +116,14 @@ Two consequences to keep in mind when editing this package:
   code that prefers buffer content over disk — translations, and the route table's own
   route. The app now outlives the call, so the overlay must not: one request's unsaved
   content is not the next request's truth.
+- **Anything derived from the buffer must be captured INSIDE that `finally`'s `try`.**
+  `LintBufferResult.ast` is, and that is why it is returned rather than looked up: after
+  the call the `App` holds DISK content, so an AST read then describes different text than
+  the offenses do — correct on every unchanged file and wrong on exactly the edited ones,
+  which is the worst shape a bug can have. It is present only for a LiquidHtml buffer that
+  PARSED (an unparseable file's `ast` is an `Error` VALUE, not a throw), so "present" means
+  "these offenses and this tree share coordinates". `index.spec.ts`'s "returns the AST of
+  what was checked" group fails if the capture moves.
 
 ### Process-level state
 
@@ -122,6 +131,19 @@ All lint runs share one `PlatformOSLiquidDocsManager` (every loader on it is a
 per-instance memo, including a network revision check).
 `resetPlatformOSLiquidDocsManager()` discards it; `updateDocs` calls that for
 you.
+
+They also share ONE `AugmentedPlatformOSDocset` over it, built beside the manager and
+discarded with it, and `lintApp` passes THAT to `check()`. `check()` only wraps a docset
+that is not already augmented (it tests `isAugmented`), so the checks read the same object
+`getPlatformOSDocset()` returns — one alias expansion, one set of memos, instead of a
+fresh wrapper per run.
+
+**An embedder must reach the docset through `getPlatformOSDocset()`, never by
+constructing a manager of its own.** A second `PlatformOSLiquidDocsManager` re-pays every
+memo, makes another network revision check, and can settle on different data — so a tool
+explaining an offense could describe a filter the check that flagged it never saw. That
+accessor exists so no consumer needs `platformos-check-docs-updater` as a dependency; the
+MCP supervisor has a guard failing its build if that dependency or import returns.
 
 They share one `App` per project (`src/shared-app.ts`), reconciled per call rather
 than rebuilt. **The walk is not cached** — the candidate paths are globbed on every

@@ -3,22 +3,14 @@
  * official MCP SDK client. Verifies the transport, the `validate_code`
  * registration, the JSON-text result envelope, real linting end to end
  * (check-node → mapped diagnostics), AND the cross-file blast radius end to end
- * (the cached project graph → `dependentsOf` → `impact`).
- *
- * The package is built in `beforeAll` (incremental `tsc -b`) so the suite is
- * self-contained under `yarn test` without a prior build step. A hermetic
- * `.platformos-check.yml` (one check enabled) keeps the diagnostics
- * deterministic and docset/network-free.
+ * (project scan → resolved references → `impact`).
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { path as pathUtils } from '@platformos/platformos-check-common';
-
-import { defaultGraphCachePath } from '../../src/graph-cache/graph-cache.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -26,10 +18,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = resolve(HERE, '..', '..');
 const REPO_ROOT = resolve(PACKAGE_ROOT, '..', '..');
-// Run tsc through Node (not the `node_modules/.bin/tsc` shim): on Windows the
-// shim is a `.cmd`, which `execFileSync` cannot launch by its extensionless
-// path, so it would throw before producing any output. Invoking the JS entry
-// with `process.execPath` works on every platform.
+// Run tsc through Node rather than the `node_modules/.bin/tsc` shim: on Windows the shim
+// is a `.cmd`, which `execFileSync` cannot launch by its extensionless path.
 const TSC = resolve(REPO_ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 const BIN = resolve(PACKAGE_ROOT, 'dist', 'bin', 'platformos-mcp-supervisor.js');
 
@@ -61,7 +51,7 @@ beforeAll(async () => {
     'utf8',
   );
 
-  // A real project on disk so the cached graph (and thus blast radius) is real:
+  // A real project on disk so the blast radius is real:
   // `home` renders `card` → `card` has one dependent; `lonely` has none.
   const writeProjectFile = (rel: string, body: string) => {
     const abs = join(projectDir, rel);
@@ -87,24 +77,19 @@ beforeAll(async () => {
 }, 180_000);
 
 /**
- * Call `validate_code` and return the parsed result, polling until the
- * background-built project graph is fresh (so `impact` is deterministic rather
- * than the transient `computing`). Disk is not written between calls, so once
- * built the graph stays fresh.
+ * Call `validate_code` and return the parsed result.
+ *
+ * NO POLLING, and its absence is a claim: the blast radius is computed from the project
+ * during the call, so every response carries a final answer.
  */
 async function validateCodeWith(
   withClient: Client,
   args: { file_path: string; content: string; mode?: string },
 ) {
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const res = await withClient.callTool({ name: 'validate_code', arguments: args });
-    const content = res.content as Array<{ type: string; text: string }>;
-    expect(content[0].type).toEqual('text');
-    const result = JSON.parse(content[0].text);
-    if (result.impact?.status !== 'computing') return result;
-    await new Promise((resolvePoll) => setTimeout(resolvePoll, 100));
-  }
-  throw new Error('blast radius did not settle (impact still "computing" after polling)');
+  const res = await withClient.callTool({ name: 'validate_code', arguments: args });
+  const content = res.content as Array<{ type: string; text: string }>;
+  expect(content[0].type).toEqual('text');
+  return JSON.parse(content[0].text);
 }
 
 const validateCode = (args: { file_path: string; content: string; mode?: string }) =>
@@ -132,6 +117,13 @@ describe('Integration: validate_code over stdio', () => {
     dependents: { total: 0, by_kind: {}, sample: [] },
   };
 
+  /**
+   * The whole diagnostic as it crosses the WIRE, suggestion included: a field can survive
+   * `toDiagnostic` and still be lost to serialization, and an agent only ever sees this
+   * side.
+   *
+   * `start_index: 33` is the offset of `</body>` in the buffer sent below.
+   */
   const MISSING_CONTENT_FOR_LAYOUT = {
     check: 'MissingContentForLayout',
     severity: 'error',
@@ -141,12 +133,21 @@ describe('Integration: validate_code over stdio', () => {
     column: 1,
     end_line: 1,
     end_column: 1,
+    suggestions: [
+      {
+        description: 'Insert `{{ content_for_layout }}` before the closing </body> tag',
+        edits: [{ start_index: 33, end_index: 33, new_text: '{{ content_for_layout }}\n' }],
+      },
+    ],
+    // Enrichment's other contribution: the check's documentation page. `MissingContentForLayout`
+    // gained its `docs.url` when all 43 checks were wired to the documentation repo.
+    see_also:
+      'https://documentation.platformos.com/developer-guide/platformos-check/checks/missing-content-for-layout',
   };
 
   it('advertises exactly the validate_code tool', async () => {
-    // ONE tool. A second, similarly-named tool would force the agent to choose
-    // between `validate_code` and `validate_files` with nothing in either name to
-    // guide it; the multi-file case is the same tool with a `files` argument.
+    // ONE tool. A second, similarly-named tool would force the agent to choose between
+    // `validate_code` and `validate_files` with nothing in either name to guide it.
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(['validate_code']);
   });
@@ -266,22 +267,6 @@ describe('Integration: validate_code over stdio', () => {
 
   /**
    * "Not checked" is a STATUS, not a sentence buried in prose.
-   *
-   * These two cases previously came back `status: 'ok'` with the explanation in
-   * `next_step`, because the contract had nowhere else to put it — a stopgap this code
-   * said so at the time. `not_applicable` plus a machine-readable
-   * `not_applicable_reason` is that missing place: an agent branches on the reason
-   * without parsing English, and `ok` goes back to meaning what it claims, "checked and
-   * nothing objected". Reporting an unchecked file as `ok` is the exact false approval a
-   * write gate must never produce.
-   *
-   * `impact` is `not_applicable` too, for the same underlying reason, so its zeroed
-   * `dependents` can never be misread as a measured "nothing depends on this".
-   *
-   * The messages are asserted as whole literal strings rather than by calling the
-   * factories that build them. This is the outermost test there is — a real server over
-   * a real stdio pipe — and importing the implementation's wording would make it agree
-   * with itself by construction.
    */
   const NOT_APPLICABLE_IMPACT = {
     scope: 'direct',
@@ -300,8 +285,7 @@ describe('Integration: validate_code over stdio', () => {
       status: 'not_applicable',
       not_applicable_reason: 'misplaced_source',
       // NOT blocked. The file is very likely a mistake, but "likely" is a guess about
-      // intent — a fixture or generator template lives here legitimately — and a gate
-      // that vetoes legitimate work on a guess gets switched off.
+      // intent — a fixture or generator template lives here legitimately.
       must_fix_before_write: false,
       impact: NOT_APPLICABLE_IMPACT,
       next_step:
@@ -315,14 +299,11 @@ describe('Integration: validate_code over stdio', () => {
   });
 
   /**
-   * A file that is not a platformOS source is usually not meant to be one, so it gets
-   * the directory rule and a link rather than "move it under app/".
+   * A file that is not a platformOS source is usually not meant to be one, so it gets the
+   * directory rule and a link rather than "move it under app/".
    *
-   * THE CONTROL FOR THE CASE ABOVE, and the reason the two reasons are separate codes at
-   * all: same status, same non-blocking verdict, opposite advice. A single collapsed
-   * "unsupported type" answer would tell the author of `scripts/helper.liquid` nothing,
-   * and telling the author of a `.jsx` component to move it under `app/` would be worse
-   * than telling them nothing.
+   * THE CONTROL FOR THE CASE ABOVE, and why the two are separate codes: same status, same
+   * non-blocking verdict, opposite advice.
    */
   it('does not tell the agent to move a file that was never meant to be platformOS code', async () => {
     const result = await validateCode({
@@ -346,19 +327,8 @@ describe('Integration: validate_code over stdio', () => {
 });
 
 /**
- * The loop an agent actually runs: `validate_code` reports a problem, the agent
- * fixes it on disk, `validate_code` is asked again — and must no longer report it.
- *
- * This is the end-to-end guarantee behind the caches on the request path (the
- * parsed-project `AppCache` and the project `GraphCache`): they are keyed on a
- * per-file fingerprint, so a file appearing, changing, or disappearing is picked
- * up on the NEXT call with no cache-clearing step. A regression here would be
- * invisible to unit tests of either cache — the tool would simply keep reporting a
- * problem the agent already fixed, or stop reporting one it re-introduced.
- *
- * Deliberately isolated: its own project dir, its own config (only `MissingPartial`
- * enabled) and its own server process, because unlike the suite above it WRITES to
- * disk between calls.
+ * The loop an agent actually runs: `validate_code` reports a problem, the agent fixes it on
+ * disk, `validate_code` is asked again — and must no longer report it.
  */
 describe('Integration: validate_code sees on-disk fixes without a cache-clearing step', () => {
   let fixClient: Client;
@@ -380,6 +350,10 @@ describe('Integration: validate_code sees on-disk fixes without a cache-clearing
     column: 11,
     end_line: 1,
     end_column: 18,
+    // Enrichment's contribution, crossing the wire: the check's own documentation page,
+    // read from check-common `meta.docs.url`. Not spelled by this package anywhere.
+    see_also:
+      'https://documentation.platformos.com/developer-guide/platformos-check/checks/missing-partial',
   };
 
   const EMPTY_ENVELOPE = {
@@ -461,77 +435,43 @@ MissingPartial:
 });
 
 /**
- * TASK-12.7: the project graph must be built at server START, not on the first
- * request.
- *
- * Asserted through the warm-up's own durable artifact — the persisted cache file —
- * rather than by timing anything: a client connects and calls NO tool, and the file
- * must still appear. Before the fix nothing built until a request arrived, so the
- * file never appeared and this fails; the polling loop makes it robust on a loaded
- * machine instead of racing a fixed sleep.
- *
- * Why it matters: the cold build takes ~37 s on a real project and Node is
- * single-threaded, so a build triggered by the first `validate_code` starves that
- * lint — a ~1 s call measured 46–58 s.
+ * The FIRST call on a cold server must already carry a real blast radius.
  */
-describe('Integration: the project graph is warmed at server start', () => {
-  let warmClient: Client;
-  let warmTransport: StdioClientTransport;
-  let warmProjectDir: string;
-  let warmCachePath: string;
+describe('Integration: the first call already answers the blast radius', () => {
+  let coldClient: Client;
+  let coldTransport: StdioClientTransport;
+  let coldProjectDir: string;
 
   beforeAll(async () => {
-    warmProjectDir = mkdtempSync(join(tmpdir(), 'mcp-supervisor-warmup-'));
-    mkdirSync(join(warmProjectDir, '.git'));
+    coldProjectDir = mkdtempSync(join(tmpdir(), 'mcp-supervisor-cold-'));
+    mkdirSync(join(coldProjectDir, '.git'));
     writeFileSync(
-      join(warmProjectDir, '.platformos-check.yml'),
-      `extends: platformos-check:nothing
-`,
+      join(coldProjectDir, '.platformos-check.yml'),
+      'extends: platformos-check:nothing\n',
       'utf8',
     );
-    // A real edge source, so there is something for the graph to be built from.
-    const page = join(warmProjectDir, 'app', 'views', 'pages', 'index.liquid');
+    const page = join(coldProjectDir, 'app', 'views', 'pages', 'index.liquid');
     mkdirSync(dirname(page), { recursive: true });
     writeFileSync(page, "{% render 'card' %}", 'utf8');
-    const partial = join(warmProjectDir, 'app', 'views', 'partials', 'card.liquid');
+    const partial = join(coldProjectDir, 'app', 'views', 'partials', 'card.liquid');
     mkdirSync(dirname(partial), { recursive: true });
     writeFileSync(partial, '<div>card</div>', 'utf8');
 
-    // Start from a genuinely cold cache: the path is derived from the (unique) temp
-    // root, so removing it cannot disturb any other project's cache.
-    warmCachePath = defaultGraphCachePath(pathUtils.toUri(warmProjectDir));
-    rmSync(warmCachePath, { force: true });
-
-    warmTransport = new StdioClientTransport({
+    coldTransport = new StdioClientTransport({
       command: process.execPath,
-      args: [BIN, '--project', warmProjectDir],
+      args: [BIN, '--project', coldProjectDir],
     });
-    warmClient = new Client({ name: 'warmup-client', version: '0.0.0' });
-    await warmClient.connect(warmTransport);
+    coldClient = new Client({ name: 'cold-client', version: '0.0.0' });
+    await coldClient.connect(coldTransport);
   }, 180_000);
 
   afterAll(async () => {
-    await warmClient?.close();
-    if (warmCachePath) rmSync(warmCachePath, { force: true });
-    if (warmProjectDir) rmSync(warmProjectDir, { recursive: true, force: true });
+    await coldClient?.close();
+    if (coldProjectDir) rmSync(coldProjectDir, { recursive: true, force: true });
   });
 
-  it('builds and persists the graph without any tool call', async () => {
-    // Deliberately no callTool() anywhere in this test.
-    for (let attempt = 0; attempt < 100 && !existsSync(warmCachePath); attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    expect(existsSync(warmCachePath)).toBe(true);
-  }, 60_000);
-
-  it('answers the first validate_code with an already-computed blast radius', async () => {
-    // Deliberately NOT the polling helper: polling would hide the very thing under
-    // test by waiting out a background build. The graph is known ready (the test
-    // above waited for its persisted file), so the FIRST response must already
-    // carry a computed blast radius. Without the boot warm-up this response is
-    // `computing`, because the request itself would be what starts the build.
-    const res = await warmClient.callTool({
+  it('reports the dependent on the very first request, with no warm-up and no retry', async () => {
+    const res = await coldClient.callTool({
       name: 'validate_code',
       arguments: {
         file_path: 'app/views/partials/card.liquid',
@@ -554,19 +494,8 @@ describe('Integration: the project graph is warmed at server start', () => {
 });
 
 /**
- * TASK-17: the MULTI-FILE form of `validate_code` over the real stdio transport —
- * the result envelope and per-file applicability.
- *
- * The CROSS-BUFFER correctness win is deliberately NOT asserted here. This
- * project's hermetic config enables only `MissingContentForLayout`, so a
- * "`render` of a sibling buffer resolves" assertion would pass whether or not the
- * overlay worked — vacuous. It is proven properly, with a failing contrast, in
- * check-node's `index.spec.ts`, where `MissingPartial` is enabled.
- *
- * The speed claim is likewise pinned structurally (one adapter call per batch) in
- * `validate-files.spec.ts` rather than by a flaky timing assertion. Measured on a
- * real 162-file project: the same 20-file changeset took 12.25 s as 20
- * `validate_code` calls and 3.06 s as one batch (4.0x).
+ * The MULTI-FILE form of `validate_code` over the real stdio transport — the result
+ * envelope and per-file applicability.
  */
 describe('Integration: the multi-file form over stdio', () => {
   it('declines only the off-project entry and still validates its siblings', async () => {

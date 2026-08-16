@@ -6,25 +6,8 @@ import { check, MockApp } from '../../test';
 import { findDuplicateKeys } from '../../yaml/duplicate-keys';
 
 /**
- * A repeated YAML key deploys and works — the platform keeps the LAST value. This check
- * exists for what that costs: the earlier value is gone, and nothing else says so.
- *
- * THE MEASUREMENT BEHIND THE MESSAGE. "Last-wins" was asserted in three places in this
- * repository before it was ever measured; every one of those claims rode along in a
- * sentence about `--dry-run` ACCEPTING a duplicate-key file, which answers a different
- * question. It was settled on 2026-08-02 by deploying a translations file with a key
- * repeated at the top level and inside a nested map, then reading both back:
- *
- *   ```
- *     top=[SECOND]  nested=[SECOND]  absent=[translation missing: ...]
- *   ```
- *
- * The absent-key control is what makes it conclusive — a key that resolves to nothing
- * renders differently, so `SECOND` is a real resolution and not a fallback.
- *
- * THE SILENCE CASES BELOW ARE THE POINT OF THIS FILE. Every one of them is legal YAML
- * that a naive string comparison would report, and reporting legal input is the failure
- * mode that cost this server four evaluation rounds.
+ * A repeated YAML key deploys and works — the platform keeps the LAST value. This check exists
+ * for what that costs: the earlier value is gone, and nothing else says so.
  */
 describe('Module: DuplicateYAMLKey', () => {
   const offensesFor = async (source: string) =>
@@ -258,12 +241,6 @@ b: *x
     it('says nothing about a file that does not parse, even when it ALSO has a duplicate', async () => {
       // An unparseable document belongs to YAMLSyntaxError alone. A second opinion on a
       // file the author must already fix is noise, and the offsets would be untrustworthy.
-      //
-      // THE DUPLICATE IN THIS FIXTURE IS LOAD-BEARING. An earlier version used a broken
-      // file with no duplicate in it, which passes whether or not the guard exists —
-      // there was nothing to report either way. Deleting the guard did not fail a single
-      // test. The fixture now contains a real duplicate that the parser still recovers
-      // enough to see, so the silence is the guard's doing rather than the input's.
       const broken = `a: 1
 a: 2
 b: [unclosed

@@ -295,10 +295,6 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
      * reaches one of them — and one of them here is a value nobody can see into, so nothing
      * can be claimed absent. What the elements that DID resolve name is still worth offering:
      * `row` may not be a hash with a `name`, but the other element certainly is.
-     *
-     * `UnknownProperty` is the other half of this and must stay silent on the same source —
-     * `index.spec.ts` pins that — which is what makes the wider list here safe rather than a
-     * diagnostic waiting to fire.
      */
     it('should complete the known elements of an array literal with an unresolvable one', async () => {
       const source = `
@@ -359,13 +355,6 @@ describe('Module: ObjectAttributeCompletionProvider', async () => {
      * only when the expression is blank, so its keys are the value's keys in one branch and
      * nobody's in the other — and the analyzer says exactly that, as an OPEN shape whose
      * properties are all OPTIONAL.
-     *
-     * This is where the one analyzer serves its two consumers differently, deliberately.
-     * `UnknownProperty` can report nothing through such a shape — a read of `fallback` is
-     * unverifiable and a read of anything else lands on an open object — which is what
-     * `index.spec.ts`'s "should claim nothing when the shape comes from a `default:`" pins.
-     * Here the same shape is a list of names, and offering names that one branch really does
-     * have costs the author nothing.
      */
     it('should offer a default filter fallback keys, which one branch really has', async () => {
       const source = `

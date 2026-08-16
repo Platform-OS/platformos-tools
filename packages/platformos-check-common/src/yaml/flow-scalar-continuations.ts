@@ -4,11 +4,10 @@ import type { Document, ParseOptions, DocumentOptions, SchemaOptions } from 'yam
 /**
  * Make the parser agree with the platform about how a QUOTED scalar may be continued.
  *
- * THE MISMATCH THIS EXISTS FOR, and it is a second one — see `line-breaks.ts` for the first.
- * npm `yaml` implements YAML 1.2, which requires a flow scalar's continuation line to be
- * indented MORE than its parent node. Ruby Psych/libyaml accepts equal or lesser indentation,
- * including column 0. So the ordinary thing a translator does — continue a long string on the
- * next line, aligned under the key —
+ * THE MISMATCH. npm `yaml` implements YAML 1.2, which requires a flow scalar's continuation
+ * line to be indented MORE than its parent node. Ruby Psych/libyaml accepts equal or lesser
+ * indentation, including column 0. So the ordinary thing a translator does — continue a long
+ * string on the next line, aligned under the key —
  *
  *   ```yaml
  *   en:
@@ -17,42 +16,32 @@ import type { Document, ParseOptions, DocumentOptions, SchemaOptions } from 'yam
  *   ```
  *
  * is `MISSING_CHAR: Missing closing "quote` to a 1.2 parser and a plain string to the
- * platform. That is a `YAMLSyntaxError`, which BLOCKS, on a file `pos-cli deploy --dry-run`
- * accepts and Psych reads as `{"en" => {"k" => "Hello world"}}`.
+ * platform. That is a `YAMLSyntaxError`, which BLOCKS, on a file `--dry-run` accepts.
  *
- * WHY NOT AN OPTION. Measured, all four combinations: neither `version: '1.1'` nor
- * `strict: false` changes this, alone or together. TASK-43 found the same for line breaks;
- * this is a separate mechanism and was measured separately rather than assumed to match.
+ * NOT AN OPTION: measured, all four combinations — neither `version: '1.1'` nor
+ * `strict: false` changes this, alone or together.
  *
- * WHY NOT FILTER THE ERROR CODE. Because it is not diagnostic. `MISSING_CHAR` is reported for
- * the shapes above AND for a genuinely unterminated quote, an unquoted multi-line value, and
- * bad block indentation — measured. Suppressing the code would trade this false block for
- * false approvals on a check that blocks, which is strictly worse.
+ * NOT AN ERROR-CODE FILTER: `MISSING_CHAR` is also reported for a genuinely unterminated
+ * quote, an unquoted multi-line value and bad block indentation, so suppressing the code
+ * would trade this false block for false approvals on a check that blocks.
  *
- * WHY NOT THE LIBRARY'S CST. Its `Lexer` has already resolved the question the wrong way by
- * the time we could ask: it emits `"Hello` as a complete scalar token and `world"` as the
- * next one, so there is nothing there to reuse.
+ * NOT THE LIBRARY'S CST: its `Lexer` has already resolved the question the wrong way,
+ * emitting `"Hello` as a complete scalar token and `world"` as the next one.
  *
  * SO THE PARSER'S OWN ERROR POSITIONS DRIVE THE FIX. For each `MISSING_CHAR`, the line break
  * ending that error's line is replaced with a space and the document is re-parsed. Nothing is
  * accepted unless the document then parses cleanly, which is what makes this sound: the
- * decision is never "this looks like the 1.1 shape", it is "the platform's reading of these
- * bytes is a valid document". A genuinely unterminated quote has no line break after the
- * error to substitute, and a non-`MISSING_CHAR` failure is refused outright.
+ * decision is "the platform's reading of these bytes is a valid document", never "this looks
+ * like the 1.1 shape".
  *
- * WHY THIS IS SAFE FOR POSITIONS. The substitution is ONE BYTE FOR ONE BYTE, so every offset
- * in the reconciled document is still an offset into the caller's original source and every
- * diagnostic computed from it points at the right characters. That is the same bar
- * `line-breaks.ts` clears, and it is the reason a re-indenting fix was rejected: adding spaces
- * would shift every offset after the first continuation.
+ * SAFE FOR POSITIONS because the substitution is ONE BYTE FOR ONE BYTE, so every offset is
+ * still an offset into the caller's original source. That is why a re-indenting fix was
+ * rejected — adding spaces would shift every offset after the first continuation.
  *
- * WHAT THE SUBSTITUTION GETS WRONG, and how it is repaired. Turning the break into a space
- * leaves the continuation's own indentation inside the scalar, so the value comes back
- * `"Hello   world"` where YAML folds to `"Hello world"`. The offsets are right and the value
- * is not, so {@link foldedScalarValue} re-derives it from the ORIGINAL source. Leaving it
- * would put a value in the AST that the platform does not have — small today, because nothing
- * compares translation values by exact spacing, and exactly the kind of confident false
- * premise that produces the next defect.
+ * WHAT THE SUBSTITUTION GETS WRONG: it leaves the continuation's own indentation inside the
+ * scalar, so the value comes back `"Hello   world"` where YAML folds to `"Hello world"`. The
+ * offsets are right and the value is not, so {@link foldedScalarValue} re-derives it from the
+ * ORIGINAL source.
  */
 
 /** Options accepted by `parseDocument`, as this module passes them straight through. */
@@ -107,14 +96,11 @@ export function reconcileFlowScalarContinuations(
 
     // Act on the first unclosed quote, and bail only when there is NO unclosed quote left to
     // act on. Deliberately NOT "bail if any other code is present": an intermediate state can
-    // legitimately carry a mixed set — `en:\n  k: "Hello\n  world"\n  j: 2\n` reports a
-    // `BAD_INDENT` alongside the `MISSING_CHAR` until the substitution is made, and refusing
-    // there was a false block on a valid file.
+    // legitimately carry a mixed set — a `BAD_INDENT` alongside the `MISSING_CHAR` until the
+    // substitution is made — and refusing there was a false block on a valid file.
     //
     // Tolerating the mix costs no soundness, because acceptance is decided by the FINAL parse
-    // being clean rather than by any intermediate state. A file with a real error alongside a
-    // continuation never reaches a clean parse, so it still returns null and reports its own
-    // errors.
+    // being clean rather than by any intermediate state.
     const unclosedQuotes = failures.filter((failure) => failure.code === MISSING_CHAR);
     if (unclosedQuotes.length === 0) return null;
 
@@ -140,14 +126,8 @@ export function reconcileFlowScalarContinuations(
  *
  * Parsing the span standalone is what folds it, and it folds correctly because a top-level
  * flow scalar has no parent indentation to be measured against. Verified against Ruby Psych
- * on five shapes, including the one that decides it — a continuation whose previous line ends
- * in whitespace, where both fold to a single space and drop the rest:
- *
- *   `"Hello\n  world"`      -> "Hello world"
- *   `'Hello\n  world'`      -> "Hello world"
- *   `"a\n  b\n  c"`         -> "a b c"
- *   `"Hello\nworld"`        -> "Hello world"
- *   `"trailing  \n  x"`     -> "trailing x"
+ * on five shapes, including the deciding one — a continuation whose previous line ends in
+ * whitespace, where both fold to a single space and drop the rest.
  */
 export function foldedScalarValue(
   originalSource: string,

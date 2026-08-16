@@ -102,13 +102,6 @@ describe('App.fromPaths', () => {
 /**
  * An asset is IN the app and has no source type — the two halves of "nothing reads an
  * asset, so the only question about one is whether it exists".
- *
- * `AppFile` is the second place the rule is applied (`isSupportedSourceFile` is the
- * other), and it is the one that reaches the linter: `check()` iterates source types, and
- * `App.sourceCodes()` filters on `type !== undefined`, so a typeless file is never
- * visited by any check however many are enabled. Pinning it here rather than trusting
- * `isSupportedSourceFile` is the point — the two are separate code paths, and this is the
- * one a lint run actually takes.
  */
 describe('AppFile.type — an asset is held, never read', () => {
   const fileFor = (relativePath: string) =>
@@ -455,13 +448,6 @@ describe('App.update', () => {
  * `AppFile.revision` is what lets an analysis elsewhere record what it read and check
  * later whether that is still true, WITHOUT keeping a copy of it and without a second
  * read path that can disagree with the one the analysis used.
- *
- * The clock is process-wide rather than per-file for the case below: `update` REPLACES the
- * file object, so a per-file counter would restart at zero on the replacement and a
- * recording made against the old file would compare equal to the new one. Asserted here,
- * on the numbers themselves, because a consumer-level test of the same property passed
- * with the clock sabotaged into a per-file counter — it was reading a memo entry an
- * earlier test had left, and so had nothing to detect.
  */
 describe('AppFile.revision', () => {
   const card = uri('app/views/partials/card.liquid');

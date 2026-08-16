@@ -66,41 +66,14 @@ function getCompletionContext(
 }
 
 /**
- * This function will return an AST of the entire file up until the cursor
- * position.
+ * An AST of the file up to the cursor position (█).
  *
- * So if you accept that we use █ to represent the cursor, and a have a file that
- * looks like this:
+ * The text before the cursor is usually unparseable on its own, so `fix(sourceCode,
+ * cursorPosition)` closes whatever the cursor is inside — `{% assign z = █` becomes
+ * `{% assign z = █%}` — and the result is parsed with `allowUnclosedDocumentNode` and
+ * `mode: completion`, which permits the placeholder character.
  *
- * <div>
- *   {% assign x = context.current_user %}
- *   {% assign y = x | plus: 20 %}
- *   {% assign z = █ %}
- *   <span>
- *     this content is not part of the partial tree
- *   </span>
- * </div>
- *
- * Then the contents of the file up until the cursor position is this:
- *
- * <div>
- *   {% assign x = context.current_user %}
- *   {% assign y = x | plus: 20 %}
- *   {% assign z = █
- *
- * Then we'll use `fix(sourceCode, cursorPosition)` to make it parseable.
- * Fixed output:
- *
- * <div>
- *   {% assign x = context.current_user %}
- *   {% assign y = x | plus: 20 %}
- *   {% assign z = █%}
- *
- * Then we'll parse this with `allowUnclosedDocumentNode` and
- * `mode: completion` to allow parsing of placeholder characters (█)
- *
- * The result is a partial AST whose last-most node is probably the one
- * under the cursor.
+ * The result is a partial AST whose last-most node is probably the one under the cursor.
  */
 function parsePartial(
   sourceCode: AugmentedSourceCode,
@@ -155,33 +128,16 @@ function findCurrentNode(
   const finder = new Finder(partialAst);
   let current: LiquidHtmlNode = { ...partialAst };
 
-  // Our objective:
-  //   Finding the "last-most node" in the partial AST.
+  // Finding the "last-most node" in the partial AST.
   //
-  // Context:
-  //   A generic visitor doesn't quite work in this context because we
-  //   cannot trust the position, blockStartPosition, blockEndPosition of
-  //   nodes when we use `allowUnclosedDocumentNode`. You see, these
-  //   properties are updated when the nodes are closed. An {% if cond %}
-  //   node without its closing {% endif %} would have its position.end be
-  //   the one of the starting block. Which means that any children it may
-  //   have wouldn't be covered.
+  // A generic visitor does not work here: under `allowUnclosedDocumentNode` a node's positions
+  // cannot be trusted, because they are updated when the node is CLOSED. An `{% if cond %}`
+  // without its `{% endif %}` has `position.end` at the end of its opening block, so none of
+  // its children are covered by it.
   //
-  // How we do it:
-  //   We define logic per node type. For example, HTML tags will do this:
-  //     - If the node is closed (<a>child</a>),
-  //         then there's nothing to complete.
-  //         We return undefined
-  //     - If the node has children,
-  //         then we visit the last children
-  //     - If the node has attributes,
-  //         then we visit the last attribute
-  //     - If the node has a name,
-  //         then we visit the last name node (<a--{{ page.id }}>)
-  //
-  //   It's different per node type, because each node type has a different
-  //   concept of child node and because they have to be traversed in a
-  //   specific order.
+  // So the logic is per node type — an HTML tag completes nothing if it is closed, else visits
+  // its last child, else its last attribute, else its name — because each node type has a
+  // different concept of child node and a different traversal order.
   while (finder.current !== undefined && current !== finder.current) {
     current = finder.current;
 

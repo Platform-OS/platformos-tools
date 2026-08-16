@@ -8,14 +8,6 @@ import { noop } from './utils';
 
 /**
  * WHAT REACHES THE DISK, when the documentation site does not behave.
- *
- * This refreshes `packages/platformos-check-docs-updater/data/` on every build, and what it
- * writes there is the docset the VS Code bundle ships and the MCP write gate judges against. A
- * bad refresh is therefore not a failed build — it is a corrupt file that looks committed and
- * correct, which is why each case below asserts the WRITES, not the throw.
- *
- * `fetch` is the only thing stubbed. The real function does the ordering, the parsing and the
- * decision to write.
  */
 const DESTINATION = '/docs-destination';
 
@@ -97,12 +89,6 @@ describe('Module: downloadPlatformOSLiquidDocs', () => {
 
   /**
    * THE OPTIONAL RESOURCE, which is the other half of the rule above.
-   *
-   * `liquid_doc.json` is newer than the endpoint that serves it, so a 404 for it means "not deployed
-   * yet", not "the refresh failed". Counting it among the required set would make that 404 abort every
-   * refresh on every machine — a docset frozen at whatever `data/` shipped — for as long as the
-   * documentation site took to catch up. Absence is safe here in a way a MISMATCHED set never is: the
-   * consumers of a missing vocabulary go quiet.
    */
   it('writes the rest when an optional resource is not there yet', async () => {
     stubFetch({
@@ -141,11 +127,6 @@ describe('Module: downloadPlatformOSLiquidDocs', () => {
 
   /**
    * THE TORN WRITE, which is the case this function exists to prevent.
-   *
-   * `tags.json` fails after `latest.json` and `filters.json` have already come back. Writing as
-   * responses arrive leaves the destination holding a new revision beside last release's tags —
-   * and because `platformOSLiquidDocsManager` gates its refresh on `latest.json`'s revision, the
-   * next run reads that as current and never repairs it. So nothing may be written at all.
    */
   it('writes NOTHING when one resource fails, rather than a mismatched set', async () => {
     stubFetch({

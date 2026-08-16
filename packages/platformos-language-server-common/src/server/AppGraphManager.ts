@@ -212,20 +212,17 @@ export class AppGraphManager {
   /**
    * The graph reads its files THROUGH the app the language server already holds.
    *
-   * Without this the two halves of this process each build their own source code
-   * for the same file: the checks parse the `App`'s `AppFile`, the graph parses a
-   * copy of it. `appBackedGetSourceCode` hands the graph the very same file
-   * objects, so each one is read once and parsed once for both — including the
-   * `.js` and image assets, which are in the app as nodes with no `SourceCodeType`
-   * and are parsed by the graph's own entries in `languageServerParsers`.
+   * Without this, the two halves of the process each build their own source code for the same
+   * file: the checks parse the `App`'s `AppFile`, the graph parses a copy. `appBackedGetSourceCode`
+   * hands the graph the same file objects, so each is read once and parsed once for both —
+   * including the `.js` and image assets, which the graph parses through its own entries in
+   * `languageServerParsers`.
    *
-   * The fallback covers what the app does not contain: a URI outside the project,
-   * and a file that is not a platformOS source at all.
+   * The fallback covers what the app does not contain: a URI outside the project, and a file that
+   * is not a platformOS source at all.
    *
-   * The SAME app answers the graph's name resolution (`app`), so a
-   * `{% render 'ui/card' %}` is resolved by the index this server already built
-   * instead of by a `readDirectory` per candidate directory. Both seams or neither:
-   * an app good enough to read a file through is good enough to find it with.
+   * The SAME app answers the graph's name resolution, so a `{% render 'ui/card' %}` resolves
+   * through the index this server already built. Both seams or neither.
    */
   private graphDependencies(rootUri: string): GraphDependencies {
     const { fs } = this;

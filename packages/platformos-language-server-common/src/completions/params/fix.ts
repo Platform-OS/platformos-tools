@@ -56,48 +56,11 @@ class Fixer {
   }
 
   /**
-   * This is cool, so bear with me.
+   * Scan the string up to the cursor into a token list (`<`, quotes, `{{`, `}}`, …), fold that
+   * into a stack — open tokens push, close tokens pop — and then append the closers still on the
+   * stack, which yields a parseable string.
    *
-   * We'll scan the entire string up to the cursor position and turn that
-   * into a list of tokens
-   *
-   * input:
-   *   `<a href="hi'" other="{{ 'there'`
-   *
-   * output:
-   *   - <
-   *   - "
-   *   - '
-   *   - "
-   *   - "
-   *   - {{
-   *   - '
-   *   - '
-   *   - }}
-   *   - "
-   *
-   * Then we take that output, and we turn it into a stack
-   * (open tokens push, close tokens pop)
-   *
-   * stack evolution:
-   *   - <         # open tag
-   *   - < "       # add quote
-   *   - < "       # (single quote is ignored)
-   *   - <         # close quote
-   *   - < "       # open new quote
-   *   - < " {{    # open liquid variable output
-   *   - < " {{ '  # open liquid string in variable output
-   *   - < " {{    # close liquid string in variable output
-   *
-   * then we pop the close characters of that stack onto the string and
-   * have a fixed string
-   *
-   *   - <a href="hi'" other="{{ 'there'      # start
-   *   - <a href="hi'" other="{{ 'there'}}    # pop close {{
-   *   - <a href="hi'" other="{{ 'there'}}"   # pop close "
-   *   - <a href="hi'" other="{{ 'there'}}">  # pop close <
-   *
-   * And there we go, we have a fixed string.
+   *   `<a href="hi'" other="{{ 'there'`   ->   `<a href="hi'" other="{{ 'there'}}">`
    */
   fix() {
     this.scanTokens();

@@ -39,14 +39,14 @@ New `src/variable-types.ts` holds one per-file `LiquidType` table, memoized on `
 
 Types come from the docset: filter chains through `filters.json` `return_type` (`filterChainType`), tags through a new `tagReturnTypes()` reading `tags.json` `return_type` with the same `docsetReturnType` resolution. `tags.json` publishes `[]` for every tag today, so a 4-row `MEASURED_TAG_TYPES` fallback (capture/graphql/increment/decrement) is consulted only where the docset has no row — a `@return` annotation upstream retires each row with no code change. `parse_json` is not in it: its type is read from the body (`[` → array, `{` → object), which fixes a live false positive where an array body was reported as a Hash append.
 
-Runtime measurements taken (arabbank `dev`):
+Runtime measurements taken (project-a `dev`):
 - `{{ 403 | t }}` and `{% assign x = 403 %}{{ x | t }}` raise the identical error — the premise.
 - `{% increment c %}{{ c }}` renders `1`, but `{% assign d = 'str' %}{% increment d %}{{ d }}` renders `str` in either order — so a counter binds only where nothing else does.
 - `{% for i in (1..5) limit: "2" %}` renders; `limit: "abc"` raises `invalid integer`.
 
 Two bugs found by the tests rather than by review: a subscripted append (`x['k'] << v`) must let the subscript win over the operator, and a `forget` must close ranges at the unreadable tag's START (a consumer querying a tag's `position.start` lands on the end offset when tags abut).
 
-Sweep of 4 real projects: arabbank 0, Accala-MP 0, htevent 2, pos-module-community 7. All read; no false positives. The 6 render-partial ones are genuine `{% doc %}` under-declarations in pos-module-community (`session/set` declares `@param {string} value` then does `value | json`). The 2 htevent ones are `{% assign limit = '10' %}` into `for limit:`, doc-faithful but runtime-coercing — a pre-existing judgement of the check for literals, now reaching variables.
+Sweep of 4 real projects: project-a 0, project-b 0, project-c 2, pos-module-community 7. All read; no false positives. The 6 render-partial ones are genuine `{% doc %}` under-declarations in pos-module-community (`session/set` declares `@param {string} value` then does `value | json`). The 2 project-c ones are `{% assign limit = '10' %}` into `for limit:`, doc-faithful but runtime-coercing — a pre-existing judgement of the check for literals, now reaching variables.
 
 Perf: +~1.8% on a full lint of pos-module-community (11.57s vs 11.35s median of 4), one memoized AST walk per file shared by four checks.
 

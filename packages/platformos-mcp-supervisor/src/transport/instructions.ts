@@ -2,24 +2,41 @@
  * Server-level instructions, returned to the client in the `initialize` response
  * and surfaced to the model alongside the tool list.
  *
- * WHY THIS EXISTS SEPARATELY FROM THE TOOL DESCRIPTION. The tool description answers
- * "what does this tool do and how do I call it". These answer "how do I USE this
- * server correctly" — when to reach for it, and how to read an answer once you have
- * one. Those rules do not belong in a parameter description, and without them an
- * agent invents its own reading of the result. The most costly mistakes an agent can
- * make with this server are all interpretation mistakes, not calling mistakes:
- * treating a clean result as proof of correctness, or treating a `not_applicable` as
- * either approval or refusal.
+ * SEPARATE FROM THE TOOL DESCRIPTION, which answers "what does this tool do and how do I
+ * call it". These answer "how do I USE this server correctly" — when to reach for it, and
+ * how to read an answer. The costly mistakes an agent makes here are interpretation
+ * mistakes, not calling mistakes.
  *
- * WRITING RULES FOR THIS TEXT.
- *   - State what to DO, not how the server is built.
- *   - Every claim must be true of the current build. An instruction that overstates
- *     coverage is worse than no instruction: it converts "I do not know" into
- *     false confidence, which is the failure mode this whole server exists to
- *     prevent.
- *   - Keep it short enough to be read in full. This is spent context on every
- *     session, competing with the user's actual task.
+ * WHAT MAY BE WRITTEN HERE is a narrow rule (ARCHITECTURE.md §Invariants #6): this server
+ * describes ITSELF and never the platform, so a claim belongs here only if NO DIAGNOSTIC
+ * COULD CARRY IT —
+ *
+ *   - how to read the answer, since no finding explains the envelope;
+ *   - a SILENCE, which by definition no diagnostic can convey, and mistaking silence for
+ *     approval is the failure this server exists to prevent.
+ *
+ * Platform semantics do not belong here: each is measured to fire a real diagnostic
+ * (`transport/instructions-coverage.spec.ts` holds the fixtures) and each diagnostic
+ * carries its check's documentation URL, so prose here would be a staler second copy.
+ *
+ * WRITING RULES: state what to DO, not how the server is built; every claim must be true
+ * of the current build, since overstating coverage converts "I do not know" into false
+ * confidence; keep it short enough to be read in full, because this is spent context on
+ * every session.
  */
+import { allChecks } from '@platformos/platformos-check-common';
+
+/**
+ * The coverage line, DERIVED so it cannot describe a build that no longer exists.
+ *
+ * A COUNT, not a roll of check names: an agent does not choose checks, and each finding
+ * already names its own. What the count conveys is scale, which is a decision input before
+ * the first call.
+ */
+function coverage(): string {
+  return `${allChecks.length} checks`;
+}
+
 export const SERVER_INSTRUCTIONS = `platformOS code validator.
 
 WHEN TO USE
@@ -50,6 +67,8 @@ status
                            file. Read not_applicable_reason before deciding:
     outside_project  - not inside the project this server serves
     unsupported_type - not a file type platformOS lints
+    misplaced_source - a platformOS source outside every deployed subtree; nothing
+                       checked it and nothing will load it either
     ignored          - excluded by the project's .platformos-check.yml
     too_large        - one buffer, or the request as a whole, is above its size
                        limit. Split the file, or send fewer files per call — the
@@ -68,6 +87,12 @@ errors / warnings / infos
   errors are real problems that do not stop the file working (an argument a partial
   ignores, a missing asset, a missing image dimension). Fix them when you can; they
   do not block the write.
+  Each finding names the check that produced it, and where see_also is present it links
+  that check's documentation — read it there rather than guessing at the rule.
+  A finding may carry fix (edits that are safe to apply as given) or suggestions
+  (alternatives to choose between). Their start_index / end_index are 0-based offsets
+  into the buffer you sent — NOT the 1-based line/column on the same finding. Apply
+  several edits from the end backwards, or account for the drift.
 
 truncated
   Present ONLY when a file had so many findings that the lists were shortened to
@@ -79,64 +104,30 @@ truncated
   what is listed and validate again to see the rest.
 
 impact
-  Which other files depend on this one. \`status: computing\` means the project graph
-  is still being built — early in a session on a large project — and its zeroed
-  counts are NOT a claim that nothing depends on the file.
+  Which other files depend on this one, worked out from the project as it stands at the
+  moment of the call. \`status: unavailable\` means it could not be worked out — a failure,
+  or it ran out of time — and its zeroed counts are NOT a claim that nothing depends on
+  the file. Only \`status: computed\` with \`total: 0\` says that.
 
-WHAT IS ACTUALLY CHECKED
-  Liquid  - syntax, unknown filters and tags, filters called with the wrong number
-            of arguments, missing partials/assets, render arguments against
-            {% doc %}, layout correctness, and more. TAG and FILTER arguments are
-            typed only where the platformOS documentation publishes a type for them,
-            and a filter's first argument is the value piped into it —
-            {% for x in y limit: 'ten' %} and {% cache 'k', expire: 'soon' %} warn,
-            and so does {{ 123 | hash_add_key: 'k', v }} wherever the documentation
-            distinguishes a Hash from "any value" (it is a hard 500 at render time).
-            Nothing here blocks. An argument the documentation leaves untyped accepts
-            more than one type and is never reported, which is every argument of every
-            core Liquid filter, because those coerce rather than refuse:
-            {{ 5 | upcase }} renders and is not reported. Where the documentation
-            publishes no type nothing is reported about the argument;
-            that silence is the documentation's answer, not a guarantee the value is
-            right. Three that block and are easy
-            to trip over: a JSON literal in {% assign %} must use DOUBLE quotes
-            ({'k': 1} is rejected by the deploy converter, failing the whole
-            changeset); a write through a subscript — {% assign h['k'] = v %},
-            {% function h['k'] = 'p' %} or the deprecated {% hash_assign %} —
-            needs a Hash with a key or an Array
-            with a numeric index, nothing else, and {% assign x << v %} needs an
-            Array (a Hash is refused), as does {% function x << 'p' %}.
-            Only hash_assign additionally requires that
-            its target must end in a BRACKET, so h['k'] and h.a['b'] are fine but
-            h.k, h['a'].b and a bare h cannot be parsed under it at all —
-            assign accepts all of them. And a FILTER INSIDE A CONDITION is
-            rejected by the converter, so {% if a | upcase == 'A' %} and
-            {% for x in list | reverse %} must {% assign %} the filtered value
-            first and then test or iterate that.
-            A filter anywhere else in a platformOS tag — operand or argument, e.g.
-            {% cache 'k' | upcase %} — warns but does not block: the platform
-            IGNORES it, so the value arrives unfiltered. Filters apply only where
-            the whole value is a Liquid variable ({{ }}, assign, hash_assign, echo,
-            print, return, session), where an argument value IS a JSON literal
-            ({% log 'm', data: {"a": 1} | json %}), and on a trailing filter after
-            {% graphql res = 'file' %}, which filters the RESULT. A trailing filter
-            on function or background, or on the INLINE {% graphql %} block, only
-            LOOKS like that and is discarded — filter the result in a following
-            {% assign %} instead.
-  GraphQL - operations validated against the project schema.
-  YAML    - syntax, for model/schema, transactable-type, profile-type and
-            translation files: one that does not parse is reported and blocks,
-            because the deploy converter rejects it and takes the whole changeset
-            with it. Translation CONTENT is checked as well. A key defined TWICE in
-            the same mapping is reported as a warning and does NOT block: the file
-            deploys, the last value wins, and the earlier one is silently discarded.
-            Two keys that merely LOOK different can still be ONE key, because the
-            platform reads YAML 1.1: yes:/true:, 014:/12: and null:/~: each collide.
-            A repeat of the SAME spelling is always reported; look-alike detection
-            is not exhaustive, so silence there does not prove two keys are distinct.
-            The SHAPE of a model schema is not checked — an unknown property is not
-            reported, because the platform accepts it.
+WHAT IS NOT CHECKED
+${coverage()} run against your buffer. Where a finding exists it explains itself and links
+its documentation, so what follows is only the SILENCES — the places where finding nothing is not the same
+as finding it correct, and where no diagnostic can tell you so.
 
-Coverage is per project: checks can be enabled, disabled or ignored in the
-project's .platformos-check.yml, so a clean result reflects that project's
-configuration, not a fixed universal standard.`;
+  Argument types are checked only where the platformOS documentation publishes a type.
+  An argument the documentation leaves untyped accepts more than one type and is never
+  reported — which is every argument of every core Liquid filter, because those coerce
+  rather than refuse. {{ 5 | upcase }} renders and is not reported. That silence is the
+  documentation's answer, not a guarantee the value is right.
+
+  The SHAPE of a model schema is not checked. An unknown property is not reported,
+  because the platform accepts it.
+
+  Duplicate YAML keys are compared the way the platform's own parser resolves them, so
+  yes: and true: in one mapping are reported as the one key they become. That comparison
+  is NOT exhaustive — a few spellings collide on the platform and are not reported — so
+  silence there does not prove two keys are distinct.
+
+  Coverage is per project: checks can be enabled, disabled or ignored in the project's
+  .platformos-check.yml, so a clean result reflects that project's configuration rather
+  than a fixed universal standard.`;

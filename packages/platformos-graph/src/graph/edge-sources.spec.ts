@@ -8,18 +8,11 @@ import { MockFileSystem, type MockApp } from '@platformos/platformos-check-commo
 import { enumerateEdgeSources, isEdgeSource } from '../index';
 
 /**
- * TASK-9.17: `enumerateEdgeSources` is the SINGLE canonical "what are the
+ * `enumerateEdgeSources` is the SINGLE canonical "what are the
  * edge-source liquid files under a project root" primitive. The supervisor's
  * GraphCache consumes it for BOTH the fingerprint domain and the build's entry
  * points, so its definition must never silently drift from the file-type
  * classifier (`getFileType` ← `FILE_TYPE_DIRS`).
- *
- * The load-bearing guard is EQUIVALENCE-TO-THE-CLASSIFIER: the SCOPED walk (only
- * `APP_SOURCE_SUBTREES`, the TASK-9.15 Phase-3A perf win) must gather the exact
- * same set a WHOLE-TREE walk filtered by `isEdgeSource` would. If a partial
- * location is added to the classifier but its subtree is not walkable, the
- * whole-tree walk finds files the scoped walk misses → this test fails, catching
- * the drift before it under-reports dependents.
  */
 describe('Unit: enumerateEdgeSources (canonical edge-source enumeration)', () => {
   const rootUri = path.normalize('file:/');
@@ -118,16 +111,6 @@ describe('Unit: enumerateEdgeSources (canonical edge-source enumeration)', () =>
 
 /**
  * Every file under `baseUri`, by brute-force recursion into every directory.
- *
- * Deliberately written HERE, and deliberately NOT `walkAppSourceFiles`: that is the walk
- * `enumerateEdgeSources` is built on, so using it for the control too would compare the
- * mechanism against itself and the equivalence assertion above would hold no matter how
- * wrong `APP_SOURCE_SUBTREES` became. An independent walk is the entire value of that test.
- *
- * (It replaces check-common's `recursiveReadDirectory`, which master removed from
- * production once the anchored walk superseded it. Its only remaining purpose was to be
- * this control, and a control belongs next to the test that needs it rather than in a
- * shipped package's public API.)
  */
 async function everyFileUnder(fs: AbstractFileSystem, baseUri: UriString): Promise<UriString[]> {
   const entries = await fs.readDirectory(baseUri).catch(() => []);

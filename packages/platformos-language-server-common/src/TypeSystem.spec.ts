@@ -46,14 +46,6 @@ describe('Module: TypeSystem', () => {
   beforeEach(async () => {
     /**
      * The docset as INPUT: the shapes this system infers from, in platformOS's vocabulary.
-     *
-     * Every NAME here is one the platform publishes — `context`, `current_user`, `location`,
-     * `page` — with the `access` block copied from `objects.json`. What is synthetic is the
-     * STRUCTURE, and only where the published documents cannot reach the branch: no shipped
-     * object has an array-typed property, so `context.models` is the one invented edge, and it
-     * is invented as a platformOS data model rather than borrowed from another platform. The
-     * fixture that stood here declared `image`, a Shopify drop, and taught an API that does not
-     * exist to everyone who read it.
      */
     const _objects: ObjectEntry[] = [
       {
@@ -280,9 +272,6 @@ describe('Module: TypeSystem', () => {
    * piped value unless it is blank, so the piped value's type wins whenever there is one and
    * nothing proves it blank — taking the fallback's unconditionally named the wrong type for
    * every chain whose input was typed.
-   *
-   * Blank is Liquid's `empty?`-then-`!input`, not JavaScript's falsiness, which is what the
-   * zero case is here to separate: `!0` is false in Ruby, so a zero flows through.
    */
   describe('when using the default filter', () => {
     it('answers with the operand that flows, deciding blankness the way Liquid does', async () => {
@@ -531,11 +520,6 @@ query {
      * The type system reads a document from the App the host supplies, which is the same
      * `AppFile` the diagnostics over these buffers already parsed — not a second read and
      * a second parse of the same bytes, once per call site, per request.
-     *
-     * Each fixture below makes the two answers DIFFERENT on purpose: the App holds a
-     * version the filesystem does not. A read that went to disk would infer the disk's
-     * answer, so the assertion says which path ran. The no-App tests above and below are
-     * the control for the fallback still working.
      */
     describe('when the host supplies an App', () => {
       const rootUri = 'file:///project';
@@ -580,16 +564,6 @@ query {
        * `{% function data << 'partial' %}` APPENDS, so `data` holds an ARRAY of the partial's
        * return values, not one of them. Typing it as the return value made hover and completion
        * offer the returned hash's keys directly on `data`.
-       *
-       * The array is SPELLED rather than given up on. An earlier revision named the append
-       * `Untyped` because "there is no array-of<T> spelling in this type system", which was wrong
-       * about the file it was written in: `ArrayType`, an array-shaped `ShapeType` and the array arm
-       * of `inferShapeTypeLookupType` were all already there. `shape-analysis.ts` models the same
-       * array for `UnknownProperty`, and the two agreeing is the whole point.
-       *
-       * This form was unreachable until the parser accepted it — the markup was a raw string, so
-       * `isLiquidTagFunction` was false and no type was derived. That is why the suite stayed green
-       * through the parser change and this had to be added deliberately.
        */
       it('types an APPEND target as an array of the partial return value', async () => {
         const files = {
@@ -684,13 +658,6 @@ query {
        * unchanged file on DISK against it, decided nothing had moved, and served the old
        * shape — for hover, completion and `{% function %}` return types alike, until the
        * user saved.
-       *
-       * DISK HOLDS THE FIRST BUFFER'S TEXT, which is what makes this a test of the memo and
-       * not of the read: with a third text on disk the revalidation compares two things that
-       * differ whichever source it reads, calls the entry stale either way, and passes with
-       * the defect in place. Matching disk to the pre-edit buffer is the only arrangement
-       * where a disk-only comparison concludes "unchanged" — and `{"a": 1}` is then the
-       * STALE answer the second assertion refuses.
        */
       it('follows an edit to an open, unsaved partial without a save', async () => {
         const relative = 'app/lib/users/edited.liquid';
@@ -951,13 +918,6 @@ query {
   /**
    * `filters.json` DOES contain duplicate names, and JSON array order must not decide what they
    * mean.
-   *
-   * `split` is published twice: the core Liquid entry says the elements are strings, the platformOS
-   * one publishes an empty `array_value`. `filtersMap` was a last-wins reduce, so whichever came
-   * second won — and a docset refresh swapped exactly those two rows, silently changing the element
-   * type of every `split` result from `string` to nothing. Hover and member completion on the
-   * elements went blank with no code change and no failing test, because the only test touching
-   * `split` mocks it with `array_value: 'string'` instead of reading the shipped file.
    */
   describe('a filter name the docset publishes twice', () => {
     const CORE = { name: 'split', return_type: [{ type: 'array', array_value: 'string' }] };

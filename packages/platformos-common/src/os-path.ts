@@ -3,25 +3,23 @@ import { UriString } from './AbstractFileSystem';
 import { normalizeUri } from './app/uri';
 
 /**
- * A filesystem path in the one spelling everything downstream of it is written in:
- * forward slashes, no repeated separator, no trailing one.
+ * A filesystem path in the one spelling everything downstream of it is written in: forward
+ * slashes, no repeated separator, no trailing one.
  *
- * THE path normalizer, singular — the filesystem-path counterpart to `normalizeUri`,
- * and the reason no other file in this monorepo spells `.replace(/\\/g, '/')` itself
- * (`os-path.spec.ts` fails if one does). Windows hands us `\`-separated paths from
- * `readdir`, `path.join`, `glob` and `__dirname`, while every consumer of a path here
- * — `glob`, `minimatch`, `PATH_PATTERNS`, a `slice` against another path — is written
- * in forward slashes. A path that skips this step matches nothing on Windows and
- * everything on Linux, so the mistake is invisible until CI runs the other OS.
+ * THE path normalizer, singular — the filesystem-path counterpart to `normalizeUri`, and the
+ * reason no other file in this monorepo spells `.replace(/\\/g, '/')` itself (`os-path.spec.ts`
+ * fails if one does). Windows hands us `\`-separated paths from `readdir`, `path.join`, `glob`
+ * and `__dirname`, while every consumer here is written in forward slashes, so a path that
+ * skips this step matches nothing on Windows and everything on Linux.
  *
- * Same normalization as `normalize-path`, the package pos-cli uses — separators
- * collapse, a trailing separator goes, and a `\\?\` / `\\.\` Windows namespace keeps
- * its two leading slashes — ported rather than depended on so that this
- * browser-safe package can own the rule for every package below it.
+ * Same normalization as `normalize-path`, the package pos-cli uses — separators collapse, a
+ * trailing separator goes, and a `\\?\` / `\\.\` Windows namespace keeps its two leading
+ * slashes — ported rather than depended on so that this browser-safe package can own the rule
+ * for every package below it.
  *
- * NOT for URIs, which is why it throws on one: `file:///c:/x` would come back
- * `file:/c:/x`, a different location that still looks plausible. `normalizeUri` is
- * the URI spelling and `uriFromPath` crosses between the two.
+ * NOT for URIs, which is why it throws on one: `file:///c:/x` would come back `file:/c:/x`, a
+ * different location that still looks plausible. `normalizeUri` is the URI spelling and
+ * `uriFromPath` crosses between the two.
  */
 export function toPosixPath(fsPath: string): string {
   if (hasScheme(fsPath)) {

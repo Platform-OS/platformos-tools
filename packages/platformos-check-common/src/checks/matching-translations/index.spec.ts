@@ -316,13 +316,6 @@ describe('Module: MatchingTranslations', async () => {
   /**
    * The second half of accepting duplicate keys, and the reason relaxing the YAML parser
    * alone was not enough.
-   *
-   * `js-yaml` — a DIFFERENT parser from the one `YAMLSyntaxError` uses, and the one that
-   * loads translations — also rejects duplicate keys by default, and its callers treat a
-   * throw as "this file has no translations". So dropping the false block on its own
-   * produced a new false REPORT: a locale file with one repeated key contributed nothing,
-   * and every key in it was announced as missing. The two readers now agree, both taking
-   * the last value.
    */
   describe('when a translation file has a duplicated mapping key', () => {
     it('should still count the keys that file defines as present in en', async () => {

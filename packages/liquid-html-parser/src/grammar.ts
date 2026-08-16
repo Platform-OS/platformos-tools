@@ -58,38 +58,26 @@ const NAMED_TAG_RULE_TEMPLATES = new Set(['liquidTagRule', 'liquidTagOpenRule'])
  * `empty`.
  *
  * DERIVED rather than hand-listed, because the hand-listed version drifted and the drift was
- * unappealable. `{% rollback %}` was missing from it, so `InvalidTagSyntax` refused every
+ * unappealable: `{% rollback %}` was missing from it, so `InvalidTagSyntax` refused every
  * spelling of a valid tag with the self-refuting message "Invalid syntax for tag 'rollback'
- * Expected syntax: rollback", and `LiquidHTMLSyntaxError` blocks. Measured against
- * `liquid_exec`: `{% rollback %}` parses in every spelling, and the raise it produces is
- * SEMANTIC — "rollback performed outside of transaction" outside one, `ActiveRecord::Rollback`
- * inside one, which is the tag working. A control (`{% no_such_tag_xyz %}`) confirms the probe
- * does report real syntax errors.
- *
- * Deriving it means the next `liquidTagRule<"x", empty>` is covered the moment it is written,
- * which is the only way this class of defect stops recurring. It also matches how `BLOCKS`,
- * `RAW_TAGS` and `VOID_ELEMENTS` above are already built.
+ * Expected syntax: rollback", and `LiquidHTMLSyntaxError` blocks. Deriving it covers the next
+ * `liquidTagRule<"x", empty>` the moment it is written.
  *
  * TWO IMPLEMENTATION TRAPS, both hit while writing this:
  *
  *   `for..in`, NOT `Object.keys`. Ohm chains grammars through the prototype, so
- *   `StrictLiquidHTML.rules` has only TWO own keys and inherits the rest. `Object.keys`
- *   returned an empty list — a plausible, silent, completely wrong answer, which is why the
- *   spec pins the expected names rather than merely checking the list is non-empty.
+ *   `StrictLiquidHTML.rules` has only TWO own keys and inherits the rest — `Object.keys`
+ *   returned a plausible, silent, empty answer, which is why the spec pins the expected names.
  *
  *   Duck typing, NOT `constructor.name`. An Ohm `Apply` carries `ruleName` and a `Terminal`
- *   carries `obj`. `constructor.name` would be mangled by minification in the webpack-bundled
- *   VS Code extension; the three constants above avoid it for the same reason.
+ *   carries `obj`; `constructor.name` would be mangled by minification in the webpack-bundled
+ *   VS Code extension.
  *
- * ONE KNOWN CONSEQUENCE, accepted deliberately. `markup()` in stage 2 returns `''` for every
- * tag on this list, so stray text after the tag name is dropped from the AST and the printer
- * then reformats `{% rollback something %}` to `{% rollback %}`. That is NOT the data-loss
- * class fixed in TASK-49: the stray text is provably inert — measured, the platform IGNORES it
- * (`{% rollback something %}` raises `ActiveRecord::Rollback` exactly like the clean form, and
- * `{% break something %}` renders) — so nothing the platform reads is lost. `break`, `continue`
- * and `else` have always behaved this way; adding `rollback` makes it consistent rather than
- * new. The alternative, keeping `rollback` off this list, reinstates an unappealable false
- * block on a valid tag, which is strictly worse.
+ * ONE KNOWN CONSEQUENCE, accepted deliberately. `markup()` in stage 2 returns `''` for every tag
+ * on this list, so stray text after the tag name is dropped and the printer reformats
+ * `{% rollback something %}` to `{% rollback %}`. The stray text is provably inert — measured,
+ * the platform IGNORES it — so nothing the platform reads is lost, and `break`, `continue` and
+ * `else` have always behaved this way.
  */
 const EMPTY_MARKUP_TAGS = (() => {
   const rules = strictGrammars.LiquidHTML.rules as Record<string, any>;

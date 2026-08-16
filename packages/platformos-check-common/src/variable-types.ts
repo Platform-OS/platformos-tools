@@ -26,20 +26,16 @@ import { writeTargetOf } from './write-targets';
 /**
  * WHAT A NAMED VARIABLE HOLDS, at an offset in one file.
  *
- * The symbol table three checks said did not exist. `{{ 403 | t }}` was reported and
- * `{% assign x = 403 %}{{ x | t }}` was not, although the runtime refuses both identically —
- * measured: `translate filter - first argument must be a string, received: 403`, twice.
+ * The symbol table three checks said did not exist: `{{ 403 | t }}` was reported and
+ * `{% assign x = 403 %}{{ x | t }}` was not, although the runtime refuses both identically.
  *
- * This is `InvalidWriteTarget`'s private tracker promoted, not a new model. That check kept
- * ranges, narrowing and a literal switch that nothing else could reach; `shape-analysis.ts` kept the
- * SCOPING those ranges were missing. Both are here now, and check-common is back to two per-file
- * models of a variable — this one for its TYPE, `shape-analysis` for its STRUCTURE — rather than the
- * three it was heading for.
+ * check-common keeps two per-file models of a variable — this one for its TYPE,
+ * `shape-analysis.ts` for its STRUCTURE.
  *
  * WHERE THE TYPES COME FROM is the docset and nowhere else. A filter chain resolves through
- * `filters.json`'s published `return_type` ({@link filterChainType}) and a tag through `tags.json`'s
- * ({@link tagReturnTypes}); see {@link MEASURED_TAG_TYPES} for the four rows the document has not
- * filled in yet and what removes them. The literal arms below are not documentation — a `Number`
+ * `filters.json`'s published `return_type` ({@link filterChainType}) and a tag through
+ * `tags.json`'s ({@link tagReturnTypes}); see {@link MEASURED_TAG_TYPES} for the four rows the
+ * document has not filled in yet. The literal arms below are not documentation — a `Number`
  * node is a number in the language, whoever documents it.
  */
 export interface VariableTypes {
@@ -92,36 +88,23 @@ export function variableTypeSources(
 /**
  * What a tag leaves behind, for a docset whose tag `return_type` is still `[]`.
  *
- * A BRIDGE TO A KNOWN RELEASE, not an open-ended table. Every one of these four is published
- * upstream now and each row retires itself the moment a user's downloaded docset carries it:
+ * A BRIDGE TO A KNOWN RELEASE, not an open-ended table. All four are published upstream now,
+ * and each row retires itself the moment a user's downloaded docset carries it — THE DOCSET
+ * WINS, since this is read only where {@link tagReturnTypes} has no row.
  *
- * - `graphql` — `@return [object]` on `Liquify::Tags::GraphqlTag`, plus its two deprecated
- *   siblings `execute_query` and `query_graph`. The tags generator emitted no `returns` at all
- *   until then, so `platformos_tags.liquid` looped over nothing and published `[]` for all 33.
- * - `capture`, `increment`, `decrement` — core Liquid tags the platform never registers, so they
- *   have no handler class to annotate; their `return_type` is authored in the documentation
- *   repository's hand-written `standard_tags.liquid`, beside the rest of their documentation.
+ * Each row is a MEASURED runtime fact rather than a claim about a vocabulary:
  *
- * THE DOCSET WINS regardless: this is read only where {@link tagReturnTypes} has no row, which is
- * what makes the retirement automatic rather than a deletion someone has to remember.
- *
- * Each row is a MEASURED runtime fact rather than a claim about a vocabulary, which is what kept it
- * from being the filter/tag table this repository deleted:
- *
- * - `capture` and `graphql` are the two `InvalidWriteTarget` already shipped and depends on;
+ * - `capture` and `graphql` are the two `InvalidWriteTarget` already depends on;
  *   `{% graphql g %}…{% endgraphql %}` leaves a value `hash_keys` answers `["records"]` for.
- * - `increment` / `decrement` write a counter that is READABLE under the same name — measured
- *   against a live instance, `{% increment c %}{{ c }}` renders `1` — but an assigned variable
- *   SHADOWS it: `{% assign d = 'str' %}{% increment d %}{{ d }}` renders `str`, and so does the
- *   same pair written the other way round. That second half is why a counter binds only where
- *   nothing else does; `shape-analysis.ts` records nothing for these two and was right about the
- *   shadowing and wrong about the read.
+ * - `increment` / `decrement` write a counter that is READABLE under the same name —
+ *   `{% increment c %}{{ c }}` renders `1` — but an assigned variable SHADOWS it:
+ *   `{% assign d = 'str' %}{% increment d %}{{ d }}` renders `str`, in either order. That
+ *   second half is why a counter binds only where nothing else does.
  *
- * `parse_json` is deliberately ABSENT, and upstream now says so in the document: it publishes
- * `@return [untyped]`, because the type is its BODY's — `[1,2]` is an Array and `{}` is a Hash — so
- * a row saying `object` would be wrong half the time. It is read from the source instead, by
- * {@link parsedJsonType}. `function` is `untyped` upstream for the same kind of reason: a partial's
- * return is its author's to decide.
+ * `parse_json` is deliberately ABSENT, and upstream says so: it publishes `@return [untyped]`,
+ * because the type is its BODY's — `[1,2]` is an Array and `{}` is a Hash — so it is read from
+ * the source instead, by {@link parsedJsonType}. `function` is `untyped` upstream for the same
+ * kind of reason: a partial's return is its author's to decide.
  */
 const MEASURED_TAG_TYPES: Readonly<Record<string, LiquidType>> = {
   capture: 'string',
@@ -215,15 +198,14 @@ export async function buildVariableTypes(ast: unknown): Promise<VariableTypes> {
   /**
    * The binding in effect for `name` at `position`, or `undefined`.
    *
-   * THE START BOUND IS INCLUSIVE. A range starts at the defining tag's end, which is an offset a
-   * real tag can begin at exactly, because Liquid tags may abut with nothing between them:
+   * THE START BOUND IS INCLUSIVE. A range starts at the defining tag's end, which is an offset
+   * a real tag can begin at exactly, because Liquid tags may abut with nothing between them:
    *
    *   {% assign x = 5 %}{% hash_assign x['k'] = 'v' %}
    *                     ^ range start AND the reported lookup are both 18
    *
-   * An exclusive bound excluded that case, and the check went silent on a buffer the runtime raises
-   * for while firing on the same code with one space inserted. `shape-analysis`'s `valueAt` uses the
-   * exclusive spelling for its own reasons; this one is the measured bound.
+   * An exclusive bound excluded that case, and the check went silent on a buffer the runtime
+   * raises for while firing on the same code with one space inserted.
    *
    * Later slots win, which is what resolves a reassignment whose ranges abut.
    */

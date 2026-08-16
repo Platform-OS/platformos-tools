@@ -5,21 +5,14 @@ import { PlatformOSFileType } from '@platformos/platformos-common';
 /**
  * Ensures every layout outputs `{{ content_for_layout }}`.
  *
- * `content_for_layout` is where platformOS injects the rendered page body. A
- * layout that never references it renders its own chrome but drops the page
- * entirely — a correctness defect, not a style issue. (Named slots use
- * `{% yield 'name' %}` separately and do not substitute for it.)
+ * `content_for_layout` is where platformOS injects the rendered page body. A layout that never
+ * references it renders its own chrome but drops the page entirely — a correctness defect, not
+ * a style issue. (Named slots use `{% yield 'name' %}` separately and do not substitute for it.)
  *
- * The check is scoped to layout files via `context.fileType()`, the run's
- * root-ANCHORED classification, resolving to the canonical
- * `PlatformOSFileType.Layout` — the single source of truth shared with
- * DocumentsLocator's `'layout'` type and the graph's layout edge — so it never
- * fires on pages or partials. Both detection and the
- * suggested fix are AST-based: any reference to the `content_for_layout`
- * variable clears the check (whether emitted with `{{ … }}`, `{% echo … %}`,
- * or inside a `{% liquid %}` block), and the fix is inserted before the
- * `<body>` element's closing tag — using the parsed element's position, never
- * a text scan of the raw source.
+ * Scoped to layout files via `context.fileType()`, the run's root-ANCHORED classification, so it
+ * never fires on pages or partials. Both detection and the suggested fix are AST-based: any
+ * reference to the variable clears the check, however it is emitted, and the fix is inserted
+ * before the `<body>` element's closing tag using the parsed element's position.
  */
 
 const CONTENT_FOR_LAYOUT = 'content_for_layout';
@@ -32,7 +25,7 @@ export const MissingContentForLayout: LiquidCheckDefinition = {
       description:
         'Ensures every layout references `content_for_layout` — without it the rendered page body is never output.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/missing-content-for-layout',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

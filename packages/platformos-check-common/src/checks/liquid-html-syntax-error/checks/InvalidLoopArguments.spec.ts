@@ -4,11 +4,6 @@ import { LiquidHTMLSyntaxError } from '../index';
 
 /**
  * AGAINST THE SHIPPED `tags.json`, which is what a user's editor answers from.
- *
- * The declared docset below publishes `positional` on every tag parameter. The real one publishes
- * it on none — and requiring `parameter.positional === false` therefore matched nothing, so every
- * loop argument in the language was reported as unknown, with an autofix that deleted it. The
- * declared docset could not show that, because the field it hinges on is one it invents.
  */
 describe('detectInvalidLoopArguments, against the published documents', () => {
   const check = (sourceCode: string) => runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);

@@ -29,13 +29,12 @@ export interface AdapterInput {
 }
 
 /**
- * Resolve the file under edit to an absolute path: returned as-is when already
- * absolute, else joined onto the project root.
+ * Resolve the file under edit to an absolute path: returned as-is when already absolute,
+ * else joined onto the project root.
  *
- * Both branches normalize `.`/`..` segments — `join` does so directly, and
- * {@link fileApplicability}'s `relative` call resolves its arguments — so a
- * traversal like `../../../etc/passwd` cannot survive the containment check
- * below by hiding inside an unnormalized string.
+ * Both branches normalize `.`/`..` segments — `join` directly, and
+ * {@link fileApplicability}'s `relative` by resolving its arguments — so a traversal
+ * cannot survive the containment check by hiding inside an unnormalized string.
  */
 export function toAbsoluteFilePath(projectDir: string, filePath: string): string {
   return isAbsolute(filePath) ? filePath : join(projectDir, filePath);
@@ -47,41 +46,25 @@ export type FileApplicability = { applicable: true } | ({ applicable: false } & 
 /**
  * Decide whether the buffer is a file this server can validate.
  *
- * WHY THIS GATE EXISTS. Without it every path is linted, and because
- * check-common's `toSourceCode` types any unrecognized extension as
- * `SourceCodeType.JSON`, the file is JSON-linted — so `/etc/passwd` came back
- * as `ValidJSON: Expected a JSON object, array or literal.` with
- * `must_fix_before_write: true`. That is wrong in BOTH directions, and the
- * second is the dangerous one:
+ * A declined file gets its own terminal status (`not_applicable`) rather than an `ok` or an
+ * `error`: the only honest answer is "not mine to judge", which neither blocks nor approves
+ * the write. Without this gate every path is linted, and since check-common's
+ * `toSourceCode` types an unrecognized extension as JSON, an off-project file holding `{}`
+ * comes back `ok` — the false approval this status exists to prevent.
  *
- *   - FALSE BLOCK: a legitimate in-project `README.md` edit is reported as an
- *     error the agent must fix before writing.
- *   - FALSE APPROVAL: `/etc/shadow` containing `{}` is valid JSON, so the call
- *     returned `status: 'ok'` — an agent that trusts the write gate reads that
- *     as "validated, safe to write" for a path outside the project entirely.
+ * THREE INDEPENDENT RULES, in order:
  *
- * A declined file therefore gets its own terminal status (`not_applicable`)
- * rather than an `ok` or an `error`: the only honest answer is "not mine to
- * judge", which neither blocks nor approves the write.
+ * 1. CONTAINMENT. The resolved path must lie strictly inside `projectDir`. Checked on the
+ *    `relative()` result rather than by string prefix, which would accept a sibling root
+ *    whose name merely extends the project's (`/srv/app-backup` vs `/srv/app`). A leading
+ *    `..` means the path climbed out; an empty result means the path IS the root; an
+ *    absolute result means a different Windows drive. This is a correctness gate, not a
+ *    security boundary — the server only ever READS — so symlinks are not resolved.
  *
- * THREE INDEPENDENT RULES, in order (each documented at its own branch below):
- *
- * 1. CONTAINMENT. The resolved path must lie strictly inside `projectDir`.
- *    Checked on the `relative()` result rather than by string prefix, because a
- *    prefix test accepts a sibling root whose name merely extends the project's
- *    (`/srv/app-backup` vs `/srv/app`). The first segment being `..` means the
- *    path climbed out; an empty result means the path IS the root (a directory —
- *    what an empty `file_path` used to resolve to); an absolute result means a
- *    different Windows drive. This is a correctness gate, not a security
- *    boundary — the server only ever READS, and the caller supplies the buffer
- *    contents anyway — so no symlink resolution is attempted (that would be I/O
- *    on the request path for no gain).
- *
- * 2. NOT AN ASSET. Assets are deployed and served, never read.
+ * 2. NOT AN ASSET. Assets are deployed and served, never rendered.
  *
  * 3. SUPPORTED TYPE. Reuses platformos-common's `sourceCodeTypeOf`, so the gate cannot
- *    drift away from what the linter would actually have looked at — if lint would not
- *    have visited the file, saying so beats inventing a diagnostic about it.
+ *    drift away from what the linter would have looked at.
  */
 export function fileApplicability(projectDir: string, filePath: string): FileApplicability {
   const absolute = toAbsoluteFilePath(projectDir, filePath);
@@ -104,24 +87,11 @@ export function fileApplicability(projectDir: string, filePath: string): FileApp
 
   const uri = pathUtils.toUri(absolute);
 
-  // 2. AN ASSET IS NEVER JUDGED. An asset is SERVED, not rendered, so there is no
-  //    template in it to check — `platformos-common` owns that rule as `isParsedFileType`
-  //    and this asks IT rather than spelling the comparison again. That matters more than
-  //    it looks: this gate and the lint must agree about every path, and the only way to
-  //    guarantee agreement is for both to consult the same predicate.
-  //
-  //    The rule is a TYPE question, not an extension one, which is why it was missed for
-  //    so long. Measured before it existed: `app/assets/x.liquid` holding `{% if unclosed`
-  //    came back `must_fix_before_write: true` with `LiquidHTMLSyntaxError`, because a bare
-  //    `.liquid` has no response format so the key falls back to `html.liquid`, which has a
-  //    parser row. A FALSE BLOCK on a file the platform hands back verbatim — and backwards
-  //    besides, since `theme.css.liquid`, the asset form the platform DOES process, was
-  //    exempt all along.
-  //
-  //    KEPT even though `lintBuffers` would now answer `not-a-source-file` for the same
-  //    file, and not as belt-and-braces: refusing here costs no I/O, while reaching the
-  //    lint means resolving the config and reconciling the app first. Two gates that
-  //    cannot disagree — because they share the predicate — is the cheap version of one.
+  // 2. AN ASSET IS NEVER JUDGED. It is SERVED, not rendered, so there is no template in it
+  //    to check. A TYPE question, not an extension one: `app/assets/x.liquid` is an asset
+  //    the platform hands back verbatim, while `theme.css.liquid` is processed.
+  //    `platformos-common` owns the rule as `isParsedFileType`; asking IT is what keeps
+  //    this gate and the lint from disagreeing about a path.
   const rootUri = pathUtils.toUri(projectDir);
   const fileType = getFileType(uri, rootUri);
   if (fileType !== undefined && !isParsedFileType(fileType)) {
@@ -131,9 +101,8 @@ export function fileApplicability(projectDir: string, filePath: string): FileApp
   // 3. SUPPORTED TYPE — extension-only, and deliberately NOT the anchored
   //    `isSupportedSourceFile(uri, root)`: this asks "is this a type we parse at all", and
   //    a `.liquid` in an undeployed subtree IS one. Anchoring here would answer
-  //    `unsupported_type` for it — "not a platformOS source", the opposite of the truth —
-  //    where check-node's classifier says `misplaced-source` and the agent needs to hear
-  //    THAT. See `NotApplicableReason`.
+  //    `unsupported_type` where check-node's classifier says `misplaced-source`, which is
+  //    what the agent needs to hear. See `NotApplicableReason`.
   if (sourceCodeTypeOf(uri) === undefined) {
     return { applicable: false, ...notPlatformOSFile(displayPathOf(uri, projectDir)) };
   }
@@ -142,13 +111,11 @@ export function fileApplicability(projectDir: string, filePath: string): FileApp
 }
 
 /**
- * A path as the agent should SEE it: project-relative, forward slashes on every
- * platform.
+ * A path as the agent should SEE it: project-relative, forward slashes on every platform.
  *
  * `node:path.relative` is right for the containment decision above but yields
- * `app\notes.txt` on Windows — echoing back a separator the agent never sent, for a
- * path it has to recognize as its own. check-common's `relative` is URI-based and
- * forward-slash by construction.
+ * `app\notes.txt` on Windows; check-common's `relative` is URI-based and forward-slash by
+ * construction.
  */
 function displayPathOf(uri: string, projectDir: string): string {
   return pathUtils.relative(uri, pathUtils.toUri(projectDir));
@@ -157,58 +124,23 @@ function displayPathOf(uri: string, projectDir: string): string {
 /**
  * Largest buffer this server will validate, in bytes.
  *
- * CHOSEN FROM MEASUREMENT of the FULL LINT, not the parse alone — an earlier
- * version of this constant was sized against `toLiquidHtmlAST` in isolation and
- * was 4x too generous, which let a *legal* 400 KiB buffer blow the 30 s deadline
- * in an end-to-end run. Parsing is only part of the cost; every enabled check then
- * walks the AST.
+ * MEASURED against the FULL LINT, not the parse alone — every enabled check walks the AST
+ * after it. `lintBuffer` over a real 162-file project, warm cache, runs ~61 ms/KiB, so this
+ * bound costs ~7 s isolated; further out the parser itself falls apart (~30 s at 1 MiB, a
+ * stack overflow at 2 MiB, a native V8 abort at 4 MiB). It still admits 1.7x the largest
+ * real source file found across local projects.
  *
- * `lintBuffer` against a real 162-file project, warm cache:
- *
- *   ```
- *      16 KiB ->   1.2 s
- *      32 KiB ->   2.7 s
- *      64 KiB ->   3.7 s
- *     128 KiB ->   7.1 s     <- the bound
- *     192 KiB ->  11.7 s
- *     256 KiB ->  15.6 s
- *   ```
- *
- * ~61 ms/KiB. And the parser alone falls off a cliff further out: 1 MiB takes
- * ~30 s, 2 MiB throws `RangeError: Maximum call stack size exceeded` inside ohm's
- * CST->AST recursion, and 4 MiB produced a native V8 abort.
- *
- * 128 KiB keeps the worst LEGAL buffer at ~7 s isolated (roughly 15 s under
- * contention with a graph build), comfortably inside the deadline it is granted,
- * while still admitting 1.7x the largest real source file found across local
- * projects (a 76 KiB icon-sprite partial). A Liquid template past this size is
- * pathological on its own terms, and the refusal says so.
- *
- * This bound is NOT derived from `cost-model.ts` — it is the older, independent
- * measurement, and it answers a different question: how large a SINGLE file may be
- * before the parser itself becomes the problem, which is a property of the parser
- * rather than of any deadline. It is nonetheless checked against the model, and the
- * two agree: `lintDeadlineMs(MAX_BUFFER_BYTES)` is exactly `MIN_LINT_DEADLINE_MS`,
- * so a maximal single buffer sits precisely at the floor the model would have
- * granted it anyway. `cost-model.spec.ts` pins that agreement, so the two stop
- * being independent numbers that happen to be compatible today.
- *
- * WHY THE BOUND IS THE REAL GUARD, NOT THE DEADLINE. Verified end to end: a
- * deadline cannot interrupt a synchronous parse, and the timer cannot even FIRE
- * during one — a 400 KiB buffer returned after 45 s against a 30 s deadline,
- * because the event loop was blocked until the parse finished. The deadline is a
- * backstop for ASYNC stalls (a wedged fs call, a hung graph lookup); only this
- * bound protects against CPU-bound input. And a native V8 abort is not catchable
- * from JS at all, so nothing downstream could help there.
+ * THIS BOUND, NOT THE DEADLINE, IS THE GUARD against CPU-bound input: a deadline cannot
+ * interrupt a synchronous parse and its timer cannot even fire during one. `cost-model.ts`
+ * is an independent measurement; `cost-model.spec.ts` pins that the two agree.
  */
 export const MAX_BUFFER_BYTES = 128 * 1024;
 
 /**
  * A refusal when the buffer is too large to validate, else `undefined`.
  *
- * Measured in BYTES, not string length: parse cost tracks byte size, and
- * `content.length` would under-count multi-byte content by up to 3x — admitting a
- * buffer three times the intended cost.
+ * Measured in BYTES, not string length: `content.length` under-counts multi-byte content
+ * by up to 3x, admitting a buffer three times the intended cost.
  */
 export function bufferTooLarge(content: string): Declined | undefined {
   const bytes = Buffer.byteLength(content, 'utf8');
@@ -231,10 +163,9 @@ export function bufferTooLarge(content: string): Declined | undefined {
 /**
  * The refusal for a file the project's config excludes from linting.
  *
- * Not an error and not an `ok`: `check()` skips ignored files silently, so "no
- * offenses" for one means "never looked at". Reporting that as `ok` made the write
- * gate approve, for example, an ignored page containing unparseable Liquid — the
- * same false approval an off-project path used to produce.
+ * Not an error and not an `ok`: `check()` skips ignored files silently, so "no offenses"
+ * for one means "never looked at", and reporting that as `ok` would approve an ignored page
+ * containing unparseable Liquid.
  */
 export function ignoredByProjectConfig(relativePath: string): Declined {
   return {
@@ -246,24 +177,13 @@ export function ignoredByProjectConfig(relativePath: string): Declined {
   };
 }
 
-/**
- * The subtrees the platform deploys from, as prose.
- *
- * DERIVED, never spelled out. An earlier draft of the messages below hand-wrote
- * "`app/` (or `modules/<name>/public/` …)", which is a copy of a list that lives in
- * `platformos-common` and would have gone quietly stale the first time a subtree was
- * added — while continuing to sound authoritative to the agent reading it.
- */
+/** The subtrees the platform deploys from, as prose. DERIVED, never spelled out. */
 const DEPLOYED = APP_SOURCE_SUBTREES.map((subtree) => `${subtree}/`).join(', ');
 
 /**
- * Where an agent can read the whole rule rather than infer it from one message.
- *
- * A URL is the crudest form of the `hint` / `see_also` enrichment the result contract
- * reserves (`ValidateCodeDiagnostic`) — those fields hang off a diagnostic, and "the file
- * is in the wrong place" produces none. Making documentation links first-class is
- * separate work; until then the pointer goes in the prose, because an agent that guesses
- * at the directory structure keeps guessing.
+ * Where an agent can read the whole rule rather than infer it from one message. In the
+ * prose because `see_also` hangs off a diagnostic, and "the file is in the wrong place"
+ * produces none.
  */
 const DIRECTORY_STRUCTURE =
   'Directory structure: ' +
@@ -272,16 +192,13 @@ const DIRECTORY_STRUCTURE =
 /**
  * The refusal for a path that is not a platformOS source at all.
  *
- * ROUTINE, and the prose is deliberately mild: a project legitimately holds README
- * files, `.jsx` components, CI config and build output, none of which are platformOS
- * sources and none of which are MEANT to be. This must never advise moving the file
- * anywhere — see {@link misplacedSource}, which is the opposite advice, and which exists
- * precisely so this one can stay neutral.
+ * ROUTINE, and the prose is deliberately mild: a project legitimately holds READMEs, `.jsx`
+ * components, CI config and build output. This must never advise moving the file anywhere —
+ * see {@link misplacedSource}, the opposite advice.
  *
- * Reached from TWO places asking the same question of the same predicate: this server's
- * pre-lint gate ({@link fileApplicability}, which spends no I/O on a file it will not
- * judge) and check-node's `not-a-platformos-file` classification. One factory, so the two
- * cannot describe the same situation differently.
+ * Reached both from this server's pre-lint gate ({@link fileApplicability}) and from
+ * check-node's `not-a-platformos-file` classification. One factory, so the two cannot
+ * describe the same situation differently.
  */
 export function notPlatformOSFile(relativePath: string): Declined {
   return {
@@ -296,12 +213,9 @@ export function notPlatformOSFile(relativePath: string): Declined {
 /**
  * The refusal for an ASSET: an app file the toolchain has no parser for.
  *
- * The same machine-readable code as {@link notPlatformOSFile} — an agent does not act
- * differently on the two, and two codes with one remedy is a branch nobody can take — but
- * its own prose, because the two situations are not the same fact. An asset IS part of
- * the app and is deployed; it simply is not a source. Saying "not a platformOS file"
- * about `app/assets/logo.png` would be false, and a message an author can tell is false
- * is a message they stop reading.
+ * The same machine-readable code as {@link notPlatformOSFile}, since an agent does not act
+ * differently on the two, but its own prose: an asset IS part of the app and is deployed,
+ * so calling `app/assets/logo.png` "not a platformOS file" would be false.
  */
 export function assetNotLinted(relativePath: string): Declined {
   return {
@@ -317,32 +231,17 @@ export function assetNotLinted(relativePath: string): Declined {
 /**
  * The refusal for a real platformOS source sitting where the platform will never load it.
  *
- * THE OPPOSITE ADVICE FROM {@link notPlatformOSFile}, which is the whole reason the two
- * are separate codes. This file IS something the toolchain parses — a partial, a page, a
- * query — but it is outside every subtree the platform deploys, so it is dead code: it
- * will not be served, and nothing that renders by name will find it. An agent told merely
- * "unsupported type" files that under "fine, not my problem" and moves on, which is
- * exactly wrong here.
+ * THE OPPOSITE ADVICE FROM {@link notPlatformOSFile}, which is why the two are separate
+ * codes: this file IS something the toolchain parses, but it is outside every deployed
+ * subtree, so it is dead code.
  *
- * IT DOES NOT BLOCK THE WRITE, deliberately: someone may be authoring a module, a
- * generator template or a fixture on purpose, and this server cannot know. `not_applicable`
- * states the honest thing — nothing was checked — while the prose carries the warning.
- * Making it block would turn a guess about intent into a veto, and a write gate that
- * vetoes legitimate work gets switched off.
+ * IT DOES NOT BLOCK THE WRITE, and is not a `warning` either: someone may be authoring a
+ * module, generator template or fixture on purpose. `not_applicable` states the honest
+ * thing — nothing was checked — while the prose carries the warning.
  *
- * NOT `status: 'warning'` either, tempting as it reads: `warning` in this contract means
- * "the file WAS checked and something objected". Nothing checked this file, and claiming
- * otherwise is the false approval the whole `not_applicable` status exists to prevent.
- *
- * KNOWN OVER-BROAD FOR `.yml`, and preserved as-is rather than quietly narrowed. The
- * classification behind it treats any parseable extension outside the deployed subtrees
- * as misplaced, and while a stray `.liquid` really is almost always a mistake, a stray
- * `.yml` usually is not — a repository's CI, container and linter configs are all `.yml`,
- * including this toolchain's own `.platformos-check.yml`. Those get told "likely
- * misplaced", which is wrong advice, though never a block. Narrowing it means deciding
- * which extensions carry a platformOS signal at the point where classification happens
- * (check-node), not papering over it here; filed as its own change rather than folded
- * into a merge.
+ * KNOWN OVER-BROAD FOR `.yml`: the classification behind it treats any parseable extension
+ * outside the deployed subtrees as misplaced, so a repository's CI or container config is
+ * told "likely misplaced". Narrowing it belongs in check-node, where classification happens.
  */
 export function misplacedSource(relativePath: string): Declined {
   return {

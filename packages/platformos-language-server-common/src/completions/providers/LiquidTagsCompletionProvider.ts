@@ -79,23 +79,8 @@ function findParentNode(partial: string, ancestors: LiquidHtmlNode[]): LiquidTag
     return;
   }
 
-  // This covers the scenario where we have a dangling conditional tag
-  //
-  // e.g.
-  // {% if cond %}
-  //   hello
-  // {% end %}
-  //
-  // In that scenario, we have the following tree:
-  //
-  // type: Document
-  // children:
-  //   - LiquidTag#if
-  //     children:
-  //       - LiquidBranch
-  //         children:
-  //           - TextNode#hello
-  //           - LiquidTag#end
+  // A dangling conditional tag — `{% if cond %}hello{% end %}` — parses as a LiquidTag#if whose
+  // LiquidBranch holds the text and the LiquidTag#end.
   if (
     parentNode &&
     parentNode.type === 'LiquidBranch' &&
@@ -106,21 +91,8 @@ function findParentNode(partial: string, ancestors: LiquidHtmlNode[]): LiquidTag
     return grandParentNode;
   }
 
-  // This covers the scenario where we have a dangling block tag
-  //
-  // e.g.
-  // {% form method: "post" %}
-  //   hello
-  // {% end %}
-  //
-  // In that scenario, we have the following tree:
-  //
-  // type: Document
-  // children:
-  //   - LiquidTag#form
-  //     children:
-  //       - TextNode#hello
-  //       - LiquidTag#end
+  // A dangling block tag — `{% form method: "post" %}hello{% end %}` — parses as a LiquidTag#form
+  // holding the text and the LiquidTag#end directly.
   if (
     parentNode &&
     parentNode.type === 'LiquidTag' &&
@@ -129,21 +101,8 @@ function findParentNode(partial: string, ancestors: LiquidHtmlNode[]): LiquidTag
     return parentNode;
   }
 
-  // This covers the case where a raw tag is being parsed as a LiquidTag
-  // because of the missing endtag.
-  //
-  // e.g.
-  // {% comment %}
-  //   hello
-  // {% end %}
-  //
-  // In that scenario, we have the following tree:
-  //
-  // type: Document
-  // children:
-  //   - LiquidTag#comment
-  //   - TextNode#hello
-  //   - LiquidTag#end
+  // A raw tag parsed as a LiquidTag because its end tag is missing: `{% comment %}hello{% end %}`
+  // parses as three siblings of the Document rather than as a nested block.
   let previousNode: LiquidHtmlNode | undefined;
   if (
     parentNode &&
@@ -216,45 +175,19 @@ function toCompletionItem(
 }
 
 /**
- * Turns out it's hard to tell if something needs an `end$tag` or not.
- *
- * The safest way to guess that something shouldn't be completed is to check whether markup already exists.
- *
- * Probably shouldn't snippet complete:
- * {% if| cond %}{% endif %}
- * {% render| 'card' %}
- *
- * Probably should snippet complete:
- * {% if| %}
- * {% render| %}
- *
- * It's not perfect, but it covers swapping if for unless and so on.
+ * It is hard to tell whether something needs an `end$tag`, and the safest guess is whether
+ * markup already exists: `{% if| cond %}{% endif %}` and `{% render| 'card' %}` should not
+ * snippet-complete, `{% if| %}` and `{% render| %}` should. Not perfect, but it covers swapping
+ * `if` for `unless` and so on.
  */
 function shouldSnippetComplete(params: LiquidCompletionParams, endOfBlockStart: Position) {
   const { completionContext } = params;
   const { node, ancestors } = completionContext ?? {};
   if (!node || !ancestors || node.type !== NodeTypes.LiquidTag) return false;
   /**
-   * If the tag has non-empty markup, we can assume that the name is being
-   * edited. So adding the close tag would be very weird.
-   *
-   * User replaces `if` with `unless`.
-   *
-   * Input
-   *   {% if some_cond %}
-   *   {% endif %}
-   *
-   * ❌ Stuff we DON'T want:
-   *   {% unless some_cond %}
-   *     expression
-   *   {% endunless %}
-   *   {% endif %}
-   *
-   * ✅ Stuff we DO want:
-   *   {% unless some_cond %}
-   *   {% endif %}
-   *
-   * We'll solve the negate condition differently.
+   * Non-empty markup means the NAME is being edited, so adding a close tag would be wrong.
+   * Replacing `if` with `unless` in `{% if some_cond %}{% endif %}` must not insert an
+   * `{% endunless %}` on top of the existing `{% endif %}`.
    */
   const markup = existingMarkup(params, endOfBlockStart);
   return markup.trim() === '';

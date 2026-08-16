@@ -193,13 +193,7 @@ describe('Module: index', () => {
 });
 
 /**
- * TASK-9.3 (+ code-review F1): a Liquid file's own structural declarations.
- *
- * `extractStructural` is the per-file primitive (sibling to
- * `extractFileReferences`). A full `buildAppGraph` populates
- * `LiquidModule.structural` from it ONLY when `{ includeStructural: true }` is
- * passed — the opt-in that keeps a full build (e.g. the LSP's) from computing a
- * fact nothing reads.
+ * a Liquid file's own structural declarations.
  */
 describe('Self-structural: page routing + AST usage facts', () => {
   const rootUri = pathUtils.join(fixturesRoot, 'structural');
@@ -314,8 +308,8 @@ describe('Self-structural: the includeStructural opt-in', () => {
 });
 
 /**
- * A module compared for its EDGE identity. Self-structural (`LiquidModule.structural`,
- * TASK-9.3) is a separate concern, pinned exhaustively in `traverse.spec.ts`;
+ * A module compared for its EDGE identity. Self-structural (`LiquidModule.structural`) is a
+ * separate concern, pinned exhaustively in `traverse.spec.ts`;
  * stripping it here keeps these edge tests focused and stable as structural grows.
  */
 function edgeIdentity(module: AppModule | undefined): AppModule | undefined {
@@ -803,18 +797,6 @@ describe('Graph traversal: schema/Table nodes (full-build discovery)', () => {
 /**
  * The graph resolves `{% render %}` / `{% function %}` / `{% graphql %}` / `layout:`
  * targets through `IDependencies.app`'s index when it is given one.
- *
- * Two things are pinned, and they pull in opposite directions:
- *
- * 1. COST. With an app, a name is answered from the O(1) index and the build lists no
- *    directory at all — except for assets, which never use the index by design.
- * 2. ANSWER. The graph must be IDENTICAL with the app, without it, and with an app whose
- *    index is only partly populated. The index is a shortcut through `findOrLocate`, not
- *    a second resolution rule, so every arm here compares whole graphs.
- *
- * The no-app arm is the control for the cost claim: it shows these very lookups DO cost
- * listings when nothing can answer them, so "no directories listed" is caused by the
- * index rather than by a fixture with nothing to resolve.
  */
 const moduleEdges = pathUtils.join(fixturesRoot, 'module-edges');
 
@@ -915,12 +897,6 @@ const referenceKey = (reference: Reference): string =>
 
 /**
  * The graph with every node's REVERSE index (`references`) in a stable order.
- *
- * A node's dependents are appended as each caller finishes traversing, and entry points
- * are traversed concurrently — so their order tracks how long each resolution took,
- * which is precisely what an index changes. `dependencies` are deliberately NOT sorted:
- * those come from one file's visit in source order, so a difference there would be a
- * real one and must still fail.
  */
 function canonical(graph: AppGraph): AppGraph {
   const sortReferences = (module: AppModule): AppModule => ({

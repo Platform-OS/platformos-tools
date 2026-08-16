@@ -122,9 +122,6 @@ describe('Unit: getDefaultTranslationsFactory', () => {
  * reference translations means listing a directory and reading every file in it, and
  * cross-file checks ask for them once per file they visit. A run over a 3450-file
  * project would repeat that whole-directory read 3450 times without it.
- *
- * Counted rather than asserted structurally: a test that only checked the RESULT is
- * identical on the second call passes just as well with no cache at all.
  */
 describe('Unit: getDefaultTranslations memoization', () => {
   it('reads the filesystem once however many times it is called', async () => {

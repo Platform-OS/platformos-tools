@@ -42,41 +42,19 @@ export const nonTraversableProperties = new Set([
   'lastChild',
 ]);
 
-// This one warrants a bit of an explanation 'cuz it's definitely next
-// level typescript kung-fu shit.
+// `Augmented<T, Props>` adds properties to every node of the AST without rewriting each node
+// type. It maps a property to the augmented form of whatever it holds:
 //
-// We have an AST, right? And we want to augment every node in the AST with
-// new properties. But we don't want to have to _rewrite_ all of the types
-// of all the AST nodes that were augmented. So we use this neat little
-// trick that will surprise you:
+//   LiquidNode[]         -> Augmented<LiquidNode>[]
+//   string | LiquidNode  -> string | Augmented<LiquidNode>
+//   LiquidNode           -> Augmented<LiquidNode>
+//   string               -> string
 //
-// - If the property was   LiquidNode[],
-//   then we'll map it to  Augmented<LiquidNode>[];
+// So `Augmented<LiquidTag, WithParent>` is a LiquidTag with a `parentNode`, whose `children`
+// and `markup` nodes have one too, and whose `name` stays a string.
 //
-// - If the property was   (string | number)[],
-//   then we'll map it to  (string | number)[];
-//
-// - If the property was   string | LiquidNode,
-//   then we'll map it to  string | Augmented<LiquidNode>;
-//
-// - If the property was   LiquidNode,
-//   then we'll map it to  Augmented<LiquidNode>;
-//
-// - If the property was   string,
-//   then we'll map it to  string;
-//
-// So, Augmented<LiquidTag, WithParent> =>
-//  - LiquidTag with a parentNode,
-//  - LiquidTag.children all have a parentNode since LiquidTag.children is LiquidHtmlNode, then
-//  - LiquidTag.markup all have a parentNode since LiquidTag.markup may be LiquidTagAssignMarkup.
-//  - LiquidTag.name will remain a string
-//
-// Topics to google to understand what's going on:
-//  - TypeScript generic types (for creating types from types)
-//  - TypeScript mapped types (for mapping the input type's properties to new types)
-//  - TypeScript union types (A | B | C)
-//  - TypeScript conditional types (and the section on distribution for union types)
-//
+// Built from TypeScript generic, mapped, union and conditional types (including distribution
+// over unions).
 // prettier-ignore
 export type Augmented<T, Aug> = {
   [Property in keyof T]: [T[Property]] extends [(infer Item)[] | undefined]

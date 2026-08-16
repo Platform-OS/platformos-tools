@@ -4,11 +4,6 @@ import { LiquidHTMLSyntaxError } from '..';
 
 /**
  * Message and FIXED SOURCE, whole, for every case.
- *
- * The table-driven tests here used to assert `length(1)` and a message SUBSTRING per
- * iteration — `to.contain("Expression stops at truthy value 'true'")` — which says nothing
- * about the half of the message that names what the platform will ignore, and that half is
- * the whole point of the diagnostic. Several loops also dropped the fix entirely.
  */
 const stopsAt = (value: string, ignored: string) =>
   `Syntax is not supported: Expression stops at truthy value '${value}', and will ignore: '${ignored}'`;
@@ -231,17 +226,6 @@ describe('Module: InvalidConditionalBooleanExpression', () => {
 
   /**
    * The `&&`/`||` HINT, on both branches that append it.
-   *
-   * `checkTrailingTokensAfterComparison` and `checkLaxParsingIssues` each test the ignored
-   * text for `&&|\|\|` and append "Use 'and'/'or' …". They are separate `if` arms reached by
-   * different token shapes, so one test cannot cover both: a comparison followed by junk
-   * lands in the first, a bare literal followed by junk in the second.
-   *
-   * Both arms are the entire reason an author gets told what they did wrong. Liquid has no
-   * `&&`, so it parses as junk after a truthy value and the condition silently becomes
-   * `{% if true %}` — the general message names the ignored text without ever saying that
-   * `&&` was the mistake. Each case is paired with its `and` spelling as the CONTROL, which
-   * must stay silent, so a rule that simply reported every conditional would fail here.
    */
   describe('the &&/|| hint', () => {
     const LOGICAL_HINT = ". Use 'and'/'or' instead of '&&'/'||' for multiple conditions";
@@ -295,18 +279,10 @@ describe('Module: InvalidConditionalBooleanExpression', () => {
   });
 
   /**
-   * A FILTER IN A CONDITION CARRIES NO FIX, and that is a decision rather than an omission.
-   *
-   * The repair needs an `{% assign %}` on a PRECEDING line — `{% assign a = x | upcase %}`
-   * then `{% if a == 'A' %}` — which a `StringCorrector` replacing one range cannot express.
-   * Every sibling detector in `InvalidConditionalNode.ts` returns `{ message, fix }`, so
-   * `fix: <lhs>` is the natural next edit here; it would be silently wrong. Dropping the
-   * filter changes WHAT THE CONDITION TESTS, and `checkAndAutofix` applies safe fixes
-   * without asking, so the author's branch would quietly start comparing the unfiltered
-   * value.
-   *
-   * `offense.fix` is read directly rather than through `applyFix`, which returns the source
-   * unchanged when there is no fix — indistinguishable from a fix that edits nothing.
+   * A FILTER IN A CONDITION CARRIES NO FIX, and that is a decision rather than an omission. The
+   * repair needs an `{% assign %}` on a PRECEDING line, which a `StringCorrector` replacing one
+   * range cannot express, and `fix: <lhs>` — the natural next edit — would change WHAT THE
+   * CONDITION TESTS while `checkAndAutofix` applies safe fixes without asking.
    */
   it('offers NO autofix for a filter in a condition, in every form that reports one', async () => {
     const sources = [

@@ -126,38 +126,29 @@ async function detectInvalidFilterNameInMarkup(
     const trailingEndInSource = trailingStartInSource + invalidSegment.length;
 
     /**
-     * A trailing segment that begins with a COMMA is the filter's ARGUMENTS written with the wrong
-     * separator. The canonical spelling is `| filter: arg1, arg2` — a colon after the NAME, commas
-     * only between arguments — so this is always reported; what took work is choosing the repair.
+     * A trailing segment that begins with a COMMA is the filter's ARGUMENTS written with the
+     * wrong separator. The canonical spelling is `| filter: arg1, arg2`, so this is always
+     * reported; what took work is choosing the repair.
      *
-     * MEASURED, and the measurement settles it: a comma NEVER introduces a filter.
-     *
-     * The control uses a filter that takes NO argument, so that chaining after it is valid and the
-     * two readings give different answers:
-     *
-     *   `{{ 'HELLO' | downcase | size }}`  ->  5      chaining a no-argument filter works
-     *   `{{ 'HELLO' | downcase, size }}`   ->  raises  "downcase filter - wrong number of
-     *                                                  arguments (given 2, expected 1)"
-     *
-     * Had the comma chained, the second would also be 5. It passed an argument instead. Positively
-     * confirmed too: with `{% assign size = 'Z' %}`, `{{ 'HELLO' | append, size }}` renders `HELLOZ`,
+     * MEASURED: a comma NEVER introduces a filter. Against a filter that takes NO argument, where
+     * chaining would be valid, the two readings disagree — `{{ 'HELLO' | downcase | size }}`
+     * renders 5, while `{{ 'HELLO' | downcase, size }}` raises "wrong number of arguments (given
+     * 2, expected 1)". Confirmed positively too: `{{ 'HELLO' | append, size }}` renders `HELLOZ`,
      * identical to `| append: size`.
      *
-     * So the runtime always reads what follows as an argument — which means the author's INTENT is
-     * what differs between cases, not the parse:
+     * So the runtime always reads what follows as an argument, and the author's INTENT is what
+     * differs between cases:
      *
-     *   `{{ 'HELLO' | append, ' world' }}`   meant `| append: ' world'`   (renders `HELLO world`)
-     *   `{{ 'HELLO' | upcase, downcase }}`   meant `| upcase | downcase`  (renders `hello`)
+     *   `{{ 'HELLO' | append, ' world' }}`   meant `| append: ' world'`
+     *   `{{ 'HELLO' | upcase, downcase }}`   meant `| upcase | downcase`
      *
-     * ARITY TELLS THEM APART, using the same contract `FilterArity` blocks on. Read as an argument,
-     * the first gives `append` 2 arguments and its arity is exactly 2 — it fits, so the argument
-     * reading is what was meant. The second gives `upcase` 2 and its arity is exactly 1 — it cannot
-     * fit, measured as "wrong number of arguments (given 2, expected 1)", so the argument reading is
-     * impossible and the chain is what was meant. That is a fact about the filters, not a guess
-     * about the author.
+     * ARITY TELLS THEM APART, using the same contract `FilterArity` blocks on: read as an
+     * argument the first gives `append` 2 and its arity is exactly 2, so it fits; the second
+     * gives `upcase` 2 against an arity of 1, so the argument reading is impossible. That is a
+     * fact about the filters, not a guess about the author.
      *
-     * Deleting the segment, which this check used to do, is wrong in every case: it drops arguments
-     * the runtime applies, turning `111.00` into `111.000` for `| format_number, precision: 2`.
+     * Deleting the segment is wrong in every case: it drops arguments the runtime applies,
+     * turning `111.00` into `111.000` for `| format_number, precision: 2`.
      */
     const argumentSeparator = invalidSegment.match(/^(\s*),/);
 
@@ -168,38 +159,21 @@ async function detectInvalidFilterNameInMarkup(
 
       /**
        * A bare identifier is the only shape that could have been meant as a FILTER rather than an
-       * argument — `', 1, 2'` and `", ' suffix'"` can only be arguments. And a bare identifier is
-       * exactly ONE argument, so the argument reading hands the filter 2: the piped value and it.
-       * That is why the count below is a literal 2 rather than a parse of the segment; it is only
-       * ever consulted under `looksLikeFilterName`.
+       * argument — `', 1, 2'` and `", ' suffix'"` can only be arguments. It is also exactly ONE
+       * argument, so the argument reading hands the filter 2, which is why the count below is a
+       * literal 2 rather than a parse of the segment.
        *
-       * EVERY OTHER SHAPE IS REWRITTEN TO `:` WITHOUT COUNTING, and that is safe because the comma
-       * and colon forms are the same call — measured. If the result then has the wrong number of
-       * arguments, that is `FilterArity`'s to report and it does: `{{ 'hello' | append,
-       * ' suffix', size }}` becomes `| append: ' suffix', size` here and is then reported as
-       * "called with 3 arguments but accepts exactly 2". Counting arguments in this check as well
-       * would be a second, weaker arity implementation reading raw source.
-       */
-      /**
-       * A bare identifier is the only shape that could have been meant as a FILTER rather than an
-       * argument — `', 1, 2'` and `", ' suffix'"` can only be arguments.
+       * THREE FACTS ARE NEEDED, not one:
        *
-       * THREE FACTS ARE NEEDED, not one, and the first version of this required only the middle
-       * one, with `acceptsArgumentCount(arity, 2)`:
-       *
-       *   1. it names a filter that EXISTS. `', Downcase'` and `', my_suffix'` have the shape of a
-       *      filter name and are not filters, so chaining them invents one — the autofix rewrote
-       *      `{{ 'a' | upcase, my_suffix }}` to `{{ 'a' | upcase | my_suffix }}`, deleting an
-       *      argument and calling a filter nobody wrote.
+       *   1. it names a filter that EXISTS. `', Downcase'` has the shape of a filter name and is
+       *      not one, so chaining it invents a filter nobody wrote and deletes an argument.
        *   2. the filter CANNOT TAKE the argument, so the argument reading is impossible rather
-       *      than merely wrong. That is `max < 2` on a BOUNDED max — not "2 is outside the range",
-       *      which is also true when the range starts ABOVE 2. Nine shipped filters have `min >= 3`
-       *      (`add_hash_key`, `replace_regex`, `encrypt`, …), and for those `{{ obj | add_hash_key,
-       *      key }}` was told "'add_hash_key' does not accept one" — false, it accepts two — and
-       *      the autofix chained the argument away.
-       *   3. an unknown arity is not fact 2. `!arity` cannot support the chain reading, and it no
-       *      longer has to: falling through to the separator repair is behaviour-preserving,
-       *      because the comma and colon forms are the same call.
+       *      than merely wrong. That is `max < 2` on a BOUNDED max — not "2 is outside the
+       *      range", which is also true when the range starts ABOVE 2, as it does for the nine
+       *      shipped filters with `min >= 3`.
+       *   3. an unknown arity is not fact 2, and no longer has to be: falling through to the
+       *      separator repair is behaviour-preserving, because the comma and colon forms are the
+       *      same call.
        *
        * Where any of the three is missing, the separator repair applies and the end state is
        * either correct or REPORTED — `| upcase: Downcase` parses, and `FilterArity` then counts
@@ -241,18 +215,15 @@ async function detectInvalidFilterNameInMarkup(
       }
 
       /**
-       * THE REPAIR IS ONLY OFFERED IF IT PARSES, and that is measured against the parser rather
-       * than reasoned about, because the shapes that fail do not look like they would:
+       * THE REPAIR IS ONLY OFFERED IF IT PARSES, measured against the parser rather than reasoned
+       * about, because the shapes that fail do not look like they would:
        * `{{ 'HELLO' | append, 'a' 'b' }}` became `| append: 'a' 'b'`, which still has string
        * markup — so nothing parsed it, no check reported it, and the author was left with a file
-       * the linter called clean and the runtime answered with a 500. Exactly the state the
-       * trailing-comma branch above exists to prevent, reached by every comma-led segment that is
-       * not a well-formed argument list.
+       * the linter called clean and the runtime answered with a 500.
        *
-       * Validating with the real parser, not a hand-rolled argument-list matcher: a second,
-       * weaker grammar reading raw source is what this check keeps being bitten by. When the
-       * repair does not parse the offense still reports — it just carries no autofix, which is
-       * the honest answer when the author's intent cannot be recovered.
+       * Validated with the real parser, not a hand-rolled argument-list matcher: a second, weaker
+       * grammar reading raw source is what this check keeps being bitten by. When the repair does
+       * not parse the offense still reports, without an autofix.
        */
       const separatorRepair = `${argumentSeparator[1]}:${afterComma}`;
       const problem: Problem<SourceCodeType.LiquidHtml> = {

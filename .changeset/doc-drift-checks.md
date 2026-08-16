@@ -44,7 +44,7 @@ file defines is an input the caller was meant to pass, and `MissingDocParam` own
 the file DOES define and reads out of that definition's reach — a `for` variable after its
 loop, a value read before its `assign` — is a scope error no `@param` would fix, and stays
 with `UndefinedObject`. The two conditions are complements, so every name still draws exactly
-one report: measured on `platformos-blog` and `calories`, the single
+one report: measured on `platformos-blog` and `project-e`, the single
 `Unknown object 'data' used.` warning on `modules/user/public/lib/queries/api_call.liquid`
 became the single `MissingDocParam` error on the same read — a partial that forwards
 `data: data` to a GraphQL call while declaring only `api_template` and `timeout`, so no
@@ -59,8 +59,8 @@ The analysis is memoized on `(source, in-scope names)` and now takes the parse i
 already holds, so between the two checks a documented partial costs one walk and no parse.
 
 Measured on real projects. `RequiredDocParamWithDefault`: 122 offenses over 56 files on
-`platformos-blog`, 111 over 48 on `calories`, 17 over 7 on `pos-module-community` with its
+`platformos-blog`, 111 over 48 on `project-e`, 17 over 7 on `pos-module-community` with its
 vendored modules unignored — every one a doc backfilled as required over a body that
 defaults it, each with the safe fix. `MissingDocParam`: 1 offense on each of
-`platformos-blog` and `calories`, 0 on `pos-module-community` and on three client
+`platformos-blog` and `project-e`, 0 on `pos-module-community` and on three client
 projects, and the one it finds is a real defect.

@@ -359,11 +359,6 @@ describe('extractUndefinedVariables', () => {
 
 /**
  * The analysis is memoized ON THE FILE, not in a cache of its own.
- *
- * That is what lets it be keyed by nothing but the in-scope names: the file already knows when
- * its source stops being true and drops the memo with the parse, and the `App` already evicts
- * files nobody is using — so there is no content key holding a second copy of every source, and
- * no eviction policy to tune. These pin both halves of that: it memoizes, and it lets go.
  */
 describe('Unit: undefinedVariablesOf memoization', () => {
   it('analyzes a file once, however many call sites ask about it', () => {

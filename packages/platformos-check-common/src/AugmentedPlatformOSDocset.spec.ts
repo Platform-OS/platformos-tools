@@ -271,11 +271,6 @@ describe('Module: AugmentedPlatformOSDocset', async () => {
  * THE DOCSET IS THE WHOLE FILTER VOCABULARY. This package holds no list of its own, and the
  * augmentation must not grow one back: its only job on `filters()` is to re-emit each published
  * entry under its aliases.
- *
- * The guard is worth its weight because the failure is quiet. A locally injected `{ name }` carries
- * neither `arity` nor `return_type`, and both `InvalidWriteTarget` and `FilterArity` resolve a
- * filter by name — so an entry appended beside a published one does not throw, it silently answers
- * "unknown" for a filter the platform fully documents.
  */
 describe('AugmentedPlatformOSDocset: the published filters, and nothing beside them', () => {
   const docsetOf = (filters: FilterEntry[]) =>

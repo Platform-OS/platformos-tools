@@ -29,18 +29,11 @@ const docsetWith = (filters: FilterEntry[]): Partial<{ platformosDocset: Platfor
 });
 
 /**
- * TASK-28 (evaluation finding F-07). A KNOWN filter called with the wrong number of
- * arguments used to pass validation and then raise at render time:
- *
- *   {{ 'abc' | slice }}   ->  ok / must_fix_before_write: false
- *                             Liquid::ArgumentError — wrong number of arguments
- *                             (given 1, expected 2..3), page HTTP 500
- *
- * The asymmetry was the finding: an unknown filter NAME blocked the write while a
- * known filter called wrongly — the same class of runtime failure — was approved.
- *
- * Every expected range below is the range the platform publishes, derived from the Ruby signature.
- * The docset is the only source, so these fixtures carry the arity the way the real data does.
+ * A KNOWN filter called with the wrong number of arguments used to pass validation and then
+ * raise at render time: `{{ 'abc' | slice }}` came back `ok` and then
+ * `Liquid::ArgumentError — wrong number of arguments (given 1, expected 2..3)`, HTTP 500. The
+ * asymmetry was the finding: an unknown filter NAME blocked the write while a known filter
+ * called wrongly — the same class of runtime failure — was approved.
  */
 const PUBLISHED: FilterEntry[] = [
   { name: 'slice', arity: { min: 2, max: 3 } },
@@ -255,13 +248,6 @@ describe('Module: FilterArity', () => {
 
   /**
    * THE COUNT IS THIS CHECK'S, NOT `InvalidFilterName`'s.
-   *
-   * `{{ 'hello' | append: ' suffix', size }}` is correct SYNTAX — a colon after the name, a comma
-   * between arguments — and still wrong, because `append` takes exactly 2 and this passes 3.
-   * Measured: "append filter - wrong number of arguments (given 3, expected 2)". `InvalidFilterName`
-   * deliberately stays silent on it and repairs only the separator, which is what lets this check
-   * see the call at all: `| append, ' suffix', size` is rewritten to the form above and then
-   * reported here. Two checks, one mistake each.
    */
   describe('a comma that legitimately separates arguments', () => {
     it('reports a call with too many arguments however the separator is spelled', async () => {

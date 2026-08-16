@@ -6,39 +6,11 @@ import { relativePosixPath } from '../os-path';
 const packageRoot = join(__dirname, '..', '..');
 
 /**
- * The App model exists in this package precisely BECAUSE this package sits below the
- * parser stack: that is what forces parsers to be injected, and injection is what lets
- * the language server, the linter and the graph share one set of file objects instead
- * of three. These tests pin that boundary, because the model silently stops being
- * shareable the moment it depends on something above it.
- *
- * "Below the parser stack" is about the WORKSPACE packages that own the ASTs
- * (`@platformos/liquid-html-parser` and friends) and about staying browser-safe — not
- * about never reading a format. This package owns platformOS domain facts that are
- * DEFINED in a format: a schema's model `name:` is YAML, a GraphQL operation's target
- * table is GraphQL. So `js-yaml` and `graphql` are dependencies, both browser-safe and
- * neither a workspace package, and `App` still receives every parser by injection.
- *
- * The list is exact rather than a denylist: a new dependency has to be justified here,
- * where the reason is written down, instead of appearing by hoisting.
- *
- * TAKING `@platformos/liquid-html-parser` WAS MEASURED AND REJECTED (TASK-74, 2026-08-09),
- * and the reason is not the one you would expect. It is not that the edge is expensive:
- * that package has no workspace dependencies of its own, it is browser-safe, and a spike
- * that added it here cost `+881 bytes` on the web extension's bundle — 0.010 % — with no
- * measurable CPU change and byte-identical offenses across the four `~/projects/pos`
- * baseline projects. It is that the edge buys nothing.
- *
- * `ast` being `unknown` is not a limitation this package works around; it is the evidence
- * that the design does not need the parser. `derived(key, compute)` already memoizes
- * analyses this package cannot name, dropped by the same two lines that drop the parse —
- * `undefinedVariablesOf` is the worked example — and the checks that parse a project file
- * themselves do it by not LOOKING THE FILE UP, which injection has nothing to do with.
- *
- * The one thing the dependency would buy is a TYPED `ast`, and that is not a one-package
- * move: the YAML and JSON ASTs are `JSONNode`, which lives in check-common. So opening this
- * list means moving jsonc and yaml down too, which is a different and larger decision than
- * the one this comment declines.
+ * The App model exists in this package precisely BECAUSE this package sits below the parser
+ * stack: that is what forces parsers to be injected, and injection is what lets the language
+ * server, the linter and the graph share one set of file objects instead of three. These tests
+ * pin that boundary, because the model silently stops being shareable the moment it depends on
+ * something above it.
  */
 describe('platformos-common package boundaries', () => {
   it('depends on no workspace parser package and no Node-only package', async () => {

@@ -1,23 +1,17 @@
 import { ArgumentTypes } from './types';
 
 /**
- * THREE caching helpers live in this package, and they are not variations on one idea.
- * An audit once reported them as duplication; they are not, and collapsing any pair
- * would either hand every call site machinery it does not need or take a bound away
- * from the two that depend on one.
+ * THREE caching helpers live in this package, and they are not variations on one idea:
  *
- * | Helper                                  | Keyed? | Bounded? | For |
- * |-----------------------------------------|--------|----------|-----|
- * | {@link memo}                            | no     | n/a      | a value computed at most once per owner — a docset's `filters()`, a run's reference translations |
- * | {@link memoize}                         | yes    | no       | a per-key answer whose key space is small and owner-scoped (one per project root, one per open file), with explicit `invalidate`/`force` for when the answer goes stale |
- * | `createBoundedCache` (`bounded-cache.ts`) | yes  | LRU cap  | a per-key answer whose key space is UNBOUNDED — typically keyed on file CONTENT, so every edit mints a key and the cap is what stops a long session growing without limit. A caller may key on identity and revalidate instead; `bounded-cache.ts` says what that costs |
+ * | Helper                                    | Keyed? | Bounded? | For |
+ * |-------------------------------------------|--------|----------|-----|
+ * | {@link memo}                              | no     | n/a      | a value computed at most once per owner — a docset's `filters()`, a run's reference translations |
+ * | {@link memoize}                           | yes    | no       | a per-key answer whose key space is small and owner-scoped, with explicit `invalidate`/`force` |
+ * | `createBoundedCache` (`bounded-cache.ts`) | yes    | LRU cap  | a per-key answer whose key space is UNBOUNDED — typically keyed on file CONTENT, so every edit mints a key |
  *
- * A fourth, `cached`, used to sit privately in `context-utils.ts`. It was {@link memo}
- * with a truthiness check instead of a sentinel and no `clearCache`, and it is gone.
- *
- * The sentinel below is the difference that matters when picking between them: a
- * falsy-check cache re-computes forever for a function that legitimately returns
- * `undefined`, `null`, `0` or `false`.
+ * The sentinel below is the difference that matters when picking between them: a falsy-check
+ * cache re-computes forever for a function that legitimately returns `undefined`, `null`, `0`
+ * or `false`.
  */
 
 export type MemoedFunction<F extends (...args: any[]) => any> = {

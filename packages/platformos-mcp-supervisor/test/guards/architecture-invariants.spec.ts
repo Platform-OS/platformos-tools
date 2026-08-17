@@ -1,23 +1,6 @@
 /**
- * Machine-enforced architectural invariants for @platformos/platformos-mcp-supervisor.
- *
- * These guards encode the non-goals from the rebuild epic (TASK-7) so the
- * sound design cannot silently rot as later tasks add modules. They run under
- * the repo-root vitest (which globs every package and excludes `dist/`), so no
- * package-local vitest config is required.
- *
- * Two kinds of assertion live here:
- *   1. REAL-SOURCE guards — scan the package's actual `src/**` and
- *      `package.json`. They pass vacuously while a layer is un-scaffolded and
- *      bite the moment a violating import / pattern is introduced.
- *   2. SELF-TESTS — exercise the pure detectors against inline good/bad
- *      fixtures, pinning the "a test fails on violation" behaviour
- *      deterministically, independent of what currently lives in `src/`.
- *
- * Invariants enforced (see ARCHITECTURE.md §Invariants):
- *   #1 No in-process language server on the lint path.
- *   #2 No string round-trip: enrich/ never regex-parses diagnostic messages.
- *   #5 enrich/ and result/ are PURE — no fs / process / I/O, no dependency on lint/.
+ * Machine-enforced architectural invariants for @platformos/platformos-mcp-supervisor
+ * (see ARCHITECTURE.md §Invariants), so the design cannot silently rot as modules are added.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -25,11 +8,17 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  declaredSymbols,
+  extractImports,
   extractImportSpecifiers,
   hasMessageRegexParsing,
   isIoSpecifier,
+  isLanguageServerRuntimeSpecifier,
   isLanguageServerSpecifier,
+  isLspProtocolSpecifier,
   listSourceFiles,
+  pathExists,
+  stripComments,
   type SourceFile,
   usesLegacyParamExtraction,
   usesProcessGlobal,
@@ -38,25 +27,33 @@ import {
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = join(PACKAGE_ROOT, 'src');
 
-/** The whole validate_code request path — none of it may reach for a language server. */
-const LINT_PATH_LAYERS = [
-  'lint',
-  'graph-cache',
-  'impact',
-  'enrich',
-  'advise',
-  'result',
-  'transport',
-];
+/**
+ * The lint path — none of it may reach for a language server at all.
+ *
+ * `enrich/` is deliberately ABSENT. It is the one layer permitted to import the
+ * language-server LIBRARY, and then only the bindings on {@link LSP_LIBRARY_ALLOWLIST}.
+ * It does not lint; it explains what the lint found.
+ */
+const LINT_PATH_LAYERS = ['lint', 'impact', 'result', 'transport'];
 /** The layers contractually required to be pure (no I/O). */
 const PURE_LAYERS = ['enrich', 'result'];
+
+/**
+ * The ONLY bindings importable from `@platformos/platformos-language-server-common`.
+ */
+const LSP_LIBRARY_ALLOWLIST: ReadonlySet<string> = new Set([
+  'render',
+  'renderHtmlEntry',
+  'renderParameter',
+  'DocsetEntryType',
+]);
 
 function filesIn(...layers: string[]): SourceFile[] {
   return layers.flatMap((layer) => listSourceFiles(join(SRC, layer), PACKAGE_ROOT));
 }
 
-describe('Architecture invariant #1 — no language server on the lint path', () => {
-  it('package.json declares no platformos-language-server-* dependency', () => {
+describe('Architecture invariant #1 — the supervisor never speaks the LSP protocol', () => {
+  it('package.json declares no language-server RUNTIME dependency', () => {
     const pkgPath = join(PACKAGE_ROOT, 'package.json');
     if (!existsSync(pkgPath)) return; // package.json is scaffolded in TASK-7.4
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as Record<string, Record<string, string>>;
@@ -66,11 +63,36 @@ describe('Architecture invariant #1 — no language server on the lint path', ()
       ...(pkg.peerDependencies ?? {}),
       ...(pkg.optionalDependencies ?? {}),
     });
-    const offenders = deps.filter((d) => isLanguageServerSpecifier(d));
-    expect(offenders, `language-server dependency declared: ${offenders.join(', ')}`).toEqual([]);
+    const offenders = deps.filter(
+      (d) => isLanguageServerRuntimeSpecifier(d) || isLspProtocolSpecifier(d),
+    );
+    expect(
+      offenders,
+      `a language-server runtime or LSP protocol package is declared: ${offenders.join(', ')}`,
+    ).toEqual([]);
   });
 
-  it('no src/ lint-path module imports a platformos-language-server-* package', () => {
+  it('no src/ module imports an LSP protocol / transport / document-manager package', () => {
+    const offenders: string[] = [];
+    for (const file of listSourceFiles(SRC, PACKAGE_ROOT)) {
+      for (const spec of extractImportSpecifiers(file.text)) {
+        if (isLspProtocolSpecifier(spec)) offenders.push(`${file.rel} -> ${spec}`);
+      }
+    }
+    expect(offenders, `LSP protocol import:\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('no src/ module imports a language-server RUNTIME package', () => {
+    const offenders: string[] = [];
+    for (const file of listSourceFiles(SRC, PACKAGE_ROOT)) {
+      for (const spec of extractImportSpecifiers(file.text)) {
+        if (isLanguageServerRuntimeSpecifier(spec)) offenders.push(`${file.rel} -> ${spec}`);
+      }
+    }
+    expect(offenders, `language-server runtime import:\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('no lint-path module imports any platformos-language-server package', () => {
     const offenders: string[] = [];
     for (const file of filesIn(...LINT_PATH_LAYERS)) {
       for (const spec of extractImportSpecifiers(file.text)) {
@@ -82,11 +104,265 @@ describe('Architecture invariant #1 — no language server on the lint path', ()
     );
   });
 
+  it('imports from the language-server library are limited to the allowlisted pure helpers', () => {
+    const offenders: string[] = [];
+    for (const file of listSourceFiles(SRC, PACKAGE_ROOT)) {
+      for (const imported of extractImports(file.text)) {
+        if (!isLanguageServerSpecifier(imported.spec)) continue;
+        if (imported.wildcard) {
+          offenders.push(`${file.rel} -> namespace/default import of ${imported.spec}`);
+          continue;
+        }
+        for (const name of imported.named) {
+          if (!LSP_LIBRARY_ALLOWLIST.has(name)) {
+            offenders.push(`${file.rel} -> ${name} from ${imported.spec}`);
+          }
+        }
+      }
+    }
+    expect(
+      offenders,
+      `binding imported from the language-server package but not on the allowlist:\n${offenders.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  it('SELF-TEST: separates the LSP wire from vscode-uri and from the library', () => {
+    expect(isLspProtocolSpecifier('vscode-languageserver')).toBe(true);
+    expect(isLspProtocolSpecifier('vscode-languageserver/node')).toBe(true);
+    expect(isLspProtocolSpecifier('vscode-languageserver-protocol')).toBe(true);
+    expect(isLspProtocolSpecifier('vscode-languageserver-textdocument')).toBe(true);
+    expect(isLspProtocolSpecifier('vscode-jsonrpc')).toBe(true);
+    // The URI helper platformos-common already depends on carries no protocol.
+    expect(isLspProtocolSpecifier('vscode-uri')).toBe(false);
+    expect(isLspProtocolSpecifier('@platformos/platformos-language-server-common')).toBe(false);
+  });
+
+  it('SELF-TEST: separates a language-server runtime from the library', () => {
+    expect(isLanguageServerRuntimeSpecifier('@platformos/platformos-language-server-node')).toBe(
+      true,
+    );
+    expect(isLanguageServerRuntimeSpecifier('@platformos/platformos-language-server-browser')).toBe(
+      true,
+    );
+    expect(isLanguageServerRuntimeSpecifier('@platformos/platformos-language-server-common')).toBe(
+      false,
+    );
+    expect(isLanguageServerRuntimeSpecifier('@platformos/platformos-check-node')).toBe(false);
+  });
+
   it('SELF-TEST: detects a language-server specifier', () => {
     expect(isLanguageServerSpecifier('@platformos/platformos-language-server-node')).toBe(true);
     expect(isLanguageServerSpecifier('@platformos/platformos-language-server-common')).toBe(true);
     expect(isLanguageServerSpecifier('@platformos/platformos-check-node')).toBe(false);
     expect(isLanguageServerSpecifier('@platformos/platformos-graph')).toBe(false);
+  });
+
+  it('SELF-TEST: extractImports reads named bindings and flags namespace/default imports', () => {
+    expect(
+      extractImports(`import { render, renderParameter as rp } from '@platformos/x';`),
+    ).toEqual([{ spec: '@platformos/x', named: ['render', 'renderParameter'], wildcard: false }]);
+    expect(extractImports(`import type { DocsetEntryType } from '@platformos/x';`)).toEqual([
+      { spec: '@platformos/x', named: ['DocsetEntryType'], wildcard: false },
+    ]);
+    expect(extractImports(`import * as ls from '@platformos/x';`)).toEqual([
+      { spec: '@platformos/x', named: [], wildcard: true },
+    ]);
+    expect(extractImports(`import def, { render } from '@platformos/x';`)).toEqual([
+      { spec: '@platformos/x', named: ['render'], wildcard: true },
+    ]);
+    expect(extractImports(`export { render } from '@platformos/x';`)).toEqual([
+      { spec: '@platformos/x', named: ['render'], wildcard: false },
+    ]);
+  });
+
+  it('SELF-TEST: the allowlist rejects a server binding taken from the same package', () => {
+    const allowed = extractImports(
+      `import { render } from '@platformos/platformos-language-server-common';`,
+    );
+    const refused = extractImports(
+      `import { startServer } from '@platformos/platformos-language-server-common';`,
+    );
+    expect(allowed[0].named.every((n) => LSP_LIBRARY_ALLOWLIST.has(n))).toBe(true);
+    expect(refused[0].named.every((n) => LSP_LIBRARY_ALLOWLIST.has(n))).toBe(false);
+  });
+});
+
+/**
+ * Invariant #3 — one graph, one docset, one root finder.
+ */
+describe('Architecture invariant #3 — no re-implementation of an owned capability', () => {
+  /** Declared names that mean a capability has been rebuilt here. Case-insensitive. */
+  const FORBIDDEN_DECLARATIONS = [
+    'ProjectScanner',
+    'ProjectFactGraph',
+    'DependencyGraph',
+    'FiltersIndex',
+    'ObjectsIndex',
+    'TagsIndex',
+    // The single docset wrapper lives in check-common; a second one here would be a
+    // second place alias expansion and memoization could disagree.
+    'AugmentedPlatformOSDocset',
+    // Project-root resolution is check-common's `findRoot`. A second finder is how two
+    // layers end up disagreeing about which project a file belongs to.
+    'findRoot',
+    'findProjectRoot',
+    'locateProjectRoot',
+  ].map((name) => name.toLowerCase());
+
+  it('declares no project scanner, fact graph, dependency graph, docset wrapper or root finder', () => {
+    const offenders: string[] = [];
+    for (const file of listSourceFiles(SRC, PACKAGE_ROOT)) {
+      for (const name of declaredSymbols(file.text)) {
+        if (FORBIDDEN_DECLARATIONS.includes(name.toLowerCase())) {
+          offenders.push(`${file.rel} declares ${name}`);
+        }
+      }
+    }
+    expect(
+      offenders,
+      `a capability another package owns has been re-implemented:\n${offenders.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  /**
+   * The docset arrives through check-node's `getPlatformOSDocset()` — the same object the
+   * lint reads from — and this package neither imports nor declares the docs-updater.
+   */
+  it('does not depend on the docs-updater — the docset comes from check-node', () => {
+    const pkg = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8')) as Record<
+      string,
+      Record<string, string>
+    >;
+    const declared = Object.keys({
+      ...(pkg.dependencies ?? {}),
+      ...(pkg.devDependencies ?? {}),
+      ...(pkg.peerDependencies ?? {}),
+      ...(pkg.optionalDependencies ?? {}),
+    }).filter((dep) => dep.includes('check-docs-updater'));
+
+    const imported: string[] = [];
+    for (const file of listSourceFiles(SRC, PACKAGE_ROOT)) {
+      for (const spec of extractImportSpecifiers(file.text)) {
+        if (spec.includes('check-docs-updater')) imported.push(`${file.rel} -> ${spec}`);
+      }
+    }
+
+    expect({ declared, imported }).toEqual({ declared: [], imported: [] });
+  });
+
+  it('SELF-TEST: flags a declaration and clears an import of the same name', () => {
+    expect(declaredSymbols(`export class FiltersIndex {}`)).toEqual(['FiltersIndex']);
+    expect(declaredSymbols(`function findRoot(uri: string) { return uri; }`)).toEqual(['findRoot']);
+    expect(declaredSymbols(`const dependencyGraph = build();`)).toEqual(['dependencyGraph']);
+    // Importing the real one, or naming it in a type position, is the sanctioned path.
+    expect(declaredSymbols(`import { findRoot } from '@platformos/platformos-check-common';`)).toEqual(
+      [],
+    );
+    expect(
+      declaredSymbols(`import { AugmentedPlatformOSDocset } from '@platformos/platformos-check-node';`),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * Invariant #4 — ONE detector framework, and it is check-common.
+ */
+describe('Architecture invariant #4 — the supervisor detects nothing itself', () => {
+  it('has no advise/ directory', () => {
+    expect(pathExists(join(SRC, 'advise')), 'an advise/ layer was added').toBe(false);
+  });
+
+  it('emits no pos-supervisor: diagnostic code', () => {
+    // Scanned over code with comments stripped, so the ADR references and this file's own
+    // explanations do not trip it — only a live string would.
+    const offenders = listSourceFiles(SRC, PACKAGE_ROOT)
+      .filter((file) => stripComments(file.text).includes('pos-supervisor:'))
+      .map((file) => file.rel);
+
+    expect(
+      offenders,
+      `a pos-supervisor: code is being emitted; detectors belong in check-common:\n${offenders.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  it('SELF-TEST: the namespace detector reads code, not commentary', () => {
+    expect(stripComments(`const c = 'pos-supervisor:HtmlInPage';`)).toContain('pos-supervisor:');
+    expect(stripComments(`// pos-supervisor:HtmlInPage was dropped, see ADR 002\n`)).not.toContain(
+      'pos-supervisor:',
+    );
+  });
+});
+
+/**
+ * Invariant #6 — the supervisor ships NO documentation.
+ */
+describe('Architecture invariant #6 — no documentation lives in this package', () => {
+  /**
+   * A declaration under any of these names is a vocabulary table by another spelling.
+   * Matched case-insensitively and without underscores, so `KNOWN_FILTERS`, `knownFilters`
+   * and `FiltersTable` are all the same offence.
+   */
+  const VOCABULARY_TABLE_NAMES = [
+    'filters',
+    'knownfilters',
+    'liquidfilters',
+    'filtertable',
+    'filterstable',
+    'tags',
+    'knowntags',
+    'liquidtags',
+    'tagtable',
+    'tagstable',
+    'objects',
+    'knownobjects',
+    'liquiddrops',
+    'objecttable',
+    'objectstable',
+    'properties',
+    'knownproperties',
+    'deprecatedfilters',
+    'deprecatedtags',
+    'shopifyobjects',
+    'shopifytags',
+  ];
+
+  const normalise = (name: string) => name.toLowerCase().replace(/_/g, '');
+
+  it('declares no filter / tag / object / property vocabulary table', () => {
+    const offenders: string[] = [];
+    for (const file of listSourceFiles(SRC, PACKAGE_ROOT)) {
+      for (const name of declaredSymbols(file.text)) {
+        if (VOCABULARY_TABLE_NAMES.includes(normalise(name))) {
+          offenders.push(`${file.rel} declares ${name}`);
+        }
+      }
+    }
+    expect(
+      offenders,
+      `a platform vocabulary table has been declared here; it belongs in the docset:\n${offenders.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  it('ships no data/ directory and no prose asset', () => {
+    expect(pathExists(join(PACKAGE_ROOT, 'data')), 'a data/ directory was added').toBe(false);
+    expect(pathExists(join(SRC, 'data')), 'a src/data directory was added').toBe(false);
+
+    // ...and nothing packs one either. `files` used to list `dist/data/**/*`, which is the
+    // shape of the knowledge directory this invariant forbids.
+    const pkg = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8')) as {
+      files?: string[];
+    };
+    expect((pkg.files ?? []).filter((entry) => entry.includes('data'))).toEqual([]);
+  });
+
+  it('SELF-TEST: the table detector spans the spellings a table can arrive under', () => {
+    expect(declaredSymbols('const KNOWN_FILTERS = ["a"];').map(normalise)).toEqual(['knownfilters']);
+    expect(VOCABULARY_TABLE_NAMES).toContain(normalise('KNOWN_FILTERS'));
+    expect(VOCABULARY_TABLE_NAMES).toContain(normalise('liquidTags'));
+    // A name that merely mentions a docset concept is NOT a table: reading the docset is
+    // the sanctioned path, and only a declared collection of names is the violation.
+    expect(VOCABULARY_TABLE_NAMES).not.toContain(normalise('filterEntryFor'));
+    expect(VOCABULARY_TABLE_NAMES).not.toContain(normalise('renderTagEntry'));
   });
 });
 
@@ -133,6 +409,43 @@ describe('Architecture invariant #5 — enrich/ and result/ are pure', () => {
     expect(usesProcessGlobal('const dir = process.cwd();')).toBe(true);
     expect(usesProcessGlobal('const v = process.env.FOO;')).toBe(true);
     expect(usesProcessGlobal('const processed = items.map(x => x);')).toBe(false);
+  });
+});
+
+/**
+ * No false-positive CORRECTION layer.
+ */
+describe('Architecture invariant — no false-positive suppression pass', () => {
+  /** Declaration names that mean findings are being second-guessed after the fact. */
+  const SUPPRESSION_PATTERNS = [/^verify.*OnDisk$/i, /^suppress/i, /^dropFalsePositives?$/i];
+
+  it('declares no verify*OnDisk / suppress* / dropFalsePositive step', () => {
+    const offenders: string[] = [];
+    for (const file of listSourceFiles(SRC, PACKAGE_ROOT)) {
+      for (const name of declaredSymbols(file.text)) {
+        if (SUPPRESSION_PATTERNS.some((pattern) => pattern.test(name))) {
+          offenders.push(`${file.rel} declares ${name}`);
+        }
+      }
+    }
+    expect(
+      offenders,
+      `a false-positive suppression pass has reappeared; fix the CHECK instead:\n${offenders.join('\n')}`,
+    ).toEqual([]);
+  });
+
+  it('SELF-TEST: flags the v1 names and clears ordinary ones', () => {
+    const flags = (name: string) => SUPPRESSION_PATTERNS.some((pattern) => pattern.test(name));
+    expect([
+      flags('verifyMissingPartialOnDisk'),
+      flags('suppressKnownFalsePositives'),
+      flags('dropFalsePositives'),
+      // Not suppression: bounding a response is about SIZE, and it never changes the
+      // gate — `response-budget.ts` runs on finished results for exactly that reason.
+      flags('capToBudget'),
+      flags('assembleResult'),
+      flags('blocksWrite'),
+    ]).toEqual([true, true, true, false, false, false]);
   });
 });
 

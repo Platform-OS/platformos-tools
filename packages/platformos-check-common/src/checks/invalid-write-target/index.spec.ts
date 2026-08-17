@@ -9,9 +9,6 @@ import { InvalidWriteTarget } from './index';
  * makes the docset load-bearing for three of the containers. It is stubbed rather than taken from
  * the shipped documents so an upstream `return_type` change cannot quietly turn an Array fixture
  * into an untyped one, which every "must stay silent" case here would then pass vacuously.
- *
- * What a published spelling MEANS is `liquid-types.spec.ts`'s subject, and what a variable holds at
- * an offset is `variable-types.spec.ts`'s. Neither is restated here.
  */
 const docset = {
   async filters() {
@@ -77,16 +74,6 @@ describe('Module: InvalidWriteTarget — a subscript write', () => {
   /**
    * MEASURED against `/api/app_builder/liquid_exec`, every row re-run 2026-08-16, each reading the
    * container back so "accepted" means the write happened rather than merely that the tag parsed:
-   *
-   *                        x['k'] = V           x[0] = V
-   *   Hash                 writes               writes (key "0")
-   *   Array                raises, wants index  writes
-   *   String/Number/       raises, "expected Hash or Array" for every subscript
-   *   Boolean/Range/Date/Time/unset
-   *
-   * `assign`, `hash_assign` and `function` reach the same runtime setter and agree on every row,
-   * which is why the three columns are asserted side by side: a change that fixes one spelling and
-   * forgets another cannot pass.
    */
   const CASES: Array<[label: string, seed: string, subscript: string, expected: string[]]> = [
     ['hash, key', HASH, `x['k']`, []],
@@ -128,9 +115,6 @@ describe('Module: InvalidWriteTarget — a subscript write', () => {
     // `{% assign x.k = 'v' %}` and `{% function x.k = 'p' %}` both write the key `k` — measured,
     // `{"k":…}` read back — so an Array must refuse them. `hash_assign` has no dot form: it raises
     // `Liquid::SyntaxError` at PARSE time, which is `InvalidHashAssignTargetSyntax`'s finding.
-    //
-    // The third row is the control: the same Array with the subscript the runtime accepts. Without
-    // it, a rule that reported every dot target would satisfy the first two.
     expect([
       await messages(`${ARRAY}{% assign x.k = 'v' %}`),
       await messages(`${ARRAY}{% function x.k = 'partials/p' %}`),
@@ -143,9 +127,6 @@ describe('Module: InvalidWriteTarget — a subscript write', () => {
     // `x[0]['k']` on an Array of strings raises "x[0] is a, expected Hash or Array". Answering that
     // needs the type of `x[0]`, and nothing here tracks element types. The second row is why
     // guessing would be worse than silence: `x['a'][0]` RENDERS when `x['a']` is a Hash.
-    //
-    // The third row bounds the gap to the nesting: `x` is an Array and the first subscript is a
-    // string key, which the runtime refuses whatever follows it.
     expect([
       await messages(`${ARRAY}{% assign x[0]['k'] = 'v' %}`),
       await messages(`{% parse_json x %}{"a": {}}{% endparse_json %}{% assign x['a'][0] = 'v' %}`),
@@ -217,9 +198,6 @@ describe("Module: InvalidWriteTarget — '<<' appends to an Array", () => {
     // The runtime asks about the value AT the subscript, not about the container — measured,
     // "x[k] is null, expected Array" for a Hash whose `k` is unset, and the same buffer renders
     // once `k` holds an Array. Nothing here tracks element types, so this is a deliberate silence.
-    //
-    // The control is the same container and operator with NO subscript, which must still fire: a
-    // fix that stopped visiting `<<` altogether would pass the first two rows.
     expect([
       await messages(`${HASH}{% assign x['k'] << 'v' %}`),
       await messages(`${HASH}{% function x['k'] << 'partials/p' %}`),
@@ -284,8 +262,6 @@ describe('Module: InvalidWriteTarget — what it declines to infer', () => {
     // array's element type and which no probe can measure: reading it off a fixture of hashes
     // reports the fixture's shape, not the filter's, and would refuse `{% assign row << 'v' %}`
     // after any `| find` over an array of arrays.
-    //
-    // The control is the same append onto a container the docset DOES type.
     expect([
       await messages(`{% assign x = 'a' | not_in_the_docset %}{% assign x['k'] = 'v' %}`),
       await messages(`{% assign row = rows | find: 'k', 1 %}{% assign row << 'v' %}`),

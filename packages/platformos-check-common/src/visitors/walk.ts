@@ -1,22 +1,17 @@
 /**
- * The one stack walk behind `visitLiquid` and `visitJSON`.
+ * The one stack walk behind `visitLiquid` and `visitJSON`, which differ only in the type guard,
+ * the properties not to descend into, and the static types — so those three are its parameters.
  *
- * Those two were the same thirty lines written twice, differing only in the type guard,
- * the set of properties not to descend into, and the static types — so those three are
- * exactly what this takes as parameters.
+ * The ORDER this produces is a contract, not an implementation detail: checks accumulate state
+ * across nodes, so a different order gives different offenses on some files. `index.spec.ts`
+ * pins the whole sequence for both ASTs, and one property of it is easy to break by "tidying":
+ * **array items are pushed in REVERSE**, because the stack pops what was pushed last, so
+ * pushing backwards is what makes siblings come out in document order.
  *
- * The ORDER this produces is a contract, not an implementation detail: checks accumulate
- * state across nodes, so a different order gives different offenses on some files.
- * `index.spec.ts` pins the whole sequence for both ASTs, and one property of it is easy
- * to break by "tidying" and is load-bearing: **array items are pushed in REVERSE**. The
- * stack pops what was pushed last, so pushing backwards is what makes siblings come out
- * in document order. Push them forwards and every array is visited backwards.
- *
- * There is **one callback per node**, and no per-node exit callback. A check that needs
- * to act after a subtree accumulates during the walk and acts in `onCodePathEnd`, which
- * every one of them already does. Post-subtree semantics need a second stack frame per
- * node; `index.spec.ts` pins that nothing but the entry method is ever dispatched, so
- * re-adding the capability is a deliberate change with a failing test to flip (TASK-73).
+ * There is **one callback per node**, and no per-node exit callback. A check that needs to act
+ * after a subtree accumulates during the walk and acts in `onCodePathEnd`. Post-subtree
+ * semantics need a second stack frame per node, and `index.spec.ts` pins that nothing but the
+ * entry method is ever dispatched, so re-adding the capability has a failing test to flip.
  */
 export interface NodeWalkOptions<Node> {
   /** Whether an arbitrary property value is a node worth descending into. */

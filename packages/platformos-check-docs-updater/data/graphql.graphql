@@ -3719,7 +3719,8 @@ interface HasUsersInterface {
 """
 Represents data as a collection of unique keys and their values. Also known as
 associative arrays, maps or dictionaries. You can create it in liquid by
-converting JSON object with parse_json filter or tag. It can be any level deep.
+assigning a JSON literal, e.g. {% assign object = { "color": "green" } %}. It
+can be any level deep.
 """
 scalar HashObject
 

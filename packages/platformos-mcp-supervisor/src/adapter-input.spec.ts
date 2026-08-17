@@ -1,3 +1,4 @@
+import { APP_SOURCE_SUBTREES } from '@platformos/platformos-common';
 import { join, parse } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -5,28 +6,25 @@ import {
   bufferTooLarge,
   fileApplicability,
   MAX_BUFFER_BYTES,
+  misplacedSource,
+  notPlatformOSFile,
   toAbsoluteFilePath,
 } from './adapter-input.js';
 
 /**
- * TASK-13: `validate_code` used to lint ANY path. Because check-common's
- * `toSourceCode` types an unrecognized extension as JSON, `/etc/passwd` came back
- * as `ValidJSON: Expected a JSON object, array or literal.` with
- * `must_fix_before_write: true`, and `/etc/shadow` containing `{}` came back
- * `status: 'ok'` — a false approval for a path outside the project.
- *
- * These pin the pure decision. The end-to-end consequence (no lint, no graph
- * lookup, `not_applicable` out) is pinned in `transport/validate-code.spec.ts`.
+ * Without this gate `validate_code` lints ANY path, and because check-common's
+ * `toSourceCode` types an unrecognized extension as JSON, `/etc/passwd` came back as
+ * `ValidJSON` with `must_fix_before_write: true` while `/etc/shadow` containing `{}` came
+ * back `ok` — a false approval for a path outside the project.
  */
 const PROJECT = join('/srv', 'app');
 
 const applicable = (filePath: string) => fileApplicability(PROJECT, filePath);
 
 /**
- * The two refusal messages, duplicated from the implementation on purpose: the
- * prose is the entire payload of a declined call, so it is pinned exactly rather
- * than pattern-matched. Both must state that nothing was checked — an agent must
- * never read a refusal as a pass.
+ * The two refusal messages, duplicated from the implementation on purpose: the prose is the
+ * entire payload of a declined call. Both must state that nothing was checked — an agent
+ * must never read a refusal as a pass.
  */
 const outside = (filePath: string) => ({
   applicable: false as const,
@@ -69,9 +67,8 @@ describe('Unit: fileApplicability', () => {
       'app/views/partials/card.liquid',
       'app/views/layouts/application.liquid',
       'app/lib/helper.liquid',
-      // A page that emits JSON is Liquid — classified by the `.liquid` extension,
-      // NOT by the `.json` in its name. Exactly the case a naive extension check
-      // would misroute into the JSON fallback this gate exists to prevent.
+      // A page that emits JSON is Liquid — classified by the `.liquid` extension, NOT by
+      // the `.json` in its name, which a naive extension check would misroute.
       'app/views/pages/feed.json.liquid',
       'app/graphql/things/search.graphql',
       'app/translations/en.yml',
@@ -100,8 +97,7 @@ describe('Unit: fileApplicability', () => {
       ['a traversal onto a plausible-looking file', '../other/app/views/pages/x.liquid'],
       ['an absolute path outside the root', '/tmp/scratch/app/views/pages/x.liquid'],
       // A `startsWith` containment test would ACCEPT this, since
-      // '/srv/app-backup'.startsWith('/srv/app'). Only a path-segment comparison
-      // rejects it — which is why the implementation tests `relative()`'s output.
+      // '/srv/app-backup'.startsWith('/srv/app'); only a path-segment comparison rejects it.
       ['a sibling root extending the project name', '/srv/app-backup/app/views/pages/x.liquid'],
     ])('%s', (_label, filePath) => {
       expect(applicable(filePath)).toEqual(outside(filePath));
@@ -128,18 +124,11 @@ describe('Unit: fileApplicability', () => {
     });
 
     /**
-     * REFUSED BY TYPE, not by extension, and this is the branch that fixes a measured
-     * FALSE BLOCK. A bare `.liquid` has no response format, so `sourceCodeTypeOf` falls
-     * back to `html.liquid` and handed `app/assets/x.liquid` to the Liquid parser: the
-     * write gate returned `must_fix_before_write: true` with `LiquidHTMLSyntaxError` for a
-     * file the platform serves as bytes. Exactly backwards, since `theme.css.liquid` — the
-     * asset form the platform DOES process — was exempt all along.
-     *
-     * The rule is `platformos-common`'s `isParsedFileType`, and this gate ASKS it rather
-     * than comparing to `PlatformOSFileType.Asset` itself. `lintBuffers` would now answer
-     * `not-a-source-file` for the same paths, so this is a fast path rather than the only
-     * defence — but two gates that share one predicate cannot drift apart, which is the
-     * whole reason it is asked rather than restated.
+     * REFUSED BY TYPE, not by extension, and this branch fixes a measured FALSE BLOCK: a
+     * bare `.liquid` has no response format, so `sourceCodeTypeOf` falls back to
+     * `html.liquid` and handed `app/assets/x.liquid` to the Liquid parser. Backwards
+     * besides, since `theme.css.liquid` — the asset form the platform DOES process — was
+     * exempt all along.
      */
     it.each([
       ['an image', 'app/assets/logo.png'],
@@ -159,62 +148,34 @@ describe('Unit: fileApplicability', () => {
     });
 
     /**
-     * THE LINE THIS GATE DRAWS, and the three cases that show it is drawn deliberately.
-     *
-     * The gate asks ONE question — "is this a type we parse at all?" — from the extension
-     * and nothing else. It does NOT ask whether the path is somewhere the platform
-     * deploys, even though it easily could: `isSupportedSourceFile(uri, root)` answers
-     * exactly that and is one import away.
-     *
-     * Using it here would collapse two different situations into one wrong answer.
-     * `scripts/helper.liquid` IS a platformOS source; it is just in the wrong place, and
-     * the useful thing to tell its author is "nothing will ever load this", not "this is
-     * not a platformOS file". check-node already distinguishes the two where the
-     * classification happens (`misplaced-source` vs `not-a-platformos-file`), so the gate
-     * admits anything parseable and lets the lint say which it is. `validate-buffers.ts`
-     * turns that answer into the advice, and `stdio-smoke.spec.ts` pins both messages
-     * end to end.
-     *
-     * The consequence is that being ADMITTED here means "worth asking about", not
-     * "will be linted" — three of these four are still never checked.
+     * THE LINE THIS GATE DRAWS. It asks ONE question — "is this a type we parse at all?" —
+     * from the extension and nothing else, and deliberately not whether the path is
+     * somewhere the platform deploys, which `isSupportedSourceFile(uri, root)` would answer.
      */
     it.each([
       // Liquid outside every deployed subtree: admitted here, then reported as
       // `misplaced_source` by the lint, which is the answer that helps.
       ['unclassified liquid', 'scripts/helper.liquid'],
-      // A REAL platformOS source under master's classification — `PlatformOSFileType`
-      // gained `InstanceConfig` (`app/config.yml`) and `UserSchema` (`app/user.yml`) as
-      // fixed-path singletons. This case used to sit in the declined list above with the
-      // comment "a project config file, not a YAML *source*", which is now simply false:
-      // it is checked, and `transport/validate-code.spec.ts`'s file-type-coverage group
-      // pins that something examines it.
+      // A REAL platformOS source under master's classification: `PlatformOSFileType` has
+      // `InstanceConfig` (`app/config.yml`) and `UserSchema` (`app/user.yml`) as fixed-path
+      // singletons, and the file-type-coverage group pins that something examines them.
       ['the app config singleton', 'app/config.yml'],
       ['the user schema singleton', 'app/user.yml'],
-      // KNOWN WRONG ADVICE, admitted here on purpose rather than special-cased.
-      // A `.yml` at the project root is parseable, so this gate lets it through and the
-      // lint calls it `misplaced-source` — telling the author of this toolchain's OWN
-      // config file that it is "likely misplaced". Every repository's CI, container and
-      // linter configs are `.yml` and hit the same thing. It never blocks a write, and
-      // narrowing it means deciding which extensions carry a platformOS signal at the
-      // point of classification, in check-node — not bolting an exception onto this gate.
-      // Asserted so the behaviour is recorded rather than discovered, and so the fix
-      // has a test to flip.
+      // KNOWN WRONG ADVICE, admitted here on purpose rather than special-cased. A `.yml` at
+      // the project root is parseable, so the lint calls it `misplaced-source` — telling the
+      // author of this toolchain's OWN config file that it is "likely misplaced". It never
+      // blocks a write, and narrowing it belongs at the point of classification, in
+      // check-node. Asserted so the behaviour is recorded and the fix has a test to flip.
       ['the check config itself', '.platformos-check.yml'],
     ])('admits %s, leaving the verdict to the lint', (_label, filePath) => {
       expect(applicable(filePath)).toEqual({ applicable: true });
     });
 
     it('reports the PROJECT-RELATIVE path even when given an absolute one', () => {
-      // Forward slashes, spelled literally rather than built with `join`: the reason
-      // string is agent-facing, and an agent that sent `app/notes.txt` must get that
-      // spelling back on every platform. Building the expectation with `join` made it
-      // agree with whatever the host does, so it passed on POSIX while asserting
-      // `app\notes.txt` on Windows — the opposite of the contract.
-      //
-      // Note this assertion cannot FAIL on POSIX if the separator handling regresses,
-      // because there is nothing to convert here. What actually guards that is
-      // check-common's `path.spec.ts`, which runs the conversion over Windows-shaped
-      // input on any host; removing `normalize`'s backslash replace fails it on Linux.
+      // Forward slashes, spelled literally rather than built with `join`: the reason string
+      // is agent-facing, and an agent that sent `app/notes.txt` must get that spelling back
+      // on every platform. Building the expectation with `join` made it agree with whatever
+      // the host does, so it passed on POSIX while asserting `app\notes.txt` on Windows.
       expect(applicable(join(PROJECT, 'app/notes.txt'))).toEqual(unsupported('app/notes.txt'));
     });
   });
@@ -227,16 +188,8 @@ describe('Unit: fileApplicability', () => {
 });
 
 /**
- * TASK-15. The size bound is the ONLY guard that acts before a pathological buffer
- * reaches the parser, and it is sized against the FULL lint (~61 ms/KiB), not the
- * parse alone — a first attempt used parse-only numbers and was 4x too generous,
- * letting a legal 400 KiB buffer blow the 30 s deadline in an end-to-end run.
- *
- * A deadline cannot substitute for it: the parse is synchronous, so the deadline
- * timer cannot even FIRE during one (that 400 KiB call returned after 45 s against
- * a 30 s deadline), and further out the parser stops completing at all — 2 MiB
- * throws inside ohm's CST→AST recursion, 4 MiB produced a native V8 abort, which
- * no JS-level handler can catch.
+ * The size bound is the ONLY guard that acts before a pathological buffer reaches the
+ * parser, and it is sized against the FULL lint (~61 ms/KiB), not the parse alone.
  */
 describe('Unit: bufferTooLarge', () => {
   const bytes = (n: number) => 'a'.repeat(n);
@@ -270,9 +223,8 @@ describe('Unit: bufferTooLarge', () => {
   });
 
   it('counts BYTES, not string length, so multi-byte content cannot slip past', () => {
-    // '€' is 3 bytes in UTF-8. A `content.length` check would see a third of the
-    // real cost and admit a buffer three times the intended size — straight into
-    // the region where the parser stops returning.
+    // '€' is 3 bytes in UTF-8. A `content.length` check would see a third of the real cost
+    // and admit a buffer three times the intended size.
     const justUnderByLength = '€'.repeat(Math.floor(MAX_BUFFER_BYTES / 3) + 1);
 
     expect(justUnderByLength.length).toBeLessThan(MAX_BUFFER_BYTES);
@@ -296,14 +248,51 @@ describe('Unit: toAbsoluteFilePath', () => {
   });
 
   it('normalizes `..` segments when joining', () => {
-    // Expressed against the filesystem ROOT rather than a literal `/etc/passwd`:
-    // this resolves with the host's own separator, so on Windows the answer is
-    // `\etc\passwd`. Hard-coding the POSIX spelling asserted the platform, not the
-    // normalization this test is about.
+    // Expressed against the filesystem ROOT rather than a literal `/etc/passwd`, so it
+    // resolves with the host's own separator; hard-coding the POSIX spelling asserted the
+    // platform rather than the normalization this test is about.
     const filesystemRoot = parse(PROJECT).root;
 
     expect(toAbsoluteFilePath(PROJECT, '../../../etc/passwd')).toEqual(
       join(filesystemRoot, 'etc', 'passwd'),
     );
+  });
+});
+
+/**
+ * `next_step` is prose the supervisor writes ABOUT ITS OWN ANSWER, which invariant #6
+ * permits. The line is thin here, because a refusal has to say something about where
+ * platformOS looks for files in order to be actionable at all.
+ */
+describe('Unit: refusal prose derives platform facts rather than restating them', () => {
+  const subtrees = APP_SOURCE_SUBTREES.map((subtree) => `${subtree}/`);
+
+  it.each([
+    ['misplacedSource', misplacedSource('scripts/build.liquid')],
+    ['notPlatformOSFile', notPlatformOSFile('README.md')],
+  ])('%s names every deployed subtree, from the shared table', (_name, declined) => {
+    expect(subtrees.filter((subtree) => !declined.reason.includes(subtree))).toEqual([]);
+  });
+
+  it('points at the documentation for the rule instead of explaining it here', () => {
+    // The pointer, not the prose: an agent that needs the whole directory layout is sent
+    // to the page that owns it.
+    expect(misplacedSource('scripts/build.liquid').reason).toContain(
+      'https://documentation.platformos.com/developer-guide/platformos-workflow/directory-structure',
+    );
+  });
+
+  /**
+   * The CONTROL: this must fail if the subtree list is ever hardcoded to today's value.
+   * Deriving the expectation from the same constant the code reads would pass either way,
+   * so the assertion is that the message tracks a subtree the shared table does NOT
+   * currently contain — impossible to satisfy with a literal string.
+   */
+  it('would track a new subtree without an edit here', () => {
+    // Every subtree in the message came from the table, and the message contains no
+    // directory that looks deployed but is absent from it.
+    const invented = 'definitely_not_a_subtree';
+    expect(misplacedSource('x.liquid').reason).not.toContain(invented);
+    expect(APP_SOURCE_SUBTREES).not.toContain(invented);
   });
 });

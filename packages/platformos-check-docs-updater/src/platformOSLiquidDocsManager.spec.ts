@@ -82,11 +82,6 @@ describe('Module: PlatformOSLiquidDocsManager', async () => {
 
   /**
    * A FAILED REFRESH MUST BE RETRIED, which is only possible if the revision on disk was left alone.
-   *
-   * `setup` used to write the remote `latest.json` before refreshing anything else. A bulk refresh that
-   * then failed left the new revision on disk beside the old four files — and the next run compared local
-   * against remote, found them equal, and never refreshed again. Nothing failed, nothing logged, and the
-   * docset stayed a release behind forever.
    */
   it('retries after a failed refresh, because the revision on disk was not moved', async () => {
     vi.mocked(download).mockResolvedValue('{"revision": "2"}');

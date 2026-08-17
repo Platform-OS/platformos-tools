@@ -28,12 +28,6 @@ describe('Unit: loadConfig', () => {
    * Mock packages that two of these tests must install into the REAL installation
    * root (`thisNodeModuleRoot()`), because that is the sibling-discovery path they
    * assert — a temp dir cannot stand in for it.
-   *
-   * They are removed after every test, unconditionally. Without this a failing (or
-   * interrupted) test leaves a package behind in the repo's own `node_modules`,
-   * which is gitignored and therefore invisible: later runs then discover a
-   * half-deleted module and fail with `Cannot find module …`, intermittently and
-   * far away from the cause.
    */
   const MOCK_INSTALLED_MODULES = ['not-conventional', 'platformos-check-global-extension'];
 

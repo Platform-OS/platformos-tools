@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TIMED_OUT, withDeadline } from './deadline.js';
 
 /**
- * TASK-15. `withDeadline` is a backstop, and its contract is narrow on purpose:
+ * `withDeadline` is a backstop, and its contract is narrow on purpose:
  * add a deadline, change nothing else. In particular a rejection must pass through
  * untouched, because the lint is the primary gate and swallowing its failure would
  * turn a real error into a silent pass.

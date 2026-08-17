@@ -1,17 +1,20 @@
 import fs from 'node:fs/promises';
 import nodePath from 'node:path';
 import path from 'node:path';
+import { allChecks } from '@platformos/platformos-check-common';
 import { UnreadableDirectoryError, normalizeUri, uriFromPath } from '@platformos/platformos-common';
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
 
 import {
   Config,
+  LiquidHtmlNode,
   Offense,
   SourceCodeType,
   appCheckRun,
   getApp,
   getAppAndConfig,
+  getPlatformOSDocset,
   lintBuffer,
   lintBuffers,
   loadConfig,
@@ -423,6 +426,7 @@ describe('Unit: lintBuffer', () => {
       expect(await lint('modules/vendored/public/views/partials/button.liquid')).toEqual({
         status: 'excluded-by-config',
         offenses: [],
+        fixes: [],
       });
     });
 
@@ -430,6 +434,7 @@ describe('Unit: lintBuffer', () => {
       expect(await lint('scripts/helper.liquid')).toEqual({
         status: 'misplaced-source',
         offenses: [],
+        fixes: [],
       });
     });
 
@@ -437,6 +442,7 @@ describe('Unit: lintBuffer', () => {
       expect(await lint('src/components/Widget.jsx')).toEqual({
         status: 'not-a-platformos-file',
         offenses: [],
+        fixes: [],
       });
     });
 
@@ -444,6 +450,7 @@ describe('Unit: lintBuffer', () => {
       expect(await lint('app/assets/app.js')).toEqual({
         status: 'not-a-source-file',
         offenses: [],
+        fixes: [],
       });
     });
 
@@ -477,24 +484,20 @@ describe('Unit: lintBuffer', () => {
 });
 
 /**
- * TASK-17: `lintBuffers` lints N buffers in ONE pass over the project, and
- * {@link lintBuffer} delegates to it so there is a single overlay/restore path.
+ * `lintBuffers` lints N buffers in ONE pass over the project, and {@link lintBuffer} delegates
+ * to it so there is a single overlay/restore path.
  *
  * Two independent reasons, and the second matters more:
  *
- * 1. SPEED. Everything expensive is per-project, not per-buffer: resolving the config,
- *    walking and reconciling the shared `App`, reconciling the route table. N single
- *    calls repeat all of it N times against an unchanged project.
+ * 1. SPEED. Everything expensive is per-project, not per-buffer.
  * 2. CORRECTNESS. With every buffer overlaid at once, a partial introduced in one buffer
- *    resolves for a `render` in another. Linting the same coordinated edit file-by-file
- *    reports `MissingPartial` for a file that exists in the very batch being checked — a
- *    false positive inherent to the single-buffer shape, not a tuning problem.
+ *    resolves for a `render` in another; file-by-file linting reports `MissingPartial` for a
+ *    file that exists in the very batch being checked.
  *
  * The result key is built with `uriFromPath`, the SAME conversion production uses. Never
- * `URI.file(...).toString()`, which percent-encodes the drive colon and so yields
- * `file:///c%3A/...` against production's `file:///c:/...`. Those agree on POSIX, which is
- * exactly how the wrong spelling passes locally and fails on Windows CI — and fails
- * misleadingly, because a missing key reads as "no offenses" rather than "no such file".
+ * `URI.file(...).toString()`, which percent-encodes the drive colon — those agree on POSIX,
+ * which is exactly how the wrong spelling passes locally and fails on Windows CI, and fails
+ * misleadingly, because a missing key reads as "no offenses".
  */
 describe('Integration: lintBuffers', () => {
   let workspace: Workspace;
@@ -693,6 +696,253 @@ MissingPartial:
       "'ghost_two' does not exist",
     ]);
   });
+
+  /**
+   * Give one registered check's fixers a throw, for the duration of one test.
+   */
+  function sabotageFixers(code: string): { restore: () => void; count: () => number } {
+    const definition = allChecks.find((check) => check.meta.code === code);
+    assert(definition, `no check registered under ${code}`);
+
+    const original = definition.create;
+    let sabotaged = 0;
+    const throwing = () => {
+      throw new Error('fixer sabotage');
+    };
+
+    // `createContext` returns a plain object literal, so a spread carries every capability
+    // a check reads — only `report` is replaced.
+    definition.create = ((context: any) =>
+      original({
+        ...context,
+        report: (problem: any) => {
+          if (problem.fix) sabotaged += 1;
+          sabotaged += problem.suggest?.length ?? 0;
+          context.report({
+            ...problem,
+            ...(problem.fix ? { fix: throwing } : {}),
+            ...(problem.suggest
+              ? { suggest: problem.suggest.map((s: any) => ({ ...s, fix: throwing })) }
+              : {}),
+          });
+        },
+      } as any)) as typeof definition.create;
+
+    return {
+      restore: () => {
+        definition.create = original;
+      },
+      count: () => sabotaged,
+    };
+  }
+
+  /**
+   * A FIXER may read back through the `App`, so fixes must be materialised beside the lint.
+   */
+  describe('materialises fixes while the app is still live', () => {
+    let docWorkspace: Workspace;
+    let docRoot: string;
+    let docConfig: string;
+
+    beforeEach(async () => {
+      docWorkspace = await makeTempWorkspace({
+        '.platformos-check.yml': `extends: platformos-check:nothing
+MissingDocParam:
+  enabled: true
+MissingPartial:
+  enabled: true
+`,
+        app: { views: { partials: { 'card.liquid': '<div></div>' } } },
+      });
+      docRoot = URI.parse(docWorkspace.rootUri).fsPath;
+      docConfig = path.join(docRoot, '.platformos-check.yml');
+    });
+
+    afterEach(async () => {
+      await docWorkspace?.clean();
+    });
+
+    it('returns concrete edits for a fixer that reads the file, without throwing', async () => {
+      const filePath = path.join(docRoot, 'app', 'views', 'partials', 'documented.liquid');
+      const results = await lintBuffers({
+        root: docRoot,
+        configPath: docConfig,
+        buffers: [
+          {
+            filePath,
+            content: '{% doc %}\n  @param a {string} A\n{% enddoc %}\n{{ a }}{{ undeclared }}\n',
+          },
+        ],
+      });
+
+      const result = results.get(uriFromPath(filePath))!;
+      const index = result.offenses.findIndex((o) => o.check === 'MissingDocParam');
+
+      // `MissingDocParam` offers a SUGGESTION ("Declare 'x' in the doc tag"), not a
+      // safe autofix — and it is the suggestion's fixer that reads `file.source`.
+      expect(index).not.toEqual(-1);
+      expect(result.fixes[index].suggestions?.map((s) => s.edits.length > 0)).toEqual([true]);
+    });
+
+    /**
+     * A broken fixer costs its own fix and nothing else.
+     */
+    it('reports the offense, and logs the fault, when a fixer throws', async () => {
+      const sabotage = sabotageFixers('MissingDocParam');
+      const logged: string[] = [];
+      try {
+        const filePath = path.join(docRoot, 'app', 'views', 'partials', 'documented.liquid');
+        const results = await lintBuffers({
+          root: docRoot,
+          configPath: docConfig,
+          buffers: [
+            {
+              filePath,
+              content: '{% doc %}\n  @param a {string} A\n{% enddoc %}\n{{ a }}{{ undeclared }}\n',
+            },
+          ],
+          log: (message) => logged.push(message),
+        });
+
+        const result = results.get(uriFromPath(filePath))!;
+        const index = result.offenses.findIndex((o) => o.check === 'MissingDocParam');
+
+        expect({
+          reported: index !== -1,
+          // Nothing partial: a fixer that threw contributes no edits rather than the
+          // ones it managed to record before failing.
+          fixes: index === -1 ? undefined : result.fixes[index],
+          // Visible to whoever can fix it — a silent catch would turn a bug into a check
+          // that quietly stopped offering its suggestion.
+          faultsLogged: logged.filter((message) => message.includes('fixer sabotage')).length,
+        }).toEqual({ reported: true, fixes: {}, faultsLogged: sabotage.count() });
+      } finally {
+        sabotage.restore();
+      }
+    });
+
+    it('keeps fixes index-aligned with offenses, including offenses that have none', async () => {
+      const filePath = path.join(docRoot, 'app', 'views', 'pages', 'index.liquid');
+      const results = await lintBuffers({
+        root: docRoot,
+        configPath: docConfig,
+        buffers: [{ filePath, content: "{% render 'nope' %}" }],
+      });
+
+      const result = results.get(uriFromPath(filePath))!;
+      // Same length always: an offense the engine offered nothing for gets `{}`, so the
+      // alignment never depends on which offenses happened to be fixable.
+      expect(result.fixes.length).toEqual(result.offenses.length);
+    });
+  });
+
+  /**
+   * The returned AST must describe the text that was CHECKED, which for an edited buffer is the
+   * buffer and not the file on disk.
+   */
+  describe('returns the AST of what was checked', () => {
+    /** Every filter name in the tree, in document order — a cheap fingerprint of WHICH text was parsed. */
+    const filterNames = (ast: LiquidHtmlNode): string[] => {
+      const names: string[] = [];
+      const walk = (node: unknown): void => {
+        if (!node || typeof node !== 'object') return;
+        const candidate = node as { type?: string; name?: unknown };
+        if (candidate.type === 'LiquidFilter' && typeof candidate.name === 'string') {
+          names.push(candidate.name);
+        }
+        for (const value of Object.values(node as Record<string, unknown>)) {
+          if (Array.isArray(value)) value.forEach(walk);
+          else if (value && typeof value === 'object') walk(value);
+        }
+      };
+      walk(ast);
+      return names;
+    };
+
+    it('an EDITED buffer yields the BUFFER tree, not the tree of the file on disk', async () => {
+      // On disk this page is `{% render 'card' %}`; the buffer replaces it entirely.
+      const results = await lintBuffers({
+        root,
+        configPath,
+        buffers: [
+          {
+            filePath: absolute('app/views/pages/index.liquid'),
+            content: '{{ a | upcase }}{{ b | downcase }}',
+          },
+        ],
+      });
+
+      const ast = resultFor(results, 'app/views/pages/index.liquid')?.ast;
+      expect(ast && filterNames(ast)).toEqual(['upcase', 'downcase']);
+    });
+
+    it('an UNCHANGED buffer yields a tree matching the file on disk', async () => {
+      // The control for the case above: send back exactly what is on disk. Same seam,
+      // same code path, and the answer must now agree with disk — which is what shows
+      // the test above is measuring the OVERLAY and not just "some tree came back".
+      const results = await lintBuffers({
+        root,
+        configPath,
+        buffers: [
+          {
+            filePath: absolute('app/views/partials/card.liquid'),
+            content: '<div>{{ title }}</div>',
+          },
+        ],
+      });
+
+      const ast = resultFor(results, 'app/views/partials/card.liquid')?.ast;
+      expect(ast && filterNames(ast)).toEqual([]);
+    });
+
+    it('reading the App AFTER the call gives the DISK tree — which is why the AST is returned', async () => {
+      // Pins the reason this field exists. The overlay is gone by now (the test above
+      // pins that it must be), so the app holds `{% render 'card' %}` again and carries
+      // none of the buffer's filters. A consumer that looked the AST up here instead of
+      // taking the returned one would silently get this.
+      const edited = '{{ a | upcase }}{{ b | downcase }}';
+      const results = await lintBuffers({
+        root,
+        configPath,
+        buffers: [{ filePath: absolute('app/views/pages/index.liquid'), content: edited }],
+      });
+
+      // The revert leaves the file UNLOADED as well as un-overlaid, so reading it needs
+      // an explicit load — which re-reads it from disk. That is the whole point: there is
+      // no longer anything in memory that remembers the buffer.
+      const app = await getApp(await loadConfig(configPath, root));
+      await app.load([uriOf('app/views/pages/index.liquid')]);
+      const afterwards = app.get(uriOf('app/views/pages/index.liquid'))?.ast as LiquidHtmlNode;
+
+      expect({
+        returned: filterNames(resultFor(results, 'app/views/pages/index.liquid')!.ast!),
+        readAfterwards: filterNames(afterwards),
+      }).toEqual({
+        returned: ['upcase', 'downcase'],
+        readAfterwards: [],
+      });
+    });
+
+    it('is ABSENT for a buffer that does not parse, so "present" means there is a tree', async () => {
+      const results = await lintBuffers({
+        root,
+        configPath,
+        buffers: [{ filePath: absolute('app/views/pages/index.liquid'), content: '{% if x ' }],
+      });
+
+      expect(resultFor(results, 'app/views/pages/index.liquid')?.ast).toBeUndefined();
+    });
+
+    it('is ABSENT for a YAML buffer, which has no Liquid tree', async () => {
+      const results = await lintBuffers({
+        root,
+        configPath,
+        buffers: [{ filePath: absolute('app/translations/en.yml'), content: 'en:\n  a: b\n' }],
+      });
+
+      expect(resultFor(results, 'app/translations/en.yml')?.ast).toBeUndefined();
+    });
+  });
 });
 
 /**
@@ -812,32 +1062,14 @@ MissingPartial:
       ],
     });
 
-    expect([...results.values()]).toEqual([{ status: 'excluded-by-config', offenses: [] }]);
+    expect([...results.values()]).toEqual([
+      { status: 'excluded-by-config', offenses: [], fixes: [] },
+    ]);
   });
 });
 
 /**
  * Nothing reads an asset — asserted at the layer that was actually wrong.
- *
- * `app/assets/x.liquid` used to be linted like a page. A bare `.liquid` has no response
- * format, so `sourceCodeTypeOf` falls back to `html.liquid` — a key that HAS a parser row
- * — and the file went into the app with the Liquid+HTML parser. Broken Liquid in it drew
- * `LiquidHTMLSyntaxError` from `check()`, and through the MCP supervisor a
- * `must_fix_before_write: true`: a FALSE BLOCK on a file the platform serves verbatim,
- * for the syntax of a language nothing at that path evaluates. Backwards, too —
- * `theme.css.liquid`, the asset form the platform genuinely does process, was exempt all
- * along because `css` IS a format and has no row.
- *
- * The rule lives in `platformos-common` (`isParsedFileType`, applied by `AppFile` and by
- * `isSupportedSourceFile`) and its unit coverage is there. This file exists because unit
- * coverage of a predicate is not the promise that matters: the promise is that a real
- * `check()` over a real project on disk reports nothing on an asset. Those are different
- * claims — the engine could stop consulting `AppFile.type` and every unit test would
- * still pass.
- *
- * EVERY case here is paired with a CONTROL that must still fire. A rule that silenced the
- * whole run, or a fixture with nothing to report, satisfies "no offenses on the asset"
- * just as well as the correct behaviour does.
  */
 describe('assets are held by the app and never linted', () => {
   let workspace: Workspace | undefined;
@@ -853,10 +1085,6 @@ describe('assets are held by the app and never linted', () => {
   /**
    * One asset per spelling that a parser would otherwise accept, plus a page holding the
    * identical broken source as the control.
-   *
-   * The nested and `marketplace_builder` cases are here because the rule is anchored on
-   * the app root: `assets/` has to be recognised under the legacy root and at depth, not
-   * just as the literal prefix `app/assets/`.
    */
   const PROJECT: Tree = {
     '.platformos-check.yml': `extends: platformos-check:nothing
@@ -1449,6 +1677,56 @@ describe('Integration: docs manager reuse across lint runs', () => {
     });
 
     expect(offenses.map((offense) => offense.check)).toEqual(['JsonLiteralQuoteStyle']);
+  });
+});
+
+/**
+ * ONE docset per process, and the lint reads the very object embedders get. A supervisor
+ * reading a docset of its own could describe a filter the check that flagged it had never heard
+ * of — every loader is a per-instance memo and `setup()` makes a network call to pick a
+ * revision.
+ */
+describe('Unit: getPlatformOSDocset', () => {
+  afterEach(() => {
+    // Process-level state; leave it as found.
+    resetPlatformOSLiquidDocsManager();
+  });
+
+  it('returns the same instance on every call, so the memos are shared rather than re-paid', () => {
+    expect(getPlatformOSDocset()).toBe(getPlatformOSDocset());
+  });
+
+  /**
+   * The load-bearing property. `check()` wraps a docset ONLY when it is not already
+   * augmented, so handing it an augmented one means the checks read this exact object.
+   * Were this false, `check()` would build its own wrapper per run and an embedder would
+   * be looking at a different one.
+   */
+  it('is already augmented, which is what stops check() wrapping a second view of it', () => {
+    expect(getPlatformOSDocset().isAugmented).toBe(true);
+  });
+
+  it('is discarded with the docs manager, so updated docs are picked up', () => {
+    const before = getPlatformOSDocset();
+    resetPlatformOSLiquidDocsManager();
+    expect(getPlatformOSDocset()).not.toBe(before);
+  });
+
+  /**
+   * Augmentation is not merely flagged, it is applied: a filter's aliases resolve.
+   */
+  it('serves every published alias as a filter of its own', async () => {
+    const docset = getPlatformOSDocset();
+    const filters = await docset.filters();
+    const names = new Set(filters.map((filter) => filter.name));
+    const aliases = filters.flatMap((filter) => filter.aliases ?? []);
+
+    // One whole-value assertion. The boolean is a VACUITY guard: with no aliases
+    // published, an empty `unresolved` list would pass with expansion deleted.
+    expect({
+      publishesAliases: aliases.length > 0,
+      unresolved: aliases.filter((alias) => !names.has(alias)),
+    }).toEqual({ publishesAliases: true, unresolved: [] });
   });
 });
 

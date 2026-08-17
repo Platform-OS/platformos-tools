@@ -4,31 +4,7 @@ import { FilterWithoutEffect } from './index';
 import { check, MockApp } from '../../test';
 
 /**
- * TASK-47. A filter the deploy converter ACCEPTS and the runtime never APPLIES.
- *
- * Both directions are load-bearing: refusing these constructs was a false block on files that
- * deploy, and approving them silently ships code that does not do what its author wrote. So
- * the SILENT group below is a genuine control — a predicate wide enough to warn about every
- * filter in the language would satisfy the reporting group on its own.
- *
- * Every row was measured against a live instance, never inferred from the grammar, using the
- * strongest lens the position allows:
- *
- *   observable   `{% case 'a' | upcase %}{% when 'A' %}…{% when 'a' %}` matches 'a'
- *   observable   `{% assign h = {} %}{% hash_assign h['k'] = 'a' | upcase %}{{ h['k'] }}` -> A
- *   observable   a partial that reads an argument back reports the value it was HANDED
- *   raises       `{{ 'a' | no_such_filter_xyz }}` raises Liquid::UndefinedFilter
- *
- * An observable probe shows the filter's effect directly; "renders clean" only shows nothing
- * raised, which for `background` merely proved the work happened in a worker. Each probe was
- * paired with a filterless control — one that fails identically kills the probe, as
- * `response_headers` did with its 501.
- *
- * THE TRAILING-FILTER ROWS ARE WHY THE OBSERVABLE LENS IS NOT OPTIONAL. `function`, `background`
- * and `graphql` share one grammar rule and one Ruby-looking shape, and a "renders clean" probe
- * says the same thing about all three. Reading the assigned value back separates them: only
- * `graphql`'s FILE form filters its result. The other two were silent here for a whole release
- * on the strength of the shape argument alone.
+ * A filter the deploy converter ACCEPTS and the runtime never APPLIES.
  */
 const offensesFor = (liquid: string) => {
   const app: MockApp = { 'app/views/pages/index.liquid': liquid };

@@ -118,7 +118,7 @@ async function traverseLiquidModule(
   const sourceCode = await deps.getSourceCode(module.uri);
 
   // Surface the file's own structural declarations as a by-product of the parse
-  // (TASK-9.3) — only when the caller opted in (see GraphBuildOptions). Absent
+  // — only when the caller opted in (see GraphBuildOptions). Absent
   // otherwise, and when the file could not be parsed.
   if (options.includeStructural) {
     module.structural = await extractStructural(sourceCode, module.uri);
@@ -309,27 +309,19 @@ export async function resolveLiquidReferences(
 }
 
 /**
- * Extract one Liquid file's outgoing dependency references, resolved against the
- * project at `rootUri`, WITHOUT building the whole app graph.
+ * Extract one Liquid file's outgoing dependency references, resolved against the project at
+ * `rootUri`, WITHOUT building the whole app graph.
  *
- * This is the per-file primitive for consumers that hold a single (possibly
- * in-flight, not-yet-on-disk) buffer — e.g. a `validate_code`-style tool that
- * parses the buffer with {@link toSourceCode} and wants the file's resolved
- * `render`/`include`/`function`/`background`/`graphql`/asset edges with their
- * canonical target URIs and {@link ReferenceKind}. Resolution uses the same
- * `DocumentsLocator`-backed logic as the full graph build, so a target's URI is
- * identical to the key it would have as a graph node.
+ * The per-file primitive for consumers holding a single (possibly in-flight, not-yet-on-disk)
+ * buffer. Resolution uses the same `DocumentsLocator`-backed logic as the full graph build, so
+ * a target's URI is identical to the key it would have as a graph node.
  *
  * Notes for consumers:
- * - Targets are returned whether or not they exist on disk (resolution is
- *   path-based). To distinguish missing targets, `stat` `target.uri` via the
- *   same `fs`; unresolved/missing partials are also surfaced by the linter's
- *   `MissingPartial` check, so prefer that for diagnostics.
+ * - Targets are returned whether or not they exist on disk (resolution is path-based). To
+ *   distinguish missing targets, `stat` `target.uri` via the same `fs`.
  * - Only statically resolvable references are returned; dynamic targets
  *   (`{% render some_var %}`) and inline forms are skipped.
- * - `sourceCode` is parsed by the caller (from the buffer, not disk); nothing but
- *   target resolution happens here, against `deps.app`'s index when one is supplied
- *   and `deps.fs` otherwise (see `IDependencies.app`).
+ * - `sourceCode` is parsed by the caller; nothing but target resolution happens here.
  */
 export async function extractFileReferences(
   rootUri: UriString,
@@ -384,22 +376,17 @@ function loadFrontmatter(body: string): Record<string, unknown> | undefined {
 }
 
 /**
- * Extract a Liquid file's own structural declarations from an already-parsed
- * source (TASK-9.3) — the per-file primitive (sibling to
- * {@link extractFileReferences}). Reuses the shared `js-yaml` frontmatter parse,
- * platformos-common's slug helpers, and check-common's liquid-doc/translation
- * detection — never a second/bespoke parser.
+ * Extract a Liquid file's own structural declarations from an already-parsed source — the
+ * per-file primitive, sibling to {@link extractFileReferences}. Reuses the shared `js-yaml`
+ * frontmatter parse, platformos-common's slug helpers, and check-common's liquid-doc and
+ * translation detection — never a second parser.
  *
- * Usage facts (`renders_used` / `graphql_queries_used` / `filters_used` /
- * `tags_used` / `translation_keys`) come from one walk of the parsed AST and are
- * always present (sorted, de-duplicated; empty = none used); `doc_params` is in
- * source (signature) order. Routing facts come from frontmatter:
- * - `slug`: the frontmatter `slug` override (verbatim, matching the RouteTable
- *   source of truth) else the path-derived slug — for page files only.
- * - `layout` / `method`: from frontmatter when declared.
+ * Usage facts come from one walk of the parsed AST and are always present (sorted,
+ * de-duplicated); `doc_params` is in source order. Routing facts come from frontmatter: `slug`
+ * is the frontmatter override else the path-derived slug, for page files only, and
+ * `layout`/`method` when declared.
  *
- * Returns `undefined` for a non-Liquid source or one that could not be parsed
- * (no Liquid AST to analyze), so it is safe to call on any {@link FileSourceCode}.
+ * Returns `undefined` for a non-Liquid source or one that could not be parsed.
  */
 export async function extractStructural(
   sourceCode: FileSourceCode,

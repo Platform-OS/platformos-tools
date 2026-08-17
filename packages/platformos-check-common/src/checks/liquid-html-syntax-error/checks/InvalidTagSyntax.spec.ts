@@ -146,24 +146,10 @@ describe('Module: InvalidTagSyntax', () => {
 
   /**
    * The append form of `{% function %}`, which collects a partial's return value onto an array.
-   *
-   * It used to be reported here, and that was a FALSE POSITIVE on Liquid the platform runs — two of
-   * the platform's own published `tags.json` examples among the casualties. Measured on a live
-   * instance with `pos-cli exec liquid`: a real parse failure returns "Invalid syntax for function
-   * tag" (control: `{% function 'no-target' %}`), whereas each form below returned "can't find
-   * partial", which only a successfully parsed tag can reach.
-   *
-   * Since `LiquidHTMLSyntaxError` blocks the MCP write gate, every file using the idiom was refused.
    */
   describe('function append operator (TASK-80)', () => {
     /**
      * EVERY message, unfiltered — which is the whole point for the silence assertions below.
-     *
-     * The rest of this file narrows to `message.includes('Invalid syntax for tag')`, and for a test
-     * that asserts something IS reported that costs nothing. For a test that asserts NOTHING is,
-     * it hides the failure it exists to catch: `LiquidHTMLSyntaxError` bundles a dozen sub-checks,
-     * so the published `tags.json` examples could start being reported by `InvalidFilterName` or
-     * `InvalidAssignSyntax` and the write gate would refuse them again with `toEqual([])` green.
      */
     const offensesIn = async (sourceCode: string) =>
       messagesOf(await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode));
@@ -422,20 +408,7 @@ describe('Module: InvalidTagSyntax', () => {
     });
 
     /**
-     * TASK-48. Every tag the grammar declares as taking no markup, in every spelling.
-     *
-     * `rollback` was missing from `TAGS_WITHOUT_MARKUP` while that list was maintained by
-     * hand, so this check refused a valid tag with a self-refuting message — "Invalid syntax
-     * for tag 'rollback' Expected syntax: rollback" — and `LiquidHTMLSyntaxError` BLOCKS, so
-     * there was no way for an author or an agent to proceed.
-     *
-     * Measured against `liquid_exec`: `{% rollback %}` parses in every spelling. The raise it
-     * produces is SEMANTIC — "rollback performed outside of transaction" on its own,
-     * `ActiveRecord::Rollback` inside a transaction, which is the tag doing its job. A
-     * `{% no_such_tag_xyz %}` control confirms the probe does surface real syntax errors.
-     *
-     * The list is now derived from the grammar (see `grammar.spec.ts`), so this asserts the
-     * BEHAVIOUR that derivation buys rather than restating the list.
+     * Every tag the grammar declares as taking no markup, in every spelling.
      */
     const NO_MARKUP_SPELLINGS: Array<[label: string, source: string]> = [
       ['rollback, bare', `{% rollback %}`],
@@ -466,10 +439,6 @@ describe('Module: InvalidTagSyntax', () => {
       // markup on these tags. `{% rollback something %}` raises `ActiveRecord::Rollback`
       // exactly like the clean form — the rollback happens — and `{% break something %}`,
       // `{% continue junk %}` and `{% else junk %}` all render.
-      //
-      // So `rollback` now behaves exactly like the four tags that were already exempt, which
-      // have always accepted stray markup silently. Pinned because the reasoning is
-      // counter-intuitive and the next reader will assume this is a hole.
       const withStrayMarkup = [
         `{% rollback something %}`,
         `{% for i in array %}{% break something %}{% endfor %}`,

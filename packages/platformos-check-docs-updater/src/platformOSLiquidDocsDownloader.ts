@@ -120,23 +120,19 @@ export async function exists(path: string) {
 /**
  * Refresh every docset file, or leave every one of them alone.
  *
- * FETCH ALL, THEN WRITE. Writing each response as it arrived meant a failure partway through
- * left the destination TORN — a new `filters.json` beside last release's `tags.json`, and a
- * `latest.json` whose revision claimed a state the other files were not in. That combination is
- * worse than a stale docset and worse than no docset: `platformOSLiquidDocsManager` gates its
- * refresh on `latest.json`'s revision, so a torn write that updated it makes the next run decide
- * everything is current and never repair itself.
+ * FETCH ALL, THEN WRITE. Writing each response as it arrived left the destination TORN on a
+ * partial failure — a new `filters.json` beside last release's `tags.json`, and a `latest.json`
+ * whose revision claimed a state the other files were not in. `platformOSLiquidDocsManager`
+ * gates its refresh on that revision, so a torn write makes the next run decide everything is
+ * current and never repair itself.
  *
- * ONE ROUND OF FETCHES, including the GraphQL schema: atomicity comes from deferring the WRITES, not
- * from ordering the reads, so awaiting each group in turn only added its latency. The optional group in
- * particular is a guaranteed 404 round-trip until its endpoint ships, and it used to block the schema
- * fetch behind it for nothing.
+ * ONE ROUND OF FETCHES, including the GraphQL schema: atomicity comes from deferring the
+ * WRITES, not from ordering the reads.
  *
- * An {@link OptionalResources} entry is the exception to all-or-nothing, and only in one direction: it is
- * written when it arrives and skipped when it does not, so a resource whose endpoint does not exist yet
- * cannot hold back the four that do. It can never be a TORN write, because a consumer of a file that is
- * simply absent goes quiet — the state that breaks things is a file present with the wrong release's
- * contents, and that is what the required set still guarantees against.
+ * An {@link OptionalResources} entry is the exception to all-or-nothing, in one direction only:
+ * written when it arrives, skipped when it does not, so a resource whose endpoint does not
+ * exist yet cannot hold back the four that do. A file that is simply absent makes its consumer
+ * go quiet; the state that breaks things is a file present with the wrong release's contents.
  */
 export async function downloadPlatformOSLiquidDocs(destination: string, log: Logger) {
   if (!(await exists(destination))) {

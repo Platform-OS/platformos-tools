@@ -4,13 +4,10 @@ import path from 'node:path';
 import { collidingBufferPaths } from './batch-coherence.js';
 
 /**
- * TASK-22. Two entries resolving to one file used to be linted as one buffer (last
+ * Two entries resolving to one file used to be linted as one buffer (last
  * one wins) while BOTH entries were reported with the winner's verdict — so a
  * buffer that was never validated came back clean, and reversing the argument order
  * flipped which one was lied about.
- *
- * The guard is decided on the same normalized URI the overlay deduplicates on, so
- * every spelling that collapses there must be caught here.
  */
 const ROOT = path.resolve('/srv/app');
 const buffer = (filePath: string, content = 'x') => ({ filePath, content });

@@ -960,13 +960,10 @@ async function isStale(analysis: PartialAnalysis, deps: ShapeAnalyzerDeps): Prom
 /**
  * A short stand-in for an SDL, so a cache key carries an id rather than a whole schema.
  *
- * Keyed on the SDL string itself, which is why it does not grow with USE: a docset memoizes
- * its schema, and a rebuilt docset re-reads the same bytes, so a re-read lands on the same
- * string VALUE and the same entry. It grows only with DISTINCT schemas, and each is 304 KB of
- * platformOS SDL — so it is CAPPED rather than left to a caller's goodwill: a long-lived host
- * that picks up new docs would otherwise retain every schema it had ever seen, and nothing
- * called the clear() this module used to export for that. Eviction costs a cache partition
- * and nothing else, since an evicted schema simply interns again under a new id.
+ * Keyed on the SDL string itself, so it does not grow with USE: a rebuilt docset re-reads the
+ * same bytes and lands on the same entry. It grows only with DISTINCT schemas, each 304 KB of
+ * platformOS SDL, so it is CAPPED — a long-lived host that picks up new docs would otherwise
+ * retain every schema it had ever seen. Eviction costs a cache partition and nothing else.
  *
  * Ids come from a counter and not from the cache's size, so an entry that ages out can never
  * hand its id to a different schema.

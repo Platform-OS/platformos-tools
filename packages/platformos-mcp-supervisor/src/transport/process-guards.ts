@@ -1,36 +1,24 @@
 /**
  * Process lifetime guards: signals and last-resort error handlers.
  *
- * WHY THESE EXIST. The supervisor is a long-lived stdio process an agent holds
- * open for a whole session. Under Node's default an unhandled rejection is FATAL,
- * so a single rejected promise on any background path takes the server down — and
- * from the agent's side the tool simply stops existing mid-session, with no
- * diagnostic, because the death is not attributed to anything in the JSON-RPC
- * stream. `GraphCache.warm()`'s hand-placed `.catch` was defending against
- * exactly that for one path; this makes it a process-level guarantee.
+ * The supervisor is a long-lived stdio process an agent holds open for a whole session, and
+ * under Node's default an unhandled rejection is FATAL — from the agent's side the tool
+ * simply stops existing mid-session, with nothing in the JSON-RPC stream to explain it.
  *
- * THE SPLIT, and why it is not symmetric:
+ * THE SPLIT is deliberately not symmetric:
  *
- *   - `unhandledRejection` — LOG AND KEEP SERVING. A rejected promise on a
- *     background path does not imply the server's own state is corrupt, and for a
- *     tool server staying up is strictly better than vanishing. The agent gets a
- *     working tool and the operator gets a stack on stderr.
- *   - `uncaughtException` — LOG, SHUT DOWN, EXIT NON-ZERO. After an uncaught
- *     exception the process state may genuinely be corrupt (a half-applied
- *     mutation, a broken invariant), so continuing to answer `validate_code` would
- *     risk returning wrong diagnostics. Exiting is the honest response, and going
- *     through the ordinary `shutdown` still reaps a graph build in flight.
+ *   - `unhandledRejection` — LOG AND KEEP SERVING. A rejected background promise does not
+ *     imply the server's state is corrupt, and staying up beats vanishing.
+ *   - `uncaughtException` — LOG, SHUT DOWN, EXIT NON-ZERO. The process state may genuinely
+ *     be corrupt, so continuing to answer would risk returning wrong diagnostics.
  *
- * HARD CONSTRAINT: stdout belongs to the MCP JSON-RPC stream. Everything here
- * logs through the injected {@link Logger}, which writes to stderr. A stray
- * stdout write would corrupt the protocol — a worse failure than the crash being
- * handled.
+ * HARD CONSTRAINT: stdout belongs to the MCP JSON-RPC stream. Everything here logs through
+ * the injected {@link Logger}, which writes to stderr; a stray stdout write would corrupt
+ * the protocol.
  *
- * `exit` and `emitter` are injected so the handlers can be driven and asserted in
- * a test without terminating the runner, and so listener registration can be
- * observed. Everything is removable via the returned uninstall function, which
- * `startServer` wires into `shutdown` so a start/stop/start cycle in one process
- * does not accumulate listeners.
+ * `exit` and `emitter` are injected so the handlers can be driven in a test without
+ * terminating the runner. The returned uninstall function is wired into `shutdown` so a
+ * start/stop/start cycle does not accumulate listeners.
  */
 import type { Logger } from '../logger.js';
 
@@ -58,8 +46,7 @@ const TERMINATION_SIGNALS = ['SIGINT', 'SIGTERM'] as const;
  * Render a thrown/rejected value for the log.
  *
  * A rejection reason is NOT necessarily an Error — `Promise.reject('nope')` and
- * `Promise.reject()` are both legal — so this must never assume `.stack` exists.
- * A guard that throws while reporting a failure is worse than no guard.
+ * `Promise.reject()` are both legal — so this never assumes `.stack` exists.
  */
 function describe(value: unknown): string {
   if (value instanceof Error) return value.stack ?? `${value.name}: ${value.message}`;
@@ -93,9 +80,8 @@ export function installProcessGuards(options: ProcessGuardOptions): () => void {
     registered.push({ event: signal, listener });
   }
 
-  // `on`, not `once`: unhandled rejections are survivable and may recur, and each
-  // one must be reported. A `once` here would silence every rejection after the
-  // first — the opposite of the intent.
+  // `on`, not `once`: unhandled rejections are survivable and may recur, and each one must
+  // be reported.
   const onUnhandledRejection = ((reason: unknown) => {
     log(
       `unhandled promise rejection (server continues): ${describe(reason)}. ` +
@@ -108,8 +94,7 @@ export function installProcessGuards(options: ProcessGuardOptions): () => void {
   const onUncaughtException = ((error: unknown) => {
     log(`uncaught exception, shutting down: ${describe(error)}`);
     // Non-zero: a supervisor that died must not look like a clean exit to whatever
-    // supervises IT. `finally` so a failing shutdown still exits rather than
-    // wedging a process whose state we have already declared unsound.
+    // supervises IT. `finally` so a failing shutdown still exits.
     void shutdown('uncaught exception').finally(() => exit(1));
   }) as (...args: never[]) => void;
   emitter.on('uncaughtException', onUncaughtException);

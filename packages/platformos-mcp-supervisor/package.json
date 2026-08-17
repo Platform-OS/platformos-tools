@@ -31,8 +31,7 @@
   },
   "files": [
     "dist/**/*.js",
-    "dist/**/*.d.ts",
-    "dist/data/**/*"
+    "dist/**/*.d.ts"
   ],
   "scripts": {
     "build": "yarn build:ts",
@@ -44,11 +43,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@platformos/liquid-html-parser": "0.0.17",
     "@platformos/platformos-check-common": "0.0.19",
-    "@platformos/platformos-check-docs-updater": "0.0.19",
     "@platformos/platformos-check-node": "0.0.19",
     "@platformos/platformos-common": "0.0.17",
     "@platformos/platformos-graph": "0.0.19",
+    "@platformos/platformos-language-server-common": "0.0.19",
     "zod": "^3.23.8"
   },
   "devDependencies": {}

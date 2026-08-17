@@ -6,15 +6,6 @@ const packagesDir = join(__dirname, '..', '..', '..');
 
 /**
  * Every workspace package that imports another one must declare it.
- *
- * Six packages did not, and resolved only because yarn hoists workspace packages
- * into the root `node_modules` — so `yarn build` and `yarn test` passed while a
- * consumer installing the published tarball got an unresolvable import. That is
- * latent on its own; it becomes load-bearing the moment `platformos-common` owns
- * the `App` model that check-common, check-node and the language server all read.
- *
- * The check lives here rather than in a script so it runs with the rest of the
- * suite, where a new undeclared import is caught by the person who added it.
  */
 describe('workspace dependency declarations', () => {
   it('declares every @platformos/* package it imports', async () => {
@@ -41,25 +32,6 @@ describe('workspace dependency declarations', () => {
 
   /**
    * The workspace dependency graph is a DAG.
-   *
-   * The test above pins that an import is declared; it says nothing about the SHAPE of
-   * what gets declared, and the two failures are different. An undeclared import breaks
-   * a consumer installing the tarball. A cycle breaks the repository: `tsc -b` cannot
-   * order the build, `yarn workspaces run build` cannot order the packages, and the one
-   * property `package-boundaries.spec.ts` exists to protect — that `platformos-common`
-   * sits BELOW everything that owns an AST, which is what lets the linter, the language
-   * server and the graph share one set of file objects — stops being expressible at all.
-   *
-   * Over `dependencies` only, and that is the point rather than an omission. A runtime
-   * dependency is what a published package carries and what decides build order; a
-   * devDependency is a sibling borrowed for a test (`platformos-graph`'s `src/` test
-   * helper imports `platformos-check-node`), and a monorepo may legitimately grow a
-   * cycle in those. Measured on 2026-08-09, the graph is acyclic under BOTH readings, so
-   * the narrower rule hides nothing today — it is chosen so that a legitimate test-only
-   * edge tomorrow does not fail a check about published shape.
-   *
-   * The message names the whole cycle, because the edge to delete is rarely the one the
-   * error is reported on.
    */
   it('has no dependency cycle, so platformos-common can stay below the packages that own ASTs', async () => {
     const graph = new Map<string, string[]>();
@@ -80,10 +52,6 @@ describe('workspace dependency declarations', () => {
    * found nothing because it scanned NOTHING says exactly the same thing — a moved `src`, a
    * renamed `packages/`, a `sourceFiles` that swallowed its own `readdir` error (it does,
    * deliberately, for packages with no `src`). Silence would then be permanent and total.
-   *
-   * So: the walk must still find this package, and the reader must still see the import that
-   * put this very file's subject on the map. Both are facts about the repository, not about
-   * the rule — if either changes legitimately, this fails and says which half.
    */
   it('scans a real package and really reads its imports, so an empty result means something', async () => {
     const dirs = await workspacePackages();
@@ -97,11 +65,6 @@ describe('workspace dependency declarations', () => {
 
   /**
    * And the cycle detector itself sees one when there is one, which the repo must not have.
-   *
-   * The nodes are NOT spelled `@platformos/…`, deliberately: the import reader above matches
-   * every quoted `@platformos/*` string under `src/`, spec files included, so a fixture
-   * spelled that way would be read as four undeclared imports of packages that do not exist.
-   * It failed exactly that way when this test was first written.
    */
   it('reports a cycle when the graph has one', () => {
     const graph = new Map([

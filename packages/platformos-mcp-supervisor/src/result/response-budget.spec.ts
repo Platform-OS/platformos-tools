@@ -2,19 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { capToBudget } from './response-budget.js';
 import { MAX_RESPONSE_DIAGNOSTIC_BYTES } from '../cost-model.js';
-import { COMPUTING_IMPACT } from './impact-states.js';
+import { UNAVAILABLE_IMPACT } from './impact-states.js';
 import type { ValidateCodeDiagnostic, ValidateCodeResult } from './types.js';
 
 /**
  * The response bound, tested where it is decidable: as a pure function over finished
  * results.
- *
- * ONE ASSERTION HERE MATTERS MORE THAN THE REST, and it is the one about the gate. A
- * cap that drops the diagnostic holding `must_fix_before_write` true, while leaving
- * the flag false, manufactures a false approval on exactly the inputs nobody
- * inspects. The architecture is meant to make that impossible — this module runs
- * after assembly and never writes a verdict — but "impossible by construction" is a
- * claim, and the case below is what turns it into a measurement.
  */
 
 const diagnostic = (
@@ -41,7 +34,7 @@ const resultWith = (
   errors,
   warnings,
   infos,
-  impact: COMPUTING_IMPACT(),
+  impact: UNAVAILABLE_IMPACT(),
 });
 
 const many = (count: number, severity: ValidateCodeDiagnostic['severity'] = 'error') =>
@@ -137,11 +130,6 @@ describe('Unit: capToBudget', () => {
     // Severity-major allocation. A file that is nothing but infos must not consume
     // the budget a LATER file's errors need — note the noisy file is listed first, so
     // a purely round-robin allocation would serve it before seeing the errors at all.
-    //
-    // Asserted as the RELATIONSHIP rather than a count: "17 of 20 errors fit in 1500
-    // bytes" is arithmetic about the fixture's message lengths, and pinning it would
-    // fail on an unrelated edit to this file's test data. The property is that while
-    // any error is still being withheld, no info has been served.
     const results = new Map([
       ['noisy.liquid', resultWith([], [], many(500, 'info'))],
       ['broken.liquid', resultWith(many(20))],
@@ -263,7 +251,7 @@ describe('Unit: capToBudget', () => {
       errors: [],
       warnings: [],
       infos: [],
-      impact: COMPUTING_IMPACT(),
+      impact: UNAVAILABLE_IMPACT(),
       next_step: 'refused',
     };
 

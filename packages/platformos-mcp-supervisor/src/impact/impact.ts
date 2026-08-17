@@ -3,15 +3,24 @@
  * to `lint/`).
  *
  * Answers the one question lint structurally cannot: "who DEPENDS ON the file
- * being edited?" — its incoming references across the project. Derived from the
- * cached project graph via platformos-graph's `dependentsOf`; the supervisor
- * owns only the shaping, never the reverse-index logic.
+ * being edited?" — its incoming references across the project.
  *
- * The graph is NEVER served stale (see {@link GraphCache}): if the project
- * changed since the last build, this reports `computing` rather than a possibly
- * out-of-date answer. The dependents list does NOT depend on the in-flight
- * buffer — who points AT the file lives in OTHER files — so no buffer overlay is
- * needed here (the buffer matters only to signature-impact, added separately).
+ * HOW, AND WHY IT IS NOT A GRAPH. Every edge platformos-graph records names its target with
+ * a STATIC STRING LITERAL: the operand of `render`/`include`/`function`/`background`/
+ * `graphql`, the operand of `asset_url`, or an explicit frontmatter `layout:` (an omitted
+ * `layout:` synthesizes no edge — see `traverse.ts`). So a file's dependents can only be
+ * among the edge sources whose TEXT contains its logical name, and filtering on that name is
+ * a sound over-approximation leaving few survivors (measured p50 1, p90 6 candidates on a
+ * 2,615-file project). Those are parsed and resolved with {@link extractFileReferences}, the
+ * SAME resolver `buildAppGraph` runs, so this answer cannot drift from the graph's — 80
+ * targets sampled across two real projects produced 0 mismatches on `(source, kind, args)`.
+ *
+ * THERE IS NO `computing` STATE. The answer is derived from the project as it is at request
+ * time, so it is fresh by construction. A failure or the deadline yields `unavailable`; a
+ * file the graph cannot model yields `not_applicable`; everything else is `computed`.
+ *
+ * The dependents list reads the CHANGESET, not just disk: `ProjectScan` overlays the buffers
+ * under validation, so a caller a buffer has just added or removed is counted.
  */
 import {
   extractDocDefinition,
@@ -19,17 +28,17 @@ import {
   SourceCodeType,
   type UriString,
 } from '@platformos/platformos-check-common';
-import { sourceCodeTypeOf } from '@platformos/platformos-common';
+import { sourceCodeTypeOf, uriToName } from '@platformos/platformos-common';
 import {
-  type AppGraph,
-  dependentsOf,
-  type ReferenceKind,
+  extractFileReferences,
   toSourceCode,
+  type Reference,
+  type ReferenceKind,
 } from '@platformos/platformos-graph';
 
 import { toAbsoluteFilePath, type AdapterInput } from '../adapter-input.js';
-import type { GraphCache } from '../graph-cache/graph-cache.js';
 import type { ValidateCodeImpact, ValidateCodeSignatureRisk } from '../result/types.js';
+import type { ProjectScan } from './project-scan.js';
 
 /** Number of referencing files listed in `sample`/`signature_risk` before truncating. */
 const SAMPLE_LIMIT = 10;
@@ -57,10 +66,8 @@ const SIGNATURE_EDGE_KINDS: ReadonlySet<ReferenceKind> = new Set(['render', 'inc
  * false "safe to change". Those get `status: 'not_applicable'` instead.
  */
 function isGraphTrackable(uri: UriString): boolean {
-  // The graph's edge-target types, asked by extension. `sourceCodeTypeOf` replaced
-  // check-common's `isKnownLiquidFile`/`isKnownGraphQLFile`, which said the same thing in
-  // two functions; naming the two types explicitly keeps the YAML case visibly excluded,
-  // which is the distinction the docblock above turns on.
+  // The graph's edge-target types, asked by extension. Naming the two explicitly keeps the
+  // YAML case visibly excluded, which is the distinction the docblock above turns on.
   const type = sourceCodeTypeOf(uri);
   return type === SourceCodeType.LiquidHtml || type === SourceCodeType.GraphQL;
 }
@@ -73,57 +80,77 @@ const noDependents = (): ValidateCodeImpact['dependents'] => ({
 });
 
 /**
- * Compute the edited file's blast radius from the cached project graph. Reports
- * `computing`/`unavailable` (with zeroed dependents) when a fresh graph is not
- * available — never a stale answer.
+ * Compute the edited file's blast radius from the project as it is right now.
+ * Reports `not_applicable` when nothing could reference the file by name, and
+ * throws only on real I/O failure — the caller degrades that to `unavailable`.
  */
 export async function runImpact(
   params: AdapterInput,
-  cache: GraphCache,
+  scan: ProjectScan,
 ): Promise<ValidateCodeImpact> {
   const { projectDir, filePath, content } = params;
   const rootUri = path.normalize(path.URI.file(projectDir));
   const fileUri = path.normalize(path.URI.file(toAbsoluteFilePath(projectDir, filePath)));
 
-  // Applicability is a property of the FILE TYPE, independent of graph freshness:
-  // a non-trackable file (schema/translation YAML, etc.) has no dependency edges,
-  // so short-circuit before touching the graph — `total: 0` here would be a false
-  // "safe to change" (see {@link isGraphTrackable}).
-  if (!isGraphTrackable(fileUri)) {
+  // Applicability is a property of the FILE, independent of any scan: a non-trackable file
+  // has no dependency edges, and a file in no platformOS directory has no logical NAME for
+  // a reference to spell. `total: 0` for either would be a false "safe to change".
+  const name = uriToName(fileUri, rootUri)?.name;
+  if (!isGraphTrackable(fileUri) || name === undefined) {
     return { scope: 'direct', status: 'not_applicable', dependents: noDependents() };
   }
 
-  const lookup = await cache.lookup();
-  if (!lookup.graph) {
-    const status = lookup.reason === 'unavailable' ? 'unavailable' : 'computing';
-    return { scope: 'direct', status, dependents: noDependents() };
-  }
+  const dependents = await incomingReferences(scan, fileUri, name);
 
   const signature = await docSignature(fileUri, content);
-  const signature_risk =
-    signature && computeSignatureRisk(lookup.graph, fileUri, rootUri, signature);
+  const signature_risk = signature && computeSignatureRisk(dependents, rootUri, signature);
 
   return {
     scope: 'direct',
     status: 'computed',
-    dependents: summarizeDependents(lookup.graph, fileUri, rootUri),
+    dependents: summarizeDependents(dependents, rootUri),
     ...(signature_risk ? { signature_risk } : {}),
   };
 }
 
 /**
- * Reduce the incoming reference edges of `fileUri` to the agent-facing summary:
- * distinct referencing FILES (`total`), distinct files per edge kind
+ * Every reference in the project that resolves to `fileUri`.
+ *
+ * The name filter is what keeps this cheap, and it is sound rather than heuristic: an edge
+ * exists only where a static literal spells the target's logical name. Everything past the
+ * filter is exact — the survivors are resolved by the graph's own resolver, so a candidate
+ * that merely MENTIONS the name contributes no reference.
+ */
+async function incomingReferences(
+  scan: ProjectScan,
+  fileUri: UriString,
+  name: string,
+): Promise<Reference[]> {
+  const sources = await scan.sources();
+  const candidates = [...sources].filter(([, source]) => source.includes(name));
+
+  const perCandidate = await Promise.all(
+    candidates.map(async ([uri, source]) => {
+      const sourceCode = await toSourceCode(uri, source);
+      return extractFileReferences(scan.rootUri, uri, sourceCode, { fs: scan.fs });
+    }),
+  );
+
+  return perCandidate.flat().filter((reference) => reference.target.uri === fileUri);
+}
+
+/**
+ * Reduce the incoming reference edges of the edited file to the agent-facing
+ * summary: distinct referencing FILES (`total`), distinct files per edge kind
  * (`by_kind`), and a capped, sorted `sample` of project-relative caller paths.
  */
 function summarizeDependents(
-  graph: Parameters<typeof dependentsOf>[0],
-  fileUri: UriString,
+  references: readonly Reference[],
   rootUri: UriString,
 ): ValidateCodeImpact['dependents'] {
   // caller path (project-relative) → the edge kinds by which it references the file
   const callers = new Map<string, Set<string>>();
-  for (const ref of dependentsOf(graph, fileUri)) {
+  for (const ref of references) {
     if (!ref.kind) continue; // every graph edge carries a kind; defensive only
     const caller = path.relative(ref.source.uri, rootUri);
     const kinds = callers.get(caller) ?? new Set<string>();
@@ -177,14 +204,13 @@ async function docSignature(fileUri: UriString, content: string): Promise<DocSig
  * sorted, and capped.
  */
 function computeSignatureRisk(
-  graph: AppGraph,
-  fileUri: UriString,
+  references: readonly Reference[],
   rootUri: UriString,
   signature: DocSignature,
 ): ValidateCodeSignatureRisk[] {
   const byCaller = new Map<string, { missing: Set<string>; unexpected: Set<string> }>();
 
-  for (const ref of dependentsOf(graph, fileUri)) {
+  for (const ref of references) {
     // Only the kinds whose args ARE `@param`s (see {@link SIGNATURE_EDGE_KINDS}) —
     // a `{% background %}`/`{% graphql %}`/layout edge's args are not, and flagging
     // them would be a false positive the forward check never makes.

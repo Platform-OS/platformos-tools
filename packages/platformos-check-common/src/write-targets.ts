@@ -10,18 +10,15 @@ import {
  * ONE answer to "what does this tag write, and where is its target".
  *
  * Three tags spell one write — `{% assign %}`, the deprecated `{% hash_assign %}` and
- * `{% function %}` — and they reach the same runtime setter. Their markups spell it three
+ * `{% function %}` — and they reach the same runtime setter, but their markups spell it three
  * different ways: `assign` keeps the name and the lookups apart, `hash_assign` publishes a
- * `target` lookup, `function` publishes a `name` lookup. Six places in this package used to
- * unpick that by hand, each with its own cast.
+ * `target` lookup, `function` publishes a `name` lookup.
  *
- * WHAT THIS DOES NOT DECIDE. Two consumers read these fields and reach different conclusions,
- * because they answer different questions: `variable-types.ts` asks what the write DOES to the
- * type table (a subscript write narrows the container to a Hash; `<<` narrows it to an Array),
- * and `checks/invalid-write-target` asks whether it is LEGAL (a subscript write needs a Hash or
- * an Array; `<<` needs an Array and refuses a Hash). Those trees look alike and are not the
- * same — `x['k'] << v` narrows there and is deliberately silent here. Only the extraction is
- * shared; each consumer keeps its own rule.
+ * WHAT THIS DOES NOT DECIDE. Two consumers read these fields and reach different conclusions:
+ * `variable-types.ts` asks what the write DOES to the type table (a subscript write narrows the
+ * container to a Hash; `<<` narrows it to an Array), and `checks/invalid-write-target` asks
+ * whether it is LEGAL (a subscript write needs a Hash or an Array; `<<` needs an Array and
+ * refuses a Hash). Only the extraction is shared; each consumer keeps its own rule.
  */
 export interface WriteTarget {
   /** Which of the three tags spelled it — the one thing the consumers still branch on. */

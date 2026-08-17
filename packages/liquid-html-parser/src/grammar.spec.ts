@@ -8,17 +8,8 @@ import {
 } from './grammar';
 
 /**
- * TASK-48. `TAGS_WITHOUT_MARKUP` is derived from the grammar rather than hand-listed, and this
+ * `TAGS_WITHOUT_MARKUP` is derived from the grammar rather than hand-listed, and this
  * pins the derivation.
- *
- * WHY PINNED BY NAME rather than "the list is non-empty". The first attempt at the derivation
- * used `Object.keys(rules)` and returned an EMPTY list — Ohm chains grammars through the
- * prototype, so `StrictLiquidHTML.rules` has only two own keys and inherits the rest. An empty
- * list is silently catastrophic here: `InvalidTagSyntax` would refuse `{% else %}`,
- * `{% break %}`, `{% continue %}` and `{% try %}` on every use, and `UnknownTag` builds its
- * known-tag vocabulary from this same list. A test asserting only "not empty" would have
- * caught that; one asserting the exact names also catches a derivation that grows or shrinks
- * for the wrong reason.
  */
 describe('Unit: TAGS_WITHOUT_MARKUP', () => {
   it('derives exactly the tags the grammar declares as taking no markup', () => {
@@ -73,14 +64,9 @@ describe('Unit: TAGS_WITHOUT_MARKUP', () => {
 });
 
 /**
- * TASK-56. `BLOCKS` is derived from the grammar's `blockName` rule, and `UnknownTag` builds
+ * `BLOCKS` is derived from the grammar's `blockName` rule, and `UnknownTag` builds
  * its known-tag vocabulary from it — so a name missing here is reported as an unknown tag,
  * which `LiquidHTMLSyntaxError` raises at ERROR severity and the MCP supervisor BLOCKS.
- *
- * Nothing pinned this list before, which is how `try_rc` went missing: the platform
- * registers it against the same handler as `try`, and both `{% try_rc %}` and its close tag
- * were refused. The same derivation shape as `TAGS_WITHOUT_MARKUP` above, and the same
- * failure mode — it reads Ohm's rule internals, so it can quietly return the wrong thing.
  */
 describe('Unit: BLOCKS', () => {
   it('derives exactly the block tag names the grammar declares', () => {
@@ -109,13 +95,6 @@ describe('Unit: BLOCKS', () => {
     // orderings accept `{% try_rc %}…{% endtry_rc %}` in the tolerant grammar, so no
     // fixture distinguishes them. What the wrong order breaks is the STRICT grammar, where
     // `try` matches first and then fails on the leftover `_rc`.
-    //
-    // Asserted directly for exactly that reason: when precedence between two alternatives
-    // cannot be distinguished by real input, the ordering itself is the contract.
-    //
-    // Membership is asserted first because `indexOf` returns -1 for an absent name, and -1
-    // is less than every real index — so the ordering check alone would PASS if `try_rc`
-    // were removed entirely, which is the very regression this file exists to catch.
     expect(BLOCKS).toContain('try_rc');
     expect(BLOCKS).toContain('try');
     expect(BLOCKS.indexOf('try_rc')).toBeLessThan(BLOCKS.indexOf('try'));
@@ -239,13 +218,6 @@ describe('Unit: liquidHtmlGrammar', () => {
      * the WHOLE changeset. platformOS selects a layout from FRONTMATTER (`layout: application`).
      * So the grammar must treat the name exactly as it treats any it has never heard of — no
      * better and no worse — or the parser approves a file the platform rejects.
-     *
-     * Asserted as an EQUIVALENCE against a control name rather than as a fixed expectation per
-     * mode. The modes genuinely differ — the strict grammar has no base case, so an unknown tag
-     * fails to match there while the tolerant and placeholder grammars accept it and let
-     * `UnknownTag` report it — and pinning those three booleans by hand would just re-encode
-     * today's behaviour. What matters is that `layout` is not special, which is what a control
-     * can say and a literal cannot.
      */
     it('treats {% layout %} exactly like a tag it has never heard of', () => {
       const CONTROL = 'no_such_tag_zzz';

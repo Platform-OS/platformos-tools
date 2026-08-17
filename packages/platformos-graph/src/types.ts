@@ -21,22 +21,16 @@ export interface IDependencies {
   /**
    * The {@link App} whose per-type name index answers `{% render 'ui/card' %}`,
    * `{% function … = 'commands/create' %}`, `{% graphql … = 'user/find' %}` and
-   * `layout: application` — the same object {@link IDependencies.getSourceCode} reads
-   * through when it is `appBackedGetSourceCode`.
+   * `layout: application` — the same object {@link IDependencies.getSourceCode} reads through
+   * when it is `appBackedGetSourceCode`.
    *
-   * The pairing is the point: a caller that holds an App should hand it over for BOTH,
-   * so the graph reuses the lint's parses AND its index. Without it, `DocumentsLocator`
-   * falls back to a walk-only stand-in and every reference costs a `readDirectory` per
-   * candidate directory — on the language server, thousands of listings for a project
-   * whose index was already built and in memory.
+   * The pairing is the point: a caller that holds an App should hand it over for BOTH, so the
+   * graph reuses the lint's parses AND its index. Without it, `DocumentsLocator` falls back to a
+   * walk-only stand-in and every reference costs a `readDirectory` per candidate directory.
    *
-   * It cannot change the ANSWER, only what it costs: `App.findOrLocate` resolves
-   * index-first and falls through to the very walk the stand-in performs, in
-   * `getAppPaths`/`getModulePaths` order either way. Assets never consult the index at
-   * all (nothing reads an asset, so the only question is whether it exists on disk).
-   *
-   * Omit it where there is genuinely no App: a build in a worker thread, a CLI, a
-   * fixture.
+   * It cannot change the ANSWER, only what it costs: `App.findOrLocate` resolves index-first and
+   * falls through to the very walk the stand-in performs. Omit it where there is genuinely no
+   * App: a build in a worker thread, a CLI, a fixture.
    */
   app?: App | AppResolver;
 }
@@ -87,7 +81,7 @@ export type SerializableNode = Pick<AppModule, 'uri' | 'type' | 'kind' | 'exists
 
 /**
  * A Liquid file's own structural declarations — a by-product of the parse the
- * graph already does (TASK-9.3), so consumers need not re-parse the file.
+ * graph already does, so consumers need not re-parse the file.
  *
  * The usage arrays are ALWAYS present (sorted, de-duplicated): an empty array
  * means "the file uses none", since the whole AST is analyzed — never "not
@@ -122,7 +116,7 @@ export interface ModuleStructural {
 export interface LiquidModule extends IAppModule<ModuleType.Liquid> {
   kind: LiquidModuleKind;
   /**
-   * The file's own structural declarations (TASK-9.3), populated during a full
+   * The file's own structural declarations, populated during a full
    * `buildAppGraph`. Absent when the file declares none of the surfaced facts.
    */
   structural?: ModuleStructural;
@@ -157,7 +151,7 @@ export interface GraphQLModule extends IAppModule<ModuleType.GraphQL> {
  *
  * NOTE (ADR 004): this is a neutral platform fact. The commands/queries
  * convention and resource/CRUD completeness that build ON schemas are NOT
- * modeled here — they live in the convention overlay (TASK-9.7).
+ * modeled here — they live in the convention overlay.
  */
 export interface SchemaModule extends IAppModule<ModuleType.Schema> {
   kind: 'schema';

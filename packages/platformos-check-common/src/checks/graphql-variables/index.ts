@@ -17,7 +17,7 @@ export const GraphQLVariablesCheck: LiquidCheckDefinition = {
       description:
         'Ensures that parameters referenced in the document exist in the GraphQL query or mutation.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/graphql-variables-check',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

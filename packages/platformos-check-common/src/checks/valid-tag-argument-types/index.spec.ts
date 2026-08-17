@@ -31,14 +31,6 @@ const typedParameters = async () => {
 
 /**
  * A call this spec can legally write, per tag, with the argument under test in it.
- *
- * HAND-WRITTEN, and the one thing here that is: a tag's MARKUP is grammar, and `tags.json` publishes
- * types rather than how to spell a call — `{% session variable: 'x' %}` parses no named argument at
- * all, so a generated `{% <tag> <name>: <value> %}` proves nothing about most tags. WHICH pairs run
- * is still derived: only the ones the shipped document types.
- *
- * A tag missing from here is not skipped silently — `covers every typed argument the docset publishes`
- * measures the whole vocabulary against the table the check reads.
  */
 const CALLS: Record<string, (parameter: string, value: string) => string> = {
   for: (parameter, value) => `{% for x in y ${parameter}: ${value} %}{% endfor %}`,

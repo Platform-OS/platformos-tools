@@ -31,8 +31,8 @@ describe('Module: ValidDocParamTypes', () => {
     });
   });
 
-  // `date` and `time` are in that loop now, which is the half of TASK-84's AC#6 that changed: both were
-  // types the platform documented for `to_date` and `to_time` and rejected in a docblock.
+  // `date` and `time` are in that loop: both are types the platform documents for `to_date` and
+  // `to_time`.
 
   it(`should not report an error when a valid liquid object parameter (current_user) type is used`, async () => {
     const offenses = await check(`
@@ -96,10 +96,6 @@ describe('Module: ValidDocParamTypes', () => {
   /**
    * A docset published before `liquid_doc.json` existed reports NOTHING, rather than reporting every
    * type in the project as unsupported — the same silence an unpublished filter arity gets.
-   *
-   * PAIRED with the control, because "no offenses" is what a check that ran and a check that never looked
-   * both say. The suppression is wide enough to hide a real defect, so the defect is shown to be findable
-   * through the same docset with only the vocabulary missing.
    */
   it('reports nothing when the docset publishes no param types', async () => {
     const sourceCode = `

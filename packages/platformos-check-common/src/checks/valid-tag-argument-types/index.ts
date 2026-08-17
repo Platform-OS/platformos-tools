@@ -8,20 +8,18 @@ import { variableTypeSources, variableTypesOf } from '../../variable-types';
 
 /**
  * The tag counterpart of `ValidRenderPartialArgumentTypes`, sharing its engine:
- * `inferArgumentType` reads the value, `isTypeCompatible` decides, and the filter return types come
- * from the same docset map — so there is no second inference path and no second compatibility rule.
+ * `inferArgumentType` reads the value, `isTypeCompatible` decides, and the filter return types
+ * come from the same docset map.
  *
- * What differs is where the EXPECTED type comes from. A `{% render %}` argument is judged against
- * the partial's own `{% doc %}` block; a tag argument is judged against `tags.json`, which is
- * documentation this repository consumes and never audits.
+ * What differs is where the EXPECTED type comes from. A `{% render %}` argument is judged
+ * against the partial's own `{% doc %}` block; a tag argument is judged against `tags.json`,
+ * which is documentation this repository consumes and never audits.
  *
- * The size of that vocabulary is not this check's business and has changed under it once already:
- * the document typed 5 of its 72 parameters while `platformos_tags.liquid` published a hardcoded
- * `"untyped"`, and 69 of 72 the day that line was fixed — so this check went from nearly silent to
- * broadly useful without an edit here, which is the design. `tagParameterTypes` gives an `untyped`
- * parameter no row, and no row means nothing is reported. Guessing at a type the document does not
- * publish is the one thing it must not do: these checks are read as gates, and a wrong guess refuses
- * working code.
+ * The size of that vocabulary is not this check's business and has changed under it once
+ * already: the document typed 5 of its 72 parameters while the docs site published a hardcoded
+ * `"untyped"`, and 69 of 72 the day that was fixed. `tagParameterTypes` gives an `untyped`
+ * parameter no row, and no row means nothing is reported — guessing at a type the document does
+ * not publish is the one thing it must not do.
  */
 export const ValidTagArgumentTypes: LiquidCheckDefinition = {
   meta: {

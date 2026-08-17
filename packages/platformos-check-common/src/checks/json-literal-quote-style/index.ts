@@ -9,7 +9,7 @@ export const JsonLiteralQuoteStyle: LiquidCheckDefinition = {
       description:
         'Enforces double-quoted string literals inside inline object/array literals (e.g. {% assign a = {"a": 5} %}). Single-quoted strings inside these literals are not valid JSON.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/json-literal-quote-style',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

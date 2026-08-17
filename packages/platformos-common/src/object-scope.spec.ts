@@ -92,17 +92,6 @@ describe('isObjectInScope', () => {
 
 /**
  * The rule above has ONE implementation, and this is what keeps a second from appearing.
- *
- * There already was one. The language server's `TypeSystem.globalVariables` asked
- * `!access || access.global === true` while `UndefinedObject` asked this function, and the two
- * disagreed on four of the twenty-five shipped objects: the editor completed `data`, `response`,
- * `content_for_layout` and `forloop` in files where the platform does not provide them, and the
- * linter then reported `Unknown object` on the code the editor had just written. Nobody found it
- * for a release, because a hand-written predicate has no way to look wrong.
- *
- * Every workspace package's `src/` is scanned, specs included — the same discipline as
- * `os-path.spec.ts` and `guards/directory-knowledge.spec.ts`. Comment lines are skipped, so prose
- * ABOUT the mistake (this file, `TypeSystem`'s doc comment) costs nothing; only code counts.
  */
 describe('object scope has one owner', () => {
   const packagesDir = join(__dirname, '..', '..');

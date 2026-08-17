@@ -15,18 +15,6 @@ import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from './validate/batch-bounds.js';
 
 /**
  * The arithmetic, and the invariants that make it safe.
- *
- * WHAT THIS FILE IS FOR. The defect it exists to prevent is not a wrong number —
- * it is two numbers that stopped being related to each other without anything
- * noticing. `MAX_BATCH_BYTES` was `4 * MAX_BUFFER_BYTES` and the deadline was 60 s,
- * and they were compatible until `FilterArity` moved throughput; after that the
- * worst legal batch could not finish inside the deadline it was given, and every
- * file in such a request comes back `timed_out` — no validation, no error, no sign.
- *
- * So the assertions below are mostly RELATIONSHIPS, not values. A relationship
- * fails the moment someone changes one side of it, which is precisely when it needs
- * to be looked at. The few literal values that are pinned are pinned because they
- * are what makes the relationships legible in a failure message.
  */
 describe('Unit: the lint cost model', () => {
   it('composes the per-KiB deadline from its three named factors', () => {

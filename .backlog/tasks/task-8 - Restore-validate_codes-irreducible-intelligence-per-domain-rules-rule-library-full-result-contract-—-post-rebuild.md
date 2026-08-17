@@ -6,14 +6,13 @@ title: >-
 status: To Do
 assignee: []
 created_date: '2026-06-09 15:55'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-16 12:05'
 labels: []
 dependencies: []
 references:
-  - packages/platformos-mcp-supervisor/CURRENT_SYSTEM_ARCHITECTURE.md
-  - packages/platformos-mcp-supervisor/LEGACY_SYSTEM_ARCHITECTURE.md
-  - docs/mcp-supervisor/salvage
-  - packages/platformos-check-common/src/types.ts
+  - packages/platformos-mcp-supervisor/ARCHITECTURE.md
+  - packages/platformos-check-common/src/checks/index.ts
+  - ~/projects/pos/platformos-documentation
 priority: medium
 ordinal: 15000
 ---
@@ -21,42 +20,55 @@ ordinal: 15000
 ## Description
 
 <!-- SECTION:DESCRIPTION:BEGIN -->
-## Context (read before starting any child)
+## The premise of this epic was WITHDRAWN on 2026-08-16
 
-TASK-7 rebuilds `platformos-mcp-supervisor` from scratch as a THIN, MINIMAL agent-ergonomics layer over a structured `Offense` contract, shipping ONLY the `validate_code` tool. That rebuild deliberately stops at a clean minimal `validate_code`: lint via check-node `check()` -> structured diagnostics -> basic enrichment + result assembly. It does NOT port the supervisor's domain-aware intelligence.
+This epic was created on 2026-06-09 from a review of the v1 `validate_code` contract, and
+its goal was stated as: restore what v1 had that the minimal TASK-7 rebuild drops, proven
+by comparing against captured v1 baselines. **That goal is no longer the target.** v1 was
+wrong in the specific ways TASK-7's revision documents, so "parity with v1" now argues for
+reintroducing the defects rather than against them.
 
-This epic restores the supervisor's OWN irreducible logic — the part `platformos-check-common` does not and will not have — on top of the clean TASK-7 foundation, WITHOUT regressing any TASK-7 architectural invariant (no in-process LSP for lint; no regex over diagnostic message strings; one graph; one docset; pure enrich/result stages; check-common is the single source of truth for correctness).
+What survives is not "v1's intelligence" but a much smaller set of things that are
+genuinely good and genuinely unowned. Each child task has been re-scoped to say which.
 
-This epic was created from a review (2026-06-09) of the v1 `validate_code` contract (`CURRENT_SYSTEM_ARCHITECTURE.md`, the compiled `dist/`, and the 13 captured parity baselines) against the TASK-7 plan. It records the gaps that, if left unaddressed, would shrink `validate_code`'s LLM-facing output versus v1.
+## What happened to the five gaps this epic listed
 
-## What v1 had that the minimal TASK-7 rebuild drops (the work here)
+| v1 gap | Outcome |
+|---|---|
+| 1. Per-domain intelligence | **Dissolved** (TASK-8.2). "Domain" is `PlatformOSFileType`, owned by `platformos-common`; gotchas are documentation; the `\| raw` advisory becomes a check-common check. |
+| 2. Structured identifiers on the seam | **Deferred pending measurement** (TASK-8.1). `findCurrentNode(ast, offset)` is exported by check-common and resolves the symbol at an offense range without a seam change. |
+| 3. The 32-module / 92-rule library | **Dissolved** (TASK-8.3). Hint prose and variants are forbidden by invariant 6; nearest-match belongs in the check as `Offense.suggest`, which 18 checks already do. |
+| 4. Full result contract (`tips`, `domain_guide`, `structural`, `parse_error`) | **Each must earn its place** (TASK-8.4). Two are dead with 8.2; the other two need a measurement, not a parity argument. |
+| 5. v1-parity safety net | **Cancelled** (TASK-8.5). Comparing to v1 would fail on precisely the fields deliberately removed. |
+| (6.) Fix/suggest passthrough | **Superseded** (TASK-8.6) — moved into TASK-7.6 and TASK-7.7, where the same seam was already claimed twice. |
 
-1. PER-DOMAIN INTELLIGENCE — entirely supervisor-owned; check-common has NO domain concept (verified). Covers: domain detection from path (pages/partials/layouts/commands/queries/graphql/schema/translations), triggered gotchas (`always` / `has_check:X` / `uses_tag:X`), domain-scoped content-trigger `tips` (incl. the `| raw` XSS advisory), the domain-aware scorecard, and the `domain_guide` result field. See child 8.2.
+## What is actually left in this epic
 
-2. STRUCTURED IDENTIFIERS ON THE SEAM — `Offense` (check-common `types.ts`) carries only `{ type, check, message, uri, severity, start, end, fix?, suggest? }`. The matched identifier (unknown filter name, undefined object, missing-partial path) lives ONLY interpolated in `message`. Porting the rule library without extending the seam would force either a regex over `message` (breaks the invariant) or a loss of hint specificity (breaks "tool for LLM"). See child 8.1.
+Very little, and that is the correct outcome. The supervisor's irreducible value turned
+out to be *orchestration* — batching a changeset into one lint pass, the cached project
+graph, blast radius, the blocking gate, the response budget — all of which TASK-7 already
+ships. The "intelligence" v1 carried was mostly a second copy of things the engine and the
+documentation own.
 
-3. THE RULE LIBRARY — v1 shipped 32 rule modules / 92 rules producing did-you-mean suggestions (`nearestByLevenshtein`), variant hints (`MissingPartial-invalid_lib_prefix` vs `-module`), confidence, see_also, and fixes; plus graph-aware queries. TASK-7.7 ("attach a hint by check code") is a placeholder for this. See child 8.3.
+Anything still worth building from here lands in the package that owns the question:
+- a detector → a check-common `CheckDefinition` with a documentation page;
+- a platform fact → `filters.json` / `tags.json` upstream in `~/projects/pos/platformos-documentation`;
+- a cross-file structural answer → `platformos-graph` (the TASK-9 epic).
 
-4. FULL RESULT CONTRACT — v1 `ValidateCodeResult` emits `tips`, `domain_guide`, `structural`, and `parse_error` in addition to what TASK-7.9 assembles. See child 8.4.
+## Constraints (unchanged, and now stricter)
 
-5. PARITY SAFETY NET — TASK-7.11 captures fresh baselines only; proving "functionality intact" needs a comparison against the 13 v1 baselines for unchanged-contract fields. See child 8.5.
+Every TASK-7 invariant applies to anything done here, including the two amended on
+2026-08-16: no LSP protocol on the lint path (pure library reuse is fine), no regex over
+diagnostic messages, one graph and one docset, **one detector framework (check-common)**,
+pure enrich/result stages, and **the supervisor ships no documentation**.
 
-## Constraints carried from TASK-7 (do not violate)
-- No in-process LSP for linting. No regex over diagnostic `message` strings.
-- Reuse `platformos-graph`, `AugmentedPlatformOSDocset`, check-common `find-root`, check-node fs — never re-implement.
-- enrich/, advise/, result/ stay PURE (no node:fs / process / I/O); all I/O at the lint/ edge.
-- Correctness checks live in check-common; the supervisor keeps ONLY agent ergonomics.
-
-## Salvage / reference
-- v1 source recoverable at git f60bc39; v1 prose/data salvaged under `docs/mcp-supervisor/salvage/` (hints, checks YAML, domain-gotchas, content-triggers, shopify-contamination, language-features, fixtures, parity corpus).
-- `CURRENT_SYSTEM_ARCHITECTURE.md` §5.8–§5.12 (rule engine, enricher, pipeline, structural-warnings, fix-generator), §10 (v1 strips).
-
-This is a tracking epic. See child tasks. Depends on TASK-7 (the clean minimal rebuild) being complete.
+This remains a tracking epic. Read TASK-7's description for the invariants before starting
+any child here.
 <!-- SECTION:DESCRIPTION:END -->
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 All child tasks completed
-- [ ] #2 validate_code output reaches v1 parity for the LLM-facing contract (per-domain tips/gotchas/domain_guide, rule-library hints/suggestions/confidence/fixes, and the structural/parse_error fields), proven against the v1 baselines
-- [ ] #3 No TASK-7 architectural invariant is violated by the restored logic (no LSP-for-lint, no regex over messages, one graph, one docset, pure enrich/result stages)
+- [ ] #1 All child tasks are completed or archived with their outcome recorded
+- [ ] #2 Nothing added under this epic violates a TASK-7 invariant — in particular, no data/ directory, no second detector framework, and no platform documentation in the supervisor
+- [ ] #3 Every capability this epic listed has an owner recorded: a check-common check, an upstream documentation change, a platformos-graph capability, or a stated drop
 <!-- AC:END -->

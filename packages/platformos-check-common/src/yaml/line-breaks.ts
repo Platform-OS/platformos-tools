@@ -1,41 +1,27 @@
 /**
  * Make the parser agree with the platform about what a line break is.
  *
- * THE MISMATCH THIS EXISTS FOR. This package parses YAML with npm `yaml`, which
- * implements **YAML 1.2**. The platform parses with Ruby Psych/libyaml, which
- * implements **YAML 1.1**. The two specs disagree about a lone carriage return: 1.1
- * lists CR as a line break, 1.2 does not.
+ * THE MISMATCH. This package parses YAML with npm `yaml`, which implements YAML 1.2; the
+ * platform parses with Ruby Psych/libyaml, which implements YAML 1.1. The two disagree about
+ * a lone carriage return: 1.1 lists CR as a line break, 1.2 does not.
  *
- * The consequence was a FALSE BLOCK on a paste artefact. A single stray `\r` in an
- * otherwise normal LF file:
- *
- *   ```
- *     a: 1\rb: 2\n
- *   ```
- *
- * is one long line to a 1.2 parser, which reads it as `a: 1 b: 2` and reports
- * `Nested mappings are not allowed in compact mappings` — a `YAMLSyntaxError`, which
- * BLOCKS. Measured: `pos-cli deploy --dry-run` accepts the same bytes in all four
+ * The consequence was a FALSE BLOCK on a paste artefact. A single stray `\r` in an otherwise
+ * normal LF file — `a: 1\rb: 2\n` — is one long line to a 1.2 parser, which reads it as
+ * `a: 1 b: 2` and reports `Nested mappings are not allowed in compact mappings`, a
+ * `YAMLSyntaxError`, which BLOCKS. Measured: `--dry-run` accepts the same bytes in all four
  * admitted YAML types, and Psych parses them as `{"a"=>1, "b"=>2}`.
  *
- * The classic-Mac file is the obvious case, but it is not the important one. A single
- * CR pasted into an LF file blocks identically, and that is a thing that happens.
+ * NOT THE `version` OPTION: `parseDocument(source, { version: '1.1' })` still returns
+ * `BLOCK_AS_IMPLICIT_KEY` for that input — measured. The option changes SCALAR RESOLUTION,
+ * not the lexer's notion of a line break, and no option does, so the source is normalized.
  *
- * WHY NOT THE `version` OPTION. `parseDocument(source, { version: '1.1' })` does not
- * help — measured, it still returns `BLOCK_AS_IMPLICIT_KEY` for the input above. The
- * option changes SCALAR RESOLUTION, not the lexer's notion of a line break. There is
- * no option that does, so the source is normalized instead.
+ * SAFE FOR POSITIONS, which is why it can be done at all: the substitution is one byte for
+ * one byte, so every offset is unchanged and diagnostics computed against the ORIGINAL source
+ * still point at the right characters. `utils/position.ts` already treats a lone `\r` as a
+ * line terminator, so line and character numbers stay consistent too.
  *
- * WHY THIS IS SAFE FOR POSITIONS, which is the reason it can be done at all. The
- * substitution is one byte for one byte, so every offset in the document is unchanged
- * and diagnostics computed against the ORIGINAL source still point at the right
- * characters. `utils/position.ts` already treats a lone `\r` as a line terminator — it
- * was rewritten for exactly these files — so line and character numbers stay
- * consistent too. Nothing downstream needs to know this happened.
- *
- * `\r\n` IS LEFT ALONE. Both specs agree it is a single break, both parsers already
- * handle it, and rewriting it would either change the byte count or leave a stray
- * blank line.
+ * `\r\n` IS LEFT ALONE. Both specs agree it is a single break, and rewriting it would either
+ * change the byte count or leave a stray blank line.
  */
 
 /**

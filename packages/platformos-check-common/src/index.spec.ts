@@ -207,11 +207,6 @@ describe('Unit: a check that throws part-way through a file', () => {
  * `app/config.yml` and `app/user.yml` are classified now, which means the linter
  * VISITS them for the first time — they are `isKnownYAMLFile`, so check-node's glob
  * collects them and `check()` runs every YAML check against them.
- *
- * That is a live seam: a YAML check written for translations will happily walk a
- * config file unless it says otherwise. Both current YAML checks guard on the file's
- * TYPE rather than on a `/translations/` substring, so they skip these two — and this
- * test is what keeps that true when the next YAML check is added.
  */
 describe('the fixed-path config files', () => {
   const app = {
@@ -250,13 +245,6 @@ describe('the fixed-path config files', () => {
     // A `/translations/` substring test would also have skipped these two by luck.
     // Guarding on the type is what makes it deliberate — and what makes it survive a
     // translations directory alias being added to FILE_TYPE_DIRS.
-    //
-    // TWO checks are deliberate exceptions, and for the same reason: they ask nothing
-    // about the file's type, so there is nothing to guard. `YAMLSyntaxError` reports what
-    // the parser could not read; `DuplicateYAMLKey` reports a value the platform
-    // discarded. A duplicated key in `app/config.yml` is the same bug it is in a
-    // translation file — that claim is measured below rather than asserted here — and the
-    // test above pins that a config file YAML reads cleanly still draws nothing.
     const yamlChecks = allChecks.filter((def) => def.meta.type === SourceCodeType.YAML);
 
     expect(yamlChecks.map((def) => def.meta.code).sort()).toEqual([
@@ -271,10 +259,6 @@ describe('the fixed-path config files', () => {
    * The exception, measured. The enumeration above only records the INTENT that these two
    * checks are type-agnostic; this proves it for the one whose finding is easy to author,
    * on the file type that was classified last and is least likely to have been considered.
-   *
-   * Also the control for `attract no offenses from any check`: that test's fixtures are
-   * clean, so on its own it cannot distinguish "the checks correctly skip a config file"
-   * from "nothing looks at config files at all".
    */
   it('reports a duplicated key in a config file, not only in a translation file', async () => {
     const offenses = await check(
@@ -295,22 +279,8 @@ foo: two
 });
 
 /**
- * A `.graphql` document is parsed ONCE per lint run — however many checks and call
- * sites read it — and parsed again only when its source changes.
- *
- * The parse belongs to the `AppFile`, which is why this is really a test that no
- * consumer has grown its own `parse(content)` back. Three of them read the same two
- * documents here: `GraphQLCheck` validates them, `GraphQLVariablesCheck` reads their
- * variables for three call sites, and `UnknownProperty`'s shape analyzer reads their
- * selection sets for the same three. Give any one of them a parse of its own and the
- * count below goes up — that is the sabotage this suite is written to catch.
- *
- * A count alone would be blind to a consumer that calls the parser itself, so the
- * fixture makes the app's parse UNREPRODUCIBLE: every document's source carries a `%%`
- * that is not GraphQL, and the app's parser strips it while keeping the original as the
- * node's `content`. The app's document is therefore the only one that exists — parse
- * the file, the buffer or `ast.content` again and you get a syntax error instead, which
- * every assertion below would show.
+ * A `.graphql` document is parsed ONCE per lint run — however many checks and call sites read
+ * it — and parsed again only when its source changes.
  */
 describe('a .graphql file is parsed once per run', () => {
   const SCHEMA = `
@@ -457,11 +427,6 @@ describe('a .graphql file is parsed once per run', () => {
  * The same discipline for a LIQUID partial, and for the one check that follows a call
  * chain across files: `NestedGraphQLQuery` walks `{% function %}`/`{% render %}` targets
  * looking for a `{% graphql %}` inside them.
- *
- * The counting parser REWRITES a marker, so the app's parse is one no consumer can
- * reproduce from the source: read the partial through the app and the tag is there, read
- * and parse it yourself and it is not. The offense is therefore evidence about WHICH
- * parse the check used, not only about how many parses happened.
  */
 describe('a partial in a call chain is parsed once, by the app', () => {
   const MARKER = 'ZZ_GRAPHQL_ZZ';

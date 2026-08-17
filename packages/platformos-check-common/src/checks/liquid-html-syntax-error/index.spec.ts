@@ -87,10 +87,6 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     // defect rather than a contract — nobody chose this wording, and an author reading a
     // 50-item list learns nothing — but it is pinned here, so a vocabulary change has to
     // come past this test rather than slipping through.
-    //
-    // `try_rc` appears because the platform registers it as an alias of `try` and it is a
-    // BLOCK, so it reaches the grammar's `blockName`. `layout` is absent because platformOS
-    // has no such tag.
     const sourceCode = `
       <a href="abc" {%></a>
     `;
@@ -137,19 +133,6 @@ describe('Module: LiquidHTMLSyntaxError', () => {
 
 /**
  * WHICH TAG OPERANDS ACCEPT A FILTER — the whole adjudication, as fixtures.
- *
- * Filters are accepted wherever the platform parses a full Liquid VARIABLE and refused
- * wherever it parses a bare EXPRESSION. That follows each Ruby tag's own markup parsing, so
- * it is measured per operand rather than inferred from grammar symmetry.
- *
- * Settled against `pos-cli deploy --dry-run`, each construct deployed WITH the filter and
- * again WITHOUT it. THE RUNTIME IS NOT THE ORACLE HERE: `liquid_exec` accepted every
- * construct here, including all six the converter rejects. For a syntax question the
- * converter is the only authority.
- *
- * These blocked because the operands bound `liquidExpression`, which carries no filters, so
- * the strict markup rule failed, the markup degraded to a raw string, and `InvalidTagSyntax`
- * reported it — a `LiquidHTMLSyntaxError`, which BLOCKS, on code that deploys.
  */
 describe('Module: filters in tag operands', () => {
   /**

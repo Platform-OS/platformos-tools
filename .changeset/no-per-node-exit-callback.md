@@ -34,7 +34,7 @@ a property lookup that every check paid on every node for a feature with no cons
 Alternating paired passes, medians of nine rounds, 8-15% spread.
 
 End to end that is 1-4% of whole-project CPU, the same direction in seven of eight paired
-runs across `arabbank`, `htevent`, `Accala-MP` and `pos-module-community`. Offenses are
+runs across `project-a`, `project-b`, `project-c` and `pos-module-community`. Offenses are
 **identical** on all four — same sorted `check/uri/start/end/message` fingerprint and the
 same file manifest, in both rounds — which is the only claim that matters for a change to
 the traversal every check runs through.

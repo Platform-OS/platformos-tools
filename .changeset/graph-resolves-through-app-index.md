@@ -22,8 +22,8 @@ with the graph compared node-for-node:
 
 | project | files | listings | build |
 |---|---|---|---|
-| arabbank | 3450 | 6993 → **590** | 12.1 → 11.7 s |
-| Accala-MP | 3623 | 9911 → **185** | 7.3 → 7.1 s |
+| project-a | 3450 | 6993 → **590** | 12.1 → 11.7 s |
+| project-b | 3623 | 9911 → **185** | 7.3 → 7.1 s |
 | pos-module-community | 1622 | 11787 → **762** | 4.8 → 4.0 s |
 
 Identical graphs on all three. **The wall-clock win is the small half** (3-15%): a full

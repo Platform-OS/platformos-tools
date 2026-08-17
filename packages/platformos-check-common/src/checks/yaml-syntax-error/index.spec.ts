@@ -8,15 +8,6 @@ import { check, MockApp, runYAMLCheck } from '../../test';
  * The gap this closes: a malformed `.yml` used to produce NO diagnostic at all, in
  * every YAML directory the linter admits, while the deploy converter rejected the
  * same file and failed the whole changeset with it.
- *
- * Two properties are load-bearing and are asserted as whole values:
- *
- *   1. it fires for EVERY admitted YAML file type, not only the one with existing
- *      checks — the four types are separate `PlatformOSFileType`s and only
- *      translations had any coverage, which is how three of them were missed twice;
- *   2. the offense carries a REAL position. Reporting 0:0 for every parse failure
- *      would satisfy "reports something" while leaving an agent to find the problem
- *      by eye, and the position is exactly what the previous parse layer discarded.
  */
 describe('Module: YAMLSyntaxError', () => {
   const offensesFor = async (app: MockApp) =>
@@ -93,11 +84,6 @@ properties:
     // `yaml` reports `[length, length + 1]` for an unterminated construct — one PAST
     // the last character. The parse layer clamps that to the source, and the position
     // is then the empty last line the trailing newline opens: line 1, character 0.
-    //
-    // This asserted line 0, character 11 until `getPosition` learned to place an
-    // end-of-input offset. It could not name the position after the last character,
-    // so it named the last character instead, putting a whole class of parse errors —
-    // every unterminated construct `yaml` reports — one place early.
     const source = 'name: "oops\n';
 
     expect(await offensesFor({ 'app/schema/a.yml': source })).toEqual([
@@ -156,11 +142,6 @@ name: b
   it('still reports a real syntax error in the FIRST document of a multi-document file', async () => {
     // The other half of that decision: dropping `MULTIPLE_DOCS` must not drop
     // everything else. Document one is parsed, so its errors are still caught.
-    //
-    // Documents after the first are NOT parsed and their errors are invisible. That
-    // is a property of the parser rather than of this filter — `yaml` reports
-    // `MULTIPLE_DOCS` INSTEAD OF a syntax error in document two, never alongside it
-    // — so the filter loses no diagnostic that was ever available.
     expect(
       (
         await offensesFor({
@@ -175,17 +156,10 @@ name: b
 });
 
 /**
- * Cases carried over from the independently-written second implementation of this check
- * (master's, TASK-58/59 era). They are kept because each one is a MEASUREMENT, not a
+ * Cases carried over from an independently-written second implementation of this check.
+ * They are kept because each one is a MEASUREMENT, not a
  * preference — the message shape, the terminator, and the multi-problem file were all
  * measured against real projects.
- *
- * The three duplicate-key cases from that implementation are deliberately NOT carried
- * over, and their absence is asserted below instead. That implementation reported
- * `DUPLICATE_KEY` at severity ERROR from a check that is in `BLOCKING_CHECKS` — and the
- * converter ACCEPTS a duplicated key (`pos-cli deploy --dry-run`, measured at the top
- * level, inside a property and in a translation file). Blocking a write the platform
- * would take is the failure mode this whole check was scoped to avoid.
  */
 describe('Module: YAMLSyntaxError (message shape and document structure)', () => {
   const messagesOf = async (source: string) =>
@@ -246,24 +220,6 @@ en:
 
 /**
  * The SILENCE this check promises, with the controls that make it non-vacuous.
- *
- * A REPEATED KEY IS NOT A PARSE FAILURE. `pos-cli deploy --dry-run` accepts one at the top
- * level, inside a property, and in a translation file, and resolves it last-wins (both
- * measured — see `toYAMLNode`). Reporting it HERE would put a false block on a write the
- * platform would take, because this check is an ERROR and is in `BLOCKING_CHECKS`.
- *
- * That false block SHIPPED. `yaml` defaults `uniqueKeys` to `true`, so a duplicated key
- * became a hard refusal to write — while the check's own docstring and the server's
- * agent-facing instructions both stated, correctly and from measurement, that duplicates
- * are not reported. Two documents said it, no test asserted it, and the suite stayed green
- * for the entire time the code did the opposite. Prose cannot fail: that is why every
- * assertion below names the empty array explicitly instead of checking a count.
- *
- * THE CONTROLS MATTER AS MUCH AS THE SILENCE. A suppression wide enough to hide a real
- * syntax error would pass every "nothing was reported" assertion ever written, so the
- * silence is paired with two cases that must still be reported: a genuine parse failure in
- * a file that ALSO has a duplicate, and the discarded value itself, which `DuplicateYAMLKey`
- * reports as a non-blocking WARNING.
  */
 describe('Module: YAMLSyntaxError (duplicate keys belong to DuplicateYAMLKey)', () => {
   const offensesFor = async (app: MockApp) =>
@@ -291,16 +247,8 @@ properties:
   /**
    * Every admitted YAML file type. ONE extension, because there is only one:
    * `REFERENCE_EXTENSIONS` excludes `.yaml` deliberately — every YAML model in the backend
-   * anchors `\.yml\z` (`translation.rb:7`, `custom_model_type.rb:12`,
-   * `instance_profile_type.rb:7`, `transactable_type.rb:7`,
-   * `activity_streams/handler.rb:7`), so `app/translations/en.yaml` is never deployed.
-   * That exclusion is owned and tested by `platformos-common`'s `path-utils.spec.ts`; it
-   * is not re-asserted here.
-   *
-   * This loop USED to run over `['yml', 'yaml']`, on the premise that the second spelling
-   * was "an untested path through the same gate". There is no such path, so the `.yaml`
-   * half asserted silence over an app containing NOTHING — a suppression test that could
-   * not fail. It passed for exactly as long as `getApp` tolerated a path it dropped.
+   * anchors `\.yml\z` — so `app/translations/en.yaml` is never deployed. That exclusion is owned
+   * and tested by `platformos-common`'s `path-utils.spec.ts`.
    */
   const EVERY_YAML_LOCATION = [
     'app/schema/a',

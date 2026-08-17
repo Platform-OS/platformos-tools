@@ -1,16 +1,6 @@
 /**
  * The graph this server builds resolves names through the `App` this server already
  * holds — the same object it reads sources through.
- *
- * `preload` has just walked and classified the whole project, so every
- * `{% render %}` / `{% function %}` / `layout:` target is an O(1) index lookup. Without
- * the app, `DocumentsLocator` falls back to a walk-only stand-in and lists a directory
- * per candidate path for every reference in the project.
- *
- * The second test is the control: it shows this harness DOES record listings, and that a
- * name the index cannot answer still reaches the filesystem — so "no directory was
- * listed" in the first test is caused by the index, not by a build that resolved nothing
- * (which the module assertion rules out as well).
  */
 import { MockFileSystem } from '@platformos/platformos-check-common/src/test';
 import { AbstractFileSystem, UriString } from '@platformos/platformos-common';

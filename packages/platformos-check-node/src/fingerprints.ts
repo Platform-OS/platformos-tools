@@ -5,14 +5,11 @@ import { NodeFileSystem } from './NodeFileSystem';
 /**
  * What a file looked like at the moment something read it.
  *
- * Two process-level caches in this package — the shared `App` and the shared
- * `RouteTable` — outlive the call that filled them, and neither gets filesystem
- * events: an agent editing files out of band is exactly the case they have to be
- * correct for. Both answer "is what I remember still true" the same way, by
- * comparing what they recorded against a fresh `stat`, so the comparison lives
- * here rather than in each of them. Two spellings of it would have to stay
- * bit-identical — they compare against the same {@link UNKNOWN} sentinel — while
- * being free to drift.
+ * Two process-level caches in this package — the shared `App` and the shared `RouteTable` —
+ * outlive the call that filled them and get no filesystem events, so both answer "is what I
+ * remember still true" by comparing what they recorded against a fresh `stat`. The comparison
+ * lives here rather than in each of them, since two spellings would have to stay bit-identical
+ * while being free to drift.
  */
 
 /**
@@ -26,24 +23,20 @@ export const UNKNOWN = 'unknown';
 /**
  * `mtime:ctime:size` for the file at `uri`, or {@link UNKNOWN}.
  *
- * WHY `ctime` IS IN HERE. `mtime` is settable from userland (`utimes`), `ctime` is not:
- * any write moves it and nothing can put it back. A tool that restores an mtime after
- * writing — and a same-length replacement — is therefore INVISIBLE to `mtime:size`, and
- * that is a stale cache serving old content to a write gate. Measured, not supposed:
- * `fingerprints.spec.ts` writes five bytes over five bytes with the mtime pinned back.
+ * WHY `ctime` IS IN HERE. `mtime` is settable from userland (`utimes`), `ctime` is not: any
+ * write moves it and nothing can put it back. A tool that restores an mtime after writing — and
+ * a same-length replacement — is therefore INVISIBLE to `mtime:size`, which is a stale cache
+ * serving old content to a write gate. `fingerprints.spec.ts` writes five bytes over five with
+ * the mtime pinned back.
  *
- * Read through `NodeFileSystem.stat`, NOT `node:fs` directly. That is the seam the shared
- * app's revalidation is observed at — `shared-app.spec.ts` spies on it to land an overlay
- * inside the stat window and prove a racing buffer is not wiped. Going straight to
- * `node:fs` is one syscall either way but silently unhooks that test.
+ * Read through `NodeFileSystem.stat`, NOT `node:fs` directly: that is the seam the shared app's
+ * revalidation is observed at, and going straight to `node:fs` silently unhooks that test.
  *
  * `ctimeMs` is OPTIONAL on `FileStat`, so a filesystem that cannot answer it degrades to
- * `mtime:size` instead of forcing every implementation in the monorepo to grow a field it
- * has no concept of.
+ * `mtime:size`.
  *
- * What still cannot be discriminated: two changes landing in the same filesystem tick
- * while keeping the byte length. Closing that means hashing content on every call, which
- * is precisely the cost these caches exist to avoid.
+ * What still cannot be discriminated: two changes landing in the same filesystem tick while
+ * keeping the byte length. Closing that means hashing content on every call.
  */
 /**
  * Whether {@link fingerprintOf} could establish the file's state at all.

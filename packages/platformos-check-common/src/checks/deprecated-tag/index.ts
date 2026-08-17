@@ -9,14 +9,11 @@ import { createBoundedCache } from '../../utils/bounded-cache';
  * deprecated — what keeps a stale or mistaken name from becoming a rename.
  *
  * The name is read as data and never out of `deprecation_reason`'s English. Upstream,
- * `deprecation_replacement` comes from the platform's documentation source
- * (`docs/generators/liquid_tags/default/module/setup.rb`), where an `@alias` publishes the
- * canonical name of the class it shares and a `@deprecated` tag with a class of its own
- * declares `@replaced_by`. `verify_tags_json.rb` fails the docs build if a deprecation names
- * no successor, or names one the platform does not register — so a docset that deprecates a
- * tag without naming its successor is a docs bug, and the right response here is no rename
- * rather than a guess parsed out of prose. check-node's `autofix.spec.ts` asserts the
- * committed docset still resolves every tag it deprecates, so a drift fails there by name.
+ * `verify_tags_json.rb` fails the docs build if a deprecation names no successor, or names one
+ * the platform does not register, so a docset that deprecates a tag without naming its
+ * successor is a docs bug and the right response here is no rename rather than a guess.
+ * check-node's `autofix.spec.ts` asserts the committed docset still resolves every tag it
+ * deprecates.
  */
 export function resolveReplacementTag(
   deprecatedTag: TagEntry,
@@ -30,25 +27,21 @@ export function resolveReplacementTag(
 }
 
 /**
- * The tag's markup exactly as written, read out of the SOURCE rather than off the markup
- * node: `markup` is a union of ~30 shapes, some without a position and some nullable, and
- * the parse we want to re-run is over text anyway.
+ * The tag's markup exactly as written, read out of the SOURCE rather than off the markup node:
+ * `markup` is a union of ~30 shapes, some without a position and some nullable, and the parse
+ * we want to re-run is over text anyway.
  *
  * `blockStartPosition` is the opening tag in every form — `{%- hash_assign x -%}` written
- * inline, and the bare `hash_assign x` written inside a `{% liquid %}` block, which has no
- * delimiters at all — so taking everything after the name and dropping a trailing delimiter
- * covers both. The strip is anchored at the end because that is the only place the
- * delimiter that closes THIS tag can be, and `-` before it is whitespace control.
+ * inline, and the bare `hash_assign x` inside a `{% liquid %}` block, which has no delimiters
+ * at all — so taking everything after the name and dropping a trailing delimiter covers both.
  *
- * It does not need to defend against a `%}` inside a quoted string: measured, the parser
- * ends the tag at the first `%}` whatever the quoting, so `{% assign x = '%}' %}` is already
- * a tag with raw-string markup plus a stray text node, and raw-string markup declines the
- * rename on its own.
+ * It does not need to defend against a `%}` inside a quoted string: measured, the parser ends
+ * the tag at the first `%}` whatever the quoting, so `{% assign x = '%}' %}` is already a tag
+ * with raw-string markup, which declines the rename on its own.
  *
- * `split('').join('')` FLATTENS, and is not a no-op to be tidied away. V8 keeps a `slice`
- * result as a SlicedString referencing its parent — `replace`/`trim` preserve that, `concat`
- * and `normalize` do not flatten — so without this the few characters returned here retain the
- * whole file, and become a {@link probeCache} key that outlives the run. Measured with
+ * `split('').join('')` FLATTENS, and is not a no-op to be tidied away. V8 keeps a `slice` result
+ * as a SlicedString referencing its parent, so without this the few characters returned here
+ * retain the whole file and become a {@link probeCache} key that outlives the run. Measured with
  * `--expose-gc`: 33.5 MB retained across 256 keys, ~0 MB flattened. No test can see this.
  */
 function markupSourceOf(node: LiquidTag, nameEnd: number): string {
@@ -62,36 +55,27 @@ function markupSourceOf(node: LiquidTag, nameEnd: number): string {
 }
 
 /**
- * Whether the replacement tag ACCEPTS this occurrence's markup — asked by handing the
- * renamed tag back to the parser, rather than by knowing anything about either tag.
+ * Whether the replacement tag ACCEPTS this occurrence's markup — asked by handing the renamed
+ * tag back to the parser, rather than by knowing anything about either tag.
  *
- * This is the whole safety argument, and it has to exist because "use {% x %} instead" is
- * advice about intent, not a promise that the markup carries over. It does for
- * `hash_assign h['k'] = 1` -> `assign`; it does not for
- * `execute_query 'q', result_name: 'g'` -> `graphql`, which wants
+ * This is the whole safety argument: "use {% x %} instead" is advice about intent, not a
+ * promise that the markup carries over. It does for `hash_assign h['k'] = 1` -> `assign`; it
+ * does not for `execute_query 'q', result_name: 'g'` -> `graphql`, which wants
  * `graphql g = "path/to/query"` and would be rewritten into a tag the platform cannot parse.
- * Both answers fall out of this one call, and no tag is named to get them.
  *
- * The signal is this repo's existing invariant: a known tag whose strict markup rule does
- * not match keeps its markup as a raw STRING instead of throwing. So object markup after the
- * rename means the replacement's own grammar accepted it. Empty markup is accepted too —
- * `{% try_rc %}` -> `{% try %}` carries nothing that could be misread, and neither tag has a
- * markup rule to satisfy.
+ * The signal is this repo's existing invariant: a known tag whose strict markup rule does not
+ * match keeps its markup as a raw STRING instead of throwing, so object markup after the rename
+ * means the replacement's own grammar accepted it. Empty markup is accepted too.
  *
  * Reconstructed as a standalone tag rather than sliced out of the document, so the same
- * question can be asked about a tag written inside a `{% liquid %}` block, where it has no
- * delimiters of its own.
+ * question can be asked about a tag written inside a `{% liquid %}` block.
  *
- * BLOCK-NESS IS CHECKED STRUCTURALLY, not left to the parse failing. A block tag is probed
- * with its `end`, but measured, `{% assign x %}{% endassign %}` does NOT throw — it yields a
- * non-block `assign` and a SEPARATE `endassign` tag, so a dangling end is not self-refuting.
- * Comparing what the replacement became against what the original was is what declines
- * `{% parse_json car %}…{% endparse_json %}` -> `assign`: that migration moves the body into
- * the markup (`{% assign car = { … } %}`), which is a rewrite, not a rename, and half of it
- * would silently delete the author's JSON.
- *
- * Empty markup still goes through the probe for exactly that reason: `{% parse_json %}` with
- * no variable has empty markup too, and short-circuiting on that alone accepts it.
+ * BLOCK-NESS IS CHECKED STRUCTURALLY, not left to the parse failing: measured,
+ * `{% assign x %}{% endassign %}` does NOT throw — it yields a non-block `assign` and a
+ * SEPARATE `endassign` tag. Comparing what the replacement became against what the original
+ * was is what declines `{% parse_json car %}…{% endparse_json %}` -> `assign`, a rewrite that
+ * moves the body into the markup and would silently delete the author's JSON. Empty markup
+ * still goes through the probe for that reason.
  */
 function replacementAcceptsMarkup(node: LiquidTag, replacement: string, nameEnd: number): boolean {
   const markup = markupSourceOf(node, nameEnd);
@@ -104,15 +88,13 @@ function replacementAcceptsMarkup(node: LiquidTag, replacement: string, nameEnd:
 
 /**
  * Answers to {@link replacementAcceptsMarkup}, one parse each, asked once per deprecated-tag
- * OCCURRENCE. Sized by measurement on the four `~/projects/pos` baseline projects: 5162
- * occurrences, 2049 distinct probes, 2494 ms -> 969 ms fully cached, and an LRU of 256 answers
- * 39-52% (128 and 1024 are within a few points, so the working set is local). The memo outlives
- * a lint run, so a repeated `lintBuffer` over an unchanged buffer re-probes nothing.
+ * OCCURRENCE. Sized by measurement on four baseline projects: 5162 occurrences, 2049 distinct
+ * probes, 2494 ms -> 969 ms fully cached, and an LRU of 256 answers 39-52%. The memo outlives a
+ * lint run, so a repeated `lintBuffer` over an unchanged buffer re-probes nothing.
  *
  * The key holds the markup TEXT because that is what the answer depends on. A hash would be
  * constant-size and a collision would rename a tag into one the platform cannot parse, in an
- * autofix that writes to disk unattended — so the bytes are the cheaper side of that trade,
- * and there are few of them because {@link markupSourceOf} flattens what it returns.
+ * autofix that writes to disk unattended.
  */
 const probeCache = createBoundedCache<boolean>(256);
 

@@ -251,12 +251,6 @@ describe('Module: runChecks', () => {
               // Line 2 starts at offset 21 and 'hi: salut' occupies offsets 23-31, so
               // the exclusive end offset is 32 — the length of the source, since the
               // fixture has no trailing newline.
-              //
-              // This asserted `character: 10` while `getPosition` could not name a
-              // position past the last character: it clamped an end-of-input offset
-              // onto that character, and the range came back one short, highlighting
-              // 'hi: salu'. Every diagnostic ending at end of input was truncated the
-              // same way, in the editor as well as here.
               start: { line: 2, character: 2 },
               end: { line: 2, character: 11 },
             },
@@ -343,11 +337,6 @@ describe('Module: runChecks', () => {
      * visible. It no longer does: `inferredTargetParams` resolves the target through the
      * `App`, which is document-backed, so the buffer wins whatever the filesystem is. The App
      * also already holds the parse, which is why it is asked first.
-     *
-     * So the two arms are now green for the same reason, and they are one test rather than
-     * two because that is what they assert: wrapping the filesystem changes nothing here. The
-     * wrapper still matters for reads that do not go through the App (`DocumentsLocator`
-     * resolves candidate paths by `stat`), which is why the wrapped arm stays.
      */
     it('sees the in-editor buffer whether or not the filesystem is document-backed', async () => {
       for (const filesystem of [fs, new DocumentBackedFileSystem(fs, documentManager)]) {
@@ -450,21 +439,6 @@ describe('Module: runChecks', () => {
    * loaded LAZILY, both found by driving the real language server over a
    * 2700-file project rather than by a unit test. Each is pinned here with the
    * discriminator that tells the two code paths apart.
-   *
-   * A call site's parameters are resolved two ways, by two different checks:
-   *
-   *  - `UnrecognizedRenderPartialArguments` reads `{% doc %}`, which reaches the
-   *    partial via `getDocDefinition` → `documentManager.get(uri)`, so it needs
-   *    the partial to be a DOCUMENT;
-   *  - `PartialCallArguments` INFERS them from undefined variables in the
-   *    partial's source, read through `context.fs`, which always works.
-   *
-   * The two agree about a missing required parameter, so a test built on one
-   * would pass either way. They disagree about an UNKNOWN one: `{% doc %}` is
-   * the complete parameter list, so an argument it does not declare is an
-   * offense — while the inference path derives the list FROM the source, so
-   * every variable the partial uses is allowed and nothing is reported. That is
-   * the discriminator these use, which is why they run the doc-reading check.
    */
   describe('cross-file diagnostics while the workspace is still loading', () => {
     const callerURI = path.join(rootUri, 'app', 'views', 'pages', 'home.liquid');
@@ -534,10 +508,6 @@ describe('Module: runChecks', () => {
      * The file the workspace could not read. `preload` logs it and carries on,
      * so it stays in the `App` — classified, with no contents — and
      * `AppFile.source` THROWS rather than pretending to be `''`.
-     *
-     * Handing that file out as a document would cost the whole run — `check` reads `ast`
-     * for every file it visits — so ONE unreadable file would mean no diagnostics for
-     * anything.
      */
     it('an unreadable file costs its own diagnostics and nothing else', async () => {
       const unreadableURI = path.join(rootUri, 'app', 'views', 'partials', 'locked.liquid');
@@ -782,11 +752,6 @@ describe('Module: runChecks', () => {
     /**
      * Handing over the model widens what the checks can SEE. It must not widen what
      * they VISIT — that is what `only` is for.
-     *
-     * Asserted on the files the check ran over rather than on the diagnostics that
-     * came out, because those are published per open buffer either way: dropping
-     * `only` would silently read, parse and check every file in the project on every
-     * keystroke and produce identical diagnostics while doing it.
      */
     it('visits the open buffers only, though the whole app is visible', async () => {
       const visited: string[] = [];

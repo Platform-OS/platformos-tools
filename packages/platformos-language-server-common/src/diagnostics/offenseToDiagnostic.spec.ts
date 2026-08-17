@@ -13,10 +13,6 @@ import { offenseToDiagnostic } from './offenseToDiagnostic';
  * `offenseToDiagnostic` copies an `Offense`'s line and character straight into an LSP
  * `Range` — no conversion, no clamping. So check-common's offset-to-position mapping
  * IS the range VS Code renders, and this file is the language server's stake in it.
- *
- * It exists because the mapping is shared with the MCP supervisor, which converts to
- * 1-based line/column instead. A fix made for one consumer moves the other silently,
- * and until now only the supervisor side was pinned.
  */
 
 /** Reports one offense over the exact offsets it is given, whatever is there. */

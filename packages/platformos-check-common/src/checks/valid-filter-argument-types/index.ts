@@ -25,27 +25,24 @@ import {
 
 /**
  * The filter counterpart of `ValidTagArgumentTypes`. `inferArgumentType` reads the value and the
- * return types that resolve a chain come from the same docset map, so there is no second inference
- * path — but the COMPATIBILITY rule is its own, {@link isFilterArgumentCompatible}, because `object`
- * does not mean the same thing in a filter's document as in a `{% doc %}` block: there it is "some
+ * return types come from the same docset map, so there is no second inference path — but the
+ * COMPATIBILITY rule is its own, {@link isFilterArgumentCompatible}, because `object` does not
+ * mean the same thing in a filter's document as in a `{% doc %}` block: there it is "some
  * structured value" and here it is a Hash, which `{{ [] | hash_add_key: 'k', v }}` raising proves.
  *
  * WHAT IT CATCHES is the piped value as much as the written arguments, because `filters.json`
  * publishes the input as parameter 0 and the platform's own filters refuse a wrong one outright:
- * `{{ 123 | hash_add_key: 'hello', 'world' }}` raises `hash_add_key filter - first argument must be
- * a hash, received: 123` and takes the whole page with it — measured against a live instance, which
- * is also where the silences below were measured rather than assumed.
+ * `{{ 123 | hash_add_key: 'hello', 'world' }}` raises and takes the whole page with it.
  *
- * WHAT IT MUST NOT DO is read a published type as a contract when it is not one. Two of those, both
- * settled in the document rather than here:
+ * WHAT IT MUST NOT DO is read a published type as a contract when it is not one. Two of those,
+ * both settled in the document rather than here:
  *
  * - A docset from before the platform separated `object` (a Hash) from `untyped` (several types
  *   accepted) cannot tell the two apart, and this check is silent on one entirely — see
  *   {@link filterTypesAreContracts}. It was 1,279 offenses on working code, none real.
- * - Core Liquid's filters COERCE rather than refuse — `{{ 5 | upcase }}`, `{{ '5' | minus: 1 }}` and
- *   `{{ 'abc' | where: 'x', 1 }}` all render — so every one of their parameters is published
- *   `untyped` and nothing is reported about them. That is upstream's statement, not a category this
- *   check knows about; a filter that starts refusing would say so by publishing a type.
+ * - Core Liquid's filters COERCE rather than refuse, so every one of their parameters is
+ *   published `untyped` and nothing is reported about them. A filter that starts refusing would
+ *   say so by publishing a type.
  */
 export const ValidFilterArgumentTypes: LiquidCheckDefinition = {
   meta: {
@@ -200,14 +197,12 @@ function describe(types: readonly LiquidType[]): string {
 /**
  * What a written value holds, or `untyped` when nothing can be said about it.
  *
- * A BARE variable lookup is answered by the FILE — `{% assign x = 403 %}{{ x | t }}` raises exactly
- * what `{{ 403 | t }}` raises, measured, and only this check's blindness to the assignment ever told
- * them apart. A name the file never binds is still `untyped`, and so is a lookup INTO one
- * (`{{ x.y | t }}`): nothing in that table tracks property types.
+ * A BARE variable lookup is answered by the FILE — `{% assign x = 403 %}{{ x | t }}` raises
+ * exactly what `{{ 403 | t }}` raises. A name the file never binds is still `untyped`, and so is
+ * a lookup INTO one (`{{ x.y | t }}`): nothing in that table tracks property types.
  *
- * `inferArgumentType` is not consulted for a lookup, and must not be: it answers `object`, which is
- * the right answer for a `@param {object}` in a `{% doc %}` block and would report every
- * `{{ x | upcase }}` in the codebase from here.
+ * `inferArgumentType` is not consulted for a lookup, and must not be: it answers `object`, which
+ * is right for a `@param {object}` and would report every `{{ x | upcase }}` in the codebase.
  */
 function typeOfValue(
   value: WrittenValue,

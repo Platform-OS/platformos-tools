@@ -1,18 +1,5 @@
 /**
- * TASK-16, end to end: a background rejection must NOT kill the real server.
- *
- * The unit specs pin the handlers' behaviour; this pins the thing that actually
- * matters — that the process is still there afterwards and still answers
- * `validate_code`. That cannot be shown by driving a handler directly, because the
- * failure mode being prevented is Node terminating the process.
- *
- * The suite establishes both halves:
- *   1. a CONTROL proving that in this exact runtime an unhandled rejection really
- *      is fatal (otherwise the survival assertion below would pass vacuously on a
- *      Node version whose default is merely to warn);
- *   2. the real bin, made to reject in the background, still serving.
- *
- * Exercised against the BUILT `dist`, like the other integration specs.
+ * End to end: a background rejection must NOT kill the real server.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';

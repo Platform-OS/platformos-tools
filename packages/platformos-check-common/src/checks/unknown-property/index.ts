@@ -24,7 +24,7 @@ export const UnknownProperty: LiquidCheckDefinition = {
       description:
         'Reports errors when accessing properties that do not exist on variables with known structure.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/unknown-property',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

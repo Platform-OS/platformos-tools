@@ -26,7 +26,7 @@ parsed it again for itself:
 - the graph build, one more.
 
 `sourceParsers` now injects `parseGraphql`, so the `AppFile` memoizes the real document
-and all four read that one. Measured on a real project (`htevent`, 453 `.graphql` files)
+and all four read that one. Measured on a real project (`project-c`, 453 `.graphql` files)
 by counting every call into `graphql`'s `parse` during a full CLI run: **2442 parses
 before, 505 after**, for the same 15511 offenses. Wall clock is unchanged within noise
 (115.9 s → 114.1 s) — a full lint of that project is dominated by Liquid parsing, so this

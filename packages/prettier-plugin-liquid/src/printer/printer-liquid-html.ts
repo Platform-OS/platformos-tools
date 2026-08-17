@@ -92,31 +92,9 @@ function printAttribute<T extends Extract<LiquidHtmlNode, { attributePosition: P
 ): Doc {
   const node = path.getValue();
   const attrGroupId = Symbol('attr-group-id');
-  // What should be the rule here? Should it really be "paragraph"?
-  // ideally... if the thing is and the line is too long
-  // use cases:
-  //  - attr-{{ section.id }}--something.
-  //  * We should try to put that "block" on one line
-  //
-  //  - attr {{ classname }} foo
-  //  * we should try to put on one line?
-  //
-  //  - attr hello world ok fellow friends what do
-  //  * if the line becomes too long do we want to break one per line?
-  //    - for alt, would be paragraph
-  //    - for classes, yeah maybe
-  //    - for srcset?, it should be "split on comma"
-  //    - for sizes?, it should be "split on comma"
-  //    - for href?, it should be no space url
-  //    - for others?, it should be keywords
-  //    - for style, should be break on ;
-  //    - for other?, should be...
-  //    - how the fuck am I going to do that?
-  //    - same way we do this? with a big ass switch case?
-  //    - or we... don't and leave it as is?
-  //
-  // Anyway, for that reason ^, for now I'll just paste in what we have in
-  // the source. It's too hard to get right.
+  // Attribute values are pasted in from the source rather than re-wrapped: what "too long"
+  // should do depends on the attribute — comma-splitting for `srcset`/`sizes`, paragraph flow
+  // for `alt`, `;` for `style`, no-space URLs for `href` — and no single rule fits.
 
   const value = node.source.slice(node.attributePosition.start, node.attributePosition.end);
   const preferredQuote = options.singleQuote ? `'` : `"`;
@@ -151,56 +129,35 @@ function isYamlFrontMatter(node: TextNode) {
  * Whether this `VariableLookup` is the TARGET of a write, where bracket notation is
  * load-bearing and must survive formatting.
  *
- * MEASURED on a live instance, not inferred. `hash_assign` requires the FINAL subscript to be
- * a bracket:
+ * MEASURED on a live instance, not inferred. `hash_assign` requires the FINAL subscript to be a
+ * bracket:
  *
  *   {% hash_assign h['k'] = 'V' %}    assigns      {% hash_assign h.k      = 'V' %}  RAISES
- *   {% hash_assign h["k"] = 'V' %}    assigns      {% hash_assign h.a.b    = 'V' %}  RAISES
  *   {% hash_assign h.a['b'] = 'V' %}  assigns      {% hash_assign h['a'].b = 'V' %}  RAISES
- *   {% hash_assign h[k] = 'V' %}      assigns
- *   {% hash_assign h[0] = 'V' %}      assigns
+ *   {% hash_assign h[k] = 'V' %}      assigns      {% hash_assign h.a.b    = 'V' %}  RAISES
  *
- * The raise is `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax: hash_assign
- * hash[key] = value`, at PARSE time — so a rewritten file does not merely fail to deploy, it
- * cannot be parsed, and a converter rejection takes the WHOLE changeset. Without this guard
- * the printer turned `h['k']` into `h.k` on every format: valid code silently rewritten into
- * undeployable code, with no error at any layer.
+ * The raise is a `Liquid::SyntaxError` at PARSE time, so a rewritten file cannot be parsed and
+ * a converter rejection takes the WHOLE changeset. Without this guard the printer turned
+ * `h['k']` into `h.k` on every format.
  *
- * `{% function h['k'] = 'partial' %}` is here on a WEAKER claim, deliberately stated as such.
- * Its target parses in every notation, so the dot form is not a measured syntax error the way
- * `hash_assign`'s is. It is guarded anyway because what the write DOES was never measured —
- * settling it needs a partial that exists — and rewriting an author's target is not something
- * to do on an unmeasured tag. Preserving costs nothing; being wrong costs the changeset.
+ * `{% function h['k'] = 'partial' %}` is here on a WEAKER claim, deliberately stated as such:
+ * its target parses in every notation, but what the write DOES was never measured, and
+ * rewriting an author's target on an unmeasured tag is not worth it.
  *
  * EVERY lookup in the target is printed as a bracket, not only the last one. Only the last is
  * load-bearing — `h.a['b']` is accepted — so this also normalises `h.a['b']` to `h['a']['b']`
- * and an author's invalid `h.k` to `h['k']`. Both are deliberate: the output is uniformly the
- * one spelling that is always valid, and leaving a mixed `h.a['b']` would invite the next
- * reader to tidy away the one bracket doing the work.
+ * and an author's invalid `h.k` to `h['k']`: the output is uniformly the one spelling that is
+ * always valid.
  *
- * WHY NOT PRESERVE EACH LOOKUP'S ORIGINAL NOTATION, which would be the gentler fix. This used
- * to read "there is no typed signal to preserve it BY" — the only distinction was that a dot
- * lookup's `String` node was missing `single`, in violation of its own `boolean` declaration.
- * That signal now exists and is positive: `LiquidString.unquoted`, set by and only by the
- * parser's `dotLookup`.
- *
- * Always-brackets stays, on the reason that never depended on the signal: for `hash_assign` a
- * dot in the LAST lookup is a platform parse error, so preserving an author's `h.k` would mean
- * reproducing undeployable code on every format. Uniform brackets are the one spelling valid
- * under every tag here. With `unquoted` available, preserving notation for `assign` and
- * `function` — where a dot is legal — is now a change someone could choose to make; it is a
- * change to what the formatter EMITS, so it belongs to a decision about output, not to this
- * guard.
+ * `LiquidString.unquoted` now makes per-lookup notation preservable, so doing that for `assign`
+ * and `function` — where a dot is legal — is a change someone could choose to make. It belongs
+ * to a decision about output, not to this guard.
  *
  * `{% assign %}` is NOT decided here: its markup carries the name and the lookups separately
- * with no `VariableLookup` node to reach this function, so it brackets its own target — see
- * the `AssignMarkup` case.
+ * with no `VariableLookup` node to reach this function — see the `AssignMarkup` case.
  *
- * The parent comes from `path.getParentNode()` rather than the augmented `node.parentNode`:
- * the augmentation types `parentNode` as `ParentNode`, which by construction only covers nodes
- * that can HAVE children, and neither markup node is one. The print-time parent is exactly the
- * question being asked, so this is the right API rather than a cast around a deliberately
- * narrow type.
+ * The parent comes from `path.getParentNode()` rather than the augmented `node.parentNode`,
+ * which is typed as `ParentNode` and by construction only covers nodes that can HAVE children.
  */
 function isWriteTarget(
   printParent: { type?: string; target?: unknown; name?: unknown } | null,
@@ -391,21 +348,16 @@ function printNode(
         /**
          * An `{% assign %}` TARGET is printed with brackets throughout, for the same reason a
          * `hash_assign` target is — see {@link isWriteTarget}. This is the tag an author should
-         * be reaching for now that `hash_assign` is deprecated, so it is the one that matters
-         * most.
+         * be reaching for now that `hash_assign` is deprecated.
          *
-         * The "prefer direct access" normalisation used to apply here and was wrong TWICE
-         * over. It printed the STRING NODE after the dot rather than the raw value, so
-         * `{% assign h['k'] = 'V' %}` came out as `{% assign h.'k' = 'V' %}` — not the dot
-         * form, but a spelling no Liquid parser accepts. Measured: `Liquid syntax error:
-         * Syntax Error in 'assign' - Valid syntax: assign [var] = [value]`, at PARSE time. One
-         * format turned a working file into one that cannot be parsed and that the deploy
-         * converter rejects, taking the whole changeset with it.
+         * The "prefer direct access" normalisation printed the STRING NODE after the dot rather
+         * than the raw value, so `{% assign h['k'] = 'V' %}` came out as `{% assign h.'k' %}` —
+         * a spelling no Liquid parser accepts, measured as a PARSE-time syntax error. One format
+         * turned a working file into one the deploy converter rejects.
          *
-         * Brackets are always accepted here — `h['k']`, `h["k"]`, `h[0]`, `h[k]` all assign —
-         * and so is the dot form, which is why this is a normalisation rather than a repair:
-         * `{% assign h.k = 'V' %}` and `{% assign h['k'] = 'V' %}` both write the key `k`,
-         * measured with the hash read back.
+         * Brackets are always accepted here, and so is the dot form, which is why this is a
+         * normalisation rather than a repair: both write the key `k`, measured with the hash
+         * read back.
          */
         const lookups: Doc[] = (path as any).map(
           (lookupPath: any) => ['[', print(lookupPath), ']'],

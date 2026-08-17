@@ -8,15 +8,6 @@ import { ValidFilterArgumentTypes } from './index';
 
 /**
  * AGAINST THE SHIPPED `filters.json`, transformed rather than replaced.
- *
- * The document is the INPUT here, and every fixture changes exactly one entry of it, because what
- * this check does depends on a property of the WHOLE document — whether it separates `object` (a
- * Hash) from `untyped` (several types accepted) — which no invented docset can model honestly.
- *
- * Stating the parameters a case is about is what makes these read the same before and after a docs
- * release: `hash_add_key.value` is published `object` today and `untyped` after the release that
- * separates the two senses, so a case that left it alone would report one offense or two depending
- * on the day. Restating what the document says is the mistake the sibling tag check's spec made.
  */
 const parameter = (name: string, types: string[], extra: Partial<Parameter> = {}): Parameter => ({
   name,
@@ -47,12 +38,6 @@ const withParameters = async (filterName: string, parameters: Parameter[]) =>
 
 /**
  * `split` stated as a way to PRODUCE an array, which is all these cases use it for.
- *
- * A filtered chain is how these cases get an array to pipe. An array LITERAL would now work too —
- * the grammar accepts `{{ [1,2] | size }}` since the drop head learned `liquidJsonArrayLiteral` —
- * but `split` is what these cases were written against and it keeps them about what they are about:
- * the document publishes its input as `object` today and `untyped` after the release that separates
- * the two senses, and neither is this case's subject.
  */
 const withSplit = (filters: FilterEntry[]) =>
   statedOn(filters, 'split', [
@@ -297,10 +282,6 @@ describe('Module: ValidFilterArgumentTypes', () => {
       // Measured: `{{ [] | hash_add_key: 'hello', 'world' }}` and `{{ (1..3) | hash_add_key: 'a', 1 }}`
       // both raise `first argument must be a hash`, while `{% assign h = {} %}` piped in renders.
       // `isTypeCompatible` accepts an array and a range for `object` and would miss both.
-      //
-      // The array arrives through `split`, whose published return type is `array`: an array LITERAL
-      // cannot be the piped value in `{{ … }}` as far as this repository's grammar is concerned, even
-      // though the platform accepts one — a separate gap, and not one this spec can wait for.
       const filters = withSplit(await hashAddKey());
 
       expect(
@@ -374,15 +355,6 @@ describe('Module: ValidFilterArgumentTypes', () => {
 
 /**
  * A VARIABLE THIS FILE ASSIGNS, which used to be exempt from the whole check.
- *
- * `{{ 403 | t }}` was reported and `{% assign x = 403 %}{{ x | t }}` was not, although the runtime
- * refuses both with the same sentence — measured against a live instance, twice:
- *
- *   translate filter - first argument must be a string, received: 403
- *
- * `t` is the filter the report came in about and is used throughout: it is an alias of `translate`,
- * whose first parameter the shipped document types `string`, so these cases read the same expected
- * type a user's editor does.
  */
 describe('Module: ValidFilterArgumentTypes — a variable this file assigns', () => {
   /** The shipped document, with the marker that makes its types contracts. */

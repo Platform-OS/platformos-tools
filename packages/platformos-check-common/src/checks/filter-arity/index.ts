@@ -38,7 +38,7 @@ export const FilterArity: LiquidCheckDefinition = {
       description:
         'Reports a known filter applied with too few or too many arguments. platformOS raises Liquid::ArgumentError at render time, so the page returns a 500 rather than degrading.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/filter-arity',
     },
     type: SourceCodeType.LiquidHtml,
     severity: Severity.ERROR,

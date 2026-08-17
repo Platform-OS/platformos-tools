@@ -5,15 +5,8 @@ import { expect, test } from 'vitest';
 import { assertFormattedEqualsFixed, format } from '../test-helpers';
 
 /**
- * TASK-49. Bracket notation is LOAD-BEARING in a `hash_assign` target, and the printer used
+ * Bracket notation is LOAD-BEARING in a `hash_assign` target, and the printer used
  * to normalise it away.
- *
- *   {% hash_assign h['k'] = 1 %}   ->   {% hash_assign h.k = 1 %}
- *
- * The platform raises `Liquid::SyntaxError: Syntax Error in 'hash_assign' - Valid syntax:
- * hash_assign hash[key] = value` on the dot form, at PARSE time. So format-on-save silently
- * turned a working file into one that can neither be deployed nor rendered, and a converter
- * rejection takes the WHOLE changeset. No error appeared at any layer.
  */
 test('Unit: liquid-tag-hash-assign', async () => {
   await assertFormattedEqualsFixed(__dirname);
@@ -32,12 +25,6 @@ function targetsIn(formatted: string): string[] {
 
 /**
  * The invariant, asserted against LIVE output rather than against `fixed.liquid`.
- *
- * `fixed.liquid` was produced by running the formatter, so comparing to it can only prove the
- * output is STABLE — it would happily enshrine a broken expectation. Formatting `index.liquid`
- * here instead means this test fails both ways: if the printer regresses, and if the committed
- * expectation is wrong. It asserts the thing that was measured on a live instance rather than
- * anything about our own output.
  */
 test('Unit: liquid-tag-hash-assign — every formatted target ends in a bracket', async () => {
   const source = fs.readFileSync(path.join(__dirname, 'index.liquid'), 'utf8');

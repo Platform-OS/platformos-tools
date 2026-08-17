@@ -16,32 +16,20 @@ import type { BufferToValidate } from './validate-buffers.js';
 /**
  * A refusal when two or more entries resolve to the same file, else `undefined`.
  *
- * WHY THIS IS A REFUSAL AND NOT A MERGE. Results are keyed by the caller's own
- * `filePath` STRING (deliberately — a caller mixing relative and absolute spellings
- * must be able to find its own entries without reproducing our normalization), but
- * buffers are overlaid and deduplicated by normalized URI, last entry winning. When
- * several caller keys resolve to ONE uri, they all read back that single uri's
- * offenses. The result: the losing buffer's content is never linted, and its entry
- * is reported carrying the WINNER's verdict.
+ * A REFUSAL AND NOT A MERGE. Results are keyed by the caller's own `filePath` STRING, but
+ * buffers are overlaid and deduplicated by normalized URI, last entry winning — so when
+ * several caller keys resolve to ONE uri they all read back that uri's offenses, and the
+ * losing buffer is never linted while its entry carries the WINNER's verdict. Measured
+ * before this guard existed: a broken buffer and a clean one under the same path returned
+ * `ok` for both, and reversing the argument order flipped both to `error`.
  *
- * Measured before this guard existed — a broken buffer and a clean one under the
- * same path returned `status: "ok"` for both, and reversing the argument order
- * flipped it to `"error"` for both. So the answer depended on argument order, and in
- * one of the two orders a file that was never checked came back clean. That is the
- * one false approval in this server that no amount of gate calibration could
- * recover, because nothing about it involves a check at all.
+ * The whole request is refused rather than a winner picked, following `batchTooLarge`: the
+ * incoherence is a property of the REQUEST. IDENTICAL CONTENT IS REFUSED TOO — merging
+ * would be safe, but a rule with a content-equality carve-out is one more branch that can
+ * be wrong.
  *
- * Refusing the whole request rather than picking a winner follows `batchTooLarge`:
- * the incoherence is a property of the REQUEST, so choosing which buffer to honour
- * would be arbitrary, and validating one while reporting for both is exactly the
- * defect. A changeset cannot contain two versions of one file.
- *
- * IDENTICAL CONTENT IS REFUSED TOO. It would be safe to merge, but "same path twice"
- * is a caller bug either way, and a rule with a content-equality carve-out is one
- * more branch that can be wrong. One spelling per file, always.
- *
- * Collision is decided on the same normalized URI the overlay uses, so this guard
- * cannot disagree with the mechanism it protects.
+ * Collision is decided on the same normalized URI the overlay uses, so this guard cannot
+ * disagree with the mechanism it protects.
  */
 export function collidingBufferPaths(
   projectDir: string,

@@ -61,53 +61,35 @@ function getRange(node: any): [number, number] {
 }
 
 export function toYAMLNode(source: string): JSONNode {
-  // `prettyErrors: false` keeps the parser's message as its own sentence. With the
-  // default the library appends ` at line N, column M:` plus a source snippet, and
-  // the only way back to a clean message is a regex over English. We report the
-  // location structurally instead, so the prose does not need to carry it.
+  // `prettyErrors: false` keeps the parser's message as its own sentence. With the default
+  // the library appends ` at line N, column M:` plus a source snippet, and the only way back
+  // to a clean message is a regex over English; we report the location structurally instead.
   //
-  // `uniqueKeys: false` because a REPEATED KEY IS NOT A PARSE FAILURE HERE. The
-  // library defaults it to `true` and raises `DUPLICATE_KEY`, which reached the
-  // blocking gate and refused writes the platform accepts — measured against
-  // `pos-cli deploy --dry-run`, which takes a duplicated key at the top level, inside
-  // a property, and in a translation file.
+  // `uniqueKeys: false` because a REPEATED KEY IS NOT A PARSE FAILURE HERE. The library
+  // defaults it to `true` and raises `DUPLICATE_KEY`, which reached the blocking gate and
+  // refused writes the platform accepts — measured against `pos-cli deploy --dry-run`, which
+  // takes a duplicated key at the top level, inside a property, and in a translation file.
+  // The platform then resolves it LAST-WINS, exactly as `toJS` does here (measured
+  // separately, by reading both values back through `liquid_exec`).
   //
-  // The platform then resolves it LAST-WINS, exactly as `toJS` does here — measured
-  // separately on 2026-08-02 by deploying a translations file with a key repeated at
-  // both levels and reading the values back through `liquid_exec`. That is called out
-  // as its own measurement because this comment previously asserted it in the same
-  // breath as the `--dry-run` result, which only ever established that the file is
-  // ACCEPTED. Acceptance and resolution are different claims and only one of them had
-  // been measured.
+  // Accepting the key does not make the discarded value harmless: `DuplicateYAMLKey` reports
+  // it as a non-blocking warning. Silence here is about PARSING, not approval, and
+  // `checks/yaml-syntax-error/index.spec.ts` asserts it.
   //
-  // Accepting the key does not make the discarded value harmless: `DuplicateYAMLKey`
-  // reports it as a non-blocking warning. Silence here is about PARSING, not approval.
-  //
-  // This one option is the entire distance between what two documents in this repo
-  // promised and what the code did: the check's own docstring says duplicate property
-  // names deploy fine, and the server instructions tell an agent they are not
-  // reported. Both were measured and correct; the library default silently reinstated
-  // the behaviour they rule out, and nothing failed, because nothing asserted the
-  // SILENCE. `checks/yaml-syntax-error/index.spec.ts` now does.
-  // A LONE `\r` IS A LINE BREAK TO THE PLATFORM AND NOT TO THIS PARSER, so it is
-  // normalized first — see `line-breaks.ts`. One byte for one byte, so every offset
-  // below is still an offset into the caller's original source.
+  // A LONE `\r` IS A LINE BREAK TO THE PLATFORM AND NOT TO THIS PARSER, so it is normalized
+  // first — see `line-breaks.ts`. One byte for one byte, so every offset below is still an
+  // offset into the caller's original source.
   const options = { prettyErrors: false, uniqueKeys: false };
   const normalized = normalizeLoneCarriageReturns(source);
   const doc = parseDocument(normalized, options);
 
-  // `MULTIPLE_DOCS` is NOT a defect in the file. Multi-document YAML is valid YAML;
-  // the parser is objecting to being asked for a single document, which is our
-  // calling convention rather than the author's mistake — and it still hands back a
-  // fully parsed first document, so there is nothing degraded about the result.
-  // Reporting it would put a false block on every multi-document file for a reason
-  // no author could act on except by restructuring valid input.
+  // `MULTIPLE_DOCS` is NOT a defect in the file. Multi-document YAML is valid YAML; the
+  // parser is objecting to being asked for a single document, which is our calling convention
+  // rather than the author's mistake, and it still hands back a fully parsed first document.
   //
-  // The cost is stated rather than hidden: when this fires, documents after the
-  // first are not parsed, so a syntax error inside one of them is not seen. That is
-  // already true of the error itself — `yaml` reports MULTIPLE_DOCS *instead of* a
-  // syntax error in document two, not alongside it — so nothing is lost that this
-  // could have caught, and the alternative trades a silent gap for a false refusal.
+  // The cost is stated rather than hidden: when this fires, documents after the first are not
+  // parsed. That is already true of the error itself — `yaml` reports MULTIPLE_DOCS *instead
+  // of* a syntax error in document two — so nothing is lost that this could have caught.
   const failures = doc.errors.filter((error) => error.code !== 'MULTIPLE_DOCS');
 
   // A QUOTED SCALAR MAY BE CONTINUED AT OR BELOW ITS KEY'S INDENTATION on the platform, and
@@ -128,15 +110,13 @@ export function toYAMLNode(source: string): JSONNode {
   if (failures.length > 0) {
     throw new YAMLConvertError(
       // Clamped to the source. `yaml` reports an unterminated construct as
-      // `[length, length + 1]` — measured, not inferred: a missing closing quote, an
-      // unclosed flow sequence and an unclosed flow map all report that way, with or
-      // without a trailing newline.
+      // `[length, length + 1]` — measured on a missing closing quote, an unclosed flow
+      // sequence and an unclosed flow map, with and without a trailing newline.
       //
       // `length` itself is a real position (end of input) and `getPosition` places it
-      // correctly, on the empty last line where an editor puts the caret. It is the
-      // `+ 1` that names nothing, so only the END is actually moved by this clamp.
-      // The resulting range is empty, which is the honest shape for "the file stopped
-      // before it should have": there is no character to underline.
+      // correctly; it is the `+ 1` that names nothing, so only the END is moved. The
+      // resulting empty range is the honest shape for "the file stopped before it should
+      // have": there is no character to underline.
       failures.map((error) => {
         const [start, end] = error.pos;
         const offset = Math.max(0, Math.min(start, source.length));

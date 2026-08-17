@@ -84,14 +84,6 @@ describe('Module: documentHighlights', () => {
    * I wish CM didn't think that their implementation of iterators was better
    * than the built-in one. Makes testing that stuff really hard for what seems
    * like an obscure reason.
-   *
-   * > A range cursor is an object that moves to the next range every time you
-   * > call next on it. Note that, unlike ES6 iterators, these start out pointing
-   * > at the first element, so you should call next only after reading the first
-   * > range (if any).
-   *
-   * Also, RangeSet.eq doesn't seem to work. Which is why I decided to take this
-   * approach.
    */
   function* toIterator(decoSet: DecorationSet): Iterable<Range<Decoration>> {
     let iter = decoSet.iter();

@@ -13,22 +13,9 @@ vi.mock('@platformos/liquid-html-parser', async (importOriginal) => {
 });
 
 /**
- * EVERY TAG NAMED HERE IS A REAL platformOS TAG, and every `deprecation_reason` is the one
- * the live docset carries, verbatim (`platformos-check-docs-updater/data/tags.json`, which
- * that package's `postbuild` re-downloads from production). An invented tag name or a
- * convenient paraphrase would be testing a mapping production never has — and would read, to
- * the next person, as a tag this platform has.
- *
- * `deprecation_replacement` is the successor the shipped `tags.json` states, verbatim, and it
- * is the only thing this check reads to decide a rename — the reasons are here because they
- * are the offense MESSAGE, not because anything parses them.
- *
- * Two entries are the current docset with ONE field changed, and each says so: the change is
- * the case under test, and the names around it stay real. What the committed docset actually
- * says is asserted whole in `platformos-check-node/src/autofix.spec.ts`.
- *
- * The list is a SUBSET of the docset — `sign_in` is deliberately missing — which is itself
- * one of the cases below.
+ * EVERY TAG NAMED HERE IS A REAL platformOS TAG, and every `deprecation_reason` is the one the
+ * live docset carries, verbatim. An invented tag name or a convenient paraphrase would be
+ * testing a mapping production never has.
  */
 const mockDependencies: { platformosDocset: PlatformOSDocset } = {
   platformosDocset: {
@@ -231,20 +218,7 @@ describe('Module: DeprecatedTag', () => {
     });
 
     /**
-     * A DOT TARGET IS RENAMED, and this test exists because the opposite was believed and
-     * written down. `InvalidHashAssignTargetSyntax` used to claim that `{% assign h.a.b = v %}`
-     * writes a key literally named `a.b`, so renaming a dot-target `hash_assign` would silently
-     * change what the template means. Re-measured with `pos-cli exec liquid dev`, reading the
-     * hash back:
-     *
-     *   {% assign h = {"a": {"b": "old"}} %}{% assign h.a.b = 'NEW' %}    -> {"a":{"b":"NEW"}}
-     *   {% assign h = {"a": {"b": "old"}} %}{% assign h['a'].b = 'NEW' %} -> {"a":{"b":"NEW"}}
-     *   {% assign h = {"a": {"b":"old"}} %}{% hash_assign h.a.b = 'NEW' %} -> RAISES
-     *
-     * A dot is a path separator for `assign`, exactly as a bracket is, and `hash_assign` does
-     * not accept one at all — so the rename turns undeployable code into code that does what
-     * the author meant. It is a strict improvement and must NOT be guarded against. The comment
-     * that said otherwise is corrected; this is the part of that correction that can fail.
+     * A DOT TARGET IS RENAMED. Measured with `pos-cli exec liquid dev`, reading the hash back:
      */
     it('renames a dot-target hash_assign, which the disproven comment argued against', async () => {
       expect(await fixed(`{% hash_assign h.a.b = 'NEW' %}`)).toEqual(`{% assign h.a.b = 'NEW' %}`);
@@ -340,16 +314,6 @@ describe('Module: DeprecatedTag', () => {
 
   /**
    * THE SUCCESSOR IS NEVER READ OUT OF ENGLISH, and this is the test that proves it.
-   *
-   * The fixture is built so that parsing the prose would be VISIBLE: the reason names `assign`
-   * before it names `include_form`, and `assign`'s grammar accepts this markup — so any rule
-   * that reads the reason renames the tag to one the docs never recommended, unattended, since
-   * `pos-cli check run -a` writes to disk. The offense is reported either way, so the fix is
-   * the only place the difference shows.
-   *
-   * The paired control that must still FIRE is the rename below, driven by
-   * `deprecation_replacement`: without it, "nothing was renamed" would also pass with renaming
-   * removed altogether.
    */
   it('never renames to a tag the reason mentions but does not recommend', async () => {
     const sourceCode = `{% render_form foo['bar'] = 'baz' %}`;
@@ -370,9 +334,6 @@ describe('Module: DeprecatedTag', () => {
    * `deprecation_replacement` is the whole contract — published from `@alias`/`@replaced_by` in
    * the platform's documentation source and gated there, so the docs build fails if a
    * deprecation names no successor or names one the platform does not register.
-   *
-   * The field is made to DISAGREE with the reason, which no real docset does, because agreeing
-   * sources produce the same rename whichever is read and would prove nothing about which was.
    */
   describe('the successor the docset states', () => {
     // Markup `include_form` accepts and `assign` does not, so the two candidate successors
@@ -411,10 +372,6 @@ describe('Module: DeprecatedTag', () => {
    * parse, and it runs per OCCURRENCE. It is memoized on exactly what the answer depends on
    * — `(replacement, block-ness, markup text)` — so a repeated markup, and a repeated lint of
    * an unchanged buffer, re-parse nothing.
-   *
-   * Counted rather than timed, and paired with a control that MUST still probe twice: a memo
-   * wide enough to answer with another markup's verdict would satisfy any "only one parse"
-   * assertion on its own.
    */
   describe('the grammar probe is memoized per (replacement, block-ness, markup)', () => {
     async function probesWhileChecking(sourceCode: string): Promise<string[]> {

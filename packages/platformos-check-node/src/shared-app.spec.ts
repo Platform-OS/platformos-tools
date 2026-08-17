@@ -11,9 +11,6 @@ import { Tree, Workspace, lintBufferOffenses, makeTempWorkspace } from './test/t
  * Pins it: the `App` is built once per process and reconciled per call, so a
  * warm call stops paying to rebuild it — WITHOUT pinning a stale view of a project
  * that an agent is editing out of band between calls.
- *
- * Every test here is the same shape: lint, change the project on disk, lint again,
- * and require the second answer to be the one a freshly built app would have given.
  */
 describe('the shared app', () => {
   let workspace: Workspace | undefined;

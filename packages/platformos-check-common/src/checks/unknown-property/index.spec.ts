@@ -683,8 +683,8 @@ ${reads}`);
     });
 
     it('should navigate a {% graphql %} result the tag itself filtered', async () => {
-      // htevent writes `graphql venue_rooms = 'venue_rooms/show' | fetch: "records"` and
-      // then reads `venue_rooms.results`, which must be verified against the FETCHED value.
+      // Real apps write `graphql venue_rooms = 'venue_rooms/show' | fetch: "records"` and
+      // then read `venue_rooms.results`, which must be verified against the FETCHED value.
       const fetched = await run(
         `{% graphql g = 'q' | fetch: "records" %}
 {{ g.results.first.id }}
@@ -756,10 +756,6 @@ query { user { id email } }
       // The fallback is parsed only when the expression is blank, so its shape describes the
       // value in one branch and the expression — which this analysis cannot read — in the
       // other. Taking the fallback as certain reported every key the real value carried.
-      //
-      // The keys it names are not FORGOTTEN, they are unverifiable: completion offers
-      // `a` for this source (`ObjectAttributeCompletionProvider.spec.ts`), and neither the
-      // key it names nor any other can be reported here. So `x.a` is as silent as `x.b`.
       const fallback = await run(`{% assign x = maybe_json | default: '{"a": 1}' | parse_json %}
 {{ x.b }}
 {{ x.a.deeper }}`);
@@ -774,11 +770,6 @@ query { user { id email } }
 
     /**
      * The same `default`, on the other side of the parse, where it means something else.
-     *
-     * `'[]' | parse_json` is an empty array, so Ruby's `default` fires on it and `x` holds the
-     * unparsed TEXT of the fallback. Reading the chain as "the array, with a `default` that
-     * changes nothing" reported `b` on a value that is not an array by the time it is read —
-     * measured, and the reason `default` is not a filter this chain may carry.
      */
     it('should claim nothing when a `default:` follows the parse', async () => {
       const defaulted = await run(`{% assign x = '[]' | parse_json | default: '{"b": 2}' %}
@@ -1034,18 +1025,6 @@ query { user { id email } }
     /**
      * `.size` does NOT tell a nil from a string, and this asserted for a while that it did.
      * Measured on a live instance:
-     *
-     *   {% assign x = {"a": null} %}
-     *   {% if x.a.size == nil %}  -> YES        {% if x.a.size == 0 %}   -> NO
-     *   {% if "abc".size == 3 %}  -> YES  (control: `.size` really is a number on a string)
-     *
-     * So `.size` through a nil is nil, not a number, and the read after it is nil too.
-     * Reporting it was a false positive on the very construct the null guard exists for.
-     *
-     * The string case is more than that control: the null guard runs BEFORE the size
-     * shortcut, and the two branches are otherwise indistinguishable by output — `.size` on a
-     * nil and `.size` on a string both continue the walk. Swap them in `lookupPropertyPath`
-     * and only this pair moves.
      */
     it('should apply the null guard before the size shortcut, however the nil is spelled', async () => {
       const written = await run(`{% assign x = {"a": nil} %}

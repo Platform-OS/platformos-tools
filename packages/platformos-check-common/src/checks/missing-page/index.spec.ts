@@ -1194,12 +1194,6 @@ describe('Module: MissingPage', () => {
       /**
        * The pair asked for directly: a page whose slug DOES carry `:user_id`, and a form
        * that posts to the bare path carrying the value as a control instead.
-       *
-       * Measured: a form input never fills a route segment, whatever it is named — the
-       * name, `:id` specifically, and the positional `slug3` spelling were each ruled out
-       * against a live instance, every one 404. So BOTH halves of this pair are offenses;
-       * an input named `user_id` is not the thing that makes the route resolve. What the
-       * name can buy is a better MESSAGE (TASK-75), never silence.
        */
       it('reports a form posting to the bare path even when an input matches the missing param', async () => {
         const withMatchingName = [

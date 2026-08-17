@@ -4,16 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { installProcessGuards, type GuardEmitter } from './process-guards.js';
 
 /**
- * TASK-16. Under Node's default an unhandled rejection is FATAL, so one rejected
+ * Under Node's default an unhandled rejection is FATAL, so one rejected
  * promise on a background path used to take the whole stdio server down — the
  * agent losing the tool mid-session with nothing in the JSON-RPC stream to explain
  * it. These pin the asymmetry that makes the guards correct:
- *
- *   - a rejection is survivable  -> log, KEEP SERVING
- *   - an uncaught exception is not -> log, shut down, exit NON-ZERO
- *
- * `exit` and the emitter are injected throughout, so nothing here can terminate
- * the test runner.
  */
 const harness = () => {
   const logs: string[] = [];

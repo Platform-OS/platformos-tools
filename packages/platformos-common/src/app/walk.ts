@@ -8,21 +8,17 @@ type ReadDirectory = (uri: UriString) => Promise<FileTuple[]>;
 /**
  * A directory the walk was told exists and then could not read.
  *
- * The walk stops rather than skipping it: a lint that quietly covers less of the
- * project than it claims is the failure this whole area keeps producing. But the
- * raw `EACCES: permission denied, scandir '…'` reads like a crash, so the error is
- * TYPED and self-explaining, and the callers that are a user interface — the CLI,
- * the language server — report `message` instead of a stack.
+ * The walk stops rather than skipping it: a lint that quietly covers less of the project than
+ * it claims is the failure this area keeps producing. But the raw
+ * `EACCES: permission denied, scandir '…'` reads like a crash, so the error is TYPED and
+ * self-explaining, and the callers that are a user interface report `message` instead of a stack.
  *
- * The headline names the directory RELATIVE to the project root, which is how the
- * user thinks of it and the only spelling that reads the same in every runtime — an
- * absolute `file://` URI is percent-encoded on Windows (`file:///c%3A/…`) and
- * `fsPath` means nothing under a virtual filesystem in the browser. The absolute
- * native path is not lost: the OS puts it in the cause (`scandir '/home/…'`).
+ * The headline names the directory RELATIVE to the project root, the only spelling that reads
+ * the same in every runtime — an absolute `file://` URI is percent-encoded on Windows and
+ * `fsPath` means nothing under a virtual filesystem. The absolute native path is in the cause.
  *
- * Deliberately not "add it to `ignore`": `ignore` is applied to the paths the walk
- * RETURNS, so it cannot stop the walk from opening the directory in the first
- * place. Advising it would send the user down a road that does not work.
+ * Deliberately not "add it to `ignore`": `ignore` is applied to the paths the walk RETURNS, so
+ * it cannot stop the walk from opening the directory in the first place.
  */
 export class UnreadableDirectoryError extends Error {
   constructor(
@@ -42,36 +38,29 @@ export class UnreadableDirectoryError extends Error {
 }
 
 /**
- * Every file the project deploys, found by walking only the subtrees an app file
- * can live in — `app/`, `marketplace_builder/` and each module's `public/` and
- * `private/`, i.e. {@link APP_SOURCE_SUBTREES}.
+ * Every file the project deploys, found by walking only the subtrees an app file can live in —
+ * `app/`, `marketplace_builder/` and each module's `public/` and `private/`, i.e.
+ * {@link APP_SOURCE_SUBTREES}.
  *
- * ANCHORED, never blacklisted. A walk that starts at the root and skips
- * directories by NAME (`node_modules`, `dist`, `build`, `tmp`, `vendor`) answers a
- * different question and gets it wrong in both directions: it drops
- * `app/views/pages/vendor/**`, which is an entire section of a live site, and it
- * still descends into `tmp/app/views/partials/`, which holds no app file no matter
- * what is in it. Whether a file belongs to the app is its position relative to the
- * project ROOT, which is what `parseAppPath` has always enforced and what
- * `APP_SOURCE_SUBTREES` states as a prefix.
+ * ANCHORED, never blacklisted. A walk that starts at the root and skips directories by NAME
+ * gets it wrong in both directions: it drops `app/views/pages/vendor/**`, which is an entire
+ * section of a live site, and it still descends into `tmp/app/views/partials/`. Whether a file
+ * belongs to the app is its position relative to the project ROOT.
  *
- * `filter` is the CALLER's domain restriction on top of that — which extensions it
- * can do something with — and it never sees a path outside the subtrees.
+ * `filter` is the CALLER's domain restriction on top of that, and never sees a path outside the
+ * subtrees.
  *
  * Existence is decided by listing the parent, not by probing: most projects have no
- * `marketplace_builder/` and no `modules/`, and an absent subtree must not depend on
- * every `AbstractFileSystem` implementation reporting a missing directory the same
- * way (VS Code's raises `FileNotFound`, Node's `ENOENT`, the test double a bare
- * `Error`). A directory that IS listed and then fails to read still throws — as an
- * {@link UnreadableDirectoryError}, so an unreadable project surfaces rather than
- * silently linting as empty, and surfaces as a sentence rather than a stack.
+ * `marketplace_builder/` and no `modules/`, and an absent subtree must not depend on every
+ * `AbstractFileSystem` implementation reporting a missing directory the same way. A directory
+ * that IS listed and then fails to read still throws, as an {@link UnreadableDirectoryError},
+ * so an unreadable project surfaces rather than silently linting as empty.
  *
- * Hidden entries — anything whose name starts with `.` — are skipped, files and
- * directories alike. They are editor droppings rather than app sources: Emacs lock
- * files are dangling symlinks named `.#page.liquid`, macOS leaves `._page.liquid`
- * beside every file on a non-native filesystem, and either one would otherwise be
- * classified as a real partial and linted. This is also what the lint's `glob`
- * pattern did (`dot: false`), so the two walks agree file for file.
+ * Hidden entries — anything whose name starts with `.` — are skipped, files and directories
+ * alike: Emacs lock files are dangling symlinks named `.#page.liquid` and macOS leaves
+ * `._page.liquid` beside every file on a non-native filesystem, either of which would otherwise
+ * be classified as a real partial. This is also what the lint's `glob` pattern did
+ * (`dot: false`), so the two walks agree file for file.
  */
 export async function walkAppSourceFiles(
   fs: AbstractFileSystem,

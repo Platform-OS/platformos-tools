@@ -1,44 +1,32 @@
 /**
- * THE lint adapter, over check-node's `lintBuffers` seam.
+ * THE lint adapter, over check-node's `lintBuffers` seam. There is no single-buffer
+ * counterpart: the orchestrator always works on a list, so one file is a batch of one.
  *
- * There is no single-buffer counterpart. There was — `lint/lint.ts`, over the
- * `lintBuffer` seam — and the two adapters slowly stopped agreeing about severity
- * mapping and about which paths counted as unchecked, for no better reason than being
- * two copies. The orchestrator always works on a list now, so one file is a batch of
- * one and there is nothing to diverge from.
+ * Everything expensive in a lint is per-PROJECT, not per-buffer — resolving the config,
+ * walking and reconciling the app, reconciling the route table — so linting N files one
+ * call at a time re-discovers the same unchanged project N times.
  *
- * Everything expensive in a lint is per-PROJECT, not per-buffer: resolving the config,
- * walking and reconciling the app, reconciling the route table. Linting N files one call
- * at a time re-discovers the same unchanged project N times.
- *
- * The ratio that motivated batching — ~250 ms fixed against ~84 ms of real per-buffer
- * work — was measured against the EAGER project model, which parsed every file on every
- * call. The lazy `App` has since removed most of that fixed cost (15.3 s → 0.27 s on a
- * 3138-file project), so the numbers above no longer describe this code and are kept only
- * as the reason the shape was chosen. The shape is still right for the reason below,
- * which is not a performance argument at all.
- *
- * And it is more CORRECT, which matters more: with every buffer overlaid at once —
- * in the `App` and in the filesystem view reference checks resolve through — a
- * partial introduced in one buffer resolves for a `render` in another. File-by-file
- * linting reports `MissingPartial` for a file present in the very same request.
+ * And it is more CORRECT, which matters more: with every buffer overlaid at once — in the
+ * `App` and in the filesystem view reference checks resolve through — a partial introduced
+ * in one buffer resolves for a `render` in another. File-by-file linting reports
+ * `MissingPartial` for a file present in the very same request.
  */
 import {
   lintBuffers,
   Severity,
   type LintBufferStatus,
+  type LiquidHtmlNode,
+  type MaterialisedFix,
   type Offense,
 } from '@platformos/platformos-check-node';
 // The SAME conversion `lintBuffers` keys its result map with, imported from the package
-// that owns it rather than respelled through check-common's equivalent `path.toUri`. The
-// two were measured identical on every case that distinguishes them — POSIX, a Windows
-// drive letter, non-ASCII, unnormalized segments — but "two normalizers that agree
-// today" is not what a map lookup should rest on, and a spelling that disagreed would
-// surface as a miss on Windows only. See {@link runBatchLint}'s handling of a miss.
+// that owns it rather than respelled through check-common's equivalent `path.toUri`: a
+// spelling that disagreed would surface as a map miss on Windows only.
 import { uriFromPath } from '@platformos/platformos-common';
 
 import { toAbsoluteFilePath } from '../adapter-input.js';
 import type { ValidateCodeDiagnostic, ValidateCodeSeverity } from '../result/types.js';
+import { toAgentFixes } from './fixes.js';
 
 const SEVERITY: Record<Severity, ValidateCodeSeverity> = {
   [Severity.ERROR]: 'error',
@@ -50,19 +38,36 @@ const SEVERITY: Record<Severity, ValidateCodeSeverity> = {
  * Every reason a lint can conclude it did NOT check a file — check-node's own vocabulary,
  * minus the one status that means it did.
  *
- * `Exclude` rather than a respelling, and the whole point is that nothing here restates
- * check-node's list. A status added upstream lands in this type automatically and then
- * fails to compile at the ONE place that has to decide what an agent hears about it
- * (`DECLINE`, in `validate/validate-buffers.ts`). A hand-written union would instead go
- * quietly out of date, and the new status would arrive at runtime as a value no branch
- * covers.
+ * `Exclude` rather than a respelling: a status added upstream lands in this type
+ * automatically and then fails to compile at the ONE place that decides what an agent hears
+ * about it (`DECLINE`, in `validate/validate-buffers.ts`).
  *
- * This adapter deliberately does NOT translate these into `NotApplicableReason` codes.
- * Two of the five collapse onto one code but keep distinct prose, so the mapping produces
- * a reason AND a message together — one table, in the module that owns refusal wording.
- * Splitting it across two layers here would have meant two tables that must stay in step.
+ * This adapter deliberately does NOT translate these into `NotApplicableReason` codes —
+ * two of them collapse onto one code but keep distinct prose, so the mapping produces the
+ * reason and the message together, in the module that owns refusal wording.
  */
 export type LintNotCheckedStatus = Exclude<LintBufferStatus, 'checked'>;
+
+/**
+ * What one linted file offers a later stage, beyond the diagnostics themselves.
+ *
+ * `startIndexes` is INDEX-ALIGNED with that file's `diagnostics` array: entry `i` is where
+ * diagnostic `i` starts. Both are produced by one `map` over the same offense list in
+ * `runBatchLint`, and `lint-batch.spec.ts` asserts the alignment rather than trusting it.
+ *
+ * A 0-based offset, not the diagnostic's 1-based line/column: it exists to locate a node in
+ * {@link ast}, and that is what `findCurrentNode` takes.
+ */
+export interface LintedSource {
+  /**
+   * The buffer's Liquid tree, exactly as check-node captured it inside the overlay — so it
+   * describes the text the offenses describe. Absent for GraphQL, YAML and assets, and for
+   * a buffer that did not parse.
+   */
+  ast?: LiquidHtmlNode;
+  /** 0-based offense start offsets, index-aligned with this file's diagnostics. */
+  startIndexes: number[];
+}
 
 /** One buffer in a batch request, as the caller supplied it. */
 export interface BatchBuffer {
@@ -83,18 +88,22 @@ export interface BatchLintResult {
    */
   diagnostics: Map<string, ValidateCodeDiagnostic[]>;
   /**
-   * Caller keys the lint did NOT check, each with check-node's own reason for it.
+   * Per file, the material ENRICHMENT needs and the agent surface deliberately does not
+   * carry: the buffer's parsed tree, and where in the buffer each diagnostic sits.
    *
-   * A MAP, not the `Set` of config-excluded paths this used to be. `lintBuffers` reports
-   * four distinct not-checked statuses from the classification and config it has already
-   * done, and they carry genuinely different remedies. Flattening them into one "ignored"
-   * bucket threw that away and told an author whose partial sits outside the deployed tree
-   * that their `.platformos-check.yml` excludes it — advice that cannot be acted on, about
-   * a config line that does not exist.
+   * OPTIONAL for the benefit of test stubs, which have no tree to offer; enrichment
+   * degrades to "no symbol hint" without it and still attaches each check's documentation
+   * URL. The REAL adapter always sets it, for every key it sets in `diagnostics` —
+   * `lint-batch.spec.ts` asserts that, so the leniency here cannot become leniency there.
+   */
+  sources?: Map<string, LintedSource>;
+  /**
+   * Caller keys the lint did NOT check, each with check-node's own reason for it. The
+   * statuses carry genuinely different remedies, so they are kept distinct rather than
+   * flattened into one "ignored" bucket.
    *
-   * Statuses, not prose and not agent-facing codes: this adapter re-keys and partitions,
-   * and translating a status into what an agent reads belongs where every other refusal
-   * message already lives.
+   * Statuses, not prose and not agent-facing codes: translating one into what an agent
+   * reads belongs where every other refusal message lives.
    */
   notChecked: Map<string, LintNotCheckedStatus>;
 }
@@ -117,8 +126,9 @@ export interface BatchLintInput {
 export async function runBatchLint(input: BatchLintInput): Promise<BatchLintResult> {
   const { projectDir, buffers } = input;
   const diagnostics = new Map<string, ValidateCodeDiagnostic[]>();
+  const sources = new Map<string, LintedSource>();
   const notChecked = new Map<string, LintNotCheckedStatus>();
-  if (buffers.length === 0) return { diagnostics, notChecked };
+  if (buffers.length === 0) return { diagnostics, sources, notChecked };
 
   const absoluteByKey = new Map<string, string>();
   for (const buffer of buffers) {
@@ -138,32 +148,43 @@ export async function runBatchLint(input: BatchLintInput): Promise<BatchLintResu
   for (const [key, absolute] of absoluteByKey) {
     const outcome = results.get(uriFromPath(absolute));
 
-    // A MISS SETS NOTHING, and must not. `lintBuffers` is total over the URIs it was
-    // handed, so this is unreachable — but the previous spelling defaulted a miss to
-    // `[]`, which reports the file CLEAN and is the exact false approval this package
-    // exists to prevent. Leaving the key absent instead reaches the orchestrator's fail
-    // safe, which answers `internal_error`: "we produced nothing for this file", the only
-    // honest thing to say about a lookup that should not have been able to fail.
+    // A MISS SETS NOTHING, and must not: defaulting to `[]` reports the file CLEAN.
+    // Leaving the key absent reaches the orchestrator's fail safe, which answers
+    // `internal_error` — the only honest thing to say about a lookup that cannot fail.
     if (outcome === undefined) continue;
 
     if (outcome.status !== 'checked') {
       notChecked.set(key, outcome.status);
       continue;
     }
-    diagnostics.set(key, outcome.offenses.map(toDiagnostic));
+    // ONE pass produces both, which is what keeps `startIndexes` aligned with
+    // `diagnostics`. Splitting this into two loops is how that invariant would break.
+    diagnostics.set(
+      key,
+      outcome.offenses.map((offense, index) => toDiagnostic(offense, outcome.fixes[index])),
+    );
+    sources.set(key, {
+      ast: outcome.ast,
+      startIndexes: outcome.offenses.map((offense) => offense.start.index),
+    });
   }
-  return { diagnostics, notChecked };
+  return { diagnostics, sources, notChecked };
 }
 
 /**
  * Map a check-common `Offense` to a `ValidateCodeDiagnostic`.
  *
- * check-common positions are 0-based for BOTH line and character; the agent surface
- * uses 1-based line + column, so both get `+ 1`. This is the ONLY place the
- * conversion happens — a second copy would be a second chance to disagree about the
- * same offense.
+ * check-common positions are 0-based for BOTH line and character; the agent surface uses
+ * 1-based line + column, so both get `+ 1`. The ONLY place the conversion happens.
+ *
+ * TWO COORDINATE SYSTEMS LIVE ON THE RESULT and only one is converted: the edits attached
+ * by {@link toAgentFixes} keep the engine's 0-based buffer OFFSETS, because that is what
+ * applying an edit requires. Converting those too would corrupt a file.
  */
-function toDiagnostic(offense: Offense): ValidateCodeDiagnostic {
+function toDiagnostic(
+  offense: Offense,
+  fixes: MaterialisedFix | undefined,
+): ValidateCodeDiagnostic {
   return {
     check: offense.check,
     severity: SEVERITY[offense.severity],
@@ -172,5 +193,6 @@ function toDiagnostic(offense: Offense): ValidateCodeDiagnostic {
     column: offense.start.character + 1,
     end_line: offense.end.line + 1,
     end_column: offense.end.character + 1,
+    ...toAgentFixes(fixes),
   };
 }

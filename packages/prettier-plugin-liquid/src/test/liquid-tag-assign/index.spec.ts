@@ -28,16 +28,6 @@ function targetsIn(formatted: string): string[] {
 
 /**
  * The invariant, asserted against LIVE output rather than against `fixed.liquid`.
- *
- * `fixed.liquid` was produced by running the formatter, so comparing to it can only prove the
- * output is STABLE — it would happily enshrine a broken expectation, and did: the printer used
- * to emit `{% assign h.'k' = 1 %}`, which is not the dot form but a spelling no Liquid parser
- * accepts. Measured: `Liquid syntax error: Syntax Error in 'assign' - Valid syntax: assign
- * [var] = [value]`, at PARSE time, so one format turned a working file into one that cannot be
- * deployed OR rendered, and a converter rejection takes the WHOLE changeset.
- *
- * Formatting `index.liquid` here instead means this fails both ways: if the printer regresses,
- * and if the committed expectation is wrong.
  */
 test('Unit: liquid-tag-assign — every formatted target is bracketed throughout', async () => {
   const source = fs.readFileSync(path.join(__dirname, 'index.liquid'), 'utf8');

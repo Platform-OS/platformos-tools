@@ -85,12 +85,6 @@ describe('Module: InvalidPipeSyntax', () => {
      * it, so its output carries a double space the trailing-pipe fix's does not — harmless
      * inside a tag, where Liquid does not care, and pinned because nothing here showed it
      * before: `fix).toBeDefined()` was the whole of the old assertion.
-     *
-     * The two are asserted SEPARATELY, each against the original source, and that is not
-     * only a style choice: measured, their ranges OVERLAP, so `applyFixToString` — the
-     * applicator behind `pos-cli check run -a` — throws `Overlapping ranges are not allowed`
-     * when handed both. That is a defect in the check, not in this test, so it is described
-     * here rather than pinned as intended behaviour.
      */
     it('should report a doubled trailing pipe as both faults, each fixable', async () => {
       expect(await report(`{{ 'hello' | upcase | | }}`)).toEqual({

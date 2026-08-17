@@ -115,27 +115,20 @@ export const CHECK_ERROR_CODE = 'CheckError';
 /** Optional narrowing of a {@link check} run. */
 export interface CheckOptions {
   /**
-   * Visit ONLY these files (normalized `file://` URIs), instead of every file in
-   * `app`. Omit (or pass `undefined`) to visit everything, which is the
-   * whole-project behaviour every caller had before this option existed.
+   * Visit ONLY these files (normalized `file://` URIs), instead of every file in `app`. Omit to
+   * visit everything.
    *
-   * The list is taken literally: `[]` names no files and so visits none, and the
-   * run reports no offenses. A caller that computes this list must therefore
-   * decide for itself what an empty result means — passing `[]` to mean "the
-   * whole project" would silently lint nothing.
+   * The list is taken literally: `[]` names no files and so visits none. A caller that computes
+   * this list must decide for itself what an empty result means.
    *
-   * `app` must STILL be the complete project. The cross-file dependencies built
-   * below (`getDefaultTranslations`, `getTranslationsForBase`, `getRouteTable`,
-   * `fileExists`) and check-node's `getDocDefinition` are all derived from it, and
-   * are how cross-file checks (`MissingPartial`, `MissingPage`,
-   * `TranslationKeyExists`, …) resolve the rest of the project. This option
+   * `app` must STILL be the complete project. The cross-file dependencies built below are all
+   * derived from it, and are how cross-file checks resolve the rest of the project — this option
    * narrows what gets VISITED, never what the checks can see.
    *
-   * The result is exactly the subset of the unrestricted run's offenses that
-   * belongs to these files, because an offense's `uri` is always the visited
-   * file's `uri` (see `report` in `createContext` — the single place offenses are
-   * created). It is therefore a performance option, not a semantic one: linting
-   * one buffer in a 1400-file project drops from ~21 s to ~0.1 s.
+   * The result is exactly the subset of the unrestricted run's offenses that belongs to these
+   * files, because an offense's `uri` is always the visited file's `uri`. It is therefore a
+   * performance option, not a semantic one: linting one buffer in a 1400-file project drops from
+   * ~21 s to ~0.1 s.
    */
   only?: UriString[];
 }
@@ -193,18 +186,13 @@ export async function check(
     }
   };
 
-  // The only place a run pays to read files. Everything visitable is read up
-  // front — in parallel — so that from here on `file.source` and `file.ast` are
-  // synchronous, which is what every check already assumes. Files that are merely
-  // VISIBLE stay unread: a cross-file check that needs one of them awaits its
-  // `load()` at the point it resolves it, and one that never resolves it never
-  // costs a read or a parse.
+  // The only place a run pays to read files. Everything visitable is read up front — in
+  // parallel — so that from here on `file.source` and `file.ast` are synchronous, which is what
+  // every check already assumes. Files that are merely VISIBLE stay unread.
   //
-  // Per file, not per run. A bare `Promise.all` rejects on the first unreadable
-  // file and takes every other file's diagnostics with it; the pipelines below
-  // already route their failures to `onError` one at a time, and this is the same
-  // rule applied to the read. A file whose read failed then throws from `source`
-  // inside its own pipeline, which lands in the same place.
+  // Per file, not per run: a bare `Promise.all` rejects on the first unreadable file and takes
+  // every other file's diagnostics with it, where the pipelines below route failures to
+  // `onError` one at a time.
   await Promise.all(visitable.map((file) => file.load().catch(onRejected)));
 
   for (const type of Object.values(SourceCodeType)) {

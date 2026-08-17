@@ -257,20 +257,6 @@ describe('DocumentsLocator', () => {
     it('resolves a layout deterministically when BOTH spellings exist, which the platform treats as one view', async () => {
       // THIS TEST USED TO ASSERT A PRECEDENCE THE PLATFORM DOES NOT DEFINE. It required
       // `.html.liquid` to win over `.liquid`, which read like a platform rule and is not one.
-      //
-      // Measured in the platform source:
-      //   - `LiquidViewConverter.build_default_values` defaults `format` to `'html'`, so a
-      //     bare `application.liquid` is an `html` view just like `application.html.liquid`;
-      //   - `LiquidPathParser#parse` strips the format extension
-      //     (`path.basename(".#{format}")`), so BOTH files produce
-      //     `path: 'views/layouts/application'`.
-      // The two spellings are therefore the SAME `InstanceView` identity — a project holding
-      // both is in an ambiguous state, not one with a documented winner. (Worth its own check;
-      // this resolver is not the place to invent an answer.)
-      //
-      // So what is actually pinned here is what a resolver owes its callers regardless:
-      // a deterministic answer, and one of the two real files rather than a third path or
-      // `undefined`. Which one is `formatRank`'s business, asserted where that rule lives.
       const fs = createMockFileSystem({
         'file:///project/app/views/layouts/application.html.liquid': 'html',
         'file:///project/app/views/layouts/application.liquid': 'plain',
@@ -288,7 +274,7 @@ describe('DocumentsLocator', () => {
     });
 
     it('resolves a layout that exists ONLY as the legacy .html.liquid', async () => {
-      // The control, and the case that actually occurs: arabbank ships
+      // The control, and the case that actually occurs: real projects ship
       // `application.html.liquid` with no `application.liquid` beside it. A resolver that
       // only knew `.liquid` would report every page's layout missing.
       const fs = createMockFileSystem({
@@ -615,13 +601,6 @@ describe('DocumentsLocator', () => {
     /**
      * The three answers a caller gets when a theme directory is replaced: the cached
      * expansion still names the directory that is gone, and clearing is what recovers.
-     *
-     * The middle assertion is the point. This test asserted only that clearing the cache
-     * left the answer unchanged on an UNCHANGED tree, which passes with
-     * `clearExpandedPathsCache` reduced to an empty body — it could not tell a working
-     * invalidation from no invalidation at all. Whoever holds this locator for longer
-     * than one file (the language server) has to call it on a created or deleted file, and
-     * `server/startServer.spec.ts` is where that duty is pinned.
      */
     it('serves the stale expansion until the cache is cleared', async () => {
       const files: Record<string, string> = {
@@ -759,16 +738,6 @@ another_setting: 42`,
 /**
  * Every reference kind must have an answer, and adding one must be impossible to do
  * halfway.
- *
- * This replaces a pair of `switch`es that were exhaustive over `DocumentType` AND
- * carried a `default: return undefined`. That combination is the worst of both: the
- * default looks like dead code, so it invites deletion, while actually being the thing
- * that stops a NEW `DocumentType` from silently resolving to nothing — a switch with a
- * default never fails to compile when a union member is added.
- *
- * The exhaustiveness now lives in two `Record<DocumentType, …>` tables, which do fail to
- * compile, and the runtime fallback is an explicit `isDocumentType` check that exists
- * for a reason the types cannot express (see below).
  */
 describe('DocumentsLocator: every DocumentType is accounted for', () => {
   const rootUri = URI.parse('file:///project');
@@ -870,11 +839,6 @@ const rootUri = URI.parse(ROOT);
 
 /**
  * A filesystem over a fixed file list that counts what it was asked.
- *
- * The counts are the point: resolving a render target through the App's name index is a
- * lookup rather than one `stat` per candidate spelling per call site, and the miss path
- * costs one `readDirectory` per candidate DIRECTORY however many format spellings it
- * covers.
  */
 class CountingFileSystem implements AbstractFileSystem {
   readonly stats: string[] = [];
@@ -1029,7 +993,7 @@ describe('the index and the candidate walk agree', () => {
       lookups: [['graphql', 'find']],
     },
     {
-      // The TASK-46.14 case: `pathToName` strips ANY known format, so the file's
+      // `pathToName` strips ANY known format, so the file's
       // name omits the `.csv` — and the filesystem path must resolve it under
       // that same name, or every caller without an index reports a file the
       // platform renders as missing.
@@ -1066,12 +1030,6 @@ describe('DocumentsLocator and assets', () => {
 
   /**
    * Assets never come from the index, even when the app holds them.
-   *
-   * Nothing in this toolchain reads an asset, so the only question ever asked about one
-   * is whether it exists. The filesystem answers that in a way an index entry cannot go
-   * stale on: the lint's project walk collects no assets and the language server's file
-   * watcher does not cover them, so an index would keep resolving an image deleted
-   * outside the editor.
    */
   it('asks the filesystem for an asset the app contains rather than answering from the index', async () => {
     const fs = new CountingFileSystem([asset]);

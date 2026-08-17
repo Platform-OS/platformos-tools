@@ -23,7 +23,7 @@ export const GraphQLCheck: GraphQLCheckDefinition = {
     docs: {
       description: 'Ensures that GraphQL query or mutation is valid and matches predefined schema.',
       recommended: true,
-      url: undefined,
+      url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/graphql-check',
     },
     type: SourceCodeType.GraphQL,
     severity: Severity.ERROR,

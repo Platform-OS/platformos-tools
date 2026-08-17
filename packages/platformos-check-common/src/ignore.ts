@@ -6,16 +6,13 @@ import { Minimatch } from 'minimatch';
 /**
  * The compiled ignore matchers of a config, keyed by the check they belong to.
  *
- * A `Config` is immutable for the life of a run, so its patterns can be rewritten
- * and compiled once and then matched against every path. Doing it per CALL is what
- * made this the most expensive part of `getApp` on a project that configures
- * `ignore`: `getAppFilePaths` asks about every globbed path and `check()` asks
- * again per file per check, and each ask re-ran three regex replaces per pattern
- * and built a fresh `Minimatch` — 140-232 ms of a 207-267 ms `getApp` on a real
- * project (1558 candidate paths, 13 patterns).
+ * A `Config` is immutable for the life of a run, so its patterns are rewritten and compiled
+ * once and then matched against every path. Doing it per CALL made this the most expensive part
+ * of `getApp` on a project that configures `ignore` — 140-232 ms of a 207-267 ms `getApp` on a
+ * real project — because every ask re-ran three regex replaces per pattern and built a fresh
+ * `Minimatch`.
  *
- * Keyed weakly on the config object, so a config that goes away takes its matchers
- * with it and a new config compiles its own.
+ * Keyed weakly on the config object, so a config that goes away takes its matchers with it.
  */
 const matchersByConfig = new WeakMap<Config, Map<string | symbol, Minimatch[]>>();
 

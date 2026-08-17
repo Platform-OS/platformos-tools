@@ -11,15 +11,6 @@ import { ShapeAnalyzerDeps, createShapeAnalyzer } from './shape-analysis';
 
 /**
  * The partial-analysis memo, at the seam where its two consumers meet.
- *
- * It is a MODULE-LEVEL cache shared by every analyzer in the process, and there are two of
- * them: `UnknownProperty` builds one with no `resolveExternalShape`, and the language server
- * builds one with it. Neither package can see the other's analyzer, so the only place the
- * hazard is testable is here, against the deps interface both of them implement.
- *
- * Both halves of its freshness rule live here too, because they are alternatives on one code
- * path: an entry whose reads are app-backed revalidates by comparing `AppFile.revision`, and
- * one whose reads are not re-reads their content.
  */
 
 /** A partial whose returned shape depends on a name only an external resolver can explain. */
@@ -98,9 +89,6 @@ describe('Module: the partial-analysis memo', () => {
    * `resolveExternalShape`. Give them different identities and both pass with that segment
    * deleted, which is what the interface's "an invariant it enforces is one no consumer has to
    * remember" would then be promising with nothing behind it.
-   *
-   * The other direction — a differing `analysisIdentity` separating deps that are otherwise
-   * identical — is pinned separately below.
    */
   const SHARED_IDENTITY = 'spec/analyzer';
 
@@ -142,11 +130,6 @@ describe('Module: the partial-analysis memo', () => {
    * The same partial, the same URI, the same (absent) bindings, and no file changed between
    * the two calls — so `isStale` says nothing is stale and the entry is reused. What it may
    * NOT do is answer the second consumer with the first one's analysis.
-   *
-   * Asserted in BOTH orders, because the defect was order-dependent: whichever consumer ran
-   * first won, so a fix that happened to suit one direction would pass a single-order test.
-   * Each order gets its own URI, so the second pair starts from a cold entry rather than the
-   * one the first pair left.
    */
   it('does not serve the check an analysis the editor computed', async () => {
     const uri = 'file:///app/lib/queries/editor-first.liquid';
@@ -182,9 +165,6 @@ describe('Module: the partial-analysis memo', () => {
    * The control for both. One consumer asking TWICE must still hit the entry it left — and a
    * key that separated every call, which is the trivial way to pass the two tests above,
    * would make the memo dead code with nothing to notice.
-   *
-   * Counted through `readContent`, which only `isStale` calls and only on a HIT: two calls,
-   * one revalidation, so exactly one of them was answered from the cache.
    */
   it('still reuses an entry for the same consumer, so the key is not merely unique', async () => {
     const deps = checkDeps('file:///app/lib/queries/reused.liquid');
@@ -198,12 +178,6 @@ describe('Module: the partial-analysis memo', () => {
   /**
    * The OTHER half of `analysisIdentity`'s contract: a consumer-supplied string separates two
    * deps that the cache cannot tell apart by itself.
-   *
-   * Both of these have no resolver, so the segment the pair above exercises is identical —
-   * only the identity differs. Counted through `readContent` rather than through the shape,
-   * because two deps that answer alike produce the same shape whether they shared an entry or
-   * not: the first call computes and revalidates nothing, so a second consumer that got its own
-   * entry revalidates nothing either, and one that was served the first's revalidates once.
    */
   it('separates two consumers by analysisIdentity alone', async () => {
     const uri = 'file:///app/lib/queries/by-identity.liquid';
@@ -224,11 +198,6 @@ describe('Module: the partial-analysis memo', () => {
    * the analysis touched on every hit. That makes the re-read load-bearing rather than
    * belt-and-braces, and nothing pinned it: the two tests above hold a partial whose source
    * never changes, so both pass with the whole revalidation deleted.
-   *
-   * Edited HERE and not through an `App`, because this half of the freshness rule is exactly
-   * that `readContent` and `readPartial` answer from the same place. A probe that edited a
-   * file and let both reads find it would confirm the edit, not the rule; moving one and not
-   * the other is what a stale answer actually looks like.
    */
   it('re-analyzes after the partial is edited, so the entry the key cannot see is not trusted', async () => {
     const deps = editableDeps('file:///app/lib/queries/edited.liquid');
@@ -250,11 +219,6 @@ describe('Module: the partial-analysis memo', () => {
 /**
  * The other half: an entry whose reads are app-backed is revalidated by `AppFile.revision`
  * instead of by re-reading every file the analysis touched.
- *
- * The rule that replaces was a comment — "`readContent` MUST read from the same place
- * `readPartial` does" — and it had already been broken once, by a memo that revalidated from
- * disk while the analysis read the open editor buffer. A revision is compared, never read, so
- * there is no second read path left to disagree.
  */
 describe('Module: the partial-analysis memo, revalidated by AppFile.revision', () => {
   const ROOT = 'file:///project';
@@ -278,11 +242,6 @@ describe('Module: the partial-analysis memo, revalidated by AppFile.revision', (
 
   /**
    * Deps backed by a real `App`, the way both consumers build them.
-   *
-   * `identity` is per TEST, because the memo is module-level and outlives each one: a test
-   * that inherited the entry an earlier test left would be measuring that entry's history
-   * rather than its own edit. One of these was written without it and passed with the
-   * process-wide clock sabotaged into a per-file counter — it had nothing to detect.
    */
   function appDeps(app: App, identity: string): Deps {
     const deps: Deps = {

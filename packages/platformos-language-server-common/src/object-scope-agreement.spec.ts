@@ -21,16 +21,6 @@ import { CompletionsProvider } from './completions';
 
 /**
  * The editor and the linter must answer "is this object in scope here" the same way.
- *
- * They used not to. `TypeSystem` re-implemented the question as `!access || access.global === true`
- * while `UndefinedObject` asked `platformos-common`'s `isObjectInScope`, and `access.global` means
- * "needs no parent", not "in scope everywhere". So the editor completed `data` in an ordinary
- * partial and the linter then reported `Unknown object 'data' used.` on the code it had just helped
- * write — the worst shape a disagreement can take.
- *
- * Everything here is DERIVED from the shipped `objects.json`. Nothing restates what it says, so a
- * documentation release that adds an object, or moves one in or out of a file type, cannot fail
- * these tests; only the two consumers falling out of step can.
  */
 
 const ROOT = 'file:///project';

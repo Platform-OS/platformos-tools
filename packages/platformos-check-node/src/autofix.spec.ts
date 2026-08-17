@@ -19,14 +19,6 @@ import { Workspace, makeTempWorkspace } from './test/test-helpers';
  * (to writing to disk) and must be the one on the public surface — pos-cli's check worker
  * calls `autofix(app, offenses)`, and when the star export won that call died with
  * `applyFixes is not a function` and no file was ever written.
- *
- * Both arities are pinned here because both have been on the surface, and the failure mode
- * of the three-argument one is invisible from the caller's side: an applicator whose whole
- * purpose is to keep fixed sources OUT of the filesystem was silently dropped, and the files
- * were rewritten with no error and no change in the return value.
- *
- * Asserted through the exported name rather than by importing `./autofix` directly: the
- * module was always correct, it was the export that was shadowed.
  */
 describe('Unit: the exported autofix', () => {
   let workspace: Workspace;
@@ -97,17 +89,6 @@ describe('Unit: the exported autofix', () => {
  * `deprecation_replacement` states, and the PARSER decides whether that successor's grammar
  * accepts the occurrence's markup. This suite is about that second half — the end-to-end path
  * from a rename decision to bytes on disk — which is this package's own machinery.
- *
- * THE DOCSET IS A FIXTURE, NOT A SUBJECT. Whether `tags.json` names the right successor for a
- * tag is verified where it is authored and gated, in
- * `docs/scripts/verify_tags_json.rb`; re-asserting it here would duplicate that gate and fail
- * on a docs release that is perfectly correct. So the entries below are declared, using real
- * tag names and the successors the platform really states — enough to drive every branch, and
- * decoupled from the docs' release cadence.
- *
- * NO NETWORK, as a property of the wiring rather than a hope: the docset is injected, instead
- * of going through `PlatformOSLiquidDocsManager`, whose `setup()` compares the local revision
- * against documentation.platformos.com and downloads a fresh `tags.json` when they differ.
  */
 const fixtureTags: TagEntry[] = [
   // Renamed: the replacement's grammar accepts the markup unchanged.

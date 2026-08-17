@@ -32,7 +32,7 @@ Five mechanical edits, reverted after measuring: add `@platformos/liquid-html-pa
 - **Builds**: `yarn build` clean. `package-boundaries.spec.ts` + `workspace-dependencies.spec.ts` pass.
 - **No cycle**: `liquid-html-parser` has **no workspace dependencies** (`line-column`, `ohm-js`), so this edge cannot close a loop. Browser-safe: both are.
 - **Bundle**: `+881 bytes` on `dist/browser/extension.js` (9 009 542 → 9 010 423), **+0.010 %**. Because the parser was already in the bundle — check-common depends on it — so the delta is only the moved module shifting.
-- **CPU**: no measurable change. Accala-MP warm: HEAD 16.43–17.60 s, spike 17.34–17.70 s.
+- **CPU**: no measurable change. project-b warm: HEAD 16.43–17.60 s, spike 17.34–17.70 s.
 - **Offenses**: multiset identical on all four corpus projects.
 
 **Verdict: cheap and pointless.** Nothing in the goal depends on it. The one thing it would buy — a typed `AppFile.ast` — needs the YAML/JSON AST too, and `JSONNode` lives in check-common (`src/jsonc/types.ts`); YAML parses into that same node. So `ast` cannot be typed by moving one package.
@@ -47,18 +47,18 @@ Measured on the corpus, whole-project lint:
 
 | | revalidation hits | reads re-read | bytes compared | via revision | via content |
 |---|---|---|---|---|---|
-| arabbank, HEAD | 8 279 | 26 666 | 25 479 084 | — | 26 666 |
-| arabbank, spike 2 | 8 173 | 0 | 0 | 25 414 | **0** |
-| htevent, HEAD | 5 223 | 16 126 | 13 981 098 | — | 16 126 |
-| htevent, spike 2 | 5 173 | 0 | 0 | 16 033 | **0** |
-| Accala-MP | 0 | 0 | 0 | 0 | 0 |
+| project-a, HEAD | 8 279 | 26 666 | 25 479 084 | — | 26 666 |
+| project-a, spike 2 | 8 173 | 0 | 0 | 25 414 | **0** |
+| project-c, HEAD | 5 223 | 16 126 | 13 981 098 | — | 16 126 |
+| project-c, spike 2 | 5 173 | 0 | 0 | 16 033 | **0** |
+| project-b | 0 | 0 | 0 | 0 | 0 |
 
 - **Offenses**: multiset identical on all four.
-- **CPU**: unchanged. arabbank warm — HEAD 64.12 / 64.15 / 65.69 s, spike 2 64.40 s.
+- **CPU**: unchanged. project-a warm — HEAD 64.12 / 64.15 / 65.69 s, spike 2 64.40 s.
 - **Bundle**: `+3 500 bytes` on `dist/browser/extension.js`, **+0.039 %**.
-- Accala-MP is the **control**: it never enters the analyzer at all, so any change to this cache must show exactly zero there, and does.
+- project-b is the **control**: it never enters the analyzer at all, so any change to this cache must show exactly zero there, and does.
 
-**The performance ceiling was measured before the work, not after.** Replacing `isStale` with `return false` — unsound, and therefore an upper bound on what any revalidation change can win — gives arabbank 62.50 / 63.59 / 63.67 s against HEAD's 64.12 / 64.15 / 65.69: **1–2 %, with the bands nearly touching.** So spike 2 must be justified on correctness, and is:
+**The performance ceiling was measured before the work, not after.** Replacing `isStale` with `return false` — unsound, and therefore an upper bound on what any revalidation change can win — gives project-a 62.50 / 63.59 / 63.67 s against HEAD's 64.12 / 64.15 / 65.69: **1–2 %, with the bands nearly touching.** So spike 2 must be justified on correctness, and is:
 
 > The rule it replaces is a **comment** — "`readContent` MUST read from the same place `readPartial` and `readGraphQL` do" — and it had already been broken once, by a memo that revalidated from disk while the analysis read the open editor buffer. A revision is compared, never read. There is no second read path left to disagree.
 
@@ -68,7 +68,7 @@ Measured on the corpus, whole-project lint:
 
 ### 1. The corpus oracle, as practised, is invalid
 
-"Whole-project offenses byte-identical" is gated by hashing the CLI's report. **That report is not byte-stable across runs of the same build.** Three runs of Accala-MP on one build produced three hashes — and one of them was exactly the *previous build's* hash, which would have read as a clean pass:
+"Whole-project offenses byte-identical" is gated by hashing the CLI's report. **That report is not byte-stable across runs of the same build.** Three runs of project-b on one build produced three hashes — and one of them was exactly the *previous build's* hash, which would have read as a clean pass:
 
 ```
 run1 b21fda0d649e3238   run2 b21fda0d649e3238   run3 e9ad259ef40fdc3c
@@ -80,7 +80,7 @@ The offense **multiset** was identical every time; only the serialization order 
 
 ### 2. Discard the first timed run; ignore RSS at this precision
 
-The first baseline (Accala-MP, 19.13 s) sat 9 % above the warm median (17.47 s, band 16.43–17.60) and nearly led to a claim that spike 1 was 9 % faster. Five runs on one build:
+The first baseline (project-b, 19.13 s) sat 9 % above the warm median (17.47 s, band 16.43–17.60) and nearly led to a claim that spike 1 was 9 % faster. Five runs on one build:
 
 - **CPU** spread ≈ 2 % — usable.
 - **RSS** spread 693 860 – 1 091 804 KB, **57 %** — not a signal. Reported RSS numbers in this repo's task records should be read with that in mind.

@@ -20,37 +20,20 @@ import { BaseOnTypeFormattingProvider, SetCursorPosition } from '../types';
 const defer = (fn: () => void) => setTimeout(fn, 10);
 
 /**
- * This class is responsible for closing dangling HTML elements.
+ * Closes dangling HTML elements: typing `<script>` should insert `</script>`, but only when the
+ * closing tag is not already there.
  *
- * Say user types <script>, then we'd want `</script>` to be inserted.
+ * The trick is to insert only when `document.ast` is a `LiquidHTMLASTParsingError` whose
+ * unclosed element has the name just typed.
  *
- * Thing is we want to do that only if the `</script>` isn't already present in the file.
- * If the user goes to edit `<script>` and types `>`, we don't want to insert `</script>` again.
- *
- * The "trick" we use here is to only add the `</script>` part if the
- * document.ast is an instance of LiquidHTMLASTParsingError and that the
- * unclosed element is of the correct name.
- *
- * @example:
+ * @example
  * ```html
  *   <div id="main">
  *     <div id="inner">|
  *   </div>
  * ```
- * - The user just finished typing `<div id="inner">` inside the div#main.
- * - This parses as though the div#inner is closed and div#main isn't.
- * - That's OK.
- * - This makes a LiquidHTMLASTParsingError with unclosed div (the div#main).
- * - Since
- *     - the cursor is at the end of a div, and
- *     - the unclosed element is a div,
- *   Then we can insert one automatically after the cursor and fix the AST.
- *
- * ```html
- *  <div id="main">
- *    <div id="inner">|</div>
- *  </div>
- * ```
+ * The inner div parses as closed and `div#main` as unclosed, so the error names a `div` and the
+ * cursor sits at the end of one — which is enough to insert `</div>` after the cursor.
  */
 export class HtmlElementAutoclosingOnTypeFormattingProvider implements BaseOnTypeFormattingProvider {
   constructor(private setCursorPosition: SetCursorPosition) {}

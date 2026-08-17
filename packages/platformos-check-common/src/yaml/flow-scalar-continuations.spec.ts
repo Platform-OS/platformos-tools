@@ -4,31 +4,7 @@ import { toYAMLNode } from './parse';
 import { findDuplicateKeys } from './duplicate-keys';
 
 /**
- * TASK-50. A quoted scalar continued at or below its key's indentation.
- *
- * THE MISMATCH. npm `yaml` implements YAML 1.2, which requires a flow scalar's continuation
- * to be indented MORE than its parent. Psych/libyaml accepts equal or lesser indentation,
- * including column 0. So the ordinary thing a translator does was a `YAMLSyntaxError` — which
- * BLOCKS — on a file the converter accepts and Psych reads as a plain string.
- *
- * WHY THE OBVIOUS FIXES ARE DEAD, all measured rather than reasoned about:
- *
- *   an option           neither `version: '1.1'` nor `strict: false` changes it, alone or
- *                       together. TASK-43 found the same for line breaks; this is a different
- *                       mechanism and was measured separately.
- *   filtering the code  `MISSING_CHAR` is reported for this AND for a genuinely unterminated
- *                       quote, an unquoted multi-line value, and bad block indentation. Not
- *                       diagnostic, so suppressing it would buy false approvals.
- *   the library's CST   its `Lexer` has already decided the wrong way — it emits `"Hello` as a
- *                       complete scalar token — so there is nothing there to reuse.
- *   re-indenting        would fix the parse and shift every offset after the first
- *                       continuation, so diagnostics would point at the wrong characters.
- *
- * WHAT IS DONE INSTEAD. The parser's own error positions drive a ONE-BYTE-FOR-ONE-BYTE
- * substitution — the line break becomes a space — and the result is accepted only if it then
- * parses cleanly. Soundness is therefore structural rather than heuristic: the question is
- * never "does this look like the 1.1 shape" but "is the platform's reading of these bytes a
- * valid document".
+ * A quoted scalar continued at or below its key's indentation.
  */
 describe('Module: flow scalar continuations', () => {
   /** The value of `k` under `en`, or undefined. */
@@ -208,10 +184,6 @@ b: 2
       // The gap this closes, and it was NOT obvious: `findDuplicateKeys` parses separately
       // from `toYAMLNode` because it needs 1.1 scalar resolution for key identity, so fixing
       // the false block alone left it silently blind to every file with this shape.
-      //
-      // The offset assertion is the point. Because the substitution is byte-for-byte, the
-      // duplicate's range is still an offset into the ORIGINAL source — the two scalar lines
-      // above it shift the reported position by exactly two lines and nothing else.
       const source = `en:
   k: "Hello
   world"

@@ -123,23 +123,6 @@ export function hasNonTextChild(node: LiquidHtmlNode) {
 }
 
 export function shouldPreserveContent(node: LiquidHtmlNode) {
-  // // unterminated node in ie conditional comment
-  // // e.g. <!--[if lt IE 9]><html><![endif]-->
-  // if (
-  //   node.type === "ieConditionalComment" &&
-  //   node.lastChild &&
-  //   !node.lastChild.isSelfClosing &&
-  //   !node.lastChild.endSourceSpan
-  // ) {
-  //   return true;
-  // }
-
-  // // incomplete html in ie conditional comment
-  // // e.g. <!--[if lt IE 9]></div><![endif]-->
-  // if (node.type === "ieConditionalComment" && !node.complete) {
-  //   return true;
-  // }
-
   // TODO: Handle pre correctly?
   if (isPreLikeNode(node)) {
     return true;
@@ -184,17 +167,8 @@ function getPrettierIgnoreAttributeCommentData(value: string): boolean {
     return true;
   }
 
-  // TODO We should support 'prettier-ignore-attribute a,b,c' and allow users to not
-  // format the insides of some attributes.
-  //
-  // But since we don't reformat the insides of attributes yet (because of
-  // issue #4), that feature doesn't really make sense.
-  //
-  // For now, we'll only support `prettier-ignore-attribute`
-  //
-  // https://github.com/Shopify/prettier-plugin-liquid/issues/4
-  //
-  // return match[1].split(/\s+/);
+  // TODO support `prettier-ignore-attribute a,b,c`. It only makes sense once the insides of
+  // attributes are reformatted at all, so for now only the bare form is supported.
   return true;
 }
 

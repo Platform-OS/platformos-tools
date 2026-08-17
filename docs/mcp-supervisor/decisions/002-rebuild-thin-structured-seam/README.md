@@ -87,6 +87,12 @@ every rule that reads `diag.params.X`".
    call. A language server remains acceptable only for hover/completion, if a
    future task needs it — never on the lint path.
 
+   > **AMENDED 2026-08-16 — see [§Amendment 1](#amendment-1-2026-08-16--invariant-3-is-about-the-protocol-not-the-package).**
+   > Enforcement moved from "declares no `platformos-language-server-*`
+   > dependency" to "never speaks the LSP protocol". Importing a PURE helper
+   > from the language-server library — specifically the docset markdown
+   > renderer — is now permitted under an allowlist.
+
 4. **check-common is the single source of truth for correctness.** Correctness
    detectors and structured fixes live there as `CheckDefinition`s; the
    supervisor keeps only agent ergonomics (hints, confidence, clustering,
@@ -104,8 +110,70 @@ every rule that reads `diag.params.X`".
    the package imports a language server on the lint path, if `enrich/` or
    `result/` perform I/O, or if `enrich/` regex-parses diagnostic messages.
 
-The full layering and the seven invariants live in
+The full layering and the invariants live in
 [`ARCHITECTURE.md`](../../../packages/platformos-mcp-supervisor/ARCHITECTURE.md).
+
+## Amendment 1 (2026-08-16) — invariant 3 is about the PROTOCOL, not the package
+
+**Status:** accepted (user decision, 2026-08-16). Amends decision 3 above; every
+other decision in this ADR stands.
+
+### What changed
+
+Invariant 3 was enforced as a package-level ban: the supervisor's `package.json`
+could declare no `platformos-language-server-*` dependency, and no lint-path
+module could import one. It is now enforced as a protocol-level ban — no LSP
+wire (`vscode-languageserver*`, `vscode-jsonrpc`), no language-server **runtime**
+(`-node`, `-browser`), and no language-server import of any kind inside `lint/`,
+`graph-cache/`, `impact/`, `result/` or `transport/`. The **library**
+(`-common`) is importable from `enrich/`, restricted to an allowlist of pure
+bindings.
+
+### Why
+
+The mistake this invariant exists to prevent is a lossy string round-trip
+standing where a typed call belongs: v1 flattened structured offenses into LSP
+`Diagnostic` strings and regex-parsed the English back into params. That is a
+property of the WIRE. A pure function that takes a docset record and returns
+markdown does none of it.
+
+The package-level spelling had a cost the original framing did not anticipate.
+`language-server-common/src/docset/MarkdownRenderer.ts` renders a `filters.json`
+/ `tags.json` / `objects.json` entry into the markdown every editor hover shows —
+exactly what an agent should see about a filter it got wrong. Reaching it under
+the old rule meant relocating it plus `TypeSystem.ts` (1,869 LOC) and
+`PropertyShapeInference.ts` into check-common: ~2k LOC of duplicated machinery to
+satisfy a guard, when the published docset is the source of truth either way.
+That directly contradicts the invariant added at the same time — the supervisor
+ships no documentation and holds no second copy of platform knowledge.
+
+### Alternatives considered
+
+- **Promote the renderer into check-common.** Rejected: it duplicates a
+  1,869-line type system to satisfy a rule, and buys no correctness. Explicitly
+  rejected by the user — "we do not want 1800+ LOC duplicate knowledge;
+  tags.json, filters.json have to be complete and should be the source of truth."
+- **Leave the ban and ship no docset-rendered explanation.** Rejected: it leaves
+  the supervisor with only its own prose to explain a finding, which invariant 6
+  forbids, so the outcome would be no explanation at all.
+
+### Consequences
+
+- `@platformos/platformos-language-server-common` is a declared dependency.
+- **Import it deep** (`.../dist/docset/index.js`), never the package root.
+  Measured on top of the check-common the supervisor already loads: **+5 ms** for
+  the deep path against **+110 ms** for the index, the difference being the
+  css / json / graphql language services. The supervisor is launched per agent
+  session, so that cost is paid every session.
+- The guard is *tighter* than before in three respects it previously missed: it
+  scans all of `src/` rather than the lint path, it bans the LSP wire itself
+  (which the old rule never mentioned), and it constrains WHICH bindings may be
+  taken from the library. All five forbidden forms were injected and shown to
+  fail a test, against a control that still passes.
+- `LSP_LIBRARY_ALLOWLIST` in
+  `test/guards/architecture-invariants.spec.ts` is the review point: widening it
+  is where "reuse a pure helper" could quietly become "depend on a language
+  server".
 
 ## Consequences
 
@@ -184,3 +252,66 @@ original task's assumption that contamination would become check-common checks:
 both already collide with engine checks, so keeping them as supervisor
 enrichment preserves the "single source of truth, no dedup by construction"
 goal.
+
+## Amendment 2 (2026-08-16) — the "ergonomic" ten, and why none became a check
+
+**Status:** accepted (user decision, 2026-08-16). Amends the appendix's disposition of the
+ten detectors classified ERGONOMIC; the classification of the other six stands.
+
+### The premise that was withdrawn
+
+The appendix routed ten detectors to "restored in TASK-8" because the supervisor was
+assumed to be where ergonomic advice lives. It is not: there is ONE detector framework in
+this monorepo and it is check-common, which already provides `info` severity,
+`recommended: false`, `targets`, per-project `.platformos-check.yml` control and a
+documentation page per check. A second framework inside the supervisor would duplicate all
+of it and give a detector two homes.
+
+So `advise/` and the `pos-supervisor:` namespace are forbidden outright, and a guard fails
+the build if either appears. The question became: which of the ten are check-common checks?
+
+### Measured, then decided
+
+Hit rates over four real projects (project-a, project-b, project-c, pos-module-community).
+A high rate on WORKING code does not mean the code is wrong — it means the convention is
+not one these projects follow, and an advisory that fires on the majority is noise an agent
+cannot distinguish from a finding.
+
+| Detector | Measurement | Outcome |
+|---|---|---|
+| `MissingDocBlock` | **0 of 4,901** partials carry a `{% doc %}` block — it would fire on **100%** | **DROP** |
+| `MissingReturn` | **435 of 443** commands have no `{% return %}` (**98%**), in the ONE project of four that uses `lib/commands` at all | **DROP** |
+| `GraphqlInPartial` | 82 of 4,254 view partials (1.9%) — but `lib/**` classifies as `Partial` too, and `lib/queries/**` is exactly where graphql belongs | **DROP** (see below) |
+| `HtmlInPage` | 56 of 1,366 pages (4%) | **DROP** (see below) |
+| `FilterArgMisuse` | superseded by `FilterArity` + `ValidFilterArgumentTypes`, both docset-driven | **SUPERSEDED** |
+| `ShopifyObject` / `ShopifyTag` | `UndefinedObject` / `UnknownTag` already fire; a Shopify-name list would be a third vocabulary no repository owns | **DROP** |
+| `InvalidSlug`, `NonGetRenderingPage`, `MissingSlug` | frontmatter conventions, same class as the four above | **DROP** |
+
+### Why the two with acceptable rates were dropped anyway
+
+`GraphqlInPartial` and `HtmlInPage` measure well, and they are still not check-common
+checks, for the reason ADR 004 already established: **they are convention truth, not
+platform truth.**
+
+- platformOS pages may contain HTML. "Pages should be controller-only" is a house style.
+- `{% graphql %}` in a partial runs fine. "Partials receive data by explicit passing" is
+  the `core` module's architecture, and check-common cannot even see the distinction it
+  rests on — `getFileType` maps `app/lib/**` to `Partial`, so a naive check fires on every
+  legitimate `lib/queries/**` file. Telling a query from a view partial requires the
+  commands/queries convention, which ADR 004 says must stay out of the platform model.
+
+A check-common check states a platform fact. Shipping a house style as one — even
+`recommended: false` — puts the opinion in the place every editor, the CLI and the browser
+build read as authoritative.
+
+### Where they go instead
+
+**TASK-9.7's convention overlay**, which ADR 004 created for exactly this: a separate,
+clearly labeled, configurable layer over the platform model. `HtmlInPage` and
+`GraphqlInPartial` are re-filed there with these measurements attached. The rest are
+dropped on the evidence above.
+
+### Consequence
+
+TASK-7.8 ships no new detector. It ships the guard that keeps the supervisor from growing
+one, and this record of why each of the ten is not coming back.

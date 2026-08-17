@@ -118,15 +118,6 @@ describe('uriFromPathOrUri', () => {
 
 /**
  * One normalizer per spelling, and no package rolls its own.
- *
- * Every Windows-only failure this monorepo has had came from a path that reached a
- * comparison in the wrong spelling, and every fix for one was a local
- * `.replace(/\\/g, '/')` next to the comparison — which fixes that line and leaves the
- * next one to be found by CI. The functions above are the fix; this test is what keeps
- * a fifth copy from appearing.
- *
- * Specs are scanned too, deliberately: three of the four Windows failures that
- * prompted this were IN specs, comparing a hand-spelled path against a normalized one.
  */
 describe('path normalization has one owner', () => {
   /** The modules that own a spelling, and may therefore swap separators. */
@@ -158,7 +149,10 @@ describe('path normalization has one owner', () => {
     const offenders: string[] = [];
 
     for (const dir of await workspacePackages()) {
-      for (const file of await sourceFiles(join(dir, 'src'))) {
+      const scanned = (
+        await Promise.all([sourceFiles(join(dir, 'src')), sourceFiles(join(dir, 'test'))])
+      ).flat();
+      for (const file of scanned) {
         const relative = relativePosixPath(file, packagesDir);
         if (OWNERS.has(relative)) continue;
 

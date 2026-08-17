@@ -111,12 +111,6 @@ describe('Module: GraphQLCheck', () => {
     // An unclosed brace leaves graphql-js reporting `<EOF>`, which it locates on line
     // 4 — the empty line the trailing newline opens. That is genuinely where the
     // error is, so the offense sits at line 3 (0-based), character 0.
-    //
-    // This used to assert `end.line < 3`, and passed only because `getPosition`
-    // collapsed an end-of-input offset onto the last CHARACTER, reporting the error a
-    // line early. The intent behind that assertion — the offense must not span the
-    // whole file — is better served by pinning the range outright: a whole-file range
-    // would be 0,0 to 3,0 and this fails on it.
     const query = `{
   hello
   unclosed {
@@ -148,11 +142,6 @@ describe('Module: GraphQLCheck', () => {
   // right — but only for that half. The syntax test beside it is its control: a check
   // that stayed silent about everything without a schema would pass the first and fail
   // the second, which is exactly the defect this pair was written for.
-  //
-  // In practice a Node run always HAS a schema: the docs manager downloads it and falls
-  // back to the copy committed in `platformos-check-docs-updater/data/graphql.graphql`.
-  // `null` is what a caller that injects its own docset gets — a browser embedder, or a
-  // test.
   describe('when platformosDocset.graphQL returns null', () => {
     it('does not report an unknown field, which only a schema could contradict', async () => {
       const files = {

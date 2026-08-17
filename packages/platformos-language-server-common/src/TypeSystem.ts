@@ -171,19 +171,16 @@ export class TypeSystem {
   /**
    * An indexed representation of filters.json by name.
    *
-   * ROW ORDER MUST NOT DECIDE THE ANSWER. `filters.json` once carried two entries named `split` —
-   * the core Liquid one, whose `return_type` names `string` as the element, and the platformOS one,
-   * whose `array_value` is empty — and a plain last-wins reduce made whichever the file happened to
-   * list second the authority. A docset refresh swapped exactly those two rows, and with them the
-   * loop-item type of every `{% for p in parts %}` over a `split` result, from `string` to nothing:
-   * hover and member completion on the elements went blank with no code change and no test failing.
+   * ROW ORDER MUST NOT DECIDE THE ANSWER. `filters.json` once carried two entries named `split`,
+   * and a plain last-wins reduce made whichever the file listed second the authority; a docset
+   * refresh swapped them, and with them the loop-item type of every `{% for p in parts %}` over a
+   * `split` result — hover and member completion went blank with no code change and no test
+   * failing.
    *
-   * So the entry carrying a usable return type wins, and a later duplicate can only ADD data, never
-   * remove it. Resolving duplicates is the docset's business — `verify_filters_json.rb` gates them
-   * upstream, and the shipped `filters.json` currently has none — but this stays: the gate is
-   * upstream of a file this repository re-downloads, so an editor feature must not become
-   * order-dependent on the strength of a guarantee enforced somewhere else. `tags.json`, which has
-   * no such merge, still ships two `else` rows.
+   * So the entry carrying a usable return type wins, and a later duplicate can only ADD data.
+   * Resolving duplicates is the docset's business and the shipped `filters.json` has none, but
+   * an editor feature must not become order-dependent on a guarantee enforced somewhere else —
+   * `tags.json`, which has no such merge, still ships two `else` rows.
    */
   public filtersMap = memo(async (): Promise<FiltersMap> => {
     const entries = await this.filterEntries();
@@ -251,20 +248,16 @@ export class TypeSystem {
   };
 
   /**
-   * The docset objects in scope in the file at `uri`, through the SAME predicate `UndefinedObject`
-   * judges them with.
+   * The docset objects in scope in the file at `uri`, through the SAME predicate
+   * `UndefinedObject` judges them with.
    *
-   * There used to be a second implementation here — `!entry.access || entry.access.global === true`
-   * — and `access.global` does not mean "in scope everywhere", it means "needs no parent". Against
-   * the shipped `objects.json` the two answers contradicted each other in four places: the editor
-   * offered `data` and `response` (api_call objects) in every partial, `content_for_layout` outside
-   * a layout, and `forloop` outside its loop, and the linter then reported `Unknown object` on the
-   * code the editor had just completed. The tool that suggests and the tool that judges must not
-   * disagree; where they do, the diagnostic wins.
+   * A second implementation here — `!entry.access || entry.access.global === true` — read
+   * `access.global` as "in scope everywhere" when it means "needs no parent", and against the
+   * shipped `objects.json` the two answers contradicted each other in four places: the editor
+   * offered `data`, `response`, `content_for_layout` and `forloop` where the linter then
+   * reported `Unknown object`. The tool that suggests and the tool that judges must not disagree.
    *
-   * Not memoized. The answer depends on the file, and the scan is over ~25 entries; a per-file memo
-   * would cache a value whose key is the type rather than the URI, which is the kind of subtlety
-   * that put the second predicate here in the first place.
+   * Not memoized: the answer depends on the file, and the scan is over ~25 entries.
    */
   private globalVariables = async (uri: string) => {
     const [entries, fileType] = await Promise.all([
@@ -904,18 +897,11 @@ function inferLookupType(
   if (node.name === null) return Untyped;
 
   /**
-   * curr stores the type of the variable lookup starting at the beginning.
+   * `curr` is the type of the lookup so far: it starts as the type of the top-level identifier
+   * and becomes the return type of each lookup in turn.
    *
-   * It starts as the type of the top-level identifier, and the we
-   * recursively change it to the return type of the lookups.
-   *
-   * So, for x.images.first.src we do:
-   * - curr = infer type of x                   | x
-   * - curr = x.parts -> ArrayType<string>      | x.parts
-   * - curr = parts.first -> string             | x.parts.first
-   * - curr = first.src -> string               | x.images.first.src
-   *
-   * Once were done iterating, the type of the lookup is curr.
+   * For `x.parts.first.src`: `x` -> `x.parts` (ArrayType<string>) -> `parts.first` (string) ->
+   * `first.src`. When the iteration ends, `curr` is the type of the whole lookup.
    */
   let curr: PseudoType | ArrayType | ShapeType | UnionType = inferIdentifierType(
     node,
@@ -1651,20 +1637,13 @@ function shapeAnalyzerDeps(
      * What this deps object's `resolveExternalShape` answers does NOT depend on the URI, so the
      * identity is a constant.
      *
-     * It used to carry the file's kind, because the seed symbols table added a contextual `app`
-     * for a partial or lib file. That object is Shopify's and is in no platformOS docset, so the
-     * two buckets the kind selected always held the same answer; the globals are the same
-     * everywhere and `objectMap` ignores its URI altogether.
-     *
-     * Not per-FILE, and this is the reason to keep it constant rather than "simplify" it later:
+     * Not per-FILE, and that is the reason to keep it constant rather than "simplify" it later:
      * the cache is module-level and capped, and `runPartialAnalysis` builds the nested analyzer
      * from these same deps, so a per-file identity keys a partial's entire `{% function %}` chain
-     * on whichever page reached it — forty pages sharing a five-deep chain would hold 240 entries
-     * and recompute the chain forty times. Per-OBJECT identity would be worse still: a fresh deps
+     * on whichever page reached it. Per-OBJECT identity would be worse still — a fresh deps
      * object is built for every symbols table, so the memo would miss on every keystroke.
      *
-     * Nothing about the resolver's presence is stated here — the cache reads that off `deps`
-     * itself, which is what keeps the check next door from ever being handed one of these.
+     * Nothing about the resolver's presence is stated here: the cache reads that off `deps`.
      */
     analysisIdentity: 'language-server/TypeSystem',
 

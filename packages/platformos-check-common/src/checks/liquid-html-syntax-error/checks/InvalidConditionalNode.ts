@@ -89,26 +89,16 @@ function isOperatorToken(token: Token): boolean {
 /**
  * A filter inside a condition, which the platform's deploy converter REJECTS.
  *
- * MEASURED, against `pos-cli deploy --dry-run`, paired with a filter-free control so a
- * rejection caused by the fixture is distinguishable from one caused by the filter:
+ * MEASURED against `pos-cli deploy --dry-run`, each shape paired with a filter-free control so
+ * a rejection caused by the fixture is distinguishable from one caused by the filter:
+ * `{% if 'a' | upcase == 'A' %}`, the `unless` and `elsif` forms, and the truthy
+ * `{% if 'a' | upcase %}` were all REJECTED where their controls were accepted.
  *
- *   ```
- *     {% if 'a' | upcase == 'A' %}          REJECTED   (control ACCEPTED)
- *     {% unless 'a' | upcase == 'A' %}      REJECTED   (control ACCEPTED)
- *     {% if false %}{% elsif 'a' | u… %}    REJECTED   (control ACCEPTED)
- *     {% if 'a' | upcase %}                 REJECTED   (control ACCEPTED)
- *   ```
- *
- * WHY THIS NEEDED ITS OWN RULE. Three of those four produced NO diagnostic at all — a
- * false approval on a converter rejection, which fails the WHOLE changeset rather than
- * one file. The grammar refuses the markup correctly in every case, so it arrives here
- * as a raw string; the heuristics below then let the comparison forms through, because
- * `|` classifies as a plain variable and `checkLaxParsingIssues` treats
- * "variable followed by an operator" as a legitimate unknown operator.
- *
- * Only the truthy form (`{% if 'a' | upcase %}`) was caught, and by accident — it has no
- * comparison operator after the pipe, so a different heuristic fired with a message about
- * truthiness that never mentions the real problem.
+ * WHY THIS NEEDED ITS OWN RULE. Three of those four produced NO diagnostic at all — a false
+ * approval on a converter rejection, which fails the WHOLE changeset. The grammar refuses the
+ * markup correctly in every case, so it arrives here as a raw string; the heuristics below then
+ * let the comparison forms through, because `|` classifies as a plain variable and
+ * `checkLaxParsingIssues` treats "variable followed by an operator" as an unknown operator.
  *
  * RUNS FIRST, so the specific explanation wins over those general ones.
  */

@@ -1,25 +1,20 @@
 /**
- * The ONE validation orchestrator. Everything the tool does happens here, and it
- * always works on a LIST of buffers — one file is simply a list of length one.
- *
- * WHY ONE PATH. There were briefly two orchestrators, one per tool, running the
- * identical five steps (decline → ignore → lint → impact → assemble). They
- * immediately drifted: two copies of `UNAVAILABLE_IMPACT`, two differently-worded
- * timeout messages, the same narrowing helper under two names, and lint/impact
- * running concurrently in one and sequentially in the other. None of that was
- * intentional — it is just what two copies of a procedure do. The tool surface
+ * The ONE validation orchestrator. Everything the tool does happens here, and it always
+ * works on a LIST of buffers — one file is simply a list of length one. The tool surface
  * adapts shapes; the logic exists once.
  *
- * THE BATCH IS NOT ATOMIC. Every requested buffer gets a result. A refusal declines
- * only ITS buffer, and a merely-unchecked buffer never gates the others.
+ * THE BATCH IS NOT ATOMIC. Every requested buffer gets a result. A refusal declines only
+ * ITS buffer, and a merely-unchecked buffer never gates the others.
  *
- * VALIDATING SEVERAL BUFFERS TOGETHER IS ALSO MORE CORRECT, which is the real
- * reason the list is the primitive rather than an optimisation bolted on: with every
- * buffer overlaid at once, a partial introduced in one resolves for a `render` in
- * another. Checking the same coordinated edit one file at a time reports
- * `MissingPartial` for a file present in the very same changeset.
+ * The list is the primitive because validating several buffers together is also more
+ * CORRECT: with every buffer overlaid at once, a partial introduced in one resolves for a
+ * `render` in another.
  */
-import { path as pathUtils } from '@platformos/platformos-check-node';
+import {
+  getPlatformOSDocset,
+  NodeFileSystem,
+  path as pathUtils,
+} from '@platformos/platformos-check-node';
 
 import {
   assetNotLinted,
@@ -31,9 +26,11 @@ import {
   toAbsoluteFilePath,
 } from '../adapter-input.js';
 import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
+import { enrichDiagnostics, type DocsetVocabulary } from '../enrich/enrich.js';
 import { lintDeadlineMs } from '../cost-model.js';
 import { TIMED_OUT, withDeadline } from '../deadline.js';
 import { runImpact } from '../impact/impact.js';
+import { createProjectScan } from '../impact/project-scan.js';
 import {
   runBatchLint,
   type BatchBuffer,
@@ -42,7 +39,7 @@ import {
 } from '../lint/lint-batch.js';
 import { assembleNotApplicableResult, assembleResult } from '../result/assemble.js';
 import { capToBudget } from '../result/response-budget.js';
-import { COMPUTING_IMPACT, UNAVAILABLE_IMPACT } from '../result/impact-states.js';
+import { UNAVAILABLE_IMPACT } from '../result/impact-states.js';
 import type {
   Declined,
   ValidateCodeDiagnostic,
@@ -61,32 +58,34 @@ export interface BufferToValidate {
 export interface ValidateAdapters {
   lint: typeof runBatchLint;
   impact: typeof runImpact;
+  /** Resolve the docset enrichment reads — the one piece of I/O the pure stage cannot do. */
+  docset: () => Promise<DocsetVocabulary>;
+}
+
+/** Read the process-wide docset and flatten it to the arrays enrichment takes. */
+async function resolveDocset(): Promise<DocsetVocabulary> {
+  const docset = getPlatformOSDocset();
+  const [filters, tags, objects] = await Promise.all([
+    docset.filters(),
+    docset.tags(),
+    docset.objects(),
+  ]);
+  return { filters, tags, objects };
 }
 
 const DEFAULT_ADAPTERS: ValidateAdapters = {
   lint: runBatchLint,
   impact: runImpact,
+  docset: resolveDocset,
 };
 
 /**
  * check-node's "did not check it" status → the refusal the agent reads, by
  * project-relative path.
  *
- * TOTAL OVER {@link LintNotCheckedStatus} BY TYPE, which is the only reason this is a
- * table and not a `switch` with a `default`. Every entry hands back different ADVICE —
- * remove it from `ignore`, move it into a deployed subtree, or do nothing because the file
- * was never a source — and picking the wrong one is worse than saying nothing: an author
- * whose partial sits outside the deployed tree, told their config excludes it, goes looking
- * for an `ignore` line that does not exist. A `default` arm is exactly how that happens, so
- * there is none, and a status added upstream fails the build right here.
- *
- * THE ONE PLACE the two vocabularies meet. Each factory carries both halves of the answer:
- * the machine-readable `NotApplicableReason` an agent branches on, and the prose it reads.
- * Note that `not-a-platformos-file` and `not-a-source-file` deliberately produce the SAME
- * code with DIFFERENT prose — an agent has no reason to act differently on them, but
- * calling `app/assets/logo.png` "not a platformOS file" would be plainly false, and a
- * message an author can tell is false is a message they stop reading. Collapsing the code
- * while keeping the wording is only expressible because the mapping produces both at once.
+ * TOTAL OVER {@link LintNotCheckedStatus} BY TYPE, with no `default` arm: every entry hands
+ * back different ADVICE, so a status added upstream must fail the build here rather than
+ * fall through to someone else's remedy.
  */
 const DECLINE: Record<LintNotCheckedStatus, (relativePath: string) => Declined> = {
   'excluded-by-config': ignoredByProjectConfig,
@@ -112,22 +111,19 @@ export async function validateBuffers(
 
   const { declined, lintable } = partition(ctx.projectDir, buffers);
 
-  // Computed ONCE and threaded to both the timer and the message that reports it.
-  // Deriving it twice would let the two disagree about the deadline a caller was
-  // actually held to, and the message is the only place a caller can see it.
+  // Computed ONCE and threaded to both the timer and the message that reports it, so the
+  // two cannot disagree about the deadline a caller was held to.
   const lintDeadline = lintDeadlineMs(admittedBytes(lintable));
 
-  // Concurrently: the lint is the long pole and impact must hide behind it. Running
-  // these in sequence added the whole blast-radius cost (~142 ms) to every call.
+  // Concurrently: the lint is the long pole and impact must hide behind it.
   const [lint, impacts] = await Promise.all([
     lintWithDeadline(ctx, adapters, lintable, lintDeadline),
     impactWithDeadline(ctx, adapters, lintable),
   ]);
 
   // The lint pass is what knows which buffers were not checked and why — it holds the
-  // config AND the classifier. Folding its answer in here keeps ONE config load and one
-  // source of truth for "is this file part of the app", instead of this layer
-  // re-deriving either from a raw path.
+  // config AND the classifier. Folding its answer in here keeps ONE source of truth for
+  // "is this file part of the app".
   if (lint !== TIMED_OUT) {
     const rootUri = pathUtils.toUri(ctx.projectDir);
     for (const [key, status] of lint.notChecked) {
@@ -136,12 +132,11 @@ export async function validateBuffers(
     }
   }
 
-  const diagnostics = lint === TIMED_OUT ? TIMED_OUT : lint.diagnostics;
+  const diagnostics = lint === TIMED_OUT ? TIMED_OUT : await enrich(ctx, lint, adapters.docset);
 
-  // The response bound is applied LAST, to finished results, and that ordering is
-  // deliberate: `resultFor` has already computed `status` and `must_fix_before_write`
-  // from the complete diagnostic set, so the cap can only shorten lists — it has no
-  // way to soften a verdict. See `result/response-budget.ts`.
+  // The response bound is applied LAST, to finished results: `resultFor` has already
+  // computed `status` and `must_fix_before_write` from the complete diagnostic set, so the
+  // cap can only shorten lists — it has no way to soften a verdict.
   return capToBudget(
     new Map(
       buffers.map((buffer) => [
@@ -153,24 +148,16 @@ export async function validateBuffers(
 }
 
 /**
- * Split the requested buffers into those this server declines outright and those it
- * will send to the lint.
+ * Split the requested buffers into those this server declines outright and those it will
+ * send to the lint.
  *
- * PURE and synchronous. Every refusal decidable without I/O happens here — outside
- * the project root, an unsupported file type, over the size bound — so a declined
- * buffer costs nothing and never reaches the engine.
+ * PURE and synchronous. Every refusal decidable without I/O happens here — outside the
+ * project root, an unsupported file type, over the size bound — so a declined buffer costs
+ * nothing and never reaches the engine.
  *
- * Two refusals are deliberately NOT here, because deciding them needs the project:
- * config-level exclusion needs the resolved `.platformos-check.yml`, and telling a
- * MISPLACED source from an unsupported one needs the app's classification of the path.
- * The lint pass already has both, so asking separately would mean a second config load
- * and — the part that actually bites — a second source of truth for "is this file part of
- * the app". `lintBuffers` answers both as a per-buffer `LintBufferStatus`, and
- * {@link validateBuffers} folds that in afterwards through {@link DECLINE}.
- *
- * Note the ONE gate here that overlaps the lint's: an unsupported type. Kept, because it
- * is decidable from the extension alone and refusing it costs no I/O — but the lint's row
- * for it is kept too, so the two agreeing is not something either has to assume.
+ * Config-level exclusion and telling a MISPLACED source from an unsupported one both need
+ * the project, so they are decided by the lint pass instead and folded in by
+ * {@link validateBuffers} through {@link DECLINE}.
  */
 function partition(
   projectDir: string,
@@ -203,15 +190,12 @@ type DiagnosticsByFile = Map<string, ValidateCodeDiagnostic[]>;
 /**
  * Lint every lintable buffer in ONE project pass, or {@link TIMED_OUT}.
  *
- * The deadline is a backstop against an async stall, NOT cancellation: a
- * synchronous parse blocks the event loop and the timer cannot even fire during it
- * (see `deadline.ts`). What bounds CPU-bound work is `MAX_BUFFER_BYTES` and
- * `MAX_BATCH_BYTES`.
+ * The deadline is a backstop against an async stall, NOT cancellation: a synchronous parse
+ * blocks the event loop and the timer cannot even fire during it (see `deadline.ts`). What
+ * bounds CPU-bound work is `MAX_BUFFER_BYTES` and `MAX_BATCH_BYTES`.
  *
- * It is sized from the bytes ACTUALLY ADMITTED — the lintable ones, after the
- * declined buffers were dropped — because those are the only ones the lint will
- * spend time on. Charging a request for a 200 KiB buffer that was refused unread
- * would grant a deadline for work nobody is doing.
+ * It is sized from the bytes ACTUALLY ADMITTED, since those are the only ones the lint
+ * will spend time on.
  */
 async function lintWithDeadline(
   ctx: SupervisorContext,
@@ -219,7 +203,8 @@ async function lintWithDeadline(
   lintable: BatchBuffer[],
   deadline: number,
 ): Promise<BatchLintResult | typeof TIMED_OUT> {
-  if (lintable.length === 0) return { diagnostics: new Map(), notChecked: new Map() };
+  if (lintable.length === 0)
+    return { diagnostics: new Map(), sources: new Map(), notChecked: new Map() };
 
   const work = adapters.lint({ projectDir: ctx.projectDir, buffers: lintable });
   const outcome = await withDeadline(work, deadline);
@@ -230,6 +215,52 @@ async function lintWithDeadline(
   return TIMED_OUT;
 }
 
+/**
+ * Attach the check's documentation URL and the docset entry for the symbol each diagnostic
+ * is about.
+ *
+ * THE ONLY I/O HERE IS RESOLVING THE DOCSET, at this edge rather than inside `enrich/`,
+ * which is a pure function of data.
+ *
+ * FAILING TO ENRICH MUST NOT FAIL THE CALL: a throw degrades to the un-enriched
+ * diagnostics and is logged, rather than reporting a broken file as unchecked.
+ *
+ * NOTHING TO ENRICH MEANS NO I/O AT ALL — resolving the docset would pay
+ * `PlatformOSLiquidDocsManager.setup()`'s network revision check for nothing.
+ */
+async function enrich(
+  ctx: SupervisorContext,
+  lint: BatchLintResult,
+  resolve: ValidateAdapters['docset'],
+): Promise<Map<string, ValidateCodeDiagnostic[]>> {
+  let found = 0;
+  for (const diagnostics of lint.diagnostics.values()) found += diagnostics.length;
+  if (found === 0) return lint.diagnostics;
+
+  try {
+    // ONCE per request, not once per file: the vocabulary is the same for every buffer.
+    const vocabulary = await resolve();
+
+    return new Map(
+      [...lint.diagnostics].map(([key, diagnostics]) => {
+        const source = lint.sources?.get(key);
+        // `startIndexes` is index-aligned with `diagnostics` by construction in
+        // `runBatchLint`; a missing entry can only mean the two got out of step, so the
+        // offset is passed as ABSENT rather than as an out-of-range sentinel that would
+        // resolve to some unrelated symbol.
+        const inputs = diagnostics.map((diagnostic, index) => ({
+          diagnostic,
+          startIndex: source?.startIndexes[index],
+        }));
+        return [key, enrichDiagnostics(inputs, { ast: source?.ast, vocabulary })];
+      }),
+    );
+  } catch (error: unknown) {
+    ctx.log(`validate_code: enrichment failed, returning findings unenriched: ${describe(error)}`);
+    return lint.diagnostics;
+  }
+}
+
 /** Total UTF-8 bytes handed to the lint — what the deadline is sized against. */
 function admittedBytes(lintable: readonly BatchBuffer[]): number {
   return lintable.reduce((total, buffer) => total + Buffer.byteLength(buffer.content, 'utf8'), 0);
@@ -238,10 +269,12 @@ function admittedBytes(lintable: readonly BatchBuffer[]): number {
 /**
  * Blast radius per lintable buffer.
  *
- * `runImpact` reads the same cached graph for every buffer, so this does not re-walk
- * the project per file; the concurrency only overlaps the per-file shaping. The set
- * shares one tight deadline because impact is discardable enrichment — losing it
- * costs freshness, and `unavailable` already means "we don't know".
+ * ONE scan serves the whole batch: `createProjectScan` reads the project's edge sources
+ * once, lazily and memoized, so N buffers cost one project read and N name filters. The
+ * batch's own buffers are overlaid into it, so a caller a buffer has just added counts.
+ *
+ * The set shares one tight deadline because impact is discardable enrichment —
+ * `unavailable` already means "we don't know".
  */
 async function impactWithDeadline(
   ctx: SupervisorContext,
@@ -251,12 +284,24 @@ async function impactWithDeadline(
   const byFile = new Map<string, ValidateCodeImpact>();
   if (lintable.length === 0) return byFile;
 
+  const rootUri = pathUtils.normalize(pathUtils.toUri(ctx.projectDir));
+  const scan = createProjectScan(
+    rootUri,
+    NodeFileSystem,
+    new Map(
+      lintable.map((buffer) => [
+        pathUtils.normalize(pathUtils.toUri(toAbsoluteFilePath(ctx.projectDir, buffer.filePath))),
+        buffer.content,
+      ]),
+    ),
+  );
+
   const work = Promise.all(
     lintable.map(async (buffer) => {
       const impact = await adapters
         .impact(
           { projectDir: ctx.projectDir, filePath: buffer.filePath, content: buffer.content },
-          ctx.graphCache,
+          scan,
         )
         .catch((error: unknown) => {
           ctx.log(`validate_code: blast-radius failed for ${buffer.filePath}: ${describe(error)}`);
@@ -281,9 +326,8 @@ async function impactWithDeadline(
 /**
  * Attach a handler to work the deadline abandoned.
  *
- * The promise is STILL RUNNING and now unobserved, so a later rejection would
- * surface as an unhandled rejection somewhere unrelated — and under Node's default
- * that is fatal. Logging rather than swallowing, so a real fault is still visible.
+ * The promise is STILL RUNNING and now unobserved, so a later rejection would surface as
+ * an unhandled rejection — fatal under Node's default. Logged rather than swallowed.
  */
 function observeAbandoned(ctx: SupervisorContext, work: Promise<unknown>, what: string): void {
   work.catch((error: unknown) => {
@@ -315,9 +359,8 @@ function resultFor(
 
   const forFile = diagnostics.get(filePath);
   if (forFile === undefined) {
-    // FAIL SAFE. Unreachable: `runBatchLint` seeds an entry for every requested key.
-    // But defaulting a missing entry to `[]` would report a file CLEAN that was
-    // never linted — precisely the false approval this area exists to prevent.
+    // FAIL SAFE. Unreachable: `runBatchLint` seeds an entry for every requested key. But
+    // defaulting to `[]` would report a file CLEAN that was never linted.
     return assembleNotApplicableResult({
       code: 'internal_error',
       reason:
@@ -326,5 +369,5 @@ function resultFor(
     });
   }
 
-  return assembleResult(forFile, impacts.get(filePath) ?? COMPUTING_IMPACT());
+  return assembleResult(forFile, impacts.get(filePath) ?? UNAVAILABLE_IMPACT());
 }

@@ -9,13 +9,6 @@ import { describe, expect, it } from 'vitest';
  * parse it. Consumers import those facts from `@platformos/platformos-common`
  * DIRECTLY, so an import line says which layer owns the fact and a deprecation
  * there surfaces at the importer.
- *
- * This scanner keeps the check packages' barrels from re-exporting that API: overlapping
- * re-exports let one file import the same subject from two packages.
- *
- * The one allowed re-export is check-node's `APP_SOURCE_SUBTREES`: the MCP supervisor
- * EXPLAINS the directory rule to an agent in prose, which is a different job from
- * applying it, and check-node is its only dependency.
  */
 const packagesRoot = join(__dirname, '..', '..', '..');
 const scannedPackages = ['platformos-check-common', 'platformos-check-node'];
@@ -60,15 +53,6 @@ describe('file identity has one owner', () => {
   /**
    * THE CONTROL, for this scan and for the GraphQL one below — they are the same function
    * over the same walk.
-   *
-   * Every assertion here says a scan found nothing, and a scan that found nothing because it
-   * scanned nothing says exactly the same thing: a renamed package, a moved `src`, or a
-   * matcher that quietly stopped matching. That last one is not hypothetical — the pattern
-   * only accepts SINGLE-quoted specifiers, so a formatting change alone would silence the
-   * rule for good, green all the way.
-   *
-   * Run without the allowlist, the scan must still find the one re-export this repo really
-   * has. That makes the emptiness above a fact about the code rather than about the scanner.
    */
   it('still finds the re-export the allowlist exempts, so an empty result means something', async () => {
     expect(await reExportsOf(IDENTITY_SYMBOLS, new Set())).toEqual([...ALLOWED]);
@@ -81,10 +65,6 @@ describe('file identity has one owner', () => {
  * the document its `AppFile` already parsed; nothing here re-exports the reader, or a
  * caller could import it from two packages and one of them would stop being the parse
  * the app performed.
- *
- * The `GraphQLDocumentNode` TYPE is deliberately absent from this list: check-common
- * re-exports it, exactly as it re-exports `SourceCodeType`, because its `AST` map is
- * keyed on it and two structurally equal types would be two types.
  */
 describe('GraphQL reading has one owner', () => {
   const GRAPHQL_SYMBOLS = new Set([

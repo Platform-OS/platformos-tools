@@ -1,15 +1,11 @@
 /**
  * Source-scanning helpers for the architecture-invariant guards.
  *
- * These run as TEST infrastructure. They are intentionally allowed to use
- * `node:fs` — the purity invariant constrains the package's `src/enrich` and
- * `src/result` layers, NOT the guards that police them.
+ * TEST infrastructure, so `node:fs` is intentionally allowed: the purity invariant
+ * constrains `src/enrich` and `src/result`, not the guards that police them.
  *
- * The detectors below (`isLanguageServerSpecifier`, `isIoSpecifier`,
- * `hasMessageRegexParsing`) are exported as pure string functions so the spec
- * can pin their failure behaviour against inline good/bad fixtures, proving
- * "a test fails on violation" without needing real violating source in the
- * tree.
+ * The detectors below are exported as pure string functions so the spec can pin their
+ * failure behaviour against inline fixtures, without needing real violating source.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -72,15 +68,13 @@ export function pathExists(path: string): boolean {
 }
 
 /**
- * Remove `//` line comments and block comments from TS source while leaving
- * string and template literals intact, so the import/regex detectors do not
- * trip on commented-out examples or on `//` inside URLs and string literals.
+ * Remove `//` line comments and block comments from TS source while leaving string and
+ * template literals intact, so the import/regex detectors do not trip on commented-out
+ * examples or on `//` inside URLs.
  *
- * This is a small char-state scanner — sufficient for our own controlled
- * source. Regex literals are NOT specially tracked (a bare `/` is treated as
- * an ordinary character unless it opens `//` or `/*`), which is safe here:
- * the only consequence is that a `/*` appearing inside a regex literal could
- * be mis-stripped, a pattern we do not write.
+ * A small char-state scanner, sufficient for our own controlled source. Regex literals are
+ * NOT specially tracked, so a `/*` inside one could be mis-stripped — a pattern we do not
+ * write.
  */
 export function stripComments(text: string): string {
   let out = '';
@@ -185,6 +179,75 @@ export function isLanguageServerSpecifier(spec: string): boolean {
   return /(?:^|\/)platformos-language-server(?:-[a-z]+)?(?:$|\/)/.test(spec);
 }
 
+/**
+ * True when the specifier is the LSP WIRE — the protocol, transport, JSON-RPC and
+ * document-manager packages, which is the surface invariant #1 actually bans. An LSP
+ * `Diagnostic`, `Connection` or `TextDocuments` anywhere here means a second protocol has
+ * been introduced.
+ *
+ * `vscode-uri` is deliberately NOT matched: a URI helper `platformos-common` already
+ * depends on, carrying no protocol.
+ */
+export function isLspProtocolSpecifier(spec: string): boolean {
+  const pkg = spec.split('/')[0];
+  return /^vscode-(?:languageserver|jsonrpc)(?:-[a-z]+)*$/.test(pkg);
+}
+
+/**
+ * True when the specifier is a language-server RUNTIME — a package whose job is to boot a
+ * server over a transport. Distinguished from `-common`, which is a LIBRARY of pure
+ * functions over check-common types.
+ */
+export function isLanguageServerRuntimeSpecifier(spec: string): boolean {
+  return /(?:^|\/)platformos-language-server-(?:node|browser)(?:$|\/)/.test(spec);
+}
+
+/** One `import`/`export ... from` statement, reduced to what an allowlist needs to judge it. */
+export interface ModuleImport {
+  /** The module specifier. */
+  spec: string;
+  /** Named bindings, in SOURCE spelling (`render` for `render as r`). */
+  named: string[];
+  /**
+   * True for a namespace (`* as ns`) or default binding. An allowlist cannot constrain
+   * either — `ns.createConnection` is reachable without naming it at the import — so
+   * these are refused outright for the packages that carry an allowlist.
+   */
+  wildcard: boolean;
+}
+
+const IMPORT_CLAUSE = /\b(?:import|export)\s+(?:type\s+)?([^'";]*?)\s*\bfrom\s*['"]([^'"]+)['"]/g;
+
+/**
+ * Parse `import`/`export ... from` statements into {@link ModuleImport}s.
+ *
+ * Deliberately narrower than {@link extractImportSpecifiers}, which answers "is this module
+ * reachable at all"; this answers "and WHICH bindings were taken from it", which is what
+ * lets one package be allowed for its pure helpers and refused for its server.
+ */
+export function extractImports(text: string): ModuleImport[] {
+  const code = stripComments(text);
+  const imports: ModuleImport[] = [];
+  IMPORT_CLAUSE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = IMPORT_CLAUSE.exec(code)) !== null) {
+    const [, clause, spec] = m;
+    const braces = /\{([^}]*)\}/.exec(clause);
+    const named = braces
+      ? braces[1]
+          .split(',')
+          .map((binding) => binding.trim().split(/\s+as\s+/)[0].trim())
+          .filter((name) => name.length > 0 && name !== 'type')
+      : [];
+    // Anything outside the braces that is not whitespace or a comma is a namespace or
+    // default binding.
+    const outsideBraces = clause.replace(/\{[^}]*\}/, '').trim();
+    const wildcard = outsideBraces.replace(/,/g, '').trim().length > 0;
+    imports.push({ spec, named, wildcard });
+  }
+  return imports;
+}
+
 /** Node core / I/O modules that a PURE layer must never import. `path` is intentionally allowed (string ops, no I/O). */
 export const IO_MODULES: ReadonlySet<string> = new Set([
   'fs',
@@ -240,6 +303,26 @@ export function hasMessageRegexParsing(text: string): { line: number; snippet: s
     }
   }
   return null;
+}
+
+const DECLARATION =
+  /\b(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:abstract\s+)?(?:class|function|interface|enum|const|let|var|type)\s+([A-Za-z_$][\w$]*)/g;
+
+/**
+ * Names DECLARED by this source — classes, functions, types, consts.
+ *
+ * Deliberately not "names mentioned": the invariant is about re-implementing a
+ * capability another package owns, and IMPORTING `findRoot` or naming
+ * `AugmentedPlatformOSDocset` in a comment is the opposite of the violation. Only a
+ * declaration creates a second implementation.
+ */
+export function declaredSymbols(text: string): string[] {
+  const code = stripComments(text);
+  const names = new Set<string>();
+  DECLARATION.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = DECLARATION.exec(code)) !== null) names.add(m[1]);
+  return [...names];
 }
 
 /** True when the source reintroduces the old regex re-parsing layer by name. */

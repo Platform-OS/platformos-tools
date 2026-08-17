@@ -8,12 +8,6 @@ import { backfillDocs } from './index';
 /**
  * `backfillDocs` had specs for each of its three helpers and none for the command
  * itself, so nothing pinned what it actually writes.
- *
- * The second test is also what makes the read path observable: the partial is read
- * through the `app` this command already builds, and an app carrying an unsaved buffer
- * therefore documents THAT content. Read it from disk again instead and the buffer's
- * variable is invisible — so the pair distinguishes the two implementations, which
- * counting reads cannot (the old read went straight to `node:fs/promises`).
  */
 describe('Unit: backfillDocs', () => {
   const PAGE = "{% function res = 'helper', title: 'x', count: 2 %}";

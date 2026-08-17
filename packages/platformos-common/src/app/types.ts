@@ -47,26 +47,22 @@ export type Parsers = {
 };
 
 /**
- * Every source this toolchain can parse, and what it is parsed as. **A whitelist:
- * a file is parsed if and only if it has a row here.**
+ * Every source this toolchain can parse, and what it is parsed as. **A whitelist: a file is
+ * parsed if and only if it has a row here.**
  *
- * That is the entire exclusion mechanism. Do not add a list of extensions to skip
- * anywhere in the toolchain: an ignore-list lives in whichever consumer remembered to
- * consult it, whereas absence cannot be forgotten.
+ * That is the entire exclusion mechanism. Do not add a list of extensions to skip anywhere in
+ * the toolchain: an ignore-list lives in whichever consumer remembered to consult it, whereas
+ * absence cannot be forgotten.
  *
- * Keyed by {@link sourceKeyOf}, not by the bare extension, because a `.liquid` file's
- * body language is its RESPONSE FORMAT: `users.json.liquid` is a Liquid template
- * producing JSON, `theme.css.liquid` one producing CSS. The `.liquid` suffix in each key
- * keeps that separate from a plain `.json` or `.css` file, which is not a platformOS
- * source at all.
+ * Keyed by {@link sourceKeyOf}, not by the bare extension, because a `.liquid` file's body
+ * language is its RESPONSE FORMAT: `users.json.liquid` is a Liquid template producing JSON,
+ * `theme.css.liquid` one producing CSS. The `.liquid` suffix in each key keeps that separate
+ * from a plain `.json` or `.css` file, which is not a platformOS source at all.
  *
- * `css` and `js` are the two entries of the platform's twelve-value FORMAT_ENUM
- * (`app/models/concerns/custom_view.rb:9`) with no row: their body is a stylesheet or a
- * script, and the Liquid+HTML parser reads the `<` in `a < b` as a tag.
- *
- * `.json` has no row either: a platformOS app has no JSON source type. JSON responses
- * come from `.json.liquid`, and the only `.json` files the platform deploys are generated
- * manifests no check looks at. Ruby's `App::REGEXP_MAP` has no JSON entry.
+ * `css` and `js` are the two entries of the platform's twelve-value FORMAT_ENUM with no row:
+ * their body is a stylesheet or a script, and the Liquid+HTML parser reads the `<` in `a < b`
+ * as a tag. `.json` has no row either — JSON responses come from `.json.liquid`, and Ruby's
+ * `App::REGEXP_MAP` has no JSON entry.
  */
 const SOURCE_CODE_TYPE_BY_KEY: Readonly<Record<string, SourceCodeType>> = {
   'html.liquid': SourceCodeType.LiquidHtml,

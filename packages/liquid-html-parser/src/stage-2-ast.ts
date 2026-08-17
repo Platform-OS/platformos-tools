@@ -1,36 +1,9 @@
 /**
- * This is the second stage of the parser.
+ * The second stage of the parser: Concrete Syntax Tree -> Abstract Syntax Tree.
  *
- * Input:
- *  - A Concrete Syntax Tree (CST)
- *
- * Output:
- *  - An Abstract Syntax Tree (AST)
- *
- * This stage traverses the flat tree we get from the previous stage and
- * establishes the parent/child relationship between the nodes.
- *
- * Recall the Liquid example we had in the first stage:
- *   {% if cond %}hi <em>there!</em>{% endif %}
- *
- * Whereas the previous stage gives us this CST:
- *   - LiquidTagOpen/if
- *     condition: LiquidVariableExpression/cond
- *   - TextNode/"hi "
- *   - HtmlTagOpen/em
- *   - TextNode/"there!"
- *   - HtmlTagClose/em
- *   - LiquidTagClose/if
- *
- * We now traverse all the nodes and turn that into a proper AST:
- *   - LiquidTag/if
- *     condition: LiquidVariableExpression
- *     children:
- *       - TextNode/"hi "
- *       - HtmlElement/em
- *         children:
- *           - TextNode/"there!"
- *
+ * It traverses the flat tree from stage 1 and establishes the parent/child relationships, so
+ * the CST for `{% if cond %}hi <em>there!</em>{% endif %}` — six siblings — becomes a
+ * `LiquidTag/if` whose children are the text node and an `HtmlElement/em` holding its own.
  */
 
 import {
@@ -733,27 +706,9 @@ interface LiquidBranchNode<Name, Markup> extends ASTNode<NodeTypes.LiquidBranch>
   /**
    * The liquid tag name of the branch, null when the first branch.
    *
-   * {% if condA %}
-   *   defaultBranchContents
-   * {% elseif condB %}
-   *   elsifBranchContents
-   * {% endif %}
-   *
-   * This creates the following AST:
-   *   type: LiquidTag
-   *   name: if
-   *   markup: condA
-   *   children:
-   *     - type: LiquidBranch
-   *       name: null
-   *       markup: ''
-   *       children:
-   *         - defaultBranchContents
-   *     - type: LiquidBranch
-   *       name: elsif
-   *       markup: condB
-   *       children:
-   *         - elsifBranchContents
+   * `{% if condA %}…{% elsif condB %}…{% endif %}` becomes a `LiquidTag/if` with markup `condA`
+   * whose children are two `LiquidBranch`es: the first with `name: null` and empty markup, the
+   * second named `elsif` with markup `condB`.
    */
   name: Name;
 

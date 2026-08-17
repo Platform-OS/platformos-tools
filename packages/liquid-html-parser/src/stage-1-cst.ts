@@ -1,33 +1,13 @@
 /**
- * This is the first stage of the parser.
+ * The first stage of the parser: source string -> Concrete Syntax Tree (`LiquidHtmlCST`).
  *
- * Input:
- *   Source code: string
+ * OhmJS's `toAST` turns the Ohm nodes into an "almost-AST", called a CST here because it keeps
+ * Open and Close as separate nodes and is mostly FLAT — every node is a sibling.
  *
- * Output:
- *   Concrete Syntax Tree (CST): LiquidHtmlCST
+ *   {% if cond %}hi <em>there!</em>{% endif %}
  *
- * We use OhmJS's toAST method to turn the OhmJS nodes into an "almost-AST." We
- * call that a Concrete Syntax Tree because it considers Open and Close nodes as
- * separate nodes.
- *
- * It is mostly "flat."
- *
- * e.g.
- * {% if cond %}hi <em>there!</em>{% endif %}
- *
- * becomes
- * - LiquidTagOpen/if
- *   condition: LiquidVariableExpression/cond
- * - TextNode/"hi "
- * - HtmlTagOpen/em
- * - TextNode/"there!"
- * - HtmlTagClose/em
- * - LiquidTagClose/if
- *
- * In the Concrete Syntax Tree, all nodes are siblings instead of having a
- * parent/children relationship.
- *
+ * becomes LiquidTagOpen/if, TextNode/"hi ", HtmlTagOpen/em, TextNode/"there!", HtmlTagClose/em,
+ * LiquidTagClose/if.
  */
 
 import { Parser } from 'prettier';

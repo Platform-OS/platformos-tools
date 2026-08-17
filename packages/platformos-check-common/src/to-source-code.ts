@@ -76,19 +76,14 @@ export const sourceParsers: Parsers = {
 /**
  * Parse a file's contents into a {@link SourceCode}.
  *
- * Which `SourceCodeType` an extension gets is NOT decided here — `sourceCodeTypeOf`
- * in `platformos-common` owns that, the same answer `AppFile` uses, so a document
- * opened in the editor and the same file seen by the linter can never be modelled
- * as two different things.
+ * Which `SourceCodeType` an extension gets is NOT decided here — `sourceCodeTypeOf` in
+ * `platformos-common` owns that, the same answer `AppFile` uses, so a document opened in the
+ * editor and the same file seen by the linter cannot be modelled as two different things.
  *
- * The `undefined` case is where this function deliberately differs from the App
- * model. `sourceCodeTypeOf` returns `undefined` for anything that is not a
- * platformOS source, because the linter has nothing to say about it; but this
- * function also serves the language server's `DocumentManager`, which holds every
- * buffer the editor opens — including the `.json` files the JSON language service
- * answers hover/completion for. So an unrecognised extension is modelled as JSON
- * rather than refused. That is an EDITOR fallback, not a classification: `App`
- * still contains no JSON file, and no `.json` on disk is a platformOS source.
+ * The `undefined` case deliberately differs from the App model: this function also serves the
+ * language server's `DocumentManager`, which holds every buffer the editor opens, so an
+ * unrecognised extension is modelled as JSON rather than refused. That is an EDITOR fallback,
+ * not a classification — `App` still contains no JSON file.
  */
 export function toSourceCode(
   uri: string,

@@ -56,6 +56,12 @@ export function graphQLPath(destination: string = root) {
   return path.join(destination, `graphql.graphql`);
 }
 
+/**
+ * How long any docs request may take. `setup()` runs a revision check on the LINT path, so an
+ * unbounded request hung every consumer that lints for as long as the host held the socket open.
+ */
+export const DOWNLOAD_TIMEOUT_MS = 3_000;
+
 export async function download(path: string, log: Logger) {
   if (path.startsWith('file:')) {
     return await fs
@@ -67,7 +73,7 @@ export async function download(path: string, log: Logger) {
       });
   } else {
     log(path);
-    const res = await fetch(path);
+    const res = await fetch(path, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
     // A NON-2xx BODY IS NOT DATA. Without this the CDN's own error page — an HTML document
     // served with a 404 or a 502 — was written into `filters.json` verbatim, and the failure
     // surfaced later as a parse error against a file that looks committed and correct.

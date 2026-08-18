@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import publishedLiquidDoc from '../data/liquid_doc.json';
 
-import { downloadPlatformOSLiquidDocs, graphQLPath } from './platformOSLiquidDocsDownloader';
+import {
+  DOWNLOAD_TIMEOUT_MS,
+  download,
+  downloadPlatformOSLiquidDocs,
+  graphQLPath,
+} from './platformOSLiquidDocsDownloader';
 import { noop } from './utils';
 
 /**
@@ -181,5 +186,59 @@ describe('Module: downloadPlatformOSLiquidDocs', () => {
     await run();
 
     expect(written.get(graphQLPath(DESTINATION))).toEqual('type Query { a: String }');
+  });
+});
+
+/**
+ * A stalled documentation host must not hang a consumer. `setup()` runs a revision check on the
+ * LINT path, so before this was bounded a host that accepted the connection and never answered hung
+ * `pos-cli check`, the language server and the MCP supervisor for as long as it held the socket —
+ * and timed a CI job out, which is how it was found.
+ */
+describe('download is bounded by a timeout', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Records what `download` hands `fetch`, then fails fast so nothing is left pending. */
+  function stubRefusingFetch() {
+    const seen: (AbortSignal | undefined)[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { signal?: AbortSignal }) => {
+        seen.push(init?.signal);
+        throw new Error('refused');
+      }),
+    );
+    return seen;
+  }
+
+  it('gives fetch an abort signal, so a host that never answers cannot hang the caller', async () => {
+    const seen = stubRefusingFetch();
+
+    await expect(download('https://example.test/latest.json', noop)).rejects.toThrow('refused');
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBeInstanceOf(AbortSignal);
+    expect(seen[0]!.aborted).toBe(false);
+  });
+
+  it('bounds requests generously against their measured cost, and under a caller budget', () => {
+    // Measured against the live host: the revision check ~450 ms, and the largest resource — the
+    // 363 KB GraphQL schema — ~230 ms, because latency dominates rather than size. One bound
+    // therefore serves every request.
+    expect(DOWNLOAD_TIMEOUT_MS).toBeGreaterThan(2_000);
+    // A lint performs a revision check among other work, and vitest's default per-test budget is
+    // 5s. A bound at or above that still times the caller out, which is the failure this fixes.
+    expect(DOWNLOAD_TIMEOUT_MS).toBeLessThan(5_000);
+  });
+
+  it('passes no signal for a file: URL, which never touches the network', async () => {
+    const seen = stubRefusingFetch();
+    const readFile = vi.mocked((await import('node:fs/promises')).default.readFile);
+    readFile.mockResolvedValueOnce('{"revision":"local"}' as never);
+
+    await expect(download('file:/tmp/latest.json', noop)).resolves.toEqual('{"revision":"local"}');
+    expect(seen).toEqual([]);
   });
 });

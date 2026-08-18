@@ -533,8 +533,9 @@ describe('Unit: Stage 2 (AST)', () => {
         // `name` gives the start and a bracket lookup's node begins INSIDE the brackets, so the
         // last lookup's end falls one short of the `]`. Asserting the SLICE rather than offsets
         // states the contract in the terms a consumer needs it, and the notations below are every
-        // one the grammar accepts — including the whitespace variants, which are why this cannot
-        // be "last lookup end plus one".
+        // one the grammar accepts — including the whitespace INSIDE the brackets, which is why this
+        // cannot be "last lookup end plus one". Whitespace BEFORE the key path is not among them;
+        // `assign-target-spacing.spec.ts` owns that boundary.
         const targets = [
           `x`,
           `x['k']`,
@@ -545,7 +546,6 @@ describe('Unit: Stage 2 (AST)', () => {
           `x['a']['b']`,
           `x['a'].b`,
           `x[ 'k' ]`,
-          `x [ 'k' ]`,
           `x[y]`,
         ];
 

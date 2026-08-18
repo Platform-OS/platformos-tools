@@ -12,6 +12,10 @@ const messagesFor = async (source: string) =>
     .map((offense) => offense.message)
     .filter((message) => message.includes('hash_assign target must end in a bracket'));
 
+/** Every message, from any detector in the check — what the author actually sees. */
+const allMessagesFor = async (source: string) =>
+  (await runLiquidCheck(LiquidHTMLSyntaxError, source)).map((offense) => offense.message);
+
 /**
  * ONE message for both shapes the detector reports. The dot target and the bare target have the
  * same repair — each is valid under `{% assign %}` — so telling them apart would buy the author
@@ -31,10 +35,25 @@ const PLATFORM_REJECTS: Array<[label: string, target: string]> = [
   ['bracket then dot', `h['a'].b`],
   ['double-quoted bracket then dot', `h["a"].b`],
   ['numeric bracket then dot', `h[0].b`],
-  ['spaced dot', `h . k`],
   ['dot with question mark', `h.k?`],
   ['no subscript at all', `h`],
 ];
+
+/**
+ * The platform refuses these because of the SPACE, before the target notation is even reached, so
+ * the grammar refuses them and this detector never receives a structured target. They are still
+ * reported — by `InvalidTagSyntax`, off the raw markup — which is what the last test here pins.
+ */
+const REFUSED_BY_THE_GRAMMAR: Array<[label: string, target: string]> = [
+  ['space before the brackets', `h [ 'k' ]`],
+  ['space before the brackets, tight key', `h ['k']`],
+  ['spaced dot', `h . k`],
+  ['space before the dot', `h .k`],
+];
+
+const INVALID_TAG_SYNTAX =
+  "Invalid syntax for tag 'hash_assign' Expected syntax: {% hash_assign variable['key'] = value %} " +
+  "(DEPRECATED - use {% assign variable['key'] = value %} instead)";
 
 /** Measured to ASSIGN — the final subscript is a bracket. */
 const PLATFORM_ACCEPTS: Array<[label: string, target: string]> = [
@@ -47,14 +66,6 @@ const PLATFORM_ACCEPTS: Array<[label: string, target: string]> = [
   ['numeric index', `h[0]`],
   ['non-identifier key', `h['k-1']`],
   ['space inside the brackets', `h[ 'k' ]`],
-];
-
-/**
- * NOT this detector's business, and NOT accepted by the platform either — recorded so the
- * distinction is not lost.
- */
-const PLATFORM_REJECTS_BUT_NOT_FOR_NOTATION: Array<[label: string, target: string]> = [
-  ['space before the brackets', `h [ 'k' ]`],
 ];
 
 describe('detectInvalidHashAssignTargetSyntax', () => {
@@ -87,20 +98,35 @@ describe('detectInvalidHashAssignTargetSyntax', () => {
     );
   });
 
-  it('stays silent on a target the platform refuses for a reason that is not notation', async () => {
-    // A KNOWN FALSE APPROVAL, asserted rather than left implicit. Silence here is right for
-    // THIS detector — the target ends in a bracket, so its rule is satisfied — and wrong for
-    // the toolchain, which reports nothing at all about a parse error that fails the whole
-    // changeset. Pinning it means the gap is visible in the diff if someone "fixes" it here,
-    // where the message would tell the author to change a `.` they did not write.
+  it('leaves a target refused for its SPACING to the grammar, and it is still reported', async () => {
+    // This detector is silent because its own rule is satisfied — the target ends in a bracket —
+    // while the space makes the markup unparseable one layer up. Both halves are asserted: silence
+    // alone would pass just as happily if the construct stopped being reported by anyone, which is
+    // the false approval this used to pin.
     const reported = await Promise.all(
-      PLATFORM_REJECTS_BUT_NOT_FOR_NOTATION.map(async ([label, target]) => [
-        label,
-        await messagesFor(`${HASH}{% hash_assign ${target} = 1 %}`),
-      ]),
+      REFUSED_BY_THE_GRAMMAR.map(async ([label, target]) => {
+        const source = `${HASH}{% hash_assign ${target} = 1 %}`;
+        return [label, { own: await messagesFor(source), all: await allMessagesFor(source) }];
+      }),
     );
 
-    expect(Object.fromEntries(reported)).toEqual({ 'space before the brackets': [] });
+    expect(Object.fromEntries(reported)).toEqual(
+      Object.fromEntries(
+        REFUSED_BY_THE_GRAMMAR.map(([label]) => [label, { own: [], all: [INVALID_TAG_SYNTAX] }]),
+      ),
+    );
+  });
+
+  it('says nothing about the spellings the platform accepts, spaced keys included', async () => {
+    // The control for the rule above: the narrowing is scoped to the space BEFORE the key path, so
+    // a space inside the brackets must stay silent everywhere.
+    const accepted = [`h['k']`, `h[ 'k' ]`, `h['k' ]`, `h[ 'k']`, `h['a']['b']`, `h.a['b']`];
+
+    expect(
+      await Promise.all(
+        accepted.map((target) => allMessagesFor(`${HASH}{% hash_assign ${target} = 1 %}`)),
+      ),
+    ).toEqual(accepted.map(() => []));
   });
 
   it('reports the whole offense, so the message and range are pinned', async () => {

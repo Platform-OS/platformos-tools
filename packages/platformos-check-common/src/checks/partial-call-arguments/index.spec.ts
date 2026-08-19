@@ -585,4 +585,53 @@ describe('Module: PartialCallArguments', () => {
       ]);
     });
   });
+
+  // ─── A partial that rebuilds its own input ────────────────────────────────
+
+  /**
+   * `{% parse_json object %}{ … {{ object.x }} … }{% endparse_json %}` is the shape of nearly
+   * every `build.liquid` in the platformOS modules: the body reads the caller's `object` and
+   * the tag assigns the normalized result over it. The body runs BEFORE the assignment, so
+   * `object` is an input; scoping the target from the opening tag hid that and turned the one
+   * argument every caller passes into "Unknown parameter object".
+   */
+  it('should not call the parse_json target unknown when the body reads it', async () => {
+    const files = {
+      'app/lib/commands/email/send/build.liquid': `
+        {% parse_json object %}
+          {
+            "to": {{ object.to | json }}
+          }
+        {% endparse_json %}
+        {% return object %}
+      `,
+      'app/lib/caller.liquid': `
+        {% function object = 'commands/email/send/build', object: object %}
+      `,
+    };
+
+    const offenses = await check(files, [PartialCallArguments]);
+
+    expect(offenses.map((offense) => offense.message)).toEqual([]);
+  });
+
+  it('should still report an argument the parse_json target never reads', async () => {
+    const files = {
+      'app/lib/commands/build.liquid': `
+        {% parse_json object %}
+          { "a": 1 }
+        {% endparse_json %}
+        {% return object %}
+      `,
+      'app/lib/caller.liquid': `
+        {% function object = 'commands/build', unrelated: 2 %}
+      `,
+    };
+
+    const offenses = await check(files, [PartialCallArguments]);
+
+    expect(offenses.map((offense) => offense.message)).toEqual([
+      'Unknown parameter unrelated passed to function call',
+    ]);
+  });
 });

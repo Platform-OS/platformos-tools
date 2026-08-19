@@ -20,6 +20,15 @@ const matchersByConfig = new WeakMap<Config, Map<string | symbol, Minimatch[]>>(
 const GLOBAL = Symbol('global ignore');
 
 /**
+ * The global verdict per subject, per config — the answer that does not depend on which check
+ * is asking, so it is remembered once per file rather than once per (file, check).
+ *
+ * Keyed on the subject AS SPELLED, since canonicalizing is the cost being avoided: two
+ * spellings of one file get two entries holding the same answer.
+ */
+const globalVerdictByConfig = new WeakMap<Config, Map<string, boolean>>();
+
+/**
  * Whether `config` ignores the file — however the caller spells it.
  *
  * `uriFromPathOrUri` puts the subject in the normalized-URI spelling the patterns are
@@ -29,8 +38,36 @@ const GLOBAL = Symbol('global ignore');
  * strings, and "which files are ignored" must not depend on who asked.
  */
 export function isIgnored(pathOrUri: string, config: Config, checkDef?: CheckDefinition): boolean {
+  // Matching one list is an OR, so consulting the global half first cannot change the
+  // answer — only how often each half is evaluated.
+  if (globalVerdict(config, pathOrUri)) return true;
+
+  const own = ownMatchers(config, checkDef);
+  if (own.length === 0) return false;
+
   const subject = uriFromPathOrUri(pathOrUri);
-  return matchers(config, checkDef).some((matcher) => matcher.match(subject));
+  return own.some((matcher) => matcher.match(subject));
+}
+
+/** Whether the config's own `ignore` — the part no check can change — covers this file. */
+function globalVerdict(config: Config, pathOrUri: string): boolean {
+  const compiled = globalMatchers(config);
+  // No patterns — the common case — means nothing to remember and no subject to canonicalize.
+  if (compiled.length === 0) return false;
+
+  let bySubject = globalVerdictByConfig.get(config);
+  if (!bySubject) {
+    bySubject = new Map();
+    globalVerdictByConfig.set(config, bySubject);
+  }
+
+  let verdict = bySubject.get(pathOrUri);
+  if (verdict === undefined) {
+    const subject = uriFromPathOrUri(pathOrUri);
+    verdict = compiled.some((matcher) => matcher.match(subject));
+    bySubject.set(pathOrUri, verdict);
+  }
+  return verdict;
 }
 
 /**
@@ -42,26 +79,40 @@ export function isIgnored(pathOrUri: string, config: Config, checkDef?: CheckDef
  * 3139-file project, all of it to be told there is nothing to match against.
  */
 export function hasIgnorePatterns(config: Config, checkDef?: CheckDefinition): boolean {
-  return matchers(config, checkDef).length > 0;
+  return globalMatchers(config).length > 0 || ownMatchers(config, checkDef).length > 0;
 }
 
-function matchers(config: Config, checkDef?: CheckDefinition): Minimatch[] {
+/** The config's global `ignore`, compiled once per config. */
+function globalMatchers(config: Config): Minimatch[] {
+  return compiled(config, GLOBAL, asArray(config.ignore));
+}
+
+/**
+ * The patterns `checkDef` configures FOR ITSELF, compiled once per (config, check) — the
+ * global ones are never concatenated onto these, or they would be compiled and matched once
+ * per check. `ignore.spec.ts` pins the exact set of `Minimatch` constructions.
+ */
+function ownMatchers(config: Config, checkDef?: CheckDefinition): Minimatch[] {
+  if (!checkDef) return [];
+  return compiled(config, checkDef.meta.code, checkIgnorePatterns(checkDef, config));
+}
+
+function compiled(config: Config, key: string | symbol, patterns: string[]): Minimatch[] {
   let byCheck = matchersByConfig.get(config);
   if (!byCheck) {
     byCheck = new Map();
     matchersByConfig.set(config, byCheck);
   }
 
-  const key = checkDef?.meta.code ?? GLOBAL;
-  let compiled = byCheck.get(key);
-  if (!compiled) {
-    compiled = [...checkIgnorePatterns(checkDef, config), ...asArray(config.ignore)]
+  let matchers = byCheck.get(key);
+  if (!matchers) {
+    matchers = patterns
       .map((pattern) => rewrite(pattern, config.rootUri))
       .map((pattern) => new Minimatch(pattern));
-    byCheck.set(key, compiled);
+    byCheck.set(key, matchers);
   }
 
-  return compiled;
+  return matchers;
 }
 
 function rewrite(pattern: string, rootUri: string): string {

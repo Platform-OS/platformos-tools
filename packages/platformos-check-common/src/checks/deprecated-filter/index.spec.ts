@@ -232,4 +232,62 @@ describe('Module: DeprecatedFilter', () => {
       expect(offenses[0].suggest).toBeUndefined();
     });
   });
+
+  // ─── A rewrite deprecation only fires on template-authored JSON ───────────
+
+  /**
+   * `parse_json` names `assign` as its replacement, which is a TAG: the migration is
+   * `'{"a":1}' | parse_json` -> `{ "a": 1 }` as markup, and it only exists for JSON the template
+   * itself wrote. These four tests pin the line between the two.
+   */
+  describe('a deprecation whose successor is not a filter', () => {
+    const rewriteDependencies = {
+      platformosDocset: {
+        ...mockDependencies.platformosDocset,
+        async filters() {
+          return [
+            {
+              name: 'parse_json',
+              deprecated: true,
+              deprecation_replacement: 'assign',
+            },
+            { name: 'default' },
+            { name: 'hash_merge' },
+          ];
+        },
+      },
+    };
+
+    const messagesFor = async (sourceCode: string) => {
+      const offenses = await runLiquidCheck(
+        DeprecatedFilter,
+        sourceCode,
+        'app/views/partials/file.liquid',
+        rewriteDependencies,
+      );
+      return offenses.map((offense) => offense.message);
+    };
+
+    it('reports a string literal, which is what the rewrite applies to', async () => {
+      expect(await messagesFor(`{% assign a = '{"a":1}' | parse_json %}`)).toEqual([
+        "Deprecated filter 'parse_json'.",
+      ]);
+    });
+
+    it('reports a string literal that goes on to be merged', async () => {
+      expect(await messagesFor(`{% assign a = '{}' | parse_json | hash_merge: b: 1 %}`)).toEqual([
+        "Deprecated filter 'parse_json'.",
+      ]);
+    });
+
+    it('stays silent on a runtime string, which has no rewrite', async () => {
+      expect(await messagesFor(`{% assign a = response.body | parse_json %}`)).toEqual([]);
+    });
+
+    it('stays silent when a preceding filter produced the input', async () => {
+      expect(
+        await messagesFor(`{% assign a = errors[field] | default: '[]' | parse_json %}`),
+      ).toEqual([]);
+    });
+  });
 });

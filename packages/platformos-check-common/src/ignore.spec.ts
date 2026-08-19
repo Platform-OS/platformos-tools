@@ -201,13 +201,16 @@ describe('Function: isIgnored', () => {
     );
 
     expect(results).toEqual(Array.from({ length: 50 }, () => false));
+    // Global patterns are consulted first, so they are the first thing compiled.
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
-      ['**/app/views/partials/*.liquid'],
       ['**/modules/common-styling/**'],
+      ['**/app/views/partials/*.liquid'],
     ]);
   });
 
-  it('should compile the check-less and the per-check pattern sets separately, each once', () => {
+  // A third entry here means the global list has been folded back into a per-check set, and
+  // so is compiled and matched once per check.
+  it('should compile the global patterns once and the per-check patterns once', () => {
     const sharedConfig = config({
       checkIgnore: ['app/views/partials/*.liquid'],
       globalIgnore: ['modules/common-styling/**'],
@@ -224,8 +227,35 @@ describe('Function: isIgnored', () => {
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
       ['**/modules/common-styling/**'],
       ['**/app/views/partials/*.liquid'],
-      ['**/modules/common-styling/**'],
     ]);
+  });
+
+  // The per-file memo must not mask a pattern only ONE check configures. The `false` in the
+  // expectation is the control: a memo wide enough to answer for every check passes the rest.
+  it('should serve one global verdict per file while keeping per-check answers distinct', () => {
+    const otherCheckDef: CheckDefinition = {
+      ...checkDef,
+      meta: { ...checkDef.meta, code: 'OtherCheck' },
+    };
+    const sharedConfig: Config = {
+      settings: {
+        MockCheck: { enabled: true, ignore: ['app/views/partials/*.liquid'] },
+        OtherCheck: { enabled: true, ignore: [] },
+      },
+      checks: [],
+      rootUri: 'file:/path/to',
+      ignore: ['modules/common-styling/**'],
+    };
+
+    const partial = toUri('app/views/partials/foo.liquid');
+    const vendored = toUri('modules/common-styling/foo.liquid');
+
+    expect([
+      isIgnored(partial, sharedConfig, checkDef),
+      isIgnored(partial, sharedConfig, otherCheckDef),
+      isIgnored(vendored, sharedConfig, checkDef),
+      isIgnored(vendored, sharedConfig, otherCheckDef),
+    ]).toEqual([true, false, true, true]);
   });
 
   it('should compile a different config on its own', () => {

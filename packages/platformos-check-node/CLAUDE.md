@@ -156,18 +156,33 @@ previous calls lazily loaded. Reconciliation is therefore three rules, in
 - files the walk no longer sees are dropped, files it did not know are added;
 - files whose source is IN MEMORY are `stat`ed and dropped if their `mtime`/`size`
   moved — that is the handful a single-file lint touched, not the project. The
-  baseline is established at this REVALIDATION, not by the read (a `stat` before
-  every read cost +25% on whole-project commands for a comparison a one-shot
-  process never makes), so a file's first revalidation always drops it: one
-  conservative re-read per file, once. The baseline is recorded before the re-read
-  that follows it, so a write racing that read still fails the next comparison —
-  revalidation can re-read a file that did not need it, never trust one that did;
+  baseline comes from the READ: `AppFile` stats each file immediately before reading
+  it and keeps that as `loadedStat`, so a file read on call N is already vouched for
+  on call N+1 and is KEPT. It used to be established at the revalidation instead,
+  which could not vouch for what it found and so dropped everything once — a whole
+  second pass of reads and parses per process (12980 then 11094 ms on a 1509-file
+  project, where the second call now costs 2911 ms; 863 then 652 ms for a
+  single-buffer lint, now 843 then 110 ms). The `+25%` that justified the old order
+  is real but is +25-31% **of the read phase**, which is 122 ms of a ~10 s
+  whole-project lint: 37 ms of `stat` against ~7 s of discarded parses. The order
+  within the read is a correctness property, not a preference — a stat taken AFTER
+  the read can already reflect a write that landed during it, and pairing that
+  baseline with the older content is how a cache comes to trust stale source, so it
+  is taken BEFORE and the worst case is a re-read that was not needed;
 - files carrying an unsaved buffer are left alone by both rules.
 
-Retention is capped (`MAX_RETAINED_FILES`) and evicts in `AppFile.lastTouch` order —
+Retention is capped (`MAX_RETAINED_FILES`, 10 000) and evicts in `AppFile.lastTouch` order —
 every `load()` (cache hits included) and `ast` read counts as use — so the files
 that go are the ones no recent call consulted, not the earliest-read ones, which
 were precisely the render targets an agent's validate-loop keeps coming back to.
+
+`getSharedApp` and `getApp` take that cap as an optional last argument, defaulting to the
+shipped constant. It is a parameter so that the eviction RULES can be pinned at a fixture
+size every platform can afford: a spec sized to the shipped cap needs 10 000 files, which is
+past the 8192 descriptors Windows allows a process and slow enough to blow the spec timeout
+there. `shared-app.spec.ts` reconciles the eviction tests under a cap of 40 and pairs them
+with a control that reconciles the same fixture under the DEFAULT and must evict nothing —
+otherwise nothing would notice the default coming unwired from `MAX_RETAINED_FILES`.
 
 `resetSharedApp()` discards it. Compare URIs as STRINGS in this path: both sides are
 already normalized, and asking `App.has()` per path re-parses every URI in the project

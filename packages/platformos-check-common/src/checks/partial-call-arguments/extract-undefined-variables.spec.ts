@@ -119,8 +119,49 @@ describe('extractUndefinedVariables', () => {
     expect(result.optional).to.deep.equal([]);
   });
 
+  /**
+   * `body.score | default: 0.0` defaults the PROPERTY. The file still needs `body` — a score
+   * gate with no siteverify body to gate on has nothing to do — so this must not read as the
+   * file handling a missing `body`, which is what `RequiredDocParamWithDefault` acts on.
+   */
+  it('does not count a default on a property as defaulting the object', () => {
+    const source = `{% assign score = body.score | default: 0.0 %}{{ score }}`;
+    const result = extractUndefinedVariables(source);
+    // Still optional — a caller that omits `body` gets the fallback — but the file has not
+    // stated a default for `body` itself, which is the claim the doc check acts on.
+    expect(result.selfDefaulted).to.deep.equal([]);
+    expect(result.optional).to.deep.equal(['body']);
+    expect(result.required).to.deep.equal([]);
+  });
+
+  it('still counts a default on the bare variable', () => {
+    const source = `{% assign body = body | default: 0.0 %}{{ body }}`;
+    const result = extractUndefinedVariables(source);
+    expect(result.selfDefaulted).to.deep.equal(['body']);
+    expect(result.optional).to.deep.equal(['body']);
+  });
+
   it('should handle parse_json result variables', () => {
     const source = `{% parse_json data %}{"a":1}{% endparse_json %}{{ data }}`;
+    const result = extractUndefinedVariables(source);
+    expect(result.required).to.deep.equal([]);
+    expect(result.optional).to.deep.equal([]);
+  });
+
+  /**
+   * The body runs before the assignment, so `object` read INSIDE it is the caller's
+   * `object` — the shape of nearly every `build.liquid` in the platformOS modules. Scoping
+   * the target from the OPENING tag hid that read and made the partial look like it took no
+   * input at all, which is what `PartialCallArguments` turned into "Unknown parameter object".
+   */
+  it('counts a read inside the parse_json body as a read of the incoming value', () => {
+    const source = `{% parse_json object %}{"a": {{ object.a }}}{% endparse_json %}{% return object %}`;
+    const result = extractUndefinedVariables(source);
+    expect(result.required).to.deep.equal(['object']);
+  });
+
+  it('still treats a read after endparse_json as defined', () => {
+    const source = `{% parse_json object %}{"a":1}{% endparse_json %}{{ object.a }}`;
     const result = extractUndefinedVariables(source);
     expect(result.required).to.deep.equal([]);
     expect(result.optional).to.deep.equal([]);

@@ -381,8 +381,15 @@ describe('App.setSource', () => {
   it('wins over a read that was already in flight', async () => {
     const target = uri('app/views/partials/card.liquid');
     let release: (source: string) => void;
+    let readStarted: () => void;
+    // `load()` stats before it reads, so `readFile` is not called in the same tick — waiting
+    // for the read to actually begin is what makes this a race.
+    const reading = new Promise<void>((resolve) => (readStarted = resolve));
     const fs: AbstractFileSystem = {
-      readFile: () => new Promise<string>((resolve) => (release = resolve)),
+      readFile: () => {
+        readStarted();
+        return new Promise<string>((resolve) => (release = resolve));
+      },
       stat: explodingFs.stat,
       readDirectory: explodingFs.readDirectory,
     };
@@ -390,6 +397,7 @@ describe('App.setSource', () => {
     const file = app.get(target)!;
 
     const loading = file.load();
+    await reading;
     app.setSource(target, 'in buffer', 1);
     release!('on disk');
     await loading;
@@ -843,5 +851,80 @@ describe('App.findOrLocate', () => {
       expect(formattedFirst.find(PlatformOSFileType.Partial, 'json')!.uri).toBe(plain);
       expect(plainFirst.find(PlatformOSFileType.Partial, 'json')!.uri).toBe(plain);
     });
+  });
+});
+
+describe('AppFile.loadedStat', () => {
+  /** An `fs` that records the ORDER of its calls, and can actually answer a stat. */
+  class OrderRecordingFileSystem implements AbstractFileSystem {
+    readonly calls: string[] = [];
+
+    constructor(
+      private readonly source: string,
+      private readonly fileStat: FileStat,
+    ) {}
+
+    async stat(): Promise<FileStat> {
+      this.calls.push('stat');
+      return this.fileStat;
+    }
+
+    async readFile(): Promise<string> {
+      this.calls.push('readFile');
+      return this.source;
+    }
+
+    async readDirectory(): Promise<FileTuple[]> {
+      throw new Error('readDirectory should not be called');
+    }
+  }
+
+  const onDisk: FileStat = { type: FileType.File, size: 11, mtimeMs: 1_000, ctimeMs: 1_000 };
+  const target = uri('app/views/partials/card.liquid');
+
+  // The order is the guarantee, so it is asserted directly: a stat taken AFTER the read can
+  // reflect a write that landed during it, and pairing that with the older content in hand is
+  // how a cache comes to trust stale source. No unit test can schedule that race.
+  it('is the stat taken before the read, in that order', async () => {
+    const fs = new OrderRecordingFileSystem('<b>card</b>', onDisk);
+    const app = App.fromPaths(ROOT, [target], fs, trivialParsers());
+    const file = app.get(target)!;
+
+    await file.load();
+
+    expect(fs.calls).toEqual(['stat', 'readFile']);
+    expect(file.loadedStat).toEqual(onDisk);
+  });
+
+  it('is undefined, and the read still happens, when the filesystem cannot stat', async () => {
+    const fs = new CountingFileSystem({ [target]: '<b>card</b>' });
+    const app = App.fromPaths(ROOT, [target], fs, trivialParsers());
+    const file = app.get(target)!;
+
+    await file.load();
+
+    expect([file.source, file.loadedStat]).toEqual(['<b>card</b>', undefined]);
+  });
+
+  it('is dropped by a buffer, which no disk stat describes', async () => {
+    const fs = new OrderRecordingFileSystem('<b>card</b>', onDisk);
+    const app = App.fromPaths(ROOT, [target], fs, trivialParsers());
+    const file = app.get(target)!;
+
+    await file.load();
+    app.setSource(target, '<i>buffer</i>', 1);
+
+    expect([file.source, file.loadedStat]).toEqual(['<i>buffer</i>', undefined]);
+  });
+
+  it('is dropped by invalidate, along with the source it vouched for', async () => {
+    const fs = new OrderRecordingFileSystem('<b>card</b>', onDisk);
+    const app = App.fromPaths(ROOT, [target], fs, trivialParsers());
+    const file = app.get(target)!;
+
+    await file.load();
+    app.invalidate(target);
+
+    expect([file.loaded, file.loadedStat]).toEqual([false, undefined]);
   });
 });

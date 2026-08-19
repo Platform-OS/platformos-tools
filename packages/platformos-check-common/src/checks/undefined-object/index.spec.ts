@@ -639,6 +639,25 @@ describe('Module: UndefinedObject', () => {
     expect(offenses).toHaveLength(0);
   });
 
+  /**
+   * The body renders before the assignment, so this read is of the value the CALLER passed —
+   * an input this documented partial never declared, not the hash the tag is about to build.
+   */
+  it('should report a read of the parse_json target inside its own body with doc tag', async () => {
+    const sourceCode = `
+      {% doc %}
+      {% enddoc %}
+      {% parse_json groups_data %}
+        { "hello": {{ groups_data.hello | json }} }
+      {% endparse_json %}
+    `;
+
+    const offenses = await runLiquidCheck(UndefinedObject, sourceCode);
+
+    expect(offenses).toHaveLength(1);
+    expect(offenses[0].message).toBe("Unknown object 'groups_data' used.");
+  });
+
   it('should report an offense when parse_json variable is used before the tag with doc tag', async () => {
     const sourceCode = `
       {% doc %}

@@ -62,6 +62,16 @@ enough to read a file through is good enough to find it with.
 - **`source` THROWS when unloaded.** A silent `''` would turn "nobody awaited `load()`"
   into wrong lint results, which is much harder to find than a stack trace.
   `loadedSource` is the non-throwing read for "prefer an in-memory buffer over disk".
+- **`load()` stats before it reads, and `loadedStat` is that stat.** It is the freshness
+  baseline for a cache that outlives the call which filled it (check-node's shared `App`),
+  and the ORDER is a correctness property: observed before the read, the worst case is a
+  baseline describing an OLDER state than the content, which fails the next comparison and
+  re-reads; observed after, it could describe a write that landed during the read, and
+  pairing that with the older content in hand is how a cache comes to serve stale source.
+  `undefined` means "no baseline" — a buffer set by `setSource`, or a filesystem that cannot
+  `stat` — never "unchanged". This package records the observation and never interprets it;
+  check-node's `fingerprintOf`/`fingerprintOfStat` pair is the one place two of them are
+  compared, so the formatting cannot drift into two spellings that never match.
 - **Parsers are injected** (`Parsers`, keyed by `SourceCodeType` plus an `extensions`
   map). This package sits below `liquid-html-parser` / `jsonc-parser` / `yaml`, so it
   cannot parse anything itself — which is exactly what lets check-node, the language

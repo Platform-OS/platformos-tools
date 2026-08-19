@@ -138,4 +138,27 @@ describe('Module: RequiredDocParamWithDefault', () => {
       "MissingDocParam: The parameter 'legacy' is used but not declared in the doc tag of this file.",
     ]);
   });
+
+  /**
+   * The reCAPTCHA v3 score gate: `body.score | default: 0.5` is a default for the SCORE, and
+   * the partial cannot do its job without the body it is scoring. Bracketing `body` would have
+   * published a contract saying callers may omit it.
+   */
+  it('should not report a parameter whose PROPERTY is defaulted', async () => {
+    const sourceCode = `
+      {% doc %}
+        @param {object} body - parsed siteverify JSON
+      {% enddoc %}
+      {% liquid
+        assign score = body.score | default: 0.0
+        return score
+      %}
+    `;
+
+    const offenses = await check({ 'app/views/partials/score.liquid': sourceCode }, [
+      RequiredDocParamWithDefault,
+    ]);
+
+    expect(offenses).toEqual([]);
+  });
 });

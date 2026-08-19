@@ -1,4 +1,4 @@
-import { UriString } from '@platformos/platformos-common';
+import { FileStat, UriString } from '@platformos/platformos-common';
 
 import { NodeFileSystem } from './NodeFileSystem';
 
@@ -55,12 +55,22 @@ export function isKnownFingerprint(fingerprint: string): boolean {
 
 export async function fingerprintOf(uri: UriString): Promise<string> {
   try {
-    const stat = await NodeFileSystem.stat(uri);
-    if (stat.mtimeMs === undefined) return UNKNOWN;
-    return stat.ctimeMs === undefined
-      ? `${stat.mtimeMs}:${stat.size}`
-      : `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}`;
+    return fingerprintOfStat(await NodeFileSystem.stat(uri));
   } catch {
     return UNKNOWN;
   }
+}
+
+/**
+ * The same fingerprint, from a `FileStat` somebody else already took — `AppFile.loadedStat`,
+ * the stat taken just before a read. Shared with {@link fingerprintOf} rather than copied,
+ * because the comparison is a string equality: two spellings that drifted would never match.
+ *
+ * `undefined` is "the filesystem could not say", which is {@link UNKNOWN}.
+ */
+export function fingerprintOfStat(stat: FileStat | undefined): string {
+  if (stat?.mtimeMs === undefined) return UNKNOWN;
+  return stat.ctimeMs === undefined
+    ? `${stat.mtimeMs}:${stat.size}`
+    : `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}`;
 }

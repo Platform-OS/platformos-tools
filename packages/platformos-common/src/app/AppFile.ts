@@ -1,4 +1,4 @@
-import { AbstractFileSystem, UriString } from '../AbstractFileSystem';
+import { AbstractFileSystem, FileStat, UriString } from '../AbstractFileSystem';
 import {
   AppPathInfo,
   formatRank,
@@ -70,6 +70,7 @@ export class AppFile {
   private readonly parsers: Parsers;
 
   private loadedSourceValue: string | undefined;
+  private loadedStatValue: FileStat | undefined;
   private loadPromise: Promise<void> | undefined;
   private parsed: unknown;
   private hasParsed = false;
@@ -272,23 +273,60 @@ export class AppFile {
     return this.derivedValues.get(key) as T;
   }
 
+  /**
+   * What the filesystem said about this file just BEFORE {@link load} read it — the freshness
+   * baseline for a cache that outlives the call which filled it.
+   *
+   * Taken before the read, it can only describe the file at or before the moment the content
+   * was taken, so a write landing in between leaves an OLDER stat beside newer content and the
+   * next comparison re-reads. Taken after, it would pair the content in hand with a stat that
+   * already reflects the write, and a cache would trust it — stale source.
+   *
+   * `undefined` means "no baseline", never "unchanged": a buffer, or a filesystem that cannot
+   * `stat`. This package records the observation and never interprets it.
+   */
+  get loadedStat(): FileStat | undefined {
+    return this.loadedStatValue;
+  }
+
   /** Read this file's source into memory. At most one read per version, however many callers await it. */
   async load(): Promise<void> {
     this.lastTouchValue = ++touchClock;
     if (this.loadedSourceValue !== undefined) return;
     if (!this.loadPromise) {
-      this.loadPromise = this.fs
-        .readFile(this.uri)
-        .then((source) => {
-          // A setSource() that landed while the read was in flight is newer than
-          // what came back from disk, so it wins.
-          if (this.loadedSourceValue === undefined) this.loadedSourceValue = source;
-        })
-        .finally(() => {
-          this.loadPromise = undefined;
-        });
+      this.loadPromise = this.read().finally(() => {
+        this.loadPromise = undefined;
+      });
     }
     return this.loadPromise;
+  }
+
+  /**
+   * The stat, then the read — serially, and never the other way round; see {@link loadedStat}
+   * for why the order is a correctness property. The extra round trip costs ~21 us per file
+   * and buys the first freshness check after a read the right to KEEP the file.
+   */
+  private async read(): Promise<void> {
+    const stat = await this.statOrUndefined();
+    const source = await this.fs.readFile(this.uri);
+    // A setSource() that landed while the read was in flight is newer than what came back
+    // from disk, so it wins — stat included, since a disk stat says nothing about a buffer.
+    if (this.loadedSourceValue === undefined) {
+      this.loadedSourceValue = source;
+      this.loadedStatValue = stat;
+    }
+  }
+
+  /**
+   * A filesystem that cannot answer means "no baseline", which every consumer handles;
+   * failing the read over it would make an unstattable filesystem unusable, not uncacheable.
+   */
+  private async statOrUndefined(): Promise<FileStat | undefined> {
+    try {
+      return await this.fs.stat(this.uri);
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -303,6 +341,8 @@ export class AppFile {
     this.lastTouchValue = ++touchClock;
     this.revisionValue = ++contentClock;
     this.loadedSourceValue = source;
+    // Whatever the disk looked like, this content did not come from it.
+    this.loadedStatValue = undefined;
     this.versionValue = version;
     this.parsed = undefined;
     this.hasParsed = false;
@@ -317,6 +357,7 @@ export class AppFile {
   invalidate(): void {
     this.revisionValue = ++contentClock;
     this.loadedSourceValue = undefined;
+    this.loadedStatValue = undefined;
     this.versionValue = undefined;
     this.parsed = undefined;
     this.hasParsed = false;

@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getApp, loadConfig, resetRouteTable, resetSharedApp } from './index';
 import { NodeFileSystem } from './NodeFileSystem';
-import { MAX_RETAINED_FILES } from './shared-app';
 import { Tree, Workspace, lintBufferOffenses, makeTempWorkspace } from './test/test-helpers';
 
 /**
@@ -63,6 +62,29 @@ describe('the shared app', () => {
       configPath: path.join(root, '.platformos-check.yml'),
     });
     return offenses.map((offense) => offense.message);
+  }
+
+  /**
+   * The retention cap the eviction tests below reconcile under, passed per call.
+   *
+   * The eviction rules hold at any cap, so sizing the fixture to the SHIPPED
+   * `MAX_RETAINED_FILES` bought nothing and cost 10 000 files an assertion: Windows caps a
+   * process at 8192 open descriptors, so the fixture could not even be written there, and
+   * three whole-project loads of it timed the spec out. The last test in this group is the
+   * control that keeps a small cap honest — under the SHIPPED cap the same fixture is
+   * retained whole, so an eviction observed here is one this cap caused.
+   */
+  const CAP = 40;
+
+  /** Partials named so `card.liquid` sorts before every one of them. */
+  function churn(count: number): Tree {
+    return Object.fromEntries(
+      Array.from({ length: count }, (_, i) => [`p${i}.liquid`, `<b>${i}</b>`]),
+    );
+  }
+
+  function retainedCount(app: Awaited<ReturnType<typeof getApp>>): number {
+    return app.all().filter((file) => file.loaded).length;
   }
 
   it('reuses one app across calls for the same project, and builds a new one after a reset', async () => {
@@ -176,10 +198,7 @@ describe('the shared app', () => {
     expect(await lintHome()).toEqual(["'card' does not exist"]);
   });
 
-  it('drops a fresh read at the next call, and keeps it once a baseline vouches for it', async () => {
-    // The read records no baseline, so the first revalidation after it cannot vouch for
-    // the source in memory and conservatively drops it while recording one. That is the
-    // price of the laziness: one re-read per file, once.
+  it('keeps a fresh read at the next call, because the read recorded its own baseline', async () => {
     workspace = await makeTempWorkspace(projectTree({ 'card.liquid': '<b>card</b>' }));
     const resolved = await loadConfig(
       path.join(workspace.root, '.platformos-check.yml'),
@@ -191,11 +210,31 @@ describe('the shared app', () => {
 
     await card.load();
     await getApp(resolved);
-    expect(card.loaded).toBe(false);
+
+    expect(card.loaded).toBe(true);
+  });
+
+  // The control for the test above: a baseline trusted too widely keeps every file and serves
+  // stale source to every check.
+  it('still drops a file that changed after its read, baseline or not', async () => {
+    workspace = await makeTempWorkspace(projectTree({ 'card.liquid': '<b>card</b>' }));
+    const resolved = await loadConfig(
+      path.join(workspace.root, '.platformos-check.yml'),
+      workspace.root,
+    );
+
+    const app = await getApp(resolved);
+    const card = app.all().find((file) => file.uri.endsWith('/card.liquid'))!;
 
     await card.load();
+    expect(card.source).toBe('<b>card</b>');
+
+    await fs.writeFile(path.join(workspace.root, 'app/views/partials/card.liquid'), '<i>card</i>');
     await getApp(resolved);
-    expect(card.loaded).toBe(true);
+
+    expect(card.loaded).toBe(false);
+    await card.load();
+    expect(card.source).toBe('<i>card</i>');
   });
 
   it('does not wipe a buffer overlaid while its revalidation stat is in flight', async () => {
@@ -236,28 +275,25 @@ describe('the shared app', () => {
     // A whole-project run loads the project. Without a cap, an app that lives as long
     // as the process would go on holding all of it — which is the memory the lazy
     // model exists to not spend.
-    const partials = Object.fromEntries(
-      Array.from({ length: MAX_RETAINED_FILES + 10 }, (_, i) => [`p${i}.liquid`, `<b>${i}</b>`]),
-    );
-    workspace = await makeTempWorkspace(projectTree(partials));
+    workspace = await makeTempWorkspace(projectTree(churn(CAP + 10)));
     const resolved = await loadConfig(
       path.join(workspace.root, '.platformos-check.yml'),
       workspace.root,
     );
 
-    const app = await getApp(resolved);
+    const app = await getApp(resolved, CAP);
     await app.load();
-    const loadedAfterWholeProjectRun = app.all().filter((file) => file.loaded).length;
+    const loadedAfterWholeProjectRun = retainedCount(app);
 
     // First reconcile: nothing has a baseline yet, so every fresh read is dropped
     // and rebaselined. The second load + reconcile is the steady state the cap
     // exists for: everything retained, everything vouched for — and over the cap.
-    await getApp(resolved);
+    await getApp(resolved, CAP);
     await app.load();
-    await getApp(resolved);
+    await getApp(resolved, CAP);
 
-    expect(loadedAfterWholeProjectRun).toBe(MAX_RETAINED_FILES + 11);
-    expect(app.all().filter((file) => file.loaded).length).toBe(MAX_RETAINED_FILES);
+    expect(loadedAfterWholeProjectRun).toBe(CAP + 11);
+    expect(retainedCount(app)).toBe(CAP);
   });
 
   it('evicts by USE, not by first read: the recurring working set survives the churn', async () => {
@@ -267,10 +303,9 @@ describe('the shared app', () => {
     // working set; eviction is by `lastTouch` now, so what goes is what no recent
     // call consulted. Pinned by counting reads: staying retained means the next
     // consultation costs none.
-    const churn = Object.fromEntries(
-      Array.from({ length: MAX_RETAINED_FILES + 20 }, (_, i) => [`p${i}.liquid`, `<b>${i}</b>`]),
+    workspace = await makeTempWorkspace(
+      projectTree({ 'card.liquid': '<b>card</b>', ...churn(CAP + 20) }),
     );
-    workspace = await makeTempWorkspace(projectTree({ 'card.liquid': '<b>card</b>', ...churn }));
     const resolved = await loadConfig(
       path.join(workspace.root, '.platformos-check.yml'),
       workspace.root,
@@ -284,12 +319,13 @@ describe('the shared app', () => {
     });
 
     try {
-      const app = await getApp(resolved);
+      const app = await getApp(resolved, CAP);
       const card = app.all().find((file) => file.uri.endsWith('/card.liquid'))!;
 
-      // Reach the steady state: everything retained with a baseline.
+      // Reach the steady state. The reconcile keeps everything it revalidates, so the second
+      // `load()` re-reads only what its EVICTION dropped.
       await app.load();
-      await getApp(resolved);
+      await getApp(resolved, CAP);
       await app.load();
 
       // `card` was read FIRST (alphabetically before every pN in each load pass) —
@@ -297,16 +333,40 @@ describe('the shared app', () => {
       await card.load();
 
       // This reconcile is over the cap and must evict — but not the working set.
-      await getApp(resolved);
+      await getApp(resolved, CAP);
       expect(card.loaded).toBe(true);
 
-      // Two reads: the initial one and the one conservative rebaseline re-read.
-      // Consulting it again after eviction ran costs no third.
+      // Two reads: the initial one, and one because the reconcile above EVICTED `card` — it
+      // was read first, so it held the lowest `lastTouch` in an over-cap project. Consulting
+      // it again after eviction ran costs no third.
       await card.load();
       expect(reads.filter((uri) => uri === card.uri).length).toBe(2);
     } finally {
       spy.mockRestore();
     }
+  });
+
+  // The control for the two tests above, which reconcile under a cap of their own so that a
+  // fixture no platform struggles with can exceed it: under the SHIPPED cap the same fixture
+  // is retained whole, so the eviction they observe is theirs rather than something a
+  // whole-project run does anyway — and `getApp`'s default is still the shipped cap, which a
+  // small fixture cannot otherwise see.
+  it('evicts nothing at that fixture size under the shipped cap', async () => {
+    workspace = await makeTempWorkspace(projectTree(churn(CAP + 10)));
+    const resolved = await loadConfig(
+      path.join(workspace.root, '.platformos-check.yml'),
+      workspace.root,
+    );
+
+    const app = await getApp(resolved);
+    await app.load();
+    const loadedAfterWholeProjectRun = retainedCount(app);
+
+    await getApp(resolved);
+    await app.load();
+    await getApp(resolved);
+
+    expect([loadedAfterWholeProjectRun, retainedCount(app)]).toEqual([CAP + 11, CAP + 11]);
   });
 
   async function write(relativePath: string, content: string): Promise<void> {

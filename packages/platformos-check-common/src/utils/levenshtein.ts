@@ -1,16 +1,29 @@
+/**
+ * Edit distance between two strings, in two rows rather than an (a+1)x(b+1) matrix: each cell
+ * depends only on the row above it and the cell to its left, and the allocation — not the
+ * comparisons — is what {@link findNearestKeys} pays per candidate key.
+ */
 export function levenshtein(a: string, b: string): number {
-  const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
-    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
-  );
+  let previous = new Array<number>(b.length + 1);
+  let current = new Array<number>(b.length + 1);
+
+  for (let j = 0; j <= b.length; j++) previous[j] = j;
+
   for (let i = 1; i <= a.length; i++) {
+    current[0] = i;
     for (let j = 1; j <= b.length; j++) {
-      dp[i][j] =
+      current[j] =
         a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+          ? previous[j - 1]
+          : 1 + Math.min(previous[j], current[j - 1], previous[j - 1]);
     }
+    // Swap rather than copy: the row displaced becomes scratch for the next pass.
+    [previous, current] = [current, previous];
   }
-  return dp[a.length][b.length];
+
+  // The swap left the last row computed in `previous`; for an empty `a` that is still the
+  // initial row, whose last cell is `b.length`.
+  return previous[b.length];
 }
 
 /**
@@ -65,9 +78,19 @@ export function findNearestKeys(
   maxDistance = 3,
   maxResults = 3,
 ): string[] {
-  return allKeys
-    .map((key) => ({ key, distance: levenshtein(missingKey, key) }))
-    .filter(({ distance }) => distance <= maxDistance)
+  const near: { key: string; distance: number }[] = [];
+
+  for (const key of allKeys) {
+    // A length difference is a lower bound on the distance, so a key further apart in
+    // length than `maxDistance` cannot be within it and never reaches the O(n*m) comparison.
+    if (Math.abs(key.length - missingKey.length) > maxDistance) continue;
+
+    const distance = levenshtein(missingKey, key);
+    if (distance <= maxDistance) near.push({ key, distance });
+  }
+
+  // Sort is stable, so equally-near keys keep the order `allKeys` gave them.
+  return near
     .sort((a, b) => a.distance - b.distance)
     .slice(0, maxResults)
     .map(({ key }) => key);

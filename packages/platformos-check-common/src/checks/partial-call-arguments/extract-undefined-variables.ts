@@ -37,6 +37,11 @@ export interface UndefinedVariables {
    * ones that merely stand in for another (`… | default: x`). Only the former is evidence
    * that the file handles a missing `x`: a fallback source is read exactly when the thing it
    * stands in for is absent, which says nothing about its own absence.
+   *
+   * The name must be defaulted as a BARE lookup. `x.y | default: …` defaults the property and
+   * leaves `x` in `optional` — a caller omitting it does get the fallback — but it is not the
+   * file stating a default for `x`, which is the stronger claim the one consumer of this list,
+   * `RequiredDocParamWithDefault`, writes into the author's `{% doc %}`.
    */
   selfDefaulted: string[];
   /**
@@ -121,6 +126,8 @@ function analyze(ast: LiquidHtmlNode, globalObjectNames: string[]): UndefinedVar
   /** Each USE of a variable — enough of one to place and name it. */
   const variables: { name: string | null; position: Position }[] = [];
   const selfDefaultedVariables: Set<string> = new Set();
+  /** Of those, the ones defaulted as a BARE lookup — see {@link UndefinedVariables.selfDefaulted}. */
+  const selfDefaultedBareVariables: Set<string> = new Set();
   const fallbackSourceVariables: Set<string> = new Set();
   /** Every name the file gives a value to, including the ones it only mutates. */
   const definedVariables: Set<string> = new Set();
@@ -183,9 +190,22 @@ function analyze(ast: LiquidHtmlNode, globalObjectNames: string[]): UndefinedVar
       }
     }
 
-    if (isLiquidTagGraphQL(node) || isLiquidTagParseJson(node)) {
+    if (isLiquidTagGraphQL(node)) {
       indexVariableScope(node.markup.name, {
         start: node.blockStartPosition.end,
+      });
+    }
+
+    // `{% parse_json object %}…{% endparse_json %}` renders its body FIRST and assigns the
+    // parsed result after, exactly like `capture`. A read of `object` INSIDE the body is
+    // therefore a read of the value the CALLER passed, not of the one this tag produces.
+    // Scoping it from `blockStartPosition` instead made the very common
+    // `{% parse_json object %}{ "a": {{ object.a }} }{% endparse_json %}` — a partial that
+    // rebuilds its own input — look like it never read `object` at all, and
+    // `PartialCallArguments` then called the argument every caller passes unknown.
+    if (isLiquidTagParseJson(node)) {
+      indexVariableScope(node.markup.name, {
+        start: node.blockEndPosition?.end,
       });
     }
 
@@ -271,6 +291,12 @@ function analyze(ast: LiquidHtmlNode, globalObjectNames: string[]): UndefinedVar
       parent.filters.some((f) => f.name === 'default')
     ) {
       selfDefaultedVariables.add(node.name);
+      // `body.score | default: 0.0` defaults the PROPERTY. A caller may still omit `body` and
+      // get the fallback, so it stays `optional` above — but the file has NOT stated a default
+      // for `body`, and a score gate cannot do its job without the body it is scoring.
+      // `RequiredDocParamWithDefault` rewrites the author's `{% doc %}`, so it reads the
+      // narrower set below rather than this one.
+      if (node.lookups.length === 0) selfDefaultedBareVariables.add(node.name);
     }
 
     // Detect `... | default: x` — a FALLBACK source cannot be more required than the
@@ -308,7 +334,7 @@ function analyze(ast: LiquidHtmlNode, globalObjectNames: string[]): UndefinedVar
       seen.add(variable.name);
       if (selfDefaultedVariables.has(variable.name)) {
         optional.push(variable.name);
-        selfDefaulted.push(variable.name);
+        if (selfDefaultedBareVariables.has(variable.name)) selfDefaulted.push(variable.name);
       } else if (fallbackSourceVariables.has(variable.name)) {
         optional.push(variable.name);
       } else {

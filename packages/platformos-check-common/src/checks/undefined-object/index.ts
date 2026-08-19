@@ -88,9 +88,19 @@ export const UndefinedObject: LiquidCheckDefinition = {
       async LiquidTag(node, ancestors) {
         if (isWithinRawTagThatDoesNotParseItsContents(ancestors)) return;
 
-        if (isLiquidTagAssign(node) || isLiquidTagGraphQL(node) || isLiquidTagParseJson(node)) {
+        if (isLiquidTagAssign(node) || isLiquidTagGraphQL(node)) {
           indexVariableScope(node.markup.name, {
             start: node.blockStartPosition.end,
+          });
+        }
+
+        // Like `capture`, and for the same reason: the body of
+        // `{% parse_json x %}…{% endparse_json %}` runs before the assignment, so a read of
+        // `x` inside it reads the OLD `x`. Kept in step with the identical rule in
+        // `partial-call-arguments/extract-undefined-variables.ts`.
+        if (isLiquidTagParseJson(node)) {
+          indexVariableScope(node.markup.name, {
+            start: node.blockEndPosition?.end,
           });
         }
 

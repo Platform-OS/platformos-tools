@@ -680,9 +680,9 @@ export const nodeParsers: Parsers = sourceParsers;
  * A parse error is surfaced as a captured `Error` on that file's `ast`, produced when the file
  * is first read, so an unparseable file nobody visits costs nothing.
  */
-export async function getApp(config: Config): Promise<AppModel> {
+export async function getApp(config: Config, maxRetainedFiles?: number): Promise<AppModel> {
   const paths = await getAppFilePaths(config);
-  return getSharedApp(config.rootUri, paths, nodeParsers);
+  return getSharedApp(config.rootUri, paths, nodeParsers, maxRetainedFiles);
 }
 
 /**

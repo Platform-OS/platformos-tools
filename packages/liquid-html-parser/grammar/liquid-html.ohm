@@ -149,7 +149,7 @@ Liquid <: Helpers {
   liquidTagAssignMarkup = assignTarget<delimTag> space* writeOperator space* liquidAssignValue<delimTag>
 
   // Assign-specific sub-rules
-  assignTarget<delim> = variableSegment lookup<delim>*
+  assignTarget<delim> = variableSegment ~(space+ lookupStart) targetLookup<delim>*
   // Only one operator per write: either `=` (regular assignment) or `<<` (push).
   // The two forms are mutually exclusive — `{% assign a << "item" %}` pushes onto `a`,
   // and `{% assign a = value %}` assigns to `a`. A compound shape like
@@ -207,7 +207,7 @@ Liquid <: Helpers {
   liquidJsonSep = space* "," space*
 
   liquidTagHashAssign = liquidTagRule<"hash_assign", liquidTagHashAssignMarkup>
-  liquidTagHashAssignMarkup = liquidVariableLookup<delimTag> space* "=" space* liquidVariable<delimTag>
+  liquidTagHashAssignMarkup = strictVariableLookup<delimTag> space* "=" space* liquidVariable<delimTag>
 
   liquidTagCycle = liquidTagRule<"cycle", liquidTagCycleMarkup>
   liquidTagCycleMarkup = (liquidExpression<delimTag> ":")? space* nonemptyListOf<liquidFilteredExpression<delimTag>, argumentSeparator> space*
@@ -245,9 +245,9 @@ Liquid <: Helpers {
   // collects the partial's return value onto an array. Measured on a live instance — it reaches
   // partial resolution ("can't find partial") where a genuine syntax error reports
   // "Invalid syntax for function tag" — so the runtime parses it and this grammar has to as well.
-  // An lvalue target (`response["data"] << 'p'`) needs nothing extra: `liquidVariableLookup`
+  // An lvalue target (`response["data"] << 'p'`) needs nothing extra: `strictVariableLookup`
   // already carries the lookups.
-  liquidTagFunctionMarkup = liquidVariableLookup<delimTag> space* writeOperator space* partialExpression resultFilterRenderArguments liquidFilter<delimTag>* space*
+  liquidTagFunctionMarkup = strictVariableLookup<delimTag> space* writeOperator space* partialExpression resultFilterRenderArguments liquidFilter<delimTag>* space*
 
   liquidTagGraphQL = liquidTagRule<"graphql", liquidTagGraphQLMarkup>
   liquidTagGraphQLMarkup = variableSegment space* "=" space* partialExpression graphqlRenderArguments liquidFilter<delimTag>* space*
@@ -589,6 +589,19 @@ Liquid <: Helpers {
   indexLookup<delim> = space* "[" space* liquidExpression<delim> space* "]"
   dotLookup = space* "." space* dotLookupName
   dotLookupName = (alnum | "_") (~endOfTagName identifierCharacter)* "?"?
+
+  // Lookups in a WRITE TARGET. The platform's `LHS_PATTERN`
+  // (`app/lib/liquify/tags/hash_assignable.rb`) admits no space between the variable and its key
+  // path, and none before a `.` accessor anywhere in the chain; a space before a later `[` IS
+  // accepted, because its `\[.+?\]` backtracks across one. READ positions keep plain `lookup` and
+  // accept every spelling. All of it measured — `assign-target-spacing.spec.ts`.
+  lookupStart = "[" | "."
+  strictDotLookup = ~space dotLookup
+  targetLookup<delim> = indexLookup<delim> | strictDotLookup
+
+  strictVariableLookup<delim> =
+    | variableSegment ~(space+ lookupStart) targetLookup<delim>*
+    | empty targetLookup<delim>+
 
   liquidFilter<delim> = space* "|" space* identifier (space* ":" space* arguments<delim> (space* ",")?)?
 

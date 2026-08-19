@@ -1667,6 +1667,14 @@ function toCST<T>(
       locEnd,
       source,
     },
+    strictVariableLookup: {
+      type: ConcreteNodeTypes.VariableLookup,
+      name: 0,
+      lookups: 1,
+      locStart,
+      locEnd,
+      source,
+    },
     variableSegmentAsLookupMarkup: 0,
     variableSegmentAsLookup: {
       type: ConcreteNodeTypes.VariableLookup,
@@ -1678,6 +1686,8 @@ function toCST<T>(
     },
 
     lookup: 0,
+    strictDotLookup: 0,
+    targetLookup: 0,
     indexLookup: 3,
     dotLookup: {
       type: ConcreteNodeTypes.String,

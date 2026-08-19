@@ -1265,11 +1265,20 @@ function reported(offenses: Offense[]) {
 }
 
 /**
+ * Every test in `lazy app loading` builds its own temp workspace, and two of them write 302 files
+ * before the body starts. Measured: that work is ~0.1s locally and ~0.6s on a Windows runner, but it
+ * once spiked past the 5s default while creating them — 302 concurrent creates against a scanned
+ * filesystem. The bound is set for that spike rather than the mean, and is still tight enough to
+ * fail a genuine hang.
+ */
+const LARGE_TREE_TIMEOUT_MS = 30_000;
+
+/**
  * Pins the central claim: `getApp` reads and parses nothing, and a `lintBuffer` call pays
  * only for the file it visits plus the handful of files that file actually points at.
  * Parse counts are the assertion because they are the cost.
  */
-describe('lazy app loading', () => {
+describe('lazy app loading', { timeout: LARGE_TREE_TIMEOUT_MS }, () => {
   let workspace: Workspace | undefined;
 
   afterEach(async () => {

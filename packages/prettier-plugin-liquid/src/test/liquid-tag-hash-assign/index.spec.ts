@@ -12,6 +12,23 @@ test('Unit: liquid-tag-hash-assign', async () => {
   await assertFormattedEqualsFixed(__dirname);
 });
 
+/**
+ * `h [ 'spaced' ]` is a parse error on the platform, so the grammar refuses it and its markup
+ * reaches the printer as a raw string. Emitting it verbatim is the required behaviour: the printer
+ * used to repair the spacing by accident, which hid the error from anyone who formatted and left it
+ * in place for everyone who did not. Reporting it is a check's job.
+ */
+test('Unit: liquid-tag-hash-assign — a target the grammar refuses is emitted verbatim', async () => {
+  for (const source of [
+    `{% hash_assign h [ 'spaced' ] = 1 %}`,
+    `{% hash_assign h ['k'] = 1 %}`,
+    `{% assign h .k = 1 %}`,
+    `{% function r ['k'] = 'lib/x' %}`,
+  ]) {
+    expect((await format(source, {})).trim()).toEqual(source);
+  }
+});
+
 /** The `hash_assign` targets in a formatted document, in order. */
 function targetsIn(formatted: string): string[] {
   return formatted

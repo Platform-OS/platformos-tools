@@ -1331,6 +1331,56 @@ describe('Integration: every blocking check can actually block', () => {
     );
   });
 
+  /**
+   * A space between a variable and its key path is a PARSE ERROR on the platform in a write target
+   * and legal in a read, so the gate has to split them. `pos-cli deploy --dry-run` REJECTS the write
+   * forms 2/2 with their space-free controls accepted — the whole changeset, not one file. Which
+   * spellings parse is pinned in `liquid-html-parser`'s `assign-target-spacing.spec.ts`; this pins
+   * the verdict an agent actually receives.
+   */
+  const SPACED_WRITE_TARGET = [
+    `{% assign h = '{}' | parse_json %}{% assign h ['k'] = 9 %}\n`,
+    `{% assign h = '{}' | parse_json %}{% assign h .k = 9 %}\n`,
+    `{% assign h = '{}' | parse_json %}{% hash_assign h ['k'] = 9 %}\n`,
+    `{% function r ['k'] = 'lib/x' %}\n`,
+  ];
+
+  const SPACED_READ = [
+    `{% assign h = '{}' | parse_json %}{{ h ['k'] }}\n`,
+    `{% assign h = '{}' | parse_json %}{{ h.a [0] }}\n`,
+    `{% assign h = '{}' | parse_json %}{% assign v = h ['k'] %}{{ v }}\n`,
+    `{% assign h = '{}' | parse_json %}{% echo h ['k'] %}\n`,
+  ];
+
+  it('blocks a spaced WRITE target, which the deploy converter rejects', async () => {
+    const verdicts = [];
+    for (const content of SPACED_WRITE_TARGET) {
+      const result = await validate(PAGE, content);
+      verdicts.push({
+        blocked: result.must_fix_before_write,
+        errors: [...new Set(result.errors.map((error) => error.check))],
+      });
+    }
+
+    expect(verdicts).toEqual(
+      SPACED_WRITE_TARGET.map(() => ({ blocked: true, errors: ['LiquidHTMLSyntaxError'] })),
+    );
+  });
+
+  it('does not block the same spacing in a READ, which the platform resolves correctly', async () => {
+    // The control for the test above. Refusing every spaced subscript would pass without it.
+    const verdicts = [];
+    for (const content of SPACED_READ) {
+      const result = await validate(PAGE, content);
+      verdicts.push({
+        blocked: result.must_fix_before_write,
+        errors: [...new Set(result.errors.map((error) => error.check))],
+      });
+    }
+
+    expect(verdicts).toEqual(SPACED_READ.map(() => ({ blocked: false, errors: [] })));
+  });
+
   it('does not BLOCK a filter in a tag operand, but does warn that it has no effect', async () => {
     // The control for the test above, in both halves.
     const verdicts = [];

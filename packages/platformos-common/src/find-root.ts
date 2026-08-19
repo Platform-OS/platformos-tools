@@ -83,14 +83,30 @@ function isInsideSourceSubtree(dir: UriString): boolean {
   );
 }
 
+/**
+ * Which marker makes `dir` a root, or `null` when none does.
+ *
+ * The marker is reported, not just its existence, because the two kinds are not equal evidence and
+ * a caller that speaks to a human needs to know which it has. A `.pos` or `.platformos-check.yml`
+ * is a DECLARATION — somebody wrote it to say "the project starts here". A marker DIRECTORY is an
+ * inference from a directory NAME, and `app`, `modules` and `marketplace_builder` are ordinary
+ * names: a checkout of module repositories under `~/Work/modules` makes `~/Work` look like a
+ * project, and Windows machines that ship `C:\Modules` make the drive root look like one.
+ *
+ * Files are probed before directories so the stronger evidence wins when both are present, which
+ * is the common case in a real project (`.pos` beside `app/`).
+ *
+ * Existence probes still run in parallel; only the REPORTING is ordered.
+ */
+async function rootMarkerAt(dir: UriString, fileExists: FileExists): Promise<string | null> {
+  const candidates = [...MARKER_FILES, ...(isInsideSourceSubtree(dir) ? [] : MARKER_DIRECTORIES)];
+  const found = await Promise.all(candidates.map((name) => fileExists(joinUri(dir, name))));
+  const index = found.indexOf(true);
+  return index === -1 ? null : candidates[index];
+}
+
 async function isRoot(dir: UriString, fileExists: FileExists) {
-  const markerDirectoriesCount = !isInsideSourceSubtree(dir);
-  return or(
-    ...MARKER_FILES.map((file) => fileExists(joinUri(dir, file))),
-    ...(markerDirectoriesCount
-      ? MARKER_DIRECTORIES.map((root) => fileExists(joinUri(dir, root)))
-      : []),
-  );
+  return (await rootMarkerAt(dir, fileExists)) !== null;
 }
 
 async function or(...promises: Promise<boolean>[]) {
@@ -132,6 +148,25 @@ export interface ProjectRootResolution {
   root: UriString | null;
   /** Whether `given` IS that root, rather than somewhere beneath it. */
   isRoot: boolean;
+  /**
+   * The marker that made `root` a root — `.pos`, `.platformos-check.yml`, `app`,
+   * `marketplace_builder` or `modules` — and `null` when there is no root.
+   *
+   * Carried so a caller can tell a DECLARED root from an INFERRED one and say so. See
+   * {@link isDeclaredRoot}.
+   */
+  marker: string | null;
+}
+
+/**
+ * Whether a resolution rests on a human's declaration rather than on a directory name.
+ *
+ * A caller phrasing a message for a person should assert a declared root and hedge an inferred
+ * one — "the project root is X" is a claim the tool cannot support when all it saw was a directory
+ * called `modules`.
+ */
+export function isDeclaredRoot(resolution: ProjectRootResolution): boolean {
+  return resolution.marker !== null && MARKER_FILES.includes(resolution.marker);
 }
 
 /**
@@ -159,5 +194,6 @@ export async function resolveProjectRoot(
 ): Promise<ProjectRootResolution> {
   const given = uriFromPathOrUri(pathOrUri);
   const root = await findRoot(given, fileExists);
-  return { given, root, isRoot: root === given };
+  const marker = root ? await rootMarkerAt(root, fileExists) : null;
+  return { given, root, isRoot: root === given, marker };
 }

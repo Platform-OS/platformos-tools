@@ -17,13 +17,34 @@ Measured on a real app: `pos-cli check run` reported 1036 offenses across 191 fi
 `pos-cli check run app` on the same project reported none — with a partial containing an unclosed
 `{% if %}`, an unclosed `<div>` and an undefined filter sitting inside `app/`.
 
-It now names what happened, where the root is, and what to run:
+It now names what happened and where the root is — and says only as much as the evidence supports.
+
+A root DECLARED by a `.pos` or `.platformos-check.yml` file is asserted:
 
 ```
 Nothing was checked: /project/app is not the root of a platformOS project.
-The project root is /project.
-Re-run against the root, e.g. pos-cli check run /project
+Re-run the check against the project root: /project
 ```
+
+A root INFERRED from a directory NAME is not. `app`, `modules` and `marketplace_builder` are
+ordinary names — a checkout of module repositories under `~/Work/modules` makes `~/Work` resolve as
+a project root, and a Windows machine shipping `C:\Modules` makes the drive root resolve as one —
+so stating it as fact sends people to re-run against a tree that is not their project:
+
+```
+Nothing was checked: /home/me/Work/multiproj is not a platformOS project root.
+A project root contains one of: app/, marketplace_builder/, modules/, .pos, .platformos-check.yml.
+The nearest above it is /home/me/Work, matched on modules/ alone — that may not be your project.
+Re-run the check against your project root.
+```
+
+`resolveProjectRoot` reports which marker matched, and `isDeclaredRoot` distinguishes the two.
+The message names no tool: the same text reaches pos-cli, the editor through the VS Code extension,
+and any embedder, so naming one of them would be wrong for the other two.
+
+The refusal is a typed `ProjectRootError` carrying a stable `PROJECT_ROOT_ERROR_CODE`, so a consumer
+can present it as a message rather than a crash without matching on prose or on `instanceof` — the
+latter throws outright when the loaded copy of this package predates the class.
 
 **It reports rather than resolving.** Widening the run to the enclosing root would check MORE than
 was asked — `check run app` would pull in `modules/`, so a run meant for one app reports offenses

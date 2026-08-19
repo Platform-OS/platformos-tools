@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { FileExists, findRoot, PROJECT_ROOT_MARKERS, resolveProjectRoot } from './find-root';
+import {
+  FileExists,
+  findRoot,
+  isDeclaredRoot,
+  PROJECT_ROOT_MARKERS,
+  resolveProjectRoot,
+} from './find-root';
 
 const ROOT = 'file:///project';
 
@@ -188,6 +194,7 @@ describe('Unit: resolveProjectRoot', () => {
       given: ROOT,
       root: ROOT,
       isRoot: true,
+      marker: 'app',
     });
   });
 
@@ -199,6 +206,7 @@ describe('Unit: resolveProjectRoot', () => {
       given: `${ROOT}/app`,
       root: ROOT,
       isRoot: false,
+      marker: 'app',
     });
   });
 
@@ -240,5 +248,48 @@ describe('Unit: PROJECT_ROOT_MARKERS', () => {
     expect(PROJECT_ROOT_MARKERS).toContain('modules/');
     expect(PROJECT_ROOT_MARKERS).toContain('.pos');
     expect(PROJECT_ROOT_MARKERS).toContain('.platformos-check.yml');
+  });
+});
+
+describe('Unit: resolveProjectRoot reports WHICH marker made it a root', () => {
+  /**
+   * The two marker kinds are not equal evidence, and a caller writing for a human has to know
+   * which it has. `.pos` is a declaration; `modules/` is a guess from a directory NAME — and
+   * `app`, `modules` and `marketplace_builder` are ordinary names. A checkout of module
+   * repositories under `~/Work/modules` makes `~/Work` resolve as a project root, and Windows
+   * machines shipping `C:\Modules` make the drive root resolve as one.
+   */
+  it('reports a declaration as declared', async () => {
+    const exists = fileExists({ '.pos': 'sentinel', 'app/views/pages/index.liquid': '{{ x }}' });
+    const res = await resolveProjectRoot(`${ROOT}/app`, exists);
+    expect(res.marker).toBe('.pos');
+    expect(isDeclaredRoot(res)).toBe(true);
+  });
+
+  it('reports a directory-name match as NOT declared', async () => {
+    // No .pos, no config — only the name `app`.
+    const exists = fileExists({ 'app/views/pages/index.liquid': '{{ x }}' });
+    const res = await resolveProjectRoot(`${ROOT}/app`, exists);
+    expect(res.marker).toBe('app');
+    expect(isDeclaredRoot(res)).toBe(false);
+  });
+
+  it('prefers the declaration when both are present, which is the normal project', async () => {
+    // Order matters: a real project has `.pos` beside `app/`, and the stronger evidence must win
+    // or every such project would be described as a guess.
+    const exists = fileExists({
+      '.platformos-check.yml': 'extends: nothing',
+      'app/views/pages/index.liquid': '{{ x }}',
+    });
+    const res = await resolveProjectRoot(ROOT, exists);
+    expect(res.marker).toBe('.platformos-check.yml');
+    expect(isDeclaredRoot(res)).toBe(true);
+  });
+
+  it('reports no marker when there is no root', async () => {
+    const exists = fileExists({ 'app/views/pages/index.liquid': '{{ x }}' });
+    const res = await resolveProjectRoot('file:///elsewhere', exists);
+    expect(res.marker).toBeNull();
+    expect(isDeclaredRoot(res)).toBe(false);
   });
 });

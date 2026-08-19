@@ -64,6 +64,7 @@ export * from './filter-semantics';
  */
 export {
   findRoot,
+  isDeclaredRoot,
   makeFileExists,
   PROJECT_ROOT_MARKERS,
   resolveProjectRoot,

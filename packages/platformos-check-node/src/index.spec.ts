@@ -1826,30 +1826,60 @@ describe('Unit: projectRootRefusal', () => {
    * cannot be reached deterministically through the real filesystem: it would require asserting
    * that nothing above the machine's temp directory is a platformOS project, which is a claim about
    * the machine. That assertion failed on Windows CI, where a marker directory near the drive root
-   * made `findRoot` resolve the temp directory to `c:` — so the test reported the wrong branch for
-   * a reason that had nothing to do with the code under test.
+   * made `findRoot` resolve the temp directory to `c:` — the test reported the wrong branch for a
+   * reason that had nothing to do with the code under test.
    */
+  const root = commonPath.fsPath('file:///project');
+  const inside = commonPath.fsPath('file:///project/app');
+
   it('says nothing when the path IS the root', () => {
     expect(
-      projectRootRefusal({ given: 'file:///project', root: 'file:///project', isRoot: true }),
+      projectRootRefusal({
+        given: 'file:///project',
+        root: 'file:///project',
+        isRoot: true,
+        marker: '.pos',
+      }),
     ).toBeUndefined();
   });
 
-  it('names the root when the path is inside a project', () => {
-    const refusal = projectRootRefusal({
-      given: 'file:///project/app',
-      root: 'file:///project',
-      isRoot: false,
-    });
-    expect(refusal).toBe(
-      `Nothing was checked: ${commonPath.fsPath('file:///project/app')} is not the root of a platformOS project.\n` +
-        `Re-run the check against the project root: ${commonPath.fsPath('file:///project')}`,
+  it('asserts a DECLARED root, because a human wrote the marker to say so', () => {
+    expect(
+      projectRootRefusal({
+        given: 'file:///project/app',
+        root: 'file:///project',
+        isRoot: false,
+        marker: '.pos',
+      }),
+    ).toBe(
+      `Nothing was checked: ${inside} is not the root of a platformOS project.\n` +
+        `Re-run the check against the project root: ${root}`,
+    );
+  });
+
+  it('does NOT assert an INFERRED root, and gives no advice aimed at the wrong directory', () => {
+    // The case that made the output misleading: `~/Work/modules` is a checkout of module
+    // repositories, so `~/Work` answered as a project root and the tool told someone to re-run
+    // against their whole home directory as though it knew that to be true.
+    expect(
+      projectRootRefusal({
+        given: 'file:///project/app',
+        root: 'file:///project',
+        isRoot: false,
+        marker: 'modules',
+      }),
+    ).toBe(
+      `Nothing was checked: ${inside} is not a platformOS project root.\n` +
+        `A project root contains one of: app/, marketplace_builder/, modules/, .pos, .platformos-check.yml.\n` +
+        `The nearest above it is ${root}, matched on modules/ alone — that may not be your ` +
+        `project. Re-run the check against your project root.`,
     );
   });
 
   it('lists what it looked for when there is no project at all', () => {
-    const refusal = projectRootRefusal({ given: 'file:///elsewhere', root: null, isRoot: false });
-    expect(refusal).toBe(
+    expect(
+      projectRootRefusal({ given: 'file:///elsewhere', root: null, isRoot: false, marker: null }),
+    ).toBe(
       `Nothing was checked: ${commonPath.fsPath('file:///elsewhere')} is not inside a platformOS project.\n` +
         `Looked for app/, marketplace_builder/, modules/, .pos, .platformos-check.yml at or above it and found none.`,
     );
@@ -1860,6 +1890,7 @@ describe('Unit: projectRootRefusal', () => {
       given: 'file:///project/app',
       root: 'file:///project',
       isRoot: false,
+      marker: '.pos',
     })!;
     expect(refusal.includes('pos-cli')).toBe(false);
   });

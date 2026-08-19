@@ -13,6 +13,7 @@ import {
   SourceCodeType,
   toSourceCode as commonToSourceCode,
   check as coreCheck,
+  isDeclaredRoot,
   isIgnored,
   makeFileExists,
   path as commonPath,
@@ -183,9 +184,41 @@ export function projectRootRefusal(resolution: ProjectRootResolution): string | 
     );
   }
 
+  const root = commonPath.fsPath(resolution.root);
+
+  // A DECLARED root can be asserted: somebody wrote `.pos` or `.platformos-check.yml` there
+  // precisely to say where the project starts.
+  if (isDeclaredRoot(resolution)) {
+    return (
+      `Nothing was checked: ${given} is not the root of a platformOS project.\n` +
+      `Re-run the check against the project root: ${root}`
+    );
+  }
+
+  // An INFERRED root must not be stated as fact. All the walk found was a directory with a
+  // familiar NAME, and `app`, `modules` and `marketplace_builder` are ordinary names — a checkout
+  // of module repositories under ~/Work/modules makes ~/Work answer to this, as does C:\Modules
+  // on Windows, where it resolves the drive root. Naming it "the project root" sends someone to
+  // re-run against a tree that is not their project.
+  //
+  // So it reports what it saw and how weak that is, and leaves the decision to the reader. The
+  // candidate is still named because it is usually RIGHT — a project with `app/` and no `.pos`
+  // resolves this way and the answer is correct — and withholding it would make the common case
+  // less useful to protect against the rare one.
+  //
+  // It deliberately does NOT advise adding a `.pos` file. That advice would be aimed at the
+  // candidate, and in exactly the case where the candidate is wrong it would cement the wrong root
+  // permanently: telling someone whose ~/Work holds a `modules` checkout to declare ~/Work a
+  // project is worse than saying nothing.
+  // Stating the RULE is the one piece of advice that is safe to give: it is true regardless of
+  // which directory the reader is in, it lets them identify their own root, and it explains the
+  // odd candidate rather than leaving it unexplained — `modules/` is on the list, which is exactly
+  // why a checkout of module repositories matched.
   return (
-    `Nothing was checked: ${given} is not the root of a platformOS project.\n` +
-    `Re-run the check against the project root: ${commonPath.fsPath(resolution.root)}`
+    `Nothing was checked: ${given} is not a platformOS project root.\n` +
+    `A project root contains one of: ${PROJECT_ROOT_MARKERS.join(', ')}.\n` +
+    `The nearest above it is ${root}, matched on ${resolution.marker}/ alone — that may not be ` +
+    `your project. Re-run the check against your project root.`
   );
 }
 

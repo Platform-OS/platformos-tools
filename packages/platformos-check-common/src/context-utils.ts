@@ -1,4 +1,12 @@
-import { AbstractFileSystem, DEFAULT_LOCALE, getAppPathsAcrossRoots, makeFileExists, PlatformOSFileType, RouteTable, TranslationProvider } from '@platformos/platformos-common';
+import {
+  AbstractFileSystem,
+  DEFAULT_LOCALE,
+  getAppPathsAcrossRoots,
+  makeFileExists,
+  PlatformOSFileType,
+  RouteTable,
+  TranslationProvider,
+} from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { join } from './path';
 import { AppModel, Translations } from './types';

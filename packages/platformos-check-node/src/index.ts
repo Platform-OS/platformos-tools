@@ -17,6 +17,7 @@ import {
   makeFileExists,
   path as commonPath,
   PROJECT_ROOT_MARKERS,
+  ProjectRootResolution,
   resolveProjectRoot,
   sourceParsers,
   UriString,
@@ -137,26 +138,62 @@ export async function checkAndAutofix(root: string, configPath?: string) {
  * Linting an arbitrary subtree is a separate feature — it would have to load the project anyway,
  * since partials, pages and config all resolve project-wide, and then filter what it reports.
  */
-async function assertProjectRoot(root: string): Promise<void> {
-  const absolute = nodePath.isAbsolute(root) ? root : nodePath.resolve(process.cwd(), root);
-  const resolution = await resolveProjectRoot(absolute, makeFileExists(NodeFileSystem));
-  if (resolution.isRoot) return;
+/**
+ * A refusal to check, addressed to whoever typed the path — not a crash.
+ *
+ * Carries a stable `code` rather than relying on `instanceof`, because the consumer that most needs
+ * to recognize it (pos-cli) resolves this package independently and may be running an older or
+ * newer copy: `error instanceof pkg.ProjectRootError` throws outright when the loaded version does
+ * not export the class, turning a friendly message into a different crash. A property check
+ * degrades to "unrecognized, print as an error", which is the safe direction.
+ */
+export class ProjectRootError extends Error {
+  readonly code = PROJECT_ROOT_ERROR_CODE;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProjectRootError';
+  }
+}
+
+/** The `code` on {@link ProjectRootError}. Exported so a consumer can match without importing the class. */
+export const PROJECT_ROOT_ERROR_CODE = 'PLATFORMOS_PROJECT_ROOT';
+
+/**
+ * Why a resolved path cannot be checked, or `undefined` when it can.
+ *
+ * Pure and exported so both branches are testable against exact strings without depending on what
+ * happens to sit above the machine's temp directory — the first version of this test asserted that
+ * an OS temp directory is outside any platformOS project, which is a claim about the machine rather
+ * than about the code, and it failed on Windows CI where a marker directory exists near the drive
+ * root.
+ *
+ * Deliberately names no tool. The same text reaches a pos-cli user, an editor user through the
+ * VS Code extension, and an embedder — so "run pos-cli check run …" would be wrong for two of the
+ * three. It states the fact and the path; the caller decides how to phrase the invocation.
+ */
+export function projectRootRefusal(resolution: ProjectRootResolution): string | undefined {
+  if (resolution.isRoot) return undefined;
 
   const given = commonPath.fsPath(resolution.given);
   if (!resolution.root) {
-    throw new Error(
+    return (
       `Nothing was checked: ${given} is not inside a platformOS project.\n` +
-        `Looked for ${PROJECT_ROOT_MARKERS.join(', ')} at or above it and found none.\n` +
-        `Re-run against a platformOS project directory.`,
+      `Looked for ${PROJECT_ROOT_MARKERS.join(', ')} at or above it and found none.`
     );
   }
 
-  const projectRoot = commonPath.fsPath(resolution.root);
-  throw new Error(
+  return (
     `Nothing was checked: ${given} is not the root of a platformOS project.\n` +
-      `The project root is ${projectRoot}.\n` +
-      `Re-run against the root, e.g. pos-cli check run ${projectRoot}`,
+    `Re-run the check against the project root: ${commonPath.fsPath(resolution.root)}`
   );
+}
+
+async function assertProjectRoot(root: string): Promise<void> {
+  const absolute = nodePath.isAbsolute(root) ? root : nodePath.resolve(process.cwd(), root);
+  const resolution = await resolveProjectRoot(absolute, makeFileExists(NodeFileSystem));
+  const refusal = projectRootRefusal(resolution);
+  if (refusal) throw new ProjectRootError(refusal);
 }
 
 export async function appCheckRun(

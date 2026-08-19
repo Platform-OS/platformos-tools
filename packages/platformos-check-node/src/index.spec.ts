@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import nodePath from 'node:path';
 import path from 'node:path';
-import { allChecks } from '@platformos/platformos-check-common';
+import { allChecks, path as commonPath } from '@platformos/platformos-check-common';
 import { UnreadableDirectoryError, normalizeUri, uriFromPath } from '@platformos/platformos-common';
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { URI } from 'vscode-uri';
@@ -22,6 +22,9 @@ import {
   resetPlatformOSLiquidDocsManager,
   updateDocs,
   type LintBufferResult,
+  PROJECT_ROOT_ERROR_CODE,
+  ProjectRootError,
+  projectRootRefusal,
 } from './index';
 import {
   Tree,
@@ -1796,37 +1799,68 @@ LiquidHTMLSyntaxError:
   });
 
   it('still checks normally when given the actual root', async () => {
-    // The control. Without it, a guard that refused EVERYTHING would pass the tests below.
+    // The control. Without it, a guard that refused EVERYTHING would pass the assertion below.
     workspace = await makeTempWorkspace(PROJECT);
     const { offenses } = await appCheckRun(URI.parse(workspace.rootUri).fsPath);
-    expect(offenses.length).toBeGreaterThan(0);
+    expect(offenses.map((offense) => offense.check)).toEqual(['LiquidHTMLSyntaxError']);
   });
 
-  it('refuses a directory inside the project, naming the root and how to re-run', async () => {
+  it('refuses a directory inside the project with the exact message', async () => {
     workspace = await makeTempWorkspace(PROJECT);
     const root = URI.parse(workspace.rootUri).fsPath;
     const inside = nodePath.join(root, 'app');
 
     const error = await appCheckRun(inside).catch((e) => e);
-    expect(error, 'a subdirectory must not resolve to an empty, silent run').toBeInstanceOf(Error);
-    // The three things a caller needs: that nothing ran, where the root is, and what to type.
-    expect(error.message).toContain('Nothing was checked');
-    expect(error.message).toContain(root);
-    expect(error.message).toContain('Re-run against the root');
+    expect(error).toBeInstanceOf(ProjectRootError);
+    expect(error.code).toBe(PROJECT_ROOT_ERROR_CODE);
+    expect(error.message).toBe(
+      `Nothing was checked: ${inside} is not the root of a platformOS project.\n` +
+        `Re-run the check against the project root: ${root}`,
+    );
+  });
+});
+
+describe('Unit: projectRootRefusal', () => {
+  /**
+   * The message is asserted here rather than through `appCheckRun`, because the no-project branch
+   * cannot be reached deterministically through the real filesystem: it would require asserting
+   * that nothing above the machine's temp directory is a platformOS project, which is a claim about
+   * the machine. That assertion failed on Windows CI, where a marker directory near the drive root
+   * made `findRoot` resolve the temp directory to `c:` — so the test reported the wrong branch for
+   * a reason that had nothing to do with the code under test.
+   */
+  it('says nothing when the path IS the root', () => {
+    expect(
+      projectRootRefusal({ given: 'file:///project', root: 'file:///project', isRoot: true }),
+    ).toBeUndefined();
   });
 
-  it('refuses a directory that is inside no project at all', async () => {
-    const outside = await fs.mkdtemp(nodePath.join(os.tmpdir(), 'platformos-not-a-project-'));
-    try {
-      const error = await appCheckRun(outside).catch((e) => e);
-      expect(error).toBeInstanceOf(Error);
-      expect(error.message).toContain('Nothing was checked');
-      expect(error.message).toContain('is not inside a platformOS project');
-      // Says what it looked for, so the answer is actionable rather than a bare refusal.
-      expect(error.message).toContain('app/');
-      expect(error.message).toContain('.platformos-check.yml');
-    } finally {
-      await fs.rm(outside, { recursive: true, force: true });
-    }
+  it('names the root when the path is inside a project', () => {
+    const refusal = projectRootRefusal({
+      given: 'file:///project/app',
+      root: 'file:///project',
+      isRoot: false,
+    });
+    expect(refusal).toBe(
+      `Nothing was checked: ${commonPath.fsPath('file:///project/app')} is not the root of a platformOS project.\n` +
+        `Re-run the check against the project root: ${commonPath.fsPath('file:///project')}`,
+    );
+  });
+
+  it('lists what it looked for when there is no project at all', () => {
+    const refusal = projectRootRefusal({ given: 'file:///elsewhere', root: null, isRoot: false });
+    expect(refusal).toBe(
+      `Nothing was checked: ${commonPath.fsPath('file:///elsewhere')} is not inside a platformOS project.\n` +
+        `Looked for app/, marketplace_builder/, modules/, .pos, .platformos-check.yml at or above it and found none.`,
+    );
+  });
+
+  it('names no tool, because the same text reaches pos-cli, the editor and embedders', () => {
+    const refusal = projectRootRefusal({
+      given: 'file:///project/app',
+      root: 'file:///project',
+      isRoot: false,
+    })!;
+    expect(refusal.includes('pos-cli')).toBe(false);
   });
 });

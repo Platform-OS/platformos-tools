@@ -12,8 +12,7 @@ export type FileExists = (uri: string) => Promise<boolean>;
  * Lives beside {@link findRoot} because that is what it exists for — walking upward asks "is there
  * a marker here?" once per candidate directory, and `stat` throwing is the only way to ask.
  */
-export const makeFileExists =
-  (fs: AbstractFileSystem): FileExists =>
+export const makeFileExists = (fs: AbstractFileSystem): FileExists =>
   async function fileExists(uri: string) {
     try {
       await fs.stat(uri);

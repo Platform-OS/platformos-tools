@@ -19,6 +19,7 @@ import { MissingPartial } from './missing-partial';
 import { ParserBlockingScript } from './parser-blocking-script';
 import { RequiredDocParamWithDefault } from './required-doc-param-with-default';
 import { ReservedVariableName } from './reserved-variable-name';
+import { RollbackOutsideTransaction } from './rollback-outside-transaction';
 import { TranslationKeyExists } from './translation-key-exists';
 import { UnclosedHTMLElement } from './unclosed-html-element';
 import { UndefinedObject } from './undefined-object';
@@ -65,6 +66,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   ParserBlockingScript,
   RequiredDocParamWithDefault,
   ReservedVariableName,
+  RollbackOutsideTransaction,
   TranslationKeyExists,
   UnclosedHTMLElement,
   UndefinedObject,

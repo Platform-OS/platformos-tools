@@ -82,6 +82,9 @@ RequiredDocParamWithDefault:
 ReservedVariableName:
   enabled: true
   severity: 0
+RollbackOutsideTransaction:
+  enabled: true
+  severity: 0
 TranslationKeyExists:
   enabled: true
   severity: 0

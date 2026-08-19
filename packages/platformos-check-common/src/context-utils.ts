@@ -2,6 +2,7 @@ import {
   AbstractFileSystem,
   DEFAULT_LOCALE,
   getAppPathsAcrossRoots,
+  makeFileExists,
   PlatformOSFileType,
   RouteTable,
   TranslationProvider,
@@ -64,16 +65,6 @@ export const makeGetTranslationsForBase = (fs: AbstractFileSystem, app: AppModel
 };
 
 export type FileExists = (uri: string) => Promise<boolean>;
-
-export const makeFileExists = (fs: AbstractFileSystem): FileExists =>
-  async function fileExists(uri: string) {
-    try {
-      await fs.stat(uri);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  };
 
 export const makeGetDefaultLocaleFileUri = (fs: AbstractFileSystem) => (rootUri: string) =>
   getDefaultLocaleFile(fs, rootUri);

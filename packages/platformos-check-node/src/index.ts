@@ -13,7 +13,13 @@ import {
   SourceCodeType,
   toSourceCode as commonToSourceCode,
   check as coreCheck,
+  isDeclaredRoot,
   isIgnored,
+  makeFileExists,
+  path as commonPath,
+  PROJECT_ROOT_MARKERS,
+  ProjectRootResolution,
+  resolveProjectRoot,
   sourceParsers,
   UriString,
   YAMLSourceCode,
@@ -32,6 +38,7 @@ import {
   root as platformOSLiquidDocsRoot,
 } from '@platformos/platformos-check-docs-updater';
 import fs from 'node:fs/promises';
+import nodePath from 'node:path';
 
 import { autofix } from './autofix';
 import { findConfigPath, loadConfig as resolveConfig } from './config';
@@ -111,11 +118,123 @@ export async function checkAndAutofix(root: string, configPath?: string) {
   await autofix(app, offenses);
 }
 
+/**
+ * Refuse to run unless `root` really is a project root.
+ *
+ * WHY THIS IS AN ERROR AND NOT A SILENT EMPTY RESULT. `getAppAndConfig` treats whatever it is
+ * handed as the project root. Given a directory that carries no marker — true of `app/` and of any
+ * single module directory — it loads zero files, and the run returns zero offenses. Callers print
+ * that as "No offenses found", which is indistinguishable from a clean project. Measured on a real
+ * app: `check run` reported 1036 offenses across 191 files, while `check run app` on the same
+ * project reported none, with a partial containing an unclosed tag sitting inside `app/`.
+ *
+ * The failure direction is the dangerous one — a developer, a CI job or an agent gating on that
+ * message concludes the code is clean when nothing was inspected.
+ *
+ * IT REPORTS RATHER THAN RESOLVING. Widening the run to the enclosing root would check MORE than
+ * was asked: `check run app` would pull in `modules/`, so a run meant for one app reports offenses
+ * from vendored code its caller does not own, and a CI job scoped to `app/` starts failing on
+ * dependencies. `platformos-graph` can resolve-and-proceed because the graph of a project is the
+ * same answer wherever you point at it inside the project; "check this directory" is not.
+ * Linting an arbitrary subtree is a separate feature — it would have to load the project anyway,
+ * since partials, pages and config all resolve project-wide, and then filter what it reports.
+ */
+/**
+ * A refusal to check, addressed to whoever typed the path — not a crash.
+ *
+ * Carries a stable `code` rather than relying on `instanceof`, because the consumer that most needs
+ * to recognize it (pos-cli) resolves this package independently and may be running an older or
+ * newer copy: `error instanceof pkg.ProjectRootError` throws outright when the loaded version does
+ * not export the class, turning a friendly message into a different crash. A property check
+ * degrades to "unrecognized, print as an error", which is the safe direction.
+ */
+export class ProjectRootError extends Error {
+  readonly code = PROJECT_ROOT_ERROR_CODE;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProjectRootError';
+  }
+}
+
+/** The `code` on {@link ProjectRootError}. Exported so a consumer can match without importing the class. */
+export const PROJECT_ROOT_ERROR_CODE = 'PLATFORMOS_PROJECT_ROOT';
+
+/**
+ * Why a resolved path cannot be checked, or `undefined` when it can.
+ *
+ * Pure and exported so both branches are testable against exact strings without depending on what
+ * happens to sit above the machine's temp directory — the first version of this test asserted that
+ * an OS temp directory is outside any platformOS project, which is a claim about the machine rather
+ * than about the code, and it failed on Windows CI where a marker directory exists near the drive
+ * root.
+ *
+ * Deliberately names no tool. The same text reaches a pos-cli user, an editor user through the
+ * VS Code extension, and an embedder — so "run pos-cli check run …" would be wrong for two of the
+ * three. It states the fact and the path; the caller decides how to phrase the invocation.
+ */
+export function projectRootRefusal(resolution: ProjectRootResolution): string | undefined {
+  if (resolution.isRoot) return undefined;
+
+  const given = commonPath.fsPath(resolution.given);
+  if (!resolution.root) {
+    return (
+      `Nothing was checked: ${given} is not inside a platformOS project.\n` +
+      `Looked for ${PROJECT_ROOT_MARKERS.join(', ')} at or above it and found none.`
+    );
+  }
+
+  const root = commonPath.fsPath(resolution.root);
+
+  // A DECLARED root can be asserted: somebody wrote `.pos` or `.platformos-check.yml` there
+  // precisely to say where the project starts.
+  if (isDeclaredRoot(resolution)) {
+    return (
+      `Nothing was checked: ${given} is not the root of a platformOS project.\n` +
+      `Re-run the check against the project root: ${root}`
+    );
+  }
+
+  // An INFERRED root must not be stated as fact. All the walk found was a directory with a
+  // familiar NAME, and `app`, `modules` and `marketplace_builder` are ordinary names — a checkout
+  // of module repositories under ~/Work/modules makes ~/Work answer to this, as does C:\Modules
+  // on Windows, where it resolves the drive root. Naming it "the project root" sends someone to
+  // re-run against a tree that is not their project.
+  //
+  // So it reports what it saw and how weak that is, and leaves the decision to the reader. The
+  // candidate is still named because it is usually RIGHT — a project with `app/` and no `.pos`
+  // resolves this way and the answer is correct — and withholding it would make the common case
+  // less useful to protect against the rare one.
+  //
+  // It deliberately does NOT advise adding a `.pos` file. That advice would be aimed at the
+  // candidate, and in exactly the case where the candidate is wrong it would cement the wrong root
+  // permanently: telling someone whose ~/Work holds a `modules` checkout to declare ~/Work a
+  // project is worse than saying nothing.
+  // Stating the RULE is the one piece of advice that is safe to give: it is true regardless of
+  // which directory the reader is in, it lets them identify their own root, and it explains the
+  // odd candidate rather than leaving it unexplained — `modules/` is on the list, which is exactly
+  // why a checkout of module repositories matched.
+  return (
+    `Nothing was checked: ${given} is not a platformOS project root.\n` +
+    `A project root contains one of: ${PROJECT_ROOT_MARKERS.join(', ')}.\n` +
+    `The nearest above it is ${root}, matched on ${resolution.marker}/ alone — that may not be ` +
+    `your project. Re-run the check against your project root.`
+  );
+}
+
+async function assertProjectRoot(root: string): Promise<void> {
+  const absolute = nodePath.isAbsolute(root) ? root : nodePath.resolve(process.cwd(), root);
+  const resolution = await resolveProjectRoot(absolute, makeFileExists(NodeFileSystem));
+  const refusal = projectRootRefusal(resolution);
+  if (refusal) throw new ProjectRootError(refusal);
+}
+
 export async function appCheckRun(
   root: string,
   configPath?: string,
   log: (message: string) => void = () => {},
 ): Promise<AppCheckRun> {
+  await assertProjectRoot(root);
   const { app, config } = await getAppAndConfig(root, configPath);
   const offenses = await lintApp(app, config, log);
 

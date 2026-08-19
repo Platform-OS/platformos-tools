@@ -1,6 +1,11 @@
 import nodePath from 'node:path';
 import fs from 'node:fs/promises';
-import { findRoot, makeFileExists, path } from '@platformos/platformos-check-common';
+import {
+  makeFileExists,
+  path,
+  PROJECT_ROOT_MARKERS,
+  resolveProjectRoot,
+} from '@platformos/platformos-check-common';
 import {
   AbstractFileSystem,
   FileStat,
@@ -76,15 +81,20 @@ export interface SerializableFileDependencies {
  * `path.normalize` (forward slashes), so any lookup must key the same way or it
  * silently misses on Windows, where raw URIs keep backslashes.
  */
-async function resolveProjectRoot(root: string, fs: AbstractFileSystem): Promise<string> {
+async function resolveGraphRoot(root: string, fs: AbstractFileSystem): Promise<string> {
+  // Only the cwd-relative step stays here: `process.cwd()` is node-specific, and the resolution
+  // itself lives in platformos-check-common so the linter shares it rather than owning a copy.
   const absolute = nodePath.isAbsolute(root) ? root : nodePath.resolve(process.cwd(), root);
-  const startUri = uriFromPath(absolute);
 
-  const rootUri = await findRoot(startUri, makeFileExists(fs));
+  const { given, root: rootUri } = await resolveProjectRoot(absolute, makeFileExists(fs));
   if (!rootUri) {
+    // The marker list is derived rather than restated, so it cannot drift from what findRoot
+    // actually looks for. The wording is unchanged from when it was hand-written — this is a
+    // refactor, and the existing message assertion is what proves it stayed one.
+    const markers = PROJECT_ROOT_MARKERS.join(', ').replace(/, ([^,]*)$/, ', or $1');
     throw new Error(
-      `Not a platformOS project: ${startUri}\n` +
-        `No app/, marketplace_builder/, modules/, .pos, or .platformos-check.yml found ` +
+      `Not a platformOS project: ${given}\n` +
+        `No ${markers} found ` +
         `at or above this path. Pass the path to a platformOS app directory.`,
     );
   }
@@ -115,7 +125,7 @@ export async function buildSerializedGraph(
   root: string,
   fs: AbstractFileSystem = nodeFileSystem,
 ): Promise<SerializableGraph> {
-  const graph = await buildAppGraph(await resolveProjectRoot(root, fs), { fs });
+  const graph = await buildAppGraph(await resolveGraphRoot(root, fs), { fs });
   return serializeAppGraph(graph);
 }
 
@@ -136,7 +146,7 @@ export async function buildSerializedFileDependencies(
   file: string,
   fs: AbstractFileSystem = nodeFileSystem,
 ): Promise<SerializableFileDependencies> {
-  const rootUri = await resolveProjectRoot(root, fs);
+  const rootUri = await resolveGraphRoot(root, fs);
   const fileUri = resolveFileUri(rootUri, file);
   const graph = await buildAppGraph(rootUri, { fs });
 

@@ -1,11 +1,4 @@
-import {
-  AbstractFileSystem,
-  DEFAULT_LOCALE,
-  getAppPathsAcrossRoots,
-  PlatformOSFileType,
-  RouteTable,
-  TranslationProvider,
-} from '@platformos/platformos-common';
+import { AbstractFileSystem, DEFAULT_LOCALE, getAppPathsAcrossRoots, makeFileExists, PlatformOSFileType, RouteTable, TranslationProvider } from '@platformos/platformos-common';
 import { URI } from 'vscode-uri';
 import { join } from './path';
 import { AppModel, Translations } from './types';
@@ -64,16 +57,6 @@ export const makeGetTranslationsForBase = (fs: AbstractFileSystem, app: AppModel
 };
 
 export type FileExists = (uri: string) => Promise<boolean>;
-
-export const makeFileExists = (fs: AbstractFileSystem): FileExists =>
-  async function fileExists(uri: string) {
-    try {
-      await fs.stat(uri);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  };
 
 export const makeGetDefaultLocaleFileUri = (fs: AbstractFileSystem) => (rootUri: string) =>
   getDefaultLocaleFile(fs, rootUri);

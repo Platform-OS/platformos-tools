@@ -1,12 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { makeFileExists } from './context-utils';
-import { findRoot } from './find-root';
-import { MockApp, MockFileSystem } from './test';
+import { FileExists, findRoot, PROJECT_ROOT_MARKERS, resolveProjectRoot } from './find-root';
 
 const ROOT = 'file:///project';
 
-/** The `fileExists` every real caller passes, over the given project tree. */
-const fileExists = (files: MockApp) => makeFileExists(new MockFileSystem(files, ROOT));
+/**
+ * The `fileExists` every real caller passes, over the given project tree.
+ *
+ * Built locally rather than from check-common's MockFileSystem — this module moved down to
+ * platformos-common, which must not depend on the layer above it, and common's own specs
+ * (RouteTable, DocumentsLocator) define their fixtures the same way.
+ *
+ * DIRECTORIES MUST REPORT AS EXISTING, which is the whole point of the fixture: findRoot asks
+ * `fileExists(<dir>/app)` for a directory, never for a file inside it, so a mock that only knew
+ * about files would find no root anywhere and make every test below vacuous.
+ */
+const fileExists = (files: Record<string, string>): FileExists => {
+  const present = new Set<string>();
+  for (const relativePath of Object.keys(files)) {
+    const parts = relativePath.split('/');
+    for (let i = 1; i <= parts.length; i++) {
+      present.add(`${ROOT}/${parts.slice(0, i).join('/')}`);
+    }
+  }
+  return async (uri: string) => present.has(uri);
+};
 
 describe('Unit: findRoot', () => {
   it('marks the directory containing app/ as the root', async () => {
@@ -155,5 +172,73 @@ describe('Unit: findRoot', () => {
         `${ROOT}/app/views/pages/nested`,
       );
     });
+  });
+});
+
+describe('Unit: resolveProjectRoot', () => {
+  /**
+   * The distinction this function exists for. `findRoot` alone cannot tell a caller whether the
+   * path it was handed IS the root or merely sits inside one, and that is exactly what decides
+   * whether the linter may run: `check run app` reported "No offenses found" while checking zero
+   * files, because a subdirectory was accepted as a project root and matched nothing.
+   */
+  it('reports the root and that the path IS it, when given the root', async () => {
+    const exists = fileExists({ 'app/views/pages/index.liquid': '{{ content }}' });
+    expect(await resolveProjectRoot(ROOT, exists)).toEqual({
+      given: ROOT,
+      root: ROOT,
+      isRoot: true,
+    });
+  });
+
+  it('reports the root and that the path is NOT it, when given a directory inside the project', async () => {
+    // The case behind the bug. A caller can now say "nothing was checked, the root is X" instead
+    // of silently checking nothing.
+    const exists = fileExists({ 'app/views/pages/index.liquid': '{{ content }}' });
+    expect(await resolveProjectRoot(`${ROOT}/app`, exists)).toEqual({
+      given: `${ROOT}/app`,
+      root: ROOT,
+      isRoot: false,
+    });
+  });
+
+  it('reports a module directory as inside the project, not as its own root', async () => {
+    // `check run modules/<name>` was the other spelling that silently checked nothing.
+    const exists = fileExists({
+      'app/views/pages/index.liquid': '{{ content }}',
+      'modules/mymodule/public/views/partials/card.liquid': '<div></div>',
+    });
+    const res = await resolveProjectRoot(`${ROOT}/modules/mymodule`, exists);
+    expect(res.root).toBe(ROOT);
+    expect(res.isRoot).toBe(false);
+  });
+
+  it('reports no root at all for a path outside any project', async () => {
+    const exists = fileExists({ 'app/views/pages/index.liquid': '{{ content }}' });
+    const res = await resolveProjectRoot('file:///elsewhere', exists);
+    expect(res.root).toBeNull();
+    expect(res.isRoot).toBe(false);
+  });
+
+  it('normalizes a plain absolute path to a URI', async () => {
+    // Callers hand it either spelling; `given` is what a message will quote back, so it must be
+    // the normalized form rather than whatever the shell happened to pass.
+    const exists = fileExists({ 'app/views/pages/index.liquid': '{{ content }}' });
+    const res = await resolveProjectRoot('/project', exists);
+    expect(res.given).toBe(ROOT);
+    expect(res.isRoot).toBe(true);
+  });
+});
+
+describe('Unit: PROJECT_ROOT_MARKERS', () => {
+  it('names every marker findRoot actually looks for', () => {
+    // The list exists so an error message can state what was searched for. It is derived from the
+    // same constants isRoot uses, so this asserts the derivation kept them all rather than
+    // re-stating the list a second time.
+    expect(PROJECT_ROOT_MARKERS).toContain('app/');
+    expect(PROJECT_ROOT_MARKERS).toContain('marketplace_builder/');
+    expect(PROJECT_ROOT_MARKERS).toContain('modules/');
+    expect(PROJECT_ROOT_MARKERS).toContain('.pos');
+    expect(PROJECT_ROOT_MARKERS).toContain('.platformos-check.yml');
   });
 });

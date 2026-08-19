@@ -23,3 +23,4 @@ export * from './frontmatter';
 export * from './graphql';
 export * from './schema-table';
 export * from './yaml-load-options';
+export * from './find-root';

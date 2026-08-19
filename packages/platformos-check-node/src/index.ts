@@ -14,6 +14,10 @@ import {
   toSourceCode as commonToSourceCode,
   check as coreCheck,
   isIgnored,
+  makeFileExists,
+  path as commonPath,
+  PROJECT_ROOT_MARKERS,
+  resolveProjectRoot,
   sourceParsers,
   UriString,
   YAMLSourceCode,
@@ -32,6 +36,7 @@ import {
   root as platformOSLiquidDocsRoot,
 } from '@platformos/platformos-check-docs-updater';
 import fs from 'node:fs/promises';
+import nodePath from 'node:path';
 
 import { autofix } from './autofix';
 import { findConfigPath, loadConfig as resolveConfig } from './config';
@@ -111,11 +116,55 @@ export async function checkAndAutofix(root: string, configPath?: string) {
   await autofix(app, offenses);
 }
 
+/**
+ * Refuse to run unless `root` really is a project root.
+ *
+ * WHY THIS IS AN ERROR AND NOT A SILENT EMPTY RESULT. `getAppAndConfig` treats whatever it is
+ * handed as the project root. Given a directory that carries no marker — true of `app/` and of any
+ * single module directory — it loads zero files, and the run returns zero offenses. Callers print
+ * that as "No offenses found", which is indistinguishable from a clean project. Measured on a real
+ * app: `check run` reported 1036 offenses across 191 files, while `check run app` on the same
+ * project reported none, with a partial containing an unclosed tag sitting inside `app/`.
+ *
+ * The failure direction is the dangerous one — a developer, a CI job or an agent gating on that
+ * message concludes the code is clean when nothing was inspected.
+ *
+ * IT REPORTS RATHER THAN RESOLVING. Widening the run to the enclosing root would check MORE than
+ * was asked: `check run app` would pull in `modules/`, so a run meant for one app reports offenses
+ * from vendored code its caller does not own, and a CI job scoped to `app/` starts failing on
+ * dependencies. `platformos-graph` can resolve-and-proceed because the graph of a project is the
+ * same answer wherever you point at it inside the project; "check this directory" is not.
+ * Linting an arbitrary subtree is a separate feature — it would have to load the project anyway,
+ * since partials, pages and config all resolve project-wide, and then filter what it reports.
+ */
+async function assertProjectRoot(root: string): Promise<void> {
+  const absolute = nodePath.isAbsolute(root) ? root : nodePath.resolve(process.cwd(), root);
+  const resolution = await resolveProjectRoot(absolute, makeFileExists(NodeFileSystem));
+  if (resolution.isRoot) return;
+
+  const given = commonPath.fsPath(resolution.given);
+  if (!resolution.root) {
+    throw new Error(
+      `Nothing was checked: ${given} is not inside a platformOS project.\n` +
+        `Looked for ${PROJECT_ROOT_MARKERS.join(', ')} at or above it and found none.\n` +
+        `Re-run against a platformOS project directory.`,
+    );
+  }
+
+  const projectRoot = commonPath.fsPath(resolution.root);
+  throw new Error(
+    `Nothing was checked: ${given} is not the root of a platformOS project.\n` +
+      `The project root is ${projectRoot}.\n` +
+      `Re-run against the root, e.g. pos-cli check run ${projectRoot}`,
+  );
+}
+
 export async function appCheckRun(
   root: string,
   configPath?: string,
   log: (message: string) => void = () => {},
 ): Promise<AppCheckRun> {
+  await assertProjectRoot(root);
   const { app, config } = await getAppAndConfig(root, configPath);
   const offenses = await lintApp(app, config, log);
 

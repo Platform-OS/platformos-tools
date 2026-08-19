@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import nodePath from 'node:path';
 import path from 'node:path';
 import { allChecks } from '@platformos/platformos-check-common';
@@ -1769,5 +1770,63 @@ describe('Unit: updateDocs', () => {
       expect.any(String),
       expect.any(Function),
     );
+  });
+});
+
+describe('Unit: appCheckRun refuses a path that is not the project root', () => {
+  /**
+   * The bug this guards. `getAppAndConfig` treats whatever it is handed as the project root, so a
+   * subdirectory loaded zero files and the run returned zero offenses — which every caller prints
+   * as "No offenses found". Measured on a real project: 1036 offenses with no argument, none when
+   * pointed at `app/`, with a syntactically broken partial sitting inside `app/`.
+   */
+  const BROKEN = '{% if true %}\n  <div class="unclosed">\n{% endif\n';
+  const PROJECT = {
+    '.platformos-check.yml': `extends: platformos-check:nothing
+LiquidHTMLSyntaxError:
+  enabled: true
+`,
+    app: { views: { partials: { 'broken.liquid': BROKEN } } },
+  };
+
+  let workspace: Awaited<ReturnType<typeof makeTempWorkspace>> | undefined;
+  afterEach(async () => {
+    await workspace?.clean();
+    workspace = undefined;
+  });
+
+  it('still checks normally when given the actual root', async () => {
+    // The control. Without it, a guard that refused EVERYTHING would pass the tests below.
+    workspace = await makeTempWorkspace(PROJECT);
+    const { offenses } = await appCheckRun(URI.parse(workspace.rootUri).fsPath);
+    expect(offenses.length).toBeGreaterThan(0);
+  });
+
+  it('refuses a directory inside the project, naming the root and how to re-run', async () => {
+    workspace = await makeTempWorkspace(PROJECT);
+    const root = URI.parse(workspace.rootUri).fsPath;
+    const inside = nodePath.join(root, 'app');
+
+    const error = await appCheckRun(inside).catch((e) => e);
+    expect(error, 'a subdirectory must not resolve to an empty, silent run').toBeInstanceOf(Error);
+    // The three things a caller needs: that nothing ran, where the root is, and what to type.
+    expect(error.message).toContain('Nothing was checked');
+    expect(error.message).toContain(root);
+    expect(error.message).toContain('Re-run against the root');
+  });
+
+  it('refuses a directory that is inside no project at all', async () => {
+    const outside = await fs.mkdtemp(nodePath.join(os.tmpdir(), 'platformos-not-a-project-'));
+    try {
+      const error = await appCheckRun(outside).catch((e) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toContain('Nothing was checked');
+      expect(error.message).toContain('is not inside a platformOS project');
+      // Says what it looked for, so the answer is actionable rather than a bare refusal.
+      expect(error.message).toContain('app/');
+      expect(error.message).toContain('.platformos-check.yml');
+    } finally {
+      await fs.rm(outside, { recursive: true, force: true });
+    }
   });
 });

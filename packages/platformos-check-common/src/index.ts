@@ -1,6 +1,6 @@
 import { AugmentedPlatformOSDocset } from './AugmentedPlatformOSDocset';
+import { makeFileExists } from '@platformos/platformos-common';
 import {
-  makeFileExists,
   makeGetDefaultTranslations,
   makeGetRouteTable,
   makeGetTranslationsForBase,
@@ -56,7 +56,20 @@ export * from './types/platformos-liquid-docs';
 export * from './checks';
 export * from './context-utils';
 export * from './filter-semantics';
-export * from './find-root';
+/**
+ * findRoot / resolveProjectRoot / PROJECT_ROOT_MARKERS moved to @platformos/platformos-common —
+ * they are project-LAYOUT knowledge, and every constant they run on (APP_ROOTS,
+ * STANDALONE_MODULE_ROOTS, APP_SOURCE_SUBTREES) already lived there. Re-exported here so the
+ * existing import path keeps working for consumers.
+ */
+export {
+  findRoot,
+  makeFileExists,
+  PROJECT_ROOT_MARKERS,
+  resolveProjectRoot,
+  type FileExists,
+  type ProjectRootResolution,
+} from '@platformos/platformos-common';
 export * from './fixes';
 export * from './ignore';
 // No file-identity re-exports. platformos-common is the SINGLE owner of what a

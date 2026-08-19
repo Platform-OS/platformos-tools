@@ -37,3 +37,13 @@ export function relativeUriPath(uri: UriString, rootUri: UriString): string {
 export function joinUri(rootUri: UriString, ...segments: string[]): UriString {
   return normalizeUri(Utils.joinPath(URI.parse(rootUri), ...segments));
 }
+
+/** The last segment of `uri`. Walking upward needs it — see {@link findRoot}. */
+export function basenameUri(uri: UriString | URI): string {
+  return Utils.basename(typeof uri === 'string' ? URI.parse(uri) : uri);
+}
+
+/** The parent of `uri`, normalized. Walking upward needs it — see {@link findRoot}. */
+export function dirnameUri(uri: UriString | URI): UriString {
+  return normalizeUri(Utils.dirname(typeof uri === 'string' ? URI.parse(uri) : uri));
+}

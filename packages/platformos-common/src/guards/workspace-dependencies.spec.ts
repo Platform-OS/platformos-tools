@@ -64,6 +64,44 @@ describe('workspace dependency declarations', () => {
   });
 
   /**
+   * PRECISION MUST NOT COST DETECTION. `importedIn` requires import position, so every form the
+   * repo actually uses is pinned here — otherwise a narrowing that silently stopped matching
+   * `export * from` would make this whole guard vacuous while still reporting success.
+   */
+  it('matches every import form the workspace uses', () => {
+    const pkg = '@platformos/platformos-common';
+
+    for (const form of [
+      `import { x } from '${pkg}';`,
+      `import type { X } from '${pkg}';`,
+      `import '${pkg}';`,
+      `export * from '${pkg}';`,
+      `export { x } from '${pkg}';`,
+      `const m = await import('${pkg}');`,
+      `const m = require('${pkg}');`,
+      `import x from '${pkg}/app/uri';`,
+    ]) {
+      expect(importedIn(form), form).toEqual(new Set([pkg]));
+    }
+  });
+
+  /**
+   * And the case the old pattern got wrong: a package NAME used as data is not a dependency.
+   */
+  it('does not treat a package name used as data as an import', () => {
+    const pkg = '@platformos/platformos-check-node';
+
+    for (const mention of [
+      `await createMockNodeModule(tempDir, '${pkg}', content);`,
+      `expect(modulePaths).not.toContain('${pkg}');`,
+      `const FIRST_PARTY = ['${pkg}'];`,
+      `// '${pkg}' is excluded by name`,
+    ]) {
+      expect(importedIn(mention), mention).toEqual(new Set());
+    }
+  });
+
+  /**
    * And the cycle detector itself sees one when there is one, which the repo must not have.
    */
   it('reports a cycle when the graph has one', () => {
@@ -127,12 +165,35 @@ async function workspacePackages(): Promise<string[]> {
   return dirs.flat();
 }
 
+/**
+ * The workspace packages `source` IMPORTS.
+ *
+ * Import POSITION is required — `from`, `import`, `import(` or `require(` — not merely a quoted
+ * package name anywhere in the text. A package name is ordinary data: a fixture that creates a
+ * mock `node_modules/@platformos/platformos-check-node` names it in a string, and so does an
+ * assertion about one. Counting those made this guard demand a dependency on a package the file
+ * only ever mentions, which is a false positive with nowhere to go — the honest fix is not to
+ * declare a dependency that does not exist, and not to obfuscate the string either.
+ *
+ * Verified not to lose anything: over every package's `src`, the narrowed pattern finds the same
+ * set as the old one, with a single difference — this file's own assertion below, which names
+ * platformos-common in an `expect` and which the caller skips anyway as a self-reference.
+ * `matchesEveryImportForm` pins the forms so precision cannot quietly cost detection.
+ */
+export function importedIn(source: string): Set<string> {
+  const imported = new Set<string>();
+  for (const [, specifier] of source.matchAll(WORKSPACE_IMPORT)) imported.add(specifier);
+  return imported;
+}
+
+const WORKSPACE_IMPORT =
+  /(?:\bfrom|\bimport|\brequire)\s*\(?\s*['"](@platformos\/[a-z0-9-]+)['"/]/g;
+
 async function importedWorkspacePackages(srcDir: string): Promise<Set<string>> {
   const imported = new Set<string>();
 
   for (const file of await sourceFiles(srcDir)) {
-    const source = await readFile(file, 'utf8');
-    for (const [, specifier] of source.matchAll(/['"](@platformos\/[a-z0-9-]+)['"/]/g)) {
+    for (const specifier of importedIn(await readFile(file, 'utf8'))) {
       imported.add(specifier);
     }
   }

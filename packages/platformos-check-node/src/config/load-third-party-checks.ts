@@ -48,13 +48,25 @@ export async function findThirdPartyChecks(nodeModuleRoot: AbsolutePath): Promis
     globJoin(nodeModuleRoot, '/node_modules/@*/platformos-check-*/'),
   ];
   const results = await Promise.all(paths.map((path) => glob(path)));
-  return results
-    .flat()
-    .filter(
-      (x) =>
-        !/\@platformos\/platformos-check-(node|common|browser|docs-updater)/.test(x) &&
-        !/platformos-check-vscode/.test(x),
-    );
+  return results.flat().map(toPosixPath).filter(isThirdParty);
+}
+
+/**
+ * The first-party packages match the `platformos-check-*` naming convention themselves, so the
+ * glob above finds them and they have to be excluded by name. None of them exports `checks`.
+ *
+ * Takes a POSIX path, which is why the caller normalizes: `glob` returns results in the
+ * platform's own separator, so on Windows these arrive as
+ * `C:\proj\node_modules\@platformos\platformos-check-node` and a pattern written with `/`
+ * excludes nothing. Every first-party package was then `require`d as a third-party plugin, which
+ * printed an "Error loading ..., ignoring it" line apiece and loaded platformos-check-node a
+ * second time, under CJS.
+ */
+function isThirdParty(modulePath: ModulePath): boolean {
+  return (
+    !/@platformos\/platformos-check-(node|common|browser|docs-updater)/.test(modulePath) &&
+    !/platformos-check-vscode/.test(modulePath)
+  );
 }
 
 /** A glob pattern is written in forward slashes whatever OS produced its parts. */

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { toPosixPath } from '@platformos/platformos-common';
 import { findThirdPartyChecks, loadThirdPartyChecks } from './load-third-party-checks';
 import {
   makeTmpFolder,
@@ -31,6 +32,37 @@ describe('Module: ThirdPartyChecks', () => {
       await createMockNodeModule(tempDir, '@acme/platformos-check-extension', mockNodeModuleCheck);
       const modulePaths = await findThirdPartyChecks(tempDir);
       expect(modulePaths.length).to.be.greaterThan(0);
+    });
+
+    it('excludes the first-party packages, which match the naming convention themselves', async () => {
+      // Windows-only in practice, and silent: `glob` returns `\`-separated results there, so the
+      // exclusion pattern matched nothing and every first-party package was `require`d as a
+      // third-party plugin. None exports `checks`, so each printed "Error loading ..., ignoring
+      // it" and platformos-check-node was loaded a second time under CJS.
+      for (const name of [
+        '@platformos/platformos-check-node',
+        '@platformos/platformos-check-common',
+        '@platformos/platformos-check-browser',
+        '@platformos/platformos-check-docs-updater',
+        'platformos-check-vscode',
+      ]) {
+        await createMockNodeModule(tempDir, name, mockNodeModuleCheck);
+      }
+
+      const modulePaths = await findThirdPartyChecks(tempDir);
+
+      expect(modulePaths).to.have.lengthOf(0);
+    });
+
+    it('returns POSIX-spelled paths, the one spelling the exclusion is written in', async () => {
+      await createMockNodeModule(tempDir, '@acme/platformos-check-extension', mockNodeModuleCheck);
+
+      const modulePaths = await findThirdPartyChecks(tempDir);
+
+      expect(modulePaths).to.have.lengthOf(1);
+      expect(modulePaths[0]).to.equal(
+        `${toPosixPath(tempDir)}/node_modules/@acme/platformos-check-extension`,
+      );
     });
 
     it('does not find modules that do not match the naming convention', async () => {

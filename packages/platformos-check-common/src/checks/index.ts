@@ -49,6 +49,7 @@ import { ValidFrontmatter } from './valid-frontmatter';
 import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
 import { YAMLSyntaxError } from './yaml-syntax-error';
+import { UnsupportedStringEscape } from './unsupported-string-escape';
 
 export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCheckDefinition)[] = [
   DeprecatedFilter,
@@ -95,6 +96,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   JsonLiteralQuoteStyle,
   MissingContentForLayout,
   YAMLSyntaxError,
+  UnsupportedStringEscape,
 ];
 
 /**

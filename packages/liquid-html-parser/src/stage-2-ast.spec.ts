@@ -2314,12 +2314,12 @@ describe('Unit: Stage 2 (AST)', () => {
       });
 
       it('should throw an error when writing an unclosed node inside any other tag', async () => {
-        const testCases = [
-          '{% for x in y %}<details>{% endfor %}',
-          '{% tablerow x in y %}<details>{% endtablerow %}',
-          '{% form method: "post" %}<details>{% endform %}',
-        ];
-        for (const testCase of testCases) {
+        const expected: Record<string, string> = {
+          '{% for x in y %}<details>{% endfor %}': `Attempting to close 'for' tag before '<details>' element was closed`,
+          '{% tablerow x in y %}<details>{% endtablerow %}': `Attempting to close 'tablerow' tag before '<details>' element was closed`,
+          '{% form method: "post" %}<details>{% endform %}': `Attempting to close 'form' tag before '<details>' element was closed`,
+        };
+        for (const testCase of Object.keys(expected)) {
           try {
             toLiquidHtmlAST(testCase, {
               allowUnclosedDocumentNode: false,
@@ -2328,10 +2328,7 @@ describe('Unit: Stage 2 (AST)', () => {
             expect(true, `expected ${testCase} to throw LiquidHTMLASTParsingError`).to.be.false;
           } catch (e: any) {
             expect(e.name, testCase).to.eql('LiquidHTMLParsingError');
-            expect(e.message, testCase).to.match(
-              /Attempting to close \w+ '[^']+' before \w+ '[^']+' was closed/,
-            );
-            expect(e.message).not.to.match(/undefined/i);
+            expect(e.message, testCase).to.eql(expected[testCase]);
             expect(e.loc, `expected ${e} to have location information`).not.to.be.undefined;
           }
         }
@@ -2339,24 +2336,21 @@ describe('Unit: Stage 2 (AST)', () => {
     });
 
     it('should throw when trying to close the wrong node', () => {
-      const testCases = [
-        '<a><div></a>',
-        '{% for a in b %}<div>{% endfor %}',
-        '{% for a in b %}{% if condition %}{% endfor %}',
-        '{% for a in b %}{% if condition %}<div>{% endfor %}',
-        '<{{ node_type }}><div></{{ node_type }}>',
-        '<{{ node_type }}></{{ wrong_end_node }}>',
-      ];
-      for (const testCase of testCases) {
+      const expected: Record<string, string> = {
+        '<a><div></a>': `Attempting to close '<a>' element before '<div>' element was closed`,
+        '{% for a in b %}<div>{% endfor %}': `Attempting to close 'for' tag before '<div>' element was closed`,
+        '{% for a in b %}{% if condition %}{% endfor %}': `Attempting to close 'for' tag before 'if' tag was closed`,
+        '{% for a in b %}{% if condition %}<div>{% endfor %}': `Attempting to close 'for' tag before '<div>' element was closed`,
+        '<{{ node_type }}><div></{{ node_type }}>': `Attempting to close '<{{node_type}}>' element before '<div>' element was closed`,
+        '<{{ node_type }}></{{ wrong_end_node }}>': `Attempting to close '<{{wrong_end_node}}>' element before '<{{node_type}}>' element was closed`,
+      };
+      for (const testCase of Object.keys(expected)) {
         try {
           toLiquidHtmlAST(testCase);
           expect(true, `expected ${testCase} to throw LiquidHTMLParsingError`).to.be.false;
         } catch (e: any) {
           expect(e.name).to.eql('LiquidHTMLParsingError');
-          expect(e.message, testCase).to.match(
-            /Attempting to (open|close) \w+ '[^']+' before \w+ '[^']+' was closed/,
-          );
-          expect(e.message).not.to.match(/undefined/i);
+          expect(e.message, testCase).to.eql(expected[testCase]);
           expect(e.loc, `expected ${e} to have location information`).not.to.be.undefined;
         }
       }
@@ -2377,20 +2371,17 @@ describe('Unit: Stage 2 (AST)', () => {
     });
 
     it('should throw when trying to open a new branch when a Liquid node was not closed', () => {
-      const testCases = [
-        '{% if cond %}{% form method: "post" %}{% else %}{% endif %}',
-        '{% if cond %}{% form method: "post" %}{% elsif cond %}{% endif %}',
-      ];
-      for (const testCase of testCases) {
+      const expected: Record<string, string> = {
+        '{% if cond %}{% form method: "post" %}{% else %}{% endif %}': `Attempting to open 'else' tag before 'form' tag was closed`,
+        '{% if cond %}{% form method: "post" %}{% elsif cond %}{% endif %}': `Attempting to open 'elsif' tag before 'form' tag was closed`,
+      };
+      for (const testCase of Object.keys(expected)) {
         try {
           toLiquidHtmlAST(testCase);
           expect(true, `expected ${testCase} to throw LiquidHTMLParsingError`).to.be.false;
         } catch (e: any) {
           expect(e.name).to.eql('LiquidHTMLParsingError');
-          expect(e.message, testCase).to.match(
-            /Attempting to open \w+ '[^']+' before \w+ '[^']+' was closed/,
-          );
-          expect(e.message).not.to.match(/undefined/i);
+          expect(e.message, testCase).to.eql(expected[testCase]);
           expect(e.loc, `expected ${e} to have location information`).not.to.be.undefined;
         }
       }
@@ -2404,23 +2395,29 @@ describe('Unit: Stage 2 (AST)', () => {
           expect(true, `expected ${testCase} to throw LiquidHTMLCSTParsingError`).to.be.false;
         } catch (e: any) {
           expect(e.name).to.eql('LiquidHTMLParsingError');
-          expect(e.message).to.match(/Attempting to end parsing before \w+ '[^']+' was closed/);
-          expect(e.message).not.to.match(/undefined/i);
+          // The wording the Liquid runtime uses for the same mistake: "'if' tag was never
+          // closed". A reader who saw one message and then the other must not have to
+          // translate between them.
+          expect(e.message, testCase).to.eql(
+            testCase === '<a>' ? `'<a>' element was never closed` : `'if' tag was never closed`,
+          );
           expect(e.loc, `expected ${e} to have location information`).not.to.be.undefined;
         }
       }
     });
 
     it('should throw when forgetting to close', () => {
-      const testCases = ['</a>', '{% endif %}'];
-      for (const testCase of testCases) {
+      const expected: Record<string, string> = {
+        '</a>': `Attempting to close '<a>' element before it was opened`,
+        '{% endif %}': `Attempting to close 'if' tag before it was opened`,
+      };
+      for (const testCase of Object.keys(expected)) {
         try {
           toLiquidHtmlAST(testCase);
           expect(true, `expected ${testCase} to throw LiquidHTMLCSTParsingError`).to.be.false;
         } catch (e: any) {
           expect(e.name).to.eql('LiquidHTMLParsingError');
-          expect(e.message).to.match(/Attempting to close \w+ '[^']+' before it was opened/);
-          expect(e.message).not.to.match(/undefined/i);
+          expect(e.message, testCase).to.eql(expected[testCase]);
           expect(e.loc, `expected ${e} to have location information`).not.to.be.undefined;
         }
       }

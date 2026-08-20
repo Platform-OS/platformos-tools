@@ -1,6 +1,7 @@
 import { LiquidTag, LiquidVariableOutput, NodeTypes } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
 import { getValuesInMarkup, INVALID_SYNTAX_MESSAGE } from './utils';
+import { findUnsupportedStringEscapes } from '../../unsupported-string-escape/detect';
 
 export function detectInvalidEchoValue(
   node: LiquidTag | LiquidVariableOutput,
@@ -22,6 +23,12 @@ export function detectInvalidEchoValue(
     // e.g. {{ }}, {% echo %}, and {% liquid echo %}
     !markup
   ) {
+    return;
+  }
+
+  // `UnsupportedStringEscape` reports the cause. The leftover here is the text the truncated
+  // literal spat out, and this fix would DELETE it, making the truncation permanent.
+  if (findUnsupportedStringEscapes(markup).length > 0) {
     return;
   }
 

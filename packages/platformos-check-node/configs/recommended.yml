@@ -106,6 +106,9 @@ UnknownProperty:
 UnrecognizedRenderPartialArguments:
   enabled: true
   severity: 1
+UnsupportedStringEscape:
+  enabled: true
+  severity: 0
 UnusedAssign:
   enabled: true
   severity: 1

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { runLiquidCheck, messagesOf } from '../../../test';
 import { LiquidHTMLSyntaxError } from '../index';
+import { UnsupportedStringEscape } from '../../unsupported-string-escape';
 
 describe('detectInvalidAssignSyntax', () => {
   describe('structurally-broken assign tags', () => {
@@ -437,14 +438,18 @@ describe('detectInvalidAssignSyntax', () => {
       expect(offenses).toHaveLength(0);
     });
 
-    it('reports an escaped single-quote in a single-quoted string', async () => {
-      // Same rule, other direction: `'can\'t'` is the string `can\` followed by the stray
-      // markup `t'`, because the runtime's lexer stops at the quote after the backslash.
-      // It renders (lax mode drops the remainder) but silently assigns `can\` instead of
-      // `can't`, so it is reported like any other trailing junk after an assign value.
+    it('leaves an escaped single-quote to UnsupportedStringEscape, which names the cause', async () => {
+      // `'can\'t'` is the string `can\` followed by the stray markup `t'`, because the lexer
+      // stops at the quote after the backslash. It renders, silently assigning `can\`, so the
+      // defect is the truncated literal rather than trailing junk after an assign value.
       const sourceCode = `{% assign x = 'can\\'t' %}`;
-      const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-      expect(offenses).toHaveLength(1);
+
+      expect(await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode)).toEqual([]);
+      expect(messagesOf(await runLiquidCheck(UnsupportedStringEscape, sourceCode))).toEqual([
+        "String literals have no backslash escapes: `'can\\'` ends at the escaped `'`, so its " +
+          "value is `can\\` and `t'` is left outside the string. " +
+          'Quote it with `"` instead: `"can\'t"`.',
+      ]);
     });
 
     it('accepts deeply nested JSON structures', async () => {

@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-mcp-supervisor",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "platformOS Model Context Protocol (MCP) server exposing validate_code for LLM agents.",
   "type": "module",
   "main": "dist/index.js",
@@ -43,12 +43,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@platformos/liquid-html-parser": "0.0.17",
-    "@platformos/platformos-check-common": "0.0.19",
-    "@platformos/platformos-check-node": "0.0.19",
-    "@platformos/platformos-common": "0.0.17",
-    "@platformos/platformos-graph": "0.0.19",
-    "@platformos/platformos-language-server-common": "0.0.19",
+    "@platformos/liquid-html-parser": "0.1.0",
+    "@platformos/platformos-check-common": "1.0.0",
+    "@platformos/platformos-check-node": "1.0.0",
+    "@platformos/platformos-common": "0.1.0",
+    "@platformos/platformos-graph": "0.1.0",
+    "@platformos/platformos-language-server-common": "0.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {}

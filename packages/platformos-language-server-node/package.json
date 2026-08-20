@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-language-server-node",
-  "version": "0.0.19",
+  "version": "0.1.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "platformOS",
@@ -27,10 +27,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/platformos-check-docs-updater": "0.0.19",
-    "@platformos/platformos-check-node": "0.0.19",
-    "@platformos/platformos-common": "0.0.17",
-    "@platformos/platformos-language-server-common": "0.0.19",
+    "@platformos/platformos-check-docs-updater": "1.0.0",
+    "@platformos/platformos-check-node": "1.0.0",
+    "@platformos/platformos-common": "0.1.0",
+    "@platformos/platformos-language-server-common": "0.1.0",
     "glob": "^13.0.0",
     "vscode-languageserver": "^9.0.1",
     "vscode-uri": "^3.1.0"

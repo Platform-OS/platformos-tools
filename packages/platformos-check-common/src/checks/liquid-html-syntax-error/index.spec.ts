@@ -14,10 +14,7 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     `;
 
     const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal(
-      `Attempting to end parsing before LiquidTag 'capture' was closed`,
-    );
+    expect(offenses.map((offense) => offense.message)).toEqual([`'capture' tag was never closed`]);
   });
 
   it('should report unclosed HTML tags', async () => {
@@ -27,10 +24,7 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     `;
 
     const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
-    expect(offenses).to.have.length(1);
-    expect(offenses[0].message).to.equal(
-      `Attempting to end parsing before HtmlElement 'a' was closed`,
-    );
+    expect(offenses.map((offense) => offense.message)).toEqual([`'<a>' element was never closed`]);
   });
 
   it('should report closing the wrong node (html/html)', async () => {
@@ -43,7 +37,7 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
-      `Attempting to close HtmlElement 'b' before HtmlElement 'a' was closed`,
+      `Attempting to close '<b>' element before '<a>' element was closed`,
     );
   });
 
@@ -57,7 +51,7 @@ describe('Module: LiquidHTMLSyntaxError', () => {
     const offenses = await runLiquidCheck(LiquidHTMLSyntaxError, sourceCode);
     expect(offenses).to.have.length(1);
     expect(offenses[0].message).to.equal(
-      `Attempting to close LiquidTag 'if' before HtmlElement 'a' was closed`,
+      `Attempting to close 'if' tag before '<a>' element was closed`,
     );
   });
 

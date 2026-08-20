@@ -1311,7 +1311,7 @@ class ASTBuilder {
 
     if (!this.parent) {
       throw new LiquidHTMLASTParsingError(
-        `Attempting to close ${nodeType} '${getName(node)}' before it was opened`,
+        `Attempting to close ${describeBlock(node, nodeType)} before it was opened`,
         this.source,
         node.locStart,
         node.locEnd,
@@ -1330,9 +1330,9 @@ class ASTBuilder {
         }
       } else {
         throw new LiquidHTMLASTParsingError(
-          `Attempting to close ${nodeType} '${getName(node)}' before ${this.parent.type} '${getName(
+          `Attempting to close ${describeBlock(node, nodeType)} before ${describeBlock(
             this.parent,
-          )}' was closed`,
+          )} was closed`,
           this.source,
           this.parent.position.start,
           node.locEnd,
@@ -1367,9 +1367,11 @@ class ASTBuilder {
         return parent;
       } else if (!isUnclosedHtmlElement) {
         throw new LiquidHTMLASTParsingError(
-          `Attempting to open LiquidBranch '${next.name}' before ${parent.type} '${getName(
-            parent,
-          )}' was closed`,
+          `Attempting to open ${describeBlock(
+            next,
+            NodeTypes.LiquidBranch,
+            next.name,
+          )} before ${describeBlock(parent)} was closed`,
           this.source,
           parent.position.start,
           next.position.end,
@@ -1414,6 +1416,36 @@ class ASTBuilder {
 
 function isLiquidBranch(node: LiquidHtmlNode | undefined): node is LiquidBranchNode<any, any> {
   return !!node && node.type === NodeTypes.LiquidBranch;
+}
+
+/**
+ * A block described the way the person who wrote it would describe it.
+ *
+ * Parser node types are internal vocabulary: an author who forgot `{% endif %}`
+ * wrote a tag, not a `LiquidBranch`, and the Liquid runtime tells them so
+ * ("'if' tag was never closed"). Error messages leaking `LiquidBranch 'null'`
+ * cost the reader the one fact they need -- which construct to go close.
+ */
+export function describeBlock(
+  node: ConcreteLiquidTagClose | ConcreteHtmlTagClose | ParentNode | UnclosedNode | undefined,
+  nodeType?: NodeTypes,
+  name?: string | null,
+): string {
+  const type = nodeType ?? node?.type;
+  const label =
+    name ??
+    (node && 'name' in node && typeof node.name === 'string'
+      ? node.name
+      : getName(node as ParentNode | undefined));
+
+  switch (type) {
+    case NodeTypes.LiquidTag:
+    case NodeTypes.LiquidBranch:
+    case ConcreteNodeTypes.LiquidTagClose:
+      return label ? `'${label}' tag` : 'tag';
+    default:
+      return label ? `'<${label}>' element` : 'element';
+  }
 }
 
 export function getName(
@@ -1464,14 +1496,18 @@ export function cstToAst(
   const builder = buildAst(cst, options);
 
   if (!options.allowUnclosedDocumentNode && builder.cursor.length !== 0) {
+    // `getUnclosed` already walks a nameless branch up to the tag that owns it,
+    // so the message is built from its result rather than from `builder.parent`.
+    // Reading the parent directly is what produced "before LiquidBranch 'null'
+    // was closed" for a missing `{% endif %}`, while the error's own `unclosed`
+    // payload said `if` -- one error, two answers.
+    const unclosed = getUnclosed(builder.parent, builder.grandparent);
     throw new LiquidHTMLASTParsingError(
-      `Attempting to end parsing before ${builder.parent?.type} '${getName(
-        builder.parent,
-      )}' was closed`,
+      `${describeBlock(unclosed)} was never closed`,
       builder.source,
       builder.source.length - 1,
       builder.source.length,
-      getUnclosed(builder.parent, builder.grandparent),
+      unclosed,
     );
   }
 

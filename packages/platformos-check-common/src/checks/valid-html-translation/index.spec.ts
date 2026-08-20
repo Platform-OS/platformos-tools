@@ -31,7 +31,7 @@ describe('Module: ValidHTMLTranslation', () => {
     );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).to.equal(
-      "LiquidHTMLParsingError: Attempting to end parsing before HtmlElement 'h1' was closed.",
+      "LiquidHTMLParsingError: '<h1>' element was never closed.",
     );
 
     const highlights = highlightedOffenses({ 'app/translations/en.yml': sourceCode }, offenses);
@@ -56,7 +56,7 @@ describe('Module: ValidHTMLTranslation', () => {
     );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).to.equal(
-      "LiquidHTMLParsingError: Attempting to end parsing before HtmlElement 'h1' was closed.",
+      "LiquidHTMLParsingError: '<h1>' element was never closed.",
     );
 
     const highlights = highlightedOffenses({ 'app/translations/en.yml': sourceCode }, offenses);
@@ -74,7 +74,7 @@ describe('Module: ValidHTMLTranslation', () => {
     );
     expect(offenses).toHaveLength(1);
     expect(offenses[0].message).to.equal(
-      "LiquidHTMLParsingError: Attempting to end parsing before HtmlElement 'h1' was closed.",
+      "LiquidHTMLParsingError: '<h1>' element was never closed.",
     );
 
     const highlights = highlightedOffenses({ 'app/translations/en.yml': sourceCode }, offenses);

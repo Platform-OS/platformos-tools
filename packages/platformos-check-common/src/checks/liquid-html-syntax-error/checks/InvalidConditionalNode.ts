@@ -1,6 +1,7 @@
 import { LiquidBranch, LiquidTag } from '@platformos/liquid-html-parser';
 import { SourceCodeType, Problem } from '../../..';
 import { getValuesInMarkup, INVALID_SYNTAX_MESSAGE } from './utils';
+import { findUnsupportedStringEscapes } from '../../unsupported-string-escape/detect';
 
 type TokenType = 'variable' | keyof typeof TOKEN_PATTERNS;
 
@@ -50,6 +51,10 @@ export function detectInvalidConditionalNode(
 
   const markup = node.markup;
   if (typeof markup !== 'string' || !markup.trim()) return;
+
+  // A literal that ended early makes every token after it read as garbage below;
+  // `UnsupportedStringEscape` reports the cause.
+  if (findUnsupportedStringEscapes(markup).length > 0) return;
 
   const issue = analyzeConditionalExpression(markup);
   if (!issue) return;

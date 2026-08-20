@@ -1,5 +1,6 @@
 import { LiquidTag, toLiquidAST } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
+import { findUnsupportedStringEscapes } from '../../unsupported-string-escape/detect';
 
 const INVALID_ASSIGN_MESSAGE = `Invalid syntax for tag 'assign'. Expected syntax: {% assign <var> = <value> %}`;
 
@@ -60,6 +61,10 @@ export function detectInvalidAssignFallback(
   node: LiquidTag,
 ): Problem<SourceCodeType.LiquidHtml> | undefined {
   if (node.name !== 'assign' || typeof node.markup !== 'string') return;
+
+  // An escaped closing quote is why the strict re-parse below fails; the skeleton this would
+  // complain about is already correct, and `UnsupportedStringEscape` names the real cause.
+  if (findUnsupportedStringEscapes(node.markup).length > 0) return;
 
   // Digit-starting targets (e.g. `23_hours_ago`) are accepted by the platformOS
   // runtime but rejected by the Ohm grammar's `variableSegment` rule. Skipping

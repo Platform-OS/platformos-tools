@@ -37,6 +37,7 @@ import {
 } from '@platformos/platformos-graph';
 
 import { toAbsoluteFilePath, type AdapterInput } from '../adapter-input.js';
+import { NOT_APPLICABLE_IMPACT } from '../result/impact-states.js';
 import type { ValidateCodeImpact, ValidateCodeSignatureRisk } from '../result/types.js';
 import type { ProjectScan } from './project-scan.js';
 
@@ -72,13 +73,6 @@ function isGraphTrackable(uri: UriString): boolean {
   return type === SourceCodeType.LiquidHtml || type === SourceCodeType.GraphQL;
 }
 
-/** A fresh zeroed dependents shape for every non-`computed` status. */
-const noDependents = (): ValidateCodeImpact['dependents'] => ({
-  total: 0,
-  by_kind: {},
-  sample: [],
-});
-
 /**
  * Compute the edited file's blast radius from the project as it is right now.
  * Reports `not_applicable` when nothing could reference the file by name, and
@@ -97,12 +91,21 @@ export async function runImpact(
   // a reference to spell. `total: 0` for either would be a false "safe to change".
   const name = uriToName(fileUri, rootUri)?.name;
   if (!isGraphTrackable(fileUri) || name === undefined) {
-    return { scope: 'direct', status: 'not_applicable', dependents: noDependents() };
+    return NOT_APPLICABLE_IMPACT();
   }
 
   const dependents = await incomingReferences(scan, fileUri, name);
 
-  const signature = await docSignature(fileUri, content);
+  // `signature_risk: []` claims "checked, every caller matches". With no dependents found AND
+  // the file not on disk, nothing was checked — the callers may have been sent in a different
+  // call — so the affirmative is withheld rather than earned falsely.
+  //
+  // `dependents` itself stands. It is a true statement about the project as it is, and a file
+  // that is not yet on disk is the NORMAL case for this tool, which exists to be called
+  // before the write.
+  const callersAreKnowable = dependents.length > 0 || (await existsOnDisk(scan, fileUri));
+
+  const signature = callersAreKnowable ? await docSignature(fileUri, content) : null;
   const signature_risk = signature && computeSignatureRisk(dependents, rootUri, signature);
 
   return {
@@ -111,6 +114,14 @@ export async function runImpact(
     dependents: summarizeDependents(dependents, rootUri),
     ...(signature_risk ? { signature_risk } : {}),
   };
+}
+
+/** Whether the edited file exists on disk, as opposed to existing only as an in-flight buffer. */
+async function existsOnDisk(scan: ProjectScan, fileUri: UriString): Promise<boolean> {
+  return scan.fs
+    .stat(fileUri)
+    .then(() => true)
+    .catch(() => false);
 }
 
 /**

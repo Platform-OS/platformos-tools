@@ -108,6 +108,9 @@ impact
   moment of the call. \`status: unavailable\` means it could not be worked out — a failure,
   or it ran out of time — and its zeroed counts are NOT a claim that nothing depends on
   the file. Only \`status: computed\` with \`total: 0\` says that.
+  \`signature_risk\` is absent, rather than an empty list, when the file is not yet on disk
+  and nothing in this call referenced it: no caller was visible to check, so send the whole
+  change in one call before reading anything into it.
 
 WHAT IS NOT CHECKED
 ${coverage()} run against your buffer. Where a finding exists it explains itself and links

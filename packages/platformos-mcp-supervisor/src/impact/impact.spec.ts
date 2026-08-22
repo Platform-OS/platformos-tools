@@ -403,4 +403,73 @@ describe('runImpact', () => {
       });
     });
   });
+  /**
+   * `signature_risk: []` reads as "checked, every caller matches". When the edited file is
+   * not on disk and nothing in the call referenced it, no caller was visible to check, so
+   * the affirmative is withheld — the reported failure was a partial edited alone with a
+   * parameter made newly required, answering `[]` because its only caller was in another
+   * call.
+   *
+   * `dependents` is NOT withheld: a file that is not yet on disk is the normal case for a
+   * tool that exists to be called before the write. Each case is paired with the same input
+   * once it IS on disk, so a suppression wide enough to swallow the real answer fails.
+   */
+  describe('a file that is not on disk', () => {
+    const requiresTitle = `{% doc %}
+  @param {String} title - required title
+{% enddoc %}
+<div>{{ title }}</div>`;
+
+    it('withholds the affirmative signature_risk rather than claiming every caller matches', async () => {
+      const result = await run(card, requiresTitle);
+
+      expect(result.signature_risk).toBeUndefined();
+      // The blast radius itself is still answered, and still true.
+      expect(result.status).toEqual('computed');
+      expect(result.dependents).toEqual({ total: 0, by_kind: {}, sample: [] });
+    });
+
+    it('CONTROL: on disk with no callers, the same buffer earns the empty list', async () => {
+      write({ [card]: '<div></div>' });
+
+      expect((await run(card, requiresTitle)).signature_risk).toEqual([]);
+    });
+
+    it('CONTROL: on disk with a caller that breaks, it still names the caller', async () => {
+      write({ [card]: '<div></div>', 'app/views/pages/bare.liquid': "{% render 'card' %}" });
+
+      expect((await run(card, requiresTitle)).signature_risk).toEqual([
+        { caller: 'app/views/pages/bare.liquid', missing_required: ['title'], unexpected_args: [] },
+      ]);
+    });
+
+    it('answers in full when the call itself supplies a caller, which is the point of one call', async () => {
+      // Neither file is on disk. Sent together the reference resolves, a caller IS visible,
+      // and the signature is checked against it — this is what must NOT be suppressed.
+      const scan = scanOf({ 'app/views/pages/index.liquid': "{% render 'card' %}" });
+
+      expect(await run(card, requiresTitle, scan)).toEqual({
+        scope: 'direct',
+        status: 'computed',
+        dependents: {
+          total: 1,
+          by_kind: { render: 1 },
+          sample: ['app/views/pages/index.liquid'],
+        },
+        signature_risk: [
+          {
+            caller: 'app/views/pages/index.liquid',
+            missing_required: ['title'],
+            unexpected_args: [],
+          },
+        ],
+      });
+    });
+
+    it('still omits signature_risk when the buffer declares no contract at all', async () => {
+      // Absence must not become a signal that something was withheld — a file with no
+      // `{% doc %}` block has always had none, on disk or not.
+      expect((await run(card, '<div></div>')).signature_risk).toBeUndefined();
+    });
+  });
 });

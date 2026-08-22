@@ -182,8 +182,9 @@ export interface ValidateCodeImpact {
   /**
    * Dependent callers whose arguments do NOT match the edited file's `{% doc %}`
    * signature — the cross-file counterpart to the `PartialCallArguments` lint check.
-   * Present ONLY when the edited buffer declares a `{% doc %}` block: an empty array means
-   * "checked, every caller matches", absent means "no contract to check against".
+   * Present ONLY when `status` is `computed` AND the edited buffer declares a `{% doc %}`
+   * block: an empty array means "checked, every caller matches", absent means "no contract
+   * to check against, or no dependents worth checking it against".
    */
   signature_risk?: ValidateCodeSignatureRisk[];
 }

@@ -962,6 +962,12 @@ describe('server instructions', () => {
     // Zeroed dependents on a failed or timed-out lookup read exactly like a real answer.
     expect(SERVER_INSTRUCTIONS).toContain('NOT a claim that nothing depends');
   });
+
+  it('explains that an absent signature_risk is not "every caller matches"', () => {
+    // The three-valued field's affirmative is withheld when no caller was visible to check,
+    // which an agent can only act on if the instructions say so.
+    expect(SERVER_INSTRUCTIONS).toContain('absent, rather than an empty list');
+  });
 });
 
 /**

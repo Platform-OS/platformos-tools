@@ -45,7 +45,11 @@ import { DuplicateFunctionArguments } from './duplicate-function-arguments';
 import { MissingRenderPartialArguments } from './missing-render-partial-arguments';
 import { NestedGraphQLQuery } from './nested-graphql-query';
 import { MissingPage } from './missing-page';
-import { ValidFrontmatter } from './valid-frontmatter';
+import { UnknownFrontmatterField } from './unknown-frontmatter-field';
+import { InvalidFrontmatterValue } from './invalid-frontmatter-value';
+import { MissingLayout } from './missing-layout';
+import { MissingFrontmatterAssociation } from './missing-frontmatter-association';
+import { DeprecatedFrontmatterField } from './deprecated-frontmatter-field';
 import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
 import { YAMLSyntaxError } from './yaml-syntax-error';
@@ -92,7 +96,11 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   MissingRenderPartialArguments,
   NestedGraphQLQuery,
   MissingPage,
-  ValidFrontmatter,
+  UnknownFrontmatterField,
+  InvalidFrontmatterValue,
+  MissingLayout,
+  MissingFrontmatterAssociation,
+  DeprecatedFrontmatterField,
   JsonLiteralQuoteStyle,
   MissingContentForLayout,
   YAMLSyntaxError,

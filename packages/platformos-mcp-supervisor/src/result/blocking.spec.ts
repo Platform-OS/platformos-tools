@@ -103,13 +103,16 @@ describe('Unit: blocksWrite', () => {
       'FilterArity',
       'GraphQLCheck',
       'GraphQLVariablesCheck',
+      'InvalidFrontmatterValue',
       'InvalidWriteTarget',
       'JsonLiteralQuoteStyle',
       'LiquidHTMLSyntaxError',
       'MissingContentForLayout',
+      'MissingLayout',
       'MissingPartial',
       'MissingRenderPartialArguments',
       'UnknownFilter',
+      'UnknownFrontmatterField',
       'YAMLSyntaxError',
     ]);
   });
@@ -156,6 +159,38 @@ describe('Unit: blocksWrite', () => {
     // The gate reads severity as well as code, so a project that downgrades
     // `JsonLiteralQuoteStyle` in its config is respected exactly like any other member.
     expect(blocksWrite([at('JsonLiteralQuoteStyle', 'warning')])).toBe(false);
+  });
+
+  /**
+   * The frontmatter split, pinned in BOTH directions.
+   *
+   * The three fatal codes each block on a MEASURED converter rejection, which fails the
+   * whole changeset rather than the one file. The two advisory codes must not block, and
+   * for different reasons — one is known-benign, the other is unmeasured — so they are
+   * asserted separately rather than as one list.
+   */
+  it('blocks the three frontmatter shapes the converter rejects', () => {
+    expect(
+      ['UnknownFrontmatterField', 'InvalidFrontmatterValue', 'MissingLayout'].filter(
+        (code) => !blocksWrite([at(code)]),
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not block a deprecated frontmatter field, which deploys and renders', () => {
+    // Measured: `layout_name` naming an existing layout, `redirect_url`, and a `home.liquid`
+    // filename are all ACCEPTED by the converter. Superseded is not broken.
+    expect(BLOCKING_CHECKS.has('DeprecatedFrontmatterField')).toBe(false);
+    expect(blocksWrite([at('DeprecatedFrontmatterField')])).toBe(false);
+  });
+
+  it('does not block a missing frontmatter association — UNMEASURED, not benign', () => {
+    // `--dry-run` accepts it, but `base_converter.rb` returns before
+    // `bulk_write_associations_from_snapshot!`, which is what raises for an unresolvable
+    // name. The dry run's silence is a gap in the oracle, so the gate declines to block on
+    // its own uncertainty. One real deploy settles it; if it rejects, this entry moves.
+    expect(BLOCKING_CHECKS.has('MissingFrontmatterAssociation')).toBe(false);
+    expect(blocksWrite([at('MissingFrontmatterAssociation')])).toBe(false);
   });
 
   it('does NOT contain the dead-argument checks — the bug this fixes', () => {

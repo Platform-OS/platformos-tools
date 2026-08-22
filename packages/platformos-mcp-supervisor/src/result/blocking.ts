@@ -93,6 +93,28 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // content, so one that cannot is a defeated contract — and a silently blank page
   // is harder to diagnose than an error.
   'MissingContentForLayout',
+
+  // --- Frontmatter, split out of `ValidFrontmatter` so the fatal shapes can block. ---
+  //
+  // Each is a converter rejection MEASURED against a live instance with
+  // `pos-cli deploy --dry-run`, and a rejection fails the WHOLE changeset rather than the
+  // offending file. The two frontmatter shapes that deploy cleanly —
+  // `DeprecatedFrontmatterField` and `MissingFrontmatterAssociation` — are deliberately
+  // absent; see the NOT-in-the-set list below.
+
+  // `Unknown properties: <key>. Available properties are: …`, raised by
+  // `base_converter.rb`'s `check_unknown_keys` before anything is written.
+  'UnknownFrontmatterField',
+
+  // A value outside what the platform accepts for that key. Two measured shapes:
+  // `method: POST` → `Request method 'POST' is not allowed`, and `layout: false` →
+  // `undefined method 'sub' for false`, because YAML reads it as the boolean and
+  // `page_converter.rb`'s `set_layout` guards `nil` rather than `false`.
+  'InvalidFrontmatterValue',
+
+  // `Layout Could not find Layout with layout: <name>`. The platform validates it with an
+  // `inclusion:` over the deploy context's layout names (`page.rb:37`).
+  'MissingLayout',
 ]);
 
 /**
@@ -122,10 +144,22 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
  * - `UniqueDocParamNames`, `ValidDocParamTypes` — doc hygiene with no runtime effect, since
  *   `{% doc %}` is inert at runtime.
  * - `ImgWidthAndHeight`, `ParserBlockingScript` — performance advice.
- * - `ValidFrontmatter` — two of its three findings (unknown key, missing layout) ARE hard
- *   deploy rejections, so this absence is a known gap rather than a judgement. All three
- *   share one code with no discriminator, so adding it would fix two false approvals and
- *   create one false block. Blocked on a discriminator — TASK-26.
+ * - `DeprecatedFrontmatterField` — measured: a deprecated key (`layout_name` naming a layout
+ *   that exists, `redirect_url`) and a deprecated `home.liquid` filename are all ACCEPTED by
+ *   the converter. Superseded, not broken.
+ * - `MissingFrontmatterAssociation` — absent because its deploy behaviour is UNMEASURED, not
+ *   because it is benign. `--dry-run` accepts it, but the dry run is not the authority here:
+ *   `base_converter.rb`'s `import` returns before `persist_slice!` and before
+ *   `bulk_write_associations_from_snapshot!`, and it is the latter that raises
+ *   `raise_missing_association_error`. The dry run's silence is a gap in the oracle. Settling
+ *   it needs one REAL deploy; if that rejects, this joins the set unchanged.
+ *
+ * `ValidFrontmatter` used to be listed here, recorded as blocked on a discriminator
+ * (TASK-26) because "two of its three findings" were fatal and blocking the code would have
+ * created one false block. Both halves were wrong. It had seven reachable shapes, not three,
+ * and `layout: false` — the finding named as the harmless one — is itself a converter
+ * rejection. It has since been split into per-shape codes, which is the discriminator the
+ * task was waiting for: three of them are in the set above, two are named here.
  */
 
 /** A diagnostic, narrowed to what the gate reads. */

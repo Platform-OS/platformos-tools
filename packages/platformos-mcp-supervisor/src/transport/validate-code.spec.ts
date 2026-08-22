@@ -1034,6 +1034,27 @@ const EMITS: Record<string, EmissionFixture> = {
     errors: ['InvalidWriteTarget'],
   },
 
+  UnknownFrontmatterField: {
+    // MEASURED: `pos-cli deploy --dry-run` REJECTS with `Unknown properties: bogus_key.`
+    filePath: PAGE,
+    content: '---\nbogus_key: true\n---\n<p>hi</p>\n',
+    errors: ['UnknownFrontmatterField'],
+  },
+
+  InvalidFrontmatterValue: {
+    // MEASURED: `Request method 'not_a_method' is not allowed. Valid methods: delete, get, …`
+    filePath: PAGE,
+    content: '---\nmethod: not_a_method\n---\n<p>hi</p>\n',
+    errors: ['InvalidFrontmatterValue'],
+  },
+
+  MissingLayout: {
+    // MEASURED: `Layout Could not find Layout with layout: no_such_layout`.
+    filePath: PAGE,
+    content: '---\nlayout: no_such_layout\n---\n<p>hi</p>\n',
+    errors: ['MissingLayout'],
+  },
+
   MissingContentForLayout: {
     filePath: 'app/views/layouts/application.liquid',
     content: '<html><body></body></html>\n',
@@ -2042,6 +2063,55 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     },
   ],
 
+  UnknownFrontmatterField: [
+    {
+      name: 'only keys the Page schema declares',
+      filePath: PAGE,
+      content: '---\nslug: probe\nmethod: get\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'a file type with no frontmatter schema takes arbitrary keys',
+      filePath: 'app/migrations/20240101_seed.liquid',
+      content: '---\nanything_at_all: 1\n---\n',
+      oracle: 'dry-run',
+    },
+  ],
+
+  InvalidFrontmatterValue: [
+    {
+      name: 'a method the platform accepts',
+      filePath: PAGE,
+      content: '---\nmethod: post\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: "layout: '' disables the layout, which is the supported spelling",
+      filePath: PAGE,
+      content: "---\nlayout: ''\n---\n<p>hi</p>\n",
+      oracle: 'dry-run',
+    },
+  ],
+
+  MissingLayout: [
+    {
+      name: 'a layout the project contains',
+      project: {
+        'app/views/layouts/application.liquid':
+          '<html><body>{{ content_for_layout }}</body></html>\n',
+      },
+      filePath: PAGE,
+      content: '---\nlayout: application\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'a Liquid-interpolated layout, which resolves at render time',
+      filePath: PAGE,
+      content: '---\nlayout: "{{ context.location }}"\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+  ],
+
   MissingContentForLayout: [
     {
       name: 'layout outputs content_for_layout',
@@ -2105,6 +2175,9 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: 9,
       MissingRenderPartialArguments: 1,
       MissingContentForLayout: 1,
+      UnknownFrontmatterField: 2,
+      InvalidFrontmatterValue: 2,
+      MissingLayout: 2,
     });
   });
 
@@ -2130,6 +2203,9 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: ['by-construction', 'runtime'],
       MissingRenderPartialArguments: ['by-construction'],
       MissingContentForLayout: ['by-construction'],
+      UnknownFrontmatterField: ['dry-run'],
+      InvalidFrontmatterValue: ['dry-run'],
+      MissingLayout: ['dry-run'],
     });
   });
 

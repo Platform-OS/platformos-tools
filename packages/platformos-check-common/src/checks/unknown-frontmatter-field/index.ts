@@ -1,14 +1,11 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { frontmatterBlock } from '../../frontmatter/extract';
+import { wellFormedFrontmatterBlock } from '../../frontmatter/extract';
 
 /**
  * A frontmatter key the file type's converter does not accept.
  *
- * MEASURED against a live instance: the converter REJECTS the file —
- * `Unknown properties: bogus_unknown_key. Available properties are: …` — and a converter
- * rejection fails the WHOLE changeset rather than this one file, which is why this is an
- * error and a member of the supervisor's `BLOCKING_CHECKS`. The platform raises it from
- * `base_converter.rb`'s `check_unknown_keys`, before any file is written.
+ * Measured: the converter rejects the file — `Unknown properties: <key>.` from
+ * `base_converter.rb`'s `check_unknown_keys` — failing the whole changeset.
  */
 export const UnknownFrontmatterField: LiquidCheckDefinition = {
   meta: {
@@ -29,7 +26,7 @@ export const UnknownFrontmatterField: LiquidCheckDefinition = {
   create(context) {
     return {
       async onCodePathStart(file) {
-        const block = frontmatterBlock(file, context.fileType(file.uri));
+        const block = wellFormedFrontmatterBlock(file, context.fileType(file.uri));
         if (!block) return;
 
         for (const [key, entry] of block.entries) {

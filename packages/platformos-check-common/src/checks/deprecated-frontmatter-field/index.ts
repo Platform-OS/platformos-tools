@@ -4,17 +4,14 @@ import {
   PlatformOSFileType,
 } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { frontmatterBlock } from '../../frontmatter/extract';
+import { wellFormedFrontmatterBlock } from '../../frontmatter/extract';
 import { basename } from '../../path';
 
 /**
- * A frontmatter key the platform still accepts but has superseded, and the deprecated
- * `home` page filename.
+ * A superseded frontmatter key, and the deprecated `home` page filename.
  *
- * MEASURED: both deploy cleanly — `layout_name: <a layout that exists>`, `redirect_url:`
- * and a `home.liquid` page are all ACCEPTED by the converter. Nothing here is fatal, so
- * this is a warning and deliberately NOT in `BLOCKING_CHECKS`: refusing to write a file
- * that deploys and renders would be a false block.
+ * Measured: `layout_name` (naming a layout that exists), `redirect_url` and a `home.liquid`
+ * page all deploy cleanly, so this stays a warning and out of `BLOCKING_CHECKS`.
  */
 export const DeprecatedFrontmatterField: LiquidCheckDefinition = {
   meta: {
@@ -58,7 +55,7 @@ export const DeprecatedFrontmatterField: LiquidCheckDefinition = {
           }
         }
 
-        const block = frontmatterBlock(file, fileType);
+        const block = wellFormedFrontmatterBlock(file, fileType);
         if (!block) return;
 
         for (const [key, entry] of block.entries) {

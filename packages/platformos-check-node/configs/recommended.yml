@@ -39,6 +39,9 @@ ImgWidthAndHeight:
 ImplicitIncludeArguments:
   enabled: true
   severity: 1
+InvalidFrontmatterSyntax:
+  enabled: true
+  severity: 0
 InvalidFrontmatterValue:
   enabled: true
   severity: 0
@@ -65,7 +68,7 @@ MissingDocParam:
   severity: 0
 MissingFrontmatterAssociation:
   enabled: true
-  severity: 1
+  severity: 0
 MissingLayout:
   enabled: true
   severity: 0

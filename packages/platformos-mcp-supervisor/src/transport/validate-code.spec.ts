@@ -1034,6 +1034,13 @@ const EMITS: Record<string, EmissionFixture> = {
     errors: ['InvalidWriteTarget'],
   },
 
+  InvalidFrontmatterSyntax: {
+    // Measured: `Body contains invalid YAML: found a tab character that violates indentation`.
+    filePath: PAGE,
+    content: '---\nslug: probe\n\tlayout: application\n---\n<p>hi</p>\n',
+    errors: ['InvalidFrontmatterSyntax'],
+  },
+
   UnknownFrontmatterField: {
     // MEASURED: `pos-cli deploy --dry-run` REJECTS with `Unknown properties: bogus_key.`
     filePath: PAGE,
@@ -1042,9 +1049,11 @@ const EMITS: Record<string, EmissionFixture> = {
   },
 
   InvalidFrontmatterValue: {
-    // MEASURED: `Request method 'not_a_method' is not allowed. Valid methods: delete, get, …`
+    // Measured: `Request method 'POST' is not allowed. Valid methods: delete, get, …`.
+    // Upper case on purpose — the platform compares literally, and this spelling used to
+    // reach the gate as `status: ok`.
     filePath: PAGE,
-    content: '---\nmethod: not_a_method\n---\n<p>hi</p>\n',
+    content: '---\nmethod: POST\n---\n<p>hi</p>\n',
     errors: ['InvalidFrontmatterValue'],
   },
 
@@ -1053,6 +1062,14 @@ const EMITS: Record<string, EmissionFixture> = {
     filePath: PAGE,
     content: '---\nlayout: no_such_layout\n---\n<p>hi</p>\n',
     errors: ['MissingLayout'],
+  },
+
+  MissingFrontmatterAssociation: {
+    // Measured by a REAL deploy: `tries to assign authorization_policies which do not
+    // exist`. `--dry-run` accepts this file.
+    filePath: PAGE,
+    content: '---\nauthorization_policies:\n  - no_such_policy\n---\n<p>hi</p>\n',
+    errors: ['MissingFrontmatterAssociation'],
   },
 
   MissingContentForLayout: {
@@ -2063,6 +2080,21 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     },
   ],
 
+  InvalidFrontmatterSyntax: [
+    {
+      name: 'a well-formed block',
+      filePath: PAGE,
+      content: '---\nslug: probe\nmethod: get\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'a nested mapping and a sequence',
+      filePath: PAGE,
+      content: '---\nslug: probe\nmetadata:\n  title: Notes\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+  ],
+
   UnknownFrontmatterField: [
     {
       name: 'only keys the Page schema declares',
@@ -2108,6 +2140,22 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
       name: 'a Liquid-interpolated layout, which resolves at render time',
       filePath: PAGE,
       content: '---\nlayout: "{{ context.location }}"\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+  ],
+
+  MissingFrontmatterAssociation: [
+    {
+      name: 'a policy the project contains',
+      project: { 'app/authorization_policies/require_login.liquid': 'true\n' },
+      filePath: PAGE,
+      content: '---\nauthorization_policies:\n  - require_login\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'no association array at all',
+      filePath: PAGE,
+      content: '---\nslug: probe\n---\n<p>hi</p>\n',
       oracle: 'dry-run',
     },
   ],
@@ -2175,9 +2223,11 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: 9,
       MissingRenderPartialArguments: 1,
       MissingContentForLayout: 1,
+      InvalidFrontmatterSyntax: 2,
       UnknownFrontmatterField: 2,
       InvalidFrontmatterValue: 2,
       MissingLayout: 2,
+      MissingFrontmatterAssociation: 2,
     });
   });
 
@@ -2203,9 +2253,11 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: ['by-construction', 'runtime'],
       MissingRenderPartialArguments: ['by-construction'],
       MissingContentForLayout: ['by-construction'],
+      InvalidFrontmatterSyntax: ['dry-run'],
       UnknownFrontmatterField: ['dry-run'],
       InvalidFrontmatterValue: ['dry-run'],
       MissingLayout: ['dry-run'],
+      MissingFrontmatterAssociation: ['dry-run'],
     });
   });
 

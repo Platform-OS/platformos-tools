@@ -8,22 +8,16 @@ import {
   PlatformOSFileType,
 } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, RelativePath, Severity, SourceCodeType } from '../../types';
-import { type FrontmatterBlock, frontmatterBlock } from '../../frontmatter/extract';
+import { type FrontmatterBlock, wellFormedFrontmatterBlock } from '../../frontmatter/extract';
 import { doesFileExist } from '../../utils/file-utils';
 
 /**
- * A frontmatter association array naming a policy or notification that does not exist —
- * `authorization_policies` on a Page, the notification arrays on a FormConfiguration.
+ * An `authorization_policies` (Page) or notification (FormConfiguration) entry naming
+ * something the project does not contain.
  *
- * NOT in `BLOCKING_CHECKS`, and the reason is that its deploy behaviour is UNMEASURED
- * rather than benign. `pos-cli deploy --dry-run` accepts it, but the dry run is not the
- * authority here: `base_converter.rb`'s `import` returns before `persist_slice!` and before
- * `bulk_write_associations_from_snapshot!`, and it is the latter that raises
- * `raise_missing_association_error` for a name it cannot resolve. So the dry run's silence
- * is a gap in the oracle, not evidence.
- *
- * The gate does not block on its own uncertainty. Settling this needs one REAL deploy; if
- * it rejects, this check joins the blocking set unchanged.
+ * Measured by a REAL deploy: `<page> tries to assign authorization_policies which do not
+ * exist: <name>`, from `raise_missing_association_error`. `--dry-run` accepts it — it
+ * returns before the association write — so only a real deploy answers here.
  */
 export const MissingFrontmatterAssociation: LiquidCheckDefinition = {
   meta: {
@@ -31,12 +25,12 @@ export const MissingFrontmatterAssociation: LiquidCheckDefinition = {
     name: 'Missing Frontmatter Association',
     docs: {
       description:
-        'Reports an authorization policy or notification named in frontmatter that the project does not contain.',
+        'Reports an authorization policy or notification named in frontmatter that the project does not contain. The deploy converter rejects the whole changeset for a name it cannot resolve.',
       recommended: true,
       url: 'https://documentation.platformos.com/developer-guide/platformos-check/checks/missing-frontmatter-association',
     },
     type: SourceCodeType.LiquidHtml,
-    severity: Severity.WARNING,
+    severity: Severity.ERROR,
     schema: {},
     targets: [],
   },
@@ -45,7 +39,7 @@ export const MissingFrontmatterAssociation: LiquidCheckDefinition = {
     return {
       async onCodePathStart(file) {
         const fileType = context.fileType(file.uri);
-        const block = frontmatterBlock(file, fileType);
+        const block = wellFormedFrontmatterBlock(file, fileType);
         if (!block) return;
 
         if (fileType === PlatformOSFileType.Page) {

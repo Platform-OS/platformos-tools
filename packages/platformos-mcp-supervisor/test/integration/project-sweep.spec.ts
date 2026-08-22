@@ -122,6 +122,7 @@ describe('Integration: the real pipeline over a deliberately broken project', ()
       'app/views/pages/errors/bad_layout.html.liquid :: MissingLayout (error)',
       'app/views/pages/errors/bad_layout.html.liquid :: PartialCallArguments (error)',
       'app/views/pages/errors/bad_layout.html.liquid :: PartialCallArguments (error)',
+      'app/views/pages/errors/bad_method.html.liquid :: InvalidFrontmatterValue (error)',
       'app/views/pages/errors/bad_method.html.liquid :: PartialCallArguments (error)',
       'app/views/pages/errors/bad_method.html.liquid :: PartialCallArguments (error)',
       'app/views/pages/products/bad_page.html.liquid :: UndefinedObject (warning)',

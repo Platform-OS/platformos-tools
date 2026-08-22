@@ -38,24 +38,19 @@ export interface FrontmatterBlock {
   bodyOffset: number;
   /** Absolute offset of the opening `---`. */
   frontmatterStart: number;
+  /** Parse failures for the block, already offset into the `.liquid` file. */
+  syntaxErrors: { message: string; startIndex: number; endIndex: number }[];
 }
 
 /**
- * Cache keyed on the FILE OBJECT, guarded by its source.
+ * Cache keyed on the file object, guarded by its source.
  *
- * `check()` iterates file-major (`for file { for checkDef }`), but the per-check pipelines
- * are promises collected and awaited together, so execution can interleave across files —
- * which is why this is not the size-1 `createBoundedCache` that `graphql-schema.ts` uses for
- * the one SDL. A `WeakMap` is exact regardless of ordering and needs no size tuning.
+ * Five checks read one block, and `parseDocument` costs ~80 µs — measured — so the
+ * redundant parses would cost ~640 ms over a 2 000-page project. A `WeakMap` rather than
+ * the size-1 cache used for the GraphQL SDL, because per-check pipelines interleave.
  *
- * MEASURED, because five checks re-parsing one block looked cheap and is not:
- * `parseDocument` costs ~80 µs on a representative block, so the four redundant parses cost
- * ~640 ms over a 2 000-page project. (Control: `trimStart().length` on the same string is
- * 0.04 µs, so that number is the parse and not the harness.)
- *
- * The source guard is the correctness half: an `AppFile` object is reused when a buffer is
- * re-read, so keying on identity alone would serve a stale block to the language server
- * after every edit.
+ * The source guard matters: an `AppFile` object is reused when a buffer is re-read, so
+ * identity alone would serve a stale block after every edit.
  */
 const cache = new WeakMap<object, { source: string; block: FrontmatterBlock | undefined }>();
 
@@ -141,5 +136,29 @@ function extractFrontmatterBlock(
     doc,
     bodyOffset,
     frontmatterStart: leadingLen, // position of opening `---`
+    syntaxErrors: doc.errors.map((error) => {
+      const [start = 0, end = 0] = error.pos ?? [];
+      return {
+        message: error.message,
+        startIndex: bodyOffset + start,
+        endIndex: bodyOffset + end,
+      };
+    }),
   };
+}
+
+/**
+ * The block, but only when it parsed cleanly.
+ *
+ * Every rule about FIELDS reads through this. `parseDocument` recovers and returns a partial
+ * map, so those rules would otherwise report on the half of a broken block that happened to
+ * survive — one mistake producing several unrelated diagnostics. `InvalidFrontmatterSyntax`
+ * reads the raw block instead and is the one thing that speaks for a malformed one.
+ */
+export function wellFormedFrontmatterBlock(
+  file: { source: string },
+  fileType: PlatformOSFileType | undefined,
+): FrontmatterBlock | undefined {
+  const block = frontmatterBlock(file, fileType);
+  return block && block.syntaxErrors.length === 0 ? block : undefined;
 }

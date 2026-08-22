@@ -1,18 +1,15 @@
 import { containsLiquid, PlatformOSFileType } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { frontmatterBlock } from '../../frontmatter/extract';
+import { wellFormedFrontmatterBlock } from '../../frontmatter/extract';
 
 /**
  * A `layout:` naming a layout that does not exist.
  *
- * MEASURED: the converter REJECTS the file — `Layout Could not find Layout with layout:
- * does_not_exist_layout` — failing the WHOLE changeset, which is why this is an error and
- * a member of `BLOCKING_CHECKS`. The platform validates it on `Page` with an `inclusion:`
- * over `deploy_context.valid_layout_names` (`page.rb:37`).
+ * Measured: the converter rejects the file — `Could not find Layout with layout: <name>` —
+ * failing the whole changeset.
  *
- * A Liquid-interpolated value is skipped: it resolves at render time and cannot be checked
- * statically, so reporting one would refuse working code. An EMPTY value is skipped too —
- * `layout: ''` deliberately disables layout rendering.
+ * A Liquid-interpolated value is skipped (it resolves at render time), and so is an empty
+ * one — `layout: ''` deliberately disables layout rendering.
  */
 export const MissingLayout: LiquidCheckDefinition = {
   meta: {
@@ -36,7 +33,7 @@ export const MissingLayout: LiquidCheckDefinition = {
         const fileType = context.fileType(file.uri);
         if (fileType !== PlatformOSFileType.Page && fileType !== PlatformOSFileType.Email) return;
 
-        const block = frontmatterBlock(file, fileType);
+        const block = wellFormedFrontmatterBlock(file, fileType);
         if (!block) return;
 
         const deprecatedAlias =

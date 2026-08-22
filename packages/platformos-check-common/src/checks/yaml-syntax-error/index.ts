@@ -15,9 +15,11 @@ import { YAMLConvertError } from '../../yaml/parse';
  * `pos-cli deploy --dry-run` REJECTED the same file — and a converter rejection fails the WHOLE
  * changeset.
  *
- * SYNTAX ONLY, DELIBERATELY. Semantic defects were probed separately and the converter accepts
- * them: an unknown property `type:`, and duplicate property names, both deploy fine. A schema
- * model would be work with no measured payoff, and would be a different check.
+ * SYNTAX ONLY, DELIBERATELY — but not because the converter is permissive. A REAL deploy
+ * REJECTS an unknown property `type:` ("Attribute type `x` is not allowed"); `--dry-run`
+ * accepts it only because it returns before the nested converter that validates it runs.
+ * Schema-shape validation is a check that does not exist yet, not a widening of this one.
+ * Duplicate property names remain unmeasured.
  *
  * DUPLICATE KEYS ARE THE WORKED EXAMPLE of that split. A repeated key still deploys, so it is
  * not reported here — but the platform keeps the LAST value, so an earlier one is silently

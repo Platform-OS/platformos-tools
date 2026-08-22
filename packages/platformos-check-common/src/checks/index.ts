@@ -45,6 +45,7 @@ import { DuplicateFunctionArguments } from './duplicate-function-arguments';
 import { MissingRenderPartialArguments } from './missing-render-partial-arguments';
 import { NestedGraphQLQuery } from './nested-graphql-query';
 import { MissingPage } from './missing-page';
+import { InvalidFrontmatterSyntax } from './invalid-frontmatter-syntax';
 import { UnknownFrontmatterField } from './unknown-frontmatter-field';
 import { InvalidFrontmatterValue } from './invalid-frontmatter-value';
 import { MissingLayout } from './missing-layout';
@@ -96,6 +97,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   MissingRenderPartialArguments,
   NestedGraphQLQuery,
   MissingPage,
+  InvalidFrontmatterSyntax,
   UnknownFrontmatterField,
   InvalidFrontmatterValue,
   MissingLayout,

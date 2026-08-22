@@ -35,6 +35,12 @@ export interface FrontmatterFieldSchema {
    * field value is not one of these entries.
    */
   enumValues?: (string | number)[];
+  /**
+   * Whether `enumValues` must match exactly. Default is a case-insensitive compare,
+   * which is right for the fields whose platform-side validation normalises case; set
+   * this only where the platform compares literally. See `Page.method`.
+   */
+  caseSensitiveEnum?: boolean;
 }
 
 export interface FrontmatterSchema {
@@ -47,6 +53,23 @@ export interface FrontmatterSchema {
    */
   fields: Record<string, FrontmatterFieldSchema>;
 }
+
+/**
+ * Strategies `FormConfiguration::SpamProtectionValidator` accepts as the first key of the
+ * `spam_protection` mapping.
+ */
+export const SPAM_PROTECTION_STRATEGIES = [
+  'recaptcha',
+  'recaptcha_v2',
+  'recaptcha_v3',
+  'hcaptcha',
+] as const;
+
+/**
+ * The only bare string the platform accepts — `SpamProtectionConfiguration#old_config?`
+ * compares `@config == 'recaptcha'`. Any other string reaches `.keys` and raises.
+ */
+export const LEGACY_SPAM_PROTECTION_STRING = 'recaptcha';
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -84,6 +107,9 @@ export const FRONTMATTER_SCHEMAS: Partial<Record<PlatformOSFileType, Frontmatter
         type: 'string',
         description: 'HTTP method this page responds to.',
         enumValues: ['delete', 'get', 'patch', 'post', 'put', 'options'],
+        // `page.rb` validates `request_method` with an `inclusion:` over this lowercase
+        // list and the converter never downcases, so `method: POST` is a deploy rejection.
+        caseSensitiveEnum: true,
       },
       redirect_to: {
         type: 'string',
@@ -447,9 +473,10 @@ export const FRONTMATTER_SCHEMAS: Partial<Record<PlatformOSFileType, Frontmatter
         description: 'Flash alert message shown after a failed submission.',
       },
       spam_protection: {
-        type: 'string',
+        // A MAPPING whose first key is the strategy, or the single legacy string
+        // `recaptcha`. Not an enum of strings — see SPAM_PROTECTION_STRATEGIES.
+        type: ['string', 'object'],
         description: 'Spam protection mechanism to use.',
-        enumValues: ['recaptcha', 'recaptcha_v2', 'recaptcha_v3', 'hcaptcha'],
       },
       request_allowed: {
         type: 'boolean',

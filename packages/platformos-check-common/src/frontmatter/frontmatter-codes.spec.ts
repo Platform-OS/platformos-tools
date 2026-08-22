@@ -56,6 +56,14 @@ describe('each frontmatter shape reports under its own code, at a severity the c
       ]);
     });
 
+    it('a valid method in the wrong CASE is InvalidFrontmatterValue', async () => {
+      // `method: POST` deploys no better than `method: teleport` — measured — but used to
+      // reach the write gate as `status: ok`.
+      expect(await codesOf({ [PAGE]: '---\nmethod: POST\n---\n' })).toEqual([
+        'InvalidFrontmatterValue @ ERROR',
+      ]);
+    });
+
     it('`layout: false` is InvalidFrontmatterValue, not a layout lookup', async () => {
       // Converter: `undefined method 'sub' for false`. It is the VALUE that is wrong —
       // no layout named `false` is ever looked up — so MissingLayout must stay quiet.
@@ -92,14 +100,16 @@ describe('each frontmatter shape reports under its own code, at a severity the c
         'DeprecatedFrontmatterField @ WARNING',
       ]);
     });
+  });
 
-    it('an association that does not exist is MissingFrontmatterAssociation', async () => {
-      // NOT an error: `--dry-run` accepts it, and the dry run cannot see the association
-      // write at all, so its deploy behaviour is unmeasured rather than known-benign.
-      expect(
-        await codesOf({ [PAGE]: '---\nauthorization_policies:\n  - no_such_policy\n---\n' }),
-      ).toEqual(['MissingFrontmatterAssociation @ WARNING']);
-    });
+  /**
+   * Only a REAL deploy reveals this one: `--dry-run` accepts the same file, because it
+   * returns before the association write. It was first classified WARNING on that silence.
+   */
+  it('an association that does not exist is MissingFrontmatterAssociation, at ERROR', async () => {
+    expect(
+      await codesOf({ [PAGE]: '---\nauthorization_policies:\n  - no_such_policy\n---\n' }),
+    ).toEqual(['MissingFrontmatterAssociation @ ERROR']);
   });
 
   /**

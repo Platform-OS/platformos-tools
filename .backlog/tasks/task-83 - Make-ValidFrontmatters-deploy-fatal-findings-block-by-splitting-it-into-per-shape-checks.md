@@ -3,9 +3,10 @@ id: TASK-83
 title: >-
   Make ValidFrontmatter's deploy-fatal findings block, by splitting it into
   per-shape checks
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-22 16:31'
+updated_date: '2026-08-22 17:52'
 labels:
   - platformos-check
   - correctness
@@ -72,8 +73,35 @@ S1 first: it establishes the codes, so each later detection fix lands already cl
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Every subtask is Done
-- [ ] #2 `validate_code` returns `must_fix_before_write: true` for each of: unknown field, missing layout, `layout: false`, `method: POST`, tab-indented frontmatter, and a bare non-`recaptcha` `spam_protection` string
-- [ ] #3 `validate_code` still returns `must_fix_before_write: false` for a deprecated field, a deprecated `home.liquid`, and a missing authorization policy — each with a control proving the check itself still reports
-- [ ] #4 No consumer distinguishes frontmatter findings by matching the message string
+- [x] #1 Every subtask is Done
+- [x] #2 `validate_code` returns `must_fix_before_write: true` for each of: unknown field, missing layout, `layout: false`, `method: POST`, tab-indented frontmatter, and a bare non-`recaptcha` `spam_protection` string
+- [x] #3 `validate_code` still returns `must_fix_before_write: false` for a deprecated field, a deprecated `home.liquid`, and a missing authorization policy — each with a control proving the check itself still reports
+- [x] #4 No consumer distinguishes frontmatter findings by matching the message string
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Six frontmatter mistakes that reject a deploy now block a write. Five did not report at all, or reported as advisory warnings, before this.
+
+`ValidFrontmatter` (one code, seven rules, all `warning`) is replaced by six per-shape codes:
+
+| Code | Severity | Blocks |
+|---|---|---|
+| `InvalidFrontmatterSyntax` | error | yes |
+| `UnknownFrontmatterField` | error | yes |
+| `InvalidFrontmatterValue` | error | yes |
+| `MissingLayout` | error | yes |
+| `MissingFrontmatterAssociation` | error | yes |
+| `DeprecatedFrontmatterField` | warning | no |
+
+**The real deploy changed two answers.** `--dry-run` is not the authority for anything that happens after `prepare_models`: it returns before `persist_slice!` and before `bulk_write_associations_from_snapshot!`. Measured against a real deploy, a missing authorization policy IS rejected — so `MissingFrontmatterAssociation` moved from `warning` to `error` and into the blocking set, having first been classified on the dry run's silence. The same probe disproved the recorded claim that the converter accepts unknown schema property types; that comment is corrected in two places and the gap is now TASK-84.
+
+**TASK-26 is unblocked and its premise was wrong twice over**: seven reachable shapes rather than three, and `layout: false` — named there as the one harmless finding — is itself a converter rejection whose diagnostic claimed the opposite. No `Offense.data` seam was needed; one rule per code is already the house style.
+
+Verification: check-common 1763, supervisor 487, check-node 195, language-server 595, common 559. Type-check and Prettier clean. Fifteen sabotages across the four subtasks, each breaking the suite.
+
+End to end through a fresh `pos-cli check run`: 7 errors, 1 warning, well-formed page silent.
+
+Follow-ups: six documentation pages in `platformos-documentation` (`valid-frontmatter`'s retires); TASK-84 for schema property types; duplicate property names remain unmeasured.
+<!-- SECTION:FINAL_SUMMARY:END -->

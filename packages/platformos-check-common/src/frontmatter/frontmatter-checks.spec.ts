@@ -199,12 +199,21 @@ describe('the frontmatter checks', () => {
       }
     });
 
-    it('is case-insensitive for method values', async () => {
-      const offenses = await check(
-        { [PAGE]: `---\nmethod: GET\n---\n{{ content }}` },
-        FRONTMATTER_CHECKS,
-      );
-      expect(offenses).to.have.length(0);
+    /**
+     * Measured: `method: POST` is REJECTED on deploy ("Request method `POST` is not
+     * allowed"), `method: post` is accepted. `page.rb` validates `request_method` against a
+     * lowercase list and the converter never downcases.
+     */
+    it('is case-SENSITIVE for method values, which the platform is', async () => {
+      for (const value of ['GET', 'POST', 'Get']) {
+        const offenses = await check(
+          { [PAGE]: `---\nmethod: ${value}\n---\n{{ content }}` },
+          FRONTMATTER_CHECKS,
+        );
+        expect(messagesOf(offenses)).to.deep.equal([
+          `Invalid value '${value}' for 'method'. Must be one of: delete, get, patch, post, put, options`,
+        ]);
+      }
     });
 
     // Page redirect_code
@@ -250,24 +259,64 @@ describe('the frontmatter checks', () => {
     });
 
     // FormConfiguration spam_protection
-    it('reports invalid spam_protection in FormConfiguration', async () => {
-      const offenses = await check(
-        { [FORM]: `---\nname: my_form\nspam_protection: invalid_type\n---\n` },
-        FRONTMATTER_CHECKS,
-      );
-      expect(offenses).to.containOffense(
-        "Invalid value 'invalid_type' for 'spam_protection'. Must be one of: recaptcha, recaptcha_v2, recaptcha_v3, hcaptcha",
-      );
-    });
+    /**
+     * `spam_protection` is a MAPPING whose first key is the strategy, not a string enum.
+     * Every row below is measured against the converter; the old model of this field had it
+     * backwards, reporting the recommended shape and accepting three that are rejected.
+     */
+    describe('spam_protection', () => {
+      const form = (body: string) => ({ [FORM]: `---\nname: my_form\n${body}\n---\n` });
 
-    it('accepts all valid spam_protection values', async () => {
-      for (const val of ['recaptcha', 'recaptcha_v2', 'recaptcha_v3', 'hcaptcha']) {
+      it.each([
+        ['the one legacy plain string', 'spam_protection: recaptcha'],
+        ['a mapping keyed by recaptcha', 'spam_protection:\n  recaptcha: {}'],
+        ['a mapping keyed by hcaptcha', 'spam_protection:\n  hcaptcha: {}'],
+        [
+          'a fully specified recaptcha_v3',
+          'spam_protection:\n  recaptcha_v3:\n    action: submit\n    minimum_score: 0.5',
+        ],
+      ])('accepts %s', async (_label, body) => {
+        expect(messagesOf(await check(form(body), FRONTMATTER_CHECKS))).to.deep.equal([]);
+      });
+
+      it.each([
+        [
+          'a plain string that is not the legacy one',
+          'spam_protection: recaptcha_v3',
+          "'recaptcha_v3' must be written as a mapping key, not a plain value — only 'recaptcha' may be a plain string.",
+        ],
+        [
+          'a plain string in the wrong case',
+          'spam_protection: RECAPTCHA_V3',
+          "'RECAPTCHA_V3' must be written as a mapping key, not a plain value — only 'recaptcha' may be a plain string.",
+        ],
+        [
+          'an unknown strategy key',
+          'spam_protection:\n  bogus_strategy: {}',
+          "Unknown spam protection strategy 'bogus_strategy'. Must be one of: recaptcha, recaptcha_v2, recaptcha_v3, hcaptcha",
+        ],
+        [
+          'recaptcha_v3 without an action',
+          'spam_protection:\n  recaptcha_v3:\n    minimum_score: 0.5',
+          "'recaptcha_v3' requires an 'action'.",
+        ],
+        [
+          'a minimum_score out of range',
+          'spam_protection:\n  recaptcha_v3:\n    action: submit\n    minimum_score: 2',
+          "'minimum_score' must be between 0 and 1.",
+        ],
+      ])('reports %s', async (_label, body, message) => {
+        expect(messagesOf(await check(form(body), FRONTMATTER_CHECKS))).to.deep.equal([message]);
+      });
+
+      it('never renders a non-scalar value as the string "undefined"', async () => {
+        // Every mapping form used to produce `Invalid value 'undefined' for 'spam_protection'`.
         const offenses = await check(
-          { [FORM]: `---\nname: my_form\nspam_protection: ${val}\n---\n` },
+          form('spam_protection:\n  recaptcha_v3:\n    action: submit'),
           FRONTMATTER_CHECKS,
         );
-        expect(offenses).to.have.length(0);
-      }
+        expect(messagesOf(offenses).filter((m) => m.includes('undefined'))).to.deep.equal([]);
+      });
     });
 
     // ApiCall request_type
@@ -293,12 +342,32 @@ describe('the frontmatter checks', () => {
       }
     });
 
-    it('is case-insensitive for request_type values', async () => {
-      const offenses = await check(
-        { [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: get\n---\n` },
+    /**
+     * The deliberate asymmetry with `Page.method` above. `api_call_notification.rb`
+     * validates `request_type` for PRESENCE only, with no inclusion check, so there is no
+     * deploy-time rejection to mirror and tightening the case would invent a false block.
+     */
+    it('is case-INsensitive for request_type values, which have no platform inclusion check', async () => {
+      for (const value of ['get', 'GET', 'Get']) {
+        const offenses = await check(
+          {
+            [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: ${value}\n---\n`,
+          },
+          FRONTMATTER_CHECKS,
+        );
+        expect(messagesOf(offenses)).to.deep.equal([]);
+      }
+
+      // CONTROL: the field is still checked — only its CASE is forgiven.
+      const invalid = await check(
+        {
+          [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: TELEPORT\n---\n`,
+        },
         FRONTMATTER_CHECKS,
       );
-      expect(offenses).to.have.length(0);
+      expect(messagesOf(invalid)).to.deep.equal([
+        "Invalid value 'TELEPORT' for 'request_type'. Must be one of: GET, POST, PUT, PATCH, DELETE",
+      ]);
     });
 
     it('does not validate method on non-Page files', async () => {

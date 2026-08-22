@@ -15,7 +15,7 @@ name the replacements instead:
 | an unrecognised key | `UnknownFrontmatterField` | error |
 | a value outside the accepted set, and `layout: false` | `InvalidFrontmatterValue` | error |
 | a `layout:` naming a layout that does not exist | `MissingLayout` | error |
-| an authorization policy or notification that does not exist | `MissingFrontmatterAssociation` | warning |
+| an authorization policy or notification that does not exist | `MissingFrontmatterAssociation` | error |
 | a superseded key, and the deprecated `home.liquid` filename | `DeprecatedFrontmatterField` | warning |
 
 **Why.** One code reported seven distinct rules at `Severity.WARNING`. Six of them are
@@ -25,13 +25,17 @@ answered `must_fix_before_write: false` for files that could not deploy. The sup
 reads a check CODE, so it could not admit the fatal shapes without also admitting the
 advisory ones.
 
-The three fatal codes are now in the supervisor's `BLOCKING_CHECKS`, each with the converter
-error that justifies it. The two advisory codes are deliberately absent, for different
-reasons that are recorded separately: a deprecated key and a `home.liquid` page are MEASURED
-to deploy cleanly, while a missing association is UNMEASURED — `--dry-run` accepts it, but
-`base_converter.rb` returns before `bulk_write_associations_from_snapshot!`, which is what
-raises for a name it cannot resolve, so the dry run's silence is a gap in the oracle rather
-than evidence. The gate does not block on its own uncertainty.
+The four fatal codes are now in the supervisor's `BLOCKING_CHECKS`, each with the converter
+error that justifies it. `DeprecatedFrontmatterField` is deliberately absent: a deprecated
+key and a `home.liquid` page are measured to deploy cleanly.
+
+`MissingFrontmatterAssociation` is the one that `--dry-run` cannot answer. The dry run
+ACCEPTS a page naming a policy that does not exist, because `base_converter.rb` returns
+before `bulk_write_associations_from_snapshot!` — the code that raises. A real deploy
+rejects it (`<page> tries to assign authorization_policies which do not exist: <name>`), so
+it blocks. It was classified `warning` first, on the dry run's silence; that silence was a
+gap in the oracle rather than evidence, and the same trap applies to anything else measured
+that way.
 
 This is the discriminator TASK-26 was waiting for. Its recorded blocker — that blocking the
 code would fix two false approvals and create one false block — rested on two wrong facts:

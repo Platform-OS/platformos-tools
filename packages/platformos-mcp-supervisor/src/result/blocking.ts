@@ -43,9 +43,10 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   'LiquidHTMLSyntaxError',
 
   // Unparseable YAML. Measured: `pos-cli deploy --dry-run` REJECTS the file ("Body
-  // contains invalid YAML"), failing the WHOLE changeset. Scoped to SYNTAX on purpose —
-  // the converter accepts unknown property types and duplicate property names, so
-  // schema-shape validation would block nothing real.
+  // contains invalid YAML"), failing the WHOLE changeset. Scoped to SYNTAX because no
+  // schema-shape check exists yet — NOT because the platform is permissive: a real deploy
+  // rejects an unknown property type ("Attribute type `x` is not allowed"), which
+  // `--dry-run` misses by returning before the nested converter runs.
   'YAMLSyntaxError',
 
   // Broken reference: the target does not exist, so the render fails at runtime.
@@ -94,27 +95,26 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // is harder to diagnose than an error.
   'MissingContentForLayout',
 
-  // --- Frontmatter, split out of `ValidFrontmatter` so the fatal shapes can block. ---
-  //
-  // Each is a converter rejection MEASURED against a live instance with
-  // `pos-cli deploy --dry-run`, and a rejection fails the WHOLE changeset rather than the
-  // offending file. The two frontmatter shapes that deploy cleanly —
-  // `DeprecatedFrontmatterField` and `MissingFrontmatterAssociation` — are deliberately
-  // absent; see the NOT-in-the-set list below.
+  // --- Frontmatter, split out of `ValidFrontmatter`. Each is a measured converter
+  // rejection, which fails the WHOLE changeset. ---
 
-  // `Unknown properties: <key>. Available properties are: …`, raised by
-  // `base_converter.rb`'s `check_unknown_keys` before anything is written.
+  // `Body contains invalid YAML: <parser error>`. `YAMLSyntaxError` cannot cover this —
+  // it is YAML-typed and never sees a `.liquid` file.
+  'InvalidFrontmatterSyntax',
+
+  // `Unknown properties: <key>.`
   'UnknownFrontmatterField',
 
-  // A value outside what the platform accepts for that key. Two measured shapes:
-  // `method: POST` → `Request method 'POST' is not allowed`, and `layout: false` →
-  // `undefined method 'sub' for false`, because YAML reads it as the boolean and
-  // `page_converter.rb`'s `set_layout` guards `nil` rather than `false`.
+  // `Request method 'POST' is not allowed`, and `layout: false` → `undefined method 'sub'
+  // for false` (YAML reads it as a boolean; `set_layout` guards `nil`, not `false`).
   'InvalidFrontmatterValue',
 
-  // `Layout Could not find Layout with layout: <name>`. The platform validates it with an
-  // `inclusion:` over the deploy context's layout names (`page.rb:37`).
+  // `Could not find Layout with layout: <name>`.
   'MissingLayout',
+
+  // `<page> tries to assign authorization_policies which do not exist: <name>`. Measured by
+  // a REAL deploy — `--dry-run` accepts it, returning before the association write.
+  'MissingFrontmatterAssociation',
 ]);
 
 /**
@@ -147,12 +147,6 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
  * - `DeprecatedFrontmatterField` — measured: a deprecated key (`layout_name` naming a layout
  *   that exists, `redirect_url`) and a deprecated `home.liquid` filename are all ACCEPTED by
  *   the converter. Superseded, not broken.
- * - `MissingFrontmatterAssociation` — absent because its deploy behaviour is UNMEASURED, not
- *   because it is benign. `--dry-run` accepts it, but the dry run is not the authority here:
- *   `base_converter.rb`'s `import` returns before `persist_slice!` and before
- *   `bulk_write_associations_from_snapshot!`, and it is the latter that raises
- *   `raise_missing_association_error`. The dry run's silence is a gap in the oracle. Settling
- *   it needs one REAL deploy; if that rejects, this joins the set unchanged.
  *
  * `ValidFrontmatter` used to be listed here, recorded as blocked on a discriminator
  * (TASK-26) because "two of its three findings" were fatal and blocking the code would have

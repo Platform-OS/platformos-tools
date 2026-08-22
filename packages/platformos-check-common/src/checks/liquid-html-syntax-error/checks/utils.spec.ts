@@ -4,6 +4,8 @@ import {
   fragmentKeyValuePair,
   getFragmentsInMarkup,
   getValuesInMarkup,
+  hasExpressionOperator,
+  isOperatorToken,
 } from './utils';
 
 describe('getValuesInMarkup', () => {
@@ -78,5 +80,80 @@ describe('doesFragmentContainUnsupportedParentheses', () => {
     const fragment = '(1..2)';
     const result = doesFragmentContainUnsupportedParentheses(fragment);
     expect(result).to.be.false;
+  });
+});
+
+/**
+ * The guard on every fix that repairs markup by keeping the first value and deleting the
+ * rest. Getting it wrong in one direction rewrites the author's expression into a different
+ * program; in the other it merely declines to autofix, so the token lists below are pinned
+ * whole rather than sampled.
+ */
+describe('isOperatorToken', () => {
+  it('classifies operators as operators', () => {
+    const operators = [
+      '?',
+      ':',
+      '?b', // a ternary marker fused to its operand, as in `a ?b :c`
+      'a?',
+      '&&',
+      '||',
+      '==',
+      '!=',
+      '>=',
+      '<=',
+      '>',
+      '<',
+      '+',
+      '-',
+      '*',
+      '/',
+      '%',
+      'and',
+      'or',
+      'contains',
+    ];
+
+    expect(operators.filter((token) => !isOperatorToken(token))).toEqual([]);
+  });
+
+  it('classifies values as values', () => {
+    const values = [
+      '123',
+      '-5', // a negative number, NOT the `-` operator
+      '-5.5',
+      'true',
+      'text',
+      'foo.bar',
+      '(1..3)',
+      "'a?b'", // an operator spelled inside a quoted string is data
+      '"a:b"',
+      "'and'",
+      "':'",
+    ];
+
+    expect(values.filter((token) => isOperatorToken(token))).toEqual([]);
+  });
+});
+
+describe('hasExpressionOperator', () => {
+  it('is true for a value section the author wrote as an expression', () => {
+    const expressions = [
+      `flag ? 'yes' : 'no'`,
+      `a ?b :c`,
+      `a && b`,
+      `a and b`,
+      `a contains b`,
+      `1 + 2`,
+      `+ 2`, // operator in leading position
+    ];
+
+    expect(expressions.filter((section) => !hasExpressionOperator(section))).toEqual([]);
+  });
+
+  it('is false for a value followed by stray tokens', () => {
+    const strayTails = [`'123' 555 text`, `"123" 555 text`, `'a?b' 555`, `-5 555`, `(1..3) 555`];
+
+    expect(strayTails.filter((section) => hasExpressionOperator(section))).toEqual([]);
   });
 });

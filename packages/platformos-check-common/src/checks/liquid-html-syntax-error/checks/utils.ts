@@ -50,6 +50,62 @@ export function doesFragmentContainUnsupportedParentheses(fragment: string) {
   return fragment.includes('(') || fragment.includes(')');
 }
 
+/**
+ * Liquid's WORD operators. `contains` is Liquid's own comparison keyword, `and` / `or` its
+ * boolean ones. A variable could in principle be named after one of these; the only cost of
+ * treating it as an operator is that we report without offering a fix.
+ */
+const WORD_OPERATORS: ReadonlySet<string> = new Set(['and', 'or', 'contains']);
+
+/** A token made ENTIRELY of operator punctuation: `?`, `:`, `&&`, `==`, `>=`, `+`, a bare `-`. */
+const PUNCTUATION_OPERATOR = /^[?:&|=<>!+*\/%-]+$/;
+
+/**
+ * A ternary marker fused to an operand, as in `a ?b :c` or `a? b`, which the token pattern
+ * returns as one token rather than as a bare `?`.
+ */
+const TERNARY_MARKER = /[?:]/;
+
+/**
+ * Whether a token from {@link getValuesInMarkup} is an OPERATOR rather than a value.
+ *
+ * A quoted string is a value even when it spells an operator — `'a?b'` and `':'` are data —
+ * so quoting is checked first. `-5` is a value because it is not punctuation alone; a bare
+ * `-` is an operator.
+ */
+export function isOperatorToken(token: string): boolean {
+  if (token.startsWith("'") || token.startsWith('"')) {
+    return false;
+  }
+
+  if (WORD_OPERATORS.has(token)) {
+    return true;
+  }
+
+  return PUNCTUATION_OPERATOR.test(token) || TERNARY_MARKER.test(token);
+}
+
+/**
+ * Whether a value section is an EXPRESSION the author wrote rather than a value followed by
+ * stray tokens.
+ *
+ * This is the guard on every fix that repairs unsupported markup by keeping the first value
+ * and DELETING the rest. That deletion reproduces what platformOS's lax parser does —
+ * measured on a live instance, `{% assign foo = '123' 555 text %}` renders `123` — which is
+ * a repair when the tail is meaningless and a SILENT REWRITE when it is an operand:
+ * `flag ? 'yes' : 'no'` becomes `flag`, renders `true`, and deploys clean. The deploy
+ * converter REJECTS every one of these constructs today, so applying such a fix trades a
+ * loud failure for a wrong value that nothing downstream can detect.
+ *
+ * The whole section is scanned, not just the part that would be deleted, so an operator in
+ * leading position (`= + 2`) is caught as well.
+ *
+ * Callers must keep REPORTING; only the fix is withheld.
+ */
+export function hasExpressionOperator(valueSection: string): boolean {
+  return getValuesInMarkup(valueSection).some(({ value }) => isOperatorToken(value));
+}
+
 export function fragmentKeyValuePair(fragment: string) {
   const match = fragment.match(new RegExp(KEY_VALUE_PAIR));
 

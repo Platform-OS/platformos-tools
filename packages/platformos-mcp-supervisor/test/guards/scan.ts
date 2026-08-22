@@ -236,7 +236,12 @@ export function extractImports(text: string): ModuleImport[] {
     const named = braces
       ? braces[1]
           .split(',')
-          .map((binding) => binding.trim().split(/\s+as\s+/)[0].trim())
+          .map((binding) =>
+            binding
+              .trim()
+              .split(/\s+as\s+/)[0]
+              .trim(),
+          )
           .filter((name) => name.length > 0 && name !== 'type')
       : [];
     // Anything outside the braces that is not whitespace or a comma is a namespace or

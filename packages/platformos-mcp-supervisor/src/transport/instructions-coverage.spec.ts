@@ -99,6 +99,12 @@ const DELETED_CLAIMS: Array<{ claim: string; file: string; source: string; check
     source: 'a: [1, 2\n',
     checks: ['YAMLSyntaxError'],
   },
+  {
+    claim: 'an unknown schema property type is reported and blocks',
+    file: 'app/schema/badtype.yml',
+    source: 'name: thing\nproperties:\n  - name: a\n    type: nope\n',
+    checks: ['InvalidSchemaPropertyType'],
+  },
 ];
 
 /** The claims that were KEPT, because nothing fires and so nothing else could say it. */
@@ -109,7 +115,7 @@ const KEPT_SILENCES: Array<{ claim: string; file: string; source: string }> = [
     source: '{{ 5 | upcase }}',
   },
   {
-    claim: 'the SHAPE of a model schema is not checked',
+    claim: 'a schema key the platform rejects is still not reported — only the TYPE is',
     file: 'app/schema/shape.yml',
     source: 'name: thing\nproperties:\n  - name: a\n    type: string\n    bogus: 1\n',
   },
@@ -151,7 +157,7 @@ describe('The claims that were KEPT are the ones no diagnostic can deliver', () 
       untypedArguments: SERVER_INSTRUCTIONS.includes(
         'An argument the documentation leaves untyped',
       ),
-      schemaShape: SERVER_INSTRUCTIONS.includes('The SHAPE of a model schema is not checked'),
+      schemaShape: SERVER_INSTRUCTIONS.includes('unrecognised top-level key is rejected on deploy'),
       duplicateKeyGap: SERVER_INSTRUCTIONS.includes(
         'silence there does not prove two keys are distinct',
       ),

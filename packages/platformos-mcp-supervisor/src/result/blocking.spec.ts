@@ -103,6 +103,7 @@ describe('Unit: blocksWrite', () => {
       'FilterArity',
       'GraphQLCheck',
       'GraphQLVariablesCheck',
+      'InvalidSchemaPropertyType',
       'InvalidWriteTarget',
       'JsonLiteralQuoteStyle',
       'LiquidHTMLSyntaxError',

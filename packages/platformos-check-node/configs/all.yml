@@ -36,6 +36,9 @@ ImgWidthAndHeight:
 ImplicitIncludeArguments:
   enabled: true
   severity: 1
+InvalidSchemaPropertyType:
+  enabled: true
+  severity: 0
 InvalidWriteTarget:
   enabled: true
   severity: 0

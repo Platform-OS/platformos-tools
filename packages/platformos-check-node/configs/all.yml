@@ -2,7 +2,7 @@
 # This file was generated automatically by running "scripts/generate-factory-configs"
 # Do not modify manually. Your changes will be overwritten.
 ignore:
-  - node_modules/**
+  - node_modules
 DeprecatedFilter:
   enabled: true
   severity: 1

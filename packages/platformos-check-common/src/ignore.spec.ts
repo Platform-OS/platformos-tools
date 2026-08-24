@@ -136,32 +136,60 @@ describe('Function: isIgnored', () => {
     expect(result).toBe(true);
   });
 
-  it('should return true when the file partially matches a non-root ignore pattern', () => {
-    const result = isIgnored(
-      toUri('some-library/node_modules/foo.liquid'),
-      config({
-        // any kind of node_modules are ignored
-        checkIgnore: ['node_modules/*'],
-        globalIgnore: [],
-      }),
-      checkDef,
-    );
+  /**
+   * `.gitignore` semantics: the slash inside `node_modules/*` anchors it on the root, so a
+   * NESTED node_modules falls outside it. `node_modules/` is the control — a trailing slash
+   * is not a slash "inside", so that one still matches at any depth, which is what keeps
+   * this from passing on a pattern that matches nothing whatsoever.
+   */
+  it('should anchor a pattern with a slash inside it, and only that one', () => {
+    const patterns = ['node_modules/*', 'node_modules/**', 'node_modules/'];
 
-    expect(result).toBe(true);
+    expect(
+      patterns.map((pattern) =>
+        isIgnored(
+          toUri('some-library/node_modules/foo.liquid'),
+          config({ checkIgnore: [pattern] }),
+          checkDef,
+        ),
+      ),
+    ).toEqual([false, false, true]);
   });
 
-  it('should return true when the file matches a non-root /** pattern', () => {
-    const result = isIgnored(
-      toUri('some-library/node_modules/foo.liquid'),
-      config({
-        // any kind of node_modules are ignored
-        checkIgnore: ['node_modules/**'],
-        globalIgnore: [],
-      }),
-      checkDef,
-    );
+  /**
+   * A bare name matches at any depth, and has to cover what is INSIDE it: the subject is
+   * always a file, so `node_modules` must reach the files under a `node_modules` directory
+   * and not only a file of that name. The last subject is the control.
+   */
+  it('should match a bare name at any depth, including its contents', () => {
+    const subjects = [
+      'some-library/node_modules/foo.liquid',
+      'node_modules/foo.liquid',
+      'app/views/partials/node_modules',
+      'app/views/partials/foo.liquid',
+    ];
 
-    expect(result).toBe(true);
+    expect(
+      subjects.map((subject) =>
+        isIgnored(toUri(subject), config({ checkIgnore: ['node_modules'] }), checkDef),
+      ),
+    ).toEqual([true, true, true, false]);
+  });
+
+  /**
+   * The defect the anchoring exists for. `modules/<name>/**` is what the documentation tells
+   * you to write to drop a vendored module, and under "matches at any depth" it ALSO
+   * silenced the first-party `app/modules/<name>` — invisibly, because an ignored file
+   * produces no offense for anyone to miss. The vendored half is the control: a pattern that
+   * had stopped matching anything would satisfy the first expectation on its own.
+   */
+  it('should ignore a vendored module without silencing the first-party one of the same name', () => {
+    const vendored = config({ globalIgnore: ['modules/user/**'] });
+
+    expect([
+      isIgnored(toUri('modules/user/public/views/pages/users/new.liquid'), vendored),
+      isIgnored(toUri('app/modules/user/public/views/pages/users/new.liquid'), vendored),
+    ]).toEqual([true, false]);
   });
 
   it('should return false when the file partially matches a root ignore pattern', () => {
@@ -203,8 +231,8 @@ describe('Function: isIgnored', () => {
     expect(results).toEqual(Array.from({ length: 50 }, () => false));
     // Global patterns are consulted first, so they are the first thing compiled.
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
-      ['**/modules/common-styling/**'],
-      ['**/app/views/partials/*.liquid'],
+      ['file:///path/to/modules/common-styling/**'],
+      ['file:///path/to/app/views/partials/*.liquid'],
     ]);
   });
 
@@ -225,8 +253,8 @@ describe('Function: isIgnored', () => {
 
     expect(results).toEqual([false, true, false, true]);
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
-      ['**/modules/common-styling/**'],
-      ['**/app/views/partials/*.liquid'],
+      ['file:///path/to/modules/common-styling/**'],
+      ['file:///path/to/app/views/partials/*.liquid'],
     ]);
   });
 
@@ -269,8 +297,8 @@ describe('Function: isIgnored', () => {
 
     expect(results).toEqual([true, false]);
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
-      ['**/app/views/pages/**'],
-      ['**/app/views/layouts/**'],
+      ['file:///path/to/app/views/pages/**'],
+      ['file:///path/to/app/views/layouts/**'],
     ]);
   });
 

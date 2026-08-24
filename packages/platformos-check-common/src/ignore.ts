@@ -32,7 +32,7 @@ const globalVerdictByConfig = new WeakMap<Config, Map<string, boolean>>();
  * Whether `config` ignores the file — however the caller spells it.
  *
  * `uriFromPathOrUri` puts the subject in the normalized-URI spelling the patterns are
- * rewritten against (`rewrite` anchors absolute patterns on `config.rootUri`, a URI), so
+ * rewritten against (`rewrite` anchors patterns on `config.rootUri`, a URI), so
  * a `file://` URI, a percent-encoded URI, and a raw filesystem path all get ONE answer —
  * `file:///c%3A/project/x.liquid` and `c:/project/x.liquid` are otherwise different
  * strings, and "which files are ignored" must not depend on who asked.
@@ -115,16 +115,45 @@ function compiled(config: Config, key: string | symbol, patterns: string[]): Min
   return matchers;
 }
 
+/**
+ * The minimatch pattern `pattern` means, in the spelling the subject is canonicalized to.
+ *
+ * `.gitignore` semantics, because a `.platformos-check.yml` reads like one: a slash anywhere
+ * but the very end ANCHORS the pattern to the project root, and a bare name matches at any
+ * depth. `modules/user/**` is how the docs tell you to drop a vendored module, and anchoring
+ * is the only reading under which that does not ALSO silence the first-party
+ * `app/modules/user` — a suppression nothing reports, because an ignored file produces no
+ * offense to notice.
+ */
 function rewrite(pattern: string, rootUri: string): string {
-  return (
-    pattern
-      // "absolute patterns" are config.rootUri matches. The root is normalized to
-      // the same spelling `canonicalSubject` puts the subject in, so an anchored
-      // pattern and its subject cannot diverge on the root's spelling.
-      .replace(/^\//, normalize(rootUri) + '/')
-      .replace(/^([^\/])/, '**/$1') // "relative patterns" are "**/${pattern}"
-      .replace(/\/\*$/, '/**')
-  ); // "/*" patterns are really "/**"
+  // The root is normalized to the same spelling `isIgnored` puts the subject in, so an
+  // anchored pattern and its subject cannot diverge on the root's spelling.
+  if (pattern.startsWith('/')) return normalize(rootUri) + widen(pattern);
+  if (isAnchored(pattern)) return `${normalize(rootUri)}/${widen(pattern)}`;
+  return anyDepth(pattern);
+}
+
+/** A slash anywhere but the very end anchors the pattern, exactly as `.gitignore` does. */
+function isAnchored(pattern: string): boolean {
+  return trimTrailingSlash(pattern).includes('/');
+}
+
+/** `foo/` and `foo/*` both mean everything under `foo`. */
+function widen(pattern: string): string {
+  return pattern.replace(/\/\*?$/, '/**');
+}
+
+/**
+ * A bare name matches at any depth — and has to cover what is INSIDE it as well as a file
+ * of that name, since the subject is always a file: `node_modules` must reach
+ * `some-library/node_modules/foo.liquid`, which `**\/node_modules` alone never does.
+ */
+function anyDepth(pattern: string): string {
+  return `**/${trimTrailingSlash(pattern)}{,/**}`;
+}
+
+function trimTrailingSlash(pattern: string): string {
+  return pattern.replace(/\/+$/, '');
 }
 
 function checkIgnorePatterns(checkDef: CheckDefinition | undefined, config: Config) {

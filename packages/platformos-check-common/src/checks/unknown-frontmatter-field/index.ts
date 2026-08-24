@@ -1,5 +1,5 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { wellFormedFrontmatterBlock } from '../../frontmatter/extract';
+import { wellFormedFrontmatterBlock } from '../../frontmatter';
 
 /**
  * A frontmatter key the file type's converter does not accept.
@@ -26,7 +26,7 @@ export const UnknownFrontmatterField: LiquidCheckDefinition = {
   create(context) {
     return {
       async onCodePathStart(file) {
-        const block = wellFormedFrontmatterBlock(file, context.fileType(file.uri));
+        const block = wellFormedFrontmatterBlock(context.file, context.fileType(file.uri));
         if (!block) return;
 
         for (const [key, entry] of block.entries) {

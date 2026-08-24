@@ -49,6 +49,9 @@ describe('Unit: blocksWrite', () => {
       ['visibly wrong, still a working page', 'ReservedVariableName'],
       ['performance advice', 'ImgWidthAndHeight'],
       ['performance advice', 'ParserBlockingScript'],
+      // Measured: a page declaring `slug` twice synced, the first slug 404s and the second
+      // serves. The platform accepts it, so the discarded value is advisory, not a block.
+      ['the platform accepts it, last value wins', 'DuplicateFrontmatterKey'],
     ])('%s: %s', (_why, check) => {
       expect(blocksWrite([at(check)])).toBe(false);
     });

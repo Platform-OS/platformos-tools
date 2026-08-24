@@ -4,7 +4,7 @@ import {
   PlatformOSFileType,
 } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { wellFormedFrontmatterBlock } from '../../frontmatter/extract';
+import { wellFormedFrontmatterBlock } from '../../frontmatter';
 import { basename } from '../../path';
 
 /**
@@ -55,7 +55,7 @@ export const DeprecatedFrontmatterField: LiquidCheckDefinition = {
           }
         }
 
-        const block = wellFormedFrontmatterBlock(file, fileType);
+        const block = wellFormedFrontmatterBlock(context.file, fileType);
         if (!block) return;
 
         for (const [key, entry] of block.entries) {

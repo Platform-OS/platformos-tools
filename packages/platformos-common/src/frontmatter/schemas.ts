@@ -13,7 +13,7 @@
  *                               types without a frontmatter schema
  */
 
-import { FILE_TYPE_DIRS, PlatformOSFileType } from './path-utils';
+import { FILE_TYPE_DIRS, PlatformOSFileType } from '../path-utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

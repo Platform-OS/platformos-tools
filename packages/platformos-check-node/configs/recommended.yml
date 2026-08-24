@@ -12,6 +12,9 @@ DeprecatedFrontmatterField:
 DeprecatedTag:
   enabled: true
   severity: 1
+DuplicateFrontmatterKey:
+  enabled: true
+  severity: 1
 DuplicateFunctionArguments:
   enabled: true
   severity: 1

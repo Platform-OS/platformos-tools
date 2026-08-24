@@ -1,6 +1,6 @@
 import { isMap, isScalar, isSeq, parseDocument, Scalar, type Node, type Pair } from 'yaml';
 
-import { normalizeLoneCarriageReturns } from './line-breaks';
+import { normalizeLoneCarriageReturns } from '@platformos/platformos-common';
 import { reconcileFlowScalarContinuations } from './flow-scalar-continuations';
 
 /**

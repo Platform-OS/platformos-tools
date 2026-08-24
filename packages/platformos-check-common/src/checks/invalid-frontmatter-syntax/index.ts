@@ -1,5 +1,5 @@
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { frontmatterBlock } from '../../frontmatter/extract';
+import { frontmatterBlock } from '../../frontmatter';
 
 /**
  * YAML inside a frontmatter block that does not parse.
@@ -33,7 +33,7 @@ export const InvalidFrontmatterSyntax: LiquidCheckDefinition = {
   create(context) {
     return {
       async onCodePathStart(file) {
-        const block = frontmatterBlock(file, context.fileType(file.uri));
+        const block = frontmatterBlock(context.file, context.fileType(file.uri));
         if (!block) return;
 
         for (const failure of block.syntaxErrors) {

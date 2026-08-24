@@ -6,7 +6,7 @@ import {
   SPAM_PROTECTION_STRATEGIES,
 } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { type FrontmatterBlock, wellFormedFrontmatterBlock } from '../../frontmatter/extract';
+import { type FrontmatterBlock, wellFormedFrontmatterBlock } from '../../frontmatter';
 
 /**
  * A frontmatter value the converter refuses. Both shapes are measured rejections:
@@ -37,7 +37,7 @@ export const InvalidFrontmatterValue: LiquidCheckDefinition = {
     return {
       async onCodePathStart(file) {
         const fileType = context.fileType(file.uri);
-        const block = wellFormedFrontmatterBlock(file, fileType);
+        const block = wellFormedFrontmatterBlock(context.file, fileType);
         if (!block) return;
 
         const { schema, entries } = block;

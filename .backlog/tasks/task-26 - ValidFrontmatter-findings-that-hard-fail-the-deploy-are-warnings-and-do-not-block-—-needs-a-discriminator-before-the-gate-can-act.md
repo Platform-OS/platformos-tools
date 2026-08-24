@@ -3,10 +3,10 @@ id: TASK-26
 title: >-
   ValidFrontmatter findings that hard-fail the deploy are warnings and do not
   block — needs a discriminator before the gate can act
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-08-01 03:00'
-updated_date: '2026-08-04 12:48'
+updated_date: '2026-08-22 19:46'
 labels:
   - bug
   - mcp-supervisor
@@ -62,9 +62,35 @@ The evaluation's broader structural point: the gate models runtime failure but n
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [ ] #1 A decision is recorded on the interim state — whether two deploy-fatal findings reported only as warnings is acceptable until a discriminator exists — with its rationale
-- [ ] #2 Once a discriminator is available, the unknown-key and missing-layout findings yield `must_fix_before_write: true`
+- [x] #2 Once a discriminator is available, the unknown-key and missing-layout findings yield `must_fix_before_write: true`
 - [ ] #3 The `authorization_policies` finding does NOT block, verified against the instance, so the fix does not trade a false approval for a false block
 - [ ] #4 `blocking.ts` records why `ValidFrontmatter` is absent from the set while it remains absent, in the same place the `PartialCallArguments` reasoning lives, so the gap is documented rather than invisible
 - [ ] #5 The dependency on a structured offence discriminator is explicit, so this is not attempted with message-string matching (non-goal #2)
-- [ ] #6 Verified end to end against a real deploy, since the failure being modelled is deploy-time rather than runtime
+- [x] #6 Verified end to end against a real deploy, since the failure being modelled is deploy-time rather than runtime
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Delivered by TASK-83.1, which split `ValidFrontmatter` into per-shape check codes. Three of the resulting codes are now in `BLOCKING_CHECKS`, so the deploy-fatal frontmatter findings answer `must_fix_before_write: true`.
+
+**Closed on the `fix/never-rewrite-operator-expressions` branch for bookkeeping; the code that closes it is on `fix/split-valid-frontmatter-per-shape-checks`.**
+
+## Two of this task's own premises turned out to be wrong
+
+**The blocker was a mis-linkage.** This task was blocked on TASK-8.1, a typed `data` payload on `Offense`. TASK-8.1 answers "which SYMBOL is this diagnostic about", for rendering a docset entry — its leading candidate is `findCurrentNode`. The write gate needs "which RULE fired", a different question `findCurrentNode` cannot answer and one the repository already answers everywhere else with a check code. Doc-params are five codes, filters are four; `ValidFrontmatter` carrying seven rules was the anomaly. No seam change was needed.
+
+**The trade-off it recorded did not exist.** The stated reason for not blocking was that adding the code would fix two false approvals and create one false block. Both halves were wrong: there were seven reachable shapes rather than three, and `layout: false` — named here as the harmless one — is itself a converter rejection (`undefined method 'sub' for false`). Its own diagnostic claimed the opposite and has been corrected.
+
+## Criteria, honestly
+
+- #2 and #6 met: the fatal findings block, verified end to end against a real deploy.
+- #1 superseded — the gap is closed rather than deferred, so no interim decision is needed.
+- #3 **INVERTED, and this is the important one.** It required that `authorization_policies` must NOT block. A real deploy rejects it — `<page> tries to assign authorization_policies which do not exist` — so it blocks. The criterion was written from `--dry-run`, which accepts that file because `base_converter.rb` returns before `bulk_write_associations_from_snapshot!`, the code that raises. The dry run's silence was never evidence.
+- #4 moot: `ValidFrontmatter` no longer exists, so there is no absence left to explain.
+- #5 resolved differently: per-shape check codes rather than a structured discriminator on the offense. No regex over messages anywhere, so non-goal #2 holds.
+
+## Related
+
+TASK-83 (parent) and TASK-83.1–83.5 carry the work and the measurements. TASK-86 and TASK-87 came out of the same real-deploy campaign.
+<!-- SECTION:FINAL_SUMMARY:END -->

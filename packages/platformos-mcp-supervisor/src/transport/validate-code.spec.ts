@@ -2373,6 +2373,26 @@ properties:
       { name: 'nested', blocked: false, errorChecks: [], warningChecks: ['DuplicateYAMLKey'] },
     ]);
   }, 120_000);
+
+  it('reports a duplicate FRONTMATTER key the same way, in a .liquid file', async () => {
+    // The Liquid-side counterpart of the case above. It travels a different route entirely —
+    // `DuplicateYAMLKey` is a YAML-typed check and never sees a `.liquid` file — so the
+    // promise has to be measured through this server separately rather than inferred.
+    const result = await validate(
+      'app/views/pages/dup.html.liquid',
+      '---\nslug: first\nslug: second\n---\n<p>hi</p>\n',
+    );
+
+    expect({
+      blocked: result.must_fix_before_write,
+      errorChecks: [...new Set(result.errors.map((error) => error.check))],
+      warningChecks: [...new Set(result.warnings.map((warning) => warning.check))],
+    }).toEqual({
+      blocked: false,
+      errorChecks: [],
+      warningChecks: ['DuplicateFrontmatterKey'],
+    });
+  }, 120_000);
 });
 
 /**

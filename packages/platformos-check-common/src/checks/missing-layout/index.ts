@@ -1,6 +1,6 @@
 import { containsLiquid, PlatformOSFileType } from '@platformos/platformos-common';
 import { LiquidCheckDefinition, Severity, SourceCodeType } from '../../types';
-import { wellFormedFrontmatterBlock } from '../../frontmatter/extract';
+import { wellFormedFrontmatterBlock } from '../../frontmatter';
 
 /**
  * A `layout:` naming a layout that does not exist.
@@ -33,7 +33,7 @@ export const MissingLayout: LiquidCheckDefinition = {
         const fileType = context.fileType(file.uri);
         if (fileType !== PlatformOSFileType.Page && fileType !== PlatformOSFileType.Email) return;
 
-        const block = wellFormedFrontmatterBlock(file, fileType);
+        const block = wellFormedFrontmatterBlock(context.file, fileType);
         if (!block) return;
 
         const deprecatedAlias =

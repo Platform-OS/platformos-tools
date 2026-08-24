@@ -8,6 +8,7 @@ import {
 import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedTag } from './deprecated-tag';
 import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
+import { DuplicateFrontmatterKey } from './duplicate-frontmatter-key';
 import { DuplicateYAMLKey } from './duplicate-yaml-key';
 import { ImgWidthAndHeight } from './img-width-and-height';
 import { ImplicitIncludeArguments } from './implicit-include-arguments';
@@ -61,6 +62,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   DeprecatedTag,
   DuplicateFunctionArguments,
   DuplicateRenderPartialArguments,
+  DuplicateFrontmatterKey,
   DuplicateYAMLKey,
   ImgWidthAndHeight,
   ImplicitIncludeArguments,

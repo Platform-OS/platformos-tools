@@ -65,6 +65,57 @@ describe('InvalidFrontmatterSyntax', () => {
     expect(offenses.map((offense) => offense.check)).to.deep.equal(['InvalidFrontmatterSyntax']);
   });
 
+  /**
+   * A REPEATED KEY IS LEGAL INPUT and must not cost the block its field rules.
+   *
+   * Measured against the instance: a page declaring `slug` twice syncs without error, the
+   * first slug 404s and the second serves — the platform parses frontmatter with Psych,
+   * which has no uniqueness rule. `yaml` defaults to `uniqueKeys: true`, so the duplicate
+   * became a syntax error, and because every field rule reads through
+   * `wellFormedFrontmatterBlock` it took `UnknownFrontmatterField` and `MissingLayout` down
+   * with it — one legal key hiding a finding that fails the whole changeset.
+   */
+  it('says nothing about a repeated key, which the platform accepts', async () => {
+    expect(await report('---\nslug: a\nslug: b\n---\n<p>hi</p>\n')).to.deep.equal([]);
+  });
+
+  it('lets the field rules fire on a block that also repeats a key', async () => {
+    const source =
+      '---\nslug: a\nslug: b\nunknown_key: 1\nlayout: no_such_layout\n---\n<p>hi</p>\n';
+    const offenses = await check({ [PAGE]: source }, [
+      InvalidFrontmatterSyntax,
+      UnknownFrontmatterField,
+      MissingLayout,
+    ]);
+
+    expect(offenses.map((offense) => offense.check).sort()).to.deep.equal([
+      'MissingLayout',
+      'UnknownFrontmatterField',
+    ]);
+  });
+
+  /**
+   * The suppression itself is still correct and still load-bearing — it is only the
+   * definition of "malformed" that was wrong. Without this, making a duplicate legal could
+   * equally have been done by deleting the well-formed gate.
+   */
+  it('still suppresses the field rules when the block is genuinely unparseable', async () => {
+    const source = '---\nunknown_key: 1\nlayout: [unclosed\n---\n<p>hi</p>\n';
+    const offenses = await check({ [PAGE]: source }, [
+      InvalidFrontmatterSyntax,
+      UnknownFrontmatterField,
+      MissingLayout,
+    ]);
+
+    expect(offenses.map((offense) => offense.check)).to.deep.equal(['InvalidFrontmatterSyntax']);
+  });
+
+  it('reports a syntax error on one line, with no source excerpt or caret diagram', async () => {
+    const messages = await report('---\nslug: probe\nlayout: [unclosed\n---\n<p>hi</p>\n');
+
+    expect(messages.map((message) => message.includes('\n'))).to.deep.equal([false]);
+  });
+
   it('CONTROL: the same field rules DO fire once the block parses', async () => {
     // Without this, the assertion above would pass with the field rules deleted entirely.
     const source = '---\nunknown_key: 1\nlayout: no_such_layout\n---\n<p>hi</p>\n';

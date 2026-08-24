@@ -255,11 +255,13 @@ describe('Architecture invariant #3 — no re-implementation of an owned capabil
     expect(declaredSymbols(`function findRoot(uri: string) { return uri; }`)).toEqual(['findRoot']);
     expect(declaredSymbols(`const dependencyGraph = build();`)).toEqual(['dependencyGraph']);
     // Importing the real one, or naming it in a type position, is the sanctioned path.
-    expect(declaredSymbols(`import { findRoot } from '@platformos/platformos-check-common';`)).toEqual(
-      [],
-    );
     expect(
-      declaredSymbols(`import { AugmentedPlatformOSDocset } from '@platformos/platformos-check-node';`),
+      declaredSymbols(`import { findRoot } from '@platformos/platformos-check-common';`),
+    ).toEqual([]);
+    expect(
+      declaredSymbols(
+        `import { AugmentedPlatformOSDocset } from '@platformos/platformos-check-node';`,
+      ),
     ).toEqual([]);
   });
 });
@@ -356,7 +358,9 @@ describe('Architecture invariant #6 — no documentation lives in this package',
   });
 
   it('SELF-TEST: the table detector spans the spellings a table can arrive under', () => {
-    expect(declaredSymbols('const KNOWN_FILTERS = ["a"];').map(normalise)).toEqual(['knownfilters']);
+    expect(declaredSymbols('const KNOWN_FILTERS = ["a"];').map(normalise)).toEqual([
+      'knownfilters',
+    ]);
     expect(VOCABULARY_TABLE_NAMES).toContain(normalise('KNOWN_FILTERS'));
     expect(VOCABULARY_TABLE_NAMES).toContain(normalise('liquidTags'));
     // A name that merely mentions a docset concept is NOT a table: reading the docset is

@@ -885,7 +885,9 @@ describe('server instructions', () => {
    */
   it('keeps the YAML claim no diagnostic can deliver, and drops the one that fires', () => {
     expect({
-      keptTheSilence: SERVER_INSTRUCTIONS.includes('The SHAPE of a model schema is not checked'),
+      keptTheSilence: SERVER_INSTRUCTIONS.includes(
+        'unrecognised top-level key is rejected on deploy',
+      ),
       droppedWhatFires: SERVER_INSTRUCTIONS.includes('one that does not parse is reported'),
     }).toEqual({ keptTheSilence: true, droppedWhatFires: false });
   });
@@ -1032,6 +1034,14 @@ const EMITS: Record<string, EmissionFixture> = {
 {% hash_assign x['k'] = 'v' %}
 `,
     errors: ['InvalidWriteTarget'],
+  },
+
+  InvalidSchemaPropertyType: {
+    // Measured by a REAL deploy: `Attribute type `nope` is not allowed.` `--dry-run`
+    // accepts this file.
+    filePath: 'app/schema/thing.yml',
+    content: 'name: thing\nproperties:\n  - name: a\n    type: nope\n',
+    errors: ['InvalidSchemaPropertyType'],
   },
 
   MissingContentForLayout: {
@@ -1569,6 +1579,12 @@ describe('Integration: every blocking check can actually block', () => {
 type Oracle =
   /** `pos-cli deploy --dry-run` accepted this shape. Round-4 evaluation, O1c. */
   | 'dry-run'
+  /**
+   * A REAL `pos-cli deploy` accepted this shape. Stronger than `dry-run`, and the only
+   * oracle for anything converted after `prepare_models`: `--dry-run` returns before
+   * `persist_slice!`, so it accepts shapes a deploy rejects.
+   */
+  | 'deploy'
   /** Executed through `liquid_exec` and rendered. Round-4 evaluation, O1a. */
   | 'runtime'
   /**
@@ -2042,6 +2058,21 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     },
   ],
 
+  InvalidSchemaPropertyType: [
+    {
+      name: 'a published property type',
+      filePath: 'app/schema/thing.yml',
+      content: 'name: thing\nproperties:\n  - name: a\n    type: string\n',
+      oracle: 'deploy',
+    },
+    {
+      name: 'a schema with no properties at all',
+      filePath: 'app/schema/thing.yml',
+      content: 'name: thing\n',
+      oracle: 'deploy',
+    },
+  ],
+
   MissingContentForLayout: [
     {
       name: 'layout outputs content_for_layout',
@@ -2105,6 +2136,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: 9,
       MissingRenderPartialArguments: 1,
       MissingContentForLayout: 1,
+      InvalidSchemaPropertyType: 2,
     });
   });
 
@@ -2130,6 +2162,7 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: ['by-construction', 'runtime'],
       MissingRenderPartialArguments: ['by-construction'],
       MissingContentForLayout: ['by-construction'],
+      InvalidSchemaPropertyType: ['deploy'],
     });
   });
 

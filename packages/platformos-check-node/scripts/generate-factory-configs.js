@@ -38,7 +38,9 @@ const isAllChecksDefault = (check) =>
  */
 function asYaml(checkDefs, isCheckEnabled = defaultPredicate) {
   const checkSettings = {
-    ignore: ['node_modules/**'],
+    // Slash-less, so it keeps reaching a NESTED node_modules: an ignore pattern carrying a
+    // slash inside it is anchored on the project root, the way `.gitignore` reads.
+    ignore: ['node_modules'],
   };
 
   for (const checkDef of checkDefs.sort(alphabetically)) {

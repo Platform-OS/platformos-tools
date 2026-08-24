@@ -1,6 +1,6 @@
 import { LiquidTag } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType } from '../../..';
-import { getValuesInMarkup, INVALID_SYNTAX_MESSAGE } from './utils';
+import { getValuesInMarkup, hasExpressionOperator, INVALID_SYNTAX_MESSAGE } from './utils';
 import { findUnsupportedStringEscapes } from '../../unsupported-string-escape/detect';
 
 export function detectMultipleAssignValues(
@@ -82,12 +82,20 @@ export function detectMultipleAssignValues(
     return;
   }
 
-  return {
+  const problem: Problem<SourceCodeType.LiquidHtml> = {
     message: INVALID_SYNTAX_MESSAGE,
     startIndex,
     endIndex,
-    fix: (corrector) => {
-      corrector.replace(startIndex, endIndex, '');
-    },
   };
+
+  // An operator in the value section means the tail is an OPERAND the author wrote, not a
+  // stray token, and this fix would delete it — turning `flag ? 'yes' : 'no'` into `flag`.
+  // See `hasExpressionOperator`. The offense still reports; only the fix is withheld.
+  if (!hasExpressionOperator(assignmentValue)) {
+    problem.fix = (corrector) => {
+      corrector.replace(startIndex, endIndex, '');
+    };
+  }
+
+  return problem;
 }

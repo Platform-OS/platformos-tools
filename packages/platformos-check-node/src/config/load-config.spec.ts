@@ -115,8 +115,9 @@ describe('Unit: loadConfig', () => {
   it('merges the ignore attribute with the default one', async () => {
     const configPath = path.resolve(__dirname, 'fixtures/with-ignore.yml');
     const config = await loadConfig(configPath, path.dirname(configPath));
-    expect(config.ignore).to.include('node_modules/**');
-    expect(config.ignore).to.include('src/**');
+    // The factory default is slash-less so it still reaches a nested node_modules; a pattern
+    // with a slash inside it is anchored on the project root, the way `.gitignore` reads.
+    expect(config.ignore).to.deep.equal(['node_modules', 'src/**', 'dist/**']);
   });
 
   it('does not automatically load a community-provided extensions that does not match the naming convention', async () => {

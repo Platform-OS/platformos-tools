@@ -249,6 +249,9 @@ describe('the fixed-path config files', () => {
 
     expect(yamlChecks.map((def) => def.meta.code).sort()).toEqual([
       'DuplicateYAMLKey',
+      // Guards on PROPERTY_BEARING_FILE_TYPES — the four converters that share
+      // `CustomAttributeConverter` — rather than on an `app/schema/` path test.
+      'InvalidSchemaPropertyType',
       'MatchingTranslations',
       'ValidHTMLTranslation',
       'YAMLSyntaxError',

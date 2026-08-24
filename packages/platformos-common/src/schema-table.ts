@@ -9,9 +9,13 @@ import { PLATFORM_YAML_LOAD_OPTIONS } from './yaml-load-options';
  * ```yaml
  * name: blog_post
  * properties:
- *   title:
+ *   - name: title
  *     type: string
  * ```
+ *
+ * `properties` is a SEQUENCE. The mapping form this example used to show is rejected on
+ * deploy (`no implicit conversion of String into Integer`), measured with both a valid and
+ * an invalid property type to confirm it is the shape and not the type.
  *
  * Named to mirror {@link extractGraphqlTables}, its sibling in this package, so a
  * consumer can join a GraphQL operation to the schema it targets.

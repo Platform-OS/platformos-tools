@@ -108,6 +108,7 @@ describe('Unit: blocksWrite', () => {
       'GraphQLVariablesCheck',
       'InvalidFrontmatterSyntax',
       'InvalidFrontmatterValue',
+      'InvalidSchemaPropertyType',
       'InvalidWriteTarget',
       'JsonLiteralQuoteStyle',
       'LiquidHTMLSyntaxError',

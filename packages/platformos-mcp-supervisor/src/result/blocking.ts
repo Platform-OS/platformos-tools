@@ -43,11 +43,16 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   'LiquidHTMLSyntaxError',
 
   // Unparseable YAML. Measured: `pos-cli deploy --dry-run` REJECTS the file ("Body
-  // contains invalid YAML"), failing the WHOLE changeset. Scoped to SYNTAX because no
-  // schema-shape check exists yet — NOT because the platform is permissive: a real deploy
-  // rejects an unknown property type ("Attribute type `x` is not allowed"), which
-  // `--dry-run` misses by returning before the nested converter runs.
+  // contains invalid YAML"), failing the WHOLE changeset. Scoped to SYNTAX, which is a
+  // narrower claim than it used to make here: a REAL deploy rejects an unknown property
+  // TYPE (now `InvalidSchemaPropertyType`) and an unknown top-level key, both of which
+  // `--dry-run` misses by returning before the nested converter. Duplicate property names
+  // ARE accepted — measured.
   'YAMLSyntaxError',
+
+  // `Attribute type `x` is not allowed`, from the nested `CustomAttributeConverter`.
+  // Measured by a REAL deploy; `--dry-run` accepts it.
+  'InvalidSchemaPropertyType',
 
   // Broken reference: the target does not exist, so the render fails at runtime.
   'MissingPartial',

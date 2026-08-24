@@ -65,8 +65,11 @@ beforeAll(async () => {
     'app/views/layouts/theme.liquid',
     '<html><body>{{ content_for_layout }}</body></html>',
   );
-  writeProjectFile('app/lib/queries/list.liquid', `{% graphql r = 'noop' %}
-{% return r %}`);
+  writeProjectFile(
+    'app/lib/queries/list.liquid',
+    `{% graphql r = 'noop' %}
+{% return r %}`,
+  );
 
   transport = new StdioClientTransport({
     command: process.execPath,

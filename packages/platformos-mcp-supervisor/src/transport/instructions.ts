@@ -120,8 +120,10 @@ as finding it correct, and where no diagnostic can tell you so.
   rather than refuse. {{ 5 | upcase }} renders and is not reported. That silence is the
   documentation's answer, not a guarantee the value is right.
 
-  The SHAPE of a model schema is not checked. An unknown property is not reported,
-  because the platform accepts it.
+  A model schema's property TYPE is checked and an unknown one is reported. The rest of a
+  schema's shape is not: an unrecognised top-level key is rejected on deploy and nothing
+  reports it, so silence there is not a claim the key is valid. A duplicated property name
+  IS accepted by the platform.
 
   Duplicate YAML keys are compared the way the platform's own parser resolves them, so
   yes: and true: in one mapping are reported as the one key they become. That comparison

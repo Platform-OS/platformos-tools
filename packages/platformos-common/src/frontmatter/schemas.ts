@@ -539,7 +539,7 @@ export function getFrontmatterSchema(
  * Derived from FILE_TYPE_DIRS[type][0] so it always stays in sync with the
  * single source of truth in path-utils.ts.
  *
- * Used by both the ValidFrontmatter check (file-existence validation) and the
+ * Used by the MissingFrontmatterAssociation check (file-existence validation) and the
  * FrontmatterDefinitionProvider (go-to-definition) to resolve association paths.
  */
 export const FRONTMATTER_ASSOCIATION_DIRS: Readonly<Record<string, string>> = {

@@ -21,6 +21,7 @@ export * from './frontmatter';
 // GraphQL parser they inject is `parseGraphql` from right here, so a `.graphql` file is
 // parsed once and every consumer reads the same document.
 export * from './graphql';
+export * from './schema-properties';
 export * from './schema-table';
 export * from './yaml-load-options';
 export * from './yaml-line-breaks';

@@ -1,8 +1,9 @@
 /**
  * The project's edge-source files as TEXT, read ONCE per request.
  *
- * This is the whole of impact's project state, and it is read only when the edited buffer
- * declares a `{% doc %}` contract worth comparing callers against. The trade is deliberate:
+ * This is the whole of impact's project state, and it is read only when some buffer in the
+ * request could HAVE dependants — decidable from the paths alone, before any I/O. The trade
+ * is deliberate:
  * pay a project READ per request — I/O, on the threadpool, overlapping the lint's CPU —
  * instead of a whole-project PARSE once and a lifetime of keeping it honest. Measured on a
  * real project (2,615 edge sources, 3.0 MB): 235 ms. Being derived per request, it cannot be

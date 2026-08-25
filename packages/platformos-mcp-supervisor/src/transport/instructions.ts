@@ -104,16 +104,26 @@ truncated
   what is listed and validate again to see the rest.
 
 impact
-  Reports ONE thing: existing callers whose arguments no longer match the {% doc %}
-  contract your buffer declares — each named, with what is missing or undeclared. Worked
-  out from the project as it stands at the moment of the call, your other buffers included.
-  The \`signature_risk\` list is there only when there is something to report, and is computed
-  only when your buffer declares a {% doc %} block; otherwise \`status: not_applicable\` — no
-  contract, nothing to compare callers against. At most 10 callers are listed.
-  NOTHING HERE IS A CLEARANCE. An empty impact means no mismatch was found among the callers
-  that are VISIBLE, and a caller can be invisible: {% render partial_name %} picks its target
-  at runtime, so no analysis can resolve it. This server never tells you nothing depends on a
-  file — if you are about to delete or rename one, search the project yourself.
+  What this change BREAKS in files you are NOT editing — the one thing a per-file lint cannot
+  see, since it only ever looks at the buffers you sent. Each entry names the file and
+  carries the check's own findings: same message, same severity, same documentation link, and
+  the same fixes, exactly as if you had validated that file yourself.
+  It reports only what your change INTRODUCED. A problem that file already had is never
+  listed, however severe — it is not this edit's doing, and it would bury the one that is.
+  A break in someone else's file does NOT set must_fix_before_write: your buffer may be
+  perfectly correct. Fix the callers, or decide not to; that is yours to weigh.
+  status  computed        the dependants were linted with your change and without it
+          not_applicable  nothing can reference this file by name
+          unavailable     could not be run: a failure, a deadline, or a file referenced from
+                          more text than can be examined in time
+          disabled        this server runs with --no-impact, so nothing was attempted
+  unchecked_dependants appears when a file has more dependants than one request will lint.
+  Those were never checked, so an otherwise-clean answer carrying it is a PARTIAL one.
+  NOTHING HERE IS A CLEARANCE. An empty impact means no break was found among the dependants
+  that are VISIBLE, and a dependant can be invisible: {% render partial_name %} picks its
+  target at runtime, so no analysis can resolve it.
+  This server never tells you nothing depends on a file — if you are about to delete or
+  rename one, search the project yourself.
 
 WHAT IS NOT CHECKED
 ${coverage()} run against your buffer. Where a finding exists it explains itself and links

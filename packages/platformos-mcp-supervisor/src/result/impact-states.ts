@@ -9,14 +9,14 @@
  */
 import type { ValidateCodeImpact } from './types.js';
 
-/** The comparison could not be run at all — a failure, or a deadline. */
-export const UNAVAILABLE_IMPACT = (): ValidateCodeImpact => ({
-  scope: 'direct',
-  status: 'unavailable',
-});
+/** The cross-file comparison could not be run at all — a failure, or a deadline. */
+export const UNAVAILABLE_IMPACT = (): ValidateCodeImpact => ({ status: 'unavailable' });
 
-/** There was no `{% doc %}` contract to compare callers against — see `ValidateCodeImpactStatus`. */
-export const NOT_APPLICABLE_IMPACT = (): ValidateCodeImpact => ({
-  scope: 'direct',
-  status: 'not_applicable',
-});
+/**
+ * The server was started with `--no-impact`, so nothing cross-file was attempted. Distinct
+ * from `unavailable` on purpose: a retry cannot change this one.
+ */
+export const DISABLED_IMPACT = (): ValidateCodeImpact => ({ status: 'disabled' });
+
+/** This file has no dependants the graph can find — see `ValidateCodeImpactStatus`. */
+export const NOT_APPLICABLE_IMPACT = (): ValidateCodeImpact => ({ status: 'not_applicable' });

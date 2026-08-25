@@ -32,6 +32,11 @@ import { checkDocs } from '../check-docs.js';
 import type { ValidateCodeDiagnostic } from '../result/types.js';
 import { documentedSymbolAt, type DocumentedSymbol } from './symbol.js';
 
+// Local, matching `validate-buffers.ts` and `transport/process-guards.ts`, which each carry
+// their own. Three copies is a smell worth collapsing into one shared helper — separately,
+// not in the middle of a feature.
+const describe = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /**
  * The docset, resolved to data.
  *
@@ -178,4 +183,51 @@ function entryFor(
         : vocabulary.objects;
 
   return entries.find((entry) => entry.name === symbol.name);
+}
+
+/**
+ * Enrich a whole lint pass, reusing ONE docset resolution for every file in it.
+ *
+ * Shared by the primary lint and by the impact diff, so a finding reported in a file the
+ * agent is not editing carries the same documentation URL and the same hint as one in a file
+ * it is. A failure here degrades to unenriched findings rather than losing them: enrichment
+ * is additive, and dropping a diagnostic because its docs could not be read would trade a
+ * real finding for a cosmetic one.
+ */
+export async function enrichBatch(
+  lint: EnrichableBatch,
+  resolve: () => Promise<DocsetVocabulary>,
+  log: (message: string) => void,
+): Promise<Map<string, ValidateCodeDiagnostic[]>> {
+  let found = 0;
+  for (const diagnostics of lint.diagnostics.values()) found += diagnostics.length;
+  if (found === 0) return lint.diagnostics;
+
+  try {
+    const vocabulary = await resolve();
+
+    return new Map(
+      [...lint.diagnostics].map(([key, diagnostics]) => {
+        const source = lint.sources?.get(key);
+        // `startIndexes` is index-aligned with `diagnostics` by construction in
+        // `runBatchLint`; a missing entry can only mean the two got out of step, so the
+        // offset is passed as ABSENT rather than as an out-of-range sentinel that would
+        // resolve to some unrelated symbol.
+        const inputs = diagnostics.map((diagnostic, index) => ({
+          diagnostic,
+          startIndex: source?.startIndexes[index],
+        }));
+        return [key, enrichDiagnostics(inputs, { ast: source?.ast, vocabulary })];
+      }),
+    );
+  } catch (error: unknown) {
+    log(`enrichment failed, returning findings unenriched: ${describe(error)}`);
+    return lint.diagnostics;
+  }
+}
+
+/** The part of a lint pass {@link enrichBatch} reads — structural, so impact can pass its own. */
+export interface EnrichableBatch {
+  diagnostics: Map<string, ValidateCodeDiagnostic[]>;
+  sources?: Map<string, { ast?: LiquidHtmlNode; startIndexes: number[] }>;
 }

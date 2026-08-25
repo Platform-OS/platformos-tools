@@ -42,12 +42,20 @@ beforeAll(async () => {
 
   projectDir = mkdtempSync(join(tmpdir(), 'mcp-supervisor-smoke-'));
   mkdirSync(join(projectDir, '.git'));
-  // Hermetic config: enable only one check so the asserted diagnostics are deterministic.
+  // Hermetic config: enable only the two checks these tests assert on, so the diagnostics
+  // stay deterministic. `MissingRenderPartialArguments` is what impact's cross-file test
+  // needs — and its presence here is load-bearing in a second way: impact reuses the
+  // project's OWN config, so a check the project disables is one impact cannot report.
   writeFileSync(
     join(projectDir, '.platformos-check.yml'),
-    ['extends: platformos-check:nothing', 'MissingContentForLayout:', '  enabled: true', ''].join(
-      '\n',
-    ),
+    [
+      'extends: platformos-check:nothing',
+      'MissingContentForLayout:',
+      '  enabled: true',
+      'MissingRenderPartialArguments:',
+      '  enabled: true',
+      '',
+    ].join('\n'),
     'utf8',
   );
 
@@ -112,11 +120,8 @@ describe('Integration: validate_code over stdio', () => {
     infos: [],
   };
 
-  // Nothing to compare callers against: the buffer declares no {% doc %} contract.
-  const NO_CONTRACT = {
-    scope: 'direct',
-    status: 'not_applicable',
-  };
+  // Checked, and this change broke nobody. NOT a clearance — see `ValidateCodeImpact`.
+  const NO_BREAKS = { status: 'computed' };
 
   /**
    * The whole diagnostic as it crosses the WIRE, suggestion included: a field can survive
@@ -163,7 +168,7 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      impact: NO_CONTRACT,
+      impact: NO_BREAKS,
     });
   });
 
@@ -178,14 +183,14 @@ describe('Integration: validate_code over stdio', () => {
       status: 'error',
       must_fix_before_write: true,
       errors: [MISSING_CONTENT_FOR_LAYOUT],
-      impact: NO_CONTRACT,
+      impact: NO_BREAKS,
     });
   });
 
-  it('says nothing cross-file about a partial that declares no contract, though it HAS a caller', async () => {
-    // `card` is rendered by the on-disk `home` page. Impact still reports nothing: with no
-    // {% doc %} block there is no contract any caller could break, and the count of callers
-    // is deliberately not published — see the signature-impact test below for the control.
+  it('says nothing cross-file about an edit that breaks nobody, though it HAS a caller', async () => {
+    // `card` is rendered by the on-disk `home` page, and this edit does not break it. The
+    // caller is deliberately NOT published: impact reports damage, never a dependant list.
+    // The cross-file test below is the control — the same file, an edit that does break it.
     const result = await validateCode({
       file_path: 'app/views/partials/card.liquid',
       content: '<div class="card">{{ title }} {{ subtitle }}</div>',
@@ -195,18 +200,18 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      impact: NO_CONTRACT,
+      impact: NO_BREAKS,
     });
   });
 
   /**
    * The wire is where a silence has to be proven: `JSON.stringify` drops an `undefined`
    * value, so only a round trip shows the key is ABSENT rather than merely empty. An empty
-   * `signature_risk` would read as "checked, every caller matches" — a clearance no scan of
-   * the callers that happen to be visible can earn. The test below is its control: the same
-   * envelope DOES carry the key when a caller really is broken.
+   * `breaks` would read as "checked, nothing depends on this that could break" — a clearance
+   * no scan of the dependants that happen to be VISIBLE can earn. The test below is its
+   * control: the same envelope DOES carry the key when a dependant really is broken.
    */
-  it('carries no signature_risk key at all when nothing was found to be broken', async () => {
+  it('carries no breaks key at all when nothing was found to be broken', async () => {
     const result = await validateCode({
       file_path: 'app/views/partials/lonely.liquid',
       content: `{% doc %}
@@ -219,13 +224,14 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      impact: { scope: 'direct', status: 'computed' },
+      impact: { status: 'computed' },
     });
   });
 
-  it('flags a caller broken by the edited partial’s new {% doc %} signature (signature-impact)', async () => {
-    // `home` renders `card` passing NO args. Give `card` a doc that REQUIRES
-    // `title` → `home` is now missing a required param, reported cross-file.
+  it('reports the page its edit broke, with the check’s own diagnostic', async () => {
+    // `home` renders `card` passing NO args. Give `card` a doc that REQUIRES `title` →
+    // `home` is now missing a required param. The finding is the ENGINE'S, reported against
+    // a file this request never asked about.
     const result = await validateCode({
       file_path: 'app/views/partials/card.liquid',
       content: `{% doc %}
@@ -239,13 +245,32 @@ describe('Integration: validate_code over stdio', () => {
       status: 'ok',
       must_fix_before_write: false,
       impact: {
-        scope: 'direct',
         status: 'computed',
-        signature_risk: [
+        breaks: [
           {
-            caller: 'app/views/pages/home.liquid',
-            missing_required: ['title'],
-            unexpected_args: [],
+            file: 'app/views/pages/home.liquid',
+            diagnostics: [
+              {
+                check: 'MissingRenderPartialArguments',
+                severity: 'error',
+                message: "Missing required argument 'title' in render tag for partial 'card'.",
+                line: 1,
+                column: 11,
+                end_line: 1,
+                end_column: 18,
+                // The whole reason for reusing the engine rather than comparing arguments
+                // here: the finding arrives with the check's own words, its documentation
+                // and an APPLICABLE EDIT. None of that was possible to invent locally.
+                suggestions: [
+                  {
+                    description: "Add required argument 'title'",
+                    edits: [{ start_index: 16, end_index: 16, new_text: ", title: ''" }],
+                  },
+                ],
+                see_also:
+                  'https://documentation.platformos.com/developer-guide/platformos-check/checks/missing-render-partial-arguments',
+              },
+            ],
           },
         ],
       },
@@ -272,10 +297,7 @@ describe('Integration: validate_code over stdio', () => {
   /**
    * "Not checked" is a STATUS, not a sentence buried in prose.
    */
-  const NOT_APPLICABLE_IMPACT = {
-    scope: 'direct',
-    status: 'not_applicable',
-  };
+  const NOT_APPLICABLE_IMPACT = { status: 'not_applicable' };
 
   it('tells the agent a misplaced source was not checked, instead of reporting it clean', async () => {
     const result = await validateCode({
@@ -363,10 +385,7 @@ describe('Integration: validate_code sees on-disk fixes without a cache-clearing
     errors: [],
     warnings: [],
     infos: [],
-    impact: {
-      scope: 'direct',
-      status: 'not_applicable',
-    },
+    impact: { status: 'computed' },
   };
 
   beforeAll(async () => {
@@ -449,7 +468,9 @@ describe('Integration: the first call already answers cross-file impact', () => 
     mkdirSync(join(coldProjectDir, '.git'));
     writeFileSync(
       join(coldProjectDir, '.platformos-check.yml'),
-      'extends: platformos-check:nothing\n',
+      // Only the check the cross-file assertion needs. Impact reuses the project's own
+      // config, so a project that disables a check is a project impact cannot report it in.
+      'extends: platformos-check:nothing\nMissingRenderPartialArguments:\n  enabled: true\n',
       'utf8',
     );
     const page = join(coldProjectDir, 'app', 'views', 'pages', 'index.liquid');
@@ -486,17 +507,15 @@ describe('Integration: the first call already answers cross-file impact', () => 
     const content = res.content as Array<{ type: string; text: string }>;
     const result = JSON.parse(content[0].text);
 
-    expect(result.impact).toEqual({
-      scope: 'direct',
-      status: 'computed',
-      signature_risk: [
-        {
-          caller: 'app/views/pages/index.liquid',
-          missing_required: ['title'],
-          unexpected_args: [],
-        },
-      ],
-    });
+    expect(result.impact.status).toEqual('computed');
+    expect(
+      result.impact.breaks.map((broken: { file: string; diagnostics: { check: string }[] }) => ({
+        file: broken.file,
+        checks: broken.diagnostics.map((diagnostic) => diagnostic.check),
+      })),
+    ).toEqual([
+      { file: 'app/views/pages/index.liquid', checks: ['MissingRenderPartialArguments'] },
+    ]);
   }, 60_000);
 });
 

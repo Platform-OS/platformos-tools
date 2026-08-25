@@ -20,7 +20,7 @@
  */
 import { createLogger } from '../logger.js';
 import { startServer } from '../transport/server.js';
-import { HELP, parseArgs, resolveProjectDir } from './args.js';
+import { HELP, parseArgs, resolveImpactEnabled, resolveProjectDir } from './args.js';
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -31,7 +31,11 @@ async function main(): Promise<void> {
 
   const log = createLogger('platformos-mcp-supervisor');
   const projectDir = resolveProjectDir(args, process.env, process.cwd());
-  await startServer({ projectDir, log });
+  await startServer({
+    projectDir,
+    log,
+    impactEnabled: resolveImpactEnabled(args, process.env),
+  });
 }
 
 main().catch((err) => {

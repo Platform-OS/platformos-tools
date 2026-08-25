@@ -14,16 +14,23 @@ export interface SupervisorContext {
   /** Absolute project root that buffers are validated against. */
   projectDir: string;
   log: Logger;
+  /**
+   * Whether cross-file impact runs. OPTIONAL AND DEFAULTING TO ON: impact is a safety
+   * feature, so a context that forgets to mention it must get the safe behaviour rather than
+   * silently lose the check. Only an explicit `false` — from `--no-impact` or
+   * `POS_SUPERVISOR_NO_IMPACT` — turns it off.
+   */
+  impactEnabled?: boolean;
 }
 
 /**
  * Deadline for impact. Much tighter than the lint's, which is a function of admitted bytes
  * and lives in `cost-model.ts` — deliberately not re-exported from here.
  *
- * Tight because the work is small, and usually absent: a buffer with no `{% doc %}` block
- * reads no project at all. Where there IS a contract it costs one project read (235 ms
- * measured on a 2,615-file project) plus a name filter and a handful of parses, p50 9 ms /
- * p90 63 ms per file. Exceeding it costs only the answer, which has an `unavailable` state.
- * The tail it exists for is real but rare: the most-referenced partial measured took ~1 s.
+ * A BACKSTOP, NOT THE BOUND. A lint is synchronous CPU work and no timer preempts it (see
+ * `deadline.ts`), so what actually limits impact is bounded INPUT — `MAX_CANDIDATE_BYTES` and
+ * `MAX_DEPENDANTS_LINTED` in `cost-model.ts`, both derived to fit inside this number. This
+ * catches what those cannot: a stalled read, or a project large enough that the read alone
+ * runs long. Exceeding it costs only the answer, which has an `unavailable` state.
  */
 export const IMPACT_DEADLINE_MS = 2_000;

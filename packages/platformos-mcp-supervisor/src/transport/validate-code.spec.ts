@@ -13,6 +13,7 @@ import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code
 import { SERVER_INSTRUCTIONS } from './instructions.js';
 import { BLOCKING_CHECKS } from '../result/blocking.js';
 import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
+import type { ImpactInput } from '../impact/impact.js';
 import {
   MAX_RESPONSE_DIAGNOSTIC_BYTES,
   MIN_LINT_DEADLINE_MS,
@@ -45,10 +46,13 @@ const ctx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
   log,
 });
 
-const COMPUTED: ValidateCodeImpact = {
-  scope: 'direct',
-  status: 'computed',
-};
+const COMPUTED: ValidateCodeImpact = { status: 'computed' };
+
+/** The impact adapter answers for the WHOLE changeset now, one entry per buffer. */
+const impactStub =
+  (impact: ValidateCodeImpact = COMPUTED) =>
+  async ({ buffers }: ImpactInput) =>
+    new Map(buffers.map((buffer) => [buffer.filePath, impact]));
 
 const diagnostic = (
   check: string,
@@ -81,7 +85,7 @@ const adaptersFor = (
     diagnostics: new Map(buffers.map((b) => [b.filePath, byFile[b.filePath] ?? []])),
     notChecked: new Map(),
   }),
-  impact: async () => COMPUTED,
+  impact: impactStub(),
   docset: async () => ({ filters: [], tags: [], objects: [] }),
 });
 
@@ -216,7 +220,7 @@ describe('validate_code: the single-file form', () => {
           lint: async () => {
             throw failure;
           },
-          impact: async () => COMPUTED,
+          impact: impactStub(),
         },
       ),
     ).rejects.toThrow(failure);
@@ -257,7 +261,7 @@ describe('validate_code: the multi-file form', () => {
             notChecked: new Map(),
           };
         },
-        impact: async () => COMPUTED,
+        impact: impactStub(),
       },
     );
 
@@ -283,9 +287,9 @@ describe('validate_code: the multi-file form', () => {
           diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
           notChecked: new Map(),
         }),
-        impact: async (_params, scan) => {
+        impact: async ({ buffers, scan }) => {
           scans.add(scan);
-          return COMPUTED;
+          return new Map(buffers.map((buffer) => [buffer.filePath, COMPUTED]));
         },
       },
     );
@@ -371,9 +375,9 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
             notChecked: new Map(),
           };
         },
-        impact: async () => {
+        impact: async ({ buffers }) => {
           calls.push('impact');
-          return COMPUTED;
+          return new Map(buffers.map((buffer) => [buffer.filePath, COMPUTED]));
         },
       },
       file_path,
@@ -402,7 +406,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
         diagnostics: new Map(),
         notChecked: new Map<string, LintNotCheckedStatus>([[PAGE, 'excluded-by-config']]),
       }),
-      impact: async () => COMPUTED,
+      impact: impactStub(),
     });
 
     expect(result.status).toEqual('not_applicable');
@@ -420,7 +424,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
           linted = true;
           return { diagnostics: new Map(), notChecked: new Map() };
         },
-        impact: async () => COMPUTED,
+        impact: impactStub(),
       },
       '/etc/passwd',
     );
@@ -449,7 +453,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
             notChecked: new Map(),
           };
         },
-        impact: async () => COMPUTED,
+        impact: impactStub(),
       },
     );
 
@@ -468,7 +472,7 @@ describe('validate_code: bounded work', () => {
           notChecked: new Map(),
         };
       },
-      impact: async () => COMPUTED,
+      impact: impactStub(),
     });
 
     expect(result.not_applicable_reason).toEqual('too_large');
@@ -577,7 +581,7 @@ describe('validate_code: bounded work', () => {
       const pending = runValidateCode(
         ctx(),
         { file_path: PAGE, content: '<div></div>' },
-        { lint: () => new Promise(() => {}), impact: async () => COMPUTED },
+        { lint: () => new Promise(() => {}), impact: impactStub() },
       );
 
       await vi.advanceTimersByTimeAsync(MIN_LINT_DEADLINE_MS + 1);
@@ -611,7 +615,7 @@ describe('validate_code: bounded work', () => {
         { files },
         {
           lint: () => new Promise(() => {}),
-          impact: async () => COMPUTED,
+          impact: impactStub(),
         },
       ).then((value) => {
         settled = true;
@@ -658,7 +662,7 @@ describe('validate_code: bounded work', () => {
             new Promise((_, reject) => {
               rejectLint = reject;
             }),
-          impact: async () => COMPUTED,
+          impact: impactStub(),
         },
       );
 
@@ -706,37 +710,136 @@ describe('validate_code: bounded work', () => {
     }
   });
 
-  it('runs lint and impact CONCURRENTLY, not one after the other', async () => {
-    // Serializing them would add the whole impact cost to every call. Asserted by
-    // observing that impact starts while the lint is still in flight.
-    let lintStarted = false;
-    let impactSawLintRunning = false;
+  /**
+   * The OPPOSITE of what this once asserted, and the inversion is the point.
+   *
+   * Impact used to run concurrently with the lint, which was safe only while it never
+   * touched check-node's `App`. It now lints the edited file's DEPENDANTS, and
+   * `lintBuffers` overlays buffers into that process-shared `App` and reverts them on the
+   * way out — with no lock. Two passes in flight at once interleave one's overlay with the
+   * other's rollback, and the corruption is silent: a dependant linted against a
+   * half-reverted project.
+   *
+   * The expensive half of impact — the project READ — still overlaps the lint, because it
+   * is pure filesystem I/O and touches no App.
+   */
+  it('never starts impact while the primary lint is still in flight', async () => {
+    let lintDone = false;
+    let impactSawLintFinished: boolean | undefined;
     let releaseLint: () => void = () => {};
-    const lintGate = new Promise<void>((resolve) => {
-      releaseLint = resolve;
-    });
+    const lintBlocked = new Promise<void>((resolve) => (releaseLint = resolve));
 
     await runValidateCode(
       ctx(),
-      { file_path: PAGE, content: 'x' },
+      { file_path: PAGE, content: '<div></div>' },
       {
         lint: async ({ buffers }) => {
-          lintStarted = true;
-          await lintGate;
+          // Released by a timer rather than by impact: if the two really did overlap, the
+          // old arrangement would deadlock here instead of failing an assertion.
+          setTimeout(releaseLint, 0);
+          await lintBlocked;
+          lintDone = true;
           return {
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
             notChecked: new Map(),
           };
         },
-        impact: async () => {
-          impactSawLintRunning = lintStarted;
-          releaseLint();
-          return COMPUTED;
+        impact: async ({ buffers }) => {
+          impactSawLintFinished = lintDone;
+          return new Map(buffers.map((buffer) => [buffer.filePath, COMPUTED]));
         },
       },
     );
 
-    expect(impactSawLintRunning).toBe(true);
+    expect(impactSawLintFinished).toBe(true);
+  });
+});
+
+/**
+ * `--no-impact` is a SERVER setting, so the tool surface is unchanged and an agent cannot
+ * turn the check off per call. What it must do is cost NOTHING — not the project read, not
+ * the two extra lint passes — and say `disabled` rather than `unavailable`, because a retry
+ * cannot change it.
+ */
+describe('validate_code: cross-file impact disabled for the server', () => {
+  const offCtx = (): SupervisorContext => ({
+    projectDir: '/srv/app',
+    log: () => {},
+    impactEnabled: false,
+  });
+
+  it('reports disabled, and never calls the impact adapter at all', async () => {
+    let called = false;
+
+    const result = single(
+      await runValidateCode(
+        offCtx(),
+        { file_path: PAGE, content: '<div></div>' },
+        {
+          lint: async ({ buffers }) => ({
+            diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+            notChecked: new Map(),
+          }),
+          impact: async (input) => {
+            called = true;
+            return impactStub()(input);
+          },
+        },
+      ),
+    );
+
+    expect({ impact: result.impact, called }).toEqual({
+      impact: { status: 'disabled' },
+      called: false,
+    });
+  });
+
+  it('leaves every other part of the answer exactly as it was', async () => {
+    const warning = diagnostic('SomeCheck', 'warning');
+    const result = single(
+      await runValidateCode(
+        offCtx(),
+        { file_path: PAGE, content: '<div></div>' },
+        {
+          lint: async ({ buffers }) => ({
+            diagnostics: new Map(buffers.map((b) => [b.filePath, [warning]])),
+            notChecked: new Map(),
+          }),
+          impact: impactStub(),
+        },
+      ),
+    );
+
+    expect(result).toEqual({
+      status: 'warning',
+      must_fix_before_write: false,
+      errors: [],
+      warnings: [enriched('SomeCheck', 'warning')],
+      infos: [],
+      impact: { status: 'disabled' },
+    });
+  });
+
+  /** CONTROL: the same call with the default context DOES compute impact. */
+  it('CONTROL: the same request with impact enabled calls the adapter', async () => {
+    let called = false;
+
+    await runValidateCode(
+      ctx(),
+      { file_path: PAGE, content: '<div></div>' },
+      {
+        lint: async ({ buffers }) => ({
+          diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+          notChecked: new Map(),
+        }),
+        impact: async (input) => {
+          called = true;
+          return impactStub()(input);
+        },
+      },
+    );
+
+    expect(called).toBe(true);
   });
 });
 
@@ -2778,7 +2881,7 @@ describe('validate_code: enrichment is bounded — it cannot cost findings or th
           sources: new Map(buffers.map((b) => [b.filePath, { startIndexes: [0] }])),
           notChecked: new Map(),
         }),
-        impact: async () => COMPUTED,
+        impact: impactStub(),
         docset: async () => {
           calls += 1;
           if (behaviour.throws) throw new Error('docset unavailable');
@@ -2817,7 +2920,7 @@ describe('validate_code: enrichment is bounded — it cannot cost findings or th
         diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
         notChecked: new Map(),
       }),
-      impact: async () => COMPUTED,
+      impact: impactStub(),
       docset: async () => {
         calls += 1;
         return { filters: [], tags: [], objects: [] };

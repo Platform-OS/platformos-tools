@@ -30,7 +30,8 @@ import { enrichDiagnostics, type DocsetVocabulary } from '../enrich/enrich.js';
 import { lintDeadlineMs } from '../cost-model.js';
 import { TIMED_OUT, withDeadline } from '../deadline.js';
 import { runImpact } from '../impact/impact.js';
-import { createProjectScan } from '../impact/project-scan.js';
+import { canHaveDependants } from '../impact/dependants.js';
+import { createProjectScan, type ProjectScan } from '../impact/project-scan.js';
 import {
   runBatchLint,
   type BatchBuffer,
@@ -39,7 +40,7 @@ import {
 } from '../lint/lint-batch.js';
 import { assembleNotApplicableResult, assembleResult } from '../result/assemble.js';
 import { capToBudget } from '../result/response-budget.js';
-import { UNAVAILABLE_IMPACT } from '../result/impact-states.js';
+import { DISABLED_IMPACT, UNAVAILABLE_IMPACT } from '../result/impact-states.js';
 import type {
   Declined,
   ValidateCodeDiagnostic,
@@ -115,11 +116,28 @@ export async function validateBuffers(
   // two cannot disagree about the deadline a caller was held to.
   const lintDeadline = lintDeadlineMs(admittedBytes(lintable));
 
-  // Concurrently: the lint is the long pole and impact must hide behind it.
-  const [lint, impacts] = await Promise.all([
+  // The project SCAN overlaps the primary lint; the impact LINT PASSES cannot.
+  //
+  // `lintBuffers` overlays buffers into check-node's process-shared `App` and reverts them
+  // on the way out, and that App has no lock — so two lint passes running at once would
+  // corrupt each other. The scan is pure filesystem I/O and touches no App, which is what
+  // lets the expensive half of impact hide behind the lint anyway.
+  const scan = projectScan(ctx, lintable);
+  const [lint] = await Promise.all([
     lintWithDeadline(ctx, adapters, lintable, lintDeadline),
-    impactWithDeadline(ctx, adapters, lintable),
+    scan.warm(),
   ]);
+
+  // AFTER the primary lint, and never allowed to break it: the write gate is already
+  // decided by this point, so impact can only add to the answer or fail quietly.
+  //
+  // Turned off for this SERVER (`--no-impact`) it costs NOTHING: `projectScan` declines to
+  // read, and the two extra lint passes never start. `disabled` is its own status precisely
+  // so an agent does not read it as a failure worth retrying.
+  const impacts =
+    ctx.impactEnabled === false
+      ? new Map(lintable.map((buffer) => [buffer.filePath, DISABLED_IMPACT()]))
+      : await impactWithDeadline(ctx, adapters, lintable, scan.scan);
 
   // The lint pass is what knows which buffers were not checked and why — it holds the
   // config AND the classifier. Folding its answer in here keeps ONE source of truth for
@@ -269,10 +287,10 @@ function admittedBytes(lintable: readonly BatchBuffer[]): number {
 /**
  * Impact per lintable buffer.
  *
- * ONE scan serves the whole batch: `createProjectScan` reads the project's edge sources
- * once, LAZILY and memoized, so a batch in which no buffer declares a `{% doc %}` contract
- * never reads the project at all, and one where some do pays a single read. The batch's own
- * buffers are overlaid into it, so a call a buffer has just added counts.
+ * ONE scan serves the whole batch: `createProjectScan` reads the project's edge sources once,
+ * LAZILY and memoized, so a batch whose buffers can have no dependants never reads the project
+ * at all, and one where some can pays a single read. The batch's own buffers are overlaid into
+ * it, so a call a buffer has just added counts.
  *
  * The set shares one tight deadline because impact is discardable enrichment —
  * `unavailable` already means "we don't know".
@@ -281,10 +299,55 @@ async function impactWithDeadline(
   ctx: SupervisorContext,
   adapters: ValidateAdapters,
   lintable: BatchBuffer[],
+  scan: ProjectScan,
 ): Promise<Map<string, ValidateCodeImpact>> {
   const byFile = new Map<string, ValidateCodeImpact>();
   if (lintable.length === 0) return byFile;
 
+  const work = adapters
+    .impact({
+      projectDir: ctx.projectDir,
+      buffers: lintable,
+      scan,
+      lint: adapters.lint,
+      docset: adapters.docset,
+      log: (message) => ctx.log(`validate_code: ${message}`),
+    })
+    .catch((error: unknown) => {
+      // ONE failure covers the whole changeset: the passes are shared, so a failure says
+      // nothing about any individual buffer.
+      ctx.log(`validate_code: impact failed: ${describe(error)}`);
+      return new Map<string, ValidateCodeImpact>();
+    });
+
+  const outcome = await withDeadline(work, IMPACT_DEADLINE_MS);
+  if (outcome === TIMED_OUT) {
+    observeAbandoned(ctx, work, 'impact');
+    ctx.log(`validate_code: impact exceeded ${IMPACT_DEADLINE_MS} ms, continuing without it`);
+    for (const buffer of lintable) byFile.set(buffer.filePath, UNAVAILABLE_IMPACT());
+    return byFile;
+  }
+
+  // A buffer the pass did not answer for gets `unavailable` rather than a silent absence:
+  // `resultFor` would otherwise default it, and "we did not look" must not read as "we
+  // looked and found nothing".
+  for (const buffer of lintable) {
+    byFile.set(buffer.filePath, outcome.get(buffer.filePath) ?? UNAVAILABLE_IMPACT());
+  }
+  return byFile;
+}
+
+/**
+ * The request's project scan, plus a handle to start reading it.
+ *
+ * Split so the read can be STARTED alongside the primary lint and awaited later: it is the
+ * expensive half of impact (~235 ms on a 2,615-file project) and pure filesystem I/O, so
+ * overlapping it with the lint's CPU costs nothing and races nothing.
+ */
+function projectScan(
+  ctx: SupervisorContext,
+  lintable: readonly BatchBuffer[],
+): { scan: ProjectScan; warm: () => Promise<unknown> } {
   const rootUri = pathUtils.normalize(pathUtils.toUri(ctx.projectDir));
   const scan = createProjectScan(
     rootUri,
@@ -296,32 +359,25 @@ async function impactWithDeadline(
       ]),
     ),
   );
+  // Nothing in this changeset can HAVE dependants — every buffer is a YAML file, or sits in
+  // no platformOS directory — so impact will never consult the scan and reading the project
+  // would be pure waste. Decidable from the paths alone, before any I/O.
+  const worthReading =
+    ctx.impactEnabled !== false &&
+    lintable.some((buffer) =>
+      canHaveDependants(
+        pathUtils.normalize(pathUtils.toUri(toAbsoluteFilePath(ctx.projectDir, buffer.filePath))),
+        rootUri,
+      ),
+    );
 
-  const work = Promise.all(
-    lintable.map(async (buffer) => {
-      const impact = await adapters
-        .impact(
-          { projectDir: ctx.projectDir, filePath: buffer.filePath, content: buffer.content },
-          scan,
-        )
-        .catch((error: unknown) => {
-          ctx.log(`validate_code: impact failed for ${buffer.filePath}: ${describe(error)}`);
-          return UNAVAILABLE_IMPACT();
-        });
-      return [buffer.filePath, impact] as const;
-    }),
-  );
-
-  const outcome = await withDeadline(work, IMPACT_DEADLINE_MS);
-  if (outcome === TIMED_OUT) {
-    observeAbandoned(ctx, work, 'impact');
-    ctx.log(`validate_code: impact exceeded ${IMPACT_DEADLINE_MS} ms, continuing without it`);
-    for (const buffer of lintable) byFile.set(buffer.filePath, UNAVAILABLE_IMPACT());
-    return byFile;
-  }
-
-  for (const [filePath, impact] of outcome) byFile.set(filePath, impact);
-  return byFile;
+  return {
+    scan,
+    // A failed read is impact's problem, not the lint's: swallowed here so it cannot reject
+    // the `Promise.all` that the primary lint is riding in, and surfaced when impact awaits
+    // the same memoized promise itself.
+    warm: () => (worthReading ? scan.sources().catch(() => undefined) : Promise.resolve()),
+  };
 }
 
 /**

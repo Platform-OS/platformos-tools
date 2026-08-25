@@ -1,195 +1,199 @@
 /**
- * Signature impact — an I/O boundary on the request path (sibling to `lint/`).
+ * Impact — what this change breaks in files the agent is NOT editing.
  *
- * Answers ONE cross-file question lint structurally cannot, because lint is per-file and
- * forward-looking: which EXISTING CALLERS does the `{% doc %}` contract in this buffer
- * break? The inverse of the `PartialCallArguments` check — that one validates a call
- * against a partial's contract, this validates a contract against its calls.
+ * Lint is per-file and forward-looking: it visits only the buffers it was sent, so a page
+ * that the edited partial has just broken is never even looked at. This stage looks at it,
+ * and it does so by ASKING THE CHECK ENGINE rather than by re-deriving the answer:
  *
- * IT NEVER ANSWERS "WHO DEPENDS ON THIS FILE", and the omission is the design. A file's
- * caller set is not decidable: `{% render partial_name %}` names its target at runtime, so
- * one variable anywhere makes "nothing references this" unprovable, and a caller that does
- * not parse contributes nothing either. Listing the callers we CAN see would be sound;
- * publishing a COUNT an agent reads as "safe to change" is not, and the two are one field.
- * So only mismatches are reported — each carried by the caller's own text — and their
- * absence is never published as a clearance.
+ *   pass A   the dependants, linted with the changeset overlaid
+ *   pass B   the same dependants, linted with nothing overlaid
+ *   report   A \ B — exactly the findings this change introduced
  *
- * IT COSTS NOTHING WHEN THERE IS NO CONTRACT. The contract is read from the buffer already
- * in hand, and only if one exists is the project read at all. Measured on a real 2,768-file
- * app, no file declares `{% doc %}`, so that read never happens.
+ * WHY A DIFF AND NOT A CHECK-CODE ALLOWLIST. An earlier version compared `{% doc %}`
+ * parameters by hand, which reimplemented `MissingRenderPartialArguments` with no message,
+ * no documentation link and an invented severity. The diff needs no list of "cross-file
+ * relevant" codes, because relevance is CAUSAL: a `DeprecatedFrontmatterField` already in a
+ * dependant is irrelevant for having been there BEFORE, not for its code. A check added
+ * upstream is covered on the day it ships, with no edit here.
  *
- * HOW THE CALLERS ARE FOUND. Every edge platformos-graph records names its target with a
- * STATIC STRING LITERAL, so a caller's text must contain the target's logical name, and
- * filtering on that is a sound over-approximation leaving few survivors (measured p50 1,
- * p90 6 candidates on a 2,615-file project). Those are resolved with
- * {@link extractFileReferences}, the SAME resolver `buildAppGraph` runs, so this answer
- * cannot drift from the graph's.
+ * SERIALIZED, BY NECESSITY. `lintBuffers` overlays buffers into check-node's process-shared
+ * `App` and reverts them on the way out, and that App has no lock. Two lint passes therefore
+ * cannot overlap — with each other, or with the request's primary lint. The orchestrator
+ * runs the primary lint concurrently with the project SCAN (pure fs reads, no App) and only
+ * then runs these two passes, so the write gate is never delayed by, or lost to, impact.
  *
- * Callers are read from the CHANGESET, not just disk: `ProjectScan` overlays the buffers
- * under validation, so a call a buffer has just added or removed counts as it now stands.
- * Being derived per request the answer cannot be stale, which is why there is no
- * `computing` state. A failure or the deadline yields `unavailable`; no contract to compare
- * against yields `not_applicable`; a comparison that ran yields `computed`.
+ * BOUNDED BY INPUT, NOT BY THE DEADLINE. `IMPACT_DEADLINE_MS` cannot bound this: a lint is
+ * synchronous CPU work and no timer preempts it. `MAX_CANDIDATE_BYTES` caps the text
+ * discovery will parse and `MAX_DEPENDANTS_LINTED` caps how many dependants are linted, both
+ * derived in `cost-model.ts` to fit inside that deadline. Hitting either is REPORTED —
+ * `status: unavailable` or `unchecked_dependants` — never silently absorbed.
+ *
+ * NOTHING HERE IS A CLEARANCE. A dependant that names its target at runtime, or that does
+ * not parse, is invisible to discovery — so an empty answer means no break was FOUND among
+ * the dependants that are visible, never that none exists.
  */
-import {
-  extractDocDefinition,
-  path,
-  SourceCodeType,
-  type UriString,
-} from '@platformos/platformos-check-common';
-import { sourceCodeTypeOf, uriToName } from '@platformos/platformos-common';
-import {
-  extractFileReferences,
-  toSourceCode,
-  type Reference,
-  type ReferenceKind,
-} from '@platformos/platformos-graph';
+import { path, type UriString } from '@platformos/platformos-check-common';
+import { uriToName } from '@platformos/platformos-common';
 
-import { toAbsoluteFilePath, type AdapterInput } from '../adapter-input.js';
-import { NOT_APPLICABLE_IMPACT } from '../result/impact-states.js';
-import type { ValidateCodeImpact, ValidateCodeSignatureRisk } from '../result/types.js';
+import { toAbsoluteFilePath } from '../adapter-input.js';
+import { MAX_DEPENDANTS_LINTED } from '../cost-model.js';
+import { enrichBatch, type DocsetVocabulary } from '../enrich/enrich.js';
+import type { BatchBuffer, BatchLintResult, runBatchLint } from '../lint/lint-batch.js';
+import { NOT_APPLICABLE_IMPACT, UNAVAILABLE_IMPACT } from '../result/impact-states.js';
+import type { ValidateCodeDiagnostic, ValidateCodeImpact } from '../result/types.js';
+import { canHaveDependants, dependantsOf, toDependantBuffers } from './dependants.js';
+import { introducedDiagnostics } from './diff.js';
 import type { ProjectScan } from './project-scan.js';
 
-/** Number of mismatching callers reported before truncating. */
-const MAX_REPORTED_CALLERS = 10;
-
-/**
- * The edge kinds whose call-site arguments are validated against a partial's
- * `{% doc %}` `@param` contract — EXACTLY the kinds the `PartialCallArguments`
- * lint check validates (`render`/`include` via its `RenderMarkup` handler,
- * `function` via `FunctionMarkup`). `background`/`graphql`/`layout`/`asset` edges
- * carry scheduling/operation arguments that are NOT `@param`s, so signature-impact
- * must ignore them or it would flag correct calls (a false positive that the
- * forward `PartialCallArguments` check never produces).
- */
-const SIGNATURE_EDGE_KINDS: ReadonlySet<ReferenceKind> = new Set(['render', 'include', 'function']);
-
-/**
- * Compare the edited buffer's `{% doc %}` contract against every caller the project's text
- * makes visible. Reports `not_applicable` when there is no contract to compare, and throws
- * only on real I/O failure — the caller degrades that to `unavailable`.
- */
-export async function runImpact(
-  params: AdapterInput,
-  scan: ProjectScan,
-): Promise<ValidateCodeImpact> {
-  const { projectDir, filePath, content } = params;
-  const rootUri = path.normalize(path.URI.file(projectDir));
-  const fileUri = path.normalize(path.URI.file(toAbsoluteFilePath(projectDir, filePath)));
-
-  // Cheapest question first, each step below costlier than the one above it: only a Liquid
-  // file can declare a contract (an extension), only a file with a logical name can be
-  // called (a string), reading the contract costs one parse of the buffer already in hand —
-  // and ONLY THEN is the project read.
-  if (sourceCodeTypeOf(fileUri) !== SourceCodeType.LiquidHtml) return NOT_APPLICABLE_IMPACT();
-
-  const name = uriToName(fileUri, rootUri)?.name;
-  if (name === undefined) return NOT_APPLICABLE_IMPACT();
-
-  const signature = await docSignature(fileUri, content);
-  if (signature === null) return NOT_APPLICABLE_IMPACT();
-
-  const callers = await incomingReferences(scan, fileUri, name);
-  const signature_risk = computeSignatureRisk(callers, rootUri, signature);
-
-  return {
-    scope: 'direct',
-    status: 'computed',
-    // Omitted when empty: an empty list reads as "checked, every caller matches", which a
-    // scan of the callers that happen to be VISIBLE can never earn.
-    ...(signature_risk.length > 0 ? { signature_risk } : {}),
-  };
+/** Everything one impact pass needs. The lint seam is injected so the contract is testable. */
+export interface ImpactInput {
+  projectDir: string;
+  /** The changeset, exactly as the primary lint received it. */
+  buffers: readonly BatchBuffer[];
+  scan: ProjectScan;
+  lint: typeof runBatchLint;
+  docset: () => Promise<DocsetVocabulary>;
+  log: (message: string) => void;
 }
 
 /**
- * Every reference in the project that resolves to `fileUri`.
+ * The impact of the whole changeset, per requested buffer key.
  *
- * The name filter is what keeps this cheap, and it is sound rather than heuristic: an edge
- * exists only where a static literal spells the target's logical name. Everything past the
- * filter is exact — the survivors are resolved by the graph's own resolver, so a candidate
- * that merely MENTIONS the name contributes no reference.
+ * Throws only on real I/O failure — the caller degrades that to `unavailable` for every
+ * buffer, because a failure here says nothing about any of them.
  */
-async function incomingReferences(
-  scan: ProjectScan,
-  fileUri: UriString,
-  name: string,
-): Promise<Reference[]> {
-  const sources = await scan.sources();
-  const candidates = [...sources].filter(([, source]) => source.includes(name));
+export async function runImpact(input: ImpactInput): Promise<Map<string, ValidateCodeImpact>> {
+  const { projectDir, buffers, scan } = input;
+  const rootUri = path.normalize(path.URI.file(projectDir));
 
-  const perCandidate = await Promise.all(
-    candidates.map(async ([uri, source]) => {
-      const sourceCode = await toSourceCode(uri, source);
-      return extractFileReferences(scan.rootUri, uri, sourceCode, { fs: scan.fs });
-    }),
-  );
+  const uriOf = (buffer: BatchBuffer) =>
+    path.normalize(path.URI.file(toAbsoluteFilePath(projectDir, buffer.filePath)));
 
-  return perCandidate.flat().filter((reference) => reference.target.uri === fileUri);
-}
+  // A file in the changeset is reported on its own terms. Excluding the whole changeset from
+  // every dependant set is also what makes the scan's text the DISK text for each dependant,
+  // which is exactly what pass B's baseline needs.
+  const changeset = new Set(buffers.map(uriOf));
 
-/** The `{% doc %}` parameter contract of the in-flight buffer, or `null` when it declares none. */
-interface DocSignature {
-  required: string[];
-  allowed: string[];
-}
+  const byBuffer = new Map<string, ValidateCodeImpact>();
+  const dependantsPerBuffer = new Map<string, UriString[]>();
 
-/**
- * The edited buffer's `{% doc %}` parameter contract (required + all declared
- * names), or `null` when the buffer is unparseable or declares no `{% doc %}`
- * block. Reuses check-common's `extractDocDefinition` — the same primitive the
- * `PartialCallArguments` check reads for the doc case — so the two never diverge.
- * `null` deliberately disables signature-impact: without an explicit contract we
- * do NOT guess a signature (no false positives).
- */
-async function docSignature(fileUri: UriString, content: string): Promise<DocSignature | null> {
-  const sourceCode = await toSourceCode(fileUri, content);
-  if (sourceCode.type !== SourceCodeType.LiquidHtml || sourceCode.ast instanceof Error) return null;
-
-  const definition = await extractDocDefinition(fileUri, sourceCode.ast);
-  const parameters = definition.liquidDoc?.parameters;
-  if (!parameters || parameters.length === 0) return null;
-
-  return {
-    required: parameters.filter((p) => p.required).map((p) => p.name),
-    allowed: parameters.map((p) => p.name),
-  };
-}
-
-/**
- * The callers whose passed arguments violate `signature` — missing a required
- * `@param`, or passing one the `{% doc %}` block does not declare. Deduplicated
- * per caller, sorted, and capped at {@link MAX_REPORTED_CALLERS}.
- */
-function computeSignatureRisk(
-  references: readonly Reference[],
-  rootUri: UriString,
-  signature: DocSignature,
-): ValidateCodeSignatureRisk[] {
-  const byCaller = new Map<string, { missing: Set<string>; unexpected: Set<string> }>();
-
-  for (const ref of references) {
-    // Only the kinds whose args ARE `@param`s (see {@link SIGNATURE_EDGE_KINDS}) —
-    // a `{% background %}`/`{% graphql %}`/layout edge's args are not, and flagging
-    // them would be a false positive the forward check never makes.
-    if (!ref.kind || !SIGNATURE_EDGE_KINDS.has(ref.kind)) continue;
-    const args = ref.args ?? [];
-    const missing = signature.required.filter((param) => !args.includes(param));
-    const unexpected = args.filter((arg) => !signature.allowed.includes(arg));
-    if (missing.length === 0 && unexpected.length === 0) continue;
-
-    const caller = path.relative(ref.source.uri, rootUri);
-    const entry = byCaller.get(caller) ?? { missing: new Set(), unexpected: new Set() };
-    for (const m of missing) entry.missing.add(m);
-    for (const u of unexpected) entry.unexpected.add(u);
-    byCaller.set(caller, entry);
+  for (const buffer of buffers) {
+    const uri = uriOf(buffer);
+    // Applicability is a property of the FILE and needs no scan. The name is read separately
+    // because discovery needs the STRING while `canHaveDependants` answers a boolean; the
+    // second condition below narrows that string and is not a second rule.
+    const name = uriToName(uri, rootUri)?.name;
+    if (!canHaveDependants(uri, rootUri) || name === undefined) {
+      byBuffer.set(buffer.filePath, NOT_APPLICABLE_IMPACT());
+      continue;
+    }
+    const dependants = await dependantsOf(scan, uri, name, changeset);
+    // `null` is "too much candidate text to examine", NOT "no dependants". Reported as
+    // `unavailable`, which is what it is: the comparison did not run.
+    if (dependants === null) {
+      byBuffer.set(buffer.filePath, UNAVAILABLE_IMPACT());
+      continue;
+    }
+    dependantsPerBuffer.set(buffer.filePath, dependants);
+    byBuffer.set(buffer.filePath, { status: 'computed' });
   }
 
-  return [...byCaller.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(0, MAX_REPORTED_CALLERS)
-    .map(([caller, { missing, unexpected }]) => ({
-      caller,
-      missing_required: [...missing].sort((a, b) => a.localeCompare(b)),
-      unexpected_args: [...unexpected].sort((a, b) => a.localeCompare(b)),
-    }));
+  const found = [...new Set([...dependantsPerBuffer.values()].flat())].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  if (found.length === 0) return byBuffer;
+
+  // BOUNDED INPUT, not a deadline: a lint is synchronous CPU work and no timer preempts it
+  // (see `deadline.ts`), so the only defence is refusing to start more of it than fits.
+  // Sorted first, so which dependants survive the bound is deterministic rather than
+  // whichever order a directory walk happened to produce.
+  const linted = new Set(found.slice(0, MAX_DEPENDANTS_LINTED));
+  const introduced = await introducedByDependant(input, [...linted]);
+
+  for (const [key, dependants] of dependantsPerBuffer) {
+    const checked = dependants.filter((uri) => linted.has(uri));
+    const breaks = checked
+      .map((uri) => ({ uri, diagnostics: introduced.get(uri) ?? [] }))
+      .filter(({ diagnostics }) => diagnostics.length > 0)
+      .map(({ uri, diagnostics }) => ({ file: path.relative(uri, rootUri), diagnostics }));
+
+    const impact: ValidateCodeImpact = { status: 'computed' };
+    // Omitted when empty. An empty list reads as "checked, nothing depends on this that
+    // could break", which a scan of the dependants that happen to be VISIBLE cannot earn.
+    if (breaks.length > 0) impact.breaks = breaks;
+    // Reported per buffer rather than per request: the bound is global, but whether it cost
+    // THIS buffer anything depends on how many of its own dependants fell past it.
+    if (checked.length < dependants.length) {
+      impact.unchecked_dependants = { returned: checked.length, total: dependants.length };
+    }
+    byBuffer.set(key, impact);
+  }
+
+  return byBuffer;
+}
+
+/**
+ * The findings each dependant gained because of the changeset, keyed by its URI.
+ *
+ * The two passes are AWAITED IN SEQUENCE, never raced: they share check-node's process-wide
+ * `App`, and an overlay installed by one while the other is reverting would corrupt both.
+ */
+async function introducedByDependant(
+  input: ImpactInput,
+  dependants: readonly UriString[],
+): Promise<Map<UriString, ValidateCodeDiagnostic[]>> {
+  const { projectDir, buffers, scan, lint, docset, log } = input;
+  const sources = await scan.sources();
+  const dependantBuffers = toDependantBuffers(dependants, sources);
+  const keyOf = new Map(dependantBuffers.map((buffer) => [buffer.filePath, buffer.uri]));
+
+  // WITH the changeset overlaid. The changeset's own buffers are included because a
+  // dependant must see the edit to be broken by it; their results are discarded here, since
+  // the primary lint already reported them.
+  const after = await lint({ projectDir, buffers: [...buffers, ...dependantBuffers] });
+
+  // Only a dependant that found something in pass A needs a baseline: the diff is A \ B, so
+  // an empty A is empty whatever B holds. Worth less than it looks — measured, a page
+  // reports `DeprecatedFrontmatterField` whatever it contains, so only partial dependants
+  // are ever clean enough to skip.
+  const withFindings = dependantBuffers.filter(
+    (buffer) => (after.diagnostics.get(buffer.filePath)?.length ?? 0) > 0,
+  );
+  const before: BatchLintResult | undefined = withFindings.length
+    ? await lint({ projectDir, buffers: withFindings })
+    : undefined;
+
+  const enriched = await enrichBatch(onlyDependants(after, keyOf), docset, log);
+
+  const introduced = new Map<UriString, ValidateCodeDiagnostic[]>();
+  for (const [filePath, uri] of keyOf) {
+    const gained = introducedDiagnostics(
+      enriched.get(filePath) ?? [],
+      before?.diagnostics.get(filePath) ?? [],
+    );
+    if (gained.length > 0) introduced.set(uri, gained);
+  }
+  return introduced;
+}
+
+/**
+ * Pass A narrowed to the dependants, so enrichment is not paid a second time for the
+ * changeset's own findings — the primary lint has already enriched those.
+ */
+function onlyDependants(
+  pass: BatchLintResult,
+  keyOf: ReadonlyMap<string, UriString>,
+): BatchLintResult {
+  const diagnostics = new Map<string, ValidateCodeDiagnostic[]>();
+  const sources: NonNullable<BatchLintResult['sources']> = new Map();
+  for (const key of keyOf.keys()) {
+    const found = pass.diagnostics.get(key);
+    // A dependant the lint DECLINED (excluded by config, say) has no diagnostics entry.
+    // Skipped rather than defaulted to `[]`, which would report it as checked and clean.
+    if (found === undefined) continue;
+    diagnostics.set(key, found);
+    const source = pass.sources?.get(key);
+    if (source) sources.set(key, source);
+  }
+  return { diagnostics, sources, notChecked: pass.notChecked };
 }

@@ -3,13 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
   DEADLINE_MARGIN,
   DEADLINE_MS_PER_KIB,
+  DISCOVERY_MS_PER_KIB,
   LINT_MS_PER_KIB,
   LOAD_FACTOR,
+  MAX_CANDIDATE_BYTES,
   MAX_LINT_DEADLINE_MS,
   MIN_LINT_DEADLINE_MS,
   lintDeadlineMs,
   maxBytesWithin,
 } from './cost-model.js';
+import { IMPACT_DEADLINE_MS } from './context.js';
 import { MAX_BUFFER_BYTES } from './adapter-input.js';
 import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from './validate/batch-bounds.js';
 
@@ -26,6 +29,34 @@ describe('Unit: the lint cost model', () => {
       2,
       75 * 3 * 2,
     ]);
+  });
+
+  /**
+   * The impact bounds exist because `IMPACT_DEADLINE_MS` CANNOT bound them: a lint is
+   * synchronous CPU work and no timer preempts it (see `deadline.ts`), so the only defence is
+   * refusing to start more work than fits. This pins that the two bounds still fit inside the
+   * deadline they were derived from — otherwise a raised bound silently buys a `unavailable`
+   * for every popular file rather than an answer.
+   */
+  it('keeps both impact bounds inside the deadline they were derived from', () => {
+    const discoveryMs = (MAX_CANDIDATE_BYTES / 1024) * DISCOVERY_MS_PER_KIB;
+    // Measured on a real 2,615-file application: ~235 ms for the project read, and ~258 ms
+    // for both lint passes at MAX_DEPENDANTS_LINTED.
+    const projectReadMs = 235;
+    const twoLintPassesMs = 258;
+
+    expect(discoveryMs + projectReadMs + twoLintPassesMs).toBeLessThan(IMPACT_DEADLINE_MS);
+  });
+
+  /**
+   * A bound big enough to make the check useless is as bad as none. p90 of candidate text on
+   * that application is 13 KiB and p95 is 23 KiB, so a bound below p95 would turn away the
+   * ordinary case rather than the pathological one.
+   */
+  it('leaves the ordinary case well inside the candidate bound', () => {
+    const p95CandidateKiB = 23;
+
+    expect(MAX_CANDIDATE_BYTES / 1024).toBeGreaterThan(p95CandidateKiB * 2);
   });
 
   it('charges a partial KiB as a whole one', () => {

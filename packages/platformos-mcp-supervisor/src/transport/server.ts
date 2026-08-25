@@ -22,6 +22,11 @@ export interface ServerOptions {
   log?: Logger;
   /** Advertised server version. */
   version?: string;
+  /**
+   * Whether cross-file impact runs. Defaults to ON — only an explicit `false`, from
+   * `--no-impact` or `POS_SUPERVISOR_NO_IMPACT`, turns it off.
+   */
+  impactEnabled?: boolean;
 }
 
 export interface ServerHandle {
@@ -40,7 +45,11 @@ export async function startServer(opts: ServerOptions): Promise<ServerHandle> {
   // at process level and reconciles it per call, and impact is derived per request from
   // the project's text (`impact/project-scan.ts`) — so there is no graph to build at boot,
   // nothing to keep fresh, and no "still computing" answer.
-  const context: SupervisorContext = { projectDir: opts.projectDir, log };
+  const context: SupervisorContext = {
+    projectDir: opts.projectDir,
+    log,
+    impactEnabled: opts.impactEnabled,
+  };
 
   // `instructions` reaches the model with the tool list; without them an agent has only the
   // tool description to go on and invents a reading of the result (see instructions.ts).

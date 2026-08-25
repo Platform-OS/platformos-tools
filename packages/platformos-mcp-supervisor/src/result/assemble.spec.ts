@@ -12,11 +12,10 @@ const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => 
 });
 
 // A neutral "not computed" impact used where the test does not exercise the
-// blast radius itself (it is threaded verbatim by assembleResult).
+// cross-file comparison itself (it is threaded verbatim by assembleResult).
 const NO_IMPACT: ValidateCodeImpact = {
   scope: 'direct',
   status: 'unavailable',
-  dependents: { total: 0, by_kind: {}, sample: [] },
 };
 
 // The always-empty envelope fields in this lint-only slice. Spread into each
@@ -92,15 +91,17 @@ describe('Unit: assembleResult', () => {
     });
   });
 
-  it('carries the impact through verbatim (status unaffected by blast radius)', () => {
+  it('carries the impact through verbatim (status unaffected by cross-file findings)', () => {
     const impact: ValidateCodeImpact = {
       scope: 'direct',
       status: 'computed',
-      dependents: {
-        total: 2,
-        by_kind: { render: 1, include: 1 },
-        sample: ['app/views/pages/index.liquid', 'app/views/partials/wrapper.liquid'],
-      },
+      signature_risk: [
+        {
+          caller: 'app/views/pages/index.liquid',
+          missing_required: ['title'],
+          unexpected_args: [],
+        },
+      ],
     };
 
     expect(assembleResult([], impact)).toEqual({

@@ -40,8 +40,8 @@ const parseOpaqueAsset: Parser = () => new Error('File parsing not implemented')
  * graph, parsing per request only the handful of files that could reference the edited one.
  * Routing those through check-node's shared `App` would win nothing — `lintBuffers` parses the
  * content it was HANDED and drops the app's entry on the way out — and would risk something,
- * because that `App` carries UNSAVED buffers while the blast radius runs CONCURRENTLY with the
- * lint.
+ * because that `App` carries UNSAVED buffers while its impact stage runs CONCURRENTLY with
+ * the lint.
  */
 export const graphParsers: Parsers = {
   extensions: {

@@ -51,11 +51,14 @@ input { file_path, content } | { files: [...] }
   → ValidateCodeResult
 ```
 
-The lint and the blast radius run concurrently; the lint is the long pole and the blast
-radius hides behind it. Nothing is cached between calls on the blast-radius side: it reads
-the project's edge sources, keeps the few that could name the edited file, and resolves
-their references through `platformos-graph` — so the answer is fresh by construction rather
-than by revalidating a stored graph.
+The lint and impact run concurrently; the lint is the long pole and impact hides behind
+it. Impact reports one thing — existing callers that the edited buffer's `{% doc %}`
+contract breaks — and a buffer declaring no contract costs nothing, because the project is
+not read at all. Where there is one, it reads the project's edge sources, keeps the few that
+could name the edited file, and resolves their references through `platformos-graph`, so the
+answer is fresh by construction rather than by revalidating a stored graph. It never answers
+"who depends on this file": `{% render var %}` names its target at runtime, so that question
+has no sound static answer and no count is published in place of one.
 
 ## What this package is not
 

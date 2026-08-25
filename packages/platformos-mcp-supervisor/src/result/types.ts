@@ -147,48 +147,45 @@ export interface ValidateCodeDiagnostic {
 }
 
 /**
- * Applicability of the blast-radius answer. Distinguishes a real "nothing depends on this"
- * (`computed`, total 0 — safe to change) from "we could not find out" (`unavailable`) and
- * from "this file type has no dependency graph" (`not_applicable`), so a failed lookup can
- * never be misread as a green light.
+ * Whether the comparison ran. `computed` means the buffer's `{% doc %}` contract was
+ * compared against the callers the project's text makes visible; `unavailable` means it
+ * could not be (a failure, or the deadline); `not_applicable` means there was nothing to
+ * compare — the buffer declares no `{% doc %}` block, does not parse, or is not a Liquid
+ * file with a logical name a caller could spell.
  *
- * `not_applicable` covers files that are not graph-trackable edge targets (schema /
- * custom-model-type / translation YAML): they are wired by model/table NAME, not by file
- * reference (see ADR 004), so `total: 0` would falsely read as "safe to change". It also
- * covers a source in no platformOS directory, which has no logical name to reference.
+ * NONE OF THE THREE IS A CLEARANCE, including `computed`. See {@link ValidateCodeImpact}.
  */
 export type ValidateCodeImpactStatus = 'computed' | 'unavailable' | 'not_applicable';
 
 /**
- * Cross-file "blast radius" of editing the file: who DEPENDS ON it, which lint cannot see
- * (lint is per-file, forward-looking). Derived per request from the project's own text
- * with the changeset's buffers overlaid.
+ * The cross-file consequence of the edit, and it reports exactly one thing: CALLERS THIS
+ * BUFFER'S `{% doc %}` CONTRACT BREAKS. Lint cannot see it, being per-file and
+ * forward-looking. Derived per request from the project's own text with the changeset's
+ * buffers overlaid, so it is never stale.
  *
- * `scope` is always `direct` (immediate callers only — transitive closure is noise).
- * `dependents` is meaningful ONLY when `status` is `computed`; otherwise it is zeroed and
- * the status says why.
+ * IT DOES NOT ANSWER "WHO DEPENDS ON THIS FILE", and never will: `{% render var %}` names
+ * its target at runtime, so no static analysis can enumerate a file's callers, and a count
+ * that omits the ones it cannot see reads as a licence to delete. Only findings are
+ * published here; their absence claims nothing.
+ *
+ * `scope` is always `direct` — a transitive caller passes this file no arguments.
  */
 export interface ValidateCodeImpact {
   scope: 'direct';
   status: ValidateCodeImpactStatus;
-  dependents: {
-    /** Number of distinct files that reference the edited file. */
-    total: number;
-    /** Distinct referencing files per edge kind (render/include/function/…); a file using two kinds counts in both. */
-    by_kind: Record<string, number>;
-    /** Up to 10 distinct referencing files, project-relative, sorted. */
-    sample: string[];
-  };
   /**
-   * Dependent callers whose arguments do NOT match the edited file's `{% doc %}`
-   * signature — the cross-file counterpart to the `PartialCallArguments` lint check.
-   * Present ONLY when the edited buffer declares a `{% doc %}` block: an empty array means
-   * "checked, every caller matches", absent means "no contract to check against".
+   * Callers whose arguments do NOT match the edited buffer's `{% doc %}` signature — the
+   * cross-file counterpart to the `PartialCallArguments` lint check. Each entry is a
+   * finding carried by that caller's own text.
+   *
+   * PRESENT ONLY WHEN NON-EMPTY, and absence is not a clearance: it means no mismatch was
+   * found among the callers that are visible, which is not the same as none existing. At
+   * most 10 callers are listed.
    */
   signature_risk?: ValidateCodeSignatureRisk[];
 }
 
-/** One dependent caller at risk from the edited file's current `{% doc %}` signature. */
+/** One caller at risk from the edited file's current `{% doc %}` signature. */
 export interface ValidateCodeSignatureRisk {
   /** The referencing file, project-relative. */
   caller: string;
@@ -233,9 +230,8 @@ export interface ValidateCodeResult {
   warnings: ValidateCodeDiagnostic[];
   infos: ValidateCodeDiagnostic[];
   /**
-   * Cross-file blast radius: who depends on the edited file. Always present; `status`
-   * distinguishes a real "nothing depends on this" from "not computed".
-   * See {@link ValidateCodeImpact}.
+   * Cross-file consequence of the edit: callers this buffer's `{% doc %}` contract breaks.
+   * Always present, and never a clearance. See {@link ValidateCodeImpact}.
    */
   impact: ValidateCodeImpact;
   /** Deterministic prose telling the agent what to do next. */

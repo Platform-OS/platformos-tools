@@ -1,26 +1,35 @@
 /**
- * Impact (blast-radius) adapter — an I/O boundary on the request path (sibling
- * to `lint/`).
+ * Signature impact — an I/O boundary on the request path (sibling to `lint/`).
  *
- * Answers the one question lint structurally cannot: "who DEPENDS ON the file
- * being edited?" — its incoming references across the project.
+ * Answers ONE cross-file question lint structurally cannot, because lint is per-file and
+ * forward-looking: which EXISTING CALLERS does the `{% doc %}` contract in this buffer
+ * break? The inverse of the `PartialCallArguments` check — that one validates a call
+ * against a partial's contract, this validates a contract against its calls.
  *
- * HOW, AND WHY IT IS NOT A GRAPH. Every edge platformos-graph records names its target with
- * a STATIC STRING LITERAL: the operand of `render`/`include`/`function`/`background`/
- * `graphql`, the operand of `asset_url`, or an explicit frontmatter `layout:` (an omitted
- * `layout:` synthesizes no edge — see `traverse.ts`). So a file's dependents can only be
- * among the edge sources whose TEXT contains its logical name, and filtering on that name is
- * a sound over-approximation leaving few survivors (measured p50 1, p90 6 candidates on a
- * 2,615-file project). Those are parsed and resolved with {@link extractFileReferences}, the
- * SAME resolver `buildAppGraph` runs, so this answer cannot drift from the graph's — 80
- * targets sampled across two real projects produced 0 mismatches on `(source, kind, args)`.
+ * IT NEVER ANSWERS "WHO DEPENDS ON THIS FILE", and the omission is the design. A file's
+ * caller set is not decidable: `{% render partial_name %}` names its target at runtime, so
+ * one variable anywhere makes "nothing references this" unprovable, and a caller that does
+ * not parse contributes nothing either. Listing the callers we CAN see would be sound;
+ * publishing a COUNT an agent reads as "safe to change" is not, and the two are one field.
+ * So only mismatches are reported — each carried by the caller's own text — and their
+ * absence is never published as a clearance.
  *
- * THERE IS NO `computing` STATE. The answer is derived from the project as it is at request
- * time, so it is fresh by construction. A failure or the deadline yields `unavailable`; a
- * file the graph cannot model yields `not_applicable`; everything else is `computed`.
+ * IT COSTS NOTHING WHEN THERE IS NO CONTRACT. The contract is read from the buffer already
+ * in hand, and only if one exists is the project read at all. Measured on a real 2,768-file
+ * app, no file declares `{% doc %}`, so that read never happens.
  *
- * The dependents list reads the CHANGESET, not just disk: `ProjectScan` overlays the buffers
- * under validation, so a caller a buffer has just added or removed is counted.
+ * HOW THE CALLERS ARE FOUND. Every edge platformos-graph records names its target with a
+ * STATIC STRING LITERAL, so a caller's text must contain the target's logical name, and
+ * filtering on that is a sound over-approximation leaving few survivors (measured p50 1,
+ * p90 6 candidates on a 2,615-file project). Those are resolved with
+ * {@link extractFileReferences}, the SAME resolver `buildAppGraph` runs, so this answer
+ * cannot drift from the graph's.
+ *
+ * Callers are read from the CHANGESET, not just disk: `ProjectScan` overlays the buffers
+ * under validation, so a call a buffer has just added or removed counts as it now stands.
+ * Being derived per request the answer cannot be stale, which is why there is no
+ * `computing` state. A failure or the deadline yields `unavailable`; no contract to compare
+ * against yields `not_applicable`; a comparison that ran yields `computed`.
  */
 import {
   extractDocDefinition,
@@ -37,11 +46,12 @@ import {
 } from '@platformos/platformos-graph';
 
 import { toAbsoluteFilePath, type AdapterInput } from '../adapter-input.js';
+import { NOT_APPLICABLE_IMPACT } from '../result/impact-states.js';
 import type { ValidateCodeImpact, ValidateCodeSignatureRisk } from '../result/types.js';
 import type { ProjectScan } from './project-scan.js';
 
-/** Number of referencing files listed in `sample`/`signature_risk` before truncating. */
-const SAMPLE_LIMIT = 10;
+/** Number of mismatching callers reported before truncating. */
+const MAX_REPORTED_CALLERS = 10;
 
 /**
  * The edge kinds whose call-site arguments are validated against a partial's
@@ -55,34 +65,9 @@ const SAMPLE_LIMIT = 10;
 const SIGNATURE_EDGE_KINDS: ReadonlySet<ReferenceKind> = new Set(['render', 'include', 'function']);
 
 /**
- * Whether the graph can model incoming references to `uri` — i.e. `uri` can be a
- * resolvable edge TARGET (a Liquid page/layout/partial, or a GraphQL operation).
- * Reuses check-common's canonical classifiers so this cannot drift from the
- * graph's own edge resolution.
- *
- * Files that are NOT edge targets — schema / custom-model-type / translation YAML,
- * or any unclassified file — are wired by model/table NAME, not by file reference
- * (ADR 004), so the graph has no dependents for them and `total: 0` would be a
- * false "safe to change". Those get `status: 'not_applicable'` instead.
- */
-function isGraphTrackable(uri: UriString): boolean {
-  // The graph's edge-target types, asked by extension. Naming the two explicitly keeps the
-  // YAML case visibly excluded, which is the distinction the docblock above turns on.
-  const type = sourceCodeTypeOf(uri);
-  return type === SourceCodeType.LiquidHtml || type === SourceCodeType.GraphQL;
-}
-
-/** A fresh zeroed dependents shape for every non-`computed` status. */
-const noDependents = (): ValidateCodeImpact['dependents'] => ({
-  total: 0,
-  by_kind: {},
-  sample: [],
-});
-
-/**
- * Compute the edited file's blast radius from the project as it is right now.
- * Reports `not_applicable` when nothing could reference the file by name, and
- * throws only on real I/O failure — the caller degrades that to `unavailable`.
+ * Compare the edited buffer's `{% doc %}` contract against every caller the project's text
+ * makes visible. Reports `not_applicable` when there is no contract to compare, and throws
+ * only on real I/O failure — the caller degrades that to `unavailable`.
  */
 export async function runImpact(
   params: AdapterInput,
@@ -92,24 +77,27 @@ export async function runImpact(
   const rootUri = path.normalize(path.URI.file(projectDir));
   const fileUri = path.normalize(path.URI.file(toAbsoluteFilePath(projectDir, filePath)));
 
-  // Applicability is a property of the FILE, independent of any scan: a non-trackable file
-  // has no dependency edges, and a file in no platformOS directory has no logical NAME for
-  // a reference to spell. `total: 0` for either would be a false "safe to change".
-  const name = uriToName(fileUri, rootUri)?.name;
-  if (!isGraphTrackable(fileUri) || name === undefined) {
-    return { scope: 'direct', status: 'not_applicable', dependents: noDependents() };
-  }
+  // Cheapest question first, each step below costlier than the one above it: only a Liquid
+  // file can declare a contract (an extension), only a file with a logical name can be
+  // called (a string), reading the contract costs one parse of the buffer already in hand —
+  // and ONLY THEN is the project read.
+  if (sourceCodeTypeOf(fileUri) !== SourceCodeType.LiquidHtml) return NOT_APPLICABLE_IMPACT();
 
-  const dependents = await incomingReferences(scan, fileUri, name);
+  const name = uriToName(fileUri, rootUri)?.name;
+  if (name === undefined) return NOT_APPLICABLE_IMPACT();
 
   const signature = await docSignature(fileUri, content);
-  const signature_risk = signature && computeSignatureRisk(dependents, rootUri, signature);
+  if (signature === null) return NOT_APPLICABLE_IMPACT();
+
+  const callers = await incomingReferences(scan, fileUri, name);
+  const signature_risk = computeSignatureRisk(callers, rootUri, signature);
 
   return {
     scope: 'direct',
     status: 'computed',
-    dependents: summarizeDependents(dependents, rootUri),
-    ...(signature_risk ? { signature_risk } : {}),
+    // Omitted when empty: an empty list reads as "checked, every caller matches", which a
+    // scan of the callers that happen to be VISIBLE can never earn.
+    ...(signature_risk.length > 0 ? { signature_risk } : {}),
   };
 }
 
@@ -139,35 +127,6 @@ async function incomingReferences(
   return perCandidate.flat().filter((reference) => reference.target.uri === fileUri);
 }
 
-/**
- * Reduce the incoming reference edges of the edited file to the agent-facing
- * summary: distinct referencing FILES (`total`), distinct files per edge kind
- * (`by_kind`), and a capped, sorted `sample` of project-relative caller paths.
- */
-function summarizeDependents(
-  references: readonly Reference[],
-  rootUri: UriString,
-): ValidateCodeImpact['dependents'] {
-  // caller path (project-relative) → the edge kinds by which it references the file
-  const callers = new Map<string, Set<string>>();
-  for (const ref of references) {
-    if (!ref.kind) continue; // every graph edge carries a kind; defensive only
-    const caller = path.relative(ref.source.uri, rootUri);
-    const kinds = callers.get(caller) ?? new Set<string>();
-    kinds.add(ref.kind);
-    callers.set(caller, kinds);
-  }
-
-  const by_kind: Record<string, number> = {};
-  for (const kinds of callers.values()) {
-    for (const kind of kinds) by_kind[kind] = (by_kind[kind] ?? 0) + 1;
-  }
-
-  const sample = [...callers.keys()].sort((a, b) => a.localeCompare(b)).slice(0, SAMPLE_LIMIT);
-
-  return { total: callers.size, by_kind, sample };
-}
-
 /** The `{% doc %}` parameter contract of the in-flight buffer, or `null` when it declares none. */
 interface DocSignature {
   required: string[];
@@ -176,11 +135,11 @@ interface DocSignature {
 
 /**
  * The edited buffer's `{% doc %}` parameter contract (required + all declared
- * names), or `null` when the buffer is non-Liquid, unparseable, or declares no
- * `{% doc %}` block. Reuses check-common's `extractDocDefinition` — the same
- * primitive the `PartialCallArguments` check reads for the doc case — so the
- * two never diverge. `null` deliberately disables signature-impact: without an
- * explicit contract we do NOT guess a signature (no false positives).
+ * names), or `null` when the buffer is unparseable or declares no `{% doc %}`
+ * block. Reuses check-common's `extractDocDefinition` — the same primitive the
+ * `PartialCallArguments` check reads for the doc case — so the two never diverge.
+ * `null` deliberately disables signature-impact: without an explicit contract we
+ * do NOT guess a signature (no false positives).
  */
 async function docSignature(fileUri: UriString, content: string): Promise<DocSignature | null> {
   const sourceCode = await toSourceCode(fileUri, content);
@@ -197,11 +156,9 @@ async function docSignature(fileUri: UriString, content: string): Promise<DocSig
 }
 
 /**
- * The dependent callers whose passed arguments violate `signature` — missing a
- * required `@param`, or passing one the `{% doc %}` block does not declare. The
- * cross-file inverse of `PartialCallArguments`: it checks the edited file's
- * contract against every existing caller at once. Deduplicated per caller,
- * sorted, and capped.
+ * The callers whose passed arguments violate `signature` — missing a required
+ * `@param`, or passing one the `{% doc %}` block does not declare. Deduplicated
+ * per caller, sorted, and capped at {@link MAX_REPORTED_CALLERS}.
  */
 function computeSignatureRisk(
   references: readonly Reference[],
@@ -229,7 +186,7 @@ function computeSignatureRisk(
 
   return [...byCaller.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(0, SAMPLE_LIMIT)
+    .slice(0, MAX_REPORTED_CALLERS)
     .map(([caller, { missing, unexpected }]) => ({
       caller,
       missing_required: [...missing].sort((a, b) => a.localeCompare(b)),

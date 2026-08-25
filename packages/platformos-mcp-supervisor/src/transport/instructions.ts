@@ -104,10 +104,16 @@ truncated
   what is listed and validate again to see the rest.
 
 impact
-  Which other files depend on this one, worked out from the project as it stands at the
-  moment of the call. \`status: unavailable\` means it could not be worked out — a failure,
-  or it ran out of time — and its zeroed counts are NOT a claim that nothing depends on
-  the file. Only \`status: computed\` with \`total: 0\` says that.
+  Reports ONE thing: existing callers whose arguments no longer match the {% doc %}
+  contract your buffer declares — each named, with what is missing or undeclared. Worked
+  out from the project as it stands at the moment of the call, your other buffers included.
+  The \`signature_risk\` list is there only when there is something to report, and is computed
+  only when your buffer declares a {% doc %} block; otherwise \`status: not_applicable\` — no
+  contract, nothing to compare callers against. At most 10 callers are listed.
+  NOTHING HERE IS A CLEARANCE. An empty impact means no mismatch was found among the callers
+  that are VISIBLE, and a caller can be invisible: {% render partial_name %} picks its target
+  at runtime, so no analysis can resolve it. This server never tells you nothing depends on a
+  file — if you are about to delete or rename one, search the project yourself.
 
 WHAT IS NOT CHECKED
 ${coverage()} run against your buffer. Where a finding exists it explains itself and links

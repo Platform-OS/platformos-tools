@@ -2,7 +2,7 @@
  * Smoke test: build the package, then drive the REAL stdio bin with the
  * official MCP SDK client. Verifies the transport, the `validate_code`
  * registration, the JSON-text result envelope, real linting end to end
- * (check-node → mapped diagnostics), AND the cross-file blast radius end to end
+ * (check-node → mapped diagnostics), AND the cross-file impact end to end
  * (project scan → resolved references → `impact`).
  */
 import { execFileSync } from 'node:child_process';
@@ -51,8 +51,8 @@ beforeAll(async () => {
     'utf8',
   );
 
-  // A real project on disk so the blast radius is real:
-  // `home` renders `card` → `card` has one dependent; `lonely` has none.
+  // A real project on disk so impact is real:
+  // `home` renders `card`, passing no arguments.
   const writeProjectFile = (rel: string, body: string) => {
     const abs = join(projectDir, rel);
     mkdirSync(dirname(abs), { recursive: true });
@@ -82,8 +82,8 @@ beforeAll(async () => {
 /**
  * Call `validate_code` and return the parsed result.
  *
- * NO POLLING, and its absence is a claim: the blast radius is computed from the project
- * during the call, so every response carries a final answer.
+ * NO POLLING, and its absence is a claim: impact is computed from the project during the
+ * call, so every response carries a final answer.
  */
 async function validateCodeWith(
   withClient: Client,
@@ -112,12 +112,10 @@ describe('Integration: validate_code over stdio', () => {
     infos: [],
   };
 
-  // "Computed, nothing depends on this" — the safe-to-change signal, and the
-  // impact for files nothing on disk references.
-  const NO_DEPENDENTS = {
+  // Nothing to compare callers against: the buffer declares no {% doc %} contract.
+  const NO_CONTRACT = {
     scope: 'direct',
-    status: 'computed',
-    dependents: { total: 0, by_kind: {}, sample: [] },
+    status: 'not_applicable',
   };
 
   /**
@@ -155,7 +153,7 @@ describe('Integration: validate_code over stdio', () => {
     expect(tools.map((t) => t.name)).toEqual(['validate_code']);
   });
 
-  it('returns the exact clean result for a valid layout (nothing depends on it)', async () => {
+  it('returns the exact clean result for a valid layout', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body>{{ content_for_layout }}</body></html>',
@@ -165,11 +163,11 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      impact: NO_DEPENDENTS,
+      impact: NO_CONTRACT,
     });
   });
 
-  it('surfaces the exact lint diagnostic AND the blast radius together, without conflating them', async () => {
+  it('surfaces the exact lint diagnostic AND the impact together, without conflating them', async () => {
     const result = await validateCode({
       file_path: 'app/views/layouts/application.liquid',
       content: '<html><body><header>Site</header></body></html>',
@@ -180,12 +178,14 @@ describe('Integration: validate_code over stdio', () => {
       status: 'error',
       must_fix_before_write: true,
       errors: [MISSING_CONTENT_FOR_LAYOUT],
-      impact: NO_DEPENDENTS,
+      impact: NO_CONTRACT,
     });
   });
 
-  it('reports the cross-file blast radius: who depends on the edited partial', async () => {
-    // `card` is rendered by the on-disk `home` page → exactly one dependent.
+  it('says nothing cross-file about a partial that declares no contract, though it HAS a caller', async () => {
+    // `card` is rendered by the on-disk `home` page. Impact still reports nothing: with no
+    // {% doc %} block there is no contract any caller could break, and the count of callers
+    // is deliberately not published — see the signature-impact test below for the control.
     const result = await validateCode({
       file_path: 'app/views/partials/card.liquid',
       content: '<div class="card">{{ title }} {{ subtitle }}</div>',
@@ -195,29 +195,31 @@ describe('Integration: validate_code over stdio', () => {
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      impact: {
-        scope: 'direct',
-        status: 'computed',
-        dependents: {
-          total: 1,
-          by_kind: { render: 1 },
-          sample: ['app/views/pages/home.liquid'],
-        },
-      },
+      impact: NO_CONTRACT,
     });
   });
 
-  it('reports zero dependents (safe to change) as computed — distinct from "not computed"', async () => {
+  /**
+   * The wire is where a silence has to be proven: `JSON.stringify` drops an `undefined`
+   * value, so only a round trip shows the key is ABSENT rather than merely empty. An empty
+   * `signature_risk` would read as "checked, every caller matches" — a clearance no scan of
+   * the callers that happen to be visible can earn. The test below is its control: the same
+   * envelope DOES carry the key when a caller really is broken.
+   */
+  it('carries no signature_risk key at all when nothing was found to be broken', async () => {
     const result = await validateCode({
       file_path: 'app/views/partials/lonely.liquid',
-      content: '<div>still nobody</div>',
+      content: `{% doc %}
+  @param {String} title - required title
+{% enddoc %}
+<div>{{ title }}</div>`,
     });
 
     expect(result).toEqual({
       ...EMPTY_ENVELOPE,
       status: 'ok',
       must_fix_before_write: false,
-      impact: NO_DEPENDENTS,
+      impact: { scope: 'direct', status: 'computed' },
     });
   });
 
@@ -239,7 +241,6 @@ describe('Integration: validate_code over stdio', () => {
       impact: {
         scope: 'direct',
         status: 'computed',
-        dependents: { total: 1, by_kind: { render: 1 }, sample: ['app/views/pages/home.liquid'] },
         signature_risk: [
           {
             caller: 'app/views/pages/home.liquid',
@@ -274,7 +275,6 @@ describe('Integration: validate_code over stdio', () => {
   const NOT_APPLICABLE_IMPACT = {
     scope: 'direct',
     status: 'not_applicable',
-    dependents: { total: 0, by_kind: {}, sample: [] },
   };
 
   it('tells the agent a misplaced source was not checked, instead of reporting it clean', async () => {
@@ -365,8 +365,7 @@ describe('Integration: validate_code sees on-disk fixes without a cache-clearing
     infos: [],
     impact: {
       scope: 'direct',
-      status: 'computed',
-      dependents: { total: 0, by_kind: {}, sample: [] },
+      status: 'not_applicable',
     },
   };
 
@@ -438,9 +437,9 @@ MissingPartial:
 });
 
 /**
- * The FIRST call on a cold server must already carry a real blast radius.
+ * The FIRST call on a cold server must already carry a real cross-file answer.
  */
-describe('Integration: the first call already answers the blast radius', () => {
+describe('Integration: the first call already answers cross-file impact', () => {
   let coldClient: Client;
   let coldTransport: StdioClientTransport;
   let coldProjectDir: string;
@@ -473,12 +472,15 @@ describe('Integration: the first call already answers the blast radius', () => {
     if (coldProjectDir) rmSync(coldProjectDir, { recursive: true, force: true });
   });
 
-  it('reports the dependent on the very first request, with no warm-up and no retry', async () => {
+  it('reports the broken caller on the very first request, with no warm-up and no retry', async () => {
     const res = await coldClient.callTool({
       name: 'validate_code',
       arguments: {
         file_path: 'app/views/partials/card.liquid',
-        content: '<div>card, edited</div>',
+        content: `{% doc %}
+  @param {String} title - required title
+{% enddoc %}
+<div>card, edited</div>`,
       },
     });
     const content = res.content as Array<{ type: string; text: string }>;
@@ -487,11 +489,13 @@ describe('Integration: the first call already answers the blast radius', () => {
     expect(result.impact).toEqual({
       scope: 'direct',
       status: 'computed',
-      dependents: {
-        total: 1,
-        by_kind: { render: 1 },
-        sample: ['app/views/pages/index.liquid'],
-      },
+      signature_risk: [
+        {
+          caller: 'app/views/pages/index.liquid',
+          missing_required: ['title'],
+          unexpected_args: [],
+        },
+      ],
     });
   }, 60_000);
 });

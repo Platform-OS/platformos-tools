@@ -267,11 +267,12 @@ function admittedBytes(lintable: readonly BatchBuffer[]): number {
 }
 
 /**
- * Blast radius per lintable buffer.
+ * Impact per lintable buffer.
  *
  * ONE scan serves the whole batch: `createProjectScan` reads the project's edge sources
- * once, lazily and memoized, so N buffers cost one project read and N name filters. The
- * batch's own buffers are overlaid into it, so a caller a buffer has just added counts.
+ * once, LAZILY and memoized, so a batch in which no buffer declares a `{% doc %}` contract
+ * never reads the project at all, and one where some do pays a single read. The batch's own
+ * buffers are overlaid into it, so a call a buffer has just added counts.
  *
  * The set shares one tight deadline because impact is discardable enrichment —
  * `unavailable` already means "we don't know".
@@ -304,7 +305,7 @@ async function impactWithDeadline(
           scan,
         )
         .catch((error: unknown) => {
-          ctx.log(`validate_code: blast-radius failed for ${buffer.filePath}: ${describe(error)}`);
+          ctx.log(`validate_code: impact failed for ${buffer.filePath}: ${describe(error)}`);
           return UNAVAILABLE_IMPACT();
         });
       return [buffer.filePath, impact] as const;
@@ -313,8 +314,8 @@ async function impactWithDeadline(
 
   const outcome = await withDeadline(work, IMPACT_DEADLINE_MS);
   if (outcome === TIMED_OUT) {
-    observeAbandoned(ctx, work, 'blast-radius');
-    ctx.log(`validate_code: blast-radius exceeded ${IMPACT_DEADLINE_MS} ms, continuing without it`);
+    observeAbandoned(ctx, work, 'impact');
+    ctx.log(`validate_code: impact exceeded ${IMPACT_DEADLINE_MS} ms, continuing without it`);
     for (const buffer of lintable) byFile.set(buffer.filePath, UNAVAILABLE_IMPACT());
     return byFile;
   }

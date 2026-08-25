@@ -48,7 +48,6 @@ const ctx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
 const COMPUTED: ValidateCodeImpact = {
   scope: 'direct',
   status: 'computed',
-  dependents: { total: 0, by_kind: {}, sample: [] },
 };
 
 const diagnostic = (
@@ -203,7 +202,7 @@ describe('validate_code: the single-file form', () => {
 
     expect(result.warnings).toEqual([warning]);
     expect(result.impact.status).toEqual('unavailable');
-    expect(logs.some((line) => line.includes('blast-radius failed'))).toBe(true);
+    expect(logs.some((line) => line.includes('impact failed'))).toBe(true);
   });
 
   it('propagates a lint failure — the primary gate is never silently dropped', async () => {
@@ -266,7 +265,7 @@ describe('validate_code: the multi-file form', () => {
   });
 
   /**
-   * The blast radius reads the project per REQUEST, not per file, and the proof has to be
+   * Impact reads the project per REQUEST, not per file, and the proof has to be
    * identity: every buffer is handed the SAME `ProjectScan`, whose `sources()` is memoized.
    * A scan built per buffer returns identical answers and simply multiplies the I/O.
    */
@@ -708,7 +707,7 @@ describe('validate_code: bounded work', () => {
   });
 
   it('runs lint and impact CONCURRENTLY, not one after the other', async () => {
-    // Serializing them would add the whole blast-radius cost to every call. Asserted by
+    // Serializing them would add the whole impact cost to every call. Asserted by
     // observing that impact starts while the lint is still in flight.
     let lintStarted = false;
     let impactSawLintRunning = false;
@@ -964,9 +963,11 @@ describe('server instructions', () => {
     expect(SERVER_INSTRUCTIONS).toContain('WITHIN ITSELF');
   });
 
-  it('explains that an unavailable blast radius is not "nothing depends on this"', () => {
-    // Zeroed dependents on a failed or timed-out lookup read exactly like a real answer.
-    expect(SERVER_INSTRUCTIONS).toContain('NOT a claim that nothing depends');
+  it('never lets an empty impact be read as "nothing depends on this"', () => {
+    // The one claim impact must never make, in either direction: an absent finding is not
+    // a clearance, and the server states outright that it does not answer that question.
+    expect(SERVER_INSTRUCTIONS).toContain('NOTHING HERE IS A CLEARANCE');
+    expect(SERVER_INSTRUCTIONS).toContain('never tells you nothing depends on a');
   });
 });
 

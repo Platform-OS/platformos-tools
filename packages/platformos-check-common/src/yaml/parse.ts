@@ -1,5 +1,5 @@
 import { isMap, isScalar, isSeq, isPair, parseDocument } from 'yaml';
-import { normalizeLoneCarriageReturns } from './line-breaks';
+import { normalizeLoneCarriageReturns } from '@platformos/platformos-common';
 import {
   foldedScalarValue,
   reconcileFlowScalarContinuations,
@@ -77,8 +77,8 @@ export function toYAMLNode(source: string): JSONNode {
   // `checks/yaml-syntax-error/index.spec.ts` asserts it.
   //
   // A LONE `\r` IS A LINE BREAK TO THE PLATFORM AND NOT TO THIS PARSER, so it is normalized
-  // first — see `line-breaks.ts`. One byte for one byte, so every offset below is still an
-  // offset into the caller's original source.
+  // first — see `yaml-line-breaks.ts` in platformos-common. One byte for one byte, so every
+  // offset below is still an offset into the caller's original source.
   const options = { prettyErrors: false, uniqueKeys: false };
   const normalized = normalizeLoneCarriageReturns(source);
   const doc = parseDocument(normalized, options);

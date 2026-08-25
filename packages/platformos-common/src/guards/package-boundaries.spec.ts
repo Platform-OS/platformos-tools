@@ -16,7 +16,12 @@ describe('platformos-common package boundaries', () => {
   it('depends on no workspace parser package and no Node-only package', async () => {
     const manifest = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'));
 
-    expect(Object.keys(manifest.dependencies)).toEqual(['graphql', 'js-yaml', 'vscode-uri']);
+    expect(Object.keys(manifest.dependencies)).toEqual([
+      'graphql',
+      'js-yaml',
+      'vscode-uri',
+      'yaml',
+    ]);
   });
 
   /**

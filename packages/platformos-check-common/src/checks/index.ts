@@ -8,6 +8,7 @@ import {
 import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedTag } from './deprecated-tag';
 import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
+import { DuplicateFrontmatterKey } from './duplicate-frontmatter-key';
 import { DuplicateYAMLKey } from './duplicate-yaml-key';
 import { ImgWidthAndHeight } from './img-width-and-height';
 import { ImplicitIncludeArguments } from './implicit-include-arguments';
@@ -46,7 +47,12 @@ import { DuplicateFunctionArguments } from './duplicate-function-arguments';
 import { MissingRenderPartialArguments } from './missing-render-partial-arguments';
 import { NestedGraphQLQuery } from './nested-graphql-query';
 import { MissingPage } from './missing-page';
-import { ValidFrontmatter } from './valid-frontmatter';
+import { InvalidFrontmatterSyntax } from './invalid-frontmatter-syntax';
+import { UnknownFrontmatterField } from './unknown-frontmatter-field';
+import { InvalidFrontmatterValue } from './invalid-frontmatter-value';
+import { MissingLayout } from './missing-layout';
+import { MissingFrontmatterAssociation } from './missing-frontmatter-association';
+import { DeprecatedFrontmatterField } from './deprecated-frontmatter-field';
 import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
 import { YAMLSyntaxError } from './yaml-syntax-error';
@@ -57,6 +63,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   DeprecatedTag,
   DuplicateFunctionArguments,
   DuplicateRenderPartialArguments,
+  DuplicateFrontmatterKey,
   DuplicateYAMLKey,
   ImgWidthAndHeight,
   ImplicitIncludeArguments,
@@ -94,7 +101,12 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   MissingRenderPartialArguments,
   NestedGraphQLQuery,
   MissingPage,
-  ValidFrontmatter,
+  InvalidFrontmatterSyntax,
+  UnknownFrontmatterField,
+  InvalidFrontmatterValue,
+  MissingLayout,
+  MissingFrontmatterAssociation,
+  DeprecatedFrontmatterField,
   JsonLiteralQuoteStyle,
   MissingContentForLayout,
   YAMLSyntaxError,

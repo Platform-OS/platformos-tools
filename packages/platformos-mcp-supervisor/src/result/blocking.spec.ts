@@ -49,6 +49,9 @@ describe('Unit: blocksWrite', () => {
       ['visibly wrong, still a working page', 'ReservedVariableName'],
       ['performance advice', 'ImgWidthAndHeight'],
       ['performance advice', 'ParserBlockingScript'],
+      // Measured: a page declaring `slug` twice synced, the first slug 404s and the second
+      // serves. The platform accepts it, so the discarded value is advisory, not a block.
+      ['the platform accepts it, last value wins', 'DuplicateFrontmatterKey'],
     ])('%s: %s', (_why, check) => {
       expect(blocksWrite([at(check)])).toBe(false);
     });
@@ -103,14 +106,19 @@ describe('Unit: blocksWrite', () => {
       'FilterArity',
       'GraphQLCheck',
       'GraphQLVariablesCheck',
+      'InvalidFrontmatterSyntax',
+      'InvalidFrontmatterValue',
       'InvalidSchemaPropertyType',
       'InvalidWriteTarget',
       'JsonLiteralQuoteStyle',
       'LiquidHTMLSyntaxError',
       'MissingContentForLayout',
+      'MissingFrontmatterAssociation',
+      'MissingLayout',
       'MissingPartial',
       'MissingRenderPartialArguments',
       'UnknownFilter',
+      'UnknownFrontmatterField',
       'YAMLSyntaxError',
     ]);
   });
@@ -157,6 +165,33 @@ describe('Unit: blocksWrite', () => {
     // The gate reads severity as well as code, so a project that downgrades
     // `JsonLiteralQuoteStyle` in its config is respected exactly like any other member.
     expect(blocksWrite([at('JsonLiteralQuoteStyle', 'warning')])).toBe(false);
+  });
+
+  it('blocks the five frontmatter shapes the converter rejects', () => {
+    expect(
+      [
+        'UnknownFrontmatterField',
+        'InvalidFrontmatterSyntax',
+        'InvalidFrontmatterValue',
+        'MissingLayout',
+        'MissingFrontmatterAssociation',
+      ].filter((code) => !blocksWrite([at(code)])),
+    ).toEqual([]);
+  });
+
+  /**
+   * `MissingFrontmatterAssociation` blocks on the evidence of a REAL deploy. `--dry-run`
+   * accepts the same file, so it was first classified non-blocking on that silence — which
+   * was a gap in the oracle rather than evidence. Pinned so it is not re-derived from a dry
+   * run and downgraded again.
+   */
+  it('blocks a missing association, which only a real deploy reveals', () => {
+    expect(blocksWrite([at('MissingFrontmatterAssociation')])).toBe(true);
+  });
+
+  it('does not block a deprecated frontmatter field, which deploys and renders', () => {
+    expect(BLOCKING_CHECKS.has('DeprecatedFrontmatterField')).toBe(false);
+    expect(blocksWrite([at('DeprecatedFrontmatterField')])).toBe(false);
   });
 
   it('does NOT contain the dead-argument checks — the bug this fixes', () => {

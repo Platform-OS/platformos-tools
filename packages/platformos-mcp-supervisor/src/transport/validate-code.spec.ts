@@ -878,10 +878,14 @@ describe('server instructions', () => {
     }
   });
   /**
-   * "The SHAPE of a model schema is not checked" is a SILENCE, so no diagnostic can carry
-   * it and an agent reading a clean YAML result as a shape guarantee is the false
-   * confidence this text exists to prevent. `instructions-coverage.spec.ts` holds the
-   * behavioural half.
+   * "An unrecognised top-level key is rejected on deploy and nothing reports it" is a
+   * SILENCE, so no diagnostic can carry it and an agent reading a clean YAML result as a
+   * shape guarantee is the false confidence this text exists to prevent.
+   * `instructions-coverage.spec.ts` holds the behavioural half.
+   *
+   * The claim used to be the broader "The SHAPE of a model schema is not checked", which
+   * `InvalidSchemaPropertyType` made false — property types ARE checked now, and only the
+   * REST of the shape is not.
    */
   it('keeps the YAML claim no diagnostic can deliver, and drops the one that fires', () => {
     expect({
@@ -1034,6 +1038,44 @@ const EMITS: Record<string, EmissionFixture> = {
 {% hash_assign x['k'] = 'v' %}
 `,
     errors: ['InvalidWriteTarget'],
+  },
+
+  InvalidFrontmatterSyntax: {
+    // Measured: `Body contains invalid YAML: found a tab character that violates indentation`.
+    filePath: PAGE,
+    content: '---\nslug: probe\n\tlayout: application\n---\n<p>hi</p>\n',
+    errors: ['InvalidFrontmatterSyntax'],
+  },
+
+  UnknownFrontmatterField: {
+    // MEASURED: `pos-cli deploy --dry-run` REJECTS with `Unknown properties: bogus_key.`
+    filePath: PAGE,
+    content: '---\nbogus_key: true\n---\n<p>hi</p>\n',
+    errors: ['UnknownFrontmatterField'],
+  },
+
+  InvalidFrontmatterValue: {
+    // Measured: `Request method 'POST' is not allowed. Valid methods: delete, get, …`.
+    // Upper case on purpose — the platform compares literally, and this spelling used to
+    // reach the gate as `status: ok`.
+    filePath: PAGE,
+    content: '---\nmethod: POST\n---\n<p>hi</p>\n',
+    errors: ['InvalidFrontmatterValue'],
+  },
+
+  MissingLayout: {
+    // MEASURED: `Layout Could not find Layout with layout: no_such_layout`.
+    filePath: PAGE,
+    content: '---\nlayout: no_such_layout\n---\n<p>hi</p>\n',
+    errors: ['MissingLayout'],
+  },
+
+  MissingFrontmatterAssociation: {
+    // Measured by a REAL deploy: `tries to assign authorization_policies which do not
+    // exist`. `--dry-run` accepts this file.
+    filePath: PAGE,
+    content: '---\nauthorization_policies:\n  - no_such_policy\n---\n<p>hi</p>\n',
+    errors: ['MissingFrontmatterAssociation'],
   },
 
   InvalidSchemaPropertyType: {
@@ -2058,6 +2100,86 @@ const STAYS_SILENT: Record<string, SilenceFixture[]> = {
     },
   ],
 
+  InvalidFrontmatterSyntax: [
+    {
+      name: 'a well-formed block',
+      filePath: PAGE,
+      content: '---\nslug: probe\nmethod: get\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'a nested mapping and a sequence',
+      filePath: PAGE,
+      content: '---\nslug: probe\nmetadata:\n  title: Notes\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+  ],
+
+  UnknownFrontmatterField: [
+    {
+      name: 'only keys the Page schema declares',
+      filePath: PAGE,
+      content: '---\nslug: probe\nmethod: get\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'a file type with no frontmatter schema takes arbitrary keys',
+      filePath: 'app/migrations/20240101_seed.liquid',
+      content: '---\nanything_at_all: 1\n---\n',
+      oracle: 'dry-run',
+    },
+  ],
+
+  InvalidFrontmatterValue: [
+    {
+      name: 'a method the platform accepts',
+      filePath: PAGE,
+      content: '---\nmethod: post\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: "layout: '' disables the layout, which is the supported spelling",
+      filePath: PAGE,
+      content: "---\nlayout: ''\n---\n<p>hi</p>\n",
+      oracle: 'dry-run',
+    },
+  ],
+
+  MissingLayout: [
+    {
+      name: 'a layout the project contains',
+      project: {
+        'app/views/layouts/application.liquid':
+          '<html><body>{{ content_for_layout }}</body></html>\n',
+      },
+      filePath: PAGE,
+      content: '---\nlayout: application\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'a Liquid-interpolated layout, which resolves at render time',
+      filePath: PAGE,
+      content: '---\nlayout: "{{ context.location }}"\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+  ],
+
+  MissingFrontmatterAssociation: [
+    {
+      name: 'a policy the project contains',
+      project: { 'app/authorization_policies/require_login.liquid': 'true\n' },
+      filePath: PAGE,
+      content: '---\nauthorization_policies:\n  - require_login\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+    {
+      name: 'no association array at all',
+      filePath: PAGE,
+      content: '---\nslug: probe\n---\n<p>hi</p>\n',
+      oracle: 'dry-run',
+    },
+  ],
+
   InvalidSchemaPropertyType: [
     {
       name: 'a published property type',
@@ -2136,6 +2258,11 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: 9,
       MissingRenderPartialArguments: 1,
       MissingContentForLayout: 1,
+      InvalidFrontmatterSyntax: 2,
+      UnknownFrontmatterField: 2,
+      InvalidFrontmatterValue: 2,
+      MissingLayout: 2,
+      MissingFrontmatterAssociation: 2,
       InvalidSchemaPropertyType: 2,
     });
   });
@@ -2162,6 +2289,11 @@ describe('Integration: every blocking check stays silent on input the platform a
       InvalidWriteTarget: ['by-construction', 'runtime'],
       MissingRenderPartialArguments: ['by-construction'],
       MissingContentForLayout: ['by-construction'],
+      InvalidFrontmatterSyntax: ['dry-run'],
+      UnknownFrontmatterField: ['dry-run'],
+      InvalidFrontmatterValue: ['dry-run'],
+      MissingLayout: ['dry-run'],
+      MissingFrontmatterAssociation: ['dry-run'],
       InvalidSchemaPropertyType: ['deploy'],
     });
   });
@@ -2277,6 +2409,26 @@ properties:
       { name: 'top level', blocked: false, errorChecks: [], warningChecks: ['DuplicateYAMLKey'] },
       { name: 'nested', blocked: false, errorChecks: [], warningChecks: ['DuplicateYAMLKey'] },
     ]);
+  }, 120_000);
+
+  it('reports a duplicate FRONTMATTER key the same way, in a .liquid file', async () => {
+    // The Liquid-side counterpart of the case above. It travels a different route entirely —
+    // `DuplicateYAMLKey` is a YAML-typed check and never sees a `.liquid` file — so the
+    // promise has to be measured through this server separately rather than inferred.
+    const result = await validate(
+      'app/views/pages/dup.html.liquid',
+      '---\nslug: first\nslug: second\n---\n<p>hi</p>\n',
+    );
+
+    expect({
+      blocked: result.must_fix_before_write,
+      errorChecks: [...new Set(result.errors.map((error) => error.check))],
+      warningChecks: [...new Set(result.warnings.map((warning) => warning.check))],
+    }).toEqual({
+      blocked: false,
+      errorChecks: [],
+      warningChecks: ['DuplicateFrontmatterKey'],
+    });
   }, 120_000);
 });
 

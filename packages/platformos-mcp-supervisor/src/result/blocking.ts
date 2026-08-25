@@ -99,6 +99,27 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
   // content, so one that cannot is a defeated contract — and a silently blank page
   // is harder to diagnose than an error.
   'MissingContentForLayout',
+
+  // --- Frontmatter, split out of `ValidFrontmatter`. Each is a measured converter
+  // rejection, which fails the WHOLE changeset. ---
+
+  // `Body contains invalid YAML: <parser error>`. `YAMLSyntaxError` cannot cover this —
+  // it is YAML-typed and never sees a `.liquid` file.
+  'InvalidFrontmatterSyntax',
+
+  // `Unknown properties: <key>.`
+  'UnknownFrontmatterField',
+
+  // `Request method 'POST' is not allowed`, and `layout: false` → `undefined method 'sub'
+  // for false` (YAML reads it as a boolean; `set_layout` guards `nil`, not `false`).
+  'InvalidFrontmatterValue',
+
+  // `Could not find Layout with layout: <name>`.
+  'MissingLayout',
+
+  // `<page> tries to assign authorization_policies which do not exist: <name>`. Measured by
+  // a REAL deploy — `--dry-run` accepts it, returning before the association write.
+  'MissingFrontmatterAssociation',
 ]);
 
 /**
@@ -128,10 +149,16 @@ export const BLOCKING_CHECKS: ReadonlySet<string> = new Set([
  * - `UniqueDocParamNames`, `ValidDocParamTypes` — doc hygiene with no runtime effect, since
  *   `{% doc %}` is inert at runtime.
  * - `ImgWidthAndHeight`, `ParserBlockingScript` — performance advice.
- * - `ValidFrontmatter` — two of its three findings (unknown key, missing layout) ARE hard
- *   deploy rejections, so this absence is a known gap rather than a judgement. All three
- *   share one code with no discriminator, so adding it would fix two false approvals and
- *   create one false block. Blocked on a discriminator — TASK-26.
+ * - `DeprecatedFrontmatterField` — measured: a deprecated key (`layout_name` naming a layout
+ *   that exists, `redirect_url`) and a deprecated `home.liquid` filename are all ACCEPTED by
+ *   the converter. Superseded, not broken.
+ *
+ * `ValidFrontmatter` used to be listed here, recorded as blocked on a discriminator
+ * (TASK-26) because "two of its three findings" were fatal and blocking the code would have
+ * created one false block. Both halves were wrong. It had seven reachable shapes, not three,
+ * and `layout: false` — the finding named as the harmless one — is itself a converter
+ * rejection. It has since been split into per-shape codes, which is the discriminator the
+ * task was waiting for: three of them are in the set above, two are named here.
  */
 
 /** A diagnostic, narrowed to what the gate reads. */

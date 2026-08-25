@@ -24,4 +24,5 @@ export * from './graphql';
 export * from './schema-properties';
 export * from './schema-table';
 export * from './yaml-load-options';
+export * from './yaml-line-breaks';
 export * from './find-root';

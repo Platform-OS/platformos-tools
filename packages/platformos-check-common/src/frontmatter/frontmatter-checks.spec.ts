@@ -1,6 +1,29 @@
 import { expect, describe, it } from 'vitest';
-import { ValidFrontmatter } from '.';
-import { check, messagesOf } from '../../test';
+import { UnknownFrontmatterField } from '../checks/unknown-frontmatter-field';
+import { InvalidFrontmatterValue } from '../checks/invalid-frontmatter-value';
+import { MissingLayout } from '../checks/missing-layout';
+import { MissingFrontmatterAssociation } from '../checks/missing-frontmatter-association';
+import { DeprecatedFrontmatterField } from '../checks/deprecated-frontmatter-field';
+import { check, messagesOf } from '../test';
+
+/**
+ * The five checks that read one frontmatter block, run together.
+ *
+ * This suite is inherited WHOLE from the single `ValidFrontmatter` check these replaced,
+ * with only the check list changed: same fixtures, same assertions, same messages. That is
+ * what makes it the proof that splitting one code into five was behaviour-preserving —
+ * every finding still fires, on the same input, at the same position.
+ *
+ * Which CODE each finding now carries, and which of them block a write, is pinned per check
+ * beside the check itself.
+ */
+const FRONTMATTER_CHECKS = [
+  UnknownFrontmatterField,
+  InvalidFrontmatterValue,
+  MissingLayout,
+  MissingFrontmatterAssociation,
+  DeprecatedFrontmatterField,
+];
 
 const PAGE = 'app/views/pages/test.html.liquid';
 const FORM = 'app/forms/test.liquid';
@@ -12,54 +35,56 @@ const LAYOUT = 'app/views/layouts/application.liquid';
 const PARTIAL = 'app/views/partials/card.liquid';
 const MIGRATION = 'app/migrations/20240101_seed.liquid';
 
-describe('ValidFrontmatter', () => {
+describe('the frontmatter checks', () => {
   // ── Required fields ───────────────────────────────────────────────────────
 
   describe('no required fields (name derived from file path)', () => {
     it('does not report on Page with no frontmatter fields', async () => {
-      const offenses = await check({ [PAGE]: `---\nslug: /test\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nslug: /test\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.have.length(0);
     });
 
     it('does not report on FormConfiguration with no name field', async () => {
-      const offenses = await check({ [FORM]: `---\nresource: User\n---\n` }, [ValidFrontmatter]);
+      const offenses = await check({ [FORM]: `---\nresource: User\n---\n` }, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('Missing required'))).toBe(false);
     });
 
     it('does not report on AuthorizationPolicy with no name field', async () => {
-      const offenses = await check({ [AUTH]: `---\nhttp_status: 403\n---\n` }, [ValidFrontmatter]);
+      const offenses = await check({ [AUTH]: `---\nhttp_status: 403\n---\n` }, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('Missing required'))).toBe(false);
     });
 
     it('does not report on Email with only from field', async () => {
-      const offenses = await check({ [EMAIL]: `---\nfrom: sender@example.com\n---\nHi` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [EMAIL]: `---\nfrom: sender@example.com\n---\nHi` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses.some((o) => o.message.includes('Missing required'))).toBe(false);
     });
 
     it('does not report on ApiCall with only to and request_type', async () => {
       const offenses = await check(
         { [API_CALL]: `---\nto: https://example.com\nrequest_type: GET\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses.some((o) => o.message.includes('Missing required'))).toBe(false);
     });
 
     it('does not report on SMS with only to field', async () => {
-      const offenses = await check({ [SMS]: `---\nto: "+15550001234"\n---\n` }, [ValidFrontmatter]);
+      const offenses = await check({ [SMS]: `---\nto: "+15550001234"\n---\n` }, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('Missing required'))).toBe(false);
     });
 
     it('does not report when there is no frontmatter', async () => {
-      const offenses = await check({ [FORM]: `{{ content }}` }, [ValidFrontmatter]);
+      const offenses = await check({ [FORM]: `{{ content }}` }, FRONTMATTER_CHECKS);
       expect(offenses).to.have.length(0);
     });
 
     it('does not report on empty frontmatter block', async () => {
-      const offenses = await check({ [FORM]: `---\n---\n` }, [ValidFrontmatter]);
+      const offenses = await check({ [FORM]: `---\n---\n` }, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('Missing required'))).toBe(false);
     });
   });
@@ -72,35 +97,39 @@ describe('ValidFrontmatter', () => {
         'app/views/layouts/application.liquid': `{{ content }}`,
         [PAGE]: `---\nlayout_name: application\n---\n{{ content }}`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses).to.containOffense('Use `layout` instead of `layout_name`.');
     });
 
     it('warns on deprecated redirect_url on Page', async () => {
-      const offenses = await check({ [PAGE]: `---\nredirect_url: /home\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nredirect_url: /home\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense('Use `redirect_to` instead of `redirect_url`.');
     });
 
     it('does not warn on redirect_to (non-deprecated)', async () => {
-      const offenses = await check({ [PAGE]: `---\nredirect_to: /home\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nredirect_to: /home\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.have.length(0);
     });
 
     it('warns on deprecated return_to in FormConfiguration', async () => {
-      const offenses = await check({ [FORM]: `---\nname: my_form\nreturn_to: /home\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [FORM]: `---\nname: my_form\nreturn_to: /home\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense('Use `redirect_to` instead of `return_to`.');
     });
 
     it('does not warn on redirect_to in FormConfiguration (non-deprecated)', async () => {
-      const offenses = await check({ [FORM]: `---\nname: my_form\nredirect_to: /home\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [FORM]: `---\nname: my_form\nredirect_to: /home\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.have.length(0);
     });
 
@@ -108,11 +137,12 @@ describe('ValidFrontmatter', () => {
       const layout = { 'app/views/layouts/email_base.liquid': `{{ content }}` };
       const deprecated = await check(
         { ...layout, [EMAIL]: `---\nlayout_path: email_base\n---\nHi` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
-      const replacement = await check({ ...layout, [EMAIL]: `---\nlayout: email_base\n---\nHi` }, [
-        ValidFrontmatter,
-      ]);
+      const replacement = await check(
+        { ...layout, [EMAIL]: `---\nlayout: email_base\n---\nHi` },
+        FRONTMATTER_CHECKS,
+      );
 
       expect({
         deprecated: messagesOf(deprecated),
@@ -129,10 +159,11 @@ describe('ValidFrontmatter', () => {
       // rule under test has nothing to say about either way.
       const apiCall = (field: string) =>
         `---\nto: https://example.com\nrequest_type: GET\n${field}: "{}"\n---\n`;
-      const deprecated = await check({ [API_CALL]: apiCall('headers') }, [ValidFrontmatter]);
-      const replacement = await check({ [API_CALL]: apiCall('request_headers') }, [
-        ValidFrontmatter,
-      ]);
+      const deprecated = await check({ [API_CALL]: apiCall('headers') }, FRONTMATTER_CHECKS);
+      const replacement = await check(
+        { [API_CALL]: apiCall('request_headers') },
+        FRONTMATTER_CHECKS,
+      );
 
       expect({
         deprecated: messagesOf(deprecated),
@@ -149,9 +180,10 @@ describe('ValidFrontmatter', () => {
   describe('enum validation', () => {
     // Page method
     it('reports invalid method on Page', async () => {
-      const offenses = await check({ [PAGE]: `---\nmethod: invalid\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nmethod: invalid\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense(
         "Invalid value 'invalid' for 'method'. Must be one of: delete, get, patch, post, put, options",
       );
@@ -159,25 +191,36 @@ describe('ValidFrontmatter', () => {
 
     it('accepts all valid method values on Page', async () => {
       for (const method of ['get', 'post', 'put', 'patch', 'delete', 'options']) {
-        const offenses = await check({ [PAGE]: `---\nmethod: ${method}\n---\n{{ content }}` }, [
-          ValidFrontmatter,
-        ]);
+        const offenses = await check(
+          { [PAGE]: `---\nmethod: ${method}\n---\n{{ content }}` },
+          FRONTMATTER_CHECKS,
+        );
         expect(offenses).to.have.length(0);
       }
     });
 
-    it('is case-insensitive for method values', async () => {
-      const offenses = await check({ [PAGE]: `---\nmethod: GET\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
-      expect(offenses).to.have.length(0);
+    /**
+     * Measured: `method: POST` is REJECTED on deploy ("Request method `POST` is not
+     * allowed"), `method: post` is accepted. `page.rb` validates `request_method` against a
+     * lowercase list and the converter never downcases.
+     */
+    it('is case-SENSITIVE for method values, which the platform is', async () => {
+      for (const value of ['GET', 'POST', 'Get']) {
+        const offenses = await check(
+          { [PAGE]: `---\nmethod: ${value}\n---\n{{ content }}` },
+          FRONTMATTER_CHECKS,
+        );
+        expect(messagesOf(offenses)).to.deep.equal([
+          `Invalid value '${value}' for 'method'. Must be one of: delete, get, patch, post, put, options`,
+        ]);
+      }
     });
 
     // Page redirect_code
     it('reports invalid redirect_code on Page', async () => {
       const offenses = await check(
         { [PAGE]: `---\nredirect_to: /home\nredirect_code: 200\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense(
         "Invalid value '200' for 'redirect_code'. Must be one of: 301, 302, 307",
@@ -188,7 +231,7 @@ describe('ValidFrontmatter', () => {
       for (const code of [301, 302, 307]) {
         const offenses = await check(
           { [PAGE]: `---\nredirect_to: /home\nredirect_code: ${code}\n---\n` },
-          [ValidFrontmatter],
+          FRONTMATTER_CHECKS,
         );
         expect(offenses).to.have.length(0);
       }
@@ -196,9 +239,10 @@ describe('ValidFrontmatter', () => {
 
     // AuthorizationPolicy http_status
     it('reports invalid http_status on AuthorizationPolicy', async () => {
-      const offenses = await check({ [AUTH]: `---\nname: my_policy\nhttp_status: 500\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [AUTH]: `---\nname: my_policy\nhttp_status: 500\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense(
         "Invalid value '500' for 'http_status'. Must be one of: 403, 404",
       );
@@ -208,38 +252,78 @@ describe('ValidFrontmatter', () => {
       for (const status of [403, 404]) {
         const offenses = await check(
           { [AUTH]: `---\nname: my_policy\nhttp_status: ${status}\n---\n` },
-          [ValidFrontmatter],
+          FRONTMATTER_CHECKS,
         );
         expect(offenses).to.have.length(0);
       }
     });
 
     // FormConfiguration spam_protection
-    it('reports invalid spam_protection in FormConfiguration', async () => {
-      const offenses = await check(
-        { [FORM]: `---\nname: my_form\nspam_protection: invalid_type\n---\n` },
-        [ValidFrontmatter],
-      );
-      expect(offenses).to.containOffense(
-        "Invalid value 'invalid_type' for 'spam_protection'. Must be one of: recaptcha, recaptcha_v2, recaptcha_v3, hcaptcha",
-      );
-    });
+    /**
+     * `spam_protection` is a MAPPING whose first key is the strategy, not a string enum.
+     * Every row below is measured against the converter; the old model of this field had it
+     * backwards, reporting the recommended shape and accepting three that are rejected.
+     */
+    describe('spam_protection', () => {
+      const form = (body: string) => ({ [FORM]: `---\nname: my_form\n${body}\n---\n` });
 
-    it('accepts all valid spam_protection values', async () => {
-      for (const val of ['recaptcha', 'recaptcha_v2', 'recaptcha_v3', 'hcaptcha']) {
+      it.each([
+        ['the one legacy plain string', 'spam_protection: recaptcha'],
+        ['a mapping keyed by recaptcha', 'spam_protection:\n  recaptcha: {}'],
+        ['a mapping keyed by hcaptcha', 'spam_protection:\n  hcaptcha: {}'],
+        [
+          'a fully specified recaptcha_v3',
+          'spam_protection:\n  recaptcha_v3:\n    action: submit\n    minimum_score: 0.5',
+        ],
+      ])('accepts %s', async (_label, body) => {
+        expect(messagesOf(await check(form(body), FRONTMATTER_CHECKS))).to.deep.equal([]);
+      });
+
+      it.each([
+        [
+          'a plain string that is not the legacy one',
+          'spam_protection: recaptcha_v3',
+          "'recaptcha_v3' must be written as a mapping key, not a plain value — only 'recaptcha' may be a plain string.",
+        ],
+        [
+          'a plain string in the wrong case',
+          'spam_protection: RECAPTCHA_V3',
+          "'RECAPTCHA_V3' must be written as a mapping key, not a plain value — only 'recaptcha' may be a plain string.",
+        ],
+        [
+          'an unknown strategy key',
+          'spam_protection:\n  bogus_strategy: {}',
+          "Unknown spam protection strategy 'bogus_strategy'. Must be one of: recaptcha, recaptcha_v2, recaptcha_v3, hcaptcha",
+        ],
+        [
+          'recaptcha_v3 without an action',
+          'spam_protection:\n  recaptcha_v3:\n    minimum_score: 0.5',
+          "'recaptcha_v3' requires an 'action'.",
+        ],
+        [
+          'a minimum_score out of range',
+          'spam_protection:\n  recaptcha_v3:\n    action: submit\n    minimum_score: 2',
+          "'minimum_score' must be between 0 and 1.",
+        ],
+      ])('reports %s', async (_label, body, message) => {
+        expect(messagesOf(await check(form(body), FRONTMATTER_CHECKS))).to.deep.equal([message]);
+      });
+
+      it('never renders a non-scalar value as the string "undefined"', async () => {
+        // Every mapping form used to produce `Invalid value 'undefined' for 'spam_protection'`.
         const offenses = await check(
-          { [FORM]: `---\nname: my_form\nspam_protection: ${val}\n---\n` },
-          [ValidFrontmatter],
+          form('spam_protection:\n  recaptcha_v3:\n    action: submit'),
+          FRONTMATTER_CHECKS,
         );
-        expect(offenses).to.have.length(0);
-      }
+        expect(messagesOf(offenses).filter((m) => m.includes('undefined'))).to.deep.equal([]);
+      });
     });
 
     // ApiCall request_type
     it('reports invalid request_type in ApiCall', async () => {
       const offenses = await check(
         { [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: INVALID\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense(
         "Invalid value 'INVALID' for 'request_type'. Must be one of: GET, POST, PUT, PATCH, DELETE",
@@ -252,24 +336,45 @@ describe('ValidFrontmatter', () => {
           {
             [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: ${method}\n---\n`,
           },
-          [ValidFrontmatter],
+          FRONTMATTER_CHECKS,
         );
         expect(offenses).to.have.length(0);
       }
     });
 
-    it('is case-insensitive for request_type values', async () => {
-      const offenses = await check(
-        { [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: get\n---\n` },
-        [ValidFrontmatter],
+    /**
+     * The deliberate asymmetry with `Page.method` above. `api_call_notification.rb`
+     * validates `request_type` for PRESENCE only, with no inclusion check, so there is no
+     * deploy-time rejection to mirror and tightening the case would invent a false block.
+     */
+    it('is case-INsensitive for request_type values, which have no platform inclusion check', async () => {
+      for (const value of ['get', 'GET', 'Get']) {
+        const offenses = await check(
+          {
+            [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: ${value}\n---\n`,
+          },
+          FRONTMATTER_CHECKS,
+        );
+        expect(messagesOf(offenses)).to.deep.equal([]);
+      }
+
+      // CONTROL: the field is still checked — only its CASE is forgiven.
+      const invalid = await check(
+        {
+          [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: TELEPORT\n---\n`,
+        },
+        FRONTMATTER_CHECKS,
       );
-      expect(offenses).to.have.length(0);
+      expect(messagesOf(invalid)).to.deep.equal([
+        "Invalid value 'TELEPORT' for 'request_type'. Must be one of: GET, POST, PUT, PATCH, DELETE",
+      ]);
     });
 
     it('does not validate method on non-Page files', async () => {
-      const offenses = await check({ [FORM]: `---\nname: my_form\nmethod: invalid\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [FORM]: `---\nname: my_form\nmethod: invalid\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses.some((o) => o.message.includes("for 'method'"))).toBe(false);
     });
   });
@@ -279,9 +384,10 @@ describe('ValidFrontmatter', () => {
   describe('layout association', () => {
     // Page
     it('reports missing layout file on Page', async () => {
-      const offenses = await check({ [PAGE]: `---\nlayout: nonexistent\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nlayout: nonexistent\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense("Layout 'nonexistent' does not exist");
     });
 
@@ -290,14 +396,14 @@ describe('ValidFrontmatter', () => {
         'app/views/layouts/application.liquid': `{{ content }}`,
         [PAGE]: `---\nlayout: application\n---\n{{ content }}`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses).to.have.length(0);
     });
 
     it('reports missing module layout (public path)', async () => {
       const offenses = await check(
         { [PAGE]: `---\nlayout: modules/my-module/layouts/email\n---\n{{ content }}` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("Layout 'modules/my-module/layouts/email' does not exist");
     });
@@ -307,7 +413,7 @@ describe('ValidFrontmatter', () => {
         'modules/my-module/public/views/layouts/layouts/email.liquid': `{{ content }}`,
         [PAGE]: `---\nlayout: modules/my-module/layouts/email\n---\n{{ content }}`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses).to.have.length(0);
     });
 
@@ -316,32 +422,35 @@ describe('ValidFrontmatter', () => {
         'modules/my-module/private/views/layouts/layouts/email.liquid': `{{ content }}`,
         [PAGE]: `---\nlayout: modules/my-module/layouts/email\n---\n{{ content }}`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses).to.have.length(0);
     });
 
     it('reports layout: false (boolean) and suggests empty string on Page', async () => {
-      const offenses = await check({ [PAGE]: `---\nlayout: false\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nlayout: false\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense(
-        "`layout: false` falls back to the default layout. Use `layout: ''` to disable layout rendering.",
+        "`layout: false` is rejected by the deploy converter, which fails the whole changeset. Use `layout: ''` to disable layout rendering.",
       );
     });
 
     it('does not warn for layout: empty string on Page (valid disable)', async () => {
-      const offenses = await check({ [PAGE]: `---\nlayout: ''\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nlayout: ''\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses.some((o) => o.message.includes('does not exist'))).toBe(false);
       expect(offenses.some((o) => o.message.includes('falls back'))).toBe(false);
     });
 
     // Email layout
     it('reports missing layout file on Email', async () => {
-      const offenses = await check({ [EMAIL]: `---\nlayout: nonexistent_email_layout\n---\nHi` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [EMAIL]: `---\nlayout: nonexistent_email_layout\n---\nHi` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense("Layout 'nonexistent_email_layout' does not exist");
     });
 
@@ -350,14 +459,14 @@ describe('ValidFrontmatter', () => {
         'app/views/layouts/email_base.liquid': `{{ content }}`,
         [EMAIL]: `---\nlayout: email_base\n---\nHi`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses).to.have.length(0);
     });
 
     it('reports layout: false (boolean) on Email', async () => {
-      const offenses = await check({ [EMAIL]: `---\nlayout: false\n---\nHi` }, [ValidFrontmatter]);
+      const offenses = await check({ [EMAIL]: `---\nlayout: false\n---\nHi` }, FRONTMATTER_CHECKS);
       expect(offenses).to.containOffense(
-        "`layout: false` falls back to the default layout. Use `layout: ''` to disable layout rendering.",
+        "`layout: false` is rejected by the deploy converter, which fails the whole changeset. Use `layout: ''` to disable layout rendering.",
       );
     });
   });
@@ -368,7 +477,7 @@ describe('ValidFrontmatter', () => {
     it('reports missing authorization policy file', async () => {
       const offenses = await check(
         { [PAGE]: `---\nauthorization_policies:\n  - missing_policy\n---\n{{ content }}` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("Authorization policy 'missing_policy' does not exist");
     });
@@ -378,14 +487,14 @@ describe('ValidFrontmatter', () => {
         'app/authorization_policies/require_login.liquid': `---\nname: require_login\n---\n`,
         [PAGE]: `---\nauthorization_policies:\n  - require_login\n---\n{{ content }}`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('Authorization policy'))).toBe(false);
     });
 
     it('reports each missing policy in the list', async () => {
       const offenses = await check(
         { [PAGE]: `---\nauthorization_policies:\n  - policy_a\n  - policy_b\n---\n{{ content }}` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("Authorization policy 'policy_a' does not exist");
       expect(offenses).to.containOffense("Authorization policy 'policy_b' does not exist");
@@ -398,7 +507,7 @@ describe('ValidFrontmatter', () => {
     it('reports missing email notification', async () => {
       const offenses = await check(
         { [FORM]: `---\nname: my_form\nemail_notifications:\n  - missing_email\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("Email notification 'missing_email' does not exist");
     });
@@ -406,7 +515,7 @@ describe('ValidFrontmatter', () => {
     it('reports missing SMS notification', async () => {
       const offenses = await check(
         { [FORM]: `---\nname: my_form\nsms_notifications:\n  - missing_sms\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("SMS notification 'missing_sms' does not exist");
     });
@@ -414,7 +523,7 @@ describe('ValidFrontmatter', () => {
     it('reports missing API call notification', async () => {
       const offenses = await check(
         { [FORM]: `---\nname: my_form\napi_call_notifications:\n  - missing_api_call\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("API call notification 'missing_api_call' does not exist");
     });
@@ -424,7 +533,7 @@ describe('ValidFrontmatter', () => {
         'app/emails/welcome.liquid': `---\nto: user@example.com\nsubject: Welcome\n---\n`,
         [FORM]: `---\nemail_notifications:\n  - welcome\n---\n`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('Email notification'))).toBe(false);
     });
 
@@ -433,7 +542,7 @@ describe('ValidFrontmatter', () => {
         'app/smses/alert.liquid': `---\nto: "+15550001234"\n---\n`,
         [FORM]: `---\nsms_notifications:\n  - alert\n---\n`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('SMS notification'))).toBe(false);
     });
 
@@ -442,14 +551,14 @@ describe('ValidFrontmatter', () => {
         'app/api_calls/webhook.liquid': `---\nto: https://example.com\nrequest_type: POST\n---\n`,
         [FORM]: `---\napi_call_notifications:\n  - webhook\n---\n`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes('API call notification'))).toBe(false);
     });
 
     it('reports each missing notification individually in a list', async () => {
       const offenses = await check(
         { [FORM]: `---\nname: my_form\nemail_notifications:\n  - email_a\n  - email_b\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("Email notification 'email_a' does not exist");
       expect(offenses).to.containOffense("Email notification 'email_b' does not exist");
@@ -460,7 +569,7 @@ describe('ValidFrontmatter', () => {
         'app/emails/welcome.liquid': `---\nto: u@e.com\nsubject: Hi\n---\n`,
         [FORM]: `---\nemail_notifications:\n  - welcome\n  - missing_one\n---\n`,
       };
-      const offenses = await check(files, [ValidFrontmatter]);
+      const offenses = await check(files, FRONTMATTER_CHECKS);
       expect(offenses).to.containOffense("Email notification 'missing_one' does not exist");
       expect(offenses.some((o) => o.message.includes("'welcome'"))).toBe(false);
     });
@@ -490,7 +599,7 @@ describe('ValidFrontmatter', () => {
         message: "'home.liquid' is deprecated. Rename to 'index.liquid' to serve as the root page.",
       },
     ])('warns for $warnsFor', async ({ path, source, message }) => {
-      const offenses = await check({ [path]: source }, [ValidFrontmatter]);
+      const offenses = await check({ [path]: source }, FRONTMATTER_CHECKS);
       expect(offenses).to.containOffense(message);
     });
 
@@ -516,7 +625,7 @@ describe('ValidFrontmatter', () => {
         source: `{{ content }}`,
       },
     ])('does not warn for $quietFor', async ({ path, source }) => {
-      const offenses = await check({ [path]: source }, [ValidFrontmatter]);
+      const offenses = await check({ [path]: source }, FRONTMATTER_CHECKS);
       expect(offenses).toEqual([]);
     });
   });
@@ -525,18 +634,20 @@ describe('ValidFrontmatter', () => {
 
   describe('unknown key validation', () => {
     it('warns on unknown keys in Page', async () => {
-      const offenses = await check({ [PAGE]: `---\nmy_custom_field: value\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PAGE]: `---\nmy_custom_field: value\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense(
         "Unknown frontmatter field 'my_custom_field' in Page file",
       );
     });
 
     it('warns on unknown keys in FormConfiguration', async () => {
-      const offenses = await check({ [FORM]: `---\nname: my_form\nunknown_field: value\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [FORM]: `---\nname: my_form\nunknown_field: value\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense(
         "Unknown frontmatter field 'unknown_field' in FormConfiguration file",
       );
@@ -545,7 +656,7 @@ describe('ValidFrontmatter', () => {
     it('warns on unknown keys in AuthorizationPolicy', async () => {
       const offenses = await check(
         { [AUTH]: `---\nname: my_policy\nunknown_field: value\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense(
         "Unknown frontmatter field 'unknown_field' in AuthorizationPolicy file",
@@ -555,7 +666,7 @@ describe('ValidFrontmatter', () => {
     it('flash_notice is not valid in AuthorizationPolicy (only flash_alert is)', async () => {
       const offenses = await check(
         { [AUTH]: `---\nname: my_policy\nflash_notice: Denied\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense(
         "Unknown frontmatter field 'flash_notice' in AuthorizationPolicy file",
@@ -565,7 +676,7 @@ describe('ValidFrontmatter', () => {
     it('warns on unknown keys in Email', async () => {
       const offenses = await check(
         { [EMAIL]: `---\nname: my_email\nto: u@e.com\nsubject: Hi\nunknown_field: value\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("Unknown frontmatter field 'unknown_field' in Email file");
     });
@@ -575,7 +686,7 @@ describe('ValidFrontmatter', () => {
         {
           [EMAIL]: `---\nname: my_email\nto: u@e.com\nsubject: Hi\nunique_args:\n  campaign: welcome\n---\n`,
         },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses.some((o) => o.message.includes("'unique_args'"))).toBe(false);
     });
@@ -585,7 +696,7 @@ describe('ValidFrontmatter', () => {
         {
           [SMS]: `---\nname: my_sms\nto: "+15550001234"\ncontent: Hello\nunknown_field: value\n---\n`,
         },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense("Unknown frontmatter field 'unknown_field' in SMS file");
     });
@@ -595,7 +706,7 @@ describe('ValidFrontmatter', () => {
         {
           [API_CALL]: `---\nname: my_call\nto: https://example.com\nrequest_type: GET\nunknown_field: value\n---\n`,
         },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.containOffense(
         "Unknown frontmatter field 'unknown_field' in ApiCall file",
@@ -603,25 +714,28 @@ describe('ValidFrontmatter', () => {
     });
 
     it('warns on unknown keys in Layout', async () => {
-      const offenses = await check({ [LAYOUT]: `---\nunknown_field: value\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [LAYOUT]: `---\nunknown_field: value\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense(
         "Unknown frontmatter field 'unknown_field' in Layout file",
       );
     });
 
     it('name is not a valid Layout frontmatter field (derived from file path)', async () => {
-      const offenses = await check({ [LAYOUT]: `---\nname: my_layout\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [LAYOUT]: `---\nname: my_layout\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense("Unknown frontmatter field 'name' in Layout file");
     });
 
     it('warns on unknown keys in Partial', async () => {
-      const offenses = await check({ [PARTIAL]: `---\nunknown_field: value\n---\n{{ content }}` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [PARTIAL]: `---\nunknown_field: value\n---\n{{ content }}` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses).to.containOffense(
         "Unknown frontmatter field 'unknown_field' in Partial file",
       );
@@ -630,7 +744,7 @@ describe('ValidFrontmatter', () => {
     it('does not validate Migration files (no schema — arbitrary frontmatter allowed)', async () => {
       const offenses = await check(
         { [MIGRATION]: `---\ncustom_key: value\nanother_key: 123\n---\n{{ content }}` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses.some((o) => o.message.includes('Unknown frontmatter'))).toBe(false);
     });
@@ -640,24 +754,26 @@ describe('ValidFrontmatter', () => {
 
   describe('union-type fields', () => {
     it('accepts trigger_condition as boolean in Email', async () => {
-      const offenses = await check({ [EMAIL]: `---\ntrigger_condition: true\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [EMAIL]: `---\ntrigger_condition: true\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses.some((o) => o.message.includes("'trigger_condition'"))).toBe(false);
     });
 
     it('accepts trigger_condition as string in Email', async () => {
       const offenses = await check(
         { [EMAIL]: `---\ntrigger_condition: "{{ context.current_user != blank }}"\n---\n` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses.some((o) => o.message.includes("'trigger_condition'"))).toBe(false);
     });
 
     it('accepts trigger_condition as boolean in SMS', async () => {
-      const offenses = await check({ [SMS]: `---\ntrigger_condition: false\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [SMS]: `---\ntrigger_condition: false\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses.some((o) => o.message.includes("'trigger_condition'"))).toBe(false);
     });
 
@@ -666,20 +782,21 @@ describe('ValidFrontmatter', () => {
         {
           [API_CALL]: `---\nto: https://example.com\nrequest_type: POST\ntrigger_condition: true\n---\n`,
         },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses.some((o) => o.message.includes("'trigger_condition'"))).toBe(false);
     });
 
     it('accepts default_payload as string in FormConfiguration', async () => {
-      const offenses = await check({ [FORM]: `---\ndefault_payload: "{}"\n---\n` }, [
-        ValidFrontmatter,
-      ]);
+      const offenses = await check(
+        { [FORM]: `---\ndefault_payload: "{}"\n---\n` },
+        FRONTMATTER_CHECKS,
+      );
       expect(offenses.some((o) => o.message.includes("'default_payload'"))).toBe(false);
     });
 
     it('accepts resource as string in FormConfiguration', async () => {
-      const offenses = await check({ [FORM]: `---\nresource: User\n---\n` }, [ValidFrontmatter]);
+      const offenses = await check({ [FORM]: `---\nresource: User\n---\n` }, FRONTMATTER_CHECKS);
       expect(offenses.some((o) => o.message.includes("'resource'"))).toBe(false);
     });
   });
@@ -694,7 +811,7 @@ describe('ValidFrontmatter', () => {
     it('skips a file whose type has no frontmatter schema', async () => {
       const offenses = await check(
         { 'app/migrations/20240101_seed.liquid': `---\nfoo: bar\n---\n{{ content }}` },
-        [ValidFrontmatter],
+        FRONTMATTER_CHECKS,
       );
       expect(offenses).to.eql([]);
     });

@@ -1,6 +1,21 @@
 import type { LoadOptions } from 'js-yaml';
 
 /**
+ * TWO YAML LIBRARIES LIVE IN THIS PACKAGE, and which one to reach for is decided by what you
+ * need back, not by preference:
+ *
+ *   js-yaml  — VALUES. Everything that only asks what the document says: translations, the
+ *              schema table, the graph's frontmatter. Reads through the options below.
+ *   yaml     — VALUES *AND* OFFSETS. `frontmatter/extract.ts` only, because a diagnostic has
+ *              to point at the key or value it is about and js-yaml exposes no node ranges.
+ *
+ * They are separate DIALECTS as well as separate APIs, so a reader that switches libraries
+ * without carrying the duplicate-key decision across changes what the file is understood to
+ * say. Both sides now agree that a repeated key is legal and resolves last-wins —
+ * `frontmatter/extract.ts` states its own options and why beside them.
+ */
+
+/**
  * How this repo reads platformOS YAML: a REPEATED KEY IS NOT AN ERROR. The last value wins and
  * the file still loads.
  *

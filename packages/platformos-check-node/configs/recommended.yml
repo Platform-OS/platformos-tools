@@ -6,7 +6,13 @@ ignore:
 DeprecatedFilter:
   enabled: true
   severity: 1
+DeprecatedFrontmatterField:
+  enabled: true
+  severity: 1
 DeprecatedTag:
+  enabled: true
+  severity: 1
+DuplicateFrontmatterKey:
   enabled: true
   severity: 1
 DuplicateFunctionArguments:
@@ -36,6 +42,12 @@ ImgWidthAndHeight:
 ImplicitIncludeArguments:
   enabled: true
   severity: 1
+InvalidFrontmatterSyntax:
+  enabled: true
+  severity: 0
+InvalidFrontmatterValue:
+  enabled: true
+  severity: 0
 InvalidSchemaPropertyType:
   enabled: true
   severity: 0
@@ -58,6 +70,12 @@ MissingContentForLayout:
   enabled: true
   severity: 0
 MissingDocParam:
+  enabled: true
+  severity: 0
+MissingFrontmatterAssociation:
+  enabled: true
+  severity: 0
+MissingLayout:
   enabled: true
   severity: 0
 MissingPage:
@@ -103,6 +121,9 @@ UniqueDocParamNames:
 UnknownFilter:
   enabled: true
   severity: 0
+UnknownFrontmatterField:
+  enabled: true
+  severity: 0
 UnknownProperty:
   enabled: true
   severity: 0
@@ -122,9 +143,6 @@ ValidDocParamTypes:
   enabled: true
   severity: 0
 ValidFilterArgumentTypes:
-  enabled: true
-  severity: 1
-ValidFrontmatter:
   enabled: true
   severity: 1
 ValidHTMLTranslation:

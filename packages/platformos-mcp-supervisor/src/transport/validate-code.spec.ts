@@ -462,6 +462,16 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
 });
 
 describe('validate_code: bounded work', () => {
+  /**
+   * Fake timers are restored per test in a `finally`, which is enough when the test FINISHES.
+   * A test that times out does not get there, and the next one then runs with fake timers
+   * installed and its real `setTimeout` never fires — one failure becomes two, and the second
+   * looks like an unrelated defect. This makes the restoration unconditional.
+   */
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('refuses an oversized buffer BEFORE parsing', async () => {
     const calls: string[] = [];
     const result = await validateOne('a'.repeat(MAX_BUFFER_BYTES + 1), {
@@ -699,9 +709,16 @@ describe('validate_code: bounded work', () => {
         },
       );
 
-      // One tick past the IMPACT deadline must settle the call.
-      await vi.advanceTimersByTimeAsync(IMPACT_DEADLINE_MS + 1);
-      const result = single(await pending);
+      // ADVANCE UNTIL IT SETTLES, rather than once. Impact now runs AFTER the primary lint, so
+      // its deadline timer does not exist yet at this point — a single advance fires nothing and
+      // the call then waits for ever. The loop also covers the project read, which is real
+      // filesystem I/O and completes on its own schedule rather than on a timer.
+      let settled;
+      const done = pending.then((value) => (settled = value));
+      for (let i = 0; i < 20 && settled === undefined; i += 1) {
+        await vi.advanceTimersByTimeAsync(IMPACT_DEADLINE_MS + 1);
+      }
+      const result = single(await done);
 
       expect(result.status).toEqual('ok');
       expect(result.impact.status).toEqual('unavailable');
@@ -726,18 +743,16 @@ describe('validate_code: bounded work', () => {
   it('never starts impact while the primary lint is still in flight', async () => {
     let lintDone = false;
     let impactSawLintFinished: boolean | undefined;
-    let releaseLint: () => void = () => {};
-    const lintBlocked = new Promise<void>((resolve) => (releaseLint = resolve));
-
     await runValidateCode(
       ctx(),
       { file_path: PAGE, content: '<div></div>' },
       {
         lint: async ({ buffers }) => {
-          // Released by a timer rather than by impact: if the two really did overlap, the
-          // old arrangement would deadlock here instead of failing an assertion.
-          setTimeout(releaseLint, 0);
-          await lintBlocked;
+          // YIELDS, NOT A TIMER. This test sits among fake-timer tests, and a real `setTimeout`
+          // here is hostage to whether one of them restored the clock. Ten microtask turns give
+          // a concurrently-started impact every chance to run and observe `lintDone === false`,
+          // which is exactly what the previous arrangement did.
+          for (let i = 0; i < 10; i += 1) await Promise.resolve();
           lintDone = true;
           return {
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),

@@ -113,6 +113,10 @@ export interface DependantBuffer {
 /**
  * Turn dependant URIs into lint buffers, reading their text from the scan the discovery
  * already paid for rather than going back to disk.
+ *
+ * `path.fsPath` is check-common's own URI-to-path conversion, not a local spelling of it: on
+ * Windows a URI and a filesystem path differ in separator AND in how the drive letter is
+ * encoded, and a hand-rolled conversion is the mistake that only the Windows CI job catches.
  */
 export function toDependantBuffers(
   uris: readonly UriString[],
@@ -125,7 +129,7 @@ export function toDependantBuffers(
     // came OUT of this map — but defaulting to empty text would lint a file as blank and
     // report every one of its findings as newly caused.
     if (content === undefined) continue;
-    buffers.push({ uri, filePath: path.URI.parse(uri).fsPath, content });
+    buffers.push({ uri, filePath: path.fsPath(uri), content });
   }
   return buffers;
 }

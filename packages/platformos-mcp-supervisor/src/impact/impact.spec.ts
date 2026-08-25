@@ -75,8 +75,14 @@ describe('runImpact', () => {
     }));
 
   const CARD = 'app/views/partials/card.liquid';
+  /**
+   * LOWERCASE `{string}` deliberately. platformOS publishes its own `param_types` — array,
+   * boolean, date, number, object, string, time — and `{String}` is not among them, so the
+   * capitalised spelling makes every fixture below carry an unrelated `ValidDocParamTypes`
+   * error on the buffer under test.
+   */
   const DOC_CARD = `{% doc %}
-  @param {String} title - required title
+  @param {string} title - required title
 {% enddoc %}
 <div>{{ title }}</div>`;
 
@@ -196,7 +202,7 @@ describe('runImpact', () => {
         buffer(CARD, DOC_CARD),
         buffer(
           'app/views/partials/badge.liquid',
-          `{% doc %}\n  @param {String} label - required label\n{% enddoc %}\n<span>{{ label }}</span>`,
+          `{% doc %}\n  @param {string} label - required label\n{% enddoc %}\n<span>{{ label }}</span>`,
         ),
       ]);
 

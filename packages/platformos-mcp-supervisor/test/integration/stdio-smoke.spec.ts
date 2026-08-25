@@ -215,7 +215,7 @@ describe('Integration: validate_code over stdio', () => {
     const result = await validateCode({
       file_path: 'app/views/partials/lonely.liquid',
       content: `{% doc %}
-  @param {String} title - required title
+  @param {string} title - required title
 {% enddoc %}
 <div>{{ title }}</div>`,
     });
@@ -235,7 +235,7 @@ describe('Integration: validate_code over stdio', () => {
     const result = await validateCode({
       file_path: 'app/views/partials/card.liquid',
       content: `{% doc %}
-  @param {String} title - required title
+  @param {string} title - required title
 {% enddoc %}
 <div class="card">{{ title }}</div>`,
     });
@@ -499,7 +499,7 @@ describe('Integration: the first call already answers cross-file impact', () => 
       arguments: {
         file_path: 'app/views/partials/card.liquid',
         content: `{% doc %}
-  @param {String} title - required title
+  @param {string} title - required title
 {% enddoc %}
 <div>card, edited</div>`,
       },

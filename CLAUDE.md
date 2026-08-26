@@ -240,13 +240,36 @@ distinguished by any real data, the ordering had to be asserted directly.
   **cannot** be affected by what you're measuring — a JSON-typed check timed
   against a Liquid buffer should cost nothing, and if it doesn't, the number is
   the method's error bar.
-- **"We both read YAML" is not agreement — name the DIALECT.** This repo parses
-  YAML 1.2 (npm `yaml`); the platform parses YAML 1.1 (Ruby Psych). That one
-  unwritten sentence produced three separate defects in three directions — a false
-  block, a false positive, and a documented silence whose stated *reason* was
-  wrong. The same applies to Liquid: `liquid-html-parser` is a Shopify fork and
-  platformOS is not Shopify. Wherever a checker and its target implement the same
-  format independently, run the differential rather than reasoning about the spec.
+- **"We both read YAML" is not agreement — name the LIBRARY, not the dialect.**
+  This repo parses YAML 1.2 (npm `yaml`). The platform reads YAML with the
+  **`safe_yaml` gem (1.0.5) in `:safe` mode — NOT `Psych.safe_load`.** Verified in
+  the platform source: `config/initializers/safe_yaml.rb` sets
+  `SafeYAML::OPTIONS[:default_mode] = :safe`, every YAML file type in
+  `converters_config.rb` routes to `Parsers::YamlParser`, and that parser calls
+  `SafeYAML.load` (`yaml_parser.rb`). Page frontmatter takes the same road
+  (`liquid_parser.rb`).
+
+  SAYING "YAML 1.1" OR "PSYCH" IS THE MISTAKE THIS BULLET NOW EXISTS TO PREVENT — it
+  was written here as fact, was wrong, and a committed oracle was generated from it.
+  safe_yaml uses Psych only to PARSE; it resolves scalars through its own `Transform`
+  chain, so key identity is its answer and not Psych's. Measured on the shipped
+  75-token corpus (5,625 ordered pairs):
+
+  | | pairs | |
+  |---|---|---|
+  | the two agree | 4,974 | |
+  | safe_yaml DROPS a `nil`-keyed entry | 568 | `a: 1` + `~: 2` -> `{"a"=>1}`; Psych keeps `nil` |
+  | safe_yaml collapses, Psych does not | 4 | e.g. `0x10` / `0X10` |
+  | Psych collapses, safe_yaml does not | 4 | e.g. `1:30` / `5400`, `.inf` / `.iNf` |
+
+  The 568 are NOT duplicate keys. The entry is discarded, which is a data-loss
+  question and not a key-identity one — an oracle regenerated from safe_yaml that
+  recorded them as "same key" would be a new wrong answer, not a fix.
+
+  The same applies to Liquid: `liquid-html-parser` is a Shopify fork and platformOS
+  is not Shopify. Wherever a checker and its target implement the same format
+  independently, run the differential rather than reasoning about the spec — and
+  name the library both sides actually run.
 - **A documented silence can be right in behaviour and wrong in justification.**
   Fixing the comment matters as much as fixing the code: the next person reasons
   from the comment, and a confident false premise propagates further than a bug.
@@ -254,7 +277,9 @@ distinguished by any real data, the ordering had to be asserted directly.
 ### Generated files
 
 `src/yaml/psych-key-identity.ts` is produced by `scripts/verify-*.mjs` against a live Ruby and
-committed. `grammar/liquid-html.ohm.js` is generated too, but by the build rather than a
+committed. **Its name and its contents are both wrong about the platform**: it was generated
+from `Psych`, and the platform reads YAML with `safe_yaml` (see the DIALECT bullet above).
+Anything reasoning from it inherits that error. `grammar/liquid-html.ohm.js` is generated too, but by the build rather than a
 script — see "Changing the grammar".
 
 **This repository is a CONSUMER of the platform's documentation, and never its auditor.**
@@ -289,7 +314,10 @@ A committed MEASUREMENT of the platform is the same mistake wearing a lab coat: 
 return-type oracle was 1,536 lines of it, went stale the moment documentation deployed, and
 needed a credentialed live sweep to refresh. Verifying an annotation belongs in the repository
 that authors it, beside the annotation, where an ordinary test can call the thing. A foreign
-format nobody upstream tests — Ruby Psych's YAML 1.1 key identity — is the case that survives.
+format nobody upstream tests — the key identity of the YAML loader the platform actually runs —
+is the case that survives. Note what went wrong even there: the surviving oracle was pointed at
+the wrong library for its whole life, so "this is the case that survives" is an argument for
+committing the measurement, never for trusting the premise behind it.
 
 When touching the ones that remain:
 

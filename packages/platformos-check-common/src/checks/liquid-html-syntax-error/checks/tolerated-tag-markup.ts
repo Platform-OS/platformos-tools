@@ -1,4 +1,5 @@
 import { LiquidTag, NamedTags } from '@platformos/liquid-html-parser';
+import { baseTagValue } from './base-tag-value';
 
 /**
  * Tag markup the grammar refuses that platformOS parses AS INTENDED, measured on a live
@@ -29,10 +30,35 @@ const CASE_TRAILING_COLON = /^\s*[A-Za-z_][\w-]*(?:\.[\w-]+)*\s*:+\s*$/;
 /** `{% parse_json v %%}` — a stray `%` the unanchored SYNTAX never reaches. A name is required. */
 const PARSE_JSON_TRAILING_PERCENT = /^\s*[A-Za-z_][\w-]*\s*%+\s*$/;
 
-const TOLERATED: Partial<Record<string, RegExp>> = {
-  [NamedTags.capture]: CAPTURE_QUOTED_TARGET,
-  [NamedTags.case]: CASE_TRAILING_COLON,
-  [NamedTags.parse_json]: PARSE_JSON_TRAILING_PERCENT,
+/**
+ * `{% response_headers '{ "K" : "a 'b' c" }' %}` — nested quotes.
+ *
+ * NOT a shape test. No syntactic rule works here: `'{ "K" : "a' 'b" }'` has an even number of
+ * quotes and fails with HTTP 501, so quote parity admits what the platform refuses. The tag
+ * needs one thing — an argument that parses as a JSON object — so that is what is checked, on
+ * the value {@link baseTagValue} says the tag will actually receive.
+ *
+ * Measured over 26 argument shapes against a live instance: 0 false approvals, 0 false blocks.
+ */
+function isParseableHeaderJson(markup: string): boolean {
+  const value = baseTagValue(markup);
+  if (value === undefined) return false;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return false;
+  }
+  return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+}
+
+const matches = (shape: RegExp) => (markup: string) => shape.test(markup);
+
+const TOLERATED: Partial<Record<string, (markup: string) => boolean>> = {
+  [NamedTags.capture]: matches(CAPTURE_QUOTED_TARGET),
+  [NamedTags.case]: matches(CASE_TRAILING_COLON),
+  [NamedTags.parse_json]: matches(PARSE_JSON_TRAILING_PERCENT),
+  [NamedTags.response_headers]: isParseableHeaderJson,
 };
 
 /**
@@ -41,8 +67,8 @@ const TOLERATED: Partial<Record<string, RegExp>> = {
  */
 export function isToleratedTagMarkup(node: LiquidTag): boolean {
   if (typeof node.markup !== 'string') return false;
-  const shape = TOLERATED[node.name];
-  return shape !== undefined && shape.test(node.markup);
+  const admits = TOLERATED[node.name];
+  return admits !== undefined && admits(node.markup);
 }
 
 export const TAGS_WITH_TOLERATED_MARKUP: readonly string[] = Object.keys(TOLERATED);

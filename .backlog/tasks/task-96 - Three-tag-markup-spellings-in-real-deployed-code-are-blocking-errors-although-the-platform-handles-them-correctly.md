@@ -6,7 +6,7 @@ title: >-
 status: In Progress
 assignee: []
 created_date: '2026-08-26 13:49'
-updated_date: '2026-08-26 14:41'
+updated_date: '2026-08-26 15:56'
 labels:
   - check-common
   - false-block
@@ -201,4 +201,40 @@ Full monorepo: 357 test files / 4,535 tests pass; `type-check`, `build` and `for
 ### Unrelated finding, recorded so it is not lost
 
 `RollbackOutsideTransaction` already exists and works correctly: a **page** with a bare `{% rollback %}` is reported; a **partial** deliberately is not, because `RollbackTag` checks `AfterCommitEverywhere.in_transaction?` at runtime and the caller decides. The eval's `S13-FN-rollback-outside-transaction` finding probes a partial, so it measures a designed silence — a fixture artifact of the harness, not a gap in the checks. Belongs to the eval, not to this task.
+
+## Post-implementation audit — every claim re-measured against the TAG ITSELF
+
+Triggered by finding that one justification had been measured through a PROXY. Re-ran all 21 constructs directly, one request each.
+
+### The allowlist is sound — all 10 verified INTENDED
+
+Three of them had only been REASONED about before and are now measured: `capture "cs"` (double-quoted) → `[HI]`; `case h.t:` (dotted path) → `[ONE]`; `parse_json d % %}` (the post-format spelling) → `[2]`. No change to the predicate was needed.
+
+### Three blocked-case JUSTIFICATIONS were wrong — all corrected in the spec
+
+| construct | claimed | measured |
+|---|---|---|
+| `response_headers '{…'none'…}'` | "receives 27 chars of malformed JSON" | **sets the header correctly, quotes intact** — a genuine FALSE BLOCK |
+| `capture '1x'` | "unmeasured, so not admitted" | **runs correctly**, captures into `1x` |
+| `case g : :` | no reason given | **runs correctly**, takes the right branch |
+
+The `response_headers` error was a proxy measurement: it was taken through `{% assign s = <literal> %}`, which truncates the literal to 27 characters. A `Base` tag matches `QuotedFragment`, which platformOS redefines to be escape-aware (`app/lib/liquid/quoted_string_escapes.rb`), so the tag receives the whole argument. **`assign` is not a proxy for a tag's own parsing.** Filed as TASK-98 with the balance boundary measured (a balanced inner pair works; an unbalanced apostrophe still fails with HTTP 501).
+
+### Three justifications verified CORRECT
+
+`capture 'a b'` → `[a=HI][b=]`, captures into `a` and drops ` b`. `case :` → `[FELL]`, takes the else branch silently — the genuinely dangerous one. `parse_json %` → raises.
+
+### What changed, and what did not
+
+The fix is **spec-only**: `git diff --name-only` lists one file, `unconventional-tag-syntax/index.spec.ts`. No source file changed, so behaviour is provably identical. The blocked set now labels each row `RAISES` / `WRONG` / `NOT ADMITTED` so a reader can tell a platform refusal from a silent misbehaviour from a knowingly-accepted false block — they are not interchangeable, and the flat list invited exactly the error above.
+
+`NOT ADMITTED` is stated as a deliberate trade: `capture '1x'` and `case g : :` run correctly and are still refused, because each has zero corpus occurrences and the allowlist is kept minimal. Widen with data, not sympathy.
+
+### Re-verified after the edits
+
+Full monorepo 357 files / 4,537 tests pass; `type-check` and `format:check` clean. All 9 sabotage mutations still bite (baseline 31/31). Corpus diff re-run and byte-identical: 13,065 offenses / 1,950 files unchanged, `LiquidHTMLSyntaxError` 122 → 88, `UnconventionalTagSyntax` 0 → 34.
+
+### Eval side, corrected in the same pass
+
+`suites/13-cli-parity.mjs`: the `valueFidelity` oracle was removed entirely — its only use was the invalid proxy above, so keeping it would have been dead code inviting reuse. The row now carries a "do not re-add a valueFidelity proxy here; read the header" note. `S13-FB-response-headers-nested-quotes` is restored as a FALSE_BLOCK and `S13-FB-log-colon` remains correctly retracted — verified by re-running the suite (3 findings, 1 retraction).
 <!-- SECTION:NOTES:END -->

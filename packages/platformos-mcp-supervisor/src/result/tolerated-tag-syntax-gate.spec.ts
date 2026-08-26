@@ -48,6 +48,12 @@ const TOLERATED = [
     what: 'parse_json with a stray percent',
     source: `{% parse_json d %%}{"k":2}{% endparse_json %}`,
   },
+  {
+    // The construct from a real application layout. Measured: the platform sets
+    // `Content-Security-Policy: frame-ancestors 'none'` correctly.
+    what: 'response_headers with nested quotes that leave valid JSON',
+    source: `{% response_headers '{ "Content-Security-Policy" : "frame-ancestors 'none'" }' %}`,
+  },
 ];
 
 /** Measured to raise, or to run while doing something other than what was written. */
@@ -56,6 +62,11 @@ const BLOCKED = [
   { what: 'cache with the key omitted', source: `{% cache expire: 30 %}B{% endcache %}` },
   { what: 'log with a leading colon', source: `{% log: o, type: 'E' %}` },
   { what: 'capture with empty markup', source: `{% capture %}x{% endcapture %}` },
+  {
+    // Measured HTTP 501: the run stops at the unescaped quote, so the tag gets truncated JSON.
+    what: 'response_headers whose argument truncates to invalid JSON',
+    source: `{% response_headers '{"X-Ae": "va'lue"}' %}`,
+  },
 ];
 
 describe('The write gate lets tolerated tag syntax through', () => {

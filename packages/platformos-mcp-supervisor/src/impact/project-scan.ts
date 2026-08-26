@@ -1,22 +1,24 @@
 /**
  * The project's edge-source files as TEXT, read ONCE per request.
  *
- * This is the whole of the blast radius's project state. The trade is deliberate: pay a
- * project READ per request — I/O, on the threadpool, overlapping the lint's CPU — instead
- * of a whole-project PARSE once and a lifetime of keeping it honest. Measured on a real
- * project (2,615 edge sources, 3.0 MB): 235 ms. Being derived per request, it cannot be stale,
- * which is why `impact` has no `computing` state.
+ * This is the whole of impact's project state, and it is read only when some buffer in the
+ * request could HAVE dependants — decidable from the paths alone, before any I/O. The trade
+ * is deliberate:
+ * pay a project READ per request — I/O, on the threadpool, overlapping the lint's CPU —
+ * instead of a whole-project PARSE once and a lifetime of keeping it honest. Measured on a
+ * real project (2,615 edge sources, 3.0 MB): 235 ms. Being derived per request, it cannot be
+ * stale, which is why `impact` has no `computing` state.
  *
  * SCOPE. Only EDGE SOURCES are read (`enumerateEdgeSources` — page/layout/partial), because
  * only their content can declare an edge; `.graphql`/`.yml`/asset files are leaves and can
  * never be the SOURCE of a reference. That is the graph's own definition, imported rather
  * than restated.
  *
- * BUFFERS WIN OVER DISK. The changeset under validation is overlaid, so a partial a buffer
- * has only just started rendering counts as a dependent, and one whose call a buffer has
- * just deleted stops counting — otherwise this stage would answer from disk while the lint
- * beside it answers from the buffer. A buffer for a file not yet on disk is ADDED when it is
- * an edge source, so a brand-new page's `{% render %}` is seen.
+ * BUFFERS WIN OVER DISK. The changeset under validation is overlaid, so a call a buffer has
+ * only just added counts, and one it has just deleted stops counting — otherwise this stage
+ * would answer from disk while the lint beside it answers from the buffer. A buffer for a
+ * file not yet on disk is ADDED when it is an edge source, so a brand-new page's
+ * `{% render %}` is seen.
  */
 import { path, type UriString } from '@platformos/platformos-check-common';
 import type { AbstractFileSystem } from '@platformos/platformos-common';

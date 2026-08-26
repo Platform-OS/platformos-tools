@@ -147,55 +147,58 @@ export interface ValidateCodeDiagnostic {
 }
 
 /**
- * Applicability of the blast-radius answer. Distinguishes a real "nothing depends on this"
- * (`computed`, total 0 — safe to change) from "we could not find out" (`unavailable`) and
- * from "this file type has no dependency graph" (`not_applicable`), so a failed lookup can
- * never be misread as a green light.
+ * Whether the cross-file comparison ran. `computed` means this file's dependants were linted
+ * with the change applied and without it; `unavailable` means that could not be done (a
+ * failure, or the deadline); `not_applicable` means the file has no dependants this stage
+ * can find — the graph holds no edges pointing at it, or it has no logical name.
  *
- * `not_applicable` covers files that are not graph-trackable edge targets (schema /
- * custom-model-type / translation YAML): they are wired by model/table NAME, not by file
- * reference (see ADR 004), so `total: 0` would falsely read as "safe to change". It also
- * covers a source in no platformOS directory, which has no logical name to reference.
+ * `disabled` means this SERVER was started with cross-file impact turned off (`--no-impact`),
+ * so nothing was attempted and retrying will not change that — which is the whole reason it
+ * is not folded into `unavailable`.
+ *
+ * NONE OF THE FOUR IS A CLEARANCE, including `computed`. See {@link ValidateCodeImpact}.
  */
-export type ValidateCodeImpactStatus = 'computed' | 'unavailable' | 'not_applicable';
+export type ValidateCodeImpactStatus = 'computed' | 'unavailable' | 'not_applicable' | 'disabled';
 
 /**
- * Cross-file "blast radius" of editing the file: who DEPENDS ON it, which lint cannot see
- * (lint is per-file, forward-looking). Derived per request from the project's own text
- * with the changeset's buffers overlaid.
+ * What this change BREAKS in files the request is not editing — the question lint cannot
+ * answer, being per-file and forward-looking. Derived per request by linting the edited
+ * file's dependants twice, with the changeset applied and without it, and reporting only the
+ * difference. The findings are the check engine's own, so they carry its message, severity
+ * and documentation link rather than a second opinion invented here.
  *
- * `scope` is always `direct` (immediate callers only — transitive closure is noise).
- * `dependents` is meaningful ONLY when `status` is `computed`; otherwise it is zeroed and
- * the status says why.
+ * IT DOES NOT ANSWER "WHO DEPENDS ON THIS FILE", and never will: `{% render var %}` names its
+ * target at runtime, so no static analysis can enumerate a file's dependants, and a count
+ * that omits the ones it cannot see reads as a licence to delete. Only findings are
+ * published; their absence claims nothing.
  */
 export interface ValidateCodeImpact {
-  scope: 'direct';
   status: ValidateCodeImpactStatus;
-  dependents: {
-    /** Number of distinct files that reference the edited file. */
-    total: number;
-    /** Distinct referencing files per edge kind (render/include/function/…); a file using two kinds counts in both. */
-    by_kind: Record<string, number>;
-    /** Up to 10 distinct referencing files, project-relative, sorted. */
-    sample: string[];
-  };
   /**
-   * Dependent callers whose arguments do NOT match the edited file's `{% doc %}`
-   * signature — the cross-file counterpart to the `PartialCallArguments` lint check.
-   * Present ONLY when the edited buffer declares a `{% doc %}` block: an empty array means
-   * "checked, every caller matches", absent means "no contract to check against".
+   * Files the change broke, each with the findings it GAINED. A finding already present
+   * before the change is not reported, however severe: it is not this edit's doing.
+   *
+   * PRESENT ONLY WHEN NON-EMPTY, and absence is not a clearance — it means no break was
+   * found among the dependants that are visible, which is not the same as none existing.
    */
-  signature_risk?: ValidateCodeSignatureRisk[];
+  breaks?: ValidateCodeImpactBreak[];
+  /**
+   * Present only when more dependants were found than the bound allows: `returned` were
+   * linted, `total` were found.
+   *
+   * NOT the same kind of truncation as the result-level `truncated`, which withholds
+   * findings that WERE computed. The difference here was never checked at all, so an
+   * otherwise-clean answer carrying this field is a PARTIAL one.
+   */
+  unchecked_dependants?: ValidateCodeBucketTruncation;
 }
 
-/** One dependent caller at risk from the edited file's current `{% doc %}` signature. */
-export interface ValidateCodeSignatureRisk {
-  /** The referencing file, project-relative. */
-  caller: string;
-  /** Required `@param`s the caller does not pass. */
-  missing_required: string[];
-  /** Arguments the caller passes that the `{% doc %}` block does not declare. */
-  unexpected_args: string[];
+/** One file the change broke, and what it broke in it. */
+export interface ValidateCodeImpactBreak {
+  /** The broken file, project-relative. NOT a file the request asked about. */
+  file: string;
+  /** The findings this change introduced there, in reading order. */
+  diagnostics: ValidateCodeDiagnostic[];
 }
 
 /** How many entries of one bucket were returned, against how many were found. */
@@ -233,9 +236,8 @@ export interface ValidateCodeResult {
   warnings: ValidateCodeDiagnostic[];
   infos: ValidateCodeDiagnostic[];
   /**
-   * Cross-file blast radius: who depends on the edited file. Always present; `status`
-   * distinguishes a real "nothing depends on this" from "not computed".
-   * See {@link ValidateCodeImpact}.
+   * Cross-file consequence of the edit: what it breaks in files you are not editing.
+   * Always present, and never a clearance. See {@link ValidateCodeImpact}.
    */
   impact: ValidateCodeImpact;
   /** Deterministic prose telling the agent what to do next. */

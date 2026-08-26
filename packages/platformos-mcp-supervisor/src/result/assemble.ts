@@ -73,8 +73,7 @@ export function assembleResult(
  * own validation failed would make the tool a liability. `reason` lands in `next_step`;
  * `code` lands in `not_applicable_reason` for an agent to branch on.
  *
- * `impact` is `not_applicable`, and its zeroed `dependents` must never be read as "nothing
- * depends on this".
+ * `impact` is `not_applicable`: nothing cross-file was compared either.
  */
 export function assembleNotApplicableResult(declined: Declined): ValidateCodeResult {
   return {

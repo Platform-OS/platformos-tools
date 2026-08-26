@@ -51,11 +51,26 @@ input { file_path, content } | { files: [...] }
   → ValidateCodeResult
 ```
 
-The lint and the blast radius run concurrently; the lint is the long pole and the blast
-radius hides behind it. Nothing is cached between calls on the blast-radius side: it reads
-the project's edge sources, keeps the few that could name the edited file, and resolves
-their references through `platformos-graph` — so the answer is fresh by construction rather
-than by revalidating a stored graph.
+Impact reports one thing: **what your change breaks in files you are not editing**. It finds
+the edited file's dependants through `platformos-graph`, lints them twice — once with your
+changeset applied, once without — and reports only the findings the change INTRODUCED. Those
+findings are the check engine's own, so they arrive with the same message, severity,
+documentation link and fixes as any other diagnostic; nothing about "what is broken" is
+re-derived here.
+
+The project READ overlaps the primary lint, but the two impact lint passes cannot: they share
+check-node's process-wide `App`, which has no lock. So the primary lint runs first and is
+never delayed by, or lost to, impact.
+
+Two bounds keep it affordable, both measured and both reported when hit — `IMPACT_DEADLINE_MS`
+cannot bound this work, since a lint is synchronous CPU and no timer preempts it:
+`MAX_CANDIDATE_BYTES` caps the text discovery will parse, and `MAX_DEPENDANTS_LINTED` caps how
+many dependants get linted. Start the server with `--no-impact` (or
+`POS_SUPERVISOR_NO_IMPACT=1`) to switch the whole stage off; results then carry
+`impact.status: "disabled"`.
+
+It never answers "who depends on this file": `{% render var %}` names its target at runtime,
+so that question has no sound static answer and no count is published in place of one.
 
 ## What this package is not
 

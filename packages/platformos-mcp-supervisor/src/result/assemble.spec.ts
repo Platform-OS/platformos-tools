@@ -12,12 +12,8 @@ const diag = (over: Partial<ValidateCodeDiagnostic>): ValidateCodeDiagnostic => 
 });
 
 // A neutral "not computed" impact used where the test does not exercise the
-// blast radius itself (it is threaded verbatim by assembleResult).
-const NO_IMPACT: ValidateCodeImpact = {
-  scope: 'direct',
-  status: 'unavailable',
-  dependents: { total: 0, by_kind: {}, sample: [] },
-};
+// cross-file comparison itself (it is threaded verbatim by assembleResult).
+const NO_IMPACT: ValidateCodeImpact = { status: 'unavailable' };
 
 // The always-empty envelope fields in this lint-only slice. Spread into each
 // expected result so every assertion checks the WHOLE object, catching any
@@ -92,15 +88,61 @@ describe('Unit: assembleResult', () => {
     });
   });
 
-  it('carries the impact through verbatim (status unaffected by blast radius)', () => {
-    const impact: ValidateCodeImpact = {
-      scope: 'direct',
+  /**
+   * THE GATE ANSWERS FOR THE BUFFER, NOT FOR THE PROJECT.
+   *
+   * `must_fix_before_write` means "will THIS file be broken if I write it" — and a file can
+   * be perfectly correct while its edit breaks three pages. Those pages need fixing too, but
+   * blocking the write of a clean buffer is a different, wider claim than the one this flag
+   * makes, and agents already act on the narrow one.
+   *
+   * So an `error`-severity finding in a DEPENDANT must not move it. The presence of `breaks`
+   * is the signal for that; no second boolean restates it.
+   */
+  it('does NOT block the write when only a dependant broke, however severe', () => {
+    const brokeSomeoneElse: ValidateCodeImpact = {
       status: 'computed',
-      dependents: {
-        total: 2,
-        by_kind: { render: 1, include: 1 },
-        sample: ['app/views/pages/index.liquid', 'app/views/partials/wrapper.liquid'],
-      },
+      breaks: [
+        {
+          file: 'app/views/pages/home.liquid',
+          diagnostics: [
+            {
+              check: 'MissingRenderPartialArguments',
+              severity: 'error',
+              message: "Missing required argument 'title'",
+              line: 1,
+              column: 11,
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(assembleResult([], brokeSomeoneElse)).toEqual({
+      ...EMPTY_ENVELOPE,
+      status: 'ok',
+      must_fix_before_write: false,
+      impact: brokeSomeoneElse,
+    });
+  });
+
+  it('carries the impact through verbatim (status unaffected by cross-file findings)', () => {
+    const impact: ValidateCodeImpact = {
+      status: 'computed',
+      breaks: [
+        {
+          file: 'app/views/pages/index.liquid',
+          diagnostics: [
+            {
+              check: 'MissingRenderPartialArguments',
+              severity: 'error',
+              message: 'missing required argument',
+              line: 1,
+              column: 1,
+            },
+          ],
+        },
+      ],
     };
 
     expect(assembleResult([], impact)).toEqual({

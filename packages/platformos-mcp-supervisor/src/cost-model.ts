@@ -148,3 +148,66 @@ export function lintDeadlineMs(bytes: number): number {
 export function maxBytesWithin(deadlineMs: number): number {
   return Math.floor(deadlineMs / DEADLINE_MS_PER_KIB) * 1024;
 }
+
+/**
+ * How many DEPENDANTS one request will lint when computing impact.
+ *
+ * THE REAL BOUND ON IMPACT, and not a nicety. `IMPACT_DEADLINE_MS` cannot bound this work:
+ * a lint is synchronous CPU on the one event loop, so no timer preempts it (see
+ * `deadline.ts`). Bounding the INPUT is the only defence, exactly as `MAX_BUFFER_BYTES` is
+ * for the primary lint.
+ *
+ * DERIVED from the deadline it has to fit inside, on the worst project scale:
+ *
+ *   impact deadline                                     2 000 ms
+ *   less the project read at 10k files                  ~ 850 ms
+ *   leaves for both lint passes                         ~1 150 ms
+ *
+ * Measured twice-lint cost, and the same {@link LOAD_FACTOR} the lint deadline uses:
+ *
+ *   100 dependants   258 ms idle    774 ms loaded   -> 1 624 ms total, FITS
+ *   200 dependants   487 ms idle  1 460 ms loaded   -> over
+ *   311 dependants   716 ms idle  2 147 ms loaded   -> over on its own
+ *
+ * 311 is not hypothetical: it is the most-depended-on file measured on a real 2 615-file
+ * application (`lib/current_profile`). The same measurement puts 99.37% of targets at 100
+ * dependants or fewer — p50 1, p90 4, p99 59 — so the bound is hit rarely and, when it is,
+ * IT IS REPORTED (`unchecked_dependants`) rather than silently shortening the analysis.
+ */
+export const MAX_DEPENDANTS_LINTED = 100;
+
+/**
+ * Cost of DISCOVERING dependants, per KiB of candidate text.
+ *
+ * Discovery parses every file whose text contains the target's name and resolves its
+ * references through the graph, so it scales with the BYTES it must parse rather than with
+ * the file count. Measured on a real 2 615-file application across four very differently
+ * shaped targets: 12.82, 12.52, 8.59 and 14.60 ms/KiB. Held above the slowest observed, for
+ * the same reason {@link LINT_MS_PER_KIB} is.
+ */
+export const DISCOVERY_MS_PER_KIB = 15;
+
+/**
+ * How much candidate text one target's discovery will parse before giving up.
+ *
+ * WHY A BOUND AT ALL, and why it is not {@link MAX_DEPENDANTS_LINTED}: that one bounds the
+ * two lint passes, which happen AFTER discovery. Discovery itself was unbounded, and the
+ * most-referenced file on a real application (`lib/current_profile`, 312 candidates) cost
+ * 4.7 s and then returned `unavailable` anyway — seconds spent to reach "I do not know".
+ * The candidate byte total is known from a substring scan, before a single parse, so the
+ * same answer costs milliseconds instead.
+ *
+ * DERIVED from what has to fit inside `IMPACT_DEADLINE_MS`:
+ *
+ *   impact deadline                                    2 000 ms
+ *   less the project read                              ~ 235 ms
+ *   less both lint passes at the dependant bound       ~ 258 ms
+ *   leaves for discovery                              ~1 507 ms
+ *   at {@link DISCOVERY_MS_PER_KIB}                     ~100 KiB
+ *
+ * Held at 64 KiB rather than 100, because 100 spends the entire remaining budget and leaves
+ * nothing for a larger project's read. Measured against the same application: candidate text
+ * is p50 1 KiB, p90 13, p95 23, p99 143 — so 64 KiB is nearly 3x the p95 and turns away
+ * 2.51% of targets, each in a few milliseconds instead of several seconds.
+ */
+export const MAX_CANDIDATE_BYTES = 64 * 1024;

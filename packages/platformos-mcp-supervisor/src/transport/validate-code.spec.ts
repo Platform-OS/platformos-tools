@@ -13,6 +13,7 @@ import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code
 import { SERVER_INSTRUCTIONS } from './instructions.js';
 import { BLOCKING_CHECKS } from '../result/blocking.js';
 import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
+import type { ImpactInput } from '../impact/impact.js';
 import {
   MAX_RESPONSE_DIAGNOSTIC_BYTES,
   MIN_LINT_DEADLINE_MS,
@@ -45,11 +46,13 @@ const ctx = (log: SupervisorContext['log'] = () => {}): SupervisorContext => ({
   log,
 });
 
-const COMPUTED: ValidateCodeImpact = {
-  scope: 'direct',
-  status: 'computed',
-  dependents: { total: 0, by_kind: {}, sample: [] },
-};
+const COMPUTED: ValidateCodeImpact = { status: 'computed' };
+
+/** The impact adapter answers for the WHOLE changeset now, one entry per buffer. */
+const impactStub =
+  (impact: ValidateCodeImpact = COMPUTED) =>
+  async ({ buffers }: ImpactInput) =>
+    new Map(buffers.map((buffer) => [buffer.filePath, impact]));
 
 const diagnostic = (
   check: string,
@@ -82,7 +85,7 @@ const adaptersFor = (
     diagnostics: new Map(buffers.map((b) => [b.filePath, byFile[b.filePath] ?? []])),
     notChecked: new Map(),
   }),
-  impact: async () => COMPUTED,
+  impact: impactStub(),
   docset: async () => ({ filters: [], tags: [], objects: [] }),
 });
 
@@ -203,7 +206,7 @@ describe('validate_code: the single-file form', () => {
 
     expect(result.warnings).toEqual([warning]);
     expect(result.impact.status).toEqual('unavailable');
-    expect(logs.some((line) => line.includes('blast-radius failed'))).toBe(true);
+    expect(logs.some((line) => line.includes('impact failed'))).toBe(true);
   });
 
   it('propagates a lint failure — the primary gate is never silently dropped', async () => {
@@ -217,7 +220,7 @@ describe('validate_code: the single-file form', () => {
           lint: async () => {
             throw failure;
           },
-          impact: async () => COMPUTED,
+          impact: impactStub(),
         },
       ),
     ).rejects.toThrow(failure);
@@ -258,7 +261,7 @@ describe('validate_code: the multi-file form', () => {
             notChecked: new Map(),
           };
         },
-        impact: async () => COMPUTED,
+        impact: impactStub(),
       },
     );
 
@@ -266,7 +269,7 @@ describe('validate_code: the multi-file form', () => {
   });
 
   /**
-   * The blast radius reads the project per REQUEST, not per file, and the proof has to be
+   * Impact reads the project per REQUEST, not per file, and the proof has to be
    * identity: every buffer is handed the SAME `ProjectScan`, whose `sources()` is memoized.
    * A scan built per buffer returns identical answers and simply multiplies the I/O.
    */
@@ -284,9 +287,9 @@ describe('validate_code: the multi-file form', () => {
           diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
           notChecked: new Map(),
         }),
-        impact: async (_params, scan) => {
+        impact: async ({ buffers, scan }) => {
           scans.add(scan);
-          return COMPUTED;
+          return new Map(buffers.map((buffer) => [buffer.filePath, COMPUTED]));
         },
       },
     );
@@ -372,9 +375,9 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
             notChecked: new Map(),
           };
         },
-        impact: async () => {
+        impact: async ({ buffers }) => {
           calls.push('impact');
-          return COMPUTED;
+          return new Map(buffers.map((buffer) => [buffer.filePath, COMPUTED]));
         },
       },
       file_path,
@@ -403,7 +406,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
         diagnostics: new Map(),
         notChecked: new Map<string, LintNotCheckedStatus>([[PAGE, 'excluded-by-config']]),
       }),
-      impact: async () => COMPUTED,
+      impact: impactStub(),
     });
 
     expect(result.status).toEqual('not_applicable');
@@ -421,7 +424,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
           linted = true;
           return { diagnostics: new Map(), notChecked: new Map() };
         },
-        impact: async () => COMPUTED,
+        impact: impactStub(),
       },
       '/etc/passwd',
     );
@@ -450,7 +453,7 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
             notChecked: new Map(),
           };
         },
-        impact: async () => COMPUTED,
+        impact: impactStub(),
       },
     );
 
@@ -459,6 +462,16 @@ describe('validate_code: per-file refusals (a request is never all-or-nothing)',
 });
 
 describe('validate_code: bounded work', () => {
+  /**
+   * Fake timers are restored per test in a `finally`, which is enough when the test FINISHES.
+   * A test that times out does not get there, and the next one then runs with fake timers
+   * installed and its real `setTimeout` never fires — one failure becomes two, and the second
+   * looks like an unrelated defect. This makes the restoration unconditional.
+   */
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('refuses an oversized buffer BEFORE parsing', async () => {
     const calls: string[] = [];
     const result = await validateOne('a'.repeat(MAX_BUFFER_BYTES + 1), {
@@ -469,7 +482,7 @@ describe('validate_code: bounded work', () => {
           notChecked: new Map(),
         };
       },
-      impact: async () => COMPUTED,
+      impact: impactStub(),
     });
 
     expect(result.not_applicable_reason).toEqual('too_large');
@@ -578,7 +591,7 @@ describe('validate_code: bounded work', () => {
       const pending = runValidateCode(
         ctx(),
         { file_path: PAGE, content: '<div></div>' },
-        { lint: () => new Promise(() => {}), impact: async () => COMPUTED },
+        { lint: () => new Promise(() => {}), impact: impactStub() },
       );
 
       await vi.advanceTimersByTimeAsync(MIN_LINT_DEADLINE_MS + 1);
@@ -612,7 +625,7 @@ describe('validate_code: bounded work', () => {
         { files },
         {
           lint: () => new Promise(() => {}),
-          impact: async () => COMPUTED,
+          impact: impactStub(),
         },
       ).then((value) => {
         settled = true;
@@ -659,7 +672,7 @@ describe('validate_code: bounded work', () => {
             new Promise((_, reject) => {
               rejectLint = reject;
             }),
-          impact: async () => COMPUTED,
+          impact: impactStub(),
         },
       );
 
@@ -696,9 +709,16 @@ describe('validate_code: bounded work', () => {
         },
       );
 
-      // One tick past the IMPACT deadline must settle the call.
-      await vi.advanceTimersByTimeAsync(IMPACT_DEADLINE_MS + 1);
-      const result = single(await pending);
+      // ADVANCE UNTIL IT SETTLES, rather than once. Impact now runs AFTER the primary lint, so
+      // its deadline timer does not exist yet at this point — a single advance fires nothing and
+      // the call then waits for ever. The loop also covers the project read, which is real
+      // filesystem I/O and completes on its own schedule rather than on a timer.
+      let settled;
+      const done = pending.then((value) => (settled = value));
+      for (let i = 0; i < 20 && settled === undefined; i += 1) {
+        await vi.advanceTimersByTimeAsync(IMPACT_DEADLINE_MS + 1);
+      }
+      const result = single(await done);
 
       expect(result.status).toEqual('ok');
       expect(result.impact.status).toEqual('unavailable');
@@ -707,37 +727,134 @@ describe('validate_code: bounded work', () => {
     }
   });
 
-  it('runs lint and impact CONCURRENTLY, not one after the other', async () => {
-    // Serializing them would add the whole blast-radius cost to every call. Asserted by
-    // observing that impact starts while the lint is still in flight.
-    let lintStarted = false;
-    let impactSawLintRunning = false;
-    let releaseLint: () => void = () => {};
-    const lintGate = new Promise<void>((resolve) => {
-      releaseLint = resolve;
-    });
-
+  /**
+   * The OPPOSITE of what this once asserted, and the inversion is the point.
+   *
+   * Impact used to run concurrently with the lint, which was safe only while it never
+   * touched check-node's `App`. It now lints the edited file's DEPENDANTS, and
+   * `lintBuffers` overlays buffers into that process-shared `App` and reverts them on the
+   * way out — with no lock. Two passes in flight at once interleave one's overlay with the
+   * other's rollback, and the corruption is silent: a dependant linted against a
+   * half-reverted project.
+   *
+   * The expensive half of impact — the project READ — still overlaps the lint, because it
+   * is pure filesystem I/O and touches no App.
+   */
+  it('never starts impact while the primary lint is still in flight', async () => {
+    let lintDone = false;
+    let impactSawLintFinished: boolean | undefined;
     await runValidateCode(
       ctx(),
-      { file_path: PAGE, content: 'x' },
+      { file_path: PAGE, content: '<div></div>' },
       {
         lint: async ({ buffers }) => {
-          lintStarted = true;
-          await lintGate;
+          // YIELDS, NOT A TIMER. This test sits among fake-timer tests, and a real `setTimeout`
+          // here is hostage to whether one of them restored the clock. Ten microtask turns give
+          // a concurrently-started impact every chance to run and observe `lintDone === false`,
+          // which is exactly what the previous arrangement did.
+          for (let i = 0; i < 10; i += 1) await Promise.resolve();
+          lintDone = true;
           return {
             diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
             notChecked: new Map(),
           };
         },
-        impact: async () => {
-          impactSawLintRunning = lintStarted;
-          releaseLint();
-          return COMPUTED;
+        impact: async ({ buffers }) => {
+          impactSawLintFinished = lintDone;
+          return new Map(buffers.map((buffer) => [buffer.filePath, COMPUTED]));
         },
       },
     );
 
-    expect(impactSawLintRunning).toBe(true);
+    expect(impactSawLintFinished).toBe(true);
+  });
+});
+
+/**
+ * `--no-impact` is a SERVER setting, so the tool surface is unchanged and an agent cannot
+ * turn the check off per call. What it must do is cost NOTHING — not the project read, not
+ * the two extra lint passes — and say `disabled` rather than `unavailable`, because a retry
+ * cannot change it.
+ */
+describe('validate_code: cross-file impact disabled for the server', () => {
+  const offCtx = (): SupervisorContext => ({
+    projectDir: '/srv/app',
+    log: () => {},
+    impactEnabled: false,
+  });
+
+  it('reports disabled, and never calls the impact adapter at all', async () => {
+    let called = false;
+
+    const result = single(
+      await runValidateCode(
+        offCtx(),
+        { file_path: PAGE, content: '<div></div>' },
+        {
+          lint: async ({ buffers }) => ({
+            diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+            notChecked: new Map(),
+          }),
+          impact: async (input) => {
+            called = true;
+            return impactStub()(input);
+          },
+        },
+      ),
+    );
+
+    expect({ impact: result.impact, called }).toEqual({
+      impact: { status: 'disabled' },
+      called: false,
+    });
+  });
+
+  it('leaves every other part of the answer exactly as it was', async () => {
+    const warning = diagnostic('SomeCheck', 'warning');
+    const result = single(
+      await runValidateCode(
+        offCtx(),
+        { file_path: PAGE, content: '<div></div>' },
+        {
+          lint: async ({ buffers }) => ({
+            diagnostics: new Map(buffers.map((b) => [b.filePath, [warning]])),
+            notChecked: new Map(),
+          }),
+          impact: impactStub(),
+        },
+      ),
+    );
+
+    expect(result).toEqual({
+      status: 'warning',
+      must_fix_before_write: false,
+      errors: [],
+      warnings: [enriched('SomeCheck', 'warning')],
+      infos: [],
+      impact: { status: 'disabled' },
+    });
+  });
+
+  /** CONTROL: the same call with the default context DOES compute impact. */
+  it('CONTROL: the same request with impact enabled calls the adapter', async () => {
+    let called = false;
+
+    await runValidateCode(
+      ctx(),
+      { file_path: PAGE, content: '<div></div>' },
+      {
+        lint: async ({ buffers }) => ({
+          diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
+          notChecked: new Map(),
+        }),
+        impact: async (input) => {
+          called = true;
+          return impactStub()(input);
+        },
+      },
+    );
+
+    expect(called).toBe(true);
   });
 });
 
@@ -964,9 +1081,11 @@ describe('server instructions', () => {
     expect(SERVER_INSTRUCTIONS).toContain('WITHIN ITSELF');
   });
 
-  it('explains that an unavailable blast radius is not "nothing depends on this"', () => {
-    // Zeroed dependents on a failed or timed-out lookup read exactly like a real answer.
-    expect(SERVER_INSTRUCTIONS).toContain('NOT a claim that nothing depends');
+  it('never lets an empty impact be read as "nothing depends on this"', () => {
+    // The one claim impact must never make, in either direction: an absent finding is not
+    // a clearance, and the server states outright that it does not answer that question.
+    expect(SERVER_INSTRUCTIONS).toContain('NOTHING HERE IS A CLEARANCE');
+    expect(SERVER_INSTRUCTIONS).toContain('never tells you nothing depends on a');
   });
 });
 
@@ -2777,7 +2896,7 @@ describe('validate_code: enrichment is bounded — it cannot cost findings or th
           sources: new Map(buffers.map((b) => [b.filePath, { startIndexes: [0] }])),
           notChecked: new Map(),
         }),
-        impact: async () => COMPUTED,
+        impact: impactStub(),
         docset: async () => {
           calls += 1;
           if (behaviour.throws) throw new Error('docset unavailable');
@@ -2816,7 +2935,7 @@ describe('validate_code: enrichment is bounded — it cannot cost findings or th
         diagnostics: new Map(buffers.map((b) => [b.filePath, []])),
         notChecked: new Map(),
       }),
-      impact: async () => COMPUTED,
+      impact: impactStub(),
       docset: async () => {
         calls += 1;
         return { filters: [], tags: [], objects: [] };

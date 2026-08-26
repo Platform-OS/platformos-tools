@@ -145,6 +145,16 @@ describe('Unit: blocksWrite', () => {
     expect(blocksWrite([at('MissingAsset'), at('ReservedVariableName')])).toBe(false);
   });
 
+  it('does not block tag syntax the platform parses as intended', () => {
+    // Split out of LiquidHTMLSyntaxError so it could be non-blocking at all: 34 of the 122
+    // syntax errors on a real 2,768-file app were spellings measured to run correctly.
+    expect(BLOCKING_CHECKS.has('UnconventionalTagSyntax')).toBe(false);
+    expect(blocksWrite([at('UnconventionalTagSyntax', 'warning')])).toBe(false);
+    // Its blocking sibling must be unaffected — the split has to keep one side gating.
+    expect(BLOCKING_CHECKS.has('LiquidHTMLSyntaxError')).toBe(true);
+    expect(blocksWrite([at('LiquidHTMLSyntaxError')])).toBe(true);
+  });
+
   it('blocks the JSON literal quote style, which is fatal at runtime AND on deploy', () => {
     expect(BLOCKING_CHECKS.has('JsonLiteralQuoteStyle')).toBe(true);
     expect(blocksWrite([at('JsonLiteralQuoteStyle')])).toBe(true);

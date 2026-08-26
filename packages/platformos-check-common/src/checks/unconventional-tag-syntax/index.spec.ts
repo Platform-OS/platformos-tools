@@ -156,4 +156,31 @@ describe('UnconventionalTagSyntax', () => {
     );
     expect(unconventional).toEqual([]);
   });
+
+  /**
+   * TASK-80: the same malformed statement can reach different verdicts as a tag and inside a
+   * `{% liquid %}` body, and `assign` still does. A demoted spelling must not join that list —
+   * an author moving working code into a liquid block would otherwise gain a blocking error.
+   */
+  describe('reaches the same verdict inside a {% liquid %} body', () => {
+    it.each([
+      {
+        what: 'capture',
+        tag: `{% capture 'cs' %}X{% endcapture %}`,
+        liquid: `{% liquid\n  capture 'cs'\n    echo 'X'\n  endcapture\n%}`,
+      },
+      {
+        what: 'case',
+        tag: `{% case g: %}{% when 1 %}A{% endcase %}`,
+        liquid: `{% liquid\n  case g:\n    when 1\n      echo 'A'\n  endcase\n%}`,
+      },
+    ])('$what', async ({ tag, liquid }) => {
+      const asTag = await bothChecks(tag);
+      const inBody = await bothChecks(liquid);
+      expect(asTag.unconventional).toHaveLength(1);
+      expect(inBody.unconventional).toHaveLength(1);
+      expect(asTag.invalidTagSyntax).toEqual([]);
+      expect(inBody.invalidTagSyntax).toEqual([]);
+    });
+  });
 });

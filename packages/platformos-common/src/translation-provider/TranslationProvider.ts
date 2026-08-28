@@ -253,10 +253,28 @@ export class TranslationProvider {
     return data[firstKey] ?? undefined;
   }
 
+  /**
+   * `source` is a parsed translation FILE, so its keys are whatever an author typed. Two of
+   * them do not name data:
+   *
+   * - `__proto__` reads back as `Object.prototype`, which is an object, so the merge
+   *   recursed into it and wrote every nested key onto the prototype of every object in
+   *   the process — a YAML file in a linted project reaching the language server's own
+   *   globals.
+   * - `constructor` and `prototype` are the same shape of mistake one hop further out.
+   *
+   * They are skipped rather than merged. `hasOwnProperty` decides the recursion for the
+   * same reason: `typeof target[key]` consulted the PROTOTYPE chain, which is how
+   * `__proto__` looked mergeable, and it read `null` as an object and then crashed
+   * assigning through it.
+   */
   private deepMerge(target: Record<string, any>, source: Record<string, any>): void {
     for (const [key, value] of Object.entries(source)) {
-      if (typeof value === 'object' && value !== null && typeof target[key] === 'object') {
-        this.deepMerge(target[key], value);
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+
+      const existing = Object.prototype.hasOwnProperty.call(target, key) ? target[key] : undefined;
+      if (isMergeable(value) && isMergeable(existing)) {
+        this.deepMerge(existing, value);
       } else {
         target[key] = value;
       }
@@ -290,4 +308,8 @@ export class TranslationProvider {
 
     return data;
   }
+}
+
+function isMergeable(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null;
 }

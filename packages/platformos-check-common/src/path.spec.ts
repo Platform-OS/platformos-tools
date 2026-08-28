@@ -2,7 +2,34 @@ import { describe, expect, it } from 'vitest';
 import { URI } from 'vscode-uri';
 
 import { joinUri, normalizeUri, relativeUriPath } from '@platformos/platformos-common';
-import { childUri, fsPath, join, normalize, relative, toUri } from './path';
+import { basename, childUri, fsPath, join, normalize, relative, toUri } from './path';
+
+describe('Unit: basename', () => {
+  it('strips the extension it was given', () => {
+    expect(basename('file:///project/app/views/pages/index.liquid', '.liquid')).toEqual('index');
+  });
+
+  it('leaves a name that does not end with the extension alone', () => {
+    expect(basename('file:///project/app/views/pages/index.liquid', '.json')).toEqual(
+      'index.liquid',
+    );
+  });
+
+  it('treats the extension as text, not as a pattern', () => {
+    // `ext` used to be compiled into a `RegExp` with only `.` escaped, so every other
+    // metacharacter was interpreted: `(x)` matched a bare `x` and stripped it from a name
+    // that never carried the extension asked about.
+    expect(basename('file:///project/app/views/pages/index(x).liquid', '(x).liquid')).toEqual(
+      'index',
+    );
+    expect(basename('file:///project/app/views/pages/indexx.liquid', '(x).liquid')).toEqual(
+      'indexx.liquid',
+    );
+    expect(basename('file:///project/app/views/pages/index.liquid', 'a+.liquid')).toEqual(
+      'index.liquid',
+    );
+  });
+});
 
 /**
  * These pin the conversion that used to be hand-rolled at every call site.

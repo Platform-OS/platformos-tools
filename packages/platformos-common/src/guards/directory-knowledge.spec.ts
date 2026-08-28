@@ -42,11 +42,17 @@ describe('platformOS directory knowledge lives only in platformos-common', () =>
   ];
 
   /**
+   * Every regex metacharacter, `\\` included. A partial escape builds a pattern that
+   * matches something other than the directory name it was built from.
+   */
+  const escapeForRegExp = (value: string) => value.replace(/[\\^$.*+?()[\]{}|/-]/g, '\\$&');
+
+  /**
    * The two ways a directory name gets spelled:
    */
   const spellings = (name: string) => {
-    const escaped = name.replace(/\//g, '\\/');
-    const segments = name.split('/').map((segment) => `['"\`]${segment}['"\`]`);
+    const escaped = escapeForRegExp(name);
+    const segments = name.split('/').map((segment) => `['"\`]${escapeForRegExp(segment)}['"\`]`);
     return [
       // `(?<!\*)` exempts a `**/`-rooted glob (`ASSET_FILE_OPERATION_GLOB`'s `'**/assets/**'`).
       // Such a pattern is root-AGNOSTIC by construction — it matches the directory

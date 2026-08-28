@@ -264,7 +264,15 @@ export class DocumentsLocator {
     return Array.from(results).sort((a, b) => a.localeCompare(b));
   }
 
-  private static readonly LIQUID_EXPRESSION_RE = /\{\{.*?\}\}/;
+  /**
+   * Scanned rather than matched with `/\{\{.*?\}\}/`: a lazy quantifier between two
+   * literals rescans to the end of the subject from every `{{`, so a search path of
+   * nothing but braces costs O(n²).
+   */
+  private static hasLiquidExpression(value: string): boolean {
+    const open = value.indexOf('{{');
+    return open !== -1 && value.indexOf('}}', open + 2) !== -1;
+  }
 
   private async listSubdirectoryNames(dirUri: string): Promise<string[]> {
     try {
@@ -303,7 +311,7 @@ export class DocumentsLocator {
     let prefixes = [''];
 
     for (const segment of segments) {
-      if (!DocumentsLocator.LIQUID_EXPRESSION_RE.test(segment)) {
+      if (!DocumentsLocator.hasLiquidExpression(segment)) {
         prefixes = prefixes.map((p) => (p ? `${p}/${segment}` : segment));
         continue;
       }
@@ -337,7 +345,7 @@ export class DocumentsLocator {
    */
   private async resolveSearchPath(rootUri: URI, searchPath: string): Promise<string[]> {
     if (searchPath === '') return [''];
-    if (!DocumentsLocator.LIQUID_EXPRESSION_RE.test(searchPath)) return [searchPath];
+    if (!DocumentsLocator.hasLiquidExpression(searchPath)) return [searchPath];
 
     const cacheKey = `${rootUri.toString()}:${searchPath}`;
     if (!this.expandedPathsCache.has(cacheKey)) {

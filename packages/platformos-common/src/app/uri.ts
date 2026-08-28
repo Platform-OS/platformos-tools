@@ -2,6 +2,18 @@ import { URI, Utils } from 'vscode-uri';
 import { UriString } from '../AbstractFileSystem';
 
 /**
+ * The trailing `/`s of `value`, removed by scanning rather than by `replace(/\/+$/, '')` —
+ * see `platformos-check-common`'s `trimTrailingSlash` for the same note. CodeQL calls the
+ * end-anchored form polynomial ReDoS; measured, V8 does not backtrack it. The scan is
+ * linear whether or not that optimization is there.
+ */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end--;
+  return end === value.length ? value : value.slice(0, end);
+}
+
+/**
  * A `file://` URI in the one spelling the whole toolchain compares on: forward
  * slashes, no trailing slash, no percent-encoding surprises.
  *
@@ -17,7 +29,7 @@ import { UriString } from '../AbstractFileSystem';
  */
 export function normalizeUri(uri: UriString | URI): UriString {
   const parsed = URI.isUri(uri) ? uri : URI.parse(uri);
-  const stripped = parsed.path.replace(/\/+$/, '');
+  const stripped = trimTrailingSlashes(parsed.path);
   const path = stripped === '' ? '/' : stripped;
   const withPath = path === parsed.path ? parsed : parsed.with({ path });
   return withPath.toString(true).replace(/\\/g, '/');

@@ -22,6 +22,23 @@ ${message}`;
   }
 }
 
+/**
+ * The alias out of `yaml`'s `Unresolved alias (…): *foo`, which is everything after the
+ * first `': '` on that line.
+ *
+ * Scanned rather than matched with `/: .*$/m`, which CodeQL reports as polynomial ReDoS.
+ * Measured, that report is wrong — V8 does not rescan the line per `': '` — but the old
+ * form did compile and run the pattern twice, once to test and once to extract, and the
+ * two copies had to agree that the `slice(2)` at the call site matched the `': '` here.
+ */
+function unresolvedAlias(message: string): string | undefined {
+  if (!message.includes('Unresolved alias')) return undefined;
+  const start = message.indexOf(': ');
+  if (start === -1) return undefined;
+  const lineEnd = message.indexOf('\n', start);
+  return message.slice(start + 2, lineEnd === -1 ? undefined : lineEnd);
+}
+
 function parseYamlFile(absolutePath: string, contents: string): { [k in string]: any } {
   try {
     const result = contents.trim() === '' ? {} : parse(contents);
@@ -33,17 +50,11 @@ function parseYamlFile(absolutePath: string, contents: string): { [k in string]:
 
     return result;
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.name === 'ReferenceError' &&
-      error.message.includes('Unresolved alias') &&
-      /: .*$/m.test(error.message)
-    ) {
-      const alias = /: .*$/m.exec(error.message)![0].slice(2);
-      throw new UnresolvedAliasError(error.message, alias);
-    } else {
-      throw error;
+    if (error instanceof Error && error.name === 'ReferenceError') {
+      const alias = unresolvedAlias(error.message);
+      if (alias !== undefined) throw new UnresolvedAliasError(error.message, alias);
     }
+    throw error;
   }
 }
 

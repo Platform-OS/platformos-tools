@@ -56,9 +56,15 @@ export function dirname(uri: UriString | URI): UriString {
   return normalize(Utils.dirname(asUri(uri)));
 }
 
+/**
+ * `ext` is compared, not compiled into a regex. Escaping only `.` left every other
+ * metacharacter live in a pattern built from a caller's string, so
+ * `basename('…/indexx.liquid', '(x).liquid')` matched the group `(x)` against a bare `x`
+ * and returned `index` — for a name that does not carry the extension asked about at all.
+ */
 export function basename(uri: UriString | URI, ext?: string): string {
   const base = Utils.basename(asUri(uri));
-  return ext ? base.replace(new RegExp(`${ext.replace(/\./g, '\\.')}$`), '') : base;
+  return ext && base.endsWith(ext) ? base.slice(0, -ext.length) : base;
 }
 
 export function fsPath(uri: UriString | URI): string {

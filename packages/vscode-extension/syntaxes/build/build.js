@@ -16,8 +16,12 @@ function merge(a, b) {
   };
 }
 
+// Every regex metacharacter, plus the `><=` of the comparison operators. Escaping a subset
+// leaves the rest to be interpreted, so an operator carrying one would generate a grammar
+// rule matching something other than the operator. `\\` leads the class so that `^` is not
+// in first position, where it would negate it instead.
 function escapeRegex(string) {
-  return string.replace(/[><=]/g, '\\$&');
+  return string.replace(/[\\^$.*+?()[\]{}|><=]/g, '\\$&');
 }
 
 // OK this is SUPER weird. So whenever you inject a rule, for some reason

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { URI } from 'vscode-uri';
 import { TranslationProvider } from './TranslationProvider';
 import { AbstractFileSystem, FileType, FileStat, FileTuple } from '../AbstractFileSystem';
@@ -370,6 +370,44 @@ describe('TranslationProvider', () => {
           'en',
         ),
       ).toEqual({ common: { yes: 'Yes' } });
+    });
+  });
+
+  describe('when a translation file names a prototype key', () => {
+    const rootUri = URI.parse('file:///project');
+
+    afterEach(() => {
+      delete (Object.prototype as any).polluted;
+    });
+
+    it('merges the file without writing through to Object.prototype', async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en/evil.yml': 'en:\n  __proto__:\n    polluted: owned\n',
+        // The control: a sibling file whose keys the merge must still deliver, so a guard
+        // wide enough to drop the whole file cannot pass this test.
+        'file:///project/app/translations/en/common.yml': 'en:\n  common:\n    yes: Yes\n',
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(
+        await provider.loadAllTranslationsForBase(
+          URI.parse('file:///project/app/translations'),
+          'en',
+        ),
+      ).toEqual({ common: { yes: 'Yes' } });
+      expect(({} as any).polluted).toBe(undefined);
+      expect((Object.prototype as any).polluted).toBe(undefined);
+    });
+
+    it("still delivers the file's other keys", async () => {
+      const fs = createMockFileSystem({
+        'file:///project/app/translations/en.yml':
+          'en:\n  constructor:\n    polluted: owned\n  greeting:\n    hello: Hello\n',
+      });
+      const provider = new TranslationProvider(fs);
+
+      expect(await provider.translate(rootUri, 'greeting.hello', 'en')).toBe('Hello');
+      expect(({} as any).polluted).toBe(undefined);
     });
   });
 });

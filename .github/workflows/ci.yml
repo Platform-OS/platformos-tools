@@ -18,6 +18,11 @@ on: [push]
 env:
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
 
+# Read-only for every job below: CI builds, type-checks and tests, and none of it writes
+# back to the repository. `release.yml` is where the write scopes live.
+permissions:
+  contents: read
+
 jobs:
   code-quality:
     runs-on: ubuntu-latest

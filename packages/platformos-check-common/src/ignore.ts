@@ -152,8 +152,16 @@ function anyDepth(pattern: string): string {
   return `**/${trimTrailingSlash(pattern)}{,/**}`;
 }
 
+/**
+ * Scanned rather than `replace(/\/+$/, '')`, which CodeQL reports as polynomial ReDoS.
+ * MEASURED, the report is wrong on V8: an end-anchored quantifier does not retry from every
+ * `/`, and a subject of 1.6M slashes costs 1.3 ms. The scan is linear without depending on
+ * that optimization, which is the only reason to prefer it.
+ */
 function trimTrailingSlash(pattern: string): string {
-  return pattern.replace(/\/+$/, '');
+  let end = pattern.length;
+  while (end > 0 && pattern[end - 1] === '/') end--;
+  return end === pattern.length ? pattern : pattern.slice(0, end);
 }
 
 function checkIgnorePatterns(checkDef: CheckDefinition | undefined, config: Config) {

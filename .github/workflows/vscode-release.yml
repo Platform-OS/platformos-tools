@@ -12,6 +12,10 @@ env:
 jobs:
   publish-packages:
     runs-on: ubuntu-latest
+    # Publishing goes to the VS Code Marketplace and Open VSX under their own PATs, so the
+    # GITHUB_TOKEN only ever needs to check the sources out.
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

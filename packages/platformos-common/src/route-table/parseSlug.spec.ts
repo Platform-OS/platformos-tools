@@ -109,6 +109,32 @@ describe('parseSlug', () => {
       });
     });
 
+    it('ignores an empty group without losing the one after it', () => {
+      expect(parseSlug('users()(/:id)')).toEqual({
+        requiredSegments: [{ type: 'static', value: 'users' }],
+        optionalGroups: [[{ type: 'param', name: 'id' }]],
+      });
+    });
+
+    it('ignores an unterminated group', () => {
+      expect(parseSlug('users(/:id')).toEqual({
+        requiredSegments: [{ type: 'static', value: 'users' }],
+        optionalGroups: [],
+      });
+    });
+
+    it('closes a group at its FIRST `)`, nested `(` included', () => {
+      expect(parseSlug('users(/:a(/:b)')).toEqual({
+        requiredSegments: [{ type: 'static', value: 'users' }],
+        optionalGroups: [
+          [
+            { type: 'param', name: 'a(' },
+            { type: 'param', name: 'b' },
+          ],
+        ],
+      });
+    });
+
     it('parses optional version + wildcard', () => {
       expect(parseSlug('api(/:version)(/*path)')).toEqual({
         requiredSegments: [{ type: 'static', value: 'api' }],

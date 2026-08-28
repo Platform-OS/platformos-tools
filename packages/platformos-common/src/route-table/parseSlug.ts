@@ -65,12 +65,22 @@ export function parseSlug(slug: string): ParsedSlug {
 
   const requiredSegments = requiredPart.length > 0 ? parseSegments(requiredPart) : [];
 
-  // Parse optional groups: split on `(` to get each group, strip `)` and leading `/`
+  // Parse optional groups: each `(`..`)` pair, stripped of its leading `/`.
+  //
+  // Scanned rather than matched with `/\(([^)]+)\)/g`: `[^)]+` cannot cross a `)`, so
+  // the group always ends at the first `)` after the `(` — exactly what `indexOf` finds —
+  // but on a slug of nothing but `(` the quantifier rescans to the end of the string from
+  // every one of them, which is O(n²).
   const optionalGroups: RouteSegment[][] = [];
-  const groupRegex = /\(([^)]+)\)/g;
-  let match: RegExpExecArray | null;
-  while ((match = groupRegex.exec(optionalPart)) !== null) {
-    const groupContent = match[1];
+  let cursor = 0;
+  while (cursor < optionalPart.length) {
+    const open = optionalPart.indexOf('(', cursor);
+    if (open === -1) break;
+    const close = optionalPart.indexOf(')', open + 1);
+    if (close === -1) break;
+    cursor = close + 1;
+
+    const groupContent = optionalPart.slice(open + 1, close);
     // Strip leading `/` if present
     const normalized = groupContent.startsWith('/') ? groupContent.slice(1) : groupContent;
     if (normalized.length > 0) {

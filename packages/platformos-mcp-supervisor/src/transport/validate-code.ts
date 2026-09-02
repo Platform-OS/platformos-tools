@@ -36,24 +36,32 @@ import { MAX_BATCH_BYTES, MAX_BATCH_FILES, batchTooLarge } from '../validate/bat
 import { collidingBufferPaths } from '../validate/batch-coherence.js';
 import { assembleNotApplicableResult } from '../result/assemble.js';
 
-/** A non-blank path. Blank is malformed input, refused at the protocol boundary. */
-const filePath = z
-  .string()
-  .refine((value) => value.trim().length > 0, { message: 'file_path must not be empty' });
-
-const content = z.string();
-
 /**
- * zod raw shape for the tool input (validated by the MCP SDK before dispatch).
+ * A non-blank path. Blank is malformed input, refused at the protocol boundary.
  *
- * Both forms are optional at the schema level and the handler requires exactly one,
- * because a zod union of two object shapes defeats the SDK's JSON-Schema conversion
- * — it emits `anyOf`, which several MCP clients do not surface to the model at all.
- * Two optional fields with a documented rule converts cleanly and reads clearly.
+ * BOTH halves are load-bearing and neither is redundant. The refinement is what
+ * refuses a whitespace-only path; `.min(1)` is the half that SURVIVES conversion to
+ * JSON Schema, as `minLength`. A refinement converts to nothing at all, so with the
+ * refinement alone the rule exists only on this side of the wire — the model is
+ * never told, sends `""`, and learns the rule from a rejection. Drop either half and
+ * a test fails: the emitted schema loses `minLength`, or `'   '` starts being accepted.
  *
- * Typed as `ZodRawShape` (not the inferred literal shape) so `registerTool` does not
- * instantiate excessively deeply over the schema (TS2589 under zod 3.25).
+ * A FUNCTION, not a shared constant, for the same wire-level reason: the SDK's
+ * converter dedupes by schema IDENTITY, so one instance reused across both input
+ * forms emits `{ $ref: '#/properties/file_path' }` for the second use. That drags the
+ * single-file description into the batch entries, where "Pair with `content`" is
+ * wrong, and puts a `$ref` in a tool inputSchema — which not every MCP client
+ * resolves. A fresh instance per use costs nothing and emits in full.
  */
+const filePath = () =>
+  z
+    .string()
+    .min(1)
+    .refine((value) => value.trim().length > 0, { message: 'file_path must not be empty' });
+
+/** File contents. Empty is legal — an empty file is a file. Fresh per use, as above. */
+const content = () => z.string();
+
 /**
  * An example path of each kind, for the agent-facing prose below.
  *
@@ -71,18 +79,42 @@ const EXAMPLE_PARTIAL = exampleOf(PlatformOSFileType.Partial, 'card');
 const EXAMPLE_PAGE = exampleOf(PlatformOSFileType.Page, 'home');
 const EXAMPLE_PROMO = exampleOf(PlatformOSFileType.Partial, 'promo');
 
+/**
+ * zod raw shape for the tool input (validated by the MCP SDK before dispatch).
+ *
+ * Both forms are optional at the schema level and the handler requires exactly one,
+ * because a zod union of two object shapes defeats the SDK's JSON-Schema conversion
+ * — it emits `anyOf`, which several MCP clients do not surface to the model at all.
+ * Two optional fields with a documented rule converts cleanly and reads clearly.
+ *
+ * WHAT THE MODEL SEES IS THE CONVERSION, NOT THIS. Everything an agent knows about
+ * the arguments arrives as the JSON Schema this shape converts to, so a constraint
+ * that does not convert may as well not be advertised at all. Prefer a zod builtin
+ * over a `.refine` wherever one expresses the rule; `transport/validate-code.spec.ts`
+ * pins the emitted document end to end.
+ *
+ * Typed as `ZodRawShape` (not the inferred literal shape) so `registerTool` does not
+ * instantiate excessively deeply over the schema (TS2589 under zod 3.25).
+ */
 export const VALIDATE_CODE_INPUT: ZodRawShape = {
-  file_path: filePath
+  file_path: filePath()
     .optional()
     .describe(
       'Path of the file to validate, absolute or relative to the project root ' +
         `(e.g. "${EXAMPLE_PARTIAL}"). Pair with \`content\`.`,
     ),
-  content: content
+  content: content()
     .optional()
     .describe('The exact file contents you are about to write. Pair with `file_path`.'),
   files: z
-    .array(z.object({ file_path: filePath, content }))
+    .array(
+      z.object({
+        file_path: filePath().describe(
+          'Path of THIS file, absolute or relative to the project root.',
+        ),
+        content: content().describe('The exact contents you are about to write to THIS file.'),
+      }),
+    )
     .min(1)
     .max(MAX_BATCH_FILES)
     .optional()
@@ -193,11 +225,23 @@ export async function runValidateCode(
     isBatch ? `validate_code: ${buffers.length} file(s)` : `validate_code: ${buffers[0].filePath}`,
   );
 
-  // Both refusals are request-level and impossible with a single buffer, so they are
-  // decided here, before any work starts. First refusal wins; the cheaper check runs first.
-  const refusal = isBatch
-    ? (batchTooLarge(buffers) ?? collidingBufferPaths(ctx.projectDir, buffers))
-    : undefined;
+  // Request-level refusals, decided before any work starts. First refusal wins; the cheaper
+  // check runs first.
+  //
+  // GATED ON MORE THAN ONE BUFFER, not on which form carried it. One file is one file, and
+  // the two forms must answer identically — the shape an agent happened to reach for cannot
+  // change a verdict. Both refusals ask a question a lone buffer cannot answer YES to:
+  // collision needs two entries naming one file, and the caps exist because a batch can hand
+  // the server work no single buffer could. Collision was already a no-op at one buffer; the
+  // total-byte cap was NOT, and it fired FIRST — so a 300 KiB file sent as a one-file batch
+  // was refused with "split it into smaller batches", advice its caller cannot follow, and
+  // was never told MAX_BUFFER_BYTES, the bound it actually had to get under. Whether ONE
+  // buffer is admissible is `bufferTooLarge`'s question, asked per buffer inside
+  // `validateBuffers` for both forms alike.
+  const refusal =
+    buffers.length > 1
+      ? (batchTooLarge(buffers) ?? collidingBufferPaths(ctx.projectDir, buffers))
+      : undefined;
   if (refusal) {
     ctx.log(`validate_code: refused (${refusal.code}) — ${refusal.reason}`);
     return {

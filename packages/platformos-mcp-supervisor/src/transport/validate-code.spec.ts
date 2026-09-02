@@ -1,15 +1,28 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { SourceCodeType, toSourceCode } from '@platformos/platformos-check-common';
 // From `platformos-common`, the single owner of what a path IS; check-common no longer
 // re-exports it (`guards/identity-ownership.spec.ts` fails on a re-export growing back).
-import { PlatformOSFileType, isSupportedSourceFile } from '@platformos/platformos-common';
+import {
+  PlatformOSFileType,
+  getAppPaths,
+  isSupportedSourceFile,
+} from '@platformos/platformos-common';
 
-import { runValidateCode, TOOL_TEXT, VALIDATE_CODE_INPUT } from './validate-code.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+
+import {
+  registerValidateCode,
+  runValidateCode,
+  TOOL_TEXT,
+  VALIDATE_CODE_INPUT,
+} from './validate-code.js';
 import { SERVER_INSTRUCTIONS } from './instructions.js';
 import { BLOCKING_CHECKS } from '../result/blocking.js';
 import { IMPACT_DEADLINE_MS, type SupervisorContext } from '../context.js';
@@ -20,8 +33,8 @@ import {
   lintDeadlineMs,
   maxResponseBytes,
 } from '../cost-model.js';
-import { MAX_BUFFER_BYTES } from '../adapter-input.js';
-import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from '../validate/batch-bounds.js';
+import { MAX_BUFFER_BYTES, bufferTooLarge } from '../adapter-input.js';
+import { MAX_BATCH_BYTES, MAX_BATCH_FILES, batchTooLarge } from '../validate/batch-bounds.js';
 import type { LintNotCheckedStatus } from '../lint/lint-batch.js';
 import { allChecks } from '@platformos/platformos-check-common';
 import { checkDocs } from '../check-docs.js';
@@ -509,6 +522,81 @@ describe('validate_code: bounded work', () => {
     expect(result.must_fix_before_write).toBe(false);
   });
 
+  /** A buffer refused for its size, whichever bound said so. */
+  const declinedWith = (reason: string): ValidateCodeResult => ({
+    status: 'not_applicable',
+    not_applicable_reason: 'too_large',
+    must_fix_before_write: false,
+    errors: [],
+    warnings: [],
+    infos: [],
+    impact: { status: 'not_applicable' },
+    next_step: reason,
+  });
+
+  /**
+   * ONE FILE IS ONE FILE, whichever form carried it. The request-level caps exist because a
+   * batch can hand the server work no single buffer could; at one buffer there is no such
+   * excess, and `bufferTooLarge` already refuses it — naming the bound the caller has to get
+   * under, with advice it can act on. Sent as a one-file batch this file used to be told to
+   * "split it into smaller batches", which its caller cannot do, and was never told
+   * MAX_BUFFER_BYTES at all.
+   *
+   * Pinned as the per-buffer reason in BOTH forms: had the request-level cap answered, the
+   * message would be the other one and this fails.
+   */
+  it('answers identically for one oversized file, single form or one-file batch', async () => {
+    // Over the REQUEST cap, the only size at which the two forms ever disagreed — anything
+    // smaller never reached `batchTooLarge` in the first place.
+    const content = 'a'.repeat(MAX_BATCH_BYTES + 1);
+    const declined = declinedWith(bufferTooLarge(content)!.reason);
+
+    const asSingle = single(
+      await runValidateCode(ctx(), { file_path: PAGE, content }, adaptersFor()),
+    );
+    const asBatch = batch(
+      await runValidateCode(ctx(), { files: [{ file_path: PAGE, content }] }, adaptersFor()),
+    );
+
+    expect(asSingle).toEqual(declined);
+    expect(asBatch).toEqual({
+      must_fix_before_write: false,
+      files: [{ file_path: PAGE, result: declined }],
+    });
+  });
+
+  /**
+   * The control for the exemption above: the gate is `buffers.length > 1`, and TWO is
+   * already more than one. A gate that drifted to three would still pass the three-file case
+   * above, and every file comes back `too_large` under either bound — so the distinguisher is
+   * WHICH bound answered, visible as the request-level reason at the top of the envelope,
+   * where only the request-level path puts one.
+   *
+   * Two files cannot exceed the request cap while both stay under MAX_BUFFER_BYTES — 2 x 128
+   * KiB is under 266 KiB — so the smallest two-file request that reaches this cap necessarily
+   * carries oversized buffers. That is a fact about the caps rather than a convenience here:
+   * the per-buffer bound would refuse both files as well, and the request-level bound is what
+   * has to be seen winning.
+   */
+  it('still refuses TWO files over the total-byte cap, at the REQUEST level', async () => {
+    const content = 'a'.repeat(Math.ceil((MAX_BATCH_BYTES + 1) / 2));
+    const files = [
+      { file_path: PAGE, content },
+      { file_path: PARTIAL, content },
+    ];
+    const reason = batchTooLarge(
+      files.map(({ file_path, content: text }) => ({ filePath: file_path, content: text })),
+    )!.reason;
+
+    const result = batch(await runValidateCode(ctx(), { files }, adaptersFor()));
+
+    expect(result).toEqual({
+      must_fix_before_write: false,
+      files: files.map(({ file_path }) => ({ file_path, result: declinedWith(reason) })),
+      next_step: reason,
+    });
+  });
+
   /**
    * Results are keyed by the caller's `file_path` string, but buffers are overlaid and
    * deduplicated by normalized URI (last one wins), so two entries naming one file would
@@ -906,9 +994,23 @@ describe('VALIDATE_CODE_INPUT', () => {
     expect(parse({ files: [{ file_path: PAGE, content: 'x' }] })).toBe(true);
   });
 
-  it('rejects a blank path in either form', () => {
+  it('rejects a blank path in either form, WHITESPACE included', () => {
+    // The two halves of `filePath()` are pinned from opposite sides. `minLength: 1` is
+    // all the emitted JSON Schema can say and it accepts `'   '`; the trim refinement is
+    // what refuses that, and it converts to nothing. Delete the refinement and this test
+    // fails. Delete `.min(1)` and the wire-schema suite below fails instead.
+    expect(parse({ file_path: '', content: 'x' })).toBe(false);
     expect(parse({ file_path: '   ', content: 'x' })).toBe(false);
+    expect(parse({ files: [{ file_path: '', content: 'x' }] })).toBe(false);
     expect(parse({ files: [{ file_path: '  ', content: 'x' }] })).toBe(false);
+  });
+
+  it('ACCEPTS empty content in either form — an empty file is a file', () => {
+    // The control for the rule above: `min(1)` belongs to the path and must not spread to
+    // the buffer. Truncating a file to nothing is a thing an agent legitimately does, and
+    // refusing to check it would refuse exactly the edit worth checking.
+    expect(parse({ file_path: PAGE, content: '' })).toBe(true);
+    expect(parse({ files: [{ file_path: PAGE, content: '' }] })).toBe(true);
   });
 
   it('rejects an empty files array', () => {
@@ -937,6 +1039,114 @@ describe('VALIDATE_CODE_INPUT', () => {
     expect(parsed.success && Object.keys(parsed.data).sort()).toEqual(['content', 'file_path']);
   });
 });
+
+/**
+ * THE CONVERSION IS THE CONTRACT. `VALIDATE_CODE_INPUT` is zod, but no agent ever meets
+ * zod — it meets the JSON Schema the SDK converts that shape into and ships in
+ * `tools/list`. Anything that does not survive the conversion is enforced on this side
+ * and invisible on the other: the model sends a value it was never told was illegal and
+ * learns the rule from a rejection.
+ *
+ * Two constraints have already been lost that way, which is why this suite exists:
+ * a `.refine` converts to NOTHING, and a zod instance REUSED across both input forms is
+ * deduped into `{ $ref: '#/properties/file_path' }` — dragging the single-file wording
+ * into every batch entry and leaving a `$ref` that not every MCP client resolves.
+ *
+ * So this reads the document a real client receives over a real transport, not the SDK
+ * internal that produced it.
+ */
+describe('the JSON Schema a client receives for validate_code', () => {
+  let tools: Awaited<ReturnType<Client['listTools']>>['tools'];
+
+  beforeAll(async () => {
+    const server = new McpServer({ name: 'test-server', version: '0.0.0' });
+    registerValidateCode(server, ctx());
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'test-client', version: '0.0.0' });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+    ({ tools } = await client.listTools());
+
+    await client.close();
+    await server.close();
+  });
+
+  it('advertises ONE tool — validate_code is the whole surface', () => {
+    expect(tools.map((tool) => tool.name)).toEqual(['validate_code']);
+  });
+
+  it('publishes every constraint the server enforces AND can express', () => {
+    // Spelled out whole, because this document IS what the model reads. The example path
+    // is derived the same way the description derives it, so a canonical directory moving
+    // in `platformos-common` cannot rot this test — only OUR side falling behind can.
+    const path = {
+      type: 'string',
+      minLength: 1,
+    };
+
+    expect(tools[0].inputSchema).toEqual({
+      type: 'object',
+      properties: {
+        file_path: {
+          ...path,
+          description:
+            'Path of the file to validate, absolute or relative to the project root ' +
+            `(e.g. "${getAppPaths(PlatformOSFileType.Partial)[0]}/card.liquid"). ` +
+            'Pair with `content`.',
+        },
+        content: {
+          type: 'string',
+          description: 'The exact file contents you are about to write. Pair with `file_path`.',
+        },
+        files: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              file_path: {
+                ...path,
+                description: 'Path of THIS file, absolute or relative to the project root.',
+              },
+              content: {
+                type: 'string',
+                description: 'The exact contents you are about to write to THIS file.',
+              },
+            },
+            required: ['file_path', 'content'],
+            additionalProperties: false,
+          },
+          minItems: 1,
+          maxItems: MAX_BATCH_FILES,
+          description:
+            'Two or more files to validate together, each with its own `file_path` and ' +
+            '`content`. Files in one call can reference each other.',
+        },
+      },
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    });
+  });
+
+  it('resolves to no $ref at any depth, so nothing is left for a client to dereference', () => {
+    const keys = keysDeep(tools[0].inputSchema);
+
+    // The control: the walk really does reach the nested entry schema. Without it an empty
+    // `$ref` list would also be what a walk that visited nothing returns, and this test
+    // would pass with the dedup bug fully restored.
+    expect(keys.filter((key) => key === 'minLength')).toEqual(['minLength', 'minLength']);
+    expect(keys.filter((key) => key === '$ref')).toEqual([]);
+  });
+});
+
+/** Every property name in a JSON document, at every depth, in document order. */
+const keysDeep = (node: unknown): string[] => {
+  if (Array.isArray(node)) return node.flatMap(keysDeep);
+  if (node !== null && typeof node === 'object') {
+    return Object.entries(node).flatMap(([key, value]) => [key, ...keysDeep(value)]);
+  }
+  return [];
+};
 
 /**
  * The description and the server instructions ARE the agent's entire understanding of this

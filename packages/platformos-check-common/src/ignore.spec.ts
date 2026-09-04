@@ -206,6 +206,38 @@ describe('Function: isIgnored', () => {
     expect(result).toBe(false);
   });
 
+  /**
+   * A blank entry used to rewrite to a match-everything pattern, so one stray `- ""` turned a
+   * whole project's run clean while checking nothing.
+   */
+  it('should skip a blank entry rather than let it match every file', () => {
+    // The whitespace entry rides along to pin the boundary: only a TRULY empty entry is
+    // skipped, and a blank-looking one is still compiled and still matches nothing.
+    const withBlank = config({
+      checkIgnore: ['', ' ', 'modules/vendor/**'],
+      globalIgnore: ['', 'node_modules'],
+    });
+
+    expect({
+      unrelated: isIgnored(toUri('app/views/pages/index.liquid'), withBlank, checkDef),
+      // Controls: the entries either side of the blank one still do their job, so this
+      // cannot pass against a change that simply stopped ignoring anything.
+      perCheck: isIgnored(toUri('modules/vendor/lib.liquid'), withBlank, checkDef),
+      global: isIgnored(toUri('some-lib/node_modules/x.liquid'), withBlank, checkDef),
+    }).toEqual({ unrelated: false, perCheck: true, global: true });
+  });
+
+  it('should compile nothing when a list holds only a blank entry', () => {
+    const blankOnly = config({ checkIgnore: [''], globalIgnore: [''] });
+
+    expect({
+      ignored: isIgnored(toUri('app/views/pages/index.liquid'), blankOnly, checkDef),
+      compiled: vi.mocked(Minimatch).mock.calls,
+      hasGlobal: hasIgnorePatterns(blankOnly),
+      hasOwn: hasIgnorePatterns(blankOnly, checkDef),
+    }).toEqual({ ignored: false, compiled: [], hasGlobal: false, hasOwn: false });
+  });
+
   it('should work with only global ignore as well', () => {
     const result = isIgnored(
       toUri('app/views/layouts/layout.liquid'),

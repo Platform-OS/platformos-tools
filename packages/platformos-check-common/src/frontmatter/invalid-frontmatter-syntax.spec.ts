@@ -30,12 +30,14 @@ describe('InvalidFrontmatterSyntax', () => {
     const source = '---\nslug: probe\nlayout: [unclosed\n---\n<p>hi</p>\n';
     const offenses = await check({ [PAGE]: source }, [InvalidFrontmatterSyntax]);
 
-    // Derived from the parser rather than hand-written: what is pinned is that the range
-    // lands inside the frontmatter block, not what our YAML dialect calls the problem.
-    const [offense] = offenses;
-    const start = source.indexOf('layout: [unclosed');
-    const end = source.indexOf('\n---\n', start);
-    expect(offense.start.index >= start && offense.end.index <= end + 1).toBe(true);
+    // The parser points at the line break that closes the unclosed sequence. Derived from the
+    // source so the assertion names the place rather than an offset, and asserted exactly so a
+    // failure says which index moved instead of `expected false to be true`.
+    const breakAfterUnclosed = source.indexOf('\n---\n');
+
+    expect(
+      offenses.map((offense) => ({ start: offense.start.index, end: offense.end.index })),
+    ).toEqual([{ start: breakAfterUnclosed, end: breakAfterUnclosed + 1 }]);
   });
 
   it.each([

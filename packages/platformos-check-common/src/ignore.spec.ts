@@ -264,6 +264,39 @@ describe('Function: isIgnored', () => {
     });
   });
 
+  /**
+   * Matching a list is an OR. Every other fixture in this file carries a single pattern, and
+   * with one pattern `.some` and `.every` are the same function — so the behaviour a real
+   * `.platformos-check.yml` depends on, several patterns of which a file matches one, went
+   * unasserted in both lists.
+   */
+  it('should ignore a file matching ANY pattern in a list, not only one matching all of them', () => {
+    const patterns = ['modules/vendor/**', 'app/views/generated/**'];
+    const perCheckOnly = config({ checkIgnore: patterns, globalIgnore: [] });
+    const globalOnly = config({ checkIgnore: [], globalIgnore: patterns });
+    const first = toUri('modules/vendor/lib.liquid');
+    const second = toUri('app/views/generated/x.liquid');
+    const neither = toUri('app/views/pages/index.liquid');
+
+    // Each list is asked alone — the per-check config has no global patterns and the global
+    // one is asked without a check — so a passing row cannot be the other list answering.
+    expect({
+      perCheckFirst: isIgnored(first, perCheckOnly, checkDef),
+      perCheckSecond: isIgnored(second, perCheckOnly, checkDef),
+      perCheckNeither: isIgnored(neither, perCheckOnly, checkDef),
+      globalFirst: isIgnored(first, globalOnly),
+      globalSecond: isIgnored(second, globalOnly),
+      globalNeither: isIgnored(neither, globalOnly),
+    }).toEqual({
+      perCheckFirst: true,
+      perCheckSecond: true,
+      perCheckNeither: false,
+      globalFirst: true,
+      globalSecond: true,
+      globalNeither: false,
+    });
+  });
+
   it('should work with only global ignore as well', () => {
     const result = isIgnored(
       toUri('app/views/layouts/layout.liquid'),

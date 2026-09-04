@@ -238,6 +238,32 @@ describe('Function: isIgnored', () => {
     }).toEqual({ ignored: false, compiled: [], hasGlobal: false, hasOwn: false });
   });
 
+  /**
+   * YAML turns a bare `-` into `null`, and nothing checks the elements at runtime — both lists
+   * are typed `string[]` over data read from a file. Unfiltered, `null` reached `.startsWith`
+   * and threw out of the entire run.
+   */
+  it('should skip a malformed entry rather than crash, in either list', () => {
+    const malformed = ['modules/vendor/**', null, undefined, 42, ['nested']] as unknown as string[];
+    const perCheckOnly = config({ checkIgnore: malformed, globalIgnore: [] });
+    const globalOnly = config({ checkIgnore: [], globalIgnore: malformed });
+
+    // Each list is asked in isolation, so "both answer the same way" is what is asserted
+    // rather than one of them carrying the other. The unrelated file is the control: the
+    // sound entry still applies and nothing has started ignoring everything.
+    expect({
+      perCheckMatches: isIgnored(toUri('modules/vendor/lib.liquid'), perCheckOnly, checkDef),
+      perCheckUnrelated: isIgnored(toUri('app/views/pages/index.liquid'), perCheckOnly, checkDef),
+      globalMatches: isIgnored(toUri('modules/vendor/lib.liquid'), globalOnly),
+      globalUnrelated: isIgnored(toUri('app/views/pages/index.liquid'), globalOnly),
+    }).toEqual({
+      perCheckMatches: true,
+      perCheckUnrelated: false,
+      globalMatches: true,
+      globalUnrelated: false,
+    });
+  });
+
   it('should work with only global ignore as well', () => {
     const result = isIgnored(
       toUri('app/views/layouts/layout.liquid'),

@@ -107,10 +107,11 @@ function compiled(config: Config, key: string | symbol, patterns: string[]): Min
   let matchers = byCheck.get(key);
   if (!matchers) {
     matchers = patterns
-      // A BLANK ENTRY IS SKIPPED, as `.gitignore` skips a blank line — verified against git
-      // itself, which still applies the surrounding patterns and ignores nothing extra.
-      // Rewritten it would become `**/{,/**}`, which matches every file in the project.
-      .filter((pattern) => pattern !== '')
+      // A BLANK OR NON-STRING ENTRY IS SKIPPED, and must not take the valid ones with it: a
+      // blank rewrites to a pattern matching every file, and a YAML `null` from a bare `-`
+      // reaches `.startsWith` and throws. `.gitignore` skips a blank line too — verified
+      // against git, which still applies the surrounding patterns.
+      .filter((pattern) => typeof pattern === 'string' && pattern !== '')
       .map((pattern) => rewrite(pattern, config.rootUri))
       .map((pattern) => new Minimatch(pattern));
     byCheck.set(key, matchers);

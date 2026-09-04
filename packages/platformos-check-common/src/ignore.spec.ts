@@ -297,6 +297,42 @@ describe('Function: isIgnored', () => {
     });
   });
 
+  /**
+   * `modules/vendor` used to match nothing at all: the anchored branch left a bare directory
+   * name alone while the subject is always a file. The spellings that already worked ride in
+   * the same table, so a regression in any of them surfaces here rather than elsewhere.
+   */
+  it('should ignore a bare anchored directory and its contents, and nothing beside it', () => {
+    // vendor/lib | vendor/deep/lib | vendor-extras | vendorx | app/modules/vendor/lib
+    const subjects = [
+      'modules/vendor/lib.liquid',
+      'modules/vendor/deep/lib.liquid',
+      'modules/vendor-extras/x.liquid',
+      'modules/vendorx.liquid',
+      'app/modules/vendor/lib.liquid',
+    ];
+    const ignoredBy = (pattern: string) =>
+      subjects.map((subject) => isIgnored(toUri(subject), config({ globalIgnore: [pattern] })));
+
+    expect({
+      bare: ignoredBy('modules/vendor'),
+      leadingSlash: ignoredBy('/modules/vendor'),
+      trailingSlash: ignoredBy('modules/vendor/'),
+      star: ignoredBy('modules/vendor/*'),
+      globstar: ignoredBy('modules/vendor/**'),
+      // The contrast that shows anchoring still holds: a bare name reaches any depth, so it
+      // alone covers the first-party `app/modules/vendor` the anchored spellings must not.
+      unanchored: ignoredBy('vendor'),
+    }).toEqual({
+      bare: [true, true, false, false, false],
+      leadingSlash: [true, true, false, false, false],
+      trailingSlash: [true, true, false, false, false],
+      star: [true, true, false, false, false],
+      globstar: [true, true, false, false, false],
+      unanchored: [true, true, false, false, true],
+    });
+  });
+
   it('should work with only global ignore as well', () => {
     const result = isIgnored(
       toUri('app/views/layouts/layout.liquid'),
@@ -323,7 +359,7 @@ describe('Function: isIgnored', () => {
     // Global patterns are consulted first, so they are the first thing compiled.
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
       ['file:///path/to/modules/common-styling/**'],
-      ['file:///path/to/app/views/partials/*.liquid'],
+      ['file:///path/to/app/views/partials/*.liquid{,/**}'],
     ]);
   });
 
@@ -345,7 +381,7 @@ describe('Function: isIgnored', () => {
     expect(results).toEqual([false, true, false, true]);
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
       ['file:///path/to/modules/common-styling/**'],
-      ['file:///path/to/app/views/partials/*.liquid'],
+      ['file:///path/to/app/views/partials/*.liquid{,/**}'],
     ]);
   });
 

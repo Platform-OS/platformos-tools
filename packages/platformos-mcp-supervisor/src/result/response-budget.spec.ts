@@ -40,13 +40,15 @@ const resultWith = (
 const many = (count: number, severity: ValidateCodeDiagnostic['severity'] = 'error') =>
   Array.from({ length: count }, (_, index) => diagnostic(index + 1, severity));
 
+/** What a diagnostic list costs in the response, billed the way `costOf` bills it. */
+const bytesOf = (entries: ValidateCodeDiagnostic[]): number =>
+  entries.reduce((bytes, entry) => bytes + Buffer.byteLength(JSON.stringify(entry), 'utf8') + 1, 0);
+
 /** Serialized size of the diagnostics a capped result actually carries. */
 const diagnosticBytes = (results: Map<string, ValidateCodeResult>): number => {
   let bytes = 0;
   for (const result of results.values()) {
-    for (const bucket of [result.errors, result.warnings, result.infos]) {
-      for (const entry of bucket) bytes += Buffer.byteLength(JSON.stringify(entry), 'utf8') + 1;
-    }
+    bytes += bytesOf(result.errors) + bytesOf(result.warnings) + bytesOf(result.infos);
   }
   return bytes;
 };
@@ -124,6 +126,34 @@ describe('Unit: capToBudget', () => {
       warnings: truncated.warnings !== undefined,
       infos: truncated.infos,
     }).toEqual({ errors: undefined, warnings: true, infos: undefined });
+  });
+
+  it('slices the WARNINGS bucket to exactly what the budget bought, and reports the true total', async () => {
+    // The one bucket the rest of this file leaves undefended: every other warnings assertion
+    // reads a total or a presence, and both survive returning the whole list unsliced. The
+    // budget is derived from the entries, so "twelve fit" is arithmetic rather than a guess.
+    const warnings = many(40, 'warning');
+    const admitted = 12;
+    const results = new Map([['a.liquid', resultWith([], warnings)]]);
+
+    const capped = capToBudget(results, bytesOf(warnings.slice(0, admitted)));
+    const result = capped.get('a.liquid')!;
+
+    expect({
+      status: result.status,
+      must_fix_before_write: result.must_fix_before_write,
+      errors: result.errors,
+      warnings: result.warnings,
+      infos: result.infos,
+      truncated: result.truncated!.warnings,
+    }).toEqual({
+      status: 'warning',
+      must_fix_before_write: false,
+      errors: [],
+      warnings: warnings.slice(0, admitted),
+      infos: [],
+      truncated: { returned: admitted, total: warnings.length },
+    });
   });
 
   it('spends the budget on errors before any info, across every file', async () => {

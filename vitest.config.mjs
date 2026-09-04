@@ -10,9 +10,13 @@ const ciExclude = ['./packages/prettier-plugin-liquid'];
 
 export default defineConfig({
   test: {
+    // `.stryker-tmp` is a COPY of a package with its sources mutated. Stryker removes it on
+    // a clean run and KEEPS it when one errors or is interrupted, so a leftover sandbox is
+    // the normal aftermath of a Ctrl-C — and without this every spec is then collected
+    // twice, the second copy running against deliberately broken code.
     exclude: CI
-      ? [...configDefaults.exclude, '**/dist/**', ...ciExclude]
-      : [...configDefaults.exclude, '**/dist/**'],
+      ? [...configDefaults.exclude, '**/dist/**', '**/.stryker-tmp/**', ...ciExclude]
+      : [...configDefaults.exclude, '**/dist/**', '**/.stryker-tmp/**'],
     // Spec files must run one at a time. That is not a preference here:
     // `config/load-config.spec.ts` installs mock packages into this package's REAL
     // `node_modules` to exercise sibling extension discovery, so a concurrently

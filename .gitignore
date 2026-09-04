@@ -27,3 +27,14 @@ packages/theme-graph/playground/src/graph.json
 # pos-supervisor v1 reference material (recoverable at git 69aa9e4) — not part of PRs
 docs/mcp-supervisor/salvage/
 .mcp.json
+
+# Stryker mutation testing — LOCAL ONLY, deliberately not part of this repository.
+# The configs live on disk but are never committed, so `yarn install` will eventually
+# prune the packages they need. To set it back up:
+#   yarn add -W -D @stryker-mutator/core@^10 @stryker-mutator/vitest-runner@^10
+#   git checkout -- package.json yarn.lock      # keep the manifests clean
+.stryker-tmp/
+packages/*/reports/
+packages/*/stryker.config.mjs
+packages/*/vitest.stryker.config.mjs
+.pos

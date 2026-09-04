@@ -44,6 +44,11 @@ export const MAX_BATCH_BYTES = maxBytesWithin(MAX_LINT_DEADLINE_MS);
  * validating a subset would report a changeset as checked when it was not.
  */
 export function batchTooLarge(buffers: readonly BufferToValidate[]): Declined | undefined {
+  // UNREACHABLE OVER MCP — `VALIDATE_CODE_INPUT.files` caps the array with
+  // `.max(MAX_BATCH_FILES)` first, and `runValidateCode` is not on the package's public
+  // surface — so zero coverage here is the schema working, not a gap. Kept as defence-in-depth
+  // because only this bound lives inside the function that promises it, and asked FIRST
+  // because splitting a request by bytes can still leave too many files.
   if (buffers.length > MAX_BATCH_FILES) {
     return {
       code: 'too_large',

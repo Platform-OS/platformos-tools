@@ -103,6 +103,26 @@ describe('uriFromPathOrUri', () => {
     expect(uriFromPathOrUri('c:\\project\\app\\x.liquid')).toBe('file:///c:/project/app/x.liquid');
   });
 
+  it('anchors the scheme at the START, so a colon deeper in a path is not one', () => {
+    // `TODO:` satisfies `[a-z][a-z0-9+.-]+:` on its own, so only the `^` keeps these on the
+    // path branch. Both fixtures are Windows-shaped ON PURPOSE: for a posix path the two
+    // branches happen to return the same string, so a posix fixture passes with the anchor
+    // deleted. Measured — without it the first comes back with no scheme and an
+    // un-lowercased drive (`C:/repo/...`), and the second THROWS `UriError`, out of the
+    // function documented to take anything crossing a public API.
+    expect([
+      uriFromPathOrUri('C:\\repo\\notes\\TODO: rewrite.md'),
+      uriFromPathOrUri('app\\views\\pages\\TODO: x.liquid'),
+      // Control: a real scheme is still a scheme, or the two above would pass just as well
+      // against a function that had stopped recognising schemes at all.
+      uriFromPathOrUri('mock-fs:/app/TODO: x.liquid'),
+    ]).toEqual([
+      'file:///c:/repo/notes/TODO: rewrite.md',
+      'file:///app/views/pages/TODO: x.liquid',
+      'mock-fs:/app/TODO: x.liquid',
+    ]);
+  });
+
   it('normalizes a URI it is handed', () => {
     expect([
       uriFromPathOrUri('file:///c%3A/project/app/x.liquid'),

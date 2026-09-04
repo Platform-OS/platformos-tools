@@ -362,6 +362,12 @@ function projectScan(
   // Nothing in this changeset can HAVE dependants — every buffer is a YAML file, or sits in
   // no platformOS directory — so impact will never consult the scan and reading the project
   // would be pure waste. Decidable from the paths alone, before any I/O.
+  //
+  // A PERFORMANCE GUARD, NOT A CORRECTNESS ONE, which is why six mutants survive on it.
+  // `warm()` only PRE-warms: `scan.sources()` memoizes its promise and impact awaits that
+  // same promise itself, so inverting this buys a wasted read or a colder path, never a
+  // different answer. Nothing pins it — nor the `--no-impact` claim above, where what is
+  // tested is that the impact ADAPTER goes uncalled, not that the project read is skipped.
   const worthReading =
     ctx.impactEnabled !== false &&
     lintable.some((buffer) =>

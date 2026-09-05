@@ -107,6 +107,11 @@ function compiled(config: Config, key: string | symbol, patterns: string[]): Min
   let matchers = byCheck.get(key);
   if (!matchers) {
     matchers = patterns
+      // A BLANK OR NON-STRING ENTRY IS SKIPPED, and must not take the valid ones with it: a
+      // blank rewrites to a pattern matching every file, and a YAML `null` from a bare `-`
+      // reaches `.startsWith` and throws. `.gitignore` skips a blank line too — verified
+      // against git, which still applies the surrounding patterns.
+      .filter((pattern) => typeof pattern === 'string' && pattern !== '')
       .map((pattern) => rewrite(pattern, config.rootUri))
       .map((pattern) => new Minimatch(pattern));
     byCheck.set(key, matchers);
@@ -128,8 +133,8 @@ function compiled(config: Config, key: string | symbol, patterns: string[]): Min
 function rewrite(pattern: string, rootUri: string): string {
   // The root is normalized to the same spelling `isIgnored` puts the subject in, so an
   // anchored pattern and its subject cannot diverge on the root's spelling.
-  if (pattern.startsWith('/')) return normalize(rootUri) + widen(pattern);
-  if (isAnchored(pattern)) return `${normalize(rootUri)}/${widen(pattern)}`;
+  if (pattern.startsWith('/')) return normalize(rootUri) + withContents(pattern);
+  if (isAnchored(pattern)) return `${normalize(rootUri)}/${withContents(pattern)}`;
   return anyDepth(pattern);
 }
 
@@ -141,6 +146,17 @@ function isAnchored(pattern: string): boolean {
 /** `foo/` and `foo/*` both mean everything under `foo`. */
 function widen(pattern: string): string {
   return pattern.replace(/\/\*?$/, '/**');
+}
+
+/**
+ * An anchored pattern, covering a directory's CONTENTS as well as an entry of that name — the
+ * subject is always a file, so `modules/vendor` otherwise matches nothing at all, exactly the
+ * reasoning `anyDepth` already applies to a bare name. One that ends in a glob reaches inside
+ * on its own. `{,/**}` and not `/**`, so a sibling sharing the prefix stays out.
+ */
+function withContents(pattern: string): string {
+  const widened = widen(pattern);
+  return widened.endsWith('*') ? widened : `${widened}{,/**}`;
 }
 
 /**

@@ -206,6 +206,133 @@ describe('Function: isIgnored', () => {
     expect(result).toBe(false);
   });
 
+  /**
+   * A blank entry used to rewrite to a match-everything pattern, so one stray `- ""` turned a
+   * whole project's run clean while checking nothing.
+   */
+  it('should skip a blank entry rather than let it match every file', () => {
+    // The whitespace entry rides along to pin the boundary: only a TRULY empty entry is
+    // skipped, and a blank-looking one is still compiled and still matches nothing.
+    const withBlank = config({
+      checkIgnore: ['', ' ', 'modules/vendor/**'],
+      globalIgnore: ['', 'node_modules'],
+    });
+
+    expect({
+      unrelated: isIgnored(toUri('app/views/pages/index.liquid'), withBlank, checkDef),
+      // Controls: the entries either side of the blank one still do their job, so this
+      // cannot pass against a change that simply stopped ignoring anything.
+      perCheck: isIgnored(toUri('modules/vendor/lib.liquid'), withBlank, checkDef),
+      global: isIgnored(toUri('some-lib/node_modules/x.liquid'), withBlank, checkDef),
+    }).toEqual({ unrelated: false, perCheck: true, global: true });
+  });
+
+  it('should compile nothing when a list holds only a blank entry', () => {
+    const blankOnly = config({ checkIgnore: [''], globalIgnore: [''] });
+
+    expect({
+      ignored: isIgnored(toUri('app/views/pages/index.liquid'), blankOnly, checkDef),
+      compiled: vi.mocked(Minimatch).mock.calls,
+      hasGlobal: hasIgnorePatterns(blankOnly),
+      hasOwn: hasIgnorePatterns(blankOnly, checkDef),
+    }).toEqual({ ignored: false, compiled: [], hasGlobal: false, hasOwn: false });
+  });
+
+  /**
+   * YAML turns a bare `-` into `null`, and nothing checks the elements at runtime — both lists
+   * are typed `string[]` over data read from a file. Unfiltered, `null` reached `.startsWith`
+   * and threw out of the entire run.
+   */
+  it('should skip a malformed entry rather than crash, in either list', () => {
+    const malformed = ['modules/vendor/**', null, undefined, 42, ['nested']] as unknown as string[];
+    const perCheckOnly = config({ checkIgnore: malformed, globalIgnore: [] });
+    const globalOnly = config({ checkIgnore: [], globalIgnore: malformed });
+
+    // Each list is asked in isolation, so "both answer the same way" is what is asserted
+    // rather than one of them carrying the other. The unrelated file is the control: the
+    // sound entry still applies and nothing has started ignoring everything.
+    expect({
+      perCheckMatches: isIgnored(toUri('modules/vendor/lib.liquid'), perCheckOnly, checkDef),
+      perCheckUnrelated: isIgnored(toUri('app/views/pages/index.liquid'), perCheckOnly, checkDef),
+      globalMatches: isIgnored(toUri('modules/vendor/lib.liquid'), globalOnly),
+      globalUnrelated: isIgnored(toUri('app/views/pages/index.liquid'), globalOnly),
+    }).toEqual({
+      perCheckMatches: true,
+      perCheckUnrelated: false,
+      globalMatches: true,
+      globalUnrelated: false,
+    });
+  });
+
+  /**
+   * Matching a list is an OR. Every other fixture in this file carries a single pattern, and
+   * with one pattern `.some` and `.every` are the same function — so the behaviour a real
+   * `.platformos-check.yml` depends on, several patterns of which a file matches one, went
+   * unasserted in both lists.
+   */
+  it('should ignore a file matching ANY pattern in a list, not only one matching all of them', () => {
+    const patterns = ['modules/vendor/**', 'app/views/generated/**'];
+    const perCheckOnly = config({ checkIgnore: patterns, globalIgnore: [] });
+    const globalOnly = config({ checkIgnore: [], globalIgnore: patterns });
+    const first = toUri('modules/vendor/lib.liquid');
+    const second = toUri('app/views/generated/x.liquid');
+    const neither = toUri('app/views/pages/index.liquid');
+
+    // Each list is asked alone — the per-check config has no global patterns and the global
+    // one is asked without a check — so a passing row cannot be the other list answering.
+    expect({
+      perCheckFirst: isIgnored(first, perCheckOnly, checkDef),
+      perCheckSecond: isIgnored(second, perCheckOnly, checkDef),
+      perCheckNeither: isIgnored(neither, perCheckOnly, checkDef),
+      globalFirst: isIgnored(first, globalOnly),
+      globalSecond: isIgnored(second, globalOnly),
+      globalNeither: isIgnored(neither, globalOnly),
+    }).toEqual({
+      perCheckFirst: true,
+      perCheckSecond: true,
+      perCheckNeither: false,
+      globalFirst: true,
+      globalSecond: true,
+      globalNeither: false,
+    });
+  });
+
+  /**
+   * `modules/vendor` used to match nothing at all: the anchored branch left a bare directory
+   * name alone while the subject is always a file. The spellings that already worked ride in
+   * the same table, so a regression in any of them surfaces here rather than elsewhere.
+   */
+  it('should ignore a bare anchored directory and its contents, and nothing beside it', () => {
+    // vendor/lib | vendor/deep/lib | vendor-extras | vendorx | app/modules/vendor/lib
+    const subjects = [
+      'modules/vendor/lib.liquid',
+      'modules/vendor/deep/lib.liquid',
+      'modules/vendor-extras/x.liquid',
+      'modules/vendorx.liquid',
+      'app/modules/vendor/lib.liquid',
+    ];
+    const ignoredBy = (pattern: string) =>
+      subjects.map((subject) => isIgnored(toUri(subject), config({ globalIgnore: [pattern] })));
+
+    expect({
+      bare: ignoredBy('modules/vendor'),
+      leadingSlash: ignoredBy('/modules/vendor'),
+      trailingSlash: ignoredBy('modules/vendor/'),
+      star: ignoredBy('modules/vendor/*'),
+      globstar: ignoredBy('modules/vendor/**'),
+      // The contrast that shows anchoring still holds: a bare name reaches any depth, so it
+      // alone covers the first-party `app/modules/vendor` the anchored spellings must not.
+      unanchored: ignoredBy('vendor'),
+    }).toEqual({
+      bare: [true, true, false, false, false],
+      leadingSlash: [true, true, false, false, false],
+      trailingSlash: [true, true, false, false, false],
+      star: [true, true, false, false, false],
+      globstar: [true, true, false, false, false],
+      unanchored: [true, true, false, false, true],
+    });
+  });
+
   it('should work with only global ignore as well', () => {
     const result = isIgnored(
       toUri('app/views/layouts/layout.liquid'),
@@ -232,7 +359,7 @@ describe('Function: isIgnored', () => {
     // Global patterns are consulted first, so they are the first thing compiled.
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
       ['file:///path/to/modules/common-styling/**'],
-      ['file:///path/to/app/views/partials/*.liquid'],
+      ['file:///path/to/app/views/partials/*.liquid{,/**}'],
     ]);
   });
 
@@ -254,7 +381,7 @@ describe('Function: isIgnored', () => {
     expect(results).toEqual([false, true, false, true]);
     expect(vi.mocked(Minimatch).mock.calls).toEqual([
       ['file:///path/to/modules/common-styling/**'],
-      ['file:///path/to/app/views/partials/*.liquid'],
+      ['file:///path/to/app/views/partials/*.liquid{,/**}'],
     ]);
   });
 

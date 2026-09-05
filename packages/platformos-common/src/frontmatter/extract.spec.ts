@@ -103,30 +103,28 @@ describe('extractFrontmatterBlock', () => {
   });
 
   /**
+   * Two things at once, on one fixture, because they are one value.
+   *
    * CONTROL for the above: genuinely unparseable YAML must still be reported, or the option
    * that makes a duplicate legal could equally have disabled error reporting altogether.
+   *
+   * And the message must stay a SINGLE LINE. The parser's pretty form appends the offending
+   * line and a caret diagram, and that message is reported verbatim as an offense — a user
+   * saw the diagram in their editor.
    */
-  it('still records a syntax error for YAML that genuinely does not parse', () => {
-    const block = extractFrontmatterBlock(
-      '---\nslug: notes\nlayout: [unclosed\n---\n',
-      PlatformOSFileType.Page,
-    )!;
+  it('records one single-line syntax error for YAML that genuinely does not parse', () => {
+    const source = '---\nslug: notes\nlayout: [unclosed\n---\n';
+    const block = extractFrontmatterBlock(source, PlatformOSFileType.Page)!;
 
-    expect(block.syntaxErrors.length).toEqual(1);
-  });
+    // The parser points at the line break that closes the unclosed sequence.
+    const breakAfterUnclosed = source.indexOf('\n---\n');
 
-  /**
-   * The pretty form appends the offending line and a caret diagram to `error.message`, and
-   * that message is reported verbatim as an offense. A user saw the diagram in their editor.
-   */
-  it('records a syntax error as a single line, with no source excerpt or caret diagram', () => {
-    const block = extractFrontmatterBlock(
-      '---\nslug: notes\nlayout: [unclosed\n---\n',
-      PlatformOSFileType.Page,
-    )!;
-
-    expect(block.syntaxErrors.map((error) => error.message)).toEqual([
-      'Flow sequence in block collection must be sufficiently indented and end with a ]',
+    expect(block.syntaxErrors).toEqual([
+      {
+        message: 'Flow sequence in block collection must be sufficiently indented and end with a ]',
+        startIndex: breakAfterUnclosed,
+        endIndex: breakAfterUnclosed + 1,
+      },
     ]);
   });
 

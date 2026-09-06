@@ -96,51 +96,38 @@ export function parseSlug(slug: string): ParsedSlug {
  * Returns a negative number; more negative = higher priority.
  * When sorting ascending, highest-priority routes come first.
  *
- * Segment weights:
- * - Static/hardcoded: 100 points
- * - Required parameter (:param): 10 points
- * - Optional parameter (inside parens): 1 point
+ * Segment weights — the engine tests `start_with?(':')` and nothing else, so there are two:
+ * - Required parameter (`:param`): 10 points, or 1 inside an optional group
+ * - Everything else, a `*` wildcard and an empty component included: 100 points
  *
  * Base: weighted_size * -100
  * Adjustments: slug='/' +1, format='html' +1, format-in-last-component -1
+ *
+ * Faithful to `Router::RouteBuilder::Route` (`app/models/router/route_builder/route.rb`);
+ * `parseSlug.spec.ts` pins it against values measured by running that Ruby.
  */
 export function calculatePrecedence(slug: string, format: string): number {
-  if (slug === '/' || slug === '') {
-    // Special case for root: weighted_size=0 -> use 1
-    let precedence = 1 * -100;
-    precedence += 1; // root "/" adjustment
-    if (format === 'html') precedence += 1;
-    return precedence;
-  }
-
-  // Split on `(?/` boundary to get all segments with their weight context
-  // The Ruby code: slug.split(%r{\(?/}).inject(0) { ... }
+  // Ruby's `String#split` drops trailing empty fields and JavaScript's keeps them; leading
+  // and interior empties are kept by both and weigh 100, so `a//b` scores 300.
   const parts = slug.split(/\(?\//);
+  while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+
   let weightedSize = 0;
   for (const part of parts) {
-    if (part.length === 0) continue;
-    if (part.startsWith(':')) {
-      weightedSize += part.endsWith(')') ? 1 : 10;
-    } else if (part.startsWith('*')) {
-      weightedSize += part.endsWith(')') ? 1 : 10;
-    } else {
-      weightedSize += 100;
-    }
+    weightedSize += part.startsWith(':') ? (part.endsWith(')') ? 1 : 10) : 100;
   }
 
+  // `ROOT_SLUGS` is `%w[/]`, so an empty slug is not root — and needs no special case, since
+  // it splits to nothing and `weighted_size.zero? -> 1` covers it.
   let precedence = (weightedSize === 0 ? 1 : weightedSize) * -100;
-
+  if (slug === '/') precedence += 1;
   if (format === 'html') precedence += 1;
 
-  // Check if format is embedded in last slug component (e.g. `data.json`)
+  // `File.extname` counts a bare trailing dot (`a.` -> `"."`) but not a leading one.
   const lastSlash = slug.lastIndexOf('/');
   const lastComponent = lastSlash >= 0 ? slug.slice(lastSlash + 1) : slug;
-  // Strip optional group parens for checking
   const cleanLast = lastComponent.replace(/[()]/g, '');
-  const dotIdx = cleanLast.lastIndexOf('.');
-  if (dotIdx > 0 && dotIdx < cleanLast.length - 1) {
-    precedence -= 1;
-  }
+  if (cleanLast.lastIndexOf('.') > 0) precedence -= 1;
 
   return precedence;
 }

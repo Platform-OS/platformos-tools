@@ -107,13 +107,10 @@ export function parseSlug(slug: string): ParsedSlug {
  * `parseSlug.spec.ts` pins it against values measured by running that Ruby.
  */
 export function calculatePrecedence(slug: string, format: string): number {
-  // Ruby's `String#split` drops trailing empty fields and JavaScript's keeps them; leading
-  // and interior empties are kept by both and weigh 100, so `a//b` scores 300.
-  const parts = slug.split(/\(?\//);
-  while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
-
+  // An interior or leading empty component weighs 100 like any other non-`:` part, so `a//b`
+  // scores 300.
   let weightedSize = 0;
-  for (const part of parts) {
+  for (const part of rubySplit(slug, /\(?\//)) {
     weightedSize += part.startsWith(':') ? (part.endsWith(')') ? 1 : 10) : 100;
   }
 
@@ -123,11 +120,33 @@ export function calculatePrecedence(slug: string, format: string): number {
   if (slug === '/') precedence += 1;
   if (format === 'html') precedence += 1;
 
-  // `File.extname` counts a bare trailing dot (`a.` -> `"."`) but not a leading one.
-  const lastSlash = slug.lastIndexOf('/');
-  const lastComponent = lastSlash >= 0 ? slug.slice(lastSlash + 1) : slug;
-  const cleanLast = lastComponent.replace(/[()]/g, '');
-  if (cleanLast.lastIndexOf('.') > 0) precedence -= 1;
+  // `File.extname(slug.split('/').last || '')` — a PLAIN `/` split, and the component verbatim:
+  // parentheses are ordinary characters to the engine, not grouping to be stripped.
+  const components = rubySplit(slug, '/');
+  if (hasExtension(components[components.length - 1] ?? '')) precedence -= 1;
 
   return precedence;
+}
+
+/**
+ * `split` with Ruby's semantics: trailing empty fields are dropped, leading and interior ones
+ * kept. JavaScript keeps all of them, which would score a phantom component for `a/`.
+ */
+function rubySplit(value: string, separator: string | RegExp): string[] {
+  const parts = value.split(separator);
+  while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+  return parts;
+}
+
+/**
+ * Whether `File.extname` would return anything: a dot past position 0 with at least one
+ * non-dot before it. So `a.` and `(.json)` have one; `.hidden`, `..` and `...` do not.
+ *
+ * Scanned rather than matched, following `trimTrailingSlash` — a `^\.*$` here is linear on V8
+ * but reads as a ReDoS candidate to CodeQL.
+ */
+function hasExtension(component: string): boolean {
+  const dot = component.lastIndexOf('.');
+  for (let index = 0; index < dot; index++) if (component[index] !== '.') return true;
+  return false;
 }

@@ -83,6 +83,13 @@ describe('formatFromFilePath', () => {
     expect(formatFromFilePath('export.csv.liquid')).toBe('csv');
   });
 
+  it('returns html for a name that is nothing but an extension', () => {
+    // `File.extname('.json')` is `''` in Ruby — a leading dot starts a name, it does not
+    // introduce an extension — so the engine calls this html, and so must we. Without the
+    // guard this reports `json`, and the slug then strips to the empty string.
+    expect(formatFromFilePath('.json.liquid')).toBe('html');
+  });
+
   it('returns html for index.liquid', () => {
     expect(formatFromFilePath('index.liquid')).toBe('html');
   });
@@ -137,6 +144,37 @@ describe('effectivePageSlug', () => {
 
   it('ignores a non-string frontmatter `format` and uses the file-derived format', () => {
     expect(effectivePageSlug('api/data.json.liquid', { format: 123 })).toBe('api/data');
+  });
+
+  /**
+   * MEASURED by running the engine's own `Page.default_routing_options`, sliced out of
+   * `app/models/page.rb` rather than retyped. The override rows are the ones that bite: the
+   * existing cases above use paths where the frontmatter format AGREES with the filename, so
+   * they pass just as well when the override is ignored entirely.
+   */
+  it('derives the slug the way the engine does', () => {
+    const cases: [path: string, format: string | null, slug: string][] = [
+      ['data.json.liquid', null, 'data'], // no override: the format comes from the filename
+      ['data.json.liquid', 'html', 'data.json'], // override DISAGREES with the filename and wins
+      ['data.json.liquid', 'json', 'data'],
+      ['about.foo.liquid', 'foo', 'about'], // an override is not filtered by KNOWN_FORMATS
+      ['about.foo.liquid', null, 'about.foo'], // but a file-derived format is
+      ['about.liquid', null, 'about'],
+      ['index.liquid', null, '/'],
+      ['home.liquid', null, '/'], // the deprecated root alias
+      ['blog/home.liquid', null, 'blog/home'], // nested, so not the alias
+      ['test/index.liquid', null, 'test'],
+      ['home/index.liquid', null, 'home'], // `/index` strips before `home` is considered
+      ['.json.liquid', null, '.json'],
+    ];
+
+    expect(
+      cases.map(([path, format]) => ({
+        path,
+        format,
+        slug: effectivePageSlug(path, format === null ? null : { format }),
+      })),
+    ).toEqual(cases.map(([path, format, slug]) => ({ path, format, slug })));
   });
 });
 

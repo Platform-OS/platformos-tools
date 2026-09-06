@@ -201,7 +201,15 @@ describe('calculatePrecedence', () => {
       [':id/*', 'html', -10999],
       ['a//b', 'html', -29999], // an interior empty component still scores 100
       ['(/:x)', 'html', -10099], // a leading empty, before an optional group
-      ['a.', 'html', -10000], // a bare trailing dot IS a format to `File.extname`
+      ['a.', 'html', -10000], // a bare trailing dot IS an extension to `File.extname`
+      ['..', 'html', -9999], // but a leading RUN of dots is not
+      ['...', 'html', -9999],
+      ['..b', 'html', -9999],
+      ['a..b', 'html', -10000], // a dot after a non-dot is
+      ['(.json)', 'html', -10000], // a paren is an ordinary character, not grouping to strip
+      ['a/(.json)', 'html', -20000], // the same, in the last component of a path
+      ['a.json/', 'html', -10000], // the engine splits on `/` dropping trailing empties,
+      ['a/b.json/', 'html', -20000], // so it sees `a.json` and `b.json`, not an empty component
       ['', 'html', -99], // an empty slug is NOT root — `ROOT_SLUGS` is `%w[/]`
       ['/', 'html', -98], // root outranks the empty slug by the root adjustment
       ['/', 'json', -99],

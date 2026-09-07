@@ -132,7 +132,7 @@ Fixing only A would have shipped a function still wrong three ways, in the same 
 
 THE TRAP THAT WOULD HAVE BROKEN A PASSING CASE: `RUBY'S String#split DROPS TRAILING EMPTY FIELDS AND JAVASCRIPT'S DOES NOT`. The obvious fix for B is deleting the `if (part.length === 0) continue`, and that alone would have made `a/` score 200 where the engine scores 100 — breaking a case that currently AGREES. Verified with `ruby -e` on the split itself before writing the loop. The port now pops trailing empties explicitly and scores leading and interior ones, which is exactly Ruby's behaviour.
 
-D FELL OUT FOR FREE AND IS CONFIRMED BY THE ENGINE'S OWN CONSTANT: `ROOT_SLUGS = %w[/]`, so `''` is not root there. With the trailing-empty pop in place, `''` splits to nothing, hits `weighted_size.zero? -> 1`, and lands on -99 with no special case — so the whole root early-return could be deleted rather than corrected. `/` still scores -98 through the general path.
+D FELL OUT FOR FREE AND IS CONFIRMED BY THE ENGINE'S OWN CONSTANT: its root-slug list holds only `/`, so `''` is not root there. With the trailing-empty pop in place, `''` splits to nothing, hits `weighted_size.zero? -> 1`, and lands on -99 with no special case — so the whole root early-return could be deleted rather than corrected. `/` still scores -98 through the general path.
 
 C WAS MEASURED, NOT ASSUMED: `File.extname('a.')` is `"."` under the platform's Ruby, `File.extname('.hidden')` is `""`. The port required a non-empty extension; dropping that condition matches both.
 

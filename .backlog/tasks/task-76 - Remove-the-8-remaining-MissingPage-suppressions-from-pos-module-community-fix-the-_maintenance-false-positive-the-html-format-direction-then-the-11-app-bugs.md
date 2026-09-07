@@ -20,9 +20,9 @@ references:
   - packages/platformos-check-common/src/checks/missing-page/index.spec.ts
   - packages/platformos-check-common/src/url-helpers.ts
   - packages/platformos-common/src/route-table/RouteTable.ts
-  - ~/projects/desksnearme/app/models/router/route_builder/route.rb
-  - ~/projects/desksnearme/config/routes.rb
-  - ~/projects/desksnearme/app/models/instance.rb
+  - the platform source, app/models/router/route_builder/route.rb
+  - the platform source, config/routes.rb
+  - the platform source, app/models/instance.rb
 priority: high
 ---
 
@@ -61,7 +61,7 @@ stay findable — do not add a second spec file.**
 Probe pages deployed to the `dev` environment of `~/projects/pos/pos-module-community`
 (`maciek3.staging.oregon.platform-os.com`, `slug_exact_match: true` — the default) via
 `pos-cli sync dev -f`, real requests with `curl`, pages deleted afterwards. Cross-checked
-against the backend router in `~/projects/desksnearme`:
+against the backend router in the platform source:
 `app/models/router.rb`, `app/models/router/route_builder/route.rb`,
 `app/models/router/route_builder/legacy_route_with_max_deep_level.rb`, `config/routes.rb`.
 

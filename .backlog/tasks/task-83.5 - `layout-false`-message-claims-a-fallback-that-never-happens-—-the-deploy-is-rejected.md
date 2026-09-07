@@ -41,15 +41,10 @@ Validation failed:
 views/pages/zz_case.liquid: undefined method 'sub' for false      (exit 1)
 ```
 
-Cause, `page_converter.rb:143`:
+Cause, `page_converter.rb:143`: `set_layout` strips a `layouts/` prefix from the value with a
+SAFE-NAVIGATION call, guarded only by `unless value.nil?`.
 
-```ruby
-def set_layout(page, value)
-  page.layout = value&.sub(%r{^layouts/}, '') unless value.nil?
-end
-```
-
-`&.` guards `nil`, not `false`. YAML parses `layout: false` as the boolean and `false.sub` raises. `self.use_layout` (`:155`) only supplies the instance default when `layout` is **nil**, so the boolean never reaches the fallback path the message describes. `set_layout_name` (`:151`) has the same shape.
+Safe navigation guards `nil`, not `false`. YAML parses `layout: false` as the boolean and `false.sub` raises. `self.use_layout` (`:155`) only supplies the instance default when `layout` is **nil**, so the boolean never reaches the fallback path the message describes. `set_layout_name` (`:151`) has the same shape.
 
 The suggested replacement is correct and stays: `layout: ''` validates and deploys clean (measured).
 

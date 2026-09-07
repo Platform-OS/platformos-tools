@@ -22,8 +22,8 @@ references:
   - packages/platformos-mcp-supervisor/src/result/types.ts
   - packages/platformos-mcp-supervisor/src/transport/instructions.ts
   - packages/platformos-check-node/src/index.ts
-  - /home/ecgtheow/Work/supervisor-tests/auto-eval/suites/16-impact.mjs
-  - /home/ecgtheow/Work/supervisor-tests/auto-eval/suites/09-graph.mjs
+  - the supervisor eval suite, 16-impact.mjs
+  - the supervisor eval suite, 09-graph.mjs
 priority: high
 ordinal: 69000
 ---

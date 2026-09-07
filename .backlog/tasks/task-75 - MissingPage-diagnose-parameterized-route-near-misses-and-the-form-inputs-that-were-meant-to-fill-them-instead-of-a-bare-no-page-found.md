@@ -60,7 +60,7 @@ scope: trailing (`users/action/:user_id`) and interior (`users/:user_id/action`)
 ## Measured runtime behaviour — read this before implementing
 
 The premise that a form input or query param can *fill* a route segment was tested, not
-assumed. Probe pages were deployed to the `dev` environment of `~/projects/pos/pos-module-community`
+assumed. Probe pages were deployed to the `dev` environment of `a local checkout of the community module`
 (`maciek3.staging.oregon.platform-os.com`) via `pos-cli sync dev -f …`, real requests were
 issued with `curl`, and the pages were deleted again. Each hypothesis has a paired control that
 must still succeed, so no row is vacuous.

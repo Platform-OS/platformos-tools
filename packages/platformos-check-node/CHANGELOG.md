@@ -490,8 +490,8 @@
 - c0907ab: New check `RollbackOutsideTransaction` (error, recommended): report a `{% rollback %}` that is
   reached outside a `{% transaction %}` block.
 
-  `Liquify::Tags::RollbackTag` raises `rollback performed outside of transaction` unless
-  `AfterCommitEverywhere.in_transaction?`, so this is a guaranteed runtime error rather than a
+  The platform's rollback tag raises `rollback performed outside of transaction` unless it is
+  actually inside one, so this is a guaranteed runtime error rather than a
   smell. The parser, the printer and the syntax highlighting already carried the tag; what was
   missing was anyone judging where it may appear.
 
@@ -528,7 +528,7 @@
   form callback's entry state — so gating writes on it would promise more than the analysis
   supports.
 
-  Measured on real projects. Twelve Liquid files across `~/projects/pos` contain a rollback and
+  Measured on real projects. Twelve Liquid files across `a local project checkout` contain a rollback and
   none is misplaced, so the whole-project runs report nothing — which on its own proves nothing,
   so the silence was controlled: `Accala-MP`'s `app/views/pages/api/v2/companies/update.json.liquid`
   calls `commands/v2/companies/update_disciplines`, whose two rollbacks sit inside its own

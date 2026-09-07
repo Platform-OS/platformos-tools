@@ -111,6 +111,10 @@ export const KNOWN_FORMATS = new Set([
 
 /**
  * Extracts the format from a page filename.
+ *
+ * Mirrors the engine's own file-format derivation in its Liquid parser: frontmatter wins if
+ * present, else the extension under `.liquid`, filtered against the page format vocabulary and
+ * falling back to html.
  * Returns the format if the file has a double extension like `.json.liquid` or `.xml.liquid`
  * and the extension is a known platformOS format.
  * Returns 'html' as the default if only `.liquid` is present or the extension is unknown.

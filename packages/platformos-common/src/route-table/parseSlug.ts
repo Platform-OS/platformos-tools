@@ -96,51 +96,57 @@ export function parseSlug(slug: string): ParsedSlug {
  * Returns a negative number; more negative = higher priority.
  * When sorting ascending, highest-priority routes come first.
  *
- * Segment weights:
- * - Static/hardcoded: 100 points
- * - Required parameter (:param): 10 points
- * - Optional parameter (inside parens): 1 point
+ * Segment weights — the engine tests `start_with?(':')` and nothing else, so there are two:
+ * - Required parameter (`:param`): 10 points, or 1 inside an optional group
+ * - Everything else, a `*` wildcard and an empty component included: 100 points
  *
  * Base: weighted_size * -100
  * Adjustments: slug='/' +1, format='html' +1, format-in-last-component -1
+ *
+ * Faithful to `Router::RouteBuilder::Route` (`app/models/router/route_builder/route.rb`);
+ * `parseSlug.spec.ts` pins it against values measured by running that Ruby.
  */
 export function calculatePrecedence(slug: string, format: string): number {
-  if (slug === '/' || slug === '') {
-    // Special case for root: weighted_size=0 -> use 1
-    let precedence = 1 * -100;
-    precedence += 1; // root "/" adjustment
-    if (format === 'html') precedence += 1;
-    return precedence;
-  }
-
-  // Split on `(?/` boundary to get all segments with their weight context
-  // The Ruby code: slug.split(%r{\(?/}).inject(0) { ... }
-  const parts = slug.split(/\(?\//);
+  // An interior or leading empty component weighs 100 like any other non-`:` part, so `a//b`
+  // scores 300.
   let weightedSize = 0;
-  for (const part of parts) {
-    if (part.length === 0) continue;
-    if (part.startsWith(':')) {
-      weightedSize += part.endsWith(')') ? 1 : 10;
-    } else if (part.startsWith('*')) {
-      weightedSize += part.endsWith(')') ? 1 : 10;
-    } else {
-      weightedSize += 100;
-    }
+  for (const part of rubySplit(slug, /\(?\//)) {
+    weightedSize += part.startsWith(':') ? (part.endsWith(')') ? 1 : 10) : 100;
   }
 
+  // The engine's root-slug list holds only `/`, so an empty slug is not root — and needs no
+  // special case, since it splits to nothing and the zero-weight branch returns 1.
   let precedence = (weightedSize === 0 ? 1 : weightedSize) * -100;
-
+  if (slug === '/') precedence += 1;
   if (format === 'html') precedence += 1;
 
-  // Check if format is embedded in last slug component (e.g. `data.json`)
-  const lastSlash = slug.lastIndexOf('/');
-  const lastComponent = lastSlash >= 0 ? slug.slice(lastSlash + 1) : slug;
-  // Strip optional group parens for checking
-  const cleanLast = lastComponent.replace(/[()]/g, '');
-  const dotIdx = cleanLast.lastIndexOf('.');
-  if (dotIdx > 0 && dotIdx < cleanLast.length - 1) {
-    precedence -= 1;
-  }
+  // `File.extname(slug.split('/').last || '')` — a PLAIN `/` split, and the component verbatim:
+  // parentheses are ordinary characters to the engine, not grouping to be stripped.
+  const components = rubySplit(slug, '/');
+  if (hasExtension(components[components.length - 1] ?? '')) precedence -= 1;
 
   return precedence;
+}
+
+/**
+ * `split` with Ruby's semantics: trailing empty fields are dropped, leading and interior ones
+ * kept. JavaScript keeps all of them, which would score a phantom component for `a/`.
+ */
+function rubySplit(value: string, separator: string | RegExp): string[] {
+  const parts = value.split(separator);
+  while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+  return parts;
+}
+
+/**
+ * Whether `File.extname` would return anything: a dot past position 0 with at least one
+ * non-dot before it. So `a.` and `(.json)` have one; `.hidden`, `..` and `...` do not.
+ *
+ * Scanned rather than matched, following `trimTrailingSlash` — a `^\.*$` here is linear on V8
+ * but reads as a ReDoS candidate to CodeQL.
+ */
+function hasExtension(component: string): boolean {
+  const dot = component.lastIndexOf('.');
+  for (let index = 0; index < dot; index++) if (component[index] !== '.') return true;
+  return false;
 }

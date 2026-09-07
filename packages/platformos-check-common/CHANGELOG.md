@@ -613,8 +613,8 @@ assign [var] = [value]`, at PARSE time. So format-on-save turned a working file 
 - c0907ab: New check `RollbackOutsideTransaction` (error, recommended): report a `{% rollback %}` that is
   reached outside a `{% transaction %}` block.
 
-  `Liquify::Tags::RollbackTag` raises `rollback performed outside of transaction` unless
-  `AfterCommitEverywhere.in_transaction?`, so this is a guaranteed runtime error rather than a
+  The platform's rollback tag raises `rollback performed outside of transaction` unless it is
+  actually inside one, so this is a guaranteed runtime error rather than a
   smell. The parser, the printer and the syntax highlighting already carried the tag; what was
   missing was anyone judging where it may appear.
 
@@ -651,7 +651,7 @@ assign [var] = [value]`, at PARSE time. So format-on-save turned a working file 
   form callback's entry state — so gating writes on it would promise more than the analysis
   supports.
 
-  Measured on real projects. Twelve Liquid files across `~/projects/pos` contain a rollback and
+  Measured on real projects. Twelve Liquid files across `a local project checkout` contain a rollback and
   none is misplaced, so the whole-project runs report nothing — which on its own proves nothing,
   so the silence was controlled: `Accala-MP`'s `app/views/pages/api/v2/companies/update.json.liquid`
   calls `commands/v2/companies/update_disciplines`, whose two rollbacks sit inside its own
@@ -1184,15 +1184,9 @@ caller's scope. Pass it explicitly.` A separate code rather than a softened seve
   blast radius as `{% layout %}`: the gate said `must_fix_before_write: false` and the deploy took
   every other file down with it.
 
-  The platform's own rule is one regex — `LHS_PATTERN` in `app/lib/liquify/tags/hash_assignable.rb`:
-
-  ```ruby
-  MIXED_KEYS_PATTERN = '(?:\.[\w\-]+|\[.+?\])+'
-  LHS_PATTERN        = "(#{VARIABLE_NAME})(#{MIXED_KEYS_PATTERN})?"
-  ```
-
-  There is no `\s*` between the name and the key path, and the alternation covers `.foo` as well as
-  `[…]`. So the constraint is **no whitespace between a variable and the start of its key path**, both
+  The platform's own rule is a single regex (`LHS_PATTERN`, in its hash-assignable tag support):
+  a variable name followed by an OPTIONAL key path, where the key path alternation covers `.foo`
+  as well as `[…]`, and nothing between the two permits whitespace. So the constraint is **no whitespace between a variable and the start of its key path**, both
   accessors — not "no space before a subscript", which is how it was filed. Three tags share that
   pattern, and all three were affected, each with its own error text:
 

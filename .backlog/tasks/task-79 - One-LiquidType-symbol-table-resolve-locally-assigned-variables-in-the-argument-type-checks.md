@@ -29,7 +29,7 @@ A `LiquidType` symbol table already exists privately inside `InvalidWriteTarget`
 - [x] #3 A write inside an {% if %} branch is not a fact past {% endif %}; a loop variable shadows an assigned name over the body and the outer binding is restored after
 - [x] #4 {% doc %} @param types seed the table for the file that declares them; a type the docset vocabulary does not map (`{current_user}`, `string[]`) seeds nothing
 - [x] #5 Every new silence assertion is paired with a control that must still fire, and each new assertion fails when the code is deliberately broken
-- [x] #6 Sweep of the real projects in ~/projects/pos shows no false positives from the three arg-type checks getting louder
+- [x] #6 Sweep of the real projects in a local project checkout shows no false positives from the three arg-type checks getting louder
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -52,9 +52,9 @@ Perf: +~1.8% on a full lint of pos-module-community (11.57s vs 11.35s median of 
 
 Follow-up (same session): closed the upstream gap rather than living with the fallback.
 
-The issue was in **desksnearme**, not platformos-documentation. `platformos_tags.liquid` already looped over `item.returns` and emitted `return_type` — its own comment said so — but `docs/generators/liquid_tags/default/module/setup.rb` never serialized a `returns` key, so the loop ran zero times and all 33 tags published `[]`.
+The issue was in **the platform repository**, not platformos-documentation. `platformos_tags.liquid` already looped over `item.returns` and emitted `return_type` — its own comment said so — but `docs/generators/liquid_tags/default/module/setup.rb` never serialized a `returns` key, so the loop ran zero times and all 33 tags published `[]`.
 
-desksnearme: `tag_serialized` now emits `returns` from `@return`, identical in shape to the filters generator; `@return` added to graphql/execute_query/query_graph (`object`), parse_json/function (`untyped`); `verify_tags_json.rb` gates return types against the same vocabulary as parameters. Generator re-run: 5 documented return types, gate green; sabotaged with `@return [Hash]` and it aborts naming `graphql (return)`.
+Platform side: `tag_serialized` now emits `returns` from `@return`, identical in shape to the filters generator; `@return` added to graphql/execute_query/query_graph (`object`), parse_json/function (`untyped`); `verify_tags_json.rb` gates return types against the same vocabulary as parameters. Generator re-run: 5 documented return types, gate green; sabotaged with `@return [Hash]` and it aborts naming `graphql (return)`.
 
 platformos-documentation: core Liquid tags have no handler class to annotate (the platform never registers them), so capture -> string and increment/decrement -> number were authored in the hand-written `standard_tags.liquid`; stale comment in `platformos_tags.liquid` corrected; added a Returns section to the tags page template mirroring `filter.liquid`.
 

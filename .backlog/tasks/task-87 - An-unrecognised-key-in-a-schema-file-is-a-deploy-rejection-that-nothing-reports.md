@@ -50,7 +50,7 @@ Both fail the whole changeset. Nothing reports either.
 TASK-86 shipped the property `type` check. These were found by the same probes but need a different input: a list of valid KEYS rather than a list of valid values.
 
 - **Top-level** is tractable: the rejection enumerates the set (`metadata, name, properties`), and `custom_attributes` is accepted as the deprecated alias for `properties` — all four confirmed on the instance. The lists differ per converter, though, and only `CustomModelType`'s has been measured.
-- **Property-level is NOT tractable the same way.** The valid set is a Rails model's attribute list (`CustomAttributes::CustomAttribute`), which is large, undocumented and unstable. Transcribing it would be a committed measurement that goes stale silently AND produces false blocks on valid code when wrong. Do not attempt it without a reliable source.
+- **Property-level is NOT tractable the same way.** The valid set is a Rails model's attribute list on the platform side, which is large, undocumented and unstable. Transcribing it would be a committed measurement that goes stale silently AND produces false blocks on valid code when wrong. Do not attempt it without a reliable source.
 
 ## Also open
 

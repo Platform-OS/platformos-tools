@@ -25,7 +25,7 @@ ordinal: 63000
 <!-- SECTION:DESCRIPTION:BEGIN -->
 A `{% render %}` / `{% include %}` / `{% function %}` whose partial name comes from a VARIABLE rather than a string literal is invisible to the whole toolchain, and the toolchain currently reports that invisibility as "fine".
 
-MEASURED on a live instance (fk-docs.ps-01-platformos.com, 2026-08-24) — the runtime resolves the variable and looks the partial up by its VALUE:
+MEASURED on a live private staging instance (2026-08-24) — the runtime resolves the variable and looks the partial up by its VALUE:
 
     {% assign random_string = 12 | random_string %}[{{ random_string }}]
     => [0574a0942c82]

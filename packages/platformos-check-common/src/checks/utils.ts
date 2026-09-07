@@ -26,7 +26,7 @@ import { LiquidHtmlNodeOfType as NodeOfType, ObjectEntry } from '../types';
 
 /**
  * Names that Liquid resolves as built-in literals before looking up variables
- * (Liquid::Expression::LITERALS in the backend, `LiquidLiteralValues` in the
+ * (the backend's Liquid literal table, `LiquidLiteralValues` in the
  * parser grammar). Assigning to them succeeds silently, but reading them
  * always returns the literal, never the assigned value.
  */

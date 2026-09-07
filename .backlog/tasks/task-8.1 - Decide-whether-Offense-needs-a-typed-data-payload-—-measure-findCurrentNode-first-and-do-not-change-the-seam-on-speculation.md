@@ -45,7 +45,7 @@ not for a hypothetical one.
 
 **Step 1 — measure.** With TASK-7.7's enrichment in place, run `findCurrentNode` at the
 offense range for every check the supervisor enriches, over the real projects in
-`~/projects/pos`. Record, per check, how often it resolves to the node carrying the
+`a local project checkout`. Record, per check, how often it resolves to the node carrying the
 identifier, and what it resolves to when it does not.
 
 **Step 2 — decide on the numbers.** If resolution is reliable, close this task as "not
@@ -68,7 +68,7 @@ one is not.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 A per-check measurement over the real projects in ~/projects/pos records how reliably findCurrentNode resolves the identifier at each offense range, and the numbers are committed
+- [ ] #1 A per-check measurement over the real projects in a local project checkout records how reliably findCurrentNode resolves the identifier at each offense range, and the numbers are committed
 - [ ] #2 The decision is recorded either way: 'seam change not needed' with the evidence, or a named list of checks that require it and why
 - [ ] #3 If the seam is extended, the data field is optional, typed, runtime-agnostic and additive; the browser build and the existing editor/CLI consumers compile and pass unchanged
 - [ ] #4 If the seam is extended, only the checks the measurement named populate it, each pinned by a check-common unit spec

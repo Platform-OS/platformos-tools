@@ -2242,6 +2242,77 @@ describe('Unit: Stage 2 (AST)', () => {
       }
     });
 
+    /**
+     * `comment`, `raw` and `doc` are the three tags whose CLOSED form becomes a
+     * `LiquidRawTag`, and they used to be the only block tags whose unclosed form parsed
+     * silently — the fallback is a bare tag, which leaves nothing open for `cstToAst` to
+     * find, and their names are also the ones `InvalidTagSyntax` exempts. Every case below
+     * was MEASURED: `liquid` 5.11.0 and `pos-cli deploy --dry-run` refuse each one with the
+     * message asserted here, and accept every control.
+     */
+    describe('Case: raw-content blocks that never close', () => {
+      it.each([
+        ['comment', '{% comment %}hello'],
+        ['raw', '{% raw %}hello'],
+        ['doc', '{% doc %}hello'],
+        // Inside {% liquid %} each line is one tag, so the trailing closer is swallowed as
+        // markup and then looked for on the following lines, where it never appears.
+        ['comment', '{% liquid\n  comment a endcomment\n%}'],
+        ['doc', '{% liquid\n  doc a enddoc\n%}'],
+        // `raw` and `doc` cannot close inside {% liquid %} at all: Liquid looks for the full
+        // `{% endraw %}` tag, which a bare-tag-per-line body can never hold.
+        ['raw', '{% liquid\n  raw\n  hello\n  endraw\n%}'],
+        ['doc', '{% liquid\n  doc\n  hello\n  enddoc\n%}'],
+        ['raw', '{% liquid\n  raw hello endraw\n%}'],
+      ])(`should report '%s' tag was never closed`, (name, testCase) => {
+        try {
+          toLiquidHtmlAST(testCase);
+          expect(true, `expected ${JSON.stringify(testCase)} to throw`).to.be.false;
+        } catch (e: any) {
+          expect(e.name).to.eql('LiquidHTMLParsingError');
+          expect(e.message, testCase).to.eql(`'${name}' tag was never closed`);
+          expect(e.loc, `expected ${e} to have location information`).not.to.be.undefined;
+        }
+      });
+
+      /**
+       * The controls. Each is accepted by the platform, so reporting any of them would
+       * trade a false approval for a false block — and the first two are the ones a rule
+       * written from the failures alone gets wrong: markup on `comment` is legal (only
+       * `raw` refuses it, which is TASK-109), and the multi-line `comment` inside
+       * `{% liquid %}` deploys because Liquid matches THAT closer as a bare line.
+       */
+      it.each([
+        ['comment with markup', '{% comment junk %}hi{% endcomment %}'],
+        ['a multi-line comment in a liquid tag', '{% liquid\n  comment\n  hi\n  endcomment\n%}'],
+        ['raw with markup', '{% raw junk %}hi{% endraw %}'],
+        ['a closed comment', '{% comment %}hi{% endcomment %}'],
+        ['a closed raw', '{% raw %}hi{% endraw %}'],
+        ['a closed doc', '{% doc %}hi{% enddoc %}'],
+        ['nested empty comments', '{% comment %}{% comment %}{% endcomment %}{% endcomment %}'],
+        ['an inline # comment in a liquid tag', '{% liquid\n  # hi\n  assign x = 1\n%}'],
+      ])('should still accept %s', (_name, testCase) => {
+        expect(() => toLiquidHtmlAST(testCase)).not.to.throw();
+      });
+
+      /**
+       * `allowUnclosedDocumentNode` is the switch every other unclosed block answers to, so
+       * these three answer to it as well — `{% if %}` is the control proving the flag is
+       * what makes the difference rather than the tag.
+       */
+      it.each([
+        ['{% comment %}hello'],
+        ['{% raw %}hello'],
+        ['{% doc %}hello'],
+        ['{% liquid\n  comment a endcomment\n%}'],
+        ['{% liquid\n  raw\n  hello\n  endraw\n%}'],
+        ['{% if a %}hello'],
+      ])('should stay silent under a tolerant parse of %j', (testCase) => {
+        expect(() => toLiquidHtmlAST(testCase)).to.throw();
+        expect(() => toLiquidAST(testCase)).not.to.throw();
+      });
+    });
+
     describe('Case: unclosed HTML nodes', () => {
       it('should let me write unclosed nodes inside if statements', () => {
         const unclosedDetailsSummary = '<details><summary>hello</summary>';

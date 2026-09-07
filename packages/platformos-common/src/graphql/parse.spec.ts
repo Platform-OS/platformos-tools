@@ -38,6 +38,88 @@ describe('parseGraphql', () => {
     expect(() => parseGraphql('}{')).not.toThrow();
   });
 
+  /**
+   * Every expectation here was MEASURED against the platform, not read out of the GraphQL
+   * spec — the spec is not what either side ships. `graphql` (graphql-js 16) parses all of
+   * these; `graphql-c_parser` 1.1.3, which is what the platform runs, refuses each one, and
+   * `pos-cli deploy --dry-run` fails the whole changeset over it.
+   */
+  describe('what graphql-js parses and the platform does not', () => {
+    it.each([
+      ['a query', '"""Loads one record."""\nquery find($id: ID!) { records { id } }'],
+      ['a mutation', '"""Creates one."""\nmutation create { records { id } }'],
+      ['a subscription', '"""Watches."""\nsubscription watch { records { id } }'],
+      // A single-quoted description is the same production, and is refused the same way.
+      ['a query', '"Loads one record."\nquery find { records { id } }'],
+    ])('rejects a description on %s', (subject, content) => {
+      const parsed = parseGraphql(content);
+
+      expect(parsed.document).toBeUndefined();
+      expect(parsed.syntaxError?.message).toEqual(
+        `A description is not allowed on ${subject} — the platform rejects the file. Use a "#" comment instead.`,
+      );
+      expect(parsed.syntaxError?.locations).toEqual([{ line: 1, column: 1 }]);
+    });
+
+    it('rejects a description on a fragment definition', () => {
+      const parsed = parseGraphql(
+        '"""One record."""\nfragment F on Record { id }\nquery q { ...F }',
+      );
+
+      expect(parsed.document).toBeUndefined();
+      expect(parsed.syntaxError?.message).toEqual(
+        'A description is not allowed on a fragment definition — the platform rejects the file. Use a "#" comment instead.',
+      );
+      expect(parsed.syntaxError?.locations).toEqual([{ line: 1, column: 1 }]);
+    });
+
+    it('rejects a description on a variable definition', () => {
+      const parsed = parseGraphql('query find("the id" $id: ID!) { records { id } }');
+
+      expect(parsed.document).toBeUndefined();
+      expect(parsed.syntaxError?.message).toEqual(
+        'A description is not allowed on a variable definition — the platform rejects the file. Use a "#" comment instead.',
+      );
+      expect(parsed.syntaxError?.locations).toEqual([{ line: 1, column: 12 }]);
+    });
+
+    it('points at the definition that carries the description, not at the first one', () => {
+      const parsed = parseGraphql(
+        'query first { records { id } }\n"""d"""\nquery second { records { id } }',
+      );
+
+      expect(parsed.syntaxError?.locations).toEqual([{ line: 2, column: 1 }]);
+    });
+
+    it('rejects a leading byte order mark', () => {
+      const parsed = parseGraphql('﻿query find { records { id } }');
+
+      expect(parsed.document).toBeUndefined();
+      expect(parsed.syntaxError?.message).toEqual(
+        'A byte order mark is not valid GraphQL — the platform rejects the file. Save it as UTF-8 without a BOM.',
+      );
+      expect(parsed.syntaxError?.locations).toEqual([{ line: 1, column: 1 }]);
+    });
+
+    /**
+     * The controls. A rule wide enough to catch the cases above is one line away from
+     * refusing valid input, and these are the shapes it must not touch: a description on a
+     * TYPE-SYSTEM definition is in both grammars, and a `#` comment is how the platform
+     * wants a document annotated in the first place.
+     */
+    it.each([
+      ['a description on a type-system definition', '"""A record."""\ntype Record { id: ID! }'],
+      ['a "#" comment above an operation', '# Loads one record.\nquery find { records { id } }'],
+      ['an undescribed operation', 'query find($id: ID!) { records { id } }'],
+      ['an undescribed variable definition', 'query find($id: ID!) { records(id: $id) { id } }'],
+    ])('still accepts %s', (_subject, content) => {
+      const parsed = parseGraphql(content);
+
+      expect(parsed.syntaxError).toBeUndefined();
+      expect(parsed.document).toBeDefined();
+    });
+  });
+
   describe('isGraphqlDocument', () => {
     it('accepts a parsed document, valid or not', () => {
       expect(isGraphqlDocument(parseGraphql('query { records { results { id } } }'))).toBe(true);

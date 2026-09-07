@@ -69,7 +69,7 @@ import {
 import { Comparators, NamedTags, NodeTypes, nonTraversableProperties, Position } from './types';
 import { assertNever, deepGet, dropLast } from './utils';
 import { LiquidHTMLASTParsingError, UnclosedNode } from './errors';
-import { TAGS_WITHOUT_MARKUP } from './grammar';
+import { RAW_CONTENT_TAGS, TAGS_WITHOUT_MARKUP } from './grammar';
 import { toLiquidCST } from './stage-1-cst';
 
 interface HasPosition {
@@ -1815,6 +1815,8 @@ function toLiquidTag(
   node: ConcreteLiquidTag | ConcreteLiquidTagOpen,
   options: ASTBuildOptions & { isBlockTag: boolean },
 ): LiquidTag | LiquidBranch {
+  assertRawContentTagClosed(node, options);
+
   if (typeof node.markup !== 'string') {
     return toNamedLiquidTag(node as ConcreteLiquidTagNamed, options);
   } else if (isConcreteLiquidBranchDisguisedAsTag(node)) {
@@ -1833,6 +1835,77 @@ function toLiquidTag(
     markup: markup(node.name, node.markup),
     ...liquidTagBaseAttributes(node),
   };
+}
+
+/**
+ * A raw-content block that never closed, reported instead of quietly accepted.
+ *
+ * A CLOSED `comment`, `raw` or `doc` becomes a `LiquidRawTag`, so reaching the ordinary tag
+ * path means the block rule did not match and the tolerant parser fell back to a bare tag.
+ * Every other block tag's fallback is caught later, when `cstToAst` finds the cursor
+ * non-empty; these three leave nothing open to find, and their names are also exactly what
+ * `TAGS_WITHOUT_MARKUP` exempts from `InvalidTagSyntax` — so the failure fell in the gap
+ * between the two mechanisms and parsed silently.
+ *
+ * MEASURED against `liquid` 5.11.0 and a live deploy: the platform refuses every shape that
+ * reaches here, including `comment … endcomment` written on ONE line inside `{% liquid %}`,
+ * where each line is one tag so the trailing closer is swallowed as markup and then looked
+ * for on the following lines. Message wording is the runtime's own.
+ *
+ * Deliberately not extended to `raw` carrying markup, which the platform also refuses: the
+ * printer repairs that one by stripping the argument and cannot repair what the parser
+ * refuses to read. TASK-109, in the check layer.
+ *
+ * Silent under `allowUnclosedDocumentNode`, the switch every other unclosed block already
+ * answers to in `cstToAst`: a caller asking to parse a fragment is not asking about closure,
+ * and leaving these three to throw where `if` and `for` stay quiet would be one rule with
+ * two behaviours.
+ */
+function assertRawContentTagClosed(
+  node: ConcreteLiquidTag | ConcreteLiquidTagOpen,
+  options: ASTBuildOptions,
+): void {
+  if (options.allowUnclosedDocumentNode || !RAW_CONTENT_TAGS.includes(node.name)) return;
+
+  throw new LiquidHTMLASTParsingError(
+    `'${node.name}' tag was never closed`,
+    node.source,
+    node.locStart,
+    node.locEnd,
+  );
+}
+
+/**
+ * A `raw` block is unusable inside `{% liquid %}`, however it is written.
+ *
+ * `LiquidStatement` overrides `liquidRawTagImpl` with a bare-line spelling, so
+ * `raw` / … / `endraw` on its own lines parses here as a CLOSED `LiquidRawTag`. Liquid has
+ * no such spelling: its `raw` tag scans for the full `{% endraw %}` tag, which a body of one
+ * bare tag per line can never contain, so the closer is never found however it is written.
+ * MEASURED against `liquid` 5.11.0 and a live deploy.
+ *
+ * Only `raw` needs this. `doc` is refused the same way, but `liquidDocStart`/`liquidDocEnd`
+ * exist only in the `{%`-delimited grammar, so inside `{% liquid %}` it never matches a raw
+ * rule and reaches {@link assertRawContentTagClosed} as a bare tag — listing it here would
+ * be a branch no input can reach. `comment` is genuinely legal here: Liquid matches THAT
+ * closer as a bare line, so only its one-line form fails, again through the other guard.
+ */
+function assertUsableInsideALiquidTag(
+  statements: LiquidStatement[],
+  options: ASTBuildOptions,
+): void {
+  if (options.allowUnclosedDocumentNode) return;
+
+  for (const statement of statements) {
+    if (statement.type === NodeTypes.LiquidRawTag && statement.name === 'raw') {
+      throw new LiquidHTMLASTParsingError(
+        `'${statement.name}' tag was never closed`,
+        statement.source,
+        statement.position.start,
+        statement.position.end,
+      );
+    }
+  }
 }
 
 function toNamedLiquidTag(
@@ -1989,10 +2062,12 @@ function toNamedLiquidTag(
     }
 
     case NamedTags.liquid: {
+      const statements = cstToAst(node.markup, options) as LiquidStatement[];
+      assertUsableInsideALiquidTag(statements, options);
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: cstToAst(node.markup, options) as LiquidStatement[],
+        markup: statements,
       };
     }
 

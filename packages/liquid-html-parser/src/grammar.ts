@@ -103,8 +103,13 @@ const EMPTY_MARKUP_TAGS = (() => {
  * derivation covers both groups. Deliberately NOT spliced from `RAW_TAGS` either: that would
  * couple a list gating a BLOCKING check to a list maintained for a different purpose, so a
  * change there would silently change what this exempts.
+ *
+ * Two things read this, and they are two sides of ONE fact — a raw-content tag's markup is
+ * not markup — so they must move together rather than drift: `TAGS_WITHOUT_MARKUP` exempts
+ * these from `InvalidTagSyntax`, and stage 2 rejects one that reached the base case, which
+ * for exactly these tags can only mean the block never closed.
  */
-const RAW_CONTENT_TAGS = ['comment', 'raw', 'doc'];
+export const RAW_CONTENT_TAGS = ['comment', 'raw', 'doc'];
 
 /**
  * Tags for which an empty markup string is CORRECT rather than a parse failure.

@@ -25,8 +25,8 @@ Measured against the converter:
 | `recaptcha_v3:` with no `action` | **rejected** — `action is required` | a warning, wrong reason |
 | `recaptcha_v3:` with `minimum_score: 2` | **rejected** — `must be between 0 and 1` | a warning, wrong reason |
 
-`SpamProtectionConfiguration#strategy` reads `@config.keys.first`, and `old_config?`
-compares `@config == 'recaptcha'` — so the strategy is the mapping's first key, and
+The platform reads the strategy as the config mapping's FIRST KEY, and treats only the bare
+string `recaptcha` as the legacy form — so the strategy is the mapping's first key, and
 `recaptcha` is the single legacy plain string. Anything else given as a plain string reaches
 `.keys` and raises.
 

@@ -66,8 +66,8 @@ export const SPAM_PROTECTION_STRATEGIES = [
 ] as const;
 
 /**
- * The only bare string the platform accepts — `SpamProtectionConfiguration#old_config?`
- * compares `@config == 'recaptcha'`. Any other string reaches `.keys` and raises.
+ * The only bare string the platform accepts — the platform's spam-protection config treats
+ * as a bare string. Any other string is looked up as a mapping instead, and raises.
  */
 export const LEGACY_SPAM_PROTECTION_STRING = 'recaptcha';
 

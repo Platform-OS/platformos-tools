@@ -59,7 +59,7 @@ in doc-1.
 <!-- AC:BEGIN -->
 - [ ] #1 Every consumer that narrows an `AppFile.ast` today is listed with the guard it uses, so the ergonomic cost being traded is counted rather than asserted
 - [ ] #2 A decision is recorded among leave-as-is / move all three parsers down / type on the consumer side, with the reason
-- [ ] #3 If anything moves: the vscode web extension and CodeMirror playground still build and the bundle delta is recorded; whole-project offenses are multiset-identical on the ~/projects/pos corpus via the sorted oracle
+- [ ] #3 If anything moves: the vscode web extension and CodeMirror playground still build and the bundle delta is recorded; whole-project offenses are multiset-identical on the a local project checkout corpus via the sorted oracle
 - [ ] #4 If anything moves: `app/package-boundaries.spec.ts`'s dependency list AND its stated rationale are updated together — its current rationale is that `ast: unknown` is the evidence the design does not need the parser
 - [ ] #5 The half-typed outcome is explicitly ruled in or out: typing the Liquid arm while `JSONNode` stays in check-common is either the decision or is rejected in writing
 <!-- AC:END -->

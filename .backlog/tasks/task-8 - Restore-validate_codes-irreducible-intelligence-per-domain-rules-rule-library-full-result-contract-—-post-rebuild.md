@@ -12,7 +12,7 @@ dependencies: []
 references:
   - packages/platformos-mcp-supervisor/ARCHITECTURE.md
   - packages/platformos-check-common/src/checks/index.ts
-  - ~/projects/pos/platformos-documentation
+  - a local checkout of the documentation repository
 priority: medium
 ordinal: 15000
 ---
@@ -52,7 +52,7 @@ documentation own.
 
 Anything still worth building from here lands in the package that owns the question:
 - a detector → a check-common `CheckDefinition` with a documentation page;
-- a platform fact → `filters.json` / `tags.json` upstream in `~/projects/pos/platformos-documentation`;
+- a platform fact → `filters.json` / `tags.json` upstream in `a local checkout of the documentation repository`;
 - a cross-file structural answer → `platformos-graph` (the TASK-9 epic).
 
 ## Constraints (unchanged, and now stricter)

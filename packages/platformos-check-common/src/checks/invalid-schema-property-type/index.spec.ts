@@ -22,7 +22,7 @@ describe('InvalidSchemaPropertyType', () => {
    * Pinned exactly, not derived. Every other assertion here reads the constant, so a type
    * silently added or dropped would move the tests with it — this is the one place a
    * transcription error has to argue with a literal. Source:
-   * `CustomAttributes::CustomAttribute::VALID_ATTRIBUTE_TYPES`, confirmed by the deploy
+   * `the platform's valid-attribute-type vocabulary`, confirmed by the deploy
    * error, which enumerates the set it accepts.
    */
   it('publishes exactly the types the platform names in its own rejection', () => {

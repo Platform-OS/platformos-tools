@@ -43,9 +43,9 @@ The check therefore fires on the shape the platform recommends and stays silent 
 ## Platform source
 
 `app/models/form_configuration/spam_protection_configuration.rb`:
-- `:28` `strategy` is `@config.keys.first` unless the legacy string form
-- `:42` `old_config?` is `@config == 'recaptcha'` — the only valid bare string
-- `:46` `v3_config` reads `@config['recaptcha_v3']`
+- `:28` the strategy is the config mapping's FIRST KEY unless the legacy string form
+- `:42` the legacy form is the bare string `recaptcha` — the only valid bare string
+- `:46` the v3 settings come from a `recaptcha_v3` sub-mapping
 
 Validated by `FormConfiguration::SpamProtectionValidator` (`form_configuration.rb:64`), whose list is `SPAM_PROTECTION_STRATEGIES` (`:34`) matched with case-sensitive `include?`.
 
@@ -71,7 +71,7 @@ Depends on TASK-83.1 for the code this reports under.
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 `spam_protection` is modelled as the mapping the platform takes, ending a false positive on the recommended shape and three deploy-fatal false negatives.
 
-The strategy is the mapping's first key (`SpamProtectionConfiguration#strategy` reads `@config.keys.first`), and `recaptcha` is the single legacy plain string (`old_config?`). Anything else given as a plain string reaches `.keys` and raises. `recaptcha_v3` additionally requires an `action` and a `minimum_score` in 0..1.
+The strategy is the mapping's FIRST KEY, and `recaptcha` is the single legacy plain string. Anything else given as a plain string is looked up as a mapping instead, and raises. `recaptcha_v3` additionally requires an `action` and a `minimum_score` in 0..1.
 
 `SPAM_PROTECTION_STRATEGIES` and `LEGACY_SPAM_PROTECTION_STRING` are exported from `platformos-common` beside the schema they belong to.
 

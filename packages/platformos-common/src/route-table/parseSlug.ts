@@ -114,7 +114,6 @@ export function calculatePrecedence(slug: string, format: string): number {
   }
 
   // Split on `(?/` boundary to get all segments with their weight context
-  // The Ruby code: slug.split(%r{\(?/}).inject(0) { ... }
   const parts = slug.split(/\(?\//);
   let weightedSize = 0;
   for (const part of parts) {

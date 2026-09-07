@@ -58,7 +58,7 @@ stay findable — do not add a second spec file.**
 
 ## How this was established
 
-Probe pages deployed to the `dev` environment of `~/projects/pos/pos-module-community`
+Probe pages deployed to the `dev` environment of `a local checkout of the community module`
 (`maciek3.staging.oregon.platform-os.com`, `slug_exact_match: true` — the default) via
 `pos-cli sync dev -f`, real requests with `curl`, pages deleted afterwards. Cross-checked
 against the backend router in the platform source:

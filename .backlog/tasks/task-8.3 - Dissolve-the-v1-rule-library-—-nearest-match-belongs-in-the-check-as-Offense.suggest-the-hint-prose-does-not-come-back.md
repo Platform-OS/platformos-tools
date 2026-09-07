@@ -82,7 +82,7 @@ it) and adds nothing of its own.
 <!-- AC:BEGIN -->
 - [ ] #1 The supervisor contains no rule module, rule registry, hint table or variant selector, and computes no nearest match of its own
 - [ ] #2 Every check that could offer a nearest match either populates Offense.suggest or has a recorded reason not to, in a committed audit table
-- [ ] #3 Each newly added suggest is measured on the real projects in ~/projects/pos for how often its top candidate is the right one, and the numbers are recorded before it ships
+- [ ] #3 Each newly added suggest is measured on the real projects in a local project checkout for how often its top candidate is the right one, and the numbers are recorded before it ships
 - [ ] #4 Newly added suggestions are pinned by check-common unit specs asserting the whole offense, and reach the agent surface unchanged through the supervisor
 - [ ] #5 No analytics, case-base or adaptive-confidence machinery is reintroduced
 <!-- AC:END -->

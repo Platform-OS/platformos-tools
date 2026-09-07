@@ -3,7 +3,7 @@ import { PlatformOSFileType } from './path-utils';
 /**
  * The attribute types the platform accepts for a schema property.
  *
- * From `CustomAttributes::CustomAttribute::VALID_ATTRIBUTE_TYPES`, which the model validates
+ * From `the platform's valid-attribute-type vocabulary`, which the model validates
  * with a case-sensitive `inclusion:`. Measured on a live instance — a real deploy, because
  * `--dry-run` returns before the nested converter runs: both `not_a_real_type` and `String`
  * are REJECTED with `Attribute type ... is not allowed`, failing the whole changeset.

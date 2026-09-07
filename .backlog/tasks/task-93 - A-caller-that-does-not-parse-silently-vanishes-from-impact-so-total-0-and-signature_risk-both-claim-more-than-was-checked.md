@@ -18,7 +18,7 @@ references:
   - packages/platformos-mcp-supervisor/src/impact/project-scan.ts
   - packages/platformos-mcp-supervisor/src/result/types.ts
   - packages/platformos-mcp-supervisor/src/transport/instructions.ts
-  - /home/ecgtheow/Work/supervisor-tests/auto-eval/suites/16-impact.mjs
+  - the supervisor eval suite, 16-impact.mjs
 priority: high
 ordinal: 68000
 ---

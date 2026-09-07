@@ -92,7 +92,7 @@ master as part of `2ca48d4` (#119):
   #3  no `properties` key, empty sequence, a property with no `type`, and a Liquid-interpolated
       `type` all covered by an `it.each` silence group.
   #4  `SCHEMA_PROPERTY_TYPES` lives in `platformos-common/src/schema-properties.ts`, sourced from
-      `CustomAttributes::CustomAttribute::VALID_ATTRIBUTE_TYPES` and confirmed by the deploy error
+      `the platform's valid-attribute-type vocabulary` and confirmed by the deploy error
       that enumerates the set. Pinned as a literal in ONE test so a transcription slip has to
       argue with it, while every other assertion reads the constant.
   #5  EMITS and STAYS_SILENT fixtures are in `validate-code.spec.ts`; the "every blocking check

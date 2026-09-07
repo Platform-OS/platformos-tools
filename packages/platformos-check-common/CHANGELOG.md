@@ -651,7 +651,7 @@ assign [var] = [value]`, at PARSE time. So format-on-save turned a working file 
   form callback's entry state — so gating writes on it would promise more than the analysis
   supports.
 
-  Measured on real projects. Twelve Liquid files across `~/projects/pos` contain a rollback and
+  Measured on real projects. Twelve Liquid files across `a local project checkout` contain a rollback and
   none is misplaced, so the whole-project runs report nothing — which on its own proves nothing,
   so the silence was controlled: `Accala-MP`'s `app/views/pages/api/v2/companies/update.json.liquid`
   calls `commands/v2/companies/update_disciplines`, whose two rollbacks sit inside its own

@@ -44,7 +44,7 @@ The parser maps `{% theme_render_rc %}` to a `RenderMarkup` node. The graph's vi
 
 **Measured on real projects (2026-08-16), which contradicts the old "low real-world impact" note:**
 
-- 178 files in project-a use `theme_render_rc`; **1,332 files across the sample projects in ~/projects/pos**.
+- 178 files in project-a use `theme_render_rc`; **1,332 files across the sample projects in a local project checkout**.
 - All **17** distinct targets in project-a resolve to `app/views/partials/<name>.liquid` paths that **do not exist**. The real files live under `app/views/partials/theme/<theme>/…`, reached via `theme_search_paths` in `app/config.yml`.
 - Consequence, from the SHIPPED `runImpact`: `app/views/partials/theme/custom/items/featured.liquid` → `status: computed, total: 0`. A live theme component is reported as depended on by nobody — the exact false approval `impact` exists to prevent.
 - Second consequence: 17 phantom `exists: false` nodes, which any future `missingTargets()` sweep would report as broken references that are not broken.
@@ -89,7 +89,7 @@ All edge/resolution logic stays in `platformos-graph`; the supervisor shapes out
 - [ ] #6 A decision is recorded on whether `.yml` dependents are answerable per-file at all, given that `extractFileReferences` walks a Liquid AST and cannot yield a table-name join. Either a per-file primitive lands in platformos-graph, or `impact.ts`'s `isGraphTrackable` keeps `.yml` at `not_applicable` WITH the reason written beside the guard.
 - [ ] #7 Only if that decision is yes: GraphQL ops are edge-linked to their schema by table-name join (`GraphQLModule.tables` × `SchemaModule.table`, both already extracted), `dependentsOf(schema)` returns the ops that query it, and schema nodes are materialized in SCOPED builds rather than only full ones.
 - [ ] #8 All edge/resolution logic lands in platformos-graph; the supervisor gains no edge knowledge. Changes are additive to shared types.
-- [ ] #9 Every claim is measured, not asserted: the theme_render_rc fix is re-run against ~/projects/pos (project-a is the project with 178 uses) and the before/after dependent counts are recorded on this task.
+- [ ] #9 Every claim is measured, not asserted: the theme_render_rc fix is re-run against a local project checkout (project-a is the project with 178 uses) and the before/after dependent counts are recorded on this task.
 - [ ] #10 graph + check-common + supervisor + language-server suites, type-check and format:check green; no regression to existing edge kinds.
 <!-- AC:END -->
 
@@ -100,7 +100,7 @@ All edge/resolution logic stays in `platformos-graph`; the supervisor shapes out
 
 Reproduce before trusting any number here.
 
-- Usage count: `grep -rl "theme_render_rc" ~/projects/pos/*/app | wc -l` → 1,332 files; project-a alone 178.
+- Usage count: `grep -rl "theme_render_rc" a local project checkout*/app | wc -l` → 1,332 files; project-a alone 178.
 - Phantom resolution: extract the quoted targets from project-a's `theme_render_rc` tags and test `app/views/partials/<name>.liquid` for each → 0 of 17 exist. The real files are at `app/views/partials/theme/{simple,custom}/items/featured.liquid` etc.
 - The user-visible failure: call the shipped `runImpact` (from `dist/impact/impact.js`, with `createProjectScan`) on `app/views/partials/theme/custom/items/featured.liquid` → `status: computed, total: 0`. Its sibling `theme/simple/items/featured.liquid` returns 3, because those callers spell the full path through a plain `{% render %}` — which is what makes the `theme/custom` zero a silent wrong answer rather than an obvious one.
 - The correct implementation to copy: `platformos-check-common/src/checks/missing-partial/index.ts` lines 8 and 48.

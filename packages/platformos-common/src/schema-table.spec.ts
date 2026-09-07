@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractSchemaTable } from './schema-table';
+import { extractSchemaTable, parameterizedTableName } from './schema-table';
 
 describe('extractSchemaTable', () => {
   it('extracts the top-level `name:` as the table', () => {
@@ -56,5 +56,30 @@ name: item`;
 
   it('returns undefined for empty content', () => {
     expect(extractSchemaTable('')).toBeUndefined();
+  });
+});
+
+/**
+ * The platform's `ParameterizedName`, which is what a GraphQL `table:` must spell —
+ * `records_filter_input.rb` maps that argument to `parameterized_name`. Read from the platform
+ * source and confirmed against real projects, which query `modules/user/profile` for a module
+ * schema whose `name:` is `profile`.
+ */
+describe('parameterizedTableName', () => {
+  it('leaves an app schema name alone', () => {
+    expect(parameterizedTableName('blog_post')).toEqual('blog_post');
+  });
+
+  it('prefixes a module schema name with its module', () => {
+    expect(parameterizedTableName('profile', 'user')).toEqual('modules/user/profile');
+  });
+
+  it('does not prefix twice when the name already carries the module', () => {
+    expect(parameterizedTableName('modules/user/profile', 'user')).toEqual('modules/user/profile');
+  });
+
+  it('downcases and turns spaces into underscores, as the platform does', () => {
+    expect(parameterizedTableName('Blog Post')).toEqual('blog_post');
+    expect(parameterizedTableName('My Table', 'core')).toEqual('modules/core/my_table');
   });
 });

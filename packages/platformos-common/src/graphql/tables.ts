@@ -1,4 +1,4 @@
-import { Kind, visit } from 'graphql/language';
+import { Kind, StringValueNode, visit } from 'graphql/language';
 
 import { GraphQLDocumentNode } from './parse';
 
@@ -28,11 +28,39 @@ import { GraphQLDocumentNode } from './parse';
  * schema such a table joins to.
  */
 export function extractGraphqlTables(document: GraphQLDocumentNode): string[] {
+  const tables: string[] = [];
+  for (const reference of extractGraphqlTableReferences(document)) {
+    if (!tables.includes(reference.table)) tables.push(reference.table); // distinct, first-occurrence order
+  }
+  return tables;
+}
+
+/** One table reference, with the source span of the string that named it. */
+export interface GraphqlTableReference {
+  table: string;
+
+  /**
+   * Offsets of the string literal, for a caller that reports on it. Absent only if the
+   * document was parsed without location info, which {@link parseGraphql} never does.
+   */
+  position?: { start: number; end: number };
+}
+
+/**
+ * Every table reference, in document order and NOT deduplicated, so a caller reporting on one
+ * can point at the occurrence it means. {@link extractGraphqlTables} is this, deduplicated.
+ */
+export function extractGraphqlTableReferences(
+  document: GraphQLDocumentNode,
+): GraphqlTableReference[] {
   if (!document.document) return []; // not valid GraphQL — nothing to extract
 
-  const tables: string[] = [];
-  const add = (value: string) => {
-    if (!tables.includes(value)) tables.push(value); // distinct, first-occurrence order
+  const references: GraphqlTableReference[] = [];
+  const add = (node: StringValueNode) => {
+    references.push({
+      table: node.value,
+      position: node.loc && { start: node.loc.start, end: node.loc.end },
+    });
   };
 
   visit(document.document, {
@@ -48,7 +76,7 @@ export function extractGraphqlTables(document: GraphQLDocumentNode): string[] {
     // A STRING is the reference form; the input object the two defining mutations take is
     // excluded by that test rather than by naming them.
     Argument(node) {
-      if (node.name.value === 'table' && node.value.kind === Kind.STRING) add(node.value.value);
+      if (node.name.value === 'table' && node.value.kind === Kind.STRING) add(node.value);
     },
 
     ObjectField(node) {
@@ -56,7 +84,7 @@ export function extractGraphqlTables(document: GraphQLDocumentNode): string[] {
 
       // `table: "blog_post"`
       if (node.value.kind === Kind.STRING) {
-        add(node.value.value);
+        add(node.value);
         return;
       }
 
@@ -65,10 +93,10 @@ export function extractGraphqlTables(document: GraphQLDocumentNode): string[] {
         const valueField = node.value.fields.find(
           (field) => field.name.value === 'value' && field.value.kind === Kind.STRING,
         );
-        if (valueField && valueField.value.kind === Kind.STRING) add(valueField.value.value);
+        if (valueField && valueField.value.kind === Kind.STRING) add(valueField.value);
       }
     },
   });
 
-  return tables;
+  return references;
 }

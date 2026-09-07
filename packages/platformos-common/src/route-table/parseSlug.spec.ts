@@ -188,6 +188,48 @@ describe('calculatePrecedence', () => {
     expect(calculatePrecedence('/', 'html')).toBe(-98);
   });
 
+  /**
+   * MEASURED by running the engine's own `calculate_precedence`, sliced out of
+   * `app/models/router/route_builder/route.rb` rather than retyped. If these ever need
+   * changing, re-derive them the same way — a hand-written oracle only tests the transcription.
+   */
+  it('scores every slug shape the way the platform engine does', () => {
+    const cases: [slug: string, format: string, precedence: number][] = [
+      ['a/*', 'html', -19999], // a wildcard is hardcoded: it does not start with `:`
+      ['a(/*)', 'html', -19999], // and so takes no optional-group discount either
+      ['*', 'html', -9999],
+      [':id/*', 'html', -10999],
+      ['a//b', 'html', -29999], // an interior empty component still scores 100
+      ['(/:x)', 'html', -10099], // a leading empty, before an optional group
+      ['a.', 'html', -10000], // a bare trailing dot IS an extension to `File.extname`
+      ['..', 'html', -9999], // but a leading RUN of dots is not
+      ['...', 'html', -9999],
+      ['..b', 'html', -9999],
+      ['a..b', 'html', -10000], // a dot after a non-dot is
+      ['(.json)', 'html', -10000], // a paren is an ordinary character, not grouping to strip
+      ['a/(.json)', 'html', -20000], // the same, in the last component of a path
+      ['a.json/', 'html', -10000], // the engine splits on `/` dropping trailing empties,
+      ['a/b.json/', 'html', -20000], // so it sees `a.json` and `b.json`, not an empty component
+      ['', 'html', -99], // an empty slug is NOT root — the engine's root list holds only `/`
+      ['/', 'html', -98], // root outranks the empty slug by the root adjustment
+      ['/', 'json', -99],
+      ['a/', 'html', -9999], // CONTROL: a trailing empty is dropped, as Ruby's split does
+      ['.hidden', 'html', -9999], // CONTROL: a leading dot is not a format
+      ['users/:id', 'html', -10999], // CONTROL
+      ['users/:id(/:action)', 'html', -11099], // CONTROL: optional-group discount
+      ['users/section/1', 'html', -29999], // CONTROL
+      ['users/data.json', 'json', -20001], // CONTROL: format in the last component
+    ];
+
+    expect(
+      cases.map(([slug, format]) => ({
+        slug,
+        format,
+        precedence: calculatePrecedence(slug, format),
+      })),
+    ).toEqual(cases.map(([slug, format, precedence]) => ({ slug, format, precedence })));
+  });
+
   it('more specific routes have lower (better) precedence', () => {
     const allStatic = calculatePrecedence('users/section/1', 'html');
     const oneParam = calculatePrecedence('users/section/:id', 'html');

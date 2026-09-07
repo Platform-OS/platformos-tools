@@ -50,8 +50,8 @@ inside `{% liquid %}`:
 
 ## Where it comes from
 
-Its `unknown_tag` handler recognises exactly two sub-tags, `catch` and `ensure`,
-assigning each its own block and delegating anything else to `super`.
+The platform's try tag recognises exactly two sub-tags in its `unknown_tag` handler, `catch`
+and `ensure`, assigning each its own block and delegating anything else to `super`.
 
 So `ensure` is a real sub-tag, taking **no markup**, and `nodelist` renders
 `[@try_block, @catch_block, @ensure_block].compact`. It is absent from the tag's own

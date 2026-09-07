@@ -64,17 +64,18 @@ export function parseGraphql(content: string): GraphQLDocumentNode {
  * What `graphql` parses and the PLATFORM'S parser does not.
  *
  * Two implementations of one language: graphql-js here, the `graphql-c_parser` gem there.
- * Every case below is MEASURED against a live deploy rather than read off the spec, which
- * is what neither side ships. Reported as a {@link syntaxError} with no {@link document}
- * because that is the literal truth — the platform has no parse of this file, so
- * `GraphQuery`'s validator fails and the converter rejects the whole changeset.
+ * Every case is MEASURED against a live deploy, not read off the spec, which is what neither
+ * side ships. A {@link syntaxError} with no {@link document} is the literal truth: the
+ * platform has no parse of the file, and rejects the whole changeset over it.
  */
 function rejectedByThePlatform(content: string, document: DocumentNode): GraphQLError | undefined {
-  // Whitespace to graphql-js's lexer, `unexpected invalid token ("\xEF")` to the platform's.
-  if (content.charCodeAt(0) === 0xfeff) {
+  // Anywhere, not just the front — ignored whitespace to graphql-js at any position, an
+  // invalid token to the platform at any position. Measured at six.
+  const bom = content.indexOf('﻿');
+  if (bom !== -1) {
     return new GraphQLError(
-      'A byte order mark is not valid GraphQL — the platform rejects the file. Save it as UTF-8 without a BOM.',
-      { source: new Source(content), positions: [0] },
+      'A byte order mark is not valid GraphQL — the platform rejects the file. Remove it and save as UTF-8 without a BOM.',
+      { source: new Source(content), positions: [bom] },
     );
   }
 
@@ -92,10 +93,9 @@ function rejectedByThePlatform(content: string, document: DocumentNode): GraphQL
 /**
  * The first description on an EXECUTABLE definition, in document order.
  *
- * graphql-js ships the operation-descriptions proposal unconditionally — there is no
- * `ParseOptions` flag to turn it off — so `"""…""" query q { … }` parses here and is a
- * syntax error on the platform. A description on a TYPE-SYSTEM definition is left alone:
- * that one is in both grammars, and rejecting it would refuse valid input.
+ * graphql-js ships the operation-descriptions proposal unconditionally and offers no
+ * `ParseOptions` flag to disable it, which is why this cannot be a parser setting.
+ * TYPE-SYSTEM definitions are skipped: a description is legal there in both grammars.
  */
 function firstExecutableDescription(
   document: DocumentNode,

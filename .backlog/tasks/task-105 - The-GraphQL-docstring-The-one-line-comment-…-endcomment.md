@@ -6,7 +6,7 @@ title: >-
 status: Done
 assignee: []
 created_date: '2026-09-05 15:57'
-updated_date: '2026-09-07 07:16'
+updated_date: '2026-09-07 07:58'
 labels:
   - platformos-common
   - liquid-html-parser
@@ -39,17 +39,17 @@ Root cause is the same shape twice: we and the platform parse the same format wi
 | GraphQL | npm `graphql` 16.14.2 (graphql-js) | `graphql` 2.6.3 + **`graphql-c_parser` 1.1.3** |
 | Liquid | `liquid-html-parser` (Ohm) | Shopify `liquid` 5.11.0 (git main `d897899`), `error_mode: :strict` |
 
-A 50-case executable-GraphQL differential and a 21-case Liquid differential found **12 divergences, every one in the same direction — we approve, the converter rejects**. Ten are in scope here:
+A 50-case executable-GraphQL differential and a 21-case Liquid differential found **12 divergences, every one in the same direction — we approve, the converter rejects**. Ten are in scope here, and the SELF-REVIEW below widened two of them after measuring positions the first corpus never probed (G4 and L3), so read those two rows as corrected rather than as first filed:
 
 | # | shape | our verdict | converter |
 |---|---|---|---|
 | G1 | `"""d"""` before `query` / `mutation` / `subscription` *(as reported)* | silent | rejects |
 | G2 | `"""d"""` before `fragment` | silent | rejects |
 | G3 | description on a variable definition — `query q("the id" $id: ID!)` | silent | rejects |
-| G4 | leading UTF-8 BOM | silent | rejects |
+| G4 | a UTF-8 BOM ANYWHERE in the file (six positions measured, not just the front) | silent | rejects |
 | L1 | `comment … endcomment` on one line inside `{% liquid %}` *(as reported)* | silent | rejects |
 | L2 | `{% comment %}` never closed | silent | rejects |
-| L3 | `raw` used at all inside `{% liquid %}` — its closer is never a bare line | silent | rejects |
+| L3 | `raw` used at all inside `{% liquid %}`, at ANY nesting depth — its closer is never a bare line | silent | rejects |
 | L4 | `{% raw %}` never closed | silent | rejects |
 | L5 | `{% doc %}` never closed | silent | rejects |
 | L6 | `doc … enddoc` on one line inside `{% liquid %}` | silent | rejects |
@@ -129,6 +129,28 @@ Both obey `allowUnclosedDocumentNode`, the switch every other unclosed block alr
 - The two files from the original report re-checked against `pos-cli deploy --dry-run`: still refused by the converter, now refused by the gate first.
 - `transport/instructions.ts` needs no edit — it makes no claim about either shape, only the general "call validate_code before writing GraphQL". Checked rather than assumed.
 - Prettier plugin suite green (89 files, 146 tests), which is AC#7.
+
+## Self-review (2026-09-07, after the first pass was called done)
+
+The first pass was NOT flawless. Two real defects in the fix itself, both from testing one representative case rather than the space around it, and both found by measuring shapes the first round never probed.
+
+**1. The BOM check only looked at position 0.** `content.charCodeAt(0) === 0xfeff`. The platform's lexer refuses a BOM at ANY position — measured at six (front, after a newline, after a comment, between definitions, inside a selection set, at end): 5 of the 6 passed the gate. Now `content.indexOf`, reported at the real index. Sabotage: narrowing it back fails exactly those 5 and leaves the leading one green.
+
+**2. The `{% liquid %}` raw guard only scanned TOP-LEVEL statements.** A `raw` nested in an `if` or a `case` is a child of that block and never appears in the body's statement list, so it was missed — measured against `liquid` 5.11.0. This was the exact gap suspected and not checked in round one.
+
+Fixed by REDESIGN rather than by patching the scan: `insideLiquidTag` is threaded through the single `cstToAst` call that builds the body, and the question is asked per node in the `LiquidRawTag` case. That reaches every depth by construction instead of by enumerating nesting shapes. `assertUsableInsideALiquidTag` became `assertRawTagUsableHere`.
+
+**Three concerns checked and cleared** rather than assumed:
+
+- Both language-server parse paths (`LiquidCompletionParams.parsePartial`, `HtmlElementAutoclosingOnTypeFormattingProvider.nodeAtCursor`) pass `allowUnclosedDocumentNode: true`, so a half-typed `{% comment %}` does not kill completions. This is what retroactively justifies threading that flag — without it, completions would have broken.
+- `.unclosed` has exactly one consumer and it is gated on `NodeTypes.HtmlElement`, so throwing without that payload is safe.
+- Description POSITIONS were already complete: a second variable definition, a description after an SDL definition, a second fragment — all three already caught.
+
+**Process note.** The first sabotage of the BOM change was a silent no-op: a perl pattern that never matched the BOM literal, so the run reported 23 passed and proved nothing. Caught from the unchanged `grep` output, redone in python. A sabotage that does not change the file is indistinguishable from a test that does not bite.
+
+**After the fixes:** both gap corpora 0 divergent; the original corpora unchanged at 1/21 and 1/50 (only TASK-108 and TASK-109), so no regression. 11 new cases. Full monorepo suite 4567 tests across 357 files. Type-check and prettier clean. Comments trimmed across all five files on request — net −89 lines against the +90 the first pass added.
+
+**Known uncovered, stated rather than papered over:** an INLINE `{% graphql %}…{% endgraphql %}` body carrying a description is not checked. Reading `GraphqlTag#render_to_output_buffer`, an inline body goes through `PartialCache` at render time, which makes it a runtime failure rather than a deploy rejection — but that is a source read, NOT a measurement, and it was not probed.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
@@ -144,7 +166,7 @@ The two shapes in the report turned out to be 2 of 12 measured divergences, all 
 
 Two corrections made during implementation, both from reading rather than from a failing test: an unreachable `doc` entry in the second guard was removed rather than shipped as a branch no test could kill, and the guards initially ignored `allowUnclosedDocumentNode` — a test now pins that.
 
-**Verified.** Five sabotages, each failing its intended tests and only those. Both differential corpora re-run against `graphql-c_parser` 1.1.3 and `liquid` 5.11.0, driving `parseGraphql`/`toLiquidHtmlAST`: GraphQL 1 divergence of 50, Liquid 1 of 21, both being the deliberately excluded shapes — zero in-scope. Through the supervisor, the described query and the BOM file come back `must_fix=true` with `impact` still `computed`, against a clean `ok/false/computed` baseline: the exact reversal of the reported failure. Full monorepo suite 4556 tests across 357 files, type-check and prettier clean.
+**Verified.** Five sabotages, each failing its intended tests and only those. Both differential corpora re-run against `graphql-c_parser` 1.1.3 and `liquid` 5.11.0, driving `parseGraphql`/`toLiquidHtmlAST`: GraphQL 1 divergence of 50, Liquid 1 of 21, both being the deliberately excluded shapes — zero in-scope. Through the supervisor, the described query and the BOM file come back `must_fix=true` with `impact` still `computed`, against a clean `ok/false/computed` baseline: the exact reversal of the reported failure. Full monorepo suite 4567 tests across 357 files, type-check and prettier clean. A later self-review found and fixed two defects in this fix — see the Implementation Notes; the numbers here are post-review.
 
 Left in the working tree, uncommitted, on `fix/the-gate-approves-graphql-descriptions-and-unclosed-raw-blocks`, with a changeset.
 <!-- SECTION:FINAL_SUMMARY:END -->

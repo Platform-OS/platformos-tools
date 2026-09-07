@@ -1145,6 +1145,12 @@ interface ASTBuildOptions {
    * that it doesn't understand.
    */
   mode: 'strict' | 'tolerant' | 'completion';
+
+  /**
+   * Set while building a `{% liquid %}` body, where one bare tag per line changes what can
+   * close. Reaches every depth: the whole body is built by the one `cstToAst` call that sets it.
+   */
+  insideLiquidTag?: boolean;
 }
 
 /**
@@ -1550,6 +1556,7 @@ function buildAst(
       }
 
       case ConcreteNodeTypes.LiquidRawTag: {
+        assertRawTagUsableHere(node, options);
         builder.push({
           type: NodeTypes.LiquidRawTag,
           markup: markup(node.name, node.markup),
@@ -1838,28 +1845,18 @@ function toLiquidTag(
 }
 
 /**
- * A raw-content block that never closed, reported instead of quietly accepted.
+ * A raw-content block that never closed.
  *
- * A CLOSED `comment`, `raw` or `doc` becomes a `LiquidRawTag`, so reaching the ordinary tag
- * path means the block rule did not match and the tolerant parser fell back to a bare tag.
- * Every other block tag's fallback is caught later, when `cstToAst` finds the cursor
- * non-empty; these three leave nothing open to find, and their names are also exactly what
- * `TAGS_WITHOUT_MARKUP` exempts from `InvalidTagSyntax` — so the failure fell in the gap
- * between the two mechanisms and parsed silently.
+ * A CLOSED `comment`, `raw` or `doc` becomes a `LiquidRawTag`, so arriving on the ordinary
+ * tag path means the block rule did not match. Every other block tag's fallback is caught by
+ * `cstToAst` finding the cursor non-empty; these three leave nothing open, and their names
+ * are also what `TAGS_WITHOUT_MARKUP` exempts from `InvalidTagSyntax` — the gap they used to
+ * fall through. MEASURED against `liquid` 5.11.0 and a live deploy; wording is the runtime's.
  *
- * MEASURED against `liquid` 5.11.0 and a live deploy: the platform refuses every shape that
- * reaches here, including `comment … endcomment` written on ONE line inside `{% liquid %}`,
- * where each line is one tag so the trailing closer is swallowed as markup and then looked
- * for on the following lines. Message wording is the runtime's own.
+ * `raw` carrying markup is refused too, but belongs in the check layer (TASK-109): the
+ * printer repairs it by stripping the argument, and cannot repair what the parser will not read.
  *
- * Deliberately not extended to `raw` carrying markup, which the platform also refuses: the
- * printer repairs that one by stripping the argument and cannot repair what the parser
- * refuses to read. TASK-109, in the check layer.
- *
- * Silent under `allowUnclosedDocumentNode`, the switch every other unclosed block already
- * answers to in `cstToAst`: a caller asking to parse a fragment is not asking about closure,
- * and leaving these three to throw where `if` and `for` stay quiet would be one rule with
- * two behaviours.
+ * Obeys `allowUnclosedDocumentNode` so these behave like every other unclosed block.
  */
 function assertRawContentTagClosed(
   node: ConcreteLiquidTag | ConcreteLiquidTagOpen,
@@ -1878,34 +1875,29 @@ function assertRawContentTagClosed(
 /**
  * A `raw` block is unusable inside `{% liquid %}`, however it is written.
  *
- * `LiquidStatement` overrides `liquidRawTagImpl` with a bare-line spelling, so
- * `raw` / … / `endraw` on its own lines parses here as a CLOSED `LiquidRawTag`. Liquid has
- * no such spelling: its `raw` tag scans for the full `{% endraw %}` tag, which a body of one
- * bare tag per line can never contain, so the closer is never found however it is written.
- * MEASURED against `liquid` 5.11.0 and a live deploy.
+ * `LiquidStatement` gives it a bare-line spelling, so `raw` / … / `endraw` on its own lines
+ * parses here as a CLOSED `LiquidRawTag`. Liquid has no such spelling — its `raw` scans for
+ * the full `{% endraw %}` tag, which a body of one bare tag per line cannot contain, so the
+ * closer is never found. MEASURED against `liquid` 5.11.0 and a live deploy.
  *
- * Only `raw` needs this. `doc` is refused the same way, but `liquidDocStart`/`liquidDocEnd`
- * exist only in the `{%`-delimited grammar, so inside `{% liquid %}` it never matches a raw
- * rule and reaches {@link assertRawContentTagClosed} as a bare tag — listing it here would
- * be a branch no input can reach. `comment` is genuinely legal here: Liquid matches THAT
- * closer as a bare line, so only its one-line form fails, again through the other guard.
+ * Per NODE, not over the body's statement list: a `raw` nested in an `if` is a child of that
+ * block and never appears in the list, which is what the first version of this missed.
+ *
+ * Only `raw`. `comment` is genuinely legal here (Liquid matches that closer as a bare line),
+ * and `doc` has no bare-line rule, so it reaches {@link assertRawContentTagClosed} instead —
+ * testing for it here would be a branch no input can reach.
  */
-function assertUsableInsideALiquidTag(
-  statements: LiquidStatement[],
-  options: ASTBuildOptions,
-): void {
-  if (options.allowUnclosedDocumentNode) return;
-
-  for (const statement of statements) {
-    if (statement.type === NodeTypes.LiquidRawTag && statement.name === 'raw') {
-      throw new LiquidHTMLASTParsingError(
-        `'${statement.name}' tag was never closed`,
-        statement.source,
-        statement.position.start,
-        statement.position.end,
-      );
-    }
+function assertRawTagUsableHere(node: ConcreteLiquidRawTag, options: ASTBuildOptions): void {
+  if (!options.insideLiquidTag || options.allowUnclosedDocumentNode || node.name !== 'raw') {
+    return;
   }
+
+  throw new LiquidHTMLASTParsingError(
+    `'${node.name}' tag was never closed`,
+    node.source,
+    node.locStart,
+    node.locEnd,
+  );
 }
 
 function toNamedLiquidTag(
@@ -2062,12 +2054,13 @@ function toNamedLiquidTag(
     }
 
     case NamedTags.liquid: {
-      const statements = cstToAst(node.markup, options) as LiquidStatement[];
-      assertUsableInsideALiquidTag(statements, options);
       return {
         ...liquidTagBaseAttributes(node),
         name: node.name,
-        markup: statements,
+        markup: cstToAst(node.markup, {
+          ...options,
+          insideLiquidTag: true,
+        }) as LiquidStatement[],
       };
     }
 

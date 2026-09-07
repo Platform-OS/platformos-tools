@@ -25,8 +25,9 @@ query checklist_find($id: ID!) {   # syntax error, unexpected QUERY ("query") at
 ```
 
 Descriptions on an operation, a fragment definition and a variable definition are now reported,
-as is a leading UTF-8 BOM — whitespace to graphql-js's lexer, an invalid token to the platform's.
-A description on a TYPE-SYSTEM definition is untouched: that one is in both grammars.
+as is a UTF-8 BOM anywhere in the file — ignored whitespace to graphql-js at any position, an
+invalid token to the platform at any position. A description on a TYPE-SYSTEM definition is
+untouched: that one is in both grammars.
 
 These come back as a syntax error with no parsed document, which is the literal truth — the
 platform has no parse of the file. `GraphQLCheck` reports it and already blocks the write.
@@ -47,9 +48,9 @@ reported.
 
 Inside `{% liquid %}` each line is one tag, so `comment` swallows the trailing `endcomment` as
 markup and then looks for a closer on the following lines: `'comment' tag was never closed`.
-`raw` is worse — it can never be used inside `{% liquid %}` at all, however it is written,
-because Liquid scans for the full `{% endraw %}` tag, which a body of one bare tag per line
-cannot contain.
+`raw` is worse — it can never be used inside `{% liquid %}` at all, however it is written or
+however deeply nested, because Liquid scans for the full `{% endraw %}` tag, which a body of one
+bare tag per line cannot contain.
 
 The messages are the Liquid runtime's own wording, the way the other block tags already report
 them, so a reader who sees one message and then the other has nothing to translate.

@@ -39,10 +39,8 @@ describe('parseGraphql', () => {
   });
 
   /**
-   * Every expectation here was MEASURED against the platform, not read out of the GraphQL
-   * spec — the spec is not what either side ships. `graphql` (graphql-js 16) parses all of
-   * these; `graphql-c_parser` 1.1.3, which is what the platform runs, refuses each one, and
-   * `pos-cli deploy --dry-run` fails the whole changeset over it.
+   * MEASURED, not read off the GraphQL spec. graphql-js 16 parses all of these;
+   * `graphql-c_parser` 1.1.3 — what the platform runs — refuses each, and the deploy fails.
    */
   describe('what graphql-js parses and the platform does not', () => {
     it.each([
@@ -91,21 +89,27 @@ describe('parseGraphql', () => {
       expect(parsed.syntaxError?.locations).toEqual([{ line: 2, column: 1 }]);
     });
 
-    it('rejects a leading byte order mark', () => {
-      const parsed = parseGraphql('﻿query find { records { id } }');
+    /** Anywhere, not just the front: ignored by graphql-js, refused by the platform. */
+    it.each([
+      ['at the front', '﻿query find { records { id } }', { line: 1, column: 1 }],
+      ['after a newline', '\n﻿query find { records { id } }', { line: 2, column: 1 }],
+      ['after a comment', '# Loads it.\n﻿query find { records { id } }', { line: 2, column: 1 }],
+      ['between definitions', 'query a { x }\n﻿query b { y }', { line: 2, column: 1 }],
+      ['inside a selection set', 'query find { ﻿ records { id } }', { line: 1, column: 14 }],
+      ['at the very end', 'query find { records { id } }﻿', { line: 1, column: 30 }],
+    ])('rejects a byte order mark %s', (_where, content, location) => {
+      const parsed = parseGraphql(content);
 
       expect(parsed.document).toBeUndefined();
       expect(parsed.syntaxError?.message).toEqual(
-        'A byte order mark is not valid GraphQL — the platform rejects the file. Save it as UTF-8 without a BOM.',
+        'A byte order mark is not valid GraphQL — the platform rejects the file. Remove it and save as UTF-8 without a BOM.',
       );
-      expect(parsed.syntaxError?.locations).toEqual([{ line: 1, column: 1 }]);
+      expect(parsed.syntaxError?.locations).toEqual([location]);
     });
 
     /**
-     * The controls. A rule wide enough to catch the cases above is one line away from
-     * refusing valid input, and these are the shapes it must not touch: a description on a
-     * TYPE-SYSTEM definition is in both grammars, and a `#` comment is how the platform
-     * wants a document annotated in the first place.
+     * The controls: a rule wide enough to catch the above is one line from refusing valid
+     * input. A description on a TYPE-SYSTEM definition is legal in both grammars.
      */
     it.each([
       ['a description on a type-system definition', '"""A record."""\ntype Record { id: ID! }'],

@@ -2243,12 +2243,9 @@ describe('Unit: Stage 2 (AST)', () => {
     });
 
     /**
-     * `comment`, `raw` and `doc` are the three tags whose CLOSED form becomes a
-     * `LiquidRawTag`, and they used to be the only block tags whose unclosed form parsed
-     * silently — the fallback is a bare tag, which leaves nothing open for `cstToAst` to
-     * find, and their names are also the ones `InvalidTagSyntax` exempts. Every case below
-     * was MEASURED: `liquid` 5.11.0 and `pos-cli deploy --dry-run` refuse each one with the
-     * message asserted here, and accept every control.
+     * `comment`, `raw` and `doc` are the tags whose CLOSED form becomes a `LiquidRawTag`, and
+     * were the only block tags whose unclosed form parsed silently. Every case MEASURED:
+     * `liquid` 5.11.0 and a live deploy refuse each with the message asserted here.
      */
     describe('Case: raw-content blocks that never close', () => {
       it.each([
@@ -2264,6 +2261,12 @@ describe('Unit: Stage 2 (AST)', () => {
         ['raw', '{% liquid\n  raw\n  hello\n  endraw\n%}'],
         ['doc', '{% liquid\n  doc\n  hello\n  enddoc\n%}'],
         ['raw', '{% liquid\n  raw hello endraw\n%}'],
+        // NESTED, which the first version of this missed: a `raw` inside an `if` or a `case`
+        // is a child of that block and never appears in the body's statement list.
+        ['raw', '{% liquid\n  if a\n    raw\n    hello\n    endraw\n  endif\n%}'],
+        ['raw', '{% liquid\n  case a\n  when 1\n    raw\n    hello\n    endraw\n  endcase\n%}'],
+        ['comment', '{% liquid\n  if a\n    comment x endcomment\n  endif\n%}'],
+        ['doc', '{% liquid\n  if a\n    doc\n    hello\n    enddoc\n  endif\n%}'],
       ])(`should report '%s' tag was never closed`, (name, testCase) => {
         try {
           toLiquidHtmlAST(testCase);
@@ -2276,15 +2279,19 @@ describe('Unit: Stage 2 (AST)', () => {
       });
 
       /**
-       * The controls. Each is accepted by the platform, so reporting any of them would
-       * trade a false approval for a false block — and the first two are the ones a rule
-       * written from the failures alone gets wrong: markup on `comment` is legal (only
-       * `raw` refuses it, which is TASK-109), and the multi-line `comment` inside
-       * `{% liquid %}` deploys because Liquid matches THAT closer as a bare line.
+       * The controls — each accepted by the platform, so reporting one trades a false
+       * approval for a false block. Markup on `comment` is legal (only `raw` refuses it,
+       * TASK-109), and a multi-line `comment` inside `{% liquid %}` deploys.
        */
       it.each([
         ['comment with markup', '{% comment junk %}hi{% endcomment %}'],
         ['a multi-line comment in a liquid tag', '{% liquid\n  comment\n  hi\n  endcomment\n%}'],
+        [
+          'a multi-line comment nested in a liquid tag',
+          '{% liquid\n  if a\n    comment\n    hi\n    endcomment\n  endif\n%}',
+        ],
+        // Outside a `{% liquid %}` body a closed `raw` is ordinary, at any depth.
+        ['a closed raw inside an if', '{% if a %}{% raw %}hi{% endraw %}{% endif %}'],
         ['raw with markup', '{% raw junk %}hi{% endraw %}'],
         ['a closed comment', '{% comment %}hi{% endcomment %}'],
         ['a closed raw', '{% raw %}hi{% endraw %}'],
@@ -2296,9 +2303,8 @@ describe('Unit: Stage 2 (AST)', () => {
       });
 
       /**
-       * `allowUnclosedDocumentNode` is the switch every other unclosed block answers to, so
-       * these three answer to it as well — `{% if %}` is the control proving the flag is
-       * what makes the difference rather than the tag.
+       * These answer to `allowUnclosedDocumentNode` like every other unclosed block;
+       * `{% if %}` is the control proving the flag, not the tag, makes the difference.
        */
       it.each([
         ['{% comment %}hello'],

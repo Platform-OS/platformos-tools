@@ -1,0 +1,5 @@
+mutation delete_one($id: ID!) {
+  record_delete(id: $id, table: "blog_post") {
+    id
+  }
+}

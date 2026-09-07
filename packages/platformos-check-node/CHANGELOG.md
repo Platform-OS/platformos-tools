@@ -490,8 +490,8 @@
 - c0907ab: New check `RollbackOutsideTransaction` (error, recommended): report a `{% rollback %}` that is
   reached outside a `{% transaction %}` block.
 
-  `Liquify::Tags::RollbackTag` raises `rollback performed outside of transaction` unless
-  `AfterCommitEverywhere.in_transaction?`, so this is a guaranteed runtime error rather than a
+  The platform's rollback tag raises `rollback performed outside of transaction` unless it is
+  actually inside one, so this is a guaranteed runtime error rather than a
   smell. The parser, the printer and the syntax highlighting already carried the tag; what was
   missing was anyone judging where it may appear.
 

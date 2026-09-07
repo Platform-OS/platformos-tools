@@ -15,7 +15,7 @@ references:
   - packages/platformos-common/src/guards/directory-knowledge.spec.ts
   - packages/platformos-check-common/src/checks/index.ts
   - docs/mcp-supervisor/decisions/004-platform-facts-vs-conventions/README.md
-  - ~/projects/pos/platformos-documentation
+  - a local checkout of the documentation repository
 parent_task_id: TASK-8
 priority: high
 ordinal: 17000
@@ -71,7 +71,7 @@ file-type table and never presented to an agent as a platform fact.
 - `has_check:X` — a reminder attached to a check is that check's `meta.docs.description`
   and `meta.docs.url`. TASK-7.7 already attaches both. Nothing to add.
 - `uses_tag:X` — a caveat about a tag belongs in that tag's entry in `tags.json`, filed
-  upstream in `~/projects/pos/platformos-documentation`, and reaches the agent when
+  upstream in `a local checkout of the documentation repository`, and reaches the agent when
   enrichment renders the docset entry. If the caveat is worth telling an agent it is worth
   telling every reader of the docs.
 - `always` (per file type) — platformOS architecture guidance. It is a documentation page
@@ -87,7 +87,7 @@ domain list.
 
 Severity is a judgement to make on measurement, not in advance: unescaped output is a real
 XSS vector and also entirely legitimate in a template that is deliberately emitting markup.
-Measure the rate on the projects in `~/projects/pos` before choosing between `info` and
+Measure the rate on the projects in `a local project checkout` before choosing between `info` and
 `warning`, and it does **not** join `BLOCKING_CHECKS` — nothing about it stops the file
 working.
 
@@ -118,7 +118,7 @@ is no longer the target where v1 was wrong.
 <!-- AC:BEGIN -->
 - [ ] #1 The supervisor contains no path-to-domain classifier and no domain vocabulary of its own; file type is read from platformos-common, and the directory-knowledge guard passes
 - [ ] #2 The unescaped-output advisory ships as a check-common CheckDefinition over the LiquidFilter AST node, registered, with factory configs regenerated and a documentation page added to the documentation repo
-- [ ] #3 Its severity is chosen from a measured rate over the real projects in ~/projects/pos, the numbers are recorded, and it is not added to BLOCKING_CHECKS
+- [ ] #3 Its severity is chosen from a measured rate over the real projects in a local project checkout, the numbers are recorded, and it is not added to BLOCKING_CHECKS
 - [ ] #4 Every entry of the recovered content-triggers.yml and domain-gotchas.yml is dispositioned in a committed table: became a check, filed upstream, or dropped with a reason
 - [ ] #5 Tag caveats that were gotchas are filed against tags.json upstream and the issues are linked from this task; no gotcha prose lands in this repository
 - [ ] #6 tips and domain_guide remain absent from ValidateCodeResult and assemble.spec.ts still asserts them absent

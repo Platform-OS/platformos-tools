@@ -11,7 +11,7 @@ labels:
   - eval-final
 dependencies: []
 references:
-  - /home/ecgtheow/Work/supervisor-tests/eval/FINDINGS-FINAL.md
+  - the supervisor eval findings (FINDINGS-FINAL.md)
 priority: medium
 ordinal: 52000
 ---

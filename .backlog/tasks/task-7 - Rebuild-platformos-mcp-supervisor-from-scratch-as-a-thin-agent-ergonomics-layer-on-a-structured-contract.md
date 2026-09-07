@@ -14,7 +14,7 @@ references:
   - docs/mcp-supervisor/decisions/002-rebuild-thin-structured-seam/README.md
   - packages/platformos-check-common/src/checks/index.ts
   - packages/platformos-check-docs-updater/data
-  - ~/projects/pos/platformos-documentation
+  - a local checkout of the documentation repository
 priority: high
 ordinal: 7000
 ---
@@ -52,7 +52,7 @@ explicitly forbidden (invariants 4 and 6).
 3. **One graph, one docset.** `platformos-graph` and `AugmentedPlatformOSDocset` only.
 4. **One detector framework.** Every detector — correctness or ergonomic — is a check-common `CheckDefinition`. The supervisor authors no detectors and owns no `pos-supervisor:` namespace.
 5. **Enrichment + result assembly are PURE.** All I/O happens at the `lint/` edge.
-6. **The supervisor ships NO documentation.** It must not contain a filter, tag, object or property table, nor prose describing platform semantics. Platform vocabulary comes from `filters.json` / `tags.json` / `objects.json` / `liquid_doc.json` — published by `~/projects/pos/platformos-documentation` (`/api/liquid/*`), fetched by `platformos-check-docs-updater`, read through `AugmentedPlatformOSDocset`. Per-check explanation comes from check-common `meta.docs` (`description` + `url`, which points at that check's page in the documentation repo). **A gap in the docset is fixed UPSTREAM, never patched locally** — a local table is a second source of truth that goes stale silently. The supervisor may describe ITSELF (its result contract, how to read an answer); it may not describe the PLATFORM.
+6. **The supervisor ships NO documentation.** It must not contain a filter, tag, object or property table, nor prose describing platform semantics. Platform vocabulary comes from `filters.json` / `tags.json` / `objects.json` / `liquid_doc.json` — published by `a local checkout of the documentation repository` (`/api/liquid/*`), fetched by `platformos-check-docs-updater`, read through `AugmentedPlatformOSDocset`. Per-check explanation comes from check-common `meta.docs` (`description` + `url`, which points at that check's page in the documentation repo). **A gap in the docset is fixed UPSTREAM, never patched locally** — a local table is a second source of truth that goes stale silently. The supervisor may describe ITSELF (its result contract, how to read an answer); it may not describe the PLATFORM.
 7. **Leaf consumer, typed seam.** Never a serialized string protocol.
 8. **Per-project work is paid once.** The request path batches buffers into one lint pass and reads a cached graph; nothing re-walks the project per file.
 
@@ -132,7 +132,7 @@ Verification commands used: `yarn vitest run <pkg>`, `yarn workspace <pkg> type-
 ## Revision — 2026-08-16: re-scoped against the "no documentation in the supervisor" directive
 
 User directive: no information or documentation lives in the supervisor — it comes from
-`tags.json` / `filters.json` etc. published by `~/projects/pos/platformos-documentation`;
+`tags.json` / `filters.json` etc. published by `a local checkout of the documentation repository`;
 reuse `platformos-common` and `platformos-check-common` as far as possible; leverage the
 LSP where it makes sense; be efficient.
 
@@ -214,7 +214,7 @@ written — `enrich/` did not exist — and now scan real source.
 ### The one thing left, and why it stopped
 
 TASK-7.13 AC #5: the 12 checks with no documentation page need pages created in
-`~/projects/pos/platformos-documentation`. That gap matters more now than before — the
+`a local checkout of the documentation repository`. That gap matters more now than before — the
 rewritten instructions tell an agent to follow `see_also` rather than guess at a rule, and
 for those twelve there is nothing to follow. Writing into a different repository is left
 for explicit approval rather than done as a side effect.

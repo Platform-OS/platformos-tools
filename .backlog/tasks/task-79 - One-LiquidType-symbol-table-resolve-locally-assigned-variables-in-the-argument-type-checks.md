@@ -29,7 +29,7 @@ A `LiquidType` symbol table already exists privately inside `InvalidWriteTarget`
 - [x] #3 A write inside an {% if %} branch is not a fact past {% endif %}; a loop variable shadows an assigned name over the body and the outer binding is restored after
 - [x] #4 {% doc %} @param types seed the table for the file that declares them; a type the docset vocabulary does not map (`{current_user}`, `string[]`) seeds nothing
 - [x] #5 Every new silence assertion is paired with a control that must still fire, and each new assertion fails when the code is deliberately broken
-- [x] #6 Sweep of the real projects in ~/projects/pos shows no false positives from the three arg-type checks getting louder
+- [x] #6 Sweep of the real projects in a local project checkout shows no false positives from the three arg-type checks getting louder
 <!-- AC:END -->
 
 ## Implementation Notes

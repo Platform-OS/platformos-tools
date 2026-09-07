@@ -36,15 +36,9 @@ VERIFIED AGAINST THE ENGINE, not against a reading of it. The platform's own
 `slug_components_weighted_size` was extracted from
 `app/models/router/route_builder/route.rb` BY CONCATENATION (not retyped) into a standalone
 harness and run under real Ruby, then compared with the shipped `calculatePrecedence`. Its two
-branches are the whole story:
-
-    slug.split(%r{\(?/}).inject(0) do |acc, el|
-      acc += if el.start_with?(':')
-               el.end_with?(')') ? 1 : 10
-             else
-               100
-             end
-    end
+branches are the whole story: it splits the slug on `/` (optionally preceded by an open
+paren) and sums a weight per component — a component STARTING with `:` scores 1 when it also
+ends with `)`, else 10; anything else scores 100.
 
 There is no wildcard case. A `*` does not start with `:`, so it falls to `else` and scores 100.
 The TypeScript port added a third branch that treats `*` like `:`.

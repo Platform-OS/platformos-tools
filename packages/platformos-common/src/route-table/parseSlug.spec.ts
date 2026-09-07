@@ -210,7 +210,7 @@ describe('calculatePrecedence', () => {
       ['a/(.json)', 'html', -20000], // the same, in the last component of a path
       ['a.json/', 'html', -10000], // the engine splits on `/` dropping trailing empties,
       ['a/b.json/', 'html', -20000], // so it sees `a.json` and `b.json`, not an empty component
-      ['', 'html', -99], // an empty slug is NOT root — `ROOT_SLUGS` is `%w[/]`
+      ['', 'html', -99], // an empty slug is NOT root — the engine's root list holds only `/`
       ['/', 'html', -98], // root outranks the empty slug by the root adjustment
       ['/', 'json', -99],
       ['a/', 'html', -9999], // CONTROL: a trailing empty is dropped, as Ruby's split does

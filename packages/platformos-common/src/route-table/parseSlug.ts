@@ -114,8 +114,8 @@ export function calculatePrecedence(slug: string, format: string): number {
     weightedSize += part.startsWith(':') ? (part.endsWith(')') ? 1 : 10) : 100;
   }
 
-  // `ROOT_SLUGS` is `%w[/]`, so an empty slug is not root — and needs no special case, since
-  // it splits to nothing and `weighted_size.zero? -> 1` covers it.
+  // The engine's root-slug list holds only `/`, so an empty slug is not root — and needs no
+  // special case, since it splits to nothing and the zero-weight branch returns 1.
   let precedence = (weightedSize === 0 ? 1 : weightedSize) * -100;
   if (slug === '/') precedence += 1;
   if (format === 'html') precedence += 1;

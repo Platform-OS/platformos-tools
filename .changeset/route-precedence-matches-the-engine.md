@@ -25,7 +25,7 @@ all agree.
   bare trailing dot (`a.`, where `File.extname` returns `"."`), on a leading run of dots (`..`
   and `...`, where it returns `""`), on a component containing a paren (`(.json)`), and on a
   trailing slash (`a.json/`, where Ruby's split drops the empty and sees `a.json`).
-- **An empty slug was treated as root.** `ROOT_SLUGS` is `%w[/]`, so only `/` earns the root
+- **An empty slug was treated as root.** The engine's root-slug list holds only `/`, so only `/` earns the root
   adjustment. An empty slug now scores one lower for the same format.
 
 WHY IT MATTERS: `RouteTable` sorts candidates by precedence, so these scores decide which page the

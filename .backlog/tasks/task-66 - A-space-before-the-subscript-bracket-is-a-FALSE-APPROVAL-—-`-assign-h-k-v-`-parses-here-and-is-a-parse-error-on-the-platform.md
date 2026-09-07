@@ -72,7 +72,7 @@ Measure whether the leading space is refused in READ positions too (`{{ h ['k'] 
 
 The "bound the blast radius before changing anything" instruction above has been carried out. Every
 row below is paired against the identical construct without the space, on instance
-`fk-docs.ps-01-platformos.com`, tools at `f455e95c`. Full write-up:
+a private staging instance, tools at `f455e95c`. Full write-up:
 `supervisor-tests/auto-eval/reports/whitespace-in-assignment-targets.md`.
 
 ### 1. READ positions accept it — so the change MUST be scoped to targets only

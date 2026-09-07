@@ -14,8 +14,7 @@ labels:
   - eval-final
 dependencies: []
 references:
-  - >-
-    /home/ecgtheow/Work/desksnearme-release-candidate/app/lib/liquify/tags/try_tag.rb
+  - the platform source, app/lib/liquify/tags/try_tag.rb
   - packages/liquid-html-parser/src/stage-2-ast.ts
 priority: high
 ordinal: 55000
@@ -51,20 +50,8 @@ inside `{% liquid %}`:
 
 ## Where it comes from
 
-`Liquify::Tags::TryTag#unknown_tag` handles exactly two sub-tags:
-
-```ruby
-def unknown_tag(tag, markup, tokens)
-  if tag == 'catch'
-    ...
-    @catch_block = new_body
-  elsif tag == 'ensure'
-    @ensure_block = new_body
-  else
-    super
-  end
-end
-```
+The platform's try tag recognises exactly two sub-tags in its `unknown_tag` handler, `catch`
+and `ensure`, assigning each its own block and delegating anything else to `super`.
 
 So `ensure` is a real sub-tag, taking **no markup**, and `nodelist` renders
 `[@try_block, @catch_block, @ensure_block].compact`. It is absent from the tag's own
@@ -78,7 +65,7 @@ This is a THIRD population, distinct from both earlier findings:
   hook. Neither method could have found it; it turned up while reading `try_tag.rb` to
   settle whether `try_rc` is an alias.
 
-Worth a sweep of its own: every `unknown_tag` override in `Liquify::Tags::*` is a
+Worth a sweep of its own: every `unknown_tag` override among the platform's tag classes is a
 potential sub-tag our vocabulary does not know.
 
 ## Why it was NOT fixed alongside TASK-56
@@ -115,6 +102,6 @@ A platformOS instance that answers `Unknown tag 'ensure'` for
 - [ ] #2 {% ensure %} OUTSIDE a try block is STILL reported, so the false block is not traded for a false approval — the platform answers Unknown tag for it
 - [ ] #3 ensure is modelled as a BRANCH like catch, not as a flat sibling tag, so the try body splits correctly for AST consumers
 - [ ] #4 A prettier round-trip fixture proves the printer does not destroy or reorder the ensure branch, since a newly-parsed construct is a newly-printable one
-- [ ] #5 Every unknown_tag override in Liquify::Tags::* is swept for other sub-tags our vocabulary lacks, and the result is recorded — this defect class is invisible to both the probe sweep and the register_tag registry
+- [ ] #5 Every unknown_tag override among the platform's tag classes is swept for other sub-tags our vocabulary lacks, and the result is recorded — this defect class is invisible to both the probe sweep and the register_tag registry
 - [ ] #6 The three distinct discovery methods (probe, registry, unknown_tag hook) are documented together so the next vocabulary question starts from the right one
 <!-- AC:END -->

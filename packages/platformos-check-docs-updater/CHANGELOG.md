@@ -1,5 +1,25 @@
 # @platformos/theme-check-docs-updater
 
+## 1.1.0
+
+### Patch Changes
+
+- Updated dependencies [7505f4a]
+- Updated dependencies [cc01002]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [2ca48d4]
+- Updated dependencies [10a43c9]
+- Updated dependencies [f3ccef1]
+- Updated dependencies [10a43c9]
+- Updated dependencies [6571780]
+- Updated dependencies [10a43c9]
+- Updated dependencies [2ca48d4]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [2034fce]
+  - @platformos/platformos-check-common@1.1.0
+
 ## 1.0.0
 
 ### Minor Changes

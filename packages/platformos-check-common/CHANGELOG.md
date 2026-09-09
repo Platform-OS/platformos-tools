@@ -1,5 +1,488 @@
 # @platformos/theme-check-common
 
+## 1.1.0
+
+### Minor Changes
+
+- 7505f4a: Anchor an `ignore` pattern on the project root when it carries a slash, the way `.gitignore`
+  reads it.
+
+  `modules/<name>/**` is what the documentation tells you to write to drop a vendored module,
+  and it used to be rewritten to `**/modules/<name>/**` — "match at any depth". So it also
+  silenced the FIRST-PARTY `app/modules/<name>`, which is where a platformOS app keeps its own
+  modules. Nothing reported the suppression, because an ignored file produces no offense for
+  anyone to miss: measured on a real project, a page with six offenses — two of them `ERROR`,
+  including an unknown tag — produced zero diagnostics in the editor, while the same file
+  outside `app/modules` produced all six.
+
+  A pattern with a slash anywhere but the very end is now relative to the project root; a bare
+  name still matches at any depth, and covers what is inside it as well as a file of that name,
+  since the subject is always a file. A leading `/` keeps working and is now redundant.
+
+  | pattern              | matches                                                            |
+  | -------------------- | ------------------------------------------------------------------ |
+  | `modules/user/**`    | `<root>/modules/user/**` only — `app/modules/user` is linted again |
+  | `node_modules`       | any depth, including its contents                                  |
+  | `node_modules/**`    | `<root>/node_modules/**` only — **changed**                        |
+  | `**/node_modules/**` | any depth, spelled explicitly                                      |
+  | `*.liquid`           | any depth, unchanged                                               |
+
+  Breaking for a config that relied on a slash-bearing pattern reaching any depth. Write `**/`
+  in front of it to keep that. The factory configs' default is now the slash-less
+  `node_modules`, so it still reaches a nested one.
+
+- f3ccef1: New check `MissingTable`: a GraphQL operation naming a model table that no schema declares.
+
+  A typo'd table was invisible at every layer. Measured on a live instance:
+
+  ```graphql
+  records(per_page: 1, filter: { table: { value: "no_such_table_xyz" } }) { total_entries results { id } }
+  ```
+
+  renders `{"records":{"total_entries":0,"results":[]}}` — a success with zero rows. Not a parse
+  error, not a schema error, not a deploy rejection, no runtime error, no log entry. A misspelled
+  table is indistinguishable from an empty one, forever.
+
+  `GraphQLCheck` cannot cover this however good the docset gets: `RecordsFilterInput.table` is a
+  `StringFilter`, not an enum, so every value is valid against the schema. Only a project-aware
+  check can, because the vocabulary is whatever the project's schema files declare — and that
+  vocabulary is COMPLETE, since `admin_tables` on a live instance holds only what deployed schemas
+  created. There are no platform-provided tables to allow for.
+
+  `MissingTable` is **not** blocking. The file deploys and runs; it just returns nothing. It is an
+  error in the report and absent from `BLOCKING_CHECKS`, so it never gates a write.
+
+  THE TABLE IS NOT THE YAML `name:`. The platform runs a schema's declared name through
+  `ParameterizedName`, which prefixes `modules/<module>/` for a schema inside a module and then
+  downcases and underscores it; `records_filter_input.rb` maps the GraphQL `table` argument to that
+  `parameterized_name`. So a module schema whose `name:` is `profile` is queried as
+  `modules/user/profile`. `parameterizedTableName` is that rule, exported beside
+  `extractSchemaTable`. Swept over twelve real projects, this one point accounted for every false
+  positive: 54 offenses before it, 34 after, and all 34 attributable — including a project querying
+  `promo_code_details` against a schema declaring `promo_code_detail`, and another reaching for
+  users with `related_record(table: "user")` where the platform expects `related_user`.
+
+  `SchemaModule.table` in `platformos-graph` still records the raw `name:`, which is correct for an
+  app schema and NOT joinable for a module one. Its comment now says so and points at
+  `parameterizedTableName`; the value is unchanged because nothing joins it yet.
+
+  Two escape hatches, because a table can legitimately exist outside the checkout: the check's
+  `ignoreMissing` list, and a blanket silence when the project has no schema files at all — a state
+  that cannot be told apart from "this run never saw them", where reporting would be a wall of
+  noise in exchange for nothing.
+
+- 10a43c9: Add `DuplicateFrontmatterKey`, which reports a frontmatter key whose value is silently discarded
+
+  A key written twice in frontmatter is legal input — the platform parses it with Psych, which has
+  no uniqueness rule, and keeps the last value. Measured by syncing a page declaring `slug` twice:
+  it synced without error, the first slug 404s and the second serves.
+
+  That is exactly why it is worth reporting. The file deploys and works, and the earlier value is
+  gone with nothing to say so. The same defect in a `.yml` file has been reported by
+  `DuplicateYAMLKey` since it landed; that check is `SourceCodeType.YAML` and never sees a
+  `.liquid` file, which left frontmatter uncovered — the same gap `InvalidFrontmatterSyntax` fills
+  for `YAMLSyntaxError`.
+
+  It is a WARNING and does not block, because the platform accepts the file. The reported range
+  covers the DISCARDED entry rather than the surviving one, so the author is pointed at the line
+  that does nothing instead of the value they still have.
+
+  Key identity comes from the existing `findDuplicateKeys`, which reconciles npm `yaml` (YAML 1.2)
+  with Psych (YAML 1.1) against an oracle generated from a live Ruby: `yes:` and `true:` are ONE key
+  to the platform, while `1:` and `1.0:` are TWO. Nothing about that is re-derived here.
+
+  `FrontmatterBlock` gains a `body` field — the YAML body exactly as it appears in the file — for
+  consumers that need to run their own parse over the block and place its offsets.
+
+- 6571780: Report a Liquid string literal whose closing quote is backslash-escaped, and say what an
+  unclosed block actually is.
+
+  `{{ "it's a \"test\"" | escape_javascript }}` reads, to Liquid, as the string `it's a \`
+  followed by the markup `test\""`. Liquid literals have no escape sequences, so the quote after
+  the backslash closes the string. Measured on a live instance (engine `463805653cae`): nothing
+  raises, the value is silently truncated, and the published example above renders `it\'s a \\`
+  rather than the `it\'s a \"test\"` its own documentation states.
+
+  `LiquidHTMLSyntaxError` used to answer these with `Syntax is not supported` pointed at the
+  leftover text — and offered an autofix that DELETED that text, which silences the report while
+  making the truncation permanent. The new `UnsupportedStringEscape` check reports the cause
+  instead, at `ERROR`, naming the value Liquid holds, the text left outside the string, and the
+  way to write it (`{% capture %}` for text needing both quote kinds, otherwise the other quote
+  style). Its four generic readings — `InvalidEchoValue`, `MultipleAssignValues`,
+  `InvalidConditionalNode` and the `assign` fallback — now stand down for this cause, so one
+  mistake produces one diagnostic.
+
+  It also covers filter arguments, which nothing reported before:
+  `{{ "abc" | replace: "b\"c", "z" }}` silently replaced nothing.
+
+  Deliberately NOT in the supervisor's `BLOCKING_CHECKS`, and with no autofix: the platform
+  accepts the file, and the tempting mechanical repair (swap the outer quotes) is invalid inside
+  a JSON literal, where `\"` is a real escape the runtime honours — a context unparsed markup
+  cannot identify. JSON literals parse strictly, so they never reach the check.
+
+  Unclosed blocks now report in the author's vocabulary rather than the parser's. A missing
+  `{% endif %}` said `Attempting to end parsing before LiquidBranch 'null' was closed`, while
+  the error's own `unclosed` payload already said `if`; both now come from the same resolved
+  value, and the message is `'if' tag was never closed` — the wording the Liquid runtime uses
+  for the same mistake. HTML reads `'<div>' element was never closed`, and the three
+  mid-document variants use the same vocabulary.
+
+- 10a43c9: Add `InvalidFrontmatterSyntax`: malformed YAML inside a frontmatter block rejects the deploy
+  and was reported by nothing.
+
+  ```liquid
+  ---
+  slug: probe
+  	layout: application        ← a tab
+  ---
+  ```
+
+  Measured: `Body contains invalid YAML: found a tab character that violates indentation`,
+  exit 1 — and a rejection fails the whole changeset. An unclosed flow sequence
+  (`layout: [unclosed`) does the same. `validate_code` answered `status: ok` for both.
+
+  The machinery existed and worked — the identical YAML in a standalone `.yml` file reports
+  `YAMLSyntaxError` and blocks — but that check declares `SourceCodeType.YAML`, and the engine
+  runs a check only against files of its own type, so a `.liquid` file never reached it. The
+  frontmatter block was already being parsed; its `errors` were discarded.
+
+  This settles the tab-indentation question left open in the upstream audit: the converter
+  rejects it and the linter said nothing.
+
+  **One mistake, one diagnostic.** `parseDocument` recovers and returns a partial map, so the
+  field-level rules would otherwise report on whichever half of a broken block survived — an
+  `unknown_key` that is only unknown because the parse fell apart beside it. Those rules now
+  read the block through `wellFormedFrontmatterBlock` and stand down when it does not parse;
+  a control in the same test proves they still fire once it does.
+
+  Messages come from our parser rather than being written to match the platform's. The linter
+  reads YAML 1.2 (npm `yaml`) and the platform reads YAML 1.1 (Ruby Psych); both refuse a tab
+  and an unclosed flow collection, but they are not the same parser and the tests pin the
+  range rather than the wording.
+
+  Also corrected: `YAMLSyntaxError`'s docblock and `blocking.ts` both recorded that "the
+  converter accepts unknown property types". A real deploy rejects them (`Attribute type `x`
+is not allowed`); `--dry-run` accepts only because it returns before the nested converter
+  that validates them. The syntax-only scoping stands, but on "no shape check exists yet"
+  rather than on platform permissiveness. That gap is now tracked separately.
+
+- 2ca48d4: Add `InvalidSchemaPropertyType`: a schema property type the platform rejects was reported by
+  nothing, and recorded in three places as something the platform accepts.
+
+  ```yaml
+  # app/schema/thing.yml
+  properties:
+    - name: bogus
+      type: not_a_real_type
+  ```
+
+  A real deploy rejects it — `Attribute type \`not_a_real_type\` is not allowed. Valid attribute
+  types: string, integer, float, …` — and a rejection fails the whole changeset.
+
+  **Why it was believed otherwise.** Every prior measurement used `pos-cli deploy --dry-run`,
+  which accepts the file. The dry run returns before `persist_slice!`, so the nested
+  `CustomAttributeConverter` that validates the type never runs. That silence was written down
+  as evidence in `blocking.ts`, in `YAMLSyntaxError`'s docblock and in the MCP server's own
+  instructions to agents; all three are corrected. What survives is the narrower, true claim:
+  schema-SHAPE validation is scoped out because no check covers it, not because the platform
+  is permissive.
+
+  Measured against the live instance, by real deploy rather than dry run:
+
+  | Case                                              | Deploy                                                            |
+  | ------------------------------------------------- | ----------------------------------------------------------------- |
+  | `type: not_a_real_type`                           | rejected                                                          |
+  | `type: String` — a valid type, wrong case         | rejected (the model's `inclusion:` is literal)                    |
+  | unknown top-level key                             | rejected — `Available properties are: metadata, name, properties` |
+  | unknown property-level key                        | rejected                                                          |
+  | duplicate property names                          | **accepted**                                                      |
+  | `properties:` as a mapping rather than a sequence | rejected                                                          |
+
+  The check covers the property `type` across all four file types whose `properties:` are
+  converted by `CustomAttributeConverter` — `schema/`, `transactable_types/`,
+  `instance_profile_types/` and `user.yml` — confirmed on the instance for a table and for
+  `user.yml`. It is an error and blocks the write.
+
+  `SCHEMA_PROPERTY_TYPES` and `PROPERTY_BEARING_FILE_TYPES` live in `platformos-common` beside
+  the other converter-derived facts, and the type list is pinned by a literal rather than
+  derived, because it is our transcription of a platform constant and a corrupted list would
+  otherwise move every test with it.
+
+  The unknown top-level key is measured and still unreported; it is tracked separately rather
+  than folded in here. `schema-table.ts`'s docblock example, which showed the mapping form, is
+  corrected — that form does not deploy.
+
+  Also new: a `deploy` provenance oracle in the supervisor's silence fixtures. Labelling this
+  evidence `dry-run` would have been false, since the dry run accepts the very shapes at issue.
+
+- 10a43c9: Split `ValidFrontmatter` into five per-shape checks, so the frontmatter mistakes that reject
+  a deploy can block a write.
+
+  **Migration:** `ValidFrontmatter` no longer exists. A `.platformos-check.yml` naming it must
+  name the replacements instead:
+
+  | Was `ValidFrontmatter`                                      | Now                             | Severity |
+  | ----------------------------------------------------------- | ------------------------------- | -------- |
+  | an unrecognised key                                         | `UnknownFrontmatterField`       | error    |
+  | a value outside the accepted set, and `layout: false`       | `InvalidFrontmatterValue`       | error    |
+  | a `layout:` naming a layout that does not exist             | `MissingLayout`                 | error    |
+  | an authorization policy or notification that does not exist | `MissingFrontmatterAssociation` | error    |
+  | a superseded key, and the deprecated `home.liquid` filename | `DeprecatedFrontmatterField`    | warning  |
+
+  **Why.** One code reported seven distinct rules at `Severity.WARNING`. Six of them are
+  converter rejections measured against a live instance with `pos-cli deploy --dry-run`, and a
+  rejection fails the ENTIRE changeset rather than the offending file — so `validate_code`
+  answered `must_fix_before_write: false` for files that could not deploy. The supervisor's gate
+  reads a check CODE, so it could not admit the fatal shapes without also admitting the
+  advisory ones.
+
+  The four fatal codes are now in the supervisor's `BLOCKING_CHECKS`, each with the converter
+  error that justifies it. `DeprecatedFrontmatterField` is deliberately absent: a deprecated
+  key and a `home.liquid` page are measured to deploy cleanly.
+
+  `MissingFrontmatterAssociation` is the one that `--dry-run` cannot answer. The dry run
+  ACCEPTS a page naming a policy that does not exist, because `base_converter.rb` returns
+  before `bulk_write_associations_from_snapshot!` — the code that raises. A real deploy
+  rejects it (`<page> tries to assign authorization_policies which do not exist: <name>`), so
+  it blocks. It was classified `warning` first, on the dry run's silence; that silence was a
+  gap in the oracle rather than evidence, and the same trap applies to anything else measured
+  that way.
+
+  This is the discriminator TASK-26 was waiting for. Its recorded blocker — that blocking the
+  code would fix two false approvals and create one false block — rested on two wrong facts:
+  there were seven reachable shapes rather than three, and `layout: false`, named there as the
+  harmless one, is itself a converter rejection (`undefined method 'sub' for false`, because
+  YAML reads it as the boolean and `page_converter.rb`'s `set_layout` guards `nil` rather than
+  `false`). Its diagnostic said the opposite — "falls back to the default layout" — and now
+  says the deploy is rejected. The `layout: ''` suggestion is unchanged and still correct.
+
+  All five checks share one parsed block through a new memoised extractor. Measured, because
+  five checks re-parsing one block looked cheap and is not: `parseDocument` costs ~80 µs on a
+  representative block, so the four redundant parses would have cost ~640 ms over a 2 000-page
+  project.
+
+  The dead `Missing required frontmatter field` rule is removed rather than carried across: no
+  schema sets `required: true`, so it could not fire, and a check code that can never report
+  would need a permanent exemption from the supervisor's "every blocking check can actually
+  block" fixtures.
+
+  All five codes need a documentation page under
+  `app/views/pages/developer-guide/platformos-check/checks/` in `platformos-documentation`, plus
+  their overview rows and nav entries; `valid-frontmatter`'s page is retired.
+
+- 2034fce: Stop refusing three tag spellings that platformOS parses as intended
+
+  `{% capture 'name' %}`, `{% case x: %}` and `{% parse_json v %%}` were reported by
+  `InvalidTagSyntax`, which lands under `LiquidHTMLSyntaxError` — `Severity.ERROR` and a member
+  of the MCP supervisor's blocking set — so an agent was told not to write the file at all. On a
+  2,768-file production application these accounted for **34 of the 122** `LiquidHTMLSyntaxError`
+  offenses, 32 of them `{% capture 'name' %}`, the most frequently refused construct in real
+  code. Every one was rendered on a live instance and produces the author's intended result.
+
+  They now report as `UnconventionalTagSyntax` at `warning`, which is outside the blocking set:
+  still advised against, no longer fatal. Corpus totals are otherwise identical — 13,065 offenses
+  across 1,950 files before and after, with `LiquidHTMLSyntaxError` 122 → 88 and the 34 moving to
+  the new check.
+
+  The admitted set is a deliberate allowlist, not a relaxation of `InvalidTagSyntax`. The
+  platform matches tag markup with an unanchored regex, so it also accepts spellings that then do
+  the wrong thing **silently** — a mistyped `{% cache: k %}` collapses the cache key to a
+  constant, and because the full key carries no user component, distinct keys share one entry
+  across the instance and one user's rendered fragment is served to another. Those keep blocking,
+  and are asserted alongside the demoted ones so the two halves cannot drift apart.
+
+### Patch Changes
+
+- cc01002: Close the CodeQL code-scanning alerts: three quadratic regexes, an unbounded prototype
+  merge, and two patterns built from unescaped input.
+
+  Three of the flagged regexes are genuinely quadratic, measured on a 120k-character
+  adversarial subject:
+
+  | subject                                            | before   | after  |
+  | -------------------------------------------------- | -------- | ------ |
+  | `getConditionalComment` on `<!--[if` repeated      | 634 ms   | 0.1 ms |
+  | a `theme_render_rc` search path of `{{{{` repeated | 3,373 ms | 0.1 ms |
+  | `parseSlug` on `((` repeated                       | 4,250 ms | 0.1 ms |
+
+  The conditional-comment fix is also a data-loss fix. The pattern was unanchored at the
+  start, so `<!-- a note <!--[if IE]>x<![endif]-->` matched with `a note` outside every
+  capture group — and the printer regenerates the comment from those groups, so the next
+  format deleted it. Such a comment is no longer treated as conditional.
+
+  `TranslationProvider`'s merge read `__proto__` out of a translation file as a mergeable
+  object, because `typeof target[key]` consults the prototype chain — so a `.yml` file in a
+  linted project wrote its keys onto `Object.prototype` in the language server's own process.
+  `__proto__`, `constructor` and `prototype` are now skipped, own-property lookup decides the
+  recursion, and a `null` value no longer crashes the merge.
+
+  `basename(uri, ext)` compiled `ext` into a `RegExp` with only `.` escaped, so
+  `basename(uri, '(x).liquid')` stripped a bare `x` from names that never carried the
+  extension asked about. It compares text now. The TextMate grammar's `escapeRegex` escapes
+  the full metacharacter set; the generated grammars are byte-identical.
+
+  Also: `contents: read` on the CI and VS Code release workflows.
+
+- 10a43c9: Move frontmatter block extraction into `platformos-common`, beside the schemas it validates against
+
+  `FrontmatterBlock`, `extractFrontmatterBlock`, `frontmatterBlock` and `wellFormedFrontmatterBlock`
+  now live in `@platformos/platformos-common`, so a package can read a frontmatter block without
+  depending on the linting engine. `platformos-check-common` re-exports them and behaves exactly as
+  before — the frontmatter check suites pass with no edit at all, which is the proof.
+
+  The per-file parse is now memoized through `AppFile.derived()` rather than a module-level
+  `WeakMap` keyed on file identity and source. That is the mechanism the file object already
+  provides, dropped by the same two places that drop the source, so the linter, the language server
+  and the graph share one parse instead of keeping private caches.
+
+  `platformos-common` gains a dependency on `yaml`. `js-yaml` cannot report the per-node offsets a
+  frontmatter diagnostic needs to point at the key or value it is about. Both libraries are now
+  present, and `yaml-load-options.ts` records which is used for what.
+
+- 10a43c9: Fix frontmatter diagnostics pointing at the wrong text in a file with CRLF line endings
+
+  `extractFrontmatterBlock` parsed a copy of the frontmatter body with `\r\n` collapsed to `\n`,
+  but reported offsets into the ORIGINAL file. Collapsing removes a byte per line, so every entry
+  after the first was short by the number of preceding CRLFs, and the drift grew down the block:
+
+      '---\r\nslug: notes\r\nlayout: app\r\n---\r\n'
+        slug   → "slug"      ✓
+        layout → "\nlayou"   value → " ap"
+
+  Every frontmatter check reports through those offsets, so on a Windows-authored file
+  `UnknownFrontmatterField`, `InvalidFrontmatterValue`, `MissingLayout`,
+  `MissingFrontmatterAssociation` and `DeprecatedFrontmatterField` all highlighted the wrong span.
+
+  The collapse was also unnecessary: `parseDocument` reads `\r\n` natively and yields scalars with
+  no stray `\r`, block and quoted alike. Only a LONE `\r` needs rewriting — the platform's Psych
+  (YAML 1.1) treats it as a line break and npm `yaml` (YAML 1.2) does not — and that substitution
+  is one byte for one byte, so offsets survive it. It matters for more than classic-Mac files: the
+  extracted body ends at the newline before the closing fence, so on any CRLF file its last byte is
+  a lone `\r` that would otherwise ride into the final entry's value.
+
+  `normalizeLoneCarriageReturns` moves from `platformos-check-common` to `platformos-common` so both
+  sides share one definition; check-common's `yaml/parse.ts` and `yaml/duplicate-keys.ts` import it
+  from there and are otherwise unchanged.
+
+- 2ca48d4: Stop `LiquidHTMLSyntaxError` from rewriting a Liquid expression into a different, valid
+  program.
+
+  `pos-cli check run -a` on `{% assign x = flag ? 'yes' : 'no' %}` produced
+  `{% assign x = flag %}`, printed "No offenses found", and the rewritten file then passed
+  `pos-cli deploy --dry-run` clean. `x` is `true` — neither `'yes'` nor `'no'`. The converter
+  REJECTS the original and ACCEPTS the rewrite, so the linter was trading a whole-changeset
+  failure for a page that renders a value nobody wrote, with no error left at any layer.
+
+  Three detectors repaired unsupported markup by keeping the first value and discarding the
+  rest. That discard reproduces what platformOS's lax parser does — measured on a live
+  instance, `{% assign foo = '123' 555 text %}` renders `123` — which is a repair when what
+  follows is stray tokens and a silent rewrite when it is an operand:
+
+  ```liquid
+  {% assign x = flag ? 'yes' : 'no' %}   became   {% assign x = flag %}
+  {% assign foo = something == else %}   became   {% assign foo = something %}
+  {{ flag ? 'yes' : 'no' }}              became   {{ flag }}
+  {% echo a && b %}                      became   {% echo a %}
+  ```
+
+  `detectMultipleAssignValues` and `detectInvalidEchoValue` work on raw string markup and now
+  withhold the fix when the value section contains an operator, via a new quote-aware
+  `hasExpressionOperator` — `'a?b'` and `-5` stay repairable, a bare `-` and a fused `?b` do
+  not. `detectInvalidBooleanExpressions` works on a parsed node that is by construction an
+  author-written comparison or logical expression, so it has no repairable case at all and its
+  fix is removed outright rather than gated.
+
+  The offense is unchanged in message, severity and position, and that is the point: the block
+  is the mitigation. `LiquidHTMLSyntaxError` is in the supervisor's `BLOCKING_CHECKS`, and it is
+  the only thing standing between this syntax and a wrong value at runtime — the fix was
+  removing it.
+
+  Its existing spec asserted the corrupted output was correct
+  (`{% assign foo = something == else %}` → `{% assign foo = something %}`), so that expectation
+  is replaced rather than extended. The whole contract, with a control that must still repair a
+  meaningless tail beside every case that must not be touched, lives in
+  `operator-expressions-are-never-rewritten.spec.ts`.
+
+  `||` is deliberately left to `InvalidPipeSyntax`: it repairs to `{% assign x = a | b %}`,
+  which the converter still rejects ("Unknown filters: b") and `UnknownFilter` blocks, so that
+  path never fails silently.
+
+- 10a43c9: Report `method: POST` in a page's frontmatter, which is a deploy rejection the linter
+  accepted.
+
+  ```liquid
+  ---
+  slug: probe
+  method: POST
+  ---
+  ```
+
+  Measured: the converter REJECTS this — `Request method 'POST' is not allowed. Valid methods:
+delete, get, patch, post, put, options` — while `method: post` is accepted. A rejection fails
+  the whole changeset. `validate_code` answered `status: ok`.
+
+  The enum comparison lowercased both sides for every field, so a valid method in the wrong
+  case matched. The platform does not: `page.rb` validates `request_method` with an
+  `inclusion:` over a lowercase list, and the converter never downcases.
+
+  Casing is now a per-field property (`caseSensitiveEnum` on `FrontmatterFieldSchema`) rather
+  than a property of the comparison, because the fields genuinely differ. `Page.method` is
+  case-sensitive. ApiCall's `request_type` deliberately stays lenient: it is validated for
+  PRESENCE only, with no inclusion check anywhere in the platform, so there is no rejection to
+  mirror and tightening it would invent a false block. Both directions are pinned, each with a
+  control proving the field is still checked and only its case is forgiven.
+
+  Found by this change: the supervisor's deliberately-broken sweep project contains a page
+  named `bad_method.html.liquid` carrying `method: GET`, authored to be caught, which nothing
+  had ever reported.
+
+- 10a43c9: Model `spam_protection` as the mapping the platform actually takes.
+
+  It was declared as a string enum, which had the field backwards in both directions: the
+  check fired on the shape the platform recommends and stayed silent on three that are deploy
+  rejections. Every mapping form also produced `Invalid value 'undefined' for
+'spam_protection'`, because a non-scalar has no value to interpolate.
+
+  Measured against the converter:
+
+  | frontmatter                             | platform                                                           | reported before         |
+  | --------------------------------------- | ------------------------------------------------------------------ | ----------------------- |
+  | `spam_protection: recaptcha`            | accepted                                                           | nothing                 |
+  | `spam_protection: recaptcha_v3`         | **rejected** — `undefined method 'keys' for an instance of String` | nothing                 |
+  | `spam_protection: hcaptcha`             | **rejected**                                                       | nothing                 |
+  | `spam_protection: RECAPTCHA_V3`         | **rejected**                                                       | nothing                 |
+  | `recaptcha: {}`                         | accepted                                                           | a warning               |
+  | `hcaptcha: {}`                          | accepted                                                           | a warning               |
+  | `recaptcha_v3: {action, minimum_score}` | accepted                                                           | a warning               |
+  | `bogus_strategy: {}`                    | **rejected** — `Invalid strategy bogus_strategy`                   | a warning, wrong reason |
+  | `recaptcha_v3:` with no `action`        | **rejected** — `action is required`                                | a warning, wrong reason |
+  | `recaptcha_v3:` with `minimum_score: 2` | **rejected** — `must be between 0 and 1`                           | a warning, wrong reason |
+
+  The platform reads the strategy as the config mapping's FIRST KEY, and treats only the bare
+  string `recaptcha` as the legacy form — so the strategy is the mapping's first key, and
+  `recaptcha` is the single legacy plain string. Anything else given as a plain string reaches
+  `.keys` and raises.
+
+  Each row above is now a test, the accepted rows sharing a group with the rejected ones so
+  neither half can go vacuous, and one asserting no frontmatter message can contain the
+  literal `undefined`.
+
+- Updated dependencies [cc01002]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [f3ccef1]
+- Updated dependencies [10a43c9]
+- Updated dependencies [f3ccef1]
+- Updated dependencies [10a43c9]
+- Updated dependencies [6571780]
+- Updated dependencies [2ca48d4]
+- Updated dependencies [b70f159]
+- Updated dependencies [10a43c9]
+- Updated dependencies [c41ab09]
+  - @platformos/platformos-common@0.2.0
+  - @platformos/liquid-html-parser@0.2.0
+
 ## 1.0.0
 
 ### Major Changes

@@ -1,5 +1,14 @@
 # @platformos/prettier-plugin-liquid
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [cc01002]
+- Updated dependencies [6571780]
+- Updated dependencies [c41ab09]
+  - @platformos/liquid-html-parser@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

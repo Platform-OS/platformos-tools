@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-check-node",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "platformOS",
@@ -33,10 +33,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/liquid-html-parser": "0.1.0",
-    "@platformos/platformos-check-common": "1.0.0",
-    "@platformos/platformos-check-docs-updater": "1.0.0",
-    "@platformos/platformos-common": "0.1.0",
+    "@platformos/liquid-html-parser": "0.2.0",
+    "@platformos/platformos-check-common": "1.1.0",
+    "@platformos/platformos-check-docs-updater": "1.1.0",
+    "@platformos/platformos-common": "0.2.0",
     "glob": "^13.0.0",
     "vscode-uri": "^3.1.0",
     "yaml": "^2.8.2"

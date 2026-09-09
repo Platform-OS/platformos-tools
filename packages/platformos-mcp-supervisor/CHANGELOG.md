@@ -1,5 +1,265 @@
 # @platformos/platformos-mcp-supervisor
 
+## 0.2.0
+
+### Minor Changes
+
+- 01f9acc: `impact` now reports what your change BREAKS in files you are not editing, instead of counting
+  who depends on the one you are.
+
+  The count is gone, and it had to be. A file's dependant set is not decidable: `{% render var %}`,
+  `{% include var %}` and `{% function r = var %}` all parse and all resolve their target at
+  runtime, so one variable anywhere makes "nothing references this" unprovable — and a caller
+  whose file does not parse contributes nothing either. Measured on a real application, a partial
+  called once by name and once through an assigned variable was reported as having exactly one
+  dependant, with nothing to say the second call existed. Every number that field published was a
+  lower bound presented as a total, to an audience that read `total: 0` as "safe to change".
+
+  WHAT REPLACES IT. Lint is per-file and forward-looking: it visits only the buffers you send, so
+  a page the edited partial has just broken is never looked at. Impact now looks at it — by
+  linting the edited file's dependants twice, once with your changeset applied and once without,
+  and reporting only the findings the change INTRODUCED:
+
+  ```json
+  "impact": { "status": "computed", "breaks": [{
+    "file": "app/views/pages/home.liquid",
+    "diagnostics": [{
+      "check": "MissingRenderPartialArguments", "severity": "error",
+      "message": "Missing required argument 'title' in render tag for partial 'card'.",
+      "line": 1, "column": 11,
+      "suggestions": [{ "description": "Add required argument 'title'",
+                        "edits": [{ "start_index": 16, "end_index": 16, "new_text": ", title: ''" }] }],
+      "see_also": "https://documentation.platformos.com/…/missing-render-partial-arguments"
+    }]}]}
+  ```
+
+  Those are the check engine's own findings, so they carry its message, severity, documentation
+  and fixes rather than a second opinion computed here.
+
+  RELEVANCE IS CAUSAL, NOT CATEGORICAL. There is no allowlist of "cross-file" check codes — an
+  allowlist rots the first time a check is added, and it asks the wrong question anyway. A finding
+  a dependant already had is excluded for having been there BEFORE, not for its code, so a check
+  added upstream is covered on the day it ships. It also reaches edits a `{% doc %}`-shaped design
+  could not: a renamed GraphQL variable now reports `GraphQLVariablesCheck` on every caller, and a
+  `.graphql` file can carry no doc block at all.
+
+  A break in someone else's file does NOT set `must_fix_before_write`. That flag answers "will
+  THIS file be broken if I write it", and your buffer may be perfectly correct.
+
+  NOTHING IT RETURNS IS A CLEARANCE. An empty impact means no break was found among the dependants
+  that are VISIBLE. This server does not answer "who depends on this file" and no longer publishes
+  a number in place of one.
+
+  TWO MEASURED BOUNDS, because the deadline cannot be one: a lint is synchronous CPU work and no
+  timer preempts it, so bounding the input is the only defence. `MAX_CANDIDATE_BYTES` (64 KiB)
+  caps the text discovery will parse — the most-referenced file on a real 2,615-file application
+  cost 4.7 s and then returned `unavailable` anyway; it now reaches the same answer in 230 ms.
+  `MAX_DEPENDANTS_LINTED` (100) caps how many dependants are linted, covering 99.4% of real
+  targets. Hitting either is REPORTED — `unchecked_dependants`, or `status: unavailable` — rather
+  than silently shortening the analysis.
+
+  Impact costs ~240 ms per request on that application, almost entirely the project read, which
+  overlaps the primary lint. Start the server with `--no-impact` (or `POS_SUPERVISOR_NO_IMPACT=1`)
+  to switch the stage off entirely; results then carry `impact.status: "disabled"`, distinct from
+  `unavailable` because retrying cannot change it. It is a server setting rather than a tool
+  parameter deliberately: an agent that does not know it is editing a shared partial is exactly
+  the one that would not ask for the check.
+
+  Breaking for anything reading `impact`: `dependents`, `signature_risk` and `scope` are gone,
+  replaced by `breaks`. `status` gains `disabled`.
+
+- 10a43c9: Split `ValidFrontmatter` into five per-shape checks, so the frontmatter mistakes that reject
+  a deploy can block a write.
+
+  **Migration:** `ValidFrontmatter` no longer exists. A `.platformos-check.yml` naming it must
+  name the replacements instead:
+
+  | Was `ValidFrontmatter`                                      | Now                             | Severity |
+  | ----------------------------------------------------------- | ------------------------------- | -------- |
+  | an unrecognised key                                         | `UnknownFrontmatterField`       | error    |
+  | a value outside the accepted set, and `layout: false`       | `InvalidFrontmatterValue`       | error    |
+  | a `layout:` naming a layout that does not exist             | `MissingLayout`                 | error    |
+  | an authorization policy or notification that does not exist | `MissingFrontmatterAssociation` | error    |
+  | a superseded key, and the deprecated `home.liquid` filename | `DeprecatedFrontmatterField`    | warning  |
+
+  **Why.** One code reported seven distinct rules at `Severity.WARNING`. Six of them are
+  converter rejections measured against a live instance with `pos-cli deploy --dry-run`, and a
+  rejection fails the ENTIRE changeset rather than the offending file — so `validate_code`
+  answered `must_fix_before_write: false` for files that could not deploy. The supervisor's gate
+  reads a check CODE, so it could not admit the fatal shapes without also admitting the
+  advisory ones.
+
+  The four fatal codes are now in the supervisor's `BLOCKING_CHECKS`, each with the converter
+  error that justifies it. `DeprecatedFrontmatterField` is deliberately absent: a deprecated
+  key and a `home.liquid` page are measured to deploy cleanly.
+
+  `MissingFrontmatterAssociation` is the one that `--dry-run` cannot answer. The dry run
+  ACCEPTS a page naming a policy that does not exist, because `base_converter.rb` returns
+  before `bulk_write_associations_from_snapshot!` — the code that raises. A real deploy
+  rejects it (`<page> tries to assign authorization_policies which do not exist: <name>`), so
+  it blocks. It was classified `warning` first, on the dry run's silence; that silence was a
+  gap in the oracle rather than evidence, and the same trap applies to anything else measured
+  that way.
+
+  This is the discriminator TASK-26 was waiting for. Its recorded blocker — that blocking the
+  code would fix two false approvals and create one false block — rested on two wrong facts:
+  there were seven reachable shapes rather than three, and `layout: false`, named there as the
+  harmless one, is itself a converter rejection (`undefined method 'sub' for false`, because
+  YAML reads it as the boolean and `page_converter.rb`'s `set_layout` guards `nil` rather than
+  `false`). Its diagnostic said the opposite — "falls back to the default layout" — and now
+  says the deploy is rejected. The `layout: ''` suggestion is unchanged and still correct.
+
+  All five checks share one parsed block through a new memoised extractor. Measured, because
+  five checks re-parsing one block looked cheap and is not: `parseDocument` costs ~80 µs on a
+  representative block, so the four redundant parses would have cost ~640 ms over a 2 000-page
+  project.
+
+  The dead `Missing required frontmatter field` rule is removed rather than carried across: no
+  schema sets `required: true`, so it could not fire, and a check code that can never report
+  would need a permanent exemption from the supervisor's "every blocking check can actually
+  block" fixtures.
+
+  All five codes need a documentation page under
+  `app/views/pages/developer-guide/platformos-check/checks/` in `platformos-documentation`, plus
+  their overview rows and nav entries; `valid-frontmatter`'s page is retired.
+
+### Patch Changes
+
+- 10a43c9: Add `InvalidFrontmatterSyntax`: malformed YAML inside a frontmatter block rejects the deploy
+  and was reported by nothing.
+
+  ```liquid
+  ---
+  slug: probe
+  	layout: application        ← a tab
+  ---
+  ```
+
+  Measured: `Body contains invalid YAML: found a tab character that violates indentation`,
+  exit 1 — and a rejection fails the whole changeset. An unclosed flow sequence
+  (`layout: [unclosed`) does the same. `validate_code` answered `status: ok` for both.
+
+  The machinery existed and worked — the identical YAML in a standalone `.yml` file reports
+  `YAMLSyntaxError` and blocks — but that check declares `SourceCodeType.YAML`, and the engine
+  runs a check only against files of its own type, so a `.liquid` file never reached it. The
+  frontmatter block was already being parsed; its `errors` were discarded.
+
+  This settles the tab-indentation question left open in the upstream audit: the converter
+  rejects it and the linter said nothing.
+
+  **One mistake, one diagnostic.** `parseDocument` recovers and returns a partial map, so the
+  field-level rules would otherwise report on whichever half of a broken block survived — an
+  `unknown_key` that is only unknown because the parse fell apart beside it. Those rules now
+  read the block through `wellFormedFrontmatterBlock` and stand down when it does not parse;
+  a control in the same test proves they still fire once it does.
+
+  Messages come from our parser rather than being written to match the platform's. The linter
+  reads YAML 1.2 (npm `yaml`) and the platform reads YAML 1.1 (Ruby Psych); both refuse a tab
+  and an unclosed flow collection, but they are not the same parser and the tests pin the
+  range rather than the wording.
+
+  Also corrected: `YAMLSyntaxError`'s docblock and `blocking.ts` both recorded that "the
+  converter accepts unknown property types". A real deploy rejects them (`Attribute type `x`
+is not allowed`); `--dry-run` accepts only because it returns before the nested converter
+  that validates them. The syntax-only scoping stands, but on "no shape check exists yet"
+  rather than on platform permissiveness. That gap is now tracked separately.
+
+- 2ca48d4: Add `InvalidSchemaPropertyType`: a schema property type the platform rejects was reported by
+  nothing, and recorded in three places as something the platform accepts.
+
+  ```yaml
+  # app/schema/thing.yml
+  properties:
+    - name: bogus
+      type: not_a_real_type
+  ```
+
+  A real deploy rejects it — `Attribute type \`not_a_real_type\` is not allowed. Valid attribute
+  types: string, integer, float, …` — and a rejection fails the whole changeset.
+
+  **Why it was believed otherwise.** Every prior measurement used `pos-cli deploy --dry-run`,
+  which accepts the file. The dry run returns before `persist_slice!`, so the nested
+  `CustomAttributeConverter` that validates the type never runs. That silence was written down
+  as evidence in `blocking.ts`, in `YAMLSyntaxError`'s docblock and in the MCP server's own
+  instructions to agents; all three are corrected. What survives is the narrower, true claim:
+  schema-SHAPE validation is scoped out because no check covers it, not because the platform
+  is permissive.
+
+  Measured against the live instance, by real deploy rather than dry run:
+
+  | Case                                              | Deploy                                                            |
+  | ------------------------------------------------- | ----------------------------------------------------------------- |
+  | `type: not_a_real_type`                           | rejected                                                          |
+  | `type: String` — a valid type, wrong case         | rejected (the model's `inclusion:` is literal)                    |
+  | unknown top-level key                             | rejected — `Available properties are: metadata, name, properties` |
+  | unknown property-level key                        | rejected                                                          |
+  | duplicate property names                          | **accepted**                                                      |
+  | `properties:` as a mapping rather than a sequence | rejected                                                          |
+
+  The check covers the property `type` across all four file types whose `properties:` are
+  converted by `CustomAttributeConverter` — `schema/`, `transactable_types/`,
+  `instance_profile_types/` and `user.yml` — confirmed on the instance for a table and for
+  `user.yml`. It is an error and blocks the write.
+
+  `SCHEMA_PROPERTY_TYPES` and `PROPERTY_BEARING_FILE_TYPES` live in `platformos-common` beside
+  the other converter-derived facts, and the type list is pinned by a literal rather than
+  derived, because it is our transcription of a platform constant and a corrupted list would
+  otherwise move every test with it.
+
+  The unknown top-level key is measured and still unreported; it is tracked separately rather
+  than folded in here. `schema-table.ts`'s docblock example, which showed the mapping form, is
+  corrected — that form does not deploy.
+
+  Also new: a `deploy` provenance oracle in the supervisor's silence fixtures. Labelling this
+  evidence `dry-run` would have been false, since the dry run accepts the very shapes at issue.
+
+- 2034fce: Stop refusing three tag spellings that platformOS parses as intended
+
+  `{% capture 'name' %}`, `{% case x: %}` and `{% parse_json v %%}` were reported by
+  `InvalidTagSyntax`, which lands under `LiquidHTMLSyntaxError` — `Severity.ERROR` and a member
+  of the MCP supervisor's blocking set — so an agent was told not to write the file at all. On a
+  2,768-file production application these accounted for **34 of the 122** `LiquidHTMLSyntaxError`
+  offenses, 32 of them `{% capture 'name' %}`, the most frequently refused construct in real
+  code. Every one was rendered on a live instance and produces the author's intended result.
+
+  They now report as `UnconventionalTagSyntax` at `warning`, which is outside the blocking set:
+  still advised against, no longer fatal. Corpus totals are otherwise identical — 13,065 offenses
+  across 1,950 files before and after, with `LiquidHTMLSyntaxError` 122 → 88 and the 34 moving to
+  the new check.
+
+  The admitted set is a deliberate allowlist, not a relaxation of `InvalidTagSyntax`. The
+  platform matches tag markup with an unanchored regex, so it also accepts spellings that then do
+  the wrong thing **silently** — a mistyped `{% cache: k %}` collapses the cache key to a
+  constant, and because the full key carries no user component, distinct keys share one entry
+  across the instance and one user's rendered fragment is served to another. Those keep blocking,
+  and are asserted alongside the demoted ones so the two halves cannot drift apart.
+
+- Updated dependencies [7505f4a]
+- Updated dependencies [cc01002]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [f3ccef1]
+- Updated dependencies [2ca48d4]
+- Updated dependencies [10a43c9]
+- Updated dependencies [f3ccef1]
+- Updated dependencies [10a43c9]
+- Updated dependencies [6571780]
+- Updated dependencies [10a43c9]
+- Updated dependencies [2ca48d4]
+- Updated dependencies [b70f159]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [c41ab09]
+- Updated dependencies [2034fce]
+- Updated dependencies [16fcd5d]
+  - @platformos/platformos-check-common@1.1.0
+  - @platformos/platformos-check-node@1.1.0
+  - @platformos/platformos-common@0.2.0
+  - @platformos/liquid-html-parser@0.2.0
+  - @platformos/platformos-graph@0.2.0
+  - @platformos/platformos-language-server-common@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

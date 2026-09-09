@@ -1,5 +1,410 @@
 # @platformos/platformos-common
 
+## 0.2.0
+
+### Minor Changes
+
+- 10a43c9: Move frontmatter block extraction into `platformos-common`, beside the schemas it validates against
+
+  `FrontmatterBlock`, `extractFrontmatterBlock`, `frontmatterBlock` and `wellFormedFrontmatterBlock`
+  now live in `@platformos/platformos-common`, so a package can read a frontmatter block without
+  depending on the linting engine. `platformos-check-common` re-exports them and behaves exactly as
+  before — the frontmatter check suites pass with no edit at all, which is the proof.
+
+  The per-file parse is now memoized through `AppFile.derived()` rather than a module-level
+  `WeakMap` keyed on file identity and source. That is the mechanism the file object already
+  provides, dropped by the same two places that drop the source, so the linter, the language server
+  and the graph share one parse instead of keeping private caches.
+
+  `platformos-common` gains a dependency on `yaml`. `js-yaml` cannot report the per-node offsets a
+  frontmatter diagnostic needs to point at the key or value it is about. Both libraries are now
+  present, and `yaml-load-options.ts` records which is used for what.
+
+- 2ca48d4: Add `InvalidSchemaPropertyType`: a schema property type the platform rejects was reported by
+  nothing, and recorded in three places as something the platform accepts.
+
+  ```yaml
+  # app/schema/thing.yml
+  properties:
+    - name: bogus
+      type: not_a_real_type
+  ```
+
+  A real deploy rejects it — `Attribute type \`not_a_real_type\` is not allowed. Valid attribute
+  types: string, integer, float, …` — and a rejection fails the whole changeset.
+
+  **Why it was believed otherwise.** Every prior measurement used `pos-cli deploy --dry-run`,
+  which accepts the file. The dry run returns before `persist_slice!`, so the nested
+  `CustomAttributeConverter` that validates the type never runs. That silence was written down
+  as evidence in `blocking.ts`, in `YAMLSyntaxError`'s docblock and in the MCP server's own
+  instructions to agents; all three are corrected. What survives is the narrower, true claim:
+  schema-SHAPE validation is scoped out because no check covers it, not because the platform
+  is permissive.
+
+  Measured against the live instance, by real deploy rather than dry run:
+
+  | Case                                              | Deploy                                                            |
+  | ------------------------------------------------- | ----------------------------------------------------------------- |
+  | `type: not_a_real_type`                           | rejected                                                          |
+  | `type: String` — a valid type, wrong case         | rejected (the model's `inclusion:` is literal)                    |
+  | unknown top-level key                             | rejected — `Available properties are: metadata, name, properties` |
+  | unknown property-level key                        | rejected                                                          |
+  | duplicate property names                          | **accepted**                                                      |
+  | `properties:` as a mapping rather than a sequence | rejected                                                          |
+
+  The check covers the property `type` across all four file types whose `properties:` are
+  converted by `CustomAttributeConverter` — `schema/`, `transactable_types/`,
+  `instance_profile_types/` and `user.yml` — confirmed on the instance for a table and for
+  `user.yml`. It is an error and blocks the write.
+
+  `SCHEMA_PROPERTY_TYPES` and `PROPERTY_BEARING_FILE_TYPES` live in `platformos-common` beside
+  the other converter-derived facts, and the type list is pinned by a literal rather than
+  derived, because it is our transcription of a platform constant and a corrupted list would
+  otherwise move every test with it.
+
+  The unknown top-level key is measured and still unreported; it is tracked separately rather
+  than folded in here. `schema-table.ts`'s docblock example, which showed the mapping form, is
+  corrected — that form does not deploy.
+
+  Also new: a `deploy` provenance oracle in the supervisor's silence fixtures. Labelling this
+  evidence `dry-run` would have been false, since the dry run accepts the very shapes at issue.
+
+- b70f159: Score route precedence the way the platform engine does
+
+  `calculatePrecedence` is a port of `Router::RouteBuilder::Route` and had drifted from it in six
+  ways, across three parts of the calculation. Measured by extracting the engine's own `slug_components_weighted_size` and
+  `calculate_precedence` from `app/models/router/route_builder/route.rb`, running them under Ruby,
+  and comparing against this function over a corpus enumerated exhaustively to length three over
+  `. / a ( ) : *`, plus realistic slugs — 844 cases in html and non-html. **72 disagreed.** They now
+  all agree.
+
+  - **A wildcard was scored as a parameter.** The engine's only test is `start_with?(':')`, so a
+    `*` falls to its `else` and weighs 100, like a hardcoded component — and takes no
+    optional-group discount. The port gave it 10, or 1 inside a group. `a/*` scored -10999 here
+    against the engine's -19999.
+  - **Empty path components were skipped.** The engine weighs them 100 like anything else that is
+    not a `:param`, so `a//b` is 300 there and was 200 here. Trailing empties are still dropped,
+    because Ruby's `String#split` drops them and JavaScript's does not — that difference is now
+    handled explicitly rather than by accident.
+  - **The "format in the last component" test was wrong three ways.** The engine asks
+    `File.extname(slug.split('/').last || '')`. The port stripped parentheses first, took the last
+    component with `lastIndexOf('/')`, and required a non-empty extension. So it disagreed on a
+    bare trailing dot (`a.`, where `File.extname` returns `"."`), on a leading run of dots (`..`
+    and `...`, where it returns `""`), on a component containing a paren (`(.json)`), and on a
+    trailing slash (`a.json/`, where Ruby's split drops the empty and sees `a.json`).
+  - **An empty slug was treated as root.** The engine's root-slug list holds only `/`, so only `/` earns the root
+    adjustment. An empty slug now scores one lower for the same format.
+
+  WHY IT MATTERS: `RouteTable` sorts candidates by precedence, so these scores decide which page the
+  tooling believes serves a URL. Where they disagreed with the engine, any answer derived from them
+  — `MissingPage` above all — could differ from what the platform actually does.
+
+  BEHAVIOUR CHANGE. Route ordering shifts for a page slug containing a wildcard, a doubled slash, a
+  trailing dot, a leading run of dots, a parenthesis in its last component, or a trailing slash, and
+  for an empty slug. Every other shape is unaffected, which the same differential confirms.
+
+### Patch Changes
+
+- cc01002: Close the CodeQL code-scanning alerts: three quadratic regexes, an unbounded prototype
+  merge, and two patterns built from unescaped input.
+
+  Three of the flagged regexes are genuinely quadratic, measured on a 120k-character
+  adversarial subject:
+
+  | subject                                            | before   | after  |
+  | -------------------------------------------------- | -------- | ------ |
+  | `getConditionalComment` on `<!--[if` repeated      | 634 ms   | 0.1 ms |
+  | a `theme_render_rc` search path of `{{{{` repeated | 3,373 ms | 0.1 ms |
+  | `parseSlug` on `((` repeated                       | 4,250 ms | 0.1 ms |
+
+  The conditional-comment fix is also a data-loss fix. The pattern was unanchored at the
+  start, so `<!-- a note <!--[if IE]>x<![endif]-->` matched with `a note` outside every
+  capture group — and the printer regenerates the comment from those groups, so the next
+  format deleted it. Such a comment is no longer treated as conditional.
+
+  `TranslationProvider`'s merge read `__proto__` out of a translation file as a mergeable
+  object, because `typeof target[key]` consults the prototype chain — so a `.yml` file in a
+  linted project wrote its keys onto `Object.prototype` in the language server's own process.
+  `__proto__`, `constructor` and `prototype` are now skipped, own-property lookup decides the
+  recursion, and a `null` value no longer crashes the merge.
+
+  `basename(uri, ext)` compiled `ext` into a `RegExp` with only `.` escaped, so
+  `basename(uri, '(x).liquid')` stripped a bare `x` from names that never carried the
+  extension asked about. It compares text now. The TextMate grammar's `escapeRegex` escapes
+  the full metacharacter set; the generated grammars are byte-identical.
+
+  Also: `contents: read` on the CI and VS Code release workflows.
+
+- 10a43c9: Stop treating a repeated frontmatter key as a syntax error, which was hiding every other finding in the block
+
+  The frontmatter parse took `yaml`'s default options, where `uniqueKeys` is `true`. A key written
+  twice therefore became a parse error, and because every field rule reads through
+  `wellFormedFrontmatterBlock`, that one key silently suppressed `UnknownFrontmatterField`,
+  `InvalidFrontmatterValue`, `MissingLayout`, `MissingFrontmatterAssociation` and
+  `DeprecatedFrontmatterField` for the whole block — including findings the deploy converter
+  rejects the changeset over.
+
+  The platform disagrees. It parses frontmatter with `SafeYAML.load` (Psych) and rescues only
+  `Psych::SyntaxError`; Psych has no uniqueness rule. Measured end to end by syncing a page whose
+  `slug` was declared twice: it synced without error, the first slug 404s and the second serves.
+  A repeated key is legal input, resolved last-wins.
+
+  `prettyErrors` is now `false` as well. The pretty form appends the offending source line and a
+  caret diagram to `error.message`, and that message was reported verbatim, so an unclosed bracket
+  in frontmatter produced a multi-line ASCII diagram as the offense text.
+
+  Both options match what `platformos-check-common`'s `yaml/parse.ts` and `yaml/duplicate-keys.ts`
+  already pass, for the same reasons.
+
+- 10a43c9: Fix frontmatter diagnostics pointing at the wrong text in a file with CRLF line endings
+
+  `extractFrontmatterBlock` parsed a copy of the frontmatter body with `\r\n` collapsed to `\n`,
+  but reported offsets into the ORIGINAL file. Collapsing removes a byte per line, so every entry
+  after the first was short by the number of preceding CRLFs, and the drift grew down the block:
+
+      '---\r\nslug: notes\r\nlayout: app\r\n---\r\n'
+        slug   → "slug"      ✓
+        layout → "\nlayou"   value → " ap"
+
+  Every frontmatter check reports through those offsets, so on a Windows-authored file
+  `UnknownFrontmatterField`, `InvalidFrontmatterValue`, `MissingLayout`,
+  `MissingFrontmatterAssociation` and `DeprecatedFrontmatterField` all highlighted the wrong span.
+
+  The collapse was also unnecessary: `parseDocument` reads `\r\n` natively and yields scalars with
+  no stray `\r`, block and quoted alike. Only a LONE `\r` needs rewriting — the platform's Psych
+  (YAML 1.1) treats it as a line break and npm `yaml` (YAML 1.2) does not — and that substitution
+  is one byte for one byte, so offsets survive it. It matters for more than classic-Mac files: the
+  extracted body ends at the newline before the closing fence, so on any CRLF file its last byte is
+  a lone `\r` that would otherwise ride into the final entry's value.
+
+  `normalizeLoneCarriageReturns` moves from `platformos-check-common` to `platformos-common` so both
+  sides share one definition; check-common's `yaml/parse.ts` and `yaml/duplicate-keys.ts` import it
+  from there and are otherwise unchanged.
+
+- f3ccef1: GraphQL table extraction now sees the four mutations that pass `table` as an argument, and no
+  longer claims a remote instance's tables as local.
+
+  `extractGraphqlTables` walked the document for object fields named `table`. That is one of the
+  three positions a table actually appears in, measured against a live schema rather than assumed:
+
+  ```graphql
+  records(filter: { table: { value: "blog_post" } })   # object   — was found
+  records(filter: { table: "blog_post" })              # shorthand — was found
+  record_delete(id: 1, table: "blog_post")             # ARGUMENT — was MISSED
+  ```
+
+  `record_delete`, `records_delete_all`, `records_update_all` and `property_upload_presigned_url`
+  all declare `table` as a plain `String` argument, which is an `Argument` node rather than an
+  `ObjectField`, so none of them was seen. `platformos-graph` builds a GraphQL module's `tables`
+  from this function, so a document whose only table reference was one of those recorded NO table —
+  a file that DELETES from a model joined to nothing, and impact under-reported which schema a
+  destructive mutation touches.
+
+  The opposite error was also present. `remote_records` takes the same `RecordsFilterInput` as
+  `records`, so its table names a table on ANOTHER instance; the walk had no context and returned
+  it as if it were local.
+
+  Only the remote exclusion needs the FIELD, and only in order to skip: the walk drops that
+  field's whole subtree, arguments included. Everything else stays a document-wide search, which
+  is what keeps a table in a position no field encloses — a variable's default value, say —
+  covered:
+
+  - a `table` argument is a reference when it is a STRING. That covers the four mutations, and it
+    is also why `admin_table_create` / `admin_table_update` stay out for free — they DEFINE a table
+    and pass an input object. Checked against the schema: neither input type carries a nested
+    `table` field that could leak through the value walk.
+  - a field carrying an `endpoint` argument is remote, and everything under it is skipped.
+    `endpoint` is non-null on every remote field, so nothing has to maintain a list of names.
+  - object fields named `table` are still read at any depth and in any position, which matters
+    because `RecordsFilterInput.or` is a list of `RecordsFilterInput` so filters nest
+    arbitrarily, and because a filter can also arrive as a variable's default value or from
+    inside a fragment.
+
+  Unchanged: a dynamic (non-string) table still yields nothing, so a `$table` variable is never
+  reported; a field aliased `table` in a selection set is still not a table; and a document that
+  does not parse still returns an empty array.
+
+- 10a43c9: Report `method: POST` in a page's frontmatter, which is a deploy rejection the linter
+  accepted.
+
+  ```liquid
+  ---
+  slug: probe
+  method: POST
+  ---
+  ```
+
+  Measured: the converter REJECTS this — `Request method 'POST' is not allowed. Valid methods:
+delete, get, patch, post, put, options` — while `method: post` is accepted. A rejection fails
+  the whole changeset. `validate_code` answered `status: ok`.
+
+  The enum comparison lowercased both sides for every field, so a valid method in the wrong
+  case matched. The platform does not: `page.rb` validates `request_method` with an
+  `inclusion:` over a lowercase list, and the converter never downcases.
+
+  Casing is now a per-field property (`caseSensitiveEnum` on `FrontmatterFieldSchema`) rather
+  than a property of the comparison, because the fields genuinely differ. `Page.method` is
+  case-sensitive. ApiCall's `request_type` deliberately stays lenient: it is validated for
+  PRESENCE only, with no inclusion check anywhere in the platform, so there is no rejection to
+  mirror and tightening it would invent a false block. Both directions are pinned, each with a
+  control proving the field is still checked and only its case is forgiven.
+
+  Found by this change: the supervisor's deliberately-broken sweep project contains a page
+  named `bad_method.html.liquid` carrying `method: GET`, authored to be caught, which nothing
+  had ever reported.
+
+- f3ccef1: New check `MissingTable`: a GraphQL operation naming a model table that no schema declares.
+
+  A typo'd table was invisible at every layer. Measured on a live instance:
+
+  ```graphql
+  records(per_page: 1, filter: { table: { value: "no_such_table_xyz" } }) { total_entries results { id } }
+  ```
+
+  renders `{"records":{"total_entries":0,"results":[]}}` — a success with zero rows. Not a parse
+  error, not a schema error, not a deploy rejection, no runtime error, no log entry. A misspelled
+  table is indistinguishable from an empty one, forever.
+
+  `GraphQLCheck` cannot cover this however good the docset gets: `RecordsFilterInput.table` is a
+  `StringFilter`, not an enum, so every value is valid against the schema. Only a project-aware
+  check can, because the vocabulary is whatever the project's schema files declare — and that
+  vocabulary is COMPLETE, since `admin_tables` on a live instance holds only what deployed schemas
+  created. There are no platform-provided tables to allow for.
+
+  `MissingTable` is **not** blocking. The file deploys and runs; it just returns nothing. It is an
+  error in the report and absent from `BLOCKING_CHECKS`, so it never gates a write.
+
+  THE TABLE IS NOT THE YAML `name:`. The platform runs a schema's declared name through
+  `ParameterizedName`, which prefixes `modules/<module>/` for a schema inside a module and then
+  downcases and underscores it; `records_filter_input.rb` maps the GraphQL `table` argument to that
+  `parameterized_name`. So a module schema whose `name:` is `profile` is queried as
+  `modules/user/profile`. `parameterizedTableName` is that rule, exported beside
+  `extractSchemaTable`. Swept over twelve real projects, this one point accounted for every false
+  positive: 54 offenses before it, 34 after, and all 34 attributable — including a project querying
+  `promo_code_details` against a schema declaring `promo_code_detail`, and another reaching for
+  users with `related_record(table: "user")` where the platform expects `related_user`.
+
+  `SchemaModule.table` in `platformos-graph` still records the raw `name:`, which is correct for an
+  app schema and NOT joinable for a module one. Its comment now says so and points at
+  `parameterizedTableName`; the value is unchanged because nothing joins it yet.
+
+  Two escape hatches, because a table can legitimately exist outside the checkout: the check's
+  `ignoreMissing` list, and a blanket silence when the project has no schema files at all — a state
+  that cannot be told apart from "this run never saw them", where reporting would be a wall of
+  noise in exchange for nothing.
+
+- 10a43c9: Add `DuplicateFrontmatterKey`, which reports a frontmatter key whose value is silently discarded
+
+  A key written twice in frontmatter is legal input — the platform parses it with Psych, which has
+  no uniqueness rule, and keeps the last value. Measured by syncing a page declaring `slug` twice:
+  it synced without error, the first slug 404s and the second serves.
+
+  That is exactly why it is worth reporting. The file deploys and works, and the earlier value is
+  gone with nothing to say so. The same defect in a `.yml` file has been reported by
+  `DuplicateYAMLKey` since it landed; that check is `SourceCodeType.YAML` and never sees a
+  `.liquid` file, which left frontmatter uncovered — the same gap `InvalidFrontmatterSyntax` fills
+  for `YAMLSyntaxError`.
+
+  It is a WARNING and does not block, because the platform accepts the file. The reported range
+  covers the DISCARDED entry rather than the surviving one, so the author is pointed at the line
+  that does nothing instead of the value they still have.
+
+  Key identity comes from the existing `findDuplicateKeys`, which reconciles npm `yaml` (YAML 1.2)
+  with Psych (YAML 1.1) against an oracle generated from a live Ruby: `yes:` and `true:` are ONE key
+  to the platform, while `1:` and `1.0:` are TWO. Nothing about that is re-derived here.
+
+  `FrontmatterBlock` gains a `body` field — the YAML body exactly as it appears in the file — for
+  consumers that need to run their own parse over the block and place its offsets.
+
+- 10a43c9: Model `spam_protection` as the mapping the platform actually takes.
+
+  It was declared as a string enum, which had the field backwards in both directions: the
+  check fired on the shape the platform recommends and stayed silent on three that are deploy
+  rejections. Every mapping form also produced `Invalid value 'undefined' for
+'spam_protection'`, because a non-scalar has no value to interpolate.
+
+  Measured against the converter:
+
+  | frontmatter                             | platform                                                           | reported before         |
+  | --------------------------------------- | ------------------------------------------------------------------ | ----------------------- |
+  | `spam_protection: recaptcha`            | accepted                                                           | nothing                 |
+  | `spam_protection: recaptcha_v3`         | **rejected** — `undefined method 'keys' for an instance of String` | nothing                 |
+  | `spam_protection: hcaptcha`             | **rejected**                                                       | nothing                 |
+  | `spam_protection: RECAPTCHA_V3`         | **rejected**                                                       | nothing                 |
+  | `recaptcha: {}`                         | accepted                                                           | a warning               |
+  | `hcaptcha: {}`                          | accepted                                                           | a warning               |
+  | `recaptcha_v3: {action, minimum_score}` | accepted                                                           | a warning               |
+  | `bogus_strategy: {}`                    | **rejected** — `Invalid strategy bogus_strategy`                   | a warning, wrong reason |
+  | `recaptcha_v3:` with no `action`        | **rejected** — `action is required`                                | a warning, wrong reason |
+  | `recaptcha_v3:` with `minimum_score: 2` | **rejected** — `must be between 0 and 1`                           | a warning, wrong reason |
+
+  The platform reads the strategy as the config mapping's FIRST KEY, and treats only the bare
+  string `recaptcha` as the legacy form — so the strategy is the mapping's first key, and
+  `recaptcha` is the single legacy plain string. Anything else given as a plain string reaches
+  `.keys` and raises.
+
+  Each row above is now a test, the accepted rows sharing a group with the rejected ones so
+  neither half can go vacuous, and one asserting no frontmatter message can contain the
+  literal `undefined`.
+
+- c41ab09: Report ten shapes that passed the gate and then failed the deploy: a GraphQL description, a
+  BOM, and `comment`/`raw`/`doc` blocks that never close.
+
+  Both halves are the same mistake — we and the platform parse the same format with different
+  libraries, and nobody had run the differential. A 50-case GraphQL corpus and a 21-case Liquid
+  corpus were run against the parsers the platform actually uses, `graphql-c_parser` 1.1.3 and
+  Shopify `liquid` 5.11.0 under `error_mode: :strict`, and confirmed against a live
+  `pos-cli deploy --dry-run`. Every divergence ran one way: we approved, the converter refused,
+  and a converter rejection fails the WHOLE changeset rather than the one file.
+
+  GRAPHQL. graphql-js 16 ships the operation-descriptions proposal unconditionally, and there is
+  no parser option to turn it off, so a stored query documented the obvious way parsed here and
+  was a syntax error there:
+
+  ```graphql
+  """
+  Loads one checklist by its database id.
+  """
+  query checklist_find($id: ID!) {   # syntax error, unexpected QUERY ("query") at [4, 1]
+  ```
+
+  Descriptions on an operation, a fragment definition and a variable definition are now reported,
+  as is a UTF-8 BOM anywhere in the file — ignored whitespace to graphql-js at any position, an
+  invalid token to the platform at any position. A description on a TYPE-SYSTEM definition is
+  untouched: that one is in both grammars.
+
+  These come back as a syntax error with no parsed document, which is the literal truth — the
+  platform has no parse of the file. `GraphQLCheck` reports it and already blocks the write.
+
+  LIQUID. `comment`, `raw` and `doc` are the three tags whose closed form becomes a `LiquidRawTag`,
+  and an unclosed one fell in the gap between two mechanisms: the tolerant parser falls back to a
+  bare tag, which leaves nothing open for the unclosed-block check to find, and those three names
+  are exactly what `InvalidTagSyntax` exempts, because empty markup IS correct for a closed raw
+  tag. So a forgotten `{% endcomment %}` parsed silently. The other 13 block tags were already
+  reported.
+
+  ```liquid
+  {% liquid
+    comment Sharing starts off, so a real token must not open the list yet. endcomment
+    function denied = 'queries/checklists/authorize'
+  %}
+  ```
+
+  Inside `{% liquid %}` each line is one tag, so `comment` swallows the trailing `endcomment` as
+  markup and then looks for a closer on the following lines: `'comment' tag was never closed`.
+  `raw` is worse — it can never be used inside `{% liquid %}` at all, however it is written or
+  however deeply nested, because Liquid scans for the full `{% endraw %}` tag, which a body of one
+  bare tag per line cannot contain.
+
+  The messages are the Liquid runtime's own wording, the way the other block tags already report
+  them, so a reader who sees one message and then the other has nothing to translate.
+
+  What deliberately did NOT change: `{% comment junk %}…{% endcomment %}` still parses, because
+  markup on `comment` is legal on the platform; a multi-line `comment` inside `{% liquid %}` still
+  parses, because Liquid matches that closer as a bare line; and `{% raw junk %}` still parses,
+  because the printer repairs it by stripping the argument and cannot repair what the parser
+  refuses to read.
+
 ## 0.1.0
 
 ### Minor Changes

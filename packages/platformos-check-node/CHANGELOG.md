@@ -1,5 +1,221 @@
 # @platformos/theme-check-node
 
+## 1.1.0
+
+### Minor Changes
+
+- 7505f4a: Anchor an `ignore` pattern on the project root when it carries a slash, the way `.gitignore`
+  reads it.
+
+  `modules/<name>/**` is what the documentation tells you to write to drop a vendored module,
+  and it used to be rewritten to `**/modules/<name>/**` — "match at any depth". So it also
+  silenced the FIRST-PARTY `app/modules/<name>`, which is where a platformOS app keeps its own
+  modules. Nothing reported the suppression, because an ignored file produces no offense for
+  anyone to miss: measured on a real project, a page with six offenses — two of them `ERROR`,
+  including an unknown tag — produced zero diagnostics in the editor, while the same file
+  outside `app/modules` produced all six.
+
+  A pattern with a slash anywhere but the very end is now relative to the project root; a bare
+  name still matches at any depth, and covers what is inside it as well as a file of that name,
+  since the subject is always a file. A leading `/` keeps working and is now redundant.
+
+  | pattern              | matches                                                            |
+  | -------------------- | ------------------------------------------------------------------ |
+  | `modules/user/**`    | `<root>/modules/user/**` only — `app/modules/user` is linted again |
+  | `node_modules`       | any depth, including its contents                                  |
+  | `node_modules/**`    | `<root>/node_modules/**` only — **changed**                        |
+  | `**/node_modules/**` | any depth, spelled explicitly                                      |
+  | `*.liquid`           | any depth, unchanged                                               |
+
+  Breaking for a config that relied on a slash-bearing pattern reaching any depth. Write `**/`
+  in front of it to keep that. The factory configs' default is now the slash-less
+  `node_modules`, so it still reaches a nested one.
+
+- 6571780: Report a Liquid string literal whose closing quote is backslash-escaped, and say what an
+  unclosed block actually is.
+
+  `{{ "it's a \"test\"" | escape_javascript }}` reads, to Liquid, as the string `it's a \`
+  followed by the markup `test\""`. Liquid literals have no escape sequences, so the quote after
+  the backslash closes the string. Measured on a live instance (engine `463805653cae`): nothing
+  raises, the value is silently truncated, and the published example above renders `it\'s a \\`
+  rather than the `it\'s a \"test\"` its own documentation states.
+
+  `LiquidHTMLSyntaxError` used to answer these with `Syntax is not supported` pointed at the
+  leftover text — and offered an autofix that DELETED that text, which silences the report while
+  making the truncation permanent. The new `UnsupportedStringEscape` check reports the cause
+  instead, at `ERROR`, naming the value Liquid holds, the text left outside the string, and the
+  way to write it (`{% capture %}` for text needing both quote kinds, otherwise the other quote
+  style). Its four generic readings — `InvalidEchoValue`, `MultipleAssignValues`,
+  `InvalidConditionalNode` and the `assign` fallback — now stand down for this cause, so one
+  mistake produces one diagnostic.
+
+  It also covers filter arguments, which nothing reported before:
+  `{{ "abc" | replace: "b\"c", "z" }}` silently replaced nothing.
+
+  Deliberately NOT in the supervisor's `BLOCKING_CHECKS`, and with no autofix: the platform
+  accepts the file, and the tempting mechanical repair (swap the outer quotes) is invalid inside
+  a JSON literal, where `\"` is a real escape the runtime honours — a context unparsed markup
+  cannot identify. JSON literals parse strictly, so they never reach the check.
+
+  Unclosed blocks now report in the author's vocabulary rather than the parser's. A missing
+  `{% endif %}` said `Attempting to end parsing before LiquidBranch 'null' was closed`, while
+  the error's own `unclosed` payload already said `if`; both now come from the same resolved
+  value, and the message is `'if' tag was never closed` — the wording the Liquid runtime uses
+  for the same mistake. HTML reads `'<div>' element was never closed`, and the three
+  mid-document variants use the same vocabulary.
+
+- 10a43c9: Split `ValidFrontmatter` into five per-shape checks, so the frontmatter mistakes that reject
+  a deploy can block a write.
+
+  **Migration:** `ValidFrontmatter` no longer exists. A `.platformos-check.yml` naming it must
+  name the replacements instead:
+
+  | Was `ValidFrontmatter`                                      | Now                             | Severity |
+  | ----------------------------------------------------------- | ------------------------------- | -------- |
+  | an unrecognised key                                         | `UnknownFrontmatterField`       | error    |
+  | a value outside the accepted set, and `layout: false`       | `InvalidFrontmatterValue`       | error    |
+  | a `layout:` naming a layout that does not exist             | `MissingLayout`                 | error    |
+  | an authorization policy or notification that does not exist | `MissingFrontmatterAssociation` | error    |
+  | a superseded key, and the deprecated `home.liquid` filename | `DeprecatedFrontmatterField`    | warning  |
+
+  **Why.** One code reported seven distinct rules at `Severity.WARNING`. Six of them are
+  converter rejections measured against a live instance with `pos-cli deploy --dry-run`, and a
+  rejection fails the ENTIRE changeset rather than the offending file — so `validate_code`
+  answered `must_fix_before_write: false` for files that could not deploy. The supervisor's gate
+  reads a check CODE, so it could not admit the fatal shapes without also admitting the
+  advisory ones.
+
+  The four fatal codes are now in the supervisor's `BLOCKING_CHECKS`, each with the converter
+  error that justifies it. `DeprecatedFrontmatterField` is deliberately absent: a deprecated
+  key and a `home.liquid` page are measured to deploy cleanly.
+
+  `MissingFrontmatterAssociation` is the one that `--dry-run` cannot answer. The dry run
+  ACCEPTS a page naming a policy that does not exist, because `base_converter.rb` returns
+  before `bulk_write_associations_from_snapshot!` — the code that raises. A real deploy
+  rejects it (`<page> tries to assign authorization_policies which do not exist: <name>`), so
+  it blocks. It was classified `warning` first, on the dry run's silence; that silence was a
+  gap in the oracle rather than evidence, and the same trap applies to anything else measured
+  that way.
+
+  This is the discriminator TASK-26 was waiting for. Its recorded blocker — that blocking the
+  code would fix two false approvals and create one false block — rested on two wrong facts:
+  there were seven reachable shapes rather than three, and `layout: false`, named there as the
+  harmless one, is itself a converter rejection (`undefined method 'sub' for false`, because
+  YAML reads it as the boolean and `page_converter.rb`'s `set_layout` guards `nil` rather than
+  `false`). Its diagnostic said the opposite — "falls back to the default layout" — and now
+  says the deploy is rejected. The `layout: ''` suggestion is unchanged and still correct.
+
+  All five checks share one parsed block through a new memoised extractor. Measured, because
+  five checks re-parsing one block looked cheap and is not: `parseDocument` costs ~80 µs on a
+  representative block, so the four redundant parses would have cost ~640 ms over a 2 000-page
+  project.
+
+  The dead `Missing required frontmatter field` rule is removed rather than carried across: no
+  schema sets `required: true`, so it could not fire, and a check code that can never report
+  would need a permanent exemption from the supervisor's "every blocking check can actually
+  block" fixtures.
+
+  All five codes need a documentation page under
+  `app/views/pages/developer-guide/platformos-check/checks/` in `platformos-documentation`, plus
+  their overview rows and nav entries; `valid-frontmatter`'s page is retired.
+
+- 2034fce: Stop refusing three tag spellings that platformOS parses as intended
+
+  `{% capture 'name' %}`, `{% case x: %}` and `{% parse_json v %%}` were reported by
+  `InvalidTagSyntax`, which lands under `LiquidHTMLSyntaxError` — `Severity.ERROR` and a member
+  of the MCP supervisor's blocking set — so an agent was told not to write the file at all. On a
+  2,768-file production application these accounted for **34 of the 122** `LiquidHTMLSyntaxError`
+  offenses, 32 of them `{% capture 'name' %}`, the most frequently refused construct in real
+  code. Every one was rendered on a live instance and produces the author's intended result.
+
+  They now report as `UnconventionalTagSyntax` at `warning`, which is outside the blocking set:
+  still advised against, no longer fatal. Corpus totals are otherwise identical — 13,065 offenses
+  across 1,950 files before and after, with `LiquidHTMLSyntaxError` 122 → 88 and the 34 moving to
+  the new check.
+
+  The admitted set is a deliberate allowlist, not a relaxation of `InvalidTagSyntax`. The
+  platform matches tag markup with an unanchored regex, so it also accepts spellings that then do
+  the wrong thing **silently** — a mistyped `{% cache: k %}` collapses the cache key to a
+  constant, and because the full key carries no user component, distinct keys share one entry
+  across the instance and one user's rendered fragment is served to another. Those keep blocking,
+  and are asserted alongside the demoted ones so the two halves cannot drift apart.
+
+### Patch Changes
+
+- cc01002: Close the CodeQL code-scanning alerts: three quadratic regexes, an unbounded prototype
+  merge, and two patterns built from unescaped input.
+
+  Three of the flagged regexes are genuinely quadratic, measured on a 120k-character
+  adversarial subject:
+
+  | subject                                            | before   | after  |
+  | -------------------------------------------------- | -------- | ------ |
+  | `getConditionalComment` on `<!--[if` repeated      | 634 ms   | 0.1 ms |
+  | a `theme_render_rc` search path of `{{{{` repeated | 3,373 ms | 0.1 ms |
+  | `parseSlug` on `((` repeated                       | 4,250 ms | 0.1 ms |
+
+  The conditional-comment fix is also a data-loss fix. The pattern was unanchored at the
+  start, so `<!-- a note <!--[if IE]>x<![endif]-->` matched with `a note` outside every
+  capture group — and the printer regenerates the comment from those groups, so the next
+  format deleted it. Such a comment is no longer treated as conditional.
+
+  `TranslationProvider`'s merge read `__proto__` out of a translation file as a mergeable
+  object, because `typeof target[key]` consults the prototype chain — so a `.yml` file in a
+  linted project wrote its keys onto `Object.prototype` in the language server's own process.
+  `__proto__`, `constructor` and `prototype` are now skipped, own-property lookup decides the
+  recursion, and a `null` value no longer crashes the merge.
+
+  `basename(uri, ext)` compiled `ext` into a `RegExp` with only `.` escaped, so
+  `basename(uri, '(x).liquid')` stripped a bare `x` from names that never carried the
+  extension asked about. It compares text now. The TextMate grammar's `escapeRegex` escapes
+  the full metacharacter set; the generated grammars are byte-identical.
+
+  Also: `contents: read` on the CI and VS Code release workflows.
+
+- 16fcd5d: Stop loading the first-party packages as third-party check plugins on Windows.
+
+  `findThirdPartyChecks` globs `node_modules` for `platformos-check-*`, which matches the
+  first-party packages too, so it excludes them by name afterwards. `glob` returns results in the
+  platform's own separator, so on Windows those names arrived as
+  `C:\proj\node_modules\@platformos\platformos-check-node` and the exclusion — written with `/` —
+  matched nothing.
+
+  Every run on Windows then `require`d `platformos-check-node`, `-common`, `-browser` and
+  `-docs-updater` as if they were check plugins. None exports `checks`, so each one printed
+
+  ```
+  Error loading C:\proj\node_modules\@platformos\platformos-check-node, ignoring it.
+  Error: Expected the 'checks' export to be an array and got undefined
+  ```
+
+  before being discarded, and `platformos-check-node` was loaded a second time under CJS.
+
+  Glob results are now normalized with `toPosixPath` before the exclusion is applied — the same
+  spelling `globJoin` already used for the patterns going in.
+
+- Updated dependencies [7505f4a]
+- Updated dependencies [cc01002]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [f3ccef1]
+- Updated dependencies [2ca48d4]
+- Updated dependencies [10a43c9]
+- Updated dependencies [f3ccef1]
+- Updated dependencies [10a43c9]
+- Updated dependencies [6571780]
+- Updated dependencies [10a43c9]
+- Updated dependencies [2ca48d4]
+- Updated dependencies [b70f159]
+- Updated dependencies [10a43c9]
+- Updated dependencies [10a43c9]
+- Updated dependencies [c41ab09]
+- Updated dependencies [2034fce]
+  - @platformos/platformos-check-common@1.1.0
+  - @platformos/platformos-common@0.2.0
+  - @platformos/liquid-html-parser@0.2.0
+  - @platformos/platformos-check-docs-updater@1.1.0
+
 ## 1.0.0
 
 ### Major Changes

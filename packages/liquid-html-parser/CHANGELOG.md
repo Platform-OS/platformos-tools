@@ -1,5 +1,132 @@
 # @platformos/liquid-html-parser
 
+## 0.2.0
+
+### Minor Changes
+
+- c41ab09: Report ten shapes that passed the gate and then failed the deploy: a GraphQL description, a
+  BOM, and `comment`/`raw`/`doc` blocks that never close.
+
+  Both halves are the same mistake — we and the platform parse the same format with different
+  libraries, and nobody had run the differential. A 50-case GraphQL corpus and a 21-case Liquid
+  corpus were run against the parsers the platform actually uses, `graphql-c_parser` 1.1.3 and
+  Shopify `liquid` 5.11.0 under `error_mode: :strict`, and confirmed against a live
+  `pos-cli deploy --dry-run`. Every divergence ran one way: we approved, the converter refused,
+  and a converter rejection fails the WHOLE changeset rather than the one file.
+
+  GRAPHQL. graphql-js 16 ships the operation-descriptions proposal unconditionally, and there is
+  no parser option to turn it off, so a stored query documented the obvious way parsed here and
+  was a syntax error there:
+
+  ```graphql
+  """
+  Loads one checklist by its database id.
+  """
+  query checklist_find($id: ID!) {   # syntax error, unexpected QUERY ("query") at [4, 1]
+  ```
+
+  Descriptions on an operation, a fragment definition and a variable definition are now reported,
+  as is a UTF-8 BOM anywhere in the file — ignored whitespace to graphql-js at any position, an
+  invalid token to the platform at any position. A description on a TYPE-SYSTEM definition is
+  untouched: that one is in both grammars.
+
+  These come back as a syntax error with no parsed document, which is the literal truth — the
+  platform has no parse of the file. `GraphQLCheck` reports it and already blocks the write.
+
+  LIQUID. `comment`, `raw` and `doc` are the three tags whose closed form becomes a `LiquidRawTag`,
+  and an unclosed one fell in the gap between two mechanisms: the tolerant parser falls back to a
+  bare tag, which leaves nothing open for the unclosed-block check to find, and those three names
+  are exactly what `InvalidTagSyntax` exempts, because empty markup IS correct for a closed raw
+  tag. So a forgotten `{% endcomment %}` parsed silently. The other 13 block tags were already
+  reported.
+
+  ```liquid
+  {% liquid
+    comment Sharing starts off, so a real token must not open the list yet. endcomment
+    function denied = 'queries/checklists/authorize'
+  %}
+  ```
+
+  Inside `{% liquid %}` each line is one tag, so `comment` swallows the trailing `endcomment` as
+  markup and then looks for a closer on the following lines: `'comment' tag was never closed`.
+  `raw` is worse — it can never be used inside `{% liquid %}` at all, however it is written or
+  however deeply nested, because Liquid scans for the full `{% endraw %}` tag, which a body of one
+  bare tag per line cannot contain.
+
+  The messages are the Liquid runtime's own wording, the way the other block tags already report
+  them, so a reader who sees one message and then the other has nothing to translate.
+
+  What deliberately did NOT change: `{% comment junk %}…{% endcomment %}` still parses, because
+  markup on `comment` is legal on the platform; a multi-line `comment` inside `{% liquid %}` still
+  parses, because Liquid matches that closer as a bare line; and `{% raw junk %}` still parses,
+  because the printer repairs it by stripping the argument and cannot repair what the parser
+  refuses to read.
+
+### Patch Changes
+
+- cc01002: Close the CodeQL code-scanning alerts: three quadratic regexes, an unbounded prototype
+  merge, and two patterns built from unescaped input.
+
+  Three of the flagged regexes are genuinely quadratic, measured on a 120k-character
+  adversarial subject:
+
+  | subject                                            | before   | after  |
+  | -------------------------------------------------- | -------- | ------ |
+  | `getConditionalComment` on `<!--[if` repeated      | 634 ms   | 0.1 ms |
+  | a `theme_render_rc` search path of `{{{{` repeated | 3,373 ms | 0.1 ms |
+  | `parseSlug` on `((` repeated                       | 4,250 ms | 0.1 ms |
+
+  The conditional-comment fix is also a data-loss fix. The pattern was unanchored at the
+  start, so `<!-- a note <!--[if IE]>x<![endif]-->` matched with `a note` outside every
+  capture group — and the printer regenerates the comment from those groups, so the next
+  format deleted it. Such a comment is no longer treated as conditional.
+
+  `TranslationProvider`'s merge read `__proto__` out of a translation file as a mergeable
+  object, because `typeof target[key]` consults the prototype chain — so a `.yml` file in a
+  linted project wrote its keys onto `Object.prototype` in the language server's own process.
+  `__proto__`, `constructor` and `prototype` are now skipped, own-property lookup decides the
+  recursion, and a `null` value no longer crashes the merge.
+
+  `basename(uri, ext)` compiled `ext` into a `RegExp` with only `.` escaped, so
+  `basename(uri, '(x).liquid')` stripped a bare `x` from names that never carried the
+  extension asked about. It compares text now. The TextMate grammar's `escapeRegex` escapes
+  the full metacharacter set; the generated grammars are byte-identical.
+
+  Also: `contents: read` on the CI and VS Code release workflows.
+
+- 6571780: Report a Liquid string literal whose closing quote is backslash-escaped, and say what an
+  unclosed block actually is.
+
+  `{{ "it's a \"test\"" | escape_javascript }}` reads, to Liquid, as the string `it's a \`
+  followed by the markup `test\""`. Liquid literals have no escape sequences, so the quote after
+  the backslash closes the string. Measured on a live instance (engine `463805653cae`): nothing
+  raises, the value is silently truncated, and the published example above renders `it\'s a \\`
+  rather than the `it\'s a \"test\"` its own documentation states.
+
+  `LiquidHTMLSyntaxError` used to answer these with `Syntax is not supported` pointed at the
+  leftover text — and offered an autofix that DELETED that text, which silences the report while
+  making the truncation permanent. The new `UnsupportedStringEscape` check reports the cause
+  instead, at `ERROR`, naming the value Liquid holds, the text left outside the string, and the
+  way to write it (`{% capture %}` for text needing both quote kinds, otherwise the other quote
+  style). Its four generic readings — `InvalidEchoValue`, `MultipleAssignValues`,
+  `InvalidConditionalNode` and the `assign` fallback — now stand down for this cause, so one
+  mistake produces one diagnostic.
+
+  It also covers filter arguments, which nothing reported before:
+  `{{ "abc" | replace: "b\"c", "z" }}` silently replaced nothing.
+
+  Deliberately NOT in the supervisor's `BLOCKING_CHECKS`, and with no autofix: the platform
+  accepts the file, and the tempting mechanical repair (swap the outer quotes) is invalid inside
+  a JSON literal, where `\"` is a real escape the runtime honours — a context unparsed markup
+  cannot identify. JSON literals parse strictly, so they never reach the check.
+
+  Unclosed blocks now report in the author's vocabulary rather than the parser's. A missing
+  `{% endif %}` said `Attempting to end parsing before LiquidBranch 'null' was closed`, while
+  the error's own `unclosed` payload already said `if`; both now come from the same resolved
+  value, and the message is `'if' tag was never closed` — the wording the Liquid runtime uses
+  for the same mistake. HTML reads `'<div>' element was never closed`, and the three
+  mid-document variants use the same vocabulary.
+
 ## 0.1.0
 
 ### Minor Changes

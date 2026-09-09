@@ -57,6 +57,7 @@ import { JsonLiteralQuoteStyle } from './json-literal-quote-style';
 import { MissingContentForLayout } from './missing-content-for-layout';
 import { YAMLSyntaxError } from './yaml-syntax-error';
 import { UnsupportedStringEscape } from './unsupported-string-escape';
+import { UnconventionalTagSyntax } from './unconventional-tag-syntax';
 
 export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCheckDefinition)[] = [
   DeprecatedFilter,
@@ -68,6 +69,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   ImgWidthAndHeight,
   ImplicitIncludeArguments,
   LiquidHTMLSyntaxError,
+  UnconventionalTagSyntax,
   MatchingTranslations,
   MissingAsset,
   MissingDocParam,

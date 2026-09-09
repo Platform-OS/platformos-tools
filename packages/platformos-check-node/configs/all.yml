@@ -112,6 +112,9 @@ TranslationKeyExists:
 UnclosedHTMLElement:
   enabled: true
   severity: 1
+UnconventionalTagSyntax:
+  enabled: true
+  severity: 1
 UndefinedObject:
   enabled: true
   severity: 1

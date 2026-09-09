@@ -1,5 +1,6 @@
 import { LiquidTag, NamedTags, TAGS_WITHOUT_MARKUP } from '@platformos/liquid-html-parser';
 import { Problem, SourceCodeType, TagEntry } from '../../..';
+import { isToleratedTagMarkup } from './tolerated-tag-markup';
 
 /**
  * Tags that use no markup at all — they are valid as `{% else %}`, `{% break %}`, etc.
@@ -74,6 +75,14 @@ export function detectInvalidTagSyntax(
 
   // If markup is not a string, it was parsed successfully — no error
   if (typeof node.markup !== 'string') {
+    return;
+  }
+
+  // Spellings the platform handles CORRECTLY are reported by UnconventionalTagSyntax at
+  // warning severity instead, so they no longer block the write. One shared predicate, so
+  // the two checks cannot both fire or both go silent — see tolerated-tag-markup.ts for why
+  // each shape is admitted and why the list must stay an allowlist.
+  if (isToleratedTagMarkup(node)) {
     return;
   }
 

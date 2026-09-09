@@ -1,0 +1,9 @@
+query {
+  remote_records(
+    per_page: 1
+    endpoint: { url: "https://other.example.com" }
+    filter: { table: { value: "remote_only" } }
+  ) {
+    results { id }
+  }
+}

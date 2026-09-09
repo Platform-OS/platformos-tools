@@ -37,3 +37,20 @@ export function extractSchemaTable(content: string): string | undefined {
   const name = (data as Record<string, unknown>).name;
   return typeof name === 'string' && name !== '' ? name : undefined;
 }
+
+/**
+ * The table name the platform gives a model schema — what a GraphQL `table:` must spell.
+ *
+ * NOT the YAML `name:` on its own. The platform runs the declared name through
+ * `ParameterizedName`, which prefixes `modules/<module>/` for a schema inside a module unless
+ * the name already carries it, then downcases and turns spaces into underscores.
+ * `custom_model_type.rb` uses the result as the `table` of a `records_delete_all`, so this is
+ * the value a query has to match. Read from the platform source, and consistent with real
+ * projects, which query `modules/user/profile` for a module schema whose `name:` is `profile`.
+ */
+export function parameterizedTableName(name: string, moduleName?: string): string {
+  const prefix = moduleName ? `modules/${moduleName}/` : '';
+  const prefixed = name.startsWith(prefix) ? name : `${prefix}${name}`;
+
+  return prefixed.toLowerCase().replaceAll(' ', '_');
+}

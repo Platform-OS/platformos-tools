@@ -17,6 +17,7 @@ import { MatchingTranslations } from './matching-translations';
 import { MissingAsset } from './missing-asset';
 import { MissingDocParam } from './missing-doc-param';
 import { MissingPartial } from './missing-partial';
+import { MissingTable } from './missing-table';
 import { ParserBlockingScript } from './parser-blocking-script';
 import { RequiredDocParamWithDefault } from './required-doc-param-with-default';
 import { ReservedVariableName } from './reserved-variable-name';
@@ -74,6 +75,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   MissingAsset,
   MissingDocParam,
   MissingPartial,
+  MissingTable,
   ParserBlockingScript,
   RequiredDocParamWithDefault,
   ReservedVariableName,

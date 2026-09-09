@@ -156,10 +156,15 @@ export interface GraphQLModule extends IAppModule<ModuleType.GraphQL> {
 export interface SchemaModule extends IAppModule<ModuleType.Schema> {
   kind: 'schema';
   /**
-   * The model table name (the schema's top-level `name:`), when declared. A
-   * schema declares exactly one, so this is a single value (unlike a GraphQL
-   * op's {@link GraphQLModule.tables}) that a consumer can join against. Absent
-   * when the file declares no `name:` or could not be parsed.
+   * The schema's top-level `name:`, when declared — one per schema, unlike a GraphQL op's
+   * {@link GraphQLModule.tables}. Absent when the file declares no `name:` or could not be
+   * parsed.
+   *
+   * NOT directly joinable against those tables for a MODULE schema. The platform queries one
+   * as `modules/<module>/<name>` (`ParameterizedName`, and `records_filter_input.rb` maps the
+   * GraphQL `table` to `parameterized_name`), so a consumer must put this through
+   * `parameterizedTableName` with the file's module first. Measured: joining the raw value
+   * reported every module table in a real project as missing.
    */
   table?: string;
 }

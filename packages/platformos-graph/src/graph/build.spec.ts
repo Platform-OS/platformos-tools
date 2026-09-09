@@ -515,6 +515,26 @@ describe('Graph traversal: GraphQL node `tables` (build-time, both shapes)', () 
     assert(node.type === ModuleType.GraphQL);
     expect(node.tables).toEqual([]);
   });
+
+  /**
+   * A mutation-only document. `record_delete` passes its table as a plain argument, which the
+   * extractor used to miss entirely — so the graph recorded no table for a file that DELETES
+   * from one, and impact under-reported which schema a destructive mutation touches.
+   */
+  it('records the table a mutation passes as an argument', () => {
+    const node = graph.modules[p('app/graphql/table_as_argument.graphql')];
+    assert(node);
+    assert(node.type === ModuleType.GraphQL);
+    expect(node.tables).toEqual(['blog_post']);
+  });
+
+  /** A `remote_records` table lives on another instance and joins to nothing here. */
+  it('records no table for an operation against a remote endpoint', () => {
+    const node = graph.modules[p('app/graphql/remote_table.graphql')];
+    assert(node);
+    assert(node.type === ModuleType.GraphQL);
+    expect(node.tables).toEqual([]);
+  });
 });
 
 describe('Graph traversal: {% include %} edges', () => {

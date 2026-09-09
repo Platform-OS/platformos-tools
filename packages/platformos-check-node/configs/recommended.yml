@@ -88,6 +88,10 @@ MissingPartial:
 MissingRenderPartialArguments:
   enabled: true
   severity: 0
+MissingTable:
+  enabled: true
+  severity: 0
+  ignoreMissing: []
 NestedGraphQLQuery:
   enabled: true
   severity: 1

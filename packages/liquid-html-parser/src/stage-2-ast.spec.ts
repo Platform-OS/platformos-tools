@@ -2242,6 +2242,83 @@ describe('Unit: Stage 2 (AST)', () => {
       }
     });
 
+    /**
+     * `comment`, `raw` and `doc` are the tags whose CLOSED form becomes a `LiquidRawTag`, and
+     * were the only block tags whose unclosed form parsed silently. Every case MEASURED:
+     * `liquid` 5.11.0 and a live deploy refuse each with the message asserted here.
+     */
+    describe('Case: raw-content blocks that never close', () => {
+      it.each([
+        ['comment', '{% comment %}hello'],
+        ['raw', '{% raw %}hello'],
+        ['doc', '{% doc %}hello'],
+        // Inside {% liquid %} each line is one tag, so the trailing closer is swallowed as
+        // markup and then looked for on the following lines, where it never appears.
+        ['comment', '{% liquid\n  comment a endcomment\n%}'],
+        ['doc', '{% liquid\n  doc a enddoc\n%}'],
+        // `raw` and `doc` cannot close inside {% liquid %} at all: Liquid looks for the full
+        // `{% endraw %}` tag, which a bare-tag-per-line body can never hold.
+        ['raw', '{% liquid\n  raw\n  hello\n  endraw\n%}'],
+        ['doc', '{% liquid\n  doc\n  hello\n  enddoc\n%}'],
+        ['raw', '{% liquid\n  raw hello endraw\n%}'],
+        // NESTED, which the first version of this missed: a `raw` inside an `if` or a `case`
+        // is a child of that block and never appears in the body's statement list.
+        ['raw', '{% liquid\n  if a\n    raw\n    hello\n    endraw\n  endif\n%}'],
+        ['raw', '{% liquid\n  case a\n  when 1\n    raw\n    hello\n    endraw\n  endcase\n%}'],
+        ['comment', '{% liquid\n  if a\n    comment x endcomment\n  endif\n%}'],
+        ['doc', '{% liquid\n  if a\n    doc\n    hello\n    enddoc\n  endif\n%}'],
+      ])(`should report '%s' tag was never closed`, (name, testCase) => {
+        try {
+          toLiquidHtmlAST(testCase);
+          expect(true, `expected ${JSON.stringify(testCase)} to throw`).to.be.false;
+        } catch (e: any) {
+          expect(e.name).to.eql('LiquidHTMLParsingError');
+          expect(e.message, testCase).to.eql(`'${name}' tag was never closed`);
+          expect(e.loc, `expected ${e} to have location information`).not.to.be.undefined;
+        }
+      });
+
+      /**
+       * The controls — each accepted by the platform, so reporting one trades a false
+       * approval for a false block. Markup on `comment` is legal (only `raw` refuses it,
+       * TASK-109), and a multi-line `comment` inside `{% liquid %}` deploys.
+       */
+      it.each([
+        ['comment with markup', '{% comment junk %}hi{% endcomment %}'],
+        ['a multi-line comment in a liquid tag', '{% liquid\n  comment\n  hi\n  endcomment\n%}'],
+        [
+          'a multi-line comment nested in a liquid tag',
+          '{% liquid\n  if a\n    comment\n    hi\n    endcomment\n  endif\n%}',
+        ],
+        // Outside a `{% liquid %}` body a closed `raw` is ordinary, at any depth.
+        ['a closed raw inside an if', '{% if a %}{% raw %}hi{% endraw %}{% endif %}'],
+        ['raw with markup', '{% raw junk %}hi{% endraw %}'],
+        ['a closed comment', '{% comment %}hi{% endcomment %}'],
+        ['a closed raw', '{% raw %}hi{% endraw %}'],
+        ['a closed doc', '{% doc %}hi{% enddoc %}'],
+        ['nested empty comments', '{% comment %}{% comment %}{% endcomment %}{% endcomment %}'],
+        ['an inline # comment in a liquid tag', '{% liquid\n  # hi\n  assign x = 1\n%}'],
+      ])('should still accept %s', (_name, testCase) => {
+        expect(() => toLiquidHtmlAST(testCase)).not.to.throw();
+      });
+
+      /**
+       * These answer to `allowUnclosedDocumentNode` like every other unclosed block;
+       * `{% if %}` is the control proving the flag, not the tag, makes the difference.
+       */
+      it.each([
+        ['{% comment %}hello'],
+        ['{% raw %}hello'],
+        ['{% doc %}hello'],
+        ['{% liquid\n  comment a endcomment\n%}'],
+        ['{% liquid\n  raw\n  hello\n  endraw\n%}'],
+        ['{% if a %}hello'],
+      ])('should stay silent under a tolerant parse of %j', (testCase) => {
+        expect(() => toLiquidHtmlAST(testCase)).to.throw();
+        expect(() => toLiquidAST(testCase)).not.to.throw();
+      });
+    });
+
     describe('Case: unclosed HTML nodes', () => {
       it('should let me write unclosed nodes inside if statements', () => {
         const unclosedDetailsSummary = '<details><summary>hello</summary>';

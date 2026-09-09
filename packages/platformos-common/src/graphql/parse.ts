@@ -1,5 +1,5 @@
 import { GraphQLError } from 'graphql';
-import { DocumentNode, parse } from 'graphql/language';
+import { DocumentNode, Kind, Source, StringValueNode, parse } from 'graphql/language';
 
 /**
  * A `.graphql` document as the toolchain holds it: the source, its parse, and the
@@ -47,11 +47,75 @@ export interface GraphQLDocumentNode {
  * exists to prevent.
  */
 export function parseGraphql(content: string): GraphQLDocumentNode {
+  let document: DocumentNode;
   try {
-    return { type: 'Document', content, document: parse(content) };
+    document = parse(content);
   } catch (error) {
     return { type: 'Document', content, syntaxError: asGraphQLError(error) };
   }
+
+  const unparseable = rejectedByThePlatform(content, document);
+  if (unparseable) return { type: 'Document', content, syntaxError: unparseable };
+
+  return { type: 'Document', content, document };
+}
+
+/**
+ * What `graphql` parses and the PLATFORM'S parser does not.
+ *
+ * Two implementations of one language: graphql-js here, the `graphql-c_parser` gem there.
+ * Every case is MEASURED against a live deploy, not read off the spec, which is what neither
+ * side ships. A {@link syntaxError} with no {@link document} is the literal truth: the
+ * platform has no parse of the file, and rejects the whole changeset over it.
+ */
+function rejectedByThePlatform(content: string, document: DocumentNode): GraphQLError | undefined {
+  // Anywhere, not just the front — ignored whitespace to graphql-js at any position, an
+  // invalid token to the platform at any position. Measured at six.
+  const bom = content.indexOf('﻿');
+  if (bom !== -1) {
+    return new GraphQLError(
+      'A byte order mark is not valid GraphQL — the platform rejects the file. Remove it and save as UTF-8 without a BOM.',
+      { source: new Source(content), positions: [bom] },
+    );
+  }
+
+  const description = firstExecutableDescription(document);
+  if (description) {
+    return new GraphQLError(
+      `A description is not allowed on ${description.subject} — the platform rejects the file. Use a "#" comment instead.`,
+      { nodes: description.node },
+    );
+  }
+
+  return undefined;
+}
+
+/**
+ * The first description on an EXECUTABLE definition, in document order.
+ *
+ * graphql-js ships the operation-descriptions proposal unconditionally and offers no
+ * `ParseOptions` flag to disable it, which is why this cannot be a parser setting.
+ * TYPE-SYSTEM definitions are skipped: a description is legal there in both grammars.
+ */
+function firstExecutableDescription(
+  document: DocumentNode,
+): { node: StringValueNode; subject: string } | undefined {
+  for (const definition of document.definitions) {
+    if (definition.kind === Kind.OPERATION_DEFINITION) {
+      if (definition.description) {
+        return { node: definition.description, subject: `a ${definition.operation}` };
+      }
+      for (const variable of definition.variableDefinitions ?? []) {
+        if (variable.description) {
+          return { node: variable.description, subject: 'a variable definition' };
+        }
+      }
+    } else if (definition.kind === Kind.FRAGMENT_DEFINITION && definition.description) {
+      return { node: definition.description, subject: 'a fragment definition' };
+    }
+  }
+
+  return undefined;
 }
 
 /**

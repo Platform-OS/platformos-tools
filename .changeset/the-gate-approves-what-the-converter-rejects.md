@@ -1,5 +1,5 @@
 ---
-'@platformos/liquid-html-parser': patch
+'@platformos/liquid-html-parser': minor
 '@platformos/platformos-common': patch
 ---
 

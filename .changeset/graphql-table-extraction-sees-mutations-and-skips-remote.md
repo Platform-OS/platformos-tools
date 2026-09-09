@@ -1,6 +1,6 @@
 ---
 '@platformos/platformos-common': patch
-'@platformos/platformos-graph': patch
+'@platformos/platformos-graph': minor
 ---
 
 GraphQL table extraction now sees the four mutations that pass `table` as an argument, and no

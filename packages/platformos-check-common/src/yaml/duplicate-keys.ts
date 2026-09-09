@@ -75,7 +75,12 @@ const MERGE_KEY = '<<';
  *   `1:30` base-60    A YAML 1.1 sexagesimal both parsers resolve to a number, disagreeing
  *                     about WHICH: Psych 5400, npm 90.
  *   `.inf` `.nan`     npm reports a null VALUE for these, which would collide with `null:`.
- *   timestamps        npm builds a Date; Ruby's safe loader refuses to.
+ *   timestamps        BOTH build a date object; they disagree about how many. Psych resolves
+ *                     `2026-01-01` to a `Date` and `2026-01-01 00:00:00` to a `Time` — two
+ *                     classes, so TWO keys — while npm `yaml` builds a JS `Date` for either
+ *                     and the two become indistinguishable. Reporting them is a false
+ *                     positive, which the spec's sweep now catches: both spellings are in
+ *                     the corpus precisely so deleting this pattern fails.
  *
  * The spec asserts that every pattern here really is a disagreement, so the list cannot
  * quietly grow into a way of silencing inconvenient cases.

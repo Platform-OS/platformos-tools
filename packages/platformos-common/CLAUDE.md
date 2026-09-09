@@ -157,7 +157,7 @@ name and has to treat that fragment the way `normalizeUri` would).
 
 ### `path-utils.ts` — File type classification
 
-`FILE_TYPE_DIRS` is the **single source of truth** for all platformOS directory names, mapping each `PlatformOSFileType` enum value to its canonical directory names (including legacy aliases from the server's `converters_config.rb`).
+`FILE_TYPE_DIRS` is the **single source of truth** for all platformOS directory names, mapping each `PlatformOSFileType` enum value to its canonical directory names (including legacy aliases the platform's deploy still accepts).
 
 `PATH_PATTERNS` pre-compiles one anchored regex per (type, dir) pair from
 `FILE_TYPE_DIRS`, covering app-level paths (`{app,marketplace_builder}/{dir}/`) and
@@ -336,4 +336,4 @@ Module translation keys use the prefix `modules/{name}/...`; these are routed to
 - **URIs, not filesystem paths**: all public APIs use `UriString` (a `vscode-uri`-compatible `file://...` string), never raw OS paths. A caller holding an OS path crosses over with `uriFromPath` — the only sanctioned conversion, and the reason `os-path.ts` is the one place that knows both spellings.
 - **Do not add environment-specific imports** (`fs`, `path`, etc.) — this package must remain browser-safe. Enforced by `src/guards/package-boundaries.spec.ts`, which also pins the dependency list, because the `App` model only stays shareable while this package sits below the WORKSPACE packages that own the ASTs. "Below the parser stack" is about those and about browser safety, not about never reading a format: a platformOS fact defined in YAML (`extractSchemaTable`) or in GraphQL (`graphql/`) is read here, with `js-yaml` and `graphql`, and `App` still takes every parser by injection.
 - **Every workspace package must declare the `@platformos/*` siblings it imports**, enforced by `src/guards/workspace-dependencies.spec.ts`. Yarn hoisting hid six missing declarations until it was added.
-- `FILE_TYPE_DIRS` drives both classification and search path generation. Keep it in sync with the server's `converters_config.rb`.
+- `FILE_TYPE_DIRS` drives both classification and search path generation. Keep it in sync with the directory names the platform's deploy accepts.

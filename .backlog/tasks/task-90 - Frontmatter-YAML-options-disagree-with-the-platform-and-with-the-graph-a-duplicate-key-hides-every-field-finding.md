@@ -79,7 +79,7 @@ Depends on TASK-89 only for file location; the fix is the same either way.
 <!-- SECTION:NOTES:BEGIN -->
 MEASUREMENT (AC#1), three independent lines, all agreeing.
 
-1. PLATFORM SOURCE. `app/services/app_builder/parsers/liquid_parser.rb` parses frontmatter with
+1. PLATFORM BEHAVIOUR. The platform parses frontmatter with
    `SafeYAML.load` and rescues only `Psych::SyntaxError` / `Psych::DisallowedClass`. Psych has no
    uniqueness rule, so a repeated key cannot raise.
 2. RUBY. `YAML.load("---\nslug: a\nslug: b\n---\n")` => `{"slug" => "b"}`. Same for `safe_load`.

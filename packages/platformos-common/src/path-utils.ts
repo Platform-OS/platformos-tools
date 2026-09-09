@@ -1,11 +1,9 @@
 /**
  * Identifies platformOS file types from their paths.
  *
- * Source of truth: `app/services/app_builder/services/converters_config.rb` and
- * `app/models/concerns/deployable.rb` in the platformOS server codebase, whose
- * `DIR_PREFIX` is `^/?((marketplace_builder|app)/|modules/(.+)(private|public)/)?` —
- * so an app file lives under `app/{dir}/`, `marketplace_builder/{dir}/` (legacy alias),
- * or `[app/]modules/{name}/(public|private)/{dir}/`.
+ * Mirrors the path shapes the platform's deploy accepts: an app file lives under
+ * `app/{dir}/`, `marketplace_builder/{dir}/` (legacy alias), or
+ * `[app/]modules/{name}/(public|private)/{dir}/`.
  */
 
 import { UriString } from './AbstractFileSystem';
@@ -114,7 +112,7 @@ export type DirectoryFileType = Exclude<
 /**
  * The single source of truth for the platformOS directory structure: each
  * DIRECTORY-based type's canonical directory name(s), plus the legacy aliases the
- * server's `converters_config.rb` `FULL_PHYSICAL_PATH` regexes still accept.
+ * platform's deploy still accepts.
  *
  * Order matters across types — the first match wins, which is what keeps
  * `app/lib/smses/` a Partial rather than an Sms. Within a type, canonical first.
@@ -420,7 +418,7 @@ export function isPage(uri: UriString, rootUri: UriString): boolean {
 
 /**
  * The roots an app-level file can live under. `app/` is canonical;
- * `marketplace_builder` is legacy and the backend still accepts it (`deployable.rb:21`),
+ * `marketplace_builder` is legacy and the platform's deploy still accepts it,
  * so it stays — dropping a live root makes a project on it lint nothing at all,
  * silently.
  *

@@ -240,31 +240,29 @@ distinguished by any real data, the ordering had to be asserted directly.
   **cannot** be affected by what you're measuring — a JSON-typed check timed
   against a Liquid buffer should cost nothing, and if it doesn't, the number is
   the method's error bar.
-- **"We both read YAML" is not agreement — name the LIBRARY, not the dialect.**
-  This repo parses YAML 1.2 (npm `yaml`). The platform reads YAML with the
-  **`safe_yaml` gem (1.0.5) in `:safe` mode — NOT `Psych.safe_load`.** Verified in
-  the platform source: `config/initializers/safe_yaml.rb` sets
-  `SafeYAML::OPTIONS[:default_mode] = :safe`, every YAML file type in
-  `converters_config.rb` routes to `Parsers::YamlParser`, and that parser calls
-  `SafeYAML.load` (`yaml_parser.rb`). Page frontmatter takes the same road
-  (`liquid_parser.rb`).
+- **"We both read YAML" is not agreement — name the LIBRARY AND ITS OPTIONS.**
+  This repo parses YAML 1.2 (npm `yaml`). The platform reads YAML with **Psych's safe
+  loader**, on ruby 4.0.6 / psych 5.3.1, through one loader shared by `.yml` resources and
+  Liquid frontmatter alike. It resolves timestamps to `Date`/`Time` and resolves aliases,
+  and refuses what it cannot represent safely. This replaced the unmaintained `safe_yaml`
+  gem, so anything here still claiming `safe_yaml` or a safe_yaml-vs-Psych differential is
+  describing a loader the platform no longer runs.
 
-  SAYING "YAML 1.1" OR "PSYCH" IS THE MISTAKE THIS BULLET NOW EXISTS TO PREVENT — it
-  was written here as fact, was wrong, and a committed oracle was generated from it.
-  safe_yaml uses Psych only to PARSE; it resolves scalars through its own `Transform`
-  chain, so key identity is its answer and not Psych's. Measured on the shipped
-  75-token corpus (5,625 ordered pairs):
+  THE LOADER'S OPTIONS ARE PART OF ITS IDENTITY, and this is the mistake the bullet now
+  exists to prevent. Naming "Psych" is not enough: which classes the loader permits decides
+  whether `2026-01-01` is a `Date` key or a `Psych::DisallowedClass` refusal, and the
+  key-identity oracle spent its whole life recording it as refused because the generator
+  probed with bare `YAML.load` while the platform permits `Date` and `Time`. Match the
+  platform's behaviour by measuring it; do not approximate it.
 
-  | | pairs | |
-  |---|---|---|
-  | the two agree | 4,974 | |
-  | safe_yaml DROPS a `nil`-keyed entry | 568 | `a: 1` + `~: 2` -> `{"a"=>1}`; Psych keeps `nil` |
-  | safe_yaml collapses, Psych does not | 4 | e.g. `0x10` / `0X10` |
-  | Psych collapses, safe_yaml does not | 4 | e.g. `1:30` / `5400`, `.inf` / `.iNf` |
+  What changed for scalar resolution, measured on the shipped corpus under the options
+  above: a `nil` key is now KEPT (`a: 1` + `~: 2` -> `{"a"=>1, nil=>2}`), where safe_yaml
+  discarded the entry. Duplicate keys still resolve last-wins.
 
-  The 568 are NOT duplicate keys. The entry is discarded, which is a data-loss
-  question and not a key-identity one — an oracle regenerated from safe_yaml that
-  recorded them as "same key" would be a new wrong answer, not a fix.
+  WHAT THE UPGRADE TIGHTENED, and it is the opposite of a simplification: three constructs
+  safe_yaml degraded silently now RAISE, so they fail a deploy. `key: :value` and
+  `!ruby/object:Foo` raise `Psych::DisallowedClass`; a dangling `*alias` raises
+  `Psych::AnchorNotDefined` (a `Psych::BadAlias` subclass). No check reports any of them.
 
   The same applies to Liquid: `liquid-html-parser` is a Shopify fork and platformOS
   is not Shopify. Wherever a checker and its target implement the same format
@@ -276,10 +274,13 @@ distinguished by any real data, the ordering had to be asserted directly.
 
 ### Generated files
 
-`src/yaml/psych-key-identity.ts` is produced by `scripts/verify-*.mjs` against a live Ruby and
-committed. **Its name and its contents are both wrong about the platform**: it was generated
-from `Psych`, and the platform reads YAML with `safe_yaml` (see the DIALECT bullet above).
-Anything reasoning from it inherits that error. `grammar/liquid-html.ohm.js` is generated too, but by the build rather than a
+`src/yaml/psych-key-identity.ts` is produced by `scripts/verify-yaml-key-identity.mjs` against a
+live Ruby and committed. It measures the loader the platform actually runs — Psych's safe
+loader, with the classes the platform permits — so regenerate it with a ruby matching the
+platform's (4.0.6 / psych 5.3.1; rvm has it) and never with whatever `ruby` is on PATH.
+Its every entry now carries a `group`: the generator REFUSES to emit one without an
+equivalence class, because a groupless entry silently drops out of the spec's sweep.
+`grammar/liquid-html.ohm.js` is generated too, but by the build rather than a
 script — see "Changing the grammar".
 
 **This repository is a CONSUMER of the platform's documentation, and never its auditor.**

@@ -6,8 +6,11 @@
 // used as a mapping key. Two keys collide on the platform iff their class AND value
 // match, because that is what Ruby's Hash uses (`eql?`, not `==`).
 //
+// Loaded the way the platform loads it: Psych's safe loader, resolving timestamps to
+// `Date`/`Time` and resolving aliases, refusing anything else.
+//
 // Measured with: ruby 4.0.6, psych 5.3.1
-// Generated: 2026-08-03
+// Generated: 2026-09-09
 
 /** What Psych resolved one key token to. */
 export interface PsychKeyIdentity {
@@ -20,9 +23,11 @@ export interface PsychKeyIdentity {
    * uses both as keys into a single entry — which is the question the duplicate-key check
    * has to answer, asked directly rather than derived from `klass`/`value`.
    *
-   * Absent when Ruby refused the token, since an unresolvable key has no class to be in.
+   * REQUIRED, because every token in the corpus loads under the platform's options. The
+   * generator refuses to emit an entry without one rather than let a token drop out of the
+   * spec's sweep unnoticed.
    */
-  group?: number;
+  group: number;
 }
 
 /**
@@ -31,10 +36,6 @@ export interface PsychKeyIdentity {
  * Consumed by `duplicate-keys.spec.ts`, which groups these into equivalence classes and
  * asserts the check agrees with every one — both where it must report a duplicate and
  * where it must stay silent.
- *
- * `klass: 'ERROR'` means Ruby's safe loader refused the token (timestamps), which is a
- * fact about the loader rather than about key identity; the spec treats those as
- * uncomparable rather than pretending to know.
  */
 export const PSYCH_KEY_IDENTITY: Readonly<Record<string, PsychKeyIdentity>> = {
   '0': { klass: 'Integer', value: '0', group: 6 },
@@ -107,9 +108,14 @@ export const PSYCH_KEY_IDENTITY: Readonly<Record<string, PsychKeyIdentity>> = {
   '"y"': { klass: 'String', value: '"y"', group: 2 },
   '"1:30"': { klass: 'String', value: '"1:30"', group: 31 },
   '"TrUe"': { klass: 'String', value: '"TrUe"', group: 32 },
-  '2026-01-01': { klass: 'ERROR', value: 'Psych::DisallowedClass' },
-  abc: { klass: 'String', value: '"abc"', group: 33 },
-  'a b': { klass: 'String', value: '"a b"', group: 34 },
-  title: { klass: 'String', value: '"title"', group: 35 },
-  en: { klass: 'String', value: '"en"', group: 36 },
+  '2026-01-01': {
+    klass: 'Date',
+    value: '#<Date: 2026-01-01 ((2461042j,0s,0n),+0s,-Infj)>',
+    group: 33,
+  },
+  '2026-01-01 00:00:00': { klass: 'Time', value: '2026-01-01 01:00:00 +0100', group: 34 },
+  abc: { klass: 'String', value: '"abc"', group: 35 },
+  'a b': { klass: 'String', value: '"a b"', group: 36 },
+  title: { klass: 'String', value: '"title"', group: 37 },
+  en: { klass: 'String', value: '"en"', group: 38 },
 };

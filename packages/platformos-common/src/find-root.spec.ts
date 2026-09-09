@@ -38,7 +38,7 @@ describe('Unit: findRoot', () => {
   });
 
   it('marks the directory containing the legacy marketplace_builder/ as the root', async () => {
-    // The legacy root is as live as `app/` (`deployable.rb:21`); without this a legacy
+    // The legacy root is as live as `app/` to the platform's deploy; without this a legacy
     // project with no `.pos` and no config resolved no root at all — no diagnostics,
     // no completions, and nothing to say why.
     const exists = fileExists({ 'marketplace_builder/views/pages/index.liquid': '{{ content }}' });

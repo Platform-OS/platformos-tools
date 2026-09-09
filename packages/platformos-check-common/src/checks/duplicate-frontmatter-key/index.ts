@@ -15,8 +15,8 @@ import { findDuplicateKeys } from '../../yaml/duplicate-keys';
  * invite the author to delete the value they still have.
  *
  * MEASURED, by syncing a page whose `slug` was declared twice: it synced without error, the
- * first slug 404s and the second serves. The platform parses frontmatter with `SafeYAML.load`
- * (Psych), which has no uniqueness rule at all.
+ * first slug 404s and the second serves. The platform parses frontmatter with
+ * `YAML.safe_load` (Psych), which has no uniqueness rule at all.
  *
  * KEY IDENTITY IS NOT DECIDED HERE. `findDuplicateKeys` reconciles npm `yaml` (1.2) with Psych
  * (1.1) against an oracle generated from a live Ruby — `yes:` and `true:` are ONE key to the

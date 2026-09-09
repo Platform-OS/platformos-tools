@@ -7,10 +7,12 @@ import { PSYCH_KEY_IDENTITY } from './psych-key-identity';
  * THE SOUNDNESS PROOF, over every pair of tokens Ruby was asked about.
  */
 
-/** Tokens Ruby's safe loader refused to resolve — no identity to compare against. */
-const RESOLVABLE = Object.entries(PSYCH_KEY_IDENTITY).filter(
-  ([, identity]) => identity.group !== undefined,
-);
+/**
+ * Every probed token. NOT FILTERED, because the platform's loader resolves all of them,
+ * timestamps included — the generator fails rather than emit one without an equivalence
+ * class, so there is nothing here to exclude.
+ */
+const RESOLVABLE = Object.entries(PSYCH_KEY_IDENTITY);
 
 /**
  * Whether Psych ends up with ONE key for these two tokens.
@@ -126,11 +128,12 @@ describe('Sweep: key identity against Ruby Psych', () => {
     // sweep that excluded it, so the two agreed with each other and neither described the real
     // coverage.
     expect({ total, refused, pairsSwept: RESOLVABLE.length * RESOLVABLE.length }).toEqual({
-      total: 75,
-      // Ruby's safe loader refuses to build a Date; that is a fact about the loader, not
-      // about key identity, so timestamps are excluded rather than guessed at.
-      refused: 1,
-      pairsSwept: 5476,
+      total: 76,
+      // NOTHING is excluded any more. This was 1 while the generator called bare `YAML.load`
+      // and the timestamp came back `Psych::DisallowedClass` — a fact about that call rather
+      // than about the platform, which permits `Date` and `Time`. The whole corpus is swept.
+      refused: 0,
+      pairsSwept: 5776,
     });
   });
 });

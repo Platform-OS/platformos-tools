@@ -8,7 +8,7 @@ import { FrontmatterSchema, getFrontmatterSchema } from './schemas';
  * How frontmatter YAML is read, matching what the platform's own parser does.
  *
  * `uniqueKeys: false` because A REPEATED KEY IS NOT A PARSE FAILURE. The platform parses
- * frontmatter with `SafeYAML.load` (Psych) and rescues only `Psych::SyntaxError`, so a
+ * frontmatter with `YAML.safe_load` (Psych), which has no uniqueness rule at all, so a
  * repeated key is accepted and resolved LAST-WINS — measured end to end by syncing a page
  * whose `slug` was declared twice: it deployed, the first slug 404s and the second serves.
  * The library defaults this to `true`, which made the duplicate a `doc.errors` entry, and

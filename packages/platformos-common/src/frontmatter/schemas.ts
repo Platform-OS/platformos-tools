@@ -79,8 +79,7 @@ export const LEGACY_SPAM_PROTECTION_STRING = 'recaptcha';
  * Only Liquid file types are present here — GraphQL, YAML, and Asset types
  * do not use frontmatter.
  *
- * Field lists are derived from the server-side converter files in
- * app/services/app_builder/converters/. Enum constraints mirror server validations.
+ * Field lists and enum constraints mirror what the platform's converters accept.
  * Unknown keys always produce a warning; file types with arbitrary frontmatter
  * (e.g. Migration) are omitted so no validation runs for them.
  */

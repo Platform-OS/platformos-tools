@@ -82,8 +82,17 @@ const TOKENS = [
   "'true'", "'yes'", "'1'", '"1"', '"yes"', '"null"',
   '".inf"', '"0X10"', '"1e3"', '"y"', '"1:30"', '"TrUe"',
 
-  // timestamps and ordinary strings
-  '2026-01-01', 'abc', 'a b', 'title', 'en',
+  // TIMESTAMPS, in two spellings on purpose. One alone cannot exercise the exclusion that
+  // covers them: a single token only ever meets itself, where byte-identical text collides
+  // under any parser. With a DATE and a TIME in the corpus the sweep sees the real
+  // disagreement — Psych resolves `2026-01-01` to a `Date` and `2026-01-01 00:00:00` to a
+  // `Time`, which are two keys, while npm `yaml` builds an indistinguishable JS `Date` for
+  // both and would report a duplicate. Deleting the timestamp pattern from UNCOMPARABLE now
+  // fails this spec; with only one spelling it passed.
+  '2026-01-01', '2026-01-01 00:00:00',
+
+  // ordinary strings
+  'abc', 'a b', 'title', 'en',
 ];
 
 /**
@@ -93,10 +102,14 @@ const TOKENS = [
  * about resolution, which has no cross-token state, and 60 process spawns to learn 60
  * independent facts is just slow.
  *
- * `YAML.load` is Ruby's SAFE loader in modern versions, which refuses to instantiate a
- * Date. That is recorded as `ERROR` rather than worked around — see the note on
- * timestamps in `duplicate-keys.ts`. Guessing which loader the platform uses would be
- * exactly the kind of assumption this generator exists to remove.
+ * THE LOADER'S OPTIONS ARE PART OF THE QUESTION, not a detail. The platform reads YAML
+ * through Psych's SAFE loader, which resolves timestamps to `Date`/`Time` and resolves
+ * aliases, while refusing what it cannot represent safely — symbols and tagged Ruby objects.
+ * The probe below is configured to match that, because the options change the answer:
+ * whether a timestamp is a `Date` key or a refusal is decided by them, and a bare
+ * `YAML.load` here would measure this script's defaults instead of the platform's behaviour.
+ *
+ * Probe a real instance if the behaviour is ever in doubt; do not infer it.
  */
 function resolveWithPsych(tokens) {
   // Built by CONCATENATION, never by interpolation. A first version wrote the document
@@ -124,9 +137,18 @@ function resolveWithPsych(tokens) {
   const script = `
     require 'yaml'
     require 'json'
+    require 'date'
+
+    # Every question below is asked through this one method, so no probe can drift from the
+    # loader behaviour described above.
+    PERMITTED_CLASSES = [Date, Time]
+
+    def platform_load(src)
+      YAML.safe_load(src, permitted_classes: PERMITTED_CLASSES, aliases: true)
+    end
 
     def resolve(tok)
-      h = YAML.load(tok + ": v\\n")
+      h = platform_load(tok + ": v\\n")
       if h.is_a?(Hash) && h.size == 1
         k = h.keys.first
         { 'klass' => k.class.name, 'value' => k.inspect }
@@ -138,7 +160,7 @@ function resolveWithPsych(tokens) {
     end
 
     def collides?(a, b)
-      h = YAML.load(a + ": x\\n" + b + ": y\\n")
+      h = platform_load(a + ": x\\n" + b + ": y\\n")
       h.is_a?(Hash) && h.size == 1
     rescue
       nil
@@ -210,10 +232,9 @@ function renderModule(resolved, version, generatedAt) {
       // `group` is the MEASURED equivalence class: two tokens share one iff a document
       // containing both as keys collapses to a single entry. `klass` and `value` are carried
       // for diagnostics only — deriving collision from them is what got signed zero wrong.
-      const fields =
-        `klass: ${JSON.stringify(klass)}, value: ${JSON.stringify(value)}` +
-        (group === undefined ? '' : `, group: ${group}`);
-      return `  ${JSON.stringify(token)}: { ${fields} },`;
+      return `  ${JSON.stringify(token)}: { klass: ${JSON.stringify(klass)}, value: ${JSON.stringify(
+        value,
+      )}, group: ${group} },`;
     })
     .join('\n');
 
@@ -224,6 +245,9 @@ function renderModule(resolved, version, generatedAt) {
 // How Ruby Psych — the platform's YAML parser — resolves each scalar token when it is
 // used as a mapping key. Two keys collide on the platform iff their class AND value
 // match, because that is what Ruby's Hash uses (\`eql?\`, not \`==\`).
+//
+// Loaded the way the platform loads it: Psych's safe loader, resolving timestamps to
+// \`Date\`/\`Time\` and resolving aliases, refusing anything else.
 //
 // Measured with: ${version}
 // Generated: ${generatedAt}
@@ -239,9 +263,11 @@ export interface PsychKeyIdentity {
    * uses both as keys into a single entry — which is the question the duplicate-key check
    * has to answer, asked directly rather than derived from \`klass\`/\`value\`.
    *
-   * Absent when Ruby refused the token, since an unresolvable key has no class to be in.
+   * REQUIRED, because every token in the corpus loads under the platform's options. The
+   * generator refuses to emit an entry without one rather than let a token drop out of the
+   * spec's sweep unnoticed.
    */
-  group?: number;
+  group: number;
 }
 
 /**
@@ -250,10 +276,6 @@ export interface PsychKeyIdentity {
  * Consumed by \`duplicate-keys.spec.ts\`, which groups these into equivalence classes and
  * asserts the check agrees with every one — both where it must report a duplicate and
  * where it must stay silent.
- *
- * \`klass: 'ERROR'\` means Ruby's safe loader refused the token (timestamps), which is a
- * fact about the loader rather than about key identity; the spec treats those as
- * uncomparable rather than pretending to know.
  */
 export const PSYCH_KEY_IDENTITY: Readonly<Record<string, PsychKeyIdentity>> = {
 ${entries}
@@ -277,6 +299,22 @@ const resolved = resolveWithPsych(TOKENS);
 const missing = TOKENS.filter((token) => !(token in resolved));
 if (missing.length) {
   console.error(`Ruby did not answer for: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
+// EVERY TOKEN IN THIS CORPUS IS ONE THE PLATFORM ACCEPTS, so a refusal means the probe and
+// the platform have diverged — a permitted-class list that no longer matches the platform's
+// loader, or a token added to TOKENS that the platform would genuinely reject. Either way the
+// honest answer is to stop: emitting the entry without a group would quietly drop it from the
+// spec's sweep, which is how a shrinking oracle hides.
+const refused = Object.entries(resolved).filter(([, { group }]) => group === undefined);
+if (refused.length) {
+  console.error(
+    'Ruby refused to resolve these as keys, so they have no equivalence class:\n' +
+      refused.map(([token, { klass, value }]) => `  ${token}: ${klass} ${value}`).join('\n') +
+      '\n\nEvery token in TOKENS is expected to load under the platform\'s loader.\n' +
+      'Reconcile this probe with the platform\'s YAML behaviour before committing an oracle.',
+  );
   process.exit(1);
 }
 

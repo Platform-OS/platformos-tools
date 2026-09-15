@@ -248,6 +248,9 @@ describe('the fixed-path config files', () => {
     const yamlChecks = allChecks.filter((def) => def.meta.type === SourceCodeType.YAML);
 
     expect(yamlChecks.map((def) => def.meta.code).sort()).toEqual([
+      // Cross-file: the platform resolves a property's type by name instance-wide, so this
+      // one reads every property-bearing schema rather than only the document in hand.
+      'ConflictingSchemaPropertyType',
       'DuplicateYAMLKey',
       // Guards on PROPERTY_BEARING_FILE_TYPES — the four converters that share
       // `CustomAttributeConverter` — rather than on an `app/schema/` path test.

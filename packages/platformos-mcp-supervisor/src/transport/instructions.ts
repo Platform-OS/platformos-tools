@@ -26,6 +26,8 @@
  */
 import { allChecks } from '@platformos/platformos-check-common';
 
+import { MAX_BATCH_BYTES, MAX_BATCH_FILES } from '../validate/batch-bounds.js';
+
 /**
  * The coverage line, DERIVED so it cannot describe a build that no longer exists.
  *
@@ -37,115 +39,64 @@ function coverage(): string {
   return `${allChecks.length} checks`;
 }
 
-export const SERVER_INSTRUCTIONS = `platformOS code validator.
+/**
+ * The request caps, DERIVED for the same reason as the count above.
+ *
+ * `MAX_BATCH_FILES` already reaches the model as `maxItems` on the tool's schema, but
+ * `MAX_BATCH_BYTES` is computed from the cost model and appears in no schema and no prose —
+ * so a caller could only learn it by being refused. Stated together because a batch is
+ * planned against both at once, and derived so that moving the cost model moves this too.
+ */
+function bounds(): string {
+  return `${MAX_BATCH_FILES} files and ${Math.floor(MAX_BATCH_BYTES / 1024)} KiB`;
+}
 
-WHEN TO USE
-Call validate_code BEFORE writing or editing any platformOS Liquid, GraphQL or
-YAML file — it validates an in-memory buffer, so call it with the content you are
-about to write, not after writing. This is the primary quality gate. If you are changing several files as one coherent change,
-send them together in a single call (see the tool's \`files\` parameter): files in
-one call can reference each other, so a partial you are creating alongside its
-caller resolves correctly. Sent one at a time, that same edit is reported broken.
-List each file at most once — a changeset cannot hold two versions of one file, so a
-request that names the same file twice is refused rather than guessed at.
-Skipping this tool is the #1 cause of broken platformOS code.
+export const SERVER_INSTRUCTIONS = `Tool Purpose: Validates platformOS Liquid, GraphQL and YAML files in-memory to prevent broken deployments.
 
-HOW TO READ THE RESULT
+CRITICAL USAGE RULES
+- Validate BEFORE writing: always pass the proposed in-memory buffer. NEVER write to disk first. This is the primary quality gate. Skipping this tool is the #1 cause of broken platformOS code.
+- Audit existing code with the same call: pass a file's current contents to learn whether what is on disk is already broken. Its own findings are real, but impact is not — impact lints the dependants with your buffer and again without it and reports the difference, so an unchanged buffer yields an empty impact by construction, not by safety.
+- Batch interdependent files: if one change touches several referencing files, send them together in the files array so cross-references resolve. Sent one at a time, a partial you are creating alongside its caller is reported missing. Up to ${bounds()} per request.
+- No duplicates: List each file at most once per request. A changeset cannot hold two versions of one file, so a request naming one twice is refused.
 
-must_fix_before_write
-  true  -> Do NOT write the file. It will not parse, it will raise at runtime, or
-           the deploy converter will reject it — and a converter rejection fails the
-           WHOLE changeset, not just this file.
-  false -> Nothing BLOCKING was found. This is not a statement that the code is
-           correct, only that no known-fatal problem was detected. Keep your own
-           judgement.
+RESPONSE SCHEMA & ACTION DIRECTIVES
 
-status
-  ok | warning | error  -> the file WAS checked; these describe what was found.
-  not_applicable        -> the file was NOT checked at all. This is neither
-                           approval nor refusal — it carries no opinion about the
-                           file. Read not_applicable_reason before deciding:
-    outside_project  - not inside the project this server serves
-    unsupported_type - not a file type platformOS lints
-    misplaced_source - a platformOS source outside every deployed subtree; nothing
-                       checked it and nothing will load it either
-    ignored          - excluded by the project's .platformos-check.yml
-    too_large        - one buffer, or the request as a whole, is above its size
-                       limit. Split the file, or send fewer files per call — the
-                       reason text says which bound was hit
-    timed_out        - validation was abandoned; retrying may work
-    internal_error   - your REQUEST was malformed, or the validator hit a bug; the
-                       reason text says which. A malformed request — both input
-                       forms at once, neither, or one file listed twice — is yours
-                       to fix and worth retrying once fixed.
+must_fix_before_write (Boolean)
+- true: FATAL. Do NOT write the file. The deploy converter refuses the WHOLE changeset, not just this file.
+- false: nothing blocking was found. This is NOT a statement that the code is correct, only that no known-fatal problem was detected. Keep your own judgement.
 
-errors / warnings / infos
-  Each list is ordered by line then column WITHIN ITSELF; the three are not one
-  ordered sequence, so concatenating them does not walk the file in order. Columns
-  count UTF-16 code units, so an emoji advances the column by 2.
-  Note that errors[] can be non-empty while must_fix_before_write is false: some
-  errors are real problems that do not stop the file working (an argument a partial
-  ignores, a missing asset, a missing image dimension). Fix them when you can; they
-  do not block the write.
-  Each finding names the check that produced it, and where see_also is present it links
-  that check's documentation — read it there rather than guessing at the rule.
-  A finding may carry fix (edits that are safe to apply as given) or suggestions
-  (alternatives to choose between). Their start_index / end_index are 0-based offsets
-  into the buffer you sent — NOT the 1-based line/column on the same finding. Apply
-  several edits from the end backwards, or account for the drift.
+status (String)
+- ok | warning | error: the file WAS checked; these describe what was found.
+- not_applicable: the file was NOT checked. Neither approval nor refusal — it carries no opinion about the file.
+  - not_applicable_reason: outside_project, unsupported_type, misplaced_source, ignored, too_large, timed_out, internal_error.
+  - next_step: the one to act on. It names the path, limit or deadline actually hit, and what to do about it.
+  - too_large: one buffer, or the request as a whole, is above its size limit. next_step says which, so shrink a file or send fewer per call accordingly.
+  - Retry: timed_out is worth another call. internal_error is two cases — a malformed request (both input forms at once, neither, or one file listed twice) is yours to fix and worth retrying once fixed; a validator bug is not, and no retry will change it.
 
-truncated
-  Present ONLY when a file had so many findings that the lists were shortened to
-  keep the answer a reasonable size; absent means the lists are complete. It gives
-  the true total per affected list, so "returned: 40, total: 900" means 860 more
-  exist. The lists keep the TOP of the file, where a cascade's root cause usually
-  is. status and must_fix_before_write are always computed from ALL findings, never
-  from the shortened list, so a truncated answer is never a softer verdict — fix
-  what is listed and validate again to see the rest.
+errors, warnings, infos (Arrays)
+- Each array is ordered by line then column WITHIN ITSELF. The three are not one sequence, so concatenating them does not walk the file in order. Columns count UTF-16 code units, so an emoji advances the column by 2.
+- errors[] can be non-empty while must_fix_before_write is false: an argument a partial ignores, a missing asset, a missing image dimension are real but do not stop the file working.
+- Fixes and suggestions carry start_index / end_index: 0-based offsets into the buffer you sent, NOT the 1-based line/column on the same finding.
+- Action: to avoid offset drift, apply multiple edits from the bottom of the file upwards.
+- Action: where see_also is present, read that check's documentation rather than guessing at the rule.
 
-impact
-  What this change BREAKS in files you are NOT editing — the one thing a per-file lint cannot
-  see, since it only ever looks at the buffers you sent. Each entry names the file and
-  carries the check's own findings: same message, same severity, same documentation link, and
-  the same fixes, exactly as if you had validated that file yourself.
-  It reports only what your change INTRODUCED. A problem that file already had is never
-  listed, however severe — it is not this edit's doing, and it would bury the one that is.
-  A break in someone else's file does NOT set must_fix_before_write: your buffer may be
-  perfectly correct. Fix the callers, or decide not to; that is yours to weigh.
-  status  computed        the dependants were linted with your change and without it
-          not_applicable  nothing can reference this file by name
-          unavailable     could not be run: a failure, a deadline, or a file referenced from
-                          more text than can be examined in time
-          disabled        this server runs with --no-impact, so nothing was attempted
-  unchecked_dependants appears when a file has more dependants than one request will lint.
-  Those were never checked, so an otherwise-clean answer carrying it is a PARTIAL one.
-  NOTHING HERE IS A CLEARANCE. An empty impact means no break was found among the dependants
-  that are VISIBLE, and a dependant can be invisible: {% render partial_name %} picks its
-  target at runtime, so no analysis can resolve it.
-  This server never tells you nothing depends on a file — if you are about to delete or
-  rename one, search the project yourself.
+truncated (Object)
+- Present only when a file produced too many findings to return in full. The lists keep the TOP of the file, where a cascade's root cause usually is.
+- Constraint: status and must_fix_before_write are ALWAYS computed from the true total of findings, never from the shortened list. Fix what is listed and re-validate to see the rest.
 
-WHAT IS NOT CHECKED
-${coverage()} run against your buffer. Where a finding exists it explains itself and links
-its documentation, so what follows is only the SILENCES — the places where finding nothing is not the same
-as finding it correct, and where no diagnostic can tell you so.
+impact (Object)
+- What this change BREAKS in files you are NOT editing — the one thing a per-file lint cannot see, since it only looks at the buffers you sent.
+- It reports only what your change INTRODUCED. A problem the file already had is never listed, however severe.
+- Constraint: a dependant break does NOT set must_fix_before_write. Your buffer may be perfectly correct; fix the callers or decide not to.
+- impact.status:
+  - computed: the dependants were linted with your change and without it.
+  - not_applicable: no dependant the graph can find names this file. That is not a clearance.
+  - unavailable | disabled: the comparison never ran. An empty impact under either is NOT a finding of safety.
+- unchecked_dependants: present when a file has more dependants than one request will lint, so an otherwise-clean answer carrying it is a PARTIAL one.
+- NOTHING HERE IS A CLEARANCE. A dependant can be invisible: {% render partial_name %} picks its target at runtime, so no analysis can resolve it. This server never tells you nothing depends on a file — before renaming or deleting one, search the project yourself.
 
-  Argument types are checked only where the platformOS documentation publishes a type.
-  An argument the documentation leaves untyped accepts more than one type and is never
-  reported — which is every argument of every core Liquid filter, because those coerce
-  rather than refuse. {{ 5 | upcase }} renders and is not reported. That silence is the
-  documentation's answer, not a guarantee the value is right.
-
-  A model schema's property TYPE is checked and an unknown one is reported. The rest of a
-  schema's shape is not: an unrecognised top-level key is rejected on deploy and nothing
-  reports it, so silence there is not a claim the key is valid. A duplicated property name
-  IS accepted by the platform.
-
-  Duplicate YAML keys are compared the way the platform's own parser resolves them, so
-  yes: and true: in one mapping are reported as the one key they become. That comparison
-  is NOT exhaustive — a few spellings collide on the platform and are not reported — so
-  silence there does not prove two keys are distinct.
-
-  Coverage is per project: checks can be enabled, disabled or ignored in the project's
-  .platformos-check.yml, so a clean result reflects that project's configuration rather
-  than a fixed universal standard.`;
+LIMITATIONS (what a clean result does NOT prove)
+${coverage()} run against your buffer. Coverage is per project: checks can be enabled, disabled or ignored in .platformos-check.yml, so a clean result reflects that configuration rather than a fixed universal standard. Where a finding exists it explains itself and links its documentation, so what follows is only the SILENCES.
+- An argument the documentation leaves untyped accepts more than one type and is never reported — which is every argument of every core Liquid filter, because those coerce rather than refuse. {{ 5 | upcase }} renders and is not reported.
+- A model schema's property TYPE is checked and an unknown one is reported. The rest of the shape is not: an unrecognised top-level key is rejected on deploy and nothing reports it.
+- Duplicate YAML keys are compared the way the platform's own parser resolves them, but NOT exhaustively — a few spellings collide on the platform and are not reported, so silence there does not prove two keys are distinct.`;

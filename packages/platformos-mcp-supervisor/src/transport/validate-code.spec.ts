@@ -1189,20 +1189,24 @@ describe('validate_code: the agent-facing surface', () => {
 
 describe('server instructions', () => {
   it('documents EVERY not_applicable_reason the code can return', () => {
-    // A reason the agent has never heard of is a reason it cannot act on. This fails
-    // the moment someone adds a code without documenting it.
-    const documented: NotApplicableReason[] = [
-      'outside_project',
-      'unsupported_type',
-      'ignored',
-      'too_large',
-      'timed_out',
-      'internal_error',
-    ];
+    // A reason the agent has never heard of is a reason it cannot act on. Keyed by the
+    // union rather than listed, because `NotApplicableReason[]` constrains what goes in
+    // and not what is left out — the array this replaced had dropped `misplaced_source`.
+    const everyReason: Record<NotApplicableReason, true> = {
+      outside_project: true,
+      unsupported_type: true,
+      misplaced_source: true,
+      ignored: true,
+      too_large: true,
+      timed_out: true,
+      internal_error: true,
+    };
 
-    for (const reason of documented) {
-      expect(SERVER_INSTRUCTIONS).toContain(reason);
-    }
+    const undocumented = (Object.keys(everyReason) as NotApplicableReason[]).filter(
+      (reason) => !SERVER_INSTRUCTIONS.includes(reason),
+    );
+
+    expect(undocumented).toEqual([]);
   });
   /**
    * "An unrecognised top-level key is rejected on deploy and nothing reports it" is a
@@ -1267,9 +1271,10 @@ describe('server instructions', () => {
     // `internal_error` covers two different things, and three of its cases are the
     // CALLER's mistake — both input forms, neither, or one file listed twice — which are
     // worth retrying once fixed.
+    // Whitespace-normalised: the claim is what matters, not where the line happens to wrap.
+    // Pinned against the wrapped source, this assertion made the prose unreformattable.
     expect(SERVER_INSTRUCTIONS).not.toContain('retrying will not help');
-    expect(SERVER_INSTRUCTIONS).toContain(`is yours
-                       to fix`);
+    expect(SERVER_INSTRUCTIONS.replace(/\s+/g, ' ')).toContain('is yours to fix');
   });
 
   it('states the once-per-file rule, which the server enforces by refusing', () => {

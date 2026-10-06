@@ -8,6 +8,8 @@ import {
   AttrDoubleQuoted,
   AttrUnquoted,
   FunctionMarkup,
+  GraphQLInlineMarkup,
+  GraphQLMarkup,
   LiquidHtmlNode,
   LiquidBranch,
   LiquidLiteralValues,
@@ -197,4 +199,15 @@ export function isObjectInScope(
   fileType: PlatformOSFileType | undefined,
 ): boolean {
   return isObjectAccessInScope(access, fileType);
+}
+
+/** Whether a block tag's body is text only, so the raw source between its children is its content. */
+export function isPlainTextBlock(node: LiquidTag & { children?: LiquidHtmlNode[] }): boolean {
+  return (node.children ?? []).every((child) => child.type === NodeTypes.TextNode);
+}
+
+export function isLiquidTagGraphQL(
+  node: LiquidTag,
+): node is LiquidTag & { markup: GraphQLMarkup | GraphQLInlineMarkup } {
+  return node.name === NamedTags.graphql && typeof node.markup !== 'string';
 }

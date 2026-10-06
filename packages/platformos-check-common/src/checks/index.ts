@@ -42,6 +42,7 @@ import { VariableName } from './variable-name';
 import { PartialCallArguments } from './partial-call-arguments';
 import { GraphQLVariablesCheck } from './graphql-variables';
 import { GraphQLCheck } from './graphql';
+import { GraphQLInlineCheck } from './graphql-inline';
 import { UnknownProperty } from './unknown-property';
 import { InvalidSchemaPropertyType } from './invalid-schema-property-type';
 import { InvalidWriteTarget } from './invalid-write-target';
@@ -101,6 +102,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   PartialCallArguments,
   GraphQLVariablesCheck,
   GraphQLCheck,
+  GraphQLInlineCheck,
   UnknownProperty,
   InvalidSchemaPropertyType,
   InvalidWriteTarget,

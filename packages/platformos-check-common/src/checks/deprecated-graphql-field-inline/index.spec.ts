@@ -104,7 +104,8 @@ describe('Module: DeprecatedGraphQLFieldInline', () => {
   it('ranges cover the deprecated name itself, not the whole selection', async () => {
     // The reason the name is preferred over the node: a Field's own range spans its alias and
     // every line of its sub-selection.
-    const source = '<p>before</p>\n{% graphql r %}\n{ models { total_entries } }\n{% endgraphql %}\n';
+    const source =
+      '<p>before</p>\n{% graphql r %}\n{ models { total_entries } }\n{% endgraphql %}\n';
 
     const offenses = await run(source);
 

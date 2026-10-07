@@ -22,9 +22,14 @@ import {
 } from '@platformos/liquid-html-parser';
 import {
   isObjectInScope as isObjectAccessInScope,
+  parseGraphql,
   PlatformOSFileType,
 } from '@platformos/platformos-common';
+import { DocumentNode, GraphQLSchema } from 'graphql';
+
 import { LiquidHtmlNodeOfType as NodeOfType, ObjectEntry } from '../types';
+import { PlatformOSDocset } from '../types/platformos-liquid-docs';
+import { buildGraphQLSchema } from '../utils/graphql-schema';
 
 /**
  * Names that Liquid resolves as built-in literals before looking up variables
@@ -210,4 +215,54 @@ export function isLiquidTagGraphQL(
   node: LiquidTag,
 ): node is LiquidTag & { markup: GraphQLMarkup | GraphQLInlineMarkup } {
   return node.name === NamedTags.graphql && typeof node.markup !== 'string';
+}
+
+/** An inline `{% graphql %}` body, parsed, with the file offset its source starts at. */
+export interface InlineGraphQLDocument {
+  document: DocumentNode;
+  schema: GraphQLSchema;
+  /** The body as the file spells it, so a report with no location of its own can span it. */
+  source: string;
+  /** Add this to any index the document reports to place it in the Liquid file. */
+  startIndex: number;
+}
+
+/**
+ * The GraphQL document an inline `{% graphql %}` tag carries, or `undefined` when there is
+ * nothing a GraphQL-aware check may say about it.
+ *
+ * Shared by every check that reads an inline body, because each of the four ways this gives
+ * up is a decision rather than a guard, and a second copy of them would drift:
+ *
+ *   - not a `{% graphql %}` tag at all;
+ *   - the body is not all text, so it interpolates Liquid and the document's shape depends on
+ *     values no check can know;
+ *   - the body does not parse. Deliberately NOT reported: graphql-js and the platform's own
+ *     parser disagree in measured ways (`rejectedByThePlatform`), and which spellings the
+ *     platform accepts inline has not been measured against a live instance;
+ *   - no docset, so there is no schema to validate against.
+ *
+ * `startIndex` is what keeps an offense on the `.liquid` file: the body is sliced from the
+ * file's own source rather than joined from the children's `value` — equal for an all-text
+ * body, but carrying no offset of its own — so a reported index needs only this added.
+ */
+export async function inlineGraphQLDocument(
+  node: LiquidTag & { children?: LiquidHtmlNode[] },
+  docset: PlatformOSDocset | undefined,
+): Promise<InlineGraphQLDocument | undefined> {
+  if (!isLiquidTagGraphQL(node)) return undefined;
+
+  const children = node.children ?? [];
+  if (children.length === 0 || !isPlainTextBlock(node)) return undefined;
+
+  const startIndex = children[0].position.start;
+  const source = node.source.slice(startIndex, children[children.length - 1].position.end);
+
+  const { document } = parseGraphql(source);
+  if (!document) return undefined;
+
+  const sdl = await docset?.graphQL();
+  if (!sdl) return undefined;
+
+  return { document, schema: buildGraphQLSchema(sdl), source, startIndex };
 }

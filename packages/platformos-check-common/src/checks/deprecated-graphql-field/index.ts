@@ -1,7 +1,7 @@
 import { GraphQLDocumentNode } from '@platformos/platformos-common';
-import { NoDeprecatedCustomRule, validate } from 'graphql';
 
 import { GraphQLCheckDefinition, Severity, SourceCodeType } from '../../types';
+import { deprecationProblems } from '../../utils/graphql-deprecations';
 import { buildGraphQLSchema } from '../../utils/graphql-schema';
 
 export const DeprecatedGraphQLField: GraphQLCheckDefinition = {
@@ -22,11 +22,10 @@ export const DeprecatedGraphQLField: GraphQLCheckDefinition = {
 
   create(context) {
     /**
-     * `NoDeprecatedCustomRule` is deliberately absent from graphql-js's `specifiedRules`,
-     * which is why `GraphQLCheck` — running the default set — reports none of this. It is
-     * the only rule run here, so the two checks stay disjoint and neither can silence the
-     * other. The message is the schema's own `@deprecated(reason:)` text, so this check
-     * authors no prose about the platform.
+     * The message is the schema's own `@deprecated(reason:)` text, so this check authors no
+     * prose about the platform. `DeprecatedGraphQLFieldInline` reports the same thing for an
+     * inline `{% graphql %}` body, which this check cannot see: `SourceCodeType.GraphQL` is
+     * reached only from the `.graphql` extension.
      *
      * No suggestion is offered: a successor named in a reason is rarely a drop-in rename
      * (`models` to `records` changes argument names, filter input type and return shape),
@@ -40,23 +39,8 @@ export const DeprecatedGraphQLField: GraphQLCheckDefinition = {
       const sdl = await context.platformosDocset?.graphQL();
       if (!sdl) return;
 
-      const errors = validate(buildGraphQLSchema(sdl), document, [NoDeprecatedCustomRule]);
-
-      for (const error of errors) {
-        // The NAME, not the node: a `Field`'s own range spans its alias and its whole
-        // sub-selection, so a deprecated field with a large selection would be reported
-        // across every line of it. Measured — `Field`, `Argument` and `ObjectField` all
-        // carry the name separately, while an `EnumValue` is already just the value.
-        // `?? 0` follows `MissingTable` for a node that carries no location at all.
-        const node = error.nodes?.[0];
-        const name = node && 'name' in node ? node.name : undefined;
-        const location = name?.loc ?? node?.loc;
-
-        context.report({
-          message: error.message,
-          startIndex: location?.start ?? 0,
-          endIndex: location?.end ?? 0,
-        });
+      for (const problem of deprecationProblems(buildGraphQLSchema(sdl), document)) {
+        context.report(problem);
       }
     };
 

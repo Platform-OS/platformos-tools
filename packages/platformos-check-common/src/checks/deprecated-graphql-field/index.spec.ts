@@ -152,9 +152,10 @@ describe('Module: DeprecatedGraphQLField', () => {
     ]);
   });
 
-  it('does not see an inline {% graphql %} body, which is GraphQL in a LiquidHtml file', async () => {
+  it('does not see an inline {% graphql %} body, which DeprecatedGraphQLFieldInline covers', async () => {
     // The scope boundary is deliberate and shared with every GraphQL-typed check:
-    // SourceCodeType.GraphQL is reached only from the .graphql extension.
+    // SourceCodeType.GraphQL is reached only from the .graphql extension. The inline half is
+    // a LiquidHtml check of its own, so this one staying silent here is the contract.
     const offenses = await check(
       {
         'app/views/pages/index.liquid':

@@ -7,6 +7,7 @@ import {
 
 import { DeprecatedFilter } from './deprecated-filter';
 import { DeprecatedGraphQLField } from './deprecated-graphql-field';
+import { DeprecatedGraphQLFieldInline } from './deprecated-graphql-field-inline';
 import { DeprecatedTag } from './deprecated-tag';
 import { DuplicateRenderPartialArguments } from './duplicate-render-partial-arguments';
 import { DuplicateFrontmatterKey } from './duplicate-frontmatter-key';
@@ -65,6 +66,7 @@ import { UnconventionalTagSyntax } from './unconventional-tag-syntax';
 export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCheckDefinition)[] = [
   DeprecatedFilter,
   DeprecatedGraphQLField,
+  DeprecatedGraphQLFieldInline,
   DeprecatedTag,
   DuplicateFunctionArguments,
   DuplicateRenderPartialArguments,

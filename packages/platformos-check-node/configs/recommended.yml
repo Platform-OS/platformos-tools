@@ -9,6 +9,12 @@ DeprecatedFilter:
 DeprecatedFrontmatterField:
   enabled: true
   severity: 1
+DeprecatedGraphQLField:
+  enabled: true
+  severity: 1
+DeprecatedGraphQLFieldInline:
+  enabled: true
+  severity: 1
 DeprecatedTag:
   enabled: true
   severity: 1
@@ -31,6 +37,9 @@ FilterWithoutEffect:
   enabled: true
   severity: 1
 GraphQLCheck:
+  enabled: true
+  severity: 0
+GraphQLInlineCheck:
   enabled: true
   severity: 0
 GraphQLVariablesCheck:

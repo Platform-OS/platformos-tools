@@ -28,6 +28,7 @@ import { createBoundedCache } from '../../utils/bounded-cache';
 import { enclosingBranchEnd } from '../../utils/ast';
 import { extractUndefinedVariables } from '../partial-call-arguments/extract-undefined-variables';
 import { isNullLiteral } from '../../liquid-doc/utils';
+import { isLiquidTagGraphQL, isPlainTextBlock } from '../utils';
 import { alternativeSubstituteArg, navigationFilter } from '../../filter-semantics';
 import {
   ConditionValue,
@@ -1049,10 +1050,6 @@ export function buildLookupPath(lookups: LiquidArgument[]): string[] | undefined
   return path;
 }
 
-function isPlainTextBlock(node: LiquidTag & { children?: LiquidHtmlNode[] }): boolean {
-  return (node.children ?? []).every((child) => child.type === NodeTypes.TextNode);
-}
-
 function textContentOf(node: LiquidTag & { children?: LiquidHtmlNode[] }): string {
   return (node.children ?? [])
     .filter((child): child is TextNode => child.type === NodeTypes.TextNode)
@@ -1092,12 +1089,6 @@ function isLiquidTagParseJson(
   node: LiquidTag,
 ): node is LiquidTag & { markup: LiquidVariableLookup; children: LiquidHtmlNode[] } {
   return node.name === NamedTags.parse_json && typeof node.markup !== 'string';
-}
-
-function isLiquidTagGraphQL(
-  node: LiquidTag,
-): node is LiquidTag & { markup: GraphQLMarkup | GraphQLInlineMarkup } {
-  return node.name === NamedTags.graphql && typeof node.markup !== 'string';
 }
 
 function isLiquidTagFunction(node: LiquidTag): node is LiquidTag & { markup: FunctionMarkup } {

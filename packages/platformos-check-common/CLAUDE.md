@@ -95,7 +95,12 @@ export const MyCheck: LiquidCheckDefinition = {
   which cannot be anchored at the run's root
 - `context.report({ message, startIndex, endIndex, fix?, suggest? })` records an offense
 - `fix` is safe auto-fix; `suggest` is manual (multiple options or unsafe)
-- New checks must be registered in `src/checks/index.ts` → `allChecks` array
+- New checks must be registered in `src/checks/index.ts` → `allChecks` array, **and**
+  `packages/platformos-check-node/configs/{all,recommended}.yml` must be regenerated with
+  `yarn --cwd packages/platformos-check-node generate-factory-configs`. Those files are
+  generated but tracked, and a check absent from them does not run — for the CLI, the
+  language server or the supervisor. Two checks shipped disabled this way and the only
+  symptom was a corpus sweep that found nothing
 
 ### Visitor system (`src/visitor.ts`)
 

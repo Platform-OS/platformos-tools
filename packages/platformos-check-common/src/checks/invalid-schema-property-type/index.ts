@@ -1,7 +1,7 @@
 import { PROPERTY_BEARING_FILE_TYPES, SCHEMA_PROPERTY_TYPES } from '@platformos/platformos-common';
-import { JSONNode, ObjectNode } from '../../jsonc/types';
 import { Severity, SourceCodeType, YAMLCheckDefinition } from '../../types';
 import { isError } from '../../utils';
+import { propertyOf, schemaProperties } from '../schema-property-ast';
 
 /**
  * A schema property whose `type` the platform does not accept.
@@ -57,21 +57,3 @@ export const InvalidSchemaPropertyType: YAMLCheckDefinition = {
     };
   },
 };
-
-/**
- * Each entry of the document's `properties:` sequence.
- *
- * A SEQUENCE specifically: the mapping form is rejected on deploy, so a document using it is
- * broken for a reason this check does not own and has no properties worth reading.
- */
-function schemaProperties(ast: JSONNode): ObjectNode[] {
-  if (ast.type !== 'Object') return [];
-  const properties = propertyOf(ast, 'properties');
-  if (properties?.value.type !== 'Array') return [];
-
-  return properties.value.children.filter((child): child is ObjectNode => child.type === 'Object');
-}
-
-function propertyOf(node: ObjectNode, name: string) {
-  return node.children.find((child) => child.key.value === name);
-}

@@ -114,7 +114,13 @@ describe('Integration: the real pipeline over a deliberately broken project', ()
       'app/lib/commands/products/update/main.liquid :: UnusedDocParam (warning)',
       'app/lib/queries/products/search.liquid :: RequiredDocParamWithDefault (warning)',
       'app/lib/queries/products/search.liquid :: RequiredDocParamWithDefault (warning)',
+      // `invalid_schema.yml` declares `title` twice, as `string` and as `integer`, and
+      // `product.yml` declares a `title: string` of its own — one property name resolving to
+      // two types across the project, which is reported at each declaration.
+      'app/schema/invalid_schema.yml :: ConflictingSchemaPropertyType (warning)',
+      'app/schema/invalid_schema.yml :: ConflictingSchemaPropertyType (warning)',
       'app/schema/invalid_schema.yml :: InvalidSchemaPropertyType (error)',
+      'app/schema/product.yml :: ConflictingSchemaPropertyType (warning)',
       'app/views/pages/admin/dashboard.html.liquid :: MissingPartial (error)',
       'app/views/pages/admin/dashboard.html.liquid :: MissingRenderPartialArguments (error)',
       'app/views/pages/admin/dashboard.html.liquid :: MissingRenderPartialArguments (error)',

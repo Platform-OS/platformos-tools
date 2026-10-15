@@ -43,6 +43,7 @@ import { GraphQLVariablesCheck } from './graphql-variables';
 import { GraphQLCheck } from './graphql';
 import { UnknownProperty } from './unknown-property';
 import { InvalidSchemaPropertyType } from './invalid-schema-property-type';
+import { ConflictingSchemaPropertyType } from './conflicting-schema-property-type';
 import { InvalidWriteTarget } from './invalid-write-target';
 import { DuplicateFunctionArguments } from './duplicate-function-arguments';
 import { MissingRenderPartialArguments } from './missing-render-partial-arguments';
@@ -101,6 +102,7 @@ export const allChecks: (LiquidCheckDefinition | GraphQLCheckDefinition | YAMLCh
   GraphQLCheck,
   UnknownProperty,
   InvalidSchemaPropertyType,
+  ConflictingSchemaPropertyType,
   InvalidWriteTarget,
   MissingRenderPartialArguments,
   NestedGraphQLQuery,

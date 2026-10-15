@@ -3,6 +3,9 @@
 # Do not modify manually. Your changes will be overwritten.
 ignore:
   - node_modules
+ConflictingSchemaPropertyType:
+  enabled: true
+  severity: 1
 DeprecatedFilter:
   enabled: true
   severity: 1

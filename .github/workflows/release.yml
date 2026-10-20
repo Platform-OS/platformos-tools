@@ -36,7 +36,7 @@ jobs:
           cache-dependency-path: "yarn.lock"
 
       - name: Install the packages
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: yarn install --immutable
 
       - name: Build the code
         run: yarn build
@@ -49,7 +49,7 @@ jobs:
 
       - name: Query VS Code Marketplace version
         id: marketplace-version
-        run: echo "version=$(yarn --silent vsce show --json platformOS.platformos-check-vscode | jq -r .versions[0].version)" >> $GITHUB_OUTPUT
+        run: echo "version=$(yarn workspace platformos-check-vscode vsce show --json platformOS.platformos-check-vscode | jq -r .versions[0].version)" >> $GITHUB_OUTPUT
 
       - name: Query VS Code Package version (Before running changeset version)
         id: package-version
@@ -60,21 +60,22 @@ jobs:
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           # Put date in the title and commit message
-          title: "platformOS Tools Release — ${{ steps.date.outputs.date }}"
-          commit: "platformOS Tools Release — ${{ steps.date.outputs.date }}"
+          pr-title: "platformOS Tools Release — ${{ steps.date.outputs.date }}"
+          commit-message: "platformOS Tools Release — ${{ steps.date.outputs.date }}"
           # When there are no changesets, this gets called
-          publish: yarn changeset publish
+          publish-script: yarn changeset publish
           # When there are changesets, this gets called and then a PR is opened/updated
-          version: yarn release
+          version-script: yarn release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+          # Changesets publishes through `yarn npm publish`, which reads neither `.npmrc` nor
+          # NPM_CONFIG_*. An empty token falls through to npm Trusted Publishing (OIDC).
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          YARN_NPM_PUBLISH_PROVENANCE: true
 
       - name: VS Code Marketplace publish
-        if: steps.changesets.outputs.hasChangesets == 'false' && steps.marketplace-version.outputs.version != steps.package-version.outputs.version
+        if: steps.changesets.outputs.has-changesets == 'false' && steps.marketplace-version.outputs.version != steps.package-version.outputs.version
         run: yarn publish:vsce
 
       - name: Open VSX Registry publish
-        if: steps.changesets.outputs.hasChangesets == 'false' && steps.marketplace-version.outputs.version != steps.package-version.outputs.version
+        if: steps.changesets.outputs.has-changesets == 'false' && steps.marketplace-version.outputs.version != steps.package-version.outputs.version
         run: yarn publish:ovsx

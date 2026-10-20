@@ -136,8 +136,8 @@ Tool for maintaining and updating documentation.
 
 ### Prerequisites
 
-- Node.js 16.x or higher
-- Yarn 1.22.x or higher
+- Node.js 22 or higher
+- Yarn — any global `yarn` will do; the repository pins Yarn 4 through `.yarnrc.yml`
 
 ### For Development
 

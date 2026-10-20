@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-yarn build          # Compile TypeScript to dist/ (runs prebuild shims first)
+yarn build          # Compile TypeScript to dist/ (runs the grammar shim first)
 yarn type-check     # Type-check without emitting
 ```
 
@@ -53,7 +53,7 @@ toLiquidStatementAST(source, options?)  // Individual statements inside {% liqui
 
 ### Build Shim (`build/shims.js`)
 
-The prebuild step wraps `grammar/liquid-html.ohm` as a JS module (`grammar/liquid-html.ohm.js` using `String.raw`). This runs automatically before `build:ts`.
+The first step of `build:ts` wraps `grammar/liquid-html.ohm` as a JS module (`grammar/liquid-html.ohm.js` using `String.raw`).
 
 ## Key Types (`src/types.ts`)
 

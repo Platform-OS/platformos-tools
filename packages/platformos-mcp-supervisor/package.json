@@ -26,9 +26,7 @@
     "access": "public",
     "@platformos:registry": "https://registry.npmjs.org"
   },
-  "bin": {
-    "platformos-mcp-supervisor": "dist/bin/platformos-mcp-supervisor.js"
-  },
+  "bin": "dist/bin/platformos-mcp-supervisor.js",
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts"
@@ -51,5 +49,8 @@
     "@platformos/platformos-language-server-common": "0.1.1",
     "zod": "^3.23.8"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.18"
+  }
 }

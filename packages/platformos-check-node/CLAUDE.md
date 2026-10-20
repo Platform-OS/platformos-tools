@@ -14,7 +14,7 @@ All check/detection logic lives in `-common`; this package is the I/O shell.
 ## Commands
 
 ```bash
-yarn build        # tsc -b tsconfig.build.json, then postbuild: generate-factory-configs
+yarn build        # tsc -b tsconfig.build.json, then generate-factory-configs
 yarn type-check   # tsc --noEmit
 yarn test         # vitest
 
@@ -208,8 +208,8 @@ page's own frontmatter define its own route.
 ## Factory configs (`configs/*.yml`)
 
 `configs/all.yml`, `recommended.yml`, and `nothing.yml` are **generated** by
-`scripts/generate-factory-configs` (run automatically as the build's
-`postbuild:ts`) from check-common's `allChecks` / `recommended`. They are
+`scripts/generate-factory-configs` (run automatically at the end of the
+`build:ts` script) from check-common's `allChecks` / `recommended`. They are
 committed. **After adding or removing a check in check-common, rebuild this
 package (`yarn build`) and commit the regenerated configs** — `all.yml` and
 `recommended.yml` enumerate every check; `nothing.yml` only carries

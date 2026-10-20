@@ -69,7 +69,8 @@
     "@lezer/highlight": "^1.2.3",
     "@lezer/common": "^1.5.1",
     "@codemirror/state": "^6.5.4",
-    "@codemirror/view": "^6.39.15"
+    "@codemirror/view": "^6.39.15",
+    "**/js-yaml/argparse": "^2.0.1"
   },
   "engines": {
     "node": ">=22"

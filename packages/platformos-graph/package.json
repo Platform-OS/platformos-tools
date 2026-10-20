@@ -12,9 +12,7 @@
   "bugs": {
     "url": "https://github.com/Platform-OS/platformos-tools/issues"
   },
-  "bin": {
-    "platformos-graph": "bin/platformos-graph"
-  },
+  "bin": "bin/platformos-graph",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,6 +36,7 @@
   },
   "devDependencies": {
     "@platformos/platformos-check-node": "1.1.0",
-    "@types/js-yaml": "^4.0.9"
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.9.0"
   }
 }

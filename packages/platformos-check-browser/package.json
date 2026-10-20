@@ -28,5 +28,9 @@
   "dependencies": {
     "@platformos/platformos-check-common": "1.1.0",
     "@platformos/platformos-common": "0.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.18"
   }
 }

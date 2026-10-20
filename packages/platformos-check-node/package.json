@@ -26,8 +26,7 @@
   "scripts": {
     "build": "yarn build:ts",
     "build:ci": "yarn build",
-    "build:ts": "tsc -b tsconfig.build.json",
-    "postbuild:ts": "yarn generate-factory-configs",
+    "build:ts": "tsc -b tsconfig.build.json && yarn generate-factory-configs",
     "generate-factory-configs": "node scripts/generate-factory-configs",
     "test": "vitest",
     "type-check": "tsc --noEmit"
@@ -41,5 +40,8 @@
     "vscode-uri": "^3.1.0",
     "yaml": "^2.8.2"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.18"
+  }
 }

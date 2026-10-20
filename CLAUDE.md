@@ -105,7 +105,7 @@ skipping the last one loses the author's code:
 
 1. `grammar/liquid-html.ohm` — the ONLY grammar file under version control.
    `grammar/liquid-html.ohm.js` is **gitignored and generated** by `build/shims.js`
-   on `prebuild:ts`. Never hand-edit or hand-regenerate it.
+   as the first step of `build:ts`. Never hand-edit or hand-regenerate it.
 2. `stage-1-cst.ts` — new rules need a mapping; positional child indices shift.
 3. `stage-2-ast.ts` — widen the narrowest thing that works. Widening a shared helper
    such as `toExpression` cascades into ~20 consumers; a dedicated
@@ -332,7 +332,7 @@ When touching the ones that remain:
   output was plausible, committed, and entirely fictitious. Build the foreign-language
   snippet by concatenation, and assert the result is not degenerate.
 - Never hand-edit. `data/filters.json` in particular is re-downloaded by the
-  docs-updater's `postbuild`, so edits there are reverted by the next build.
+  docs-updater's `build` script, so edits there are reverted by the next build.
 - Any test-only fixture must be excluded from `tsconfig.build.json` — it must not
   ship in `dist`. `**/*-oracle.ts` is still excluded there for the next one.
 

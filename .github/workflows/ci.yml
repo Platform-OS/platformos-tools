@@ -40,7 +40,7 @@ jobs:
           cache-dependency-path: "yarn.lock"
 
       - name: Install the packages
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: yarn install --immutable
 
       - name: Build the code
         run: yarn build:ci
@@ -74,7 +74,7 @@ jobs:
           cache-dependency-path: "yarn.lock"
 
       - name: Install the packages
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: yarn install --immutable
 
       - name: Build the code
         run: yarn build:ts

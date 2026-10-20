@@ -25,7 +25,7 @@
     "admin:init": "sh ./scripts/dev-admin-init.sh",
     "build": "yarn workspaces foreach -A --topological-dev --exclude . run build",
     "build:ci": "yarn workspaces foreach -A --topological-dev --exclude . run build:ci",
-    "build:ts": "rm -rf packages/*/dist && yarn workspaces foreach -A --topological-dev --exclude . run build:ts",
+    "build:ts": "node -e \"for (const p of require('fs').readdirSync('packages')) require('fs').rmSync('packages/' + p + '/dist', { recursive: true, force: true })\" && yarn workspaces foreach -A --topological-dev --exclude . run build:ts",
     "dev:web": "yarn --cwd packages/vscode-extension dev:web",
     "format": "prettier --write \"packages/*/src/**/*.ts\"",
     "format:check": "prettier --check --ignore-unknown \"packages/*/src/**/*.ts\"",

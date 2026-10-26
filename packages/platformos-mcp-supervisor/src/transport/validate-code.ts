@@ -16,7 +16,7 @@
  * This module owns only the MCP surface: schema, description, registration, and mapping
  * input shape to output shape. All logic lives in `validate/`.
  */
-import { z, type ZodRawShape } from 'zod';
+import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getAppPaths, PlatformOSFileType } from '@platformos/platformos-common';
 
@@ -92,11 +92,8 @@ const EXAMPLE_PROMO = exampleOf(PlatformOSFileType.Partial, 'promo');
  * that does not convert may as well not be advertised at all. Prefer a zod builtin
  * over a `.refine` wherever one expresses the rule; `transport/validate-code.spec.ts`
  * pins the emitted document end to end.
- *
- * Typed as `ZodRawShape` (not the inferred literal shape) so `registerTool` does not
- * instantiate excessively deeply over the schema (TS2589 under zod 3.25).
  */
-export const VALIDATE_CODE_INPUT: ZodRawShape = {
+export const VALIDATE_CODE_INPUT = {
   file_path: filePath()
     .optional()
     .describe(
@@ -170,24 +167,8 @@ and the verdict above is always computed from ALL findings, not the shortened li
  */
 export const TOOL_TEXT = { VALIDATE_CODE_DESCRIPTION: DESCRIPTION } as const;
 
-/** The MCP text-content envelope every tool result is serialized into. */
-interface ToolTextResult {
-  content: Array<{ type: 'text'; text: string }>;
-}
-
-/**
- * Minimal local signature for `server.registerTool`. The SDK's real generic computes
- * the handler's args type from the zod shape, which instantiates excessively deeply
- * under zod 3.25 (TS2589). Args are validated at runtime by the shape above.
- */
-type RegisterTool = (
-  name: string,
-  config: { description: string; inputSchema: ZodRawShape },
-  cb: (args: Record<string, unknown>) => Promise<ToolTextResult>,
-) => unknown;
-
 export function registerValidateCode(server: McpServer, ctx: SupervisorContext): void {
-  (server.registerTool as unknown as RegisterTool)(
+  server.registerTool(
     'validate_code',
     { description: DESCRIPTION, inputSchema: VALIDATE_CODE_INPUT },
     async (args) => ({

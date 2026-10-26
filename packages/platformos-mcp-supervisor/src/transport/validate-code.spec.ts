@@ -1080,6 +1080,11 @@ describe('the JSON Schema a client receives for validate_code', () => {
     // Spelled out whole, because this document IS what the model reads. The example path
     // is derived the same way the description derives it, so a canonical directory moving
     // in `platformos-common` cannot rot this test — only OUR side falling behind can.
+    //
+    // No `additionalProperties: false`, at either level: unknown keys are stripped, not
+    // refused (see "TOLERATES a stale caller still sending mode"), so publishing it would
+    // advertise a rule the server does not enforce. zod 3's converter emitted it anyway;
+    // zod 4 converts the input side faithfully.
     const path = {
       type: 'string',
       minLength: 1,
@@ -1114,7 +1119,6 @@ describe('the JSON Schema a client receives for validate_code', () => {
               },
             },
             required: ['file_path', 'content'],
-            additionalProperties: false,
           },
           minItems: 1,
           maxItems: MAX_BATCH_FILES,
@@ -1123,7 +1127,6 @@ describe('the JSON Schema a client receives for validate_code', () => {
             '`content`. Files in one call can reference each other.',
         },
       },
-      additionalProperties: false,
       $schema: 'http://json-schema.org/draft-07/schema#',
     });
   });

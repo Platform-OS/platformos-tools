@@ -1,5 +1,15 @@
 ## platformos-check-vscode
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [4b8d35d]
+  - @platformos/platformos-check-common@1.2.0
+  - @platformos/platformos-language-server-common@0.1.2
+  - @platformos/platformos-language-server-node@0.1.2
+  - @platformos/platformos-language-server-browser@0.1.2
+
 ## 0.4.1
 
 ### Patch Changes

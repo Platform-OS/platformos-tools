@@ -1,5 +1,13 @@
 # @platformos/theme-check-node
 
+## 1.2.0
+
+### Patch Changes
+
+- Updated dependencies [4b8d35d]
+  - @platformos/platformos-check-common@1.2.0
+  - @platformos/platformos-check-docs-updater@1.2.0
+
 ## 1.1.0
 
 ### Minor Changes

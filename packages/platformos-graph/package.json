@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-graph",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "platformOS App Graph as a data structure",
   "author": "platformOS",
   "homepage": "https://github.com/Platform-OS/platformos-tools/tree/master/packages/platformos-graph#readme",
@@ -28,14 +28,14 @@
   },
   "dependencies": {
     "@platformos/liquid-html-parser": "^0.2.0",
-    "@platformos/platformos-check-common": "1.1.0",
+    "@platformos/platformos-check-common": "1.2.0",
     "@platformos/platformos-common": "0.2.0",
     "acorn": "^8.16.0",
     "js-yaml": "^4.1.1",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {
-    "@platformos/platformos-check-node": "1.1.0",
+    "@platformos/platformos-check-node": "1.2.0",
     "@types/js-yaml": "^4.0.9",
     "typescript": "^5.9.0"
   }

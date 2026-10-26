@@ -38,3 +38,8 @@ packages/*/reports/
 packages/*/stryker.config.mjs
 packages/*/vitest.stryker.config.mjs
 .pos
+
+# Yarn 4: only the pinned release is committed
+.yarn/*
+!.yarn/releases
+**/.yarn/install-state.gz

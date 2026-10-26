@@ -29,5 +29,9 @@
   "dependencies": {
     "@platformos/platformos-language-server-common": "0.1.1",
     "vscode-languageserver": "^9.0.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.18"
   }
 }

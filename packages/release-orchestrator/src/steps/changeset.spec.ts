@@ -30,7 +30,7 @@ describe('changeset', () => {
 
     await changesetTag();
 
-    expect(run).toHaveBeenCalledWith('yarn changeset tag');
+    expect(run).toHaveBeenCalledWith('yarn changeset git-tag');
     expect(console.log).toHaveBeenCalledWith('Creating git tags for package versions...');
     expect(console.log).toHaveBeenCalledWith('test output');
   });

@@ -62,6 +62,8 @@ Install the [platformOS Liquid extension](https://marketplace.visualstudio.com/i
 
 ```bash
 code --install-extension platformOS.platformos-check-vscode
+cursor --install-extension platformOS.platformos-check-vscode
+codium --install-extension platformOS.platformos-check-vscode
 ```
 
 ### For Standalone Tool Integration

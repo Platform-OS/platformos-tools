@@ -31,7 +31,7 @@
     "@platformos/platformos-check-node": "1.2.0",
     "@platformos/platformos-common": "0.2.0",
     "@platformos/platformos-language-server-common": "0.1.2",
-    "glob": "^13.0.0",
+    "glob": "^14.0.2",
     "vscode-languageserver": "^9.0.1",
     "vscode-uri": "^3.1.0"
   },

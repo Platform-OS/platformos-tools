@@ -33,7 +33,7 @@
     "jsonc-parser": "^3.3.1",
     "line-column": "^1.0.2",
     "lodash": "^4.17.23",
-    "minimatch": "^10.2.2",
+    "minimatch": "^11.0.1",
     "vscode-uri": "^3.1.0",
     "yaml": "^2.8.2"
   },

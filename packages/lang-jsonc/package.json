@@ -25,13 +25,13 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@lezer/generator": "^1.8.0",
+    "@lezer/generator": "^1.8.1",
     "typescript": "^5.9.0",
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@lezer/highlight": "^1.2.3",
-    "@lezer/lr": "^1.4.8"
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/lr": "^1.4.12"
   },
   "scripts": {
     "build": "yarn build:ts",

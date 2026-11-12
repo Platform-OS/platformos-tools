@@ -31,14 +31,14 @@
     "@platformos/platformos-check-common": "1.2.0",
     "@platformos/platformos-common": "0.2.0",
     "@platformos/platformos-graph": "0.2.1",
-    "@vscode/web-custom-data": "^0.4.6",
+    "@vscode/web-custom-data": "^0.6.3",
     "graphql": "^16.12.0",
     "graphql-language-service": "^5.2.2",
-    "vscode-css-languageservice": "^6.3.9",
+    "vscode-css-languageservice": "^6.3.10",
     "vscode-json-languageservice": "^5.7.1",
     "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.12",
-    "vscode-uri": "^3.1.0"
+    "vscode-languageserver-textdocument": "^1.0.16",
+    "vscode-uri": "^3.2.0"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

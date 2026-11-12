@@ -32,17 +32,17 @@
     "js-yaml": "^4.1.1",
     "jsonc-parser": "^3.3.1",
     "line-column": "^1.0.2",
-    "lodash": "^4.17.23",
-    "minimatch": "^11.0.1",
-    "vscode-uri": "^3.1.0",
-    "yaml": "^2.8.2"
+    "lodash": "^4.18.1",
+    "minimatch": "^11.0.7",
+    "vscode-uri": "^3.2.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/line-column": "^1.0.2",
-    "@types/lodash": "^4.17.23",
+    "@types/lodash": "^4.17.27",
     "typescript": "^5.9.0",
     "vitest": "^4.0.18",
-    "vscode-languageserver-textdocument": "^1.0.12"
+    "vscode-languageserver-textdocument": "^1.0.16"
   }
 }

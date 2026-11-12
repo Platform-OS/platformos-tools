@@ -36,9 +36,9 @@
     "@platformos/platformos-check-common": "1.2.0",
     "@platformos/platformos-check-docs-updater": "1.2.0",
     "@platformos/platformos-common": "0.2.0",
-    "glob": "^14.0.2",
-    "vscode-uri": "^3.1.0",
-    "yaml": "^2.8.2"
+    "glob": "^14.0.4",
+    "vscode-uri": "^3.2.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

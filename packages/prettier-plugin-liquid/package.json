@@ -52,7 +52,7 @@
   "devDependencies": {
     "@types/prettier": "^2.4.2",
     "cross-env": "^10.1.0",
-    "module-alias": "^2.3.4",
+    "module-alias": "^2.3.5",
     "prettier": "npm:prettier@^2.6.1",
     "prettier2": "npm:prettier@^2.6.1",
     "prettier3": "npm:prettier@^3.0.0",
@@ -60,7 +60,7 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.18",
-    "webpack": "^5.105.2",
+    "webpack": "^5.112.2",
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {

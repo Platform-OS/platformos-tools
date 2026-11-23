@@ -1,5 +1,19 @@
 ## platformos-check-vscode
 
+## 0.4.3
+
+### Patch Changes
+
+- bce5cf5: dependencies updates
+- Updated dependencies [bce5cf5]
+  - @platformos/liquid-html-parser@0.2.1
+  - @platformos/platformos-check-common@1.2.1
+  - @platformos/platformos-common@0.2.1
+  - @platformos/platformos-language-server-browser@0.1.3
+  - @platformos/platformos-language-server-common@0.1.3
+  - @platformos/platformos-language-server-node@0.1.3
+  - @platformos/prettier-plugin-liquid@0.1.2
+
 ## 0.4.2
 
 ### Patch Changes

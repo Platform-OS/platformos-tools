@@ -1,5 +1,11 @@
 # @platformos/platformos-common
 
+## 0.2.1
+
+### Patch Changes
+
+- bce5cf5: dependencies updates
+
 ## 0.2.0
 
 ### Minor Changes

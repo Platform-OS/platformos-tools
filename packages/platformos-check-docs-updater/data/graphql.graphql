@@ -15893,6 +15893,27 @@ type RootMutation {
   ): BackgroundJob @doc(category: "Admin")
 
   """
+  Stops a running background job of this instance, scheduled with the background
+  tag, and returns it. The job stops within a few seconds, wherever it is:
+  between two Liquid tags, or in a database query or HTTP request it is waiting
+  for. Changes made inside a transaction tag that has not finished are rolled
+  back, and jobs scheduled inside it never run; what the job did before that
+  stays done. Try tags do not catch the stop, though their ensure block runs,
+  and the job is not retried. Other background jobs, such as a deploy, data
+  export or data import, cannot be stopped. Raises "Job not found" when no such
+  job is running (a job that started in the last ten seconds may not be listed
+  as running yet). The list of running jobs is up to ten seconds old, so a job
+  that has just ended can still be returned: it is not stopped, and neither is a
+  later run of it
+  """
+  admin_background_job_stop(
+    """
+    Id of the running background job, as returned by admin_background_jobs
+    """
+    id: ID!
+  ): BackgroundJob @doc(category: "Admin")
+
+  """
   Deletes background jobs of this instance that match the filter and have not
   run yet or have failed, and returns the deleted jobs. Looks at scheduled jobs
   unless filter.type says otherwise. Deletes at most 100 jobs per call (the

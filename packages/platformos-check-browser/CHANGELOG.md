@@ -1,5 +1,14 @@
 # @platformos/theme-check-browser
 
+## 1.2.1
+
+### Patch Changes
+
+- bce5cf5: dependencies updates
+- Updated dependencies [bce5cf5]
+  - @platformos/platformos-check-common@1.2.1
+  - @platformos/platformos-common@0.2.1
+
 ## 1.2.0
 
 ### Patch Changes

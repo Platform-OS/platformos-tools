@@ -1,5 +1,13 @@
 # @platformos/theme-language-server-browser
 
+## 0.1.3
+
+### Patch Changes
+
+- bce5cf5: dependencies updates
+- Updated dependencies [bce5cf5]
+  - @platformos/platformos-language-server-common@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes

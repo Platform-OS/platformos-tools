@@ -1,6 +1,6 @@
 {
   "name": "@platformos/platformos-check-browser",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "license": "MIT",
@@ -26,8 +26,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@platformos/platformos-check-common": "1.2.0",
-    "@platformos/platformos-common": "0.2.0"
+    "@platformos/platformos-check-common": "1.2.1",
+    "@platformos/platformos-common": "0.2.1"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

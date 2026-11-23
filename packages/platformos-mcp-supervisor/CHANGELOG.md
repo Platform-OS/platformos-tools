@@ -1,5 +1,18 @@
 # @platformos/platformos-mcp-supervisor
 
+## 0.2.2
+
+### Patch Changes
+
+- bce5cf5: dependencies updates
+- Updated dependencies [bce5cf5]
+  - @platformos/liquid-html-parser@0.2.1
+  - @platformos/platformos-check-common@1.2.1
+  - @platformos/platformos-check-node@1.2.1
+  - @platformos/platformos-common@0.2.1
+  - @platformos/platformos-graph@0.2.2
+  - @platformos/platformos-language-server-common@0.1.3
+
 ## 0.2.1
 
 ### Patch Changes
